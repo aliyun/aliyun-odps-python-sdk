@@ -1,0 +1,11 @@
+[odps]
+access_id=
+secret_access_key=
+project=
+endpoint=
+
+[tunnel]
+endpoint=
+
+[test]
+logging_level=INFO

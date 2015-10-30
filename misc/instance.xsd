@@ -1,0 +1,486 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema
+    elementFormDefault="qualified"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="Instance">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="Job" type="jobType" maxOccurs="1" minOccurs="0"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+  <!--Job type defination-->
+  <xs:complexType name="jobType">
+    <xs:sequence>
+      <!--Job Name-->
+      <xs:element name="Name" maxOccurs="1" minOccurs="0" type="nameType"/>
+      <!-- Job Comment-->
+      <xs:element name="Comment" maxOccurs="1" minOccurs="0" type="string128"/>
+      <!--Declare parameters-->
+      <xs:element name="Parameters" type="parametersDeclareType" minOccurs="0" maxOccurs="1"/>
+      <!--Priority-->
+      <xs:element name="Priority" maxOccurs="1" minOccurs="0" default="9">
+        <xs:simpleType>
+          <xs:restriction base="xs:int">
+            <xs:minInclusive value="0"/>
+            <xs:maxInclusive value="9"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <!--Tasks-->
+      <xs:element name="Tasks">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:choice maxOccurs="unbounded">
+              <xs:element type="sqlTaskType"   name="SQL"  minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="sqlPlanTaskType" name="SQLPlan" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="dtType" name="DT" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="mapReduceType" name="MapReduce" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="graphType" name="Graph" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="mockType" name="Mock" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="adminType" name="Admin" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="subJobType" name="SubJob" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="plSQLType" name="PLSQL" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="lineageTaskType" name="Lineage" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="sqlCostTaskType" name="SQLCost" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="xLibType" name="XLib" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="xMatrixType" name="Matrix" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="xMatrixType" name="Stat" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="dupType" name="Dup" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="mergeTaskType" name="Merge" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="ctrTaskType" name="CTR" minOccurs="0" maxOccurs="unbounded"/>
+              <xs:element type="copyTaskType" name="COPY" minOccurs="0" maxOccurs="unbounded"/> 	
+              <xs:element type="backupTaskType" name="Backup" minOccurs="0" maxOccurs="unbounded"/> 	
+              <xs:element type="lotType" name="LOT" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:choice>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <!--DAG defination-->
+      <xs:element name="DAG" type="dagType" maxOccurs="1" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="Concurrent" type="xs:boolean" use="optional"/>
+  </xs:complexType>
+  <!--Task Base-->
+  <xs:complexType name="taskBaseType">
+    <xs:sequence>
+      <!--Task Name-->
+      <xs:element name="Name" maxOccurs="1" minOccurs="1" type="nameType64"/>
+      <!-- Task Comment-->
+      <xs:element name="Comment" maxOccurs="1" minOccurs="0" type="string1K"/>
+      <!--Config-->
+      <xs:element name="Config" maxOccurs="1" minOccurs="0"  type="propertiesType"/>
+    </xs:sequence>
+  </xs:complexType>
+	<!--COPY Task Type-->
+	<xs:complexType name="copyTaskType">
+		<xs:complexContent>
+			<xs:extension base="taskBaseType">
+				<xs:sequence>
+					<xs:element name="Local" type="LocalType" minOccurs="0" maxOccurs="unbounded"/>
+					<xs:element name="Tunnel" type="TunnelType" minOccurs="0" maxOccurs="unbounded"/>
+					<xs:element name="MappingItems" type="MappingItemsType" minOccurs="0" maxOccurs="1"/>
+					<xs:element name="JobInstanceNumber" type="xs:unsignedInt" minOccurs="0" maxOccurs="1"/>
+					<xs:element name="Mode" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				</xs:sequence>
+			</xs:extension>
+		</xs:complexContent>
+	</xs:complexType>
+    <xs:complexType name="LOTPlanType">
+      <xs:sequence>
+        <xs:element name="ResourceName" type="xs:string" minOccurs="1" maxOccurs="1"/>
+        <xs:element name="Project" type="xs:string" minOccurs="1" maxOccurs="1"/>
+      </xs:sequence>
+    </xs:complexType>
+    <xs:complexType name="lotType">
+      <xs:complexContent>
+        <xs:extension base="taskBaseType">
+          <xs:sequence>
+            <xs:element name="Query" type="string2M" minOccurs="0" maxOccurs="1"/>
+            <xs:element name="Plan" type="LOTPlanType" minOccurs="0" maxOccurs="1"/>
+          </xs:sequence>
+        </xs:extension>
+      </xs:complexContent>
+    </xs:complexType>
+	<xs:complexType name="LocalType">
+		<xs:sequence>
+			<xs:element name="Type" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="Project" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="Table" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="Partition" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="TunnelType">
+		<xs:sequence>
+			<xs:element name="Type" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="Project" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="Table" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="Partition" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="EndPoint" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="OdpsEndPoint" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="Signature" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="SignatureType" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MappingItemsType">
+		<xs:sequence>
+			<xs:element name="MappingItem" type="MappingItemType" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="MappingItemType">
+		<xs:sequence maxOccurs="unbounded">
+			<xs:element name="SourceColumn" type="xs:string"/>
+			<xs:element name="DestColumn" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+  <!--SQL Task Type-->
+  <xs:complexType name="sqlTaskType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Query" minOccurs="1" maxOccurs="1" type="string2M"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--SQL Plan Task Type-->
+  <xs:complexType name="sqlPlanTaskType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Query"  minOccurs="1" maxOccurs="1" type="string2M"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--Lineage Task Type-->
+  <xs:complexType name="lineageTaskType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Query"  minOccurs="1" maxOccurs="1" type="string2M"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--SQLCost Task Type-->
+  <xs:complexType name="sqlCostTaskType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Query"  minOccurs="1" maxOccurs="1" type="string2M"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--DT Task Type-->
+  <xs:complexType name="dtType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Statement" maxOccurs="1" minOccurs="1" type="string1M"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--Map Reduce Task Type-->
+  <xs:complexType name="mapReduceType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="JobConf" type="propertiesType" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--Graph Task Type-->
+  <xs:complexType name="graphType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="JobConf" type="propertiesType" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <!--MOCK Task Type-->
+  <xs:complexType name="mockType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Runtime"   type="string32" minOccurs="1" maxOccurs="1" />
+          <xs:element name="Cpu" type="string32"  minOccurs="1" maxOccurs="1"/>
+          <xs:element name="Memory"    type="string32"  minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--CTR Task-->
+  <xs:complexType name="ctrTaskType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Method" maxOccurs="1" minOccurs="1" type="string1M"/>
+          <xs:element name="CTRConf" maxOccurs="1" minOccurs="1" type="string2M"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <!--Nest task type-->
+  <xs:complexType name="subJobType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="JobName" type="nameType" minOccurs="1" maxOccurs="1"/>
+          <xs:element name="CronExpression" type="string32" minOccurs="0" maxOccurs="1" />
+          <xs:element name="Parameters" maxOccurs="1" minOccurs="0" type="parametersPasstype"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--admin task-->
+  <xs:complexType name="adminType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Command" type="string1M" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--backup task-->
+  <xs:complexType name="backupTaskType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Command" type="string1M" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--PL sql task-->
+  <xs:complexType name="plSQLType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Statement" type="string2M" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--Dup task-->
+  <xs:complexType name="dupType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Project" type="nameType" minOccurs="1" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--Merge Task Type-->
+  <xs:complexType name="mergeTaskType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="TableName" minOccurs="1" maxOccurs="100" type="TableItem" />
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--Parameter in declaration-->
+  <xs:complexType name="parametersDeclareType">
+    <xs:sequence>
+      <xs:element name="Parameter" maxOccurs="unbounded" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Name"  maxOccurs="1" minOccurs="0" type="string32"/>
+            <xs:element name="Type"  maxOccurs="1" minOccurs="0">
+              <xs:simpleType>
+                <xs:restriction base="xs:string">
+                  <!--Supported types include string, int-->
+                  <xs:pattern value="[sS][tS][rR][iI][nN][gG]|[iI][nN][tT]"/>
+                </xs:restriction>
+              </xs:simpleType>
+            </xs:element>
+            <xs:element name="DefaultValue" maxOccurs="1" minOccurs="0" type="string128"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <!--Parameter in Instance pass to job-->
+  <xs:complexType name="parametersPasstype">
+    <xs:sequence>
+      <xs:element name="Parameter" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Name"  maxOccurs="1" minOccurs="0" type="string32"/>
+            <xs:element name="Value" maxOccurs="1" minOccurs="0" type="string128"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <!--Task Config Defination-->
+  <!--Data Source-->
+  <xs:complexType name="dtDataSourceType">
+    <xs:sequence>
+      <xs:element name="URI" type="string128" maxOccurs="1" minOccurs="0"/>
+      <xs:element name="Properties" type="propertiesType" maxOccurs="1" minOccurs="0"/>
+      <xs:element name="Schema" type="dtDataSchemaType" maxOccurs="1" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <!--Properties Type defination-->
+  <xs:complexType name="propertiesType">
+    <xs:sequence>
+      <xs:element name="Property"  minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Name" type="string128"/>
+            <xs:element name="Value" type="string128K"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <!-- Data Schema Type Defination-->
+  <xs:complexType name="dtDataSchemaType">
+    <xs:sequence>
+      <xs:element name="ColumnDelimiter" type="string1" maxOccurs="1" minOccurs="0"/>
+      <xs:element name="RowDelimiter" type="string1" maxOccurs="1" minOccurs="0"/>
+      <xs:element name="Columns" maxOccurs="1" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Column" maxOccurs="unbounded" minOccurs="1">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="Name" minOccurs="1" maxOccurs="1" type="string128"/>
+                  <xs:element name="Type" minOccurs="0" maxOccurs="1" type="string32"/>
+                  <xs:element name="Nullable" minOccurs="0" maxOccurs="1" type="xs:boolean"/>
+                  <xs:element name="Default" minOccurs="0" maxOccurs="1" type="xs:string"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+  <!--DAG type defination-->
+  <xs:complexType name="dagType">
+    <xs:sequence>
+      <xs:element name="Comment" maxOccurs="1" minOccurs="0" type="string128"/>
+      <xs:element name="RunMode">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="[sS][eE][qQ][uU][eE][nN][cC][eE]|[pP][aA][rR][aA][lL][lL][eE][lL]"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!--XLib Task Type-->
+  <xs:complexType name="xLibType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Method" type="nameType" minOccurs="1" maxOccurs="1"/>
+          <xs:element name="Parameters" type="string2M" minOccurs="1" maxOccurs="1"/>
+          <xs:element name="InputTablenames" type="string2M" minOccurs="0" maxOccurs="1"/>
+          <xs:element name="OutputTablenames" type="string2M" minOccurs="0" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <!--Matrix Task Type-->
+  <xs:complexType name="xMatrixType">
+    <xs:complexContent>
+      <xs:extension base="taskBaseType">
+        <xs:sequence>
+          <xs:element name="Method" type="nameType" minOccurs="1" maxOccurs="1"/>
+          <xs:element name="Properties" maxOccurs="1" minOccurs="0"  type="propertiesType"/>
+          <xs:element name="Parameters" type="string2M" minOccurs="0" maxOccurs="1"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <!--Data Replica Task Type-->
+  <!--Name type -->
+  <xs:simpleType name="nameType">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="32"/>
+      <xs:minLength value="3"/>
+      <xs:pattern value="([a-z]|[A-Z]){1,}([a-z]|[A-Z]|[\d]|_)*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!--Name type 64 chars-->
+  <xs:simpleType name="nameType64">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="64"/>
+      <xs:minLength value="3"/>
+      <xs:pattern value="([a-z]|[A-Z]){1,}([a-z]|[A-Z]|[\d]|_)*"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <!--String type length=1-->
+  <xs:simpleType name="string1">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="32"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <!--String type length=32-->
+  <xs:simpleType name="string32">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="32"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <!--String type length=128-->
+  <xs:simpleType name="string128">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="128"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <!--String type length=1K 1024-->
+  <xs:simpleType name="string1K">
+    <xs:restriction  base="xs:string">
+      <xs:maxLength value="1024"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <!--String type length=128K 131072-->
+  <xs:simpleType name="string128K">
+    <xs:restriction  base="xs:string">
+      <xs:maxLength value="131072"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <!--String type length=10K 10240-->
+  <xs:simpleType name="string10K">
+    <xs:restriction  base="xs:string">
+      <xs:maxLength value="10240"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <!--String type length=1M 1048576 -->
+  <xs:simpleType name="string1M">
+    <xs:restriction  base="xs:string">
+      <xs:maxLength value="1048576"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <!--String type length=2M 2097152 -->
+  <xs:simpleType name="string2M">
+    <xs:restriction  base="xs:string">
+      <xs:maxLength value="2097152"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name='TableItem'>
+  <xs:simpleContent>
+  <xs:extension base='string1K'>
+    <xs:attribute name="cluster_name" use="optional" type="string32"/>
+    <xs:attribute name="merge_cross_paths" use="optional" type="xs:boolean"/>
+  </xs:extension>
+  </xs:simpleContent>
+  </xs:complexType>
+</xs:schema>

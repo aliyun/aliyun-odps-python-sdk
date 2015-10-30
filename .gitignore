@@ -1,0 +1,37 @@
+*.py[cod]
+
+# C extensions
+*.so
+
+# sqlite3 db files
+*.db
+
+# Packages
+*.egg
+*.egg-info
+dist
+build
+eggs
+parts
+bin
+var
+sdist
+develop-eggs
+.installed.cfg
+lib
+lib64
+__pycache__
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage reports
+.coverage
+.tox
+nosetests.xml
+
+# virtualenv
+env
+
+# FIXME: Find a better place for test.conf
+odps/test/test.conf
