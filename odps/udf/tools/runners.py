@@ -18,10 +18,10 @@
 """UDF runners implementing the local run framework.
 """
 
-import os
 import sys
 
-from odps import (udf, distcache)
+from odps import (udf)
+from odps.udf import distcache
 from . import utils
 
 

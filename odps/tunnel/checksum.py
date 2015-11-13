@@ -18,61 +18,51 @@
 # under the License.
 
 
-from odps.utils import PyCrc32c, DataStream
+import struct
+
+import six
+
+from ..crc import Crc32c
 
 
 class Checksum(object):
-    TRUE = DataStream(chr(1))
-    FALSE = DataStream(chr(0))
+    TRUE = bytearray([1])
+    FALSE = bytearray([0])
     
     def __init__(self):
-        self.crc = PyCrc32c()
-        self.byte_buffer = DataStream(8)
-        
-    def update_(self, v, force=None):
-        def _update_boolean(v):
-            b = self.TRUE if v else self.FALSE
-            self.crc.update(b, 0, 1)
-        def _update_int(v):
-            self.byte_buffer.clear()
-            self.byte_buffer.append(v, '<i')
-            self.crc.update(self.byte_buffer, 0, 4)
-        def _update_long(v):
-            self.byte_buffer.clear()
-            self.byte_buffer.append(v, '<q')
-            self.crc.update(self.byte_buffer, 0, 8)
-        def _update_float(v):
-            self.byte_buffer.clear()
-            self.byte_buffer.append(v, '<d')
-            self.crc.update(self.byte_buffer, 0, 8)
-        
-        if force is not None:
-            if force == 'boolean':
-                _update_boolean(v)
-            elif force == 'int':
-                _update_int(v)
-            elif force == 'long':
-                _update_long(v)
-            elif force == 'float':
-                _update_float(v)
-            else:
-                raise ValueError(
-                    'Force can only be boolean, int, long or float')
-        else:
-            if v is True or v is False:
-                _update_boolean(v)
-            elif isinstance(v, int):
-                _update_int(v)
-            elif isinstance(v, long):
-                _update_long(v)
-            elif isinstance(v, float):
-                _update_float(v)
+        self.crc = Crc32c()
+
+    def update_bool(self, val):
+        assert isinstance(val, bool)
+
+        val = self.TRUE if val else self.FALSE
+        self.update(val)
+
+    def update_int(self, val):
+        assert isinstance(val, six.integer_types)
+
+        val = struct.pack('<i', val)
+        self.update(val)
+
+    def update_long(self, val):
+        assert isinstance(val, six.integer_types)
+
+        val = struct.pack('<q', val)
+        self.update(val)
+
+    def update_float(self, val):
+        assert isinstance(val, float)
+
+        val = struct.pack('<d', val)
+        self.update(val)
             
-    def update(self, b, off, length):
+    def update(self, b, off=None, length=None):
+        off = off or 0
+        length = length or len(b)
         self.crc.update(b, off, length)
         
-    def get_value(self):
-        return self.crc.get_value()
+    def getvalue(self):
+        return self.crc.getvalue()
     
     def reset(self):
         return self.crc.reset()

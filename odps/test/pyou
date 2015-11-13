@@ -1,5 +1,0 @@
-#!/bin/sh
-
-export PYTHONPATH=.:misc
-
-../../scripts/pyou $@

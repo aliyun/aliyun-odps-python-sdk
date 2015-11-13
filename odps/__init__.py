@@ -16,7 +16,7 @@
 # under the License.
 
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 __all__ = ['ODPS',]
 
 import sys
@@ -24,11 +24,12 @@ import sys
 version = sys.version_info
 if version[0] != 2:
     raise Exception('pyodps does not support python3 yet.')
-if version[1] < 7:
-    raise Exception('Python version must be >= 2.7 (but not python3)')
-
 
 import pkg_resources
 pkg_resources.declare_namespace(__name__)
 
 from .core import ODPS
+from .config import options
+
+# compatible
+from .udf import distcache

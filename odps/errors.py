@@ -30,6 +30,10 @@ from . import utils
 LOG = logging.getLogger(__name__)
 
 
+class DependencyNotInstalledError(Exception):
+    pass
+
+
 def parse_response(resp):
     """Parses the content of response and returns an exception object.
     """
@@ -61,15 +65,21 @@ def throw_if_parsable(resp):
         # Error occurred during parsing the response. We ignore it and delegate
         # the situation to caller to handle.
         LOG.debug(utils.stringify_expt())
-    if e:
+
+    if e is not None:
         raise e
+
+    if resp.status_code == 404:
+        raise NoSuchObject('No such object.')
+    else:
+        raise ODPSError(str(resp.status_code))
 
 
 class ODPSError(RuntimeError):
     """
     """
 
-    def __init__(self, msg, request_id, code=None, host_id=None):
+    def __init__(self, msg, request_id=None, code=None, host_id=None):
         super(ODPSError, self).__init__(msg)
         self.request_id = request_id
         self.code = code
@@ -110,17 +120,22 @@ class ServerDefinedException(ODPSError):
 class MethodNotAllowed(ServerDefinedException):
     pass
 
+
 class NoSuchObject(ServerDefinedException):
     pass
+
 
 class InvalidArgument(ServerDefinedException):
     pass
 
+
 class Unauthorized(ServerDefinedException):
     pass
+
 
 class SchemaParseError(ServerDefinedException):
     pass
 
-class DependencyNotInstalledError(Exception):
+
+class InvalidStateSetting(ServerDefinedException):
     pass

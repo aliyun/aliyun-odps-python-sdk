@@ -5,8 +5,10 @@ Elegent way to access ODPS API.
 ## Dependencies
 
  * Python (=2.7.x)
- * requests (>= 2.1.0)
- * setuptools (>= 3.0)
+ * setuptools (>=3.0)
+ * requests (>=2.1.0)
+ * enum34 (>=1.0.4)
+ * six (>=1.10.0)
  * protobuf (>=2.5.0)
 
 ## Installation
@@ -14,7 +16,7 @@ Elegent way to access ODPS API.
 The quick way:
 
 ```
-pip install git+http://github.com/aliyun/aliyun-odps-python-sdk.git
+pip install pyodps
 ```
 
 Or from source code:
@@ -41,9 +43,9 @@ $ python setup.py install
 >>> dual = o.get_table('dual')
 >>> dual.name
 'dual'
->>> dual.create_time
+>>> dual.creation_time
 datetime.datetime(2014, 6, 6, 13, 28, 24)
->>> dual.is_view
+>>> dual.is_virtual_view
 False
 >>> dual.size
 448

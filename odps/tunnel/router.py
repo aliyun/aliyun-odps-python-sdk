@@ -17,24 +17,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
-from urlparse import urlparse
+from six.moves.urllib.parse import urlparse
 
 from odps.tunnel.errors import TunnelError
+
 
 class TunnelServerRouter(object):
     
     def __init__(self, client):
         self.client = client
         
-    def get_tunnel_server(self, project_name, protocal):
-        if protocal is None or protocal not in ('http', 'https'):
-            raise TunnelError("Invalid protocal: "+protocal)
-        
-        params = {'service': None}
-        resp = self.client.projects[project_name].tunnel.get(params=params)
+    def get_tunnel_server(self, project, protocol):
+        if protocol is None or protocol not in ('http', 'https'):
+            raise TunnelError("Invalid protocol: "+protocol)
+
+        url = '/'.join([project.resource().rstrip('/'), 'tunnel'])
+        params = {'service': ''}
+        resp = self.client.get(url, params=params)
+
         if self.client.is_ok(resp):
             addr = resp.content
-            return urlparse('%s://%s' % (protocal, addr)).geturl()
+            return urlparse('%s://%s' % (protocol, addr)).geturl()
         else:
             raise TunnelError("Can't get tunnel server address")

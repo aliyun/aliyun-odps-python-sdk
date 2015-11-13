@@ -16,7 +16,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
+from odps.tunnel.io import CompressOption
 from odps.tunnel.tabletunnel import TableTunnel
+from odps.tunnel.uploadsession import UploadSession
+from odps.tunnel.downloadsession import DownloadSession
 
-TableTunnel = TableTunnel
+UploadStatus = UploadSession.Status
+DownloadStatus = DownloadSession.Status

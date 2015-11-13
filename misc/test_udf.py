@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from odps.udf import annotate, BaseUDAF, BaseUDTF
 from odps import distcache
+from odps.udf import annotate, BaseUDAF, BaseUDTF, distcache
 
 
 @annotate(' bigint, bigint -> bigint ')

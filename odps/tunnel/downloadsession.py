@@ -16,119 +16,116 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from enum import Enum
+import six
 
-import json
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
-
-from odps.models import Schema
-from odps.tunnel.errors import TunnelError
-from odps.tunnel.conf import CompressOption
-from odps.tunnel.reader import ProtobufInputReader
+from .. import serializers, types
+from ..models import Schema
+from .io import CompressOption
+from .errors import TunnelError
+from .reader import TunnelReader
 
 
-class DownloadSession(object):
-    class Status(object):
-        UNKNOWN, NORMAL, CLOSES, EXPIRED = range(4)
-        
-    def __init__(self, conf, project_name, table_name, 
-                 partition_spec, download_id=None, compress_option=None):
-        self.conf = conf
-        self.project_name = project_name
-        self.table_name = table_name
-        self.partition_spec = partition_spec
+class DownloadSession(serializers.JSONSerializableModel):
+    __slots__ = '_client', '_table', '_partition_spec', '_compress_option'
+
+    class Status(Enum):
+        Unknown = 'UNKNOWN'
+        Normal = 'NORMAL'
+        Closes = 'CLOSES'
+        Expired = 'EXPIRED'
+
+    id = serializers.JSONNodeField('DownloadID')
+    status = serializers.JSONNodeField(
+        'Status', parse_callback=lambda s: DownloadSession.Status(s.upper()))
+    count = serializers.JSONNodeField('RecordCount')
+    schema = serializers.JSONNodeReferenceField(Schema, 'Schema')
+
+    def __init__(self, client, table, partition_spec,
+                 download_id=None, compress_option=None):
+        super(DownloadSession, self).__init__()
+
+        self._client = client
+        self._table = table
+
+        if isinstance(partition_spec, six.string_types):
+            partition_spec = types.PartitionSpec(partition_spec)
+        if isinstance(partition_spec, types.PartitionSpec):
+            partition_spec = str(partition_spec).replace("'", '')
+        self._partition_spec = partition_spec
+
         if download_id is None:
-            self.init()
+            self._init()
         else:
-            self.id_ = download_id
+            self.id = download_id
             self.reload()
-        self.compress_option = compress_option
+        self._compress_option = compress_option
 
-    def init(self):
+    def _init(self):
         params = {'downloads': ''}
         headers = {'Content-Length': 0}
-        if self.partition_spec is not None and \
-            len(self.partition_spec) > 0:
-            params['partition'] = self.partition_spec
+        if self._partition_spec is not None and \
+                len(self._partition_spec) > 0:
+            params['partition'] = self._partition_spec
 
-        client = self.get_resource()
-        resp = client.post({}, params=params, headers=headers)
-        if client.is_ok(resp):
-            self._parse(resp)
+        url = self._table.resource()
+        resp = self._client.post(url, {}, params=params, headers=headers)
+        if self._client.is_ok(resp):
+            self.parse(resp, obj=self)
         else:
             e = TunnelError.parse(resp)
             raise e
     
     def reload(self):
-        params = {'downloadid': self.id_}
+        params = {'downloadid': self.id}
         headers = {'Content-Length': 0}
-        if self.partition_spec is not None and \
-            len(self.partition_spec) > 0:
-            params['partition'] = self.partition_spec
+        if self._partition_spec is not None and \
+                len(self._partition_spec) > 0:
+            params['partition'] = self._partition_spec
 
-        client = self.get_resource()
-        resp = client.get(params=params, headers=headers)
-        if client.is_ok(resp):
-            self._parse(resp)
+        url = self._table.resource()
+        resp = self._client.get(url, params=params, headers=headers)
+        if self._client.is_ok(resp):
+            self.parse(resp, obj=self)
         else:
             e = TunnelError.parse(resp)
             raise e
-    
-    def _parse(self, xml):
-        root = json.loads(xml.content)
-        node = root.get('DownloadID')
-        if node is not None:
-            self.id_ = node
-        node = root.get('Status')
-        if node is not None:
-            self.status = getattr(DownloadSession.Status, node.upper())
-        node = root.get('RecordCount')
-        if node is not None:
-            self.count = int(node)
-        node = root.get('Schema')
-        if node is not None:
-            self.schema = Schema.parse(json.dumps(node))
-            
-    def get_resource(self):
-        return self.conf.get_resource(self.project_name, self.table_name)
             
     def open_record_reader(self, start, count, compress=False):
-        compress_option = self.compress_option or self.conf.option
+        compress_option = self._compress_option or CompressOption()
 
         params = {}
         headers = {'Content-Length': 0, 'x-odps-tunnel-version': 4}
         if compress:
             if compress_option.algorithm == \
-                    CompressOption.CompressionAlgorithm.ODPS_ZLIB:
+                    CompressOption.CompressAlgorithm.ODPS_ZLIB:
                 headers['Accept-Encoding'] = 'deflate'
             elif compress_option.algorithm == \
-                    CompressOption.CompressionAlgorithm.ODPS_SNAPPY:
+                    CompressOption.CompressAlgorithm.ODPS_SNAPPY:
                 headers['Content-Encoding'] = 'x-snappy-framed'
             elif compress_option.algorithm != \
-                    CompressOption.CompressionAlgorithm.ODPS_RAW:
+                    CompressOption.CompressAlgorithm.ODPS_RAW:
                 raise TunnelError('invalid compression option')
-        params['downloadid'] = self.id_
+        params['downloadid'] = self.id
         params['data'] = ''
         params['rowrange'] = '(%s,%s)' % (start, count)
-        if self.partition_spec is not None and len(self.partition_spec) > 0:
-            params['partition'] = self.partition_spec
+        if self._partition_spec is not None and len(self._partition_spec) > 0:
+            params['partition'] = self._partition_spec
 
-        client = self.get_resource()
-        resp = client.get(params=params, headers=headers)
-        if not client.is_ok(resp):
+        url = self._table.resource()
+        resp = self._client.get(url, params=params, headers=headers)
+        if not self._client.is_ok(resp):
             e = TunnelError.parse(resp)
             raise e
         
         content_encoding = resp.headers.get('Content-Encoding')
         if content_encoding is not None:
             if content_encoding == 'deflate':
-                self.conf.option = CompressOption(
-                    CompressOption.CompressionAlgorithm.ODPS_ZLIB, -1, 0)
+                self._compress_option = CompressOption(
+                    CompressOption.CompressAlgorithm.ODPS_ZLIB, -1, 0)
             elif content_encoding == 'x-snappy-framed':
-                self.conf.option = CompressOption(
-                    CompressOption.CompressionAlgorithm.ODPS_SNAPPY, -1, 0)
+                self._compress_option = CompressOption(
+                    CompressOption.CompressAlgorithm.ODPS_SNAPPY, -1, 0)
             else:
                 raise TunnelError('invalid content encoding')
             compress = True
@@ -136,4 +133,4 @@ class DownloadSession(object):
             compress = False
         
         option = compress_option if compress else None
-        return ProtobufInputReader(self.schema, StringIO(resp.content), option)
+        return TunnelReader(self.schema, resp.content, option)

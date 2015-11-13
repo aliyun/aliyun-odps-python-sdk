@@ -17,175 +17,154 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
-import zlib
-import struct
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from StringIO import StringIO
 from datetime import datetime
 
-from google.protobuf.internal.decoder import _DecodeSignedVarint32
-from google.protobuf.internal.decoder import *
-
-from odps.utils import long_to_int, int_to_uint
-from odps.models import Record
-from odps.errors import DependencyNotInstalledError
-from odps.tunnel.conf import CompressOption
-from odps.tunnel.checksum import Checksum
-from odps.tunnel.wireconstants import ProtoWireConstants
+from . import io
+from .. import utils, types, compat
+from .checksum import Checksum
+from ..models import Record
+from .wireconstants import ProtoWireConstants
 
 
-class ProtobufInputStream(object):
-    def __init__(self, fp):
-        self.total_bytes = 0L
-        self.buf = fp.read()
-        self.buf_size = len(self.buf)
+class TunnelReader(object):
+    def __init__(self, schema, data, compress_option=None,
+                 compress_algo=None, compres_level=None, compress_strategy=None):
+        self._compress_option = compress_option
+        if self._compress_option is None and compress_algo is not None:
+            self._compress_option = io.CompressOption(
+                compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
 
-    def read_field_number(self):
-        tag, self.total_bytes = _DecodeSignedVarint32(self.buf, self.total_bytes)
-        return wire_format.UnpackTag(tag)[0]
+        self._schema = schema
+        self._columns = self._schema.columns
 
-    def read_boolean(self):
-        return _DecodeSignedVarint32(self.buf, self.total_bytes)[0] != 0
+        self._reader = io.ProtobufReader(data, compress_option=self._compress_option)
 
-    def _decode_value(self, decoder, new_default=None, message=None):
-        decode_key = '__decode_key'
-        decode_dict = {}
-        decode = decoder(None, False, False, decode_key, new_default)
-        self.total_bytes = \
-            decode(self.buf, self.total_bytes, self.buf_size, message, decode_dict)
-        return decode_dict[decode_key]
-    
-    def read_sint32(self):
-        return self._decode_value(SInt32Decoder)
-    
-    def read_uint32(self):
-        return self._decode_value(UInt32Decoder)
-    
-    def read_long(self):
-        return self._decode_value(SInt64Decoder)
-    
-    def read_double(self):
-        return self._decode_value(DoubleDecoder)
-        
-    def read_raw_bytes(self):
-        return bytearray(self._decode_value(BytesDecoder, bytearray, ''))
-    
-    def read_string(self):
-        return self.read_raw_bytes().decode('utf-8')
-    
-    def close(self):
-        self.fp.close()
+        self._crc = Checksum()
+        self._crccrc = Checksum()
+        self._curr_cusor = 0
 
-    def read(self):
-        if self.total_bytes < self.buf_size - 1:
-            byte = self.buf[self.total_bytes]
-            self.total_bytes += 1
-            return struct.unpack('<b', byte)[0]
-        return -1
+    @property
+    def count(self):
+        return self._curr_cusor
 
+    def _read_array(self, value_type):
+        res = []
 
-class ProtobufInputReader(object):
-    def __init__(self, table_schema, fp, compress_opt=None):
-        self.columns = table_schema.columns
-        
-        if compress_opt is not None:
-            if compress_opt.algorithm == \
-                    CompressOption.CompressionAlgorithm.ODPS_ZLIB:
-                # requests will do the `zlib.decompress`
-                pass
-            elif compress_opt.algorithm == \
-                    CompressOption.CompressionAlgorithm.ODPS_SNAPPY:
-                try:
-                    import snappy
-                except ImportError:
-                    raise DependencyNotInstalledError(
-                        'python-snappy library is required for snappy support')
-                fp = StringIO(snappy.decompress(fp.read()))
-            elif compress_opt.algorithm != \
-                    CompressOption.CompressionAlgorithm.ODPS_RAW:
-                raise IOError('invalid compression option.')
-        self.stream = ProtobufInputStream(fp)
-        
-        self.crc = Checksum()
-        self.crccrc = Checksum()
-        self.count = 0
+        size = self._reader.read_uint32()
+        for _ in range(size):
+            if self._reader.read_bool():
+                res.append(None)
+            else:
+                if value_type == types.string:
+                    val = str(self._reader.read_string())
+                    self._crc.update(val)
+                elif value_type == types.bigint:
+                    val = self._reader.read_long()
+                    self._crc.update_long(val)
+                elif value_type == types.double:
+                    val = self._reader.read_double()
+                    self._crc.update_float(val)
+                elif value_type == types.boolean:
+                    val = self._reader.read_bool()
+                    self._crc.update_bool(val)
+                else:
+                    raise IOError('Unsupport array type. type: %s' % value_type)
+                res.append(val)
+
+        return res
         
     def read(self):
-        record = Record(self.columns)
+        record = Record(self._columns)
+
         while True:
-            checksum = 0
-            i = self.stream.read_field_number()
-            if i == 0:
+            index = self._reader.read_field_num()
+
+            if index == 0:
                 continue
-            if i == ProtoWireConstants.TUNNEL_END_RECORD:
-                checksum = long_to_int(self.crc.get_value())
-                if int(self.stream.read_uint32()) != int_to_uint(checksum):
+            if index == ProtoWireConstants.TUNNEL_END_RECORD:
+                checksum = utils.long_to_int(self._crc.getvalue())
+                if int(self._reader.read_uint32() != utils.int_to_uint(checksum)):
                     raise IOError('Checksum invalid')
-                self.crc.reset()
-                self.crccrc.update_(checksum, force='int')
+                self._crc.reset()
+                self._crccrc.update_int(checksum)
                 break
 
-            if i == ProtoWireConstants.TUNNEL_META_COUNT:
-                if self.count != self.stream.read_long():
+            if index == ProtoWireConstants.TUNNEL_META_COUNT:
+                if self.count != self._reader.read_long():
                     raise IOError('count does not match')
-
                 if ProtoWireConstants.TUNNEL_META_CHECKSUM != \
-                    self.stream.read_field_number():
-                    raise IOError('Invalid stream.')
-
-                if int(self.crccrc.get_value()) != \
-                    self.stream.read_uint32():
+                        self._reader.read_field_num():
+                    raise IOError('Invalid stream data.')
+                if int(self._crccrc.getvalue()) != self._reader.read_uint32():
                     raise IOError('Checksum invalid.')
-
-                if self.stream.read() >= 0:
+                if not self._reader.at_end():
                     raise IOError('Expect at the end of stream, but not.')
 
                 return
 
-            if i > len(self.columns):
+            if index > len(self._columns):
                 raise IOError('Invalid protobuf tag. Perhaps the datastream '
                               'from server is crushed.')
 
-            self.crc.update_(i, force='int')
+            self._crc.update_int(index)
 
-            t = self.columns[i-1].type.upper()
-            if t == 'DOUBLE':
-                v = self.stream.read_double()
-                self.crc.update_(float(v), force='float')
-                record.set(i-1, v)
-            elif t == 'BOOLEAN':
-                v = self.stream.read_boolean()
-                self.crc.update_(bool(v), force='boolean')
-                record.set(i-1, v)
-            elif t == 'BIGINT':
-                v = self.stream.read_long()
-                self.crc.update_(long(v), force='long')
-                record.set(i-1, v)
-            elif t == 'STRING':
-                bytes_ = self.stream.read_raw_bytes()
-                self.crc.update(bytes_, 0, len(bytes_))
-                record.set(i-1, bytes_)
-            elif t == 'DATETIME':
-                v = self.stream.read_long()
-                self.crc.update_(long(v), force='long')
-                v = float(v) / 1000
-                record.set(i-1, datetime.fromtimestamp(v))
-        
-        self.count += 1
+            i = index - 1
+            data_type = self._columns[i].type
+            if data_type == types.double:
+                val = self._reader.read_double()
+                self._crc.update_float(val)
+                record[i] = val
+            elif data_type == types.boolean:
+                val = self._reader.read_bool()
+                self._crc.update_bool(val)
+                record[i] = val
+            elif data_type == types.bigint:
+                val = self._reader.read_long()
+                self._crc.update_long(val)
+                record[i] = val
+            elif data_type == types.string:
+                val = str(self._reader.read_string())
+                self._crc.update(val)
+                record[i] = val
+            elif data_type == types.datetime:
+                val = self._reader.read_long()
+                self._crc.update_long(val)
+                t = val / 1000.0
+                record[i] = datetime.fromtimestamp(t)
+            elif data_type == types.decimal:
+                val = self._reader.read_string()
+                self._crc.update(val)
+                record[i] = val
+            elif isinstance(data_type, types.Array):
+                val = self._read_array(data_type.value_type)
+                record[i] = val
+            elif isinstance(data_type, types.Map):
+                keys = self._read_array(data_type.key_type)
+                values = self._read_array(data_type.value_type)
+                val = compat.OrderedDict(zip(keys, values))
+                record[i] = val
+            else:
+                raise IOError('Unsupported type %s' % data_type)
+
+        self._curr_cusor += 1
         return record
+
+    def __next__(self):
+        record = self.read()
+        if record is None:
+            raise StopIteration
+        return record
+
+    next = __next__
+
+    def __iter__(self):
+        return self
     
-    def reads(self):
-        while True:
-            record = self.read()
-            if record is None:
-                break
-            yield record
-    
-    def close(self):
-        self.stream.close()
+    reads = __iter__
+
+    @property
+    def n_bytes(self):
+        return self._reader.n_bytes
         
     def get_total_bytes(self):
-        return self.stream.total_bytes
+        return self.n_bytes

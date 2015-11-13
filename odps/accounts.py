@@ -21,12 +21,12 @@
 import base64
 import hmac
 import hashlib
-import time
 import urllib
 import urlparse
 import logging
 import email.utils
-from collections import OrderedDict
+
+from . import compat
 
 
 LOG = logging.getLogger(__name__)
@@ -93,8 +93,8 @@ class AliyunAccount(object):
         for param_key, param_value in param_dict.iteritems():
             if param_key.startswith('x-odps-'):
                 headers_to_sign[param_key] = param_value
-        headers_to_sign = OrderedDict([(k, headers_to_sign[k]) \
-                                       for k in sorted(headers_to_sign)])
+        headers_to_sign = compat.OrderedDict([(k, headers_to_sign[k])
+                                              for k in sorted(headers_to_sign)])
         LOG.debug('headers to sign: %s' % headers_to_sign)
         for k, v in headers_to_sign.iteritems():
             if k.startswith('x-odps-'):

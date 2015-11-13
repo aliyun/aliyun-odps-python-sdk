@@ -17,222 +17,184 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import threading
 
-import zlib
-import time
+import six
 
-from google.protobuf.internal.encoder import _EncodeSignedVarint
-from google.protobuf.internal.encoder import *
-from google.protobuf.internal import wire_format
-
-from odps.utils import int_to_uint, long_to_int, long_to_uint
-from odps.errors import DependencyNotInstalledError
-from odps.tunnel.conf import CompressOption
-from odps.tunnel.checksum import Checksum
-from odps.tunnel.wireconstants import ProtoWireConstants
+from .. import utils, types, compat, options
+from . import io
+from .checksum import Checksum
+from .wireconstants import ProtoWireConstants
 
 
-class ProtobufOutputStream(object):
-    BUFFER_SIZE = 8192
-    
-    def __init__(self, fp):
-        self.fp = fp
-        self.count = 0
-        self.total_bytes = 0L
-        
-    def _flush(self):
-        if self.count > 0:
-            self.fp.flush()
-            self.total_bytes += self.count
-            self.count = 0
-            
-    def write(self, b):
-        '''
-        param b: byte, int between 0 ~ 255
-        '''
-        if self.count >= self.BUFFER_SIZE:
-            self._flush()
-        self.fp.write(chr(b))
-        self.count += 1
-        
-    def write_(self, b, off=0, length=None):
-        if length is None:
-            length = len(b)
+class TunnelWriter(object):
+    def __init__(self, schema, do_upload, compress_option=None,
+                 compress_algo=None, compres_level=None, compress_strategy=None,
+                 encoding='utf-8'):
+        self._compress_option = compress_option
+        if self._compress_option is None and compress_algo is not None:
+            self._compress_option = io.CompressOption(
+                compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
+        self._encoding = encoding
 
-        if length >= self.BUFFER_SIZE:
-            self._flush()
-            self.fp.write(str(b[off:off+length]))
-            self.total_bytes += length
+        self._schema = schema
+        self._columns = self._schema.columns
+        self._do_upload = do_upload
+
+        self._writer = io.ProtobufWriter(compress_option=self._compress_option,
+                                         buffer_size=options.chunk_size, encoding=encoding)
+
+        self._crc = Checksum()
+        self._crccrc = Checksum()
+        self._curr_cursor = 0
+
+        self._upload_started = False
+        self._upload_thread = None
+
+    def _start_upload(self):
+        if self._upload_started:
             return
-        
-        if length > self.BUFFER_SIZE - self.count:
-            self._flush()
-        self.fp.write(str(b[off:off+length]))
-        self.count += length
 
-    def flush(self):
-        self.fp.flush()
-        
-    def close(self):
-        self.fp.seek(0)
-        self.bytes = self.fp.read()
-        self.fp.close()
+        def gen_data():
+            for data in self._writer:
+                yield data
 
-    def get_bytes(self):
-        return self.bytes
-        
-    def write_boolean(self, id_, v):
-        BoolEncoder(id_, False, False)(self.write_, v)
+        def do_upload():
+            self._do_upload(gen_data())
 
-    def write_int32(self, field_number, value):
-        Int32Encoder(field_number, False, False)(self.write_, value)
+        self._upload_thread = threading.Thread(target=do_upload)
+        self._upload_thread.setDaemon(True)
+        self._upload_thread.start()
 
-    def write_sint32(self, field_number, value):
-        SInt32Encoder(field_number, False, False)(self.write_, value)
+        self._upload_started = True
 
-    def write_uint32(self, field_number, value):
-        UInt32Encoder(field_number, False, False)(self.write_, value)
+    def _write_bool(self, pb_index, data):
+        self._crc.update_bool(data)
+        self._writer.write_bool(pb_index, data)
 
-    def write_long(self, id_, v):
-        SInt64Encoder(id_, False, False)(self.write_, v)
+    def _write_long(self, pb_index, data):
+        self._crc.update_long(data)
+        self._writer.write_long(pb_index, data)
 
-    def write_double(self, id_, v):
-        DoubleEncoder(id_, False, False)(self.write_, v)
+    def _write_double(self, pb_index, data):
+        self._crc.update_float(data)
+        self._writer.write_double(pb_index, data)
 
-    def write_raw_bytes(self, field_number, value):
-        self.write_(TagBytes(field_number, wire_format.WIRETYPE_LENGTH_DELIMITED))
-        _EncodeSignedVarint(self.write_, len(value))
-        self.write_(value)
+    def _write_string(self, pb_index, data):
+        if isinstance(data, six.text_type):
+            data = data.encode(self._encoding)
 
-    def write_string(self, field_number, value):
-        StringEncoder(field_number, False, False)(self.write_, value)
+        self._crc.update(data)
+        self._writer.write_string(pb_index, data)
 
+    def _write_primitive(self, data, data_type):
+        if data_type == types.string:
+            if isinstance(data, six.text_type):
+                data = data.encode(self._encoding)
 
-class ZlibFileObjectWriteWrapper(object):
-    def __init__(self, fp, compress_obj):
-        self.fp = fp
-        self.compress_obj = compress_obj
-        
-    def write(self, obj):
-        self.fp.write(self.compress_obj.compress(obj))
-        
-    def flush(self):
-        self.fp.write(self.compress_obj.flush())
-    
-    def __getattr__(self, attr):
-        return getattr(self.fp, attr)
-
-
-class SnappyFileObjectWriteWrapper(object):
-    def __init__(self, fp):
-        self.fp = fp
-        try:
-            import snappy
-        except ImportError:
-            raise DependencyNotInstalledError(
-                "python-snappy library is required for snappy support")
-        self.stream = snappy.StreamCompressor()
-
-    def write(self, obj):
-        self.fp.write(self.stream.compress(obj))
-
-    def __getattr__(self, attr):
-        return getattr(self.fp, attr)
-
-
-class ProtobufOutputWriter(object):
-    def __init__(self, table_schema, fp, chunk_upload=None, compress_opt=None):
-        self.columns = table_schema.columns
-        if compress_opt is not None:
-            if compress_opt.algorithm == \
-                    CompressOption.CompressionAlgorithm.ODPS_ZLIB:
-                compress_obj = zlib.compressobj(compress_opt.level,
-                                                zlib.DEFLATED,
-                                                zlib.MAX_WBITS,
-                                                zlib.DEF_MEM_LEVEL,
-                                                compress_opt.strategy)
-
-                fp = ZlibFileObjectWriteWrapper(fp, compress_obj)
-                self.stream = ProtobufOutputStream(fp)
-            elif compress_opt.algorithm == \
-                    CompressOption.CompressionAlgorithm.ODPS_SNAPPY:
-                self.stream = ProtobufOutputStream(SnappyFileObjectWriteWrapper(fp))
-            else:
-                raise IOError('Invalid compression option.')
+            self._writer.write_raw_varint32(len(data))
+            self._writer.write_raw_bytes(data)
+            self._crc.update(data)
+        elif data_type == types.bigint:
+            self._writer.write_long_no_tag(data)
+            self._crc.update_long(data)
+        elif data_type == types.double:
+            self._writer.write_double_no_tag(data)
+            self._crc.update_float(data)
+        elif data_type == types.boolean:
+            self._writer.write_bool_no_tag(data)
+            self._crc.update_bool(data)
         else:
-            self.stream = ProtobufOutputStream(fp)
+            raise IOError('Not a primitive type in array. type: %s' % data_type)
 
-        self.chunk_upload = chunk_upload
-        
-        self.crc = Checksum()
-        self.crccrc = Checksum()
-        self.count = 0L
+    def _write_array(self, pb_index, data, data_type):
+        self._writer.write_raw_varint32(len(data))
+        for value in data:
+            if value is None:
+                self._writer.write_bool_no_tag(True)
+            else:
+                self._writer.write_bool_no_tag(False)
+                self._write_primitive(value, data_type)
+
+    def _write_map(self, pb_index, data, key_type, value_type):
+        self._write_array(pb_index, compat.lkeys(data), key_type)
+        self._write_array(pb_index, compat.lvalues(data), value_type)
 
     def write(self, record):
-        record_values_length = record.get_columns_count()
-        column_count = len(self.columns)
-        if record_values_length > column_count:
-            raise IOError('record values more than schema.')
+        self._start_upload()
 
-        for i in range(min(record_values_length, column_count)):
-            v = record.get(i)
-            if v is None:
+        n_record_fields = len(record)
+        n_columns = len(self._columns)
+
+        if n_record_fields > n_columns:
+            raise IOError('record fields count is more than schema.')
+
+        for i in range(min(n_record_fields, n_columns)):
+            if self._schema.is_partition(self._columns[i]):
                 continue
 
-            pb_idx = i + 1
-            self.crc.update_(pb_idx, force='int')
+            val = record[i]
+            if val is None:
+                continue
 
-            t = self.columns[i].type.upper()
-            if t == 'BOOLEAN':
-                self.crc.update_(bool(v), force='boolean')
-                self.stream.write_boolean(pb_idx, v)
-            elif t == 'DATETIME':
-                v = time.mktime(v.timetuple()) * 1000
-                self.crc.update_(long(v), force='long')
-                self.stream.write_long(pb_idx, long(v))
-            elif t == 'STRING':
-                if isinstance(v, unicode):
-                    v = v.encode('utf-8')
-                bytes_ = bytearray(v)
-                self.crc.update(bytes_, 0, len(bytes_))
-                self.stream.write_raw_bytes(pb_idx, bytes_)
-            elif t == 'DOUBLE':
-                self.crc.update_(float(v), force='float')
-                self.stream.write_double(pb_idx, v)
-            elif t == 'BIGINT':
-                self.crc.update_(long(v), force='long')
-                self.stream.write_long(pb_idx, v)
+            pb_index = i + 1
+            self._crc.update_int(pb_index)
+
+            data_type = self._columns[i].type
+            if data_type == types.boolean:
+                self._write_bool(pb_index, val)
+            elif data_type == types.datetime:
+                val = utils.to_milliseconds(val)
+                self._write_long(pb_index, val)
+            elif data_type == types.string:
+                self._write_string(pb_index, val)
+            elif data_type == types.double:
+                self._write_double(pb_index, val)
+            elif data_type == types.bigint:
+                self._write_long(pb_index, val)
+            elif data_type == types.decimal:
+                self._write_string(pb_index, str(val))
+            elif isinstance(data_type, types.Array):
+                self._writer.write_length_delimited_tag(pb_index)
+                self._write_array(pb_index, val, data_type.value_type)
+            elif isinstance(data_type, types.Map):
+                self._writer.write_length_delimited_tag(pb_index)
+                self._write_map(pb_index, val, data_type.key_type, data_type.value_type)
             else:
-                raise IOError('Invalid data type: '+t)
+                raise IOError('Invalid data type: %s' % data_type)
 
-        checksum = long_to_int(self.crc.get_value())
-        self.stream.write_uint32(ProtoWireConstants.TUNNEL_END_RECORD, int_to_uint(checksum))
+        checksum = utils.long_to_int(self._crc.getvalue())
+        self._writer.write_uint32(
+            ProtoWireConstants.TUNNEL_END_RECORD, utils.int_to_uint(checksum))
 
-        self.crc.reset()
-        self.crccrc.update_(checksum)
+        self._crc.reset()
+        self._crccrc.update_int(checksum)
 
-        self.count += 1
+        self._curr_cursor += 1
+
+    @property
+    def count(self):
+        return self._curr_cursor
 
     def close(self):
-        self.stream.write_long(ProtoWireConstants.TUNNEL_META_COUNT, self.count)
-        self.stream.write_uint32(ProtoWireConstants.TUNNEL_META_CHECKSUM,
-                                 long_to_uint(self.crccrc.get_value()))
+        self._writer.write_long(ProtoWireConstants.TUNNEL_META_COUNT, self.count)
+        self._writer.write_uint32(ProtoWireConstants.TUNNEL_META_CHECKSUM,
+                                  utils.long_to_uint(self._crccrc.getvalue()))
+        self._writer.close()
+        if self._upload_thread is not None:
+            self._upload_thread.join()
 
-        self.stream.flush()
-        if self.chunk_upload is not None:
-            self.chunk_upload()
+        self._curr_cursor = 0
 
-        self.stream.close()
-        self.count = 0
-        
+    @property
+    def n_bytes(self):
+        return self._writer.n_bytes
+
     def get_total_bytes(self):
-        return self.stream.total_bytes
-
-    def get_bytes(self):
-        return self.stream.get_bytes()
+        return self.n_bytes
     
     def __enter__(self):
         return self
     
-    def __exit__(self, type_, value, traceback):
+    def __exit__(self, *_):
         self.close()

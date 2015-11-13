@@ -18,8 +18,9 @@ import json
 
 __all__ = ['Counter', 'CounterGroup', 'Counters']
 
+
 class Counter(object):
-    def __init__(self, name, value = 0):
+    def __init__(self, name, value=0):
         self.name = name
         self.value = value
     
@@ -42,6 +43,7 @@ class Counter(object):
                 }
 
         return data
+
 
 class CounterGroup(object):
     def __init__(self, name):

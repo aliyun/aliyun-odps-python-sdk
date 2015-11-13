@@ -1,0 +1,1050 @@
+[
+    {
+        "isEnabled": true,
+        "type": 0,
+        "codeName": "xgboost",
+        "catId": 12,
+        "ioType": 0,
+        "isComposite": false,
+        "reloadFields": false,
+        "params": [
+            {
+                "name": "featureColNames",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "featureColNames",
+                "exporter": "get_feature_columns",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "labelColName",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "labelColName",
+                "exporter": "get_label_column",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "booster",
+                "value": "gbtree",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "booster",
+                "exported": true
+            },
+            {
+                "name": "inputTableName",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "inputTableName",
+                "exporter": "get_input_table_name",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "inputPartitions",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "inputPartitions",
+                "exporter": "get_input_partitions",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "modelName",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "modelName",
+                "exporter": "generate_model_name",
+                "exported": true,
+                "outputName": "output"
+            },
+            {
+                "name": "itemDelimiter",
+                "value": ",",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "itemDelimiter",
+                "exported": true
+            },
+            {
+                "name": "kvDelimiter",
+                "value": ":",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "kvDelimiter",
+                "exported": true
+            },
+            {
+                "name": "enableSparse",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "enableSparse",
+                "exported": true
+            },
+            {
+                "name": "silent",
+                "value": "1",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "silent",
+                "exported": true
+            },
+            {
+                "name": "eta",
+                "value": "0.3",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "eta",
+                "min": 0,
+                "max": 1,
+                "exported": true
+            },
+            {
+                "name": "gamma",
+                "value": "0",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "gamma",
+                "min": 0,
+                "exported": true
+            },
+            {
+                "name": "max_depth",
+                "value": "6",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "max_depth",
+                "min": 0,
+                "exported": true
+            },
+            {
+                "name": "min_child_weight",
+                "value": "1",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "min_child_weight",
+                "min": 0,
+                "exported": true
+            },
+            {
+                "name": "max_delta_step",
+                "value": "0",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "max_delta_step",
+                "min": 0,
+                "exported": true
+            },
+            {
+                "name": "colsample_bytree",
+                "value": "1",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "colsample_bytree",
+                "min": 0,
+                "max": 1,
+                "exported": true
+            },
+            {
+                "name": "base_score",
+                "value": "0.5",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "base_score",
+                "exported": true
+            },
+            {
+                "name": "seed",
+                "value": "0",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "seed",
+                "exported": true
+            },
+            {
+                "name": "objective",
+                "value": "binary:logistic",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "objective",
+                "exported": true
+            },
+            {
+                "name": "isInheritLastType",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "isInheritLastType",
+                "exported": false
+            },
+            {
+                "name": "eval_metric",
+                "value": "error",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "eval_metric",
+                "exported": true
+            }
+        ],
+        "ports": [
+            {
+                "ioType": "INPUT",
+                "sequence": 1,
+                "type": "DATA",
+                "name": "input"
+            },
+            {
+                "ioType": "OUTPUT",
+                "sequence": 1,
+                "type": "MODEL",
+                "name": "output"
+            }
+        ],
+        "metas": {
+            "xflowName": "xgboost",
+            "xflowProjectName": "algo_public"
+        }
+    },
+    {
+        "isEnabled": true,
+        "type": 0,
+        "codeName": "RandomForests",
+        "catId": 12,
+        "ioType": 0,
+        "isComposite": false,
+        "reloadFields": false,
+        "params": [
+            {
+                "name": "inputTableName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "inputTableName",
+                "exporter": "get_input_table_name",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "featureColNames",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "featureColNames",
+                "exporter": "get_feature_columns",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "isFeatureContinuous",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "isFeatureContinuous",
+                "exporter": "get_feature_continuous",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "labelColName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "labelColName",
+                "exporter": "get_label_column",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "modelName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "modelName",
+                "exporter": "generate_model_name",
+                "exported": true,
+                "outputName": "output"
+            },
+            {
+                "name": "treeNum",
+                "value": "10",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "treeNum",
+                "min": 0,
+                "max": 1000,
+                "exported": true
+            },
+            {
+                "name": "inputTablePartitions",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "inputTablePartitions",
+                "exporter": "get_input_partitions",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "weightColName",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "weightColName",
+                "exporter": "get_weight_column",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "algorithmTypes",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "algorithmTypes",
+                "exporter": "random_forest_algo_types",
+                "exported": true
+            },
+            {
+                "name": "randomColNum",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "randomColNum",
+                "exporter": "random_forest_random_column_number",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "minNumObj",
+                "value": "2",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "minNumObj",
+                "exported": true
+            },
+            {
+                "name": "minNumPer",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "minNumPer",
+                "exporter": "random_forest_min_num_per",
+                "exported": true
+            },
+            {
+                "name": "maxTreeDeep",
+                "value": "10",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "maxTreeDeep",
+                "min": 1,
+                "exported": true
+            },
+            {
+                "name": "maxRecordSize",
+                "value": "100000",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "maxRecordSize",
+                "min": 1000,
+                "max": 1000000,
+                "exported": true
+            },
+            {
+                "name": "algorithmType",
+                "value": "mix",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "algorithmType",
+                "exported": false
+            },
+            {
+                "name": "randomAttrType",
+                "value": "logN",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "randomAttrType",
+                "exported": false,
+                "inputName": "input"
+            },
+            {
+                "name": "isInheritLastType",
+                "value": "false",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "isInheritLastType",
+                "exported": false,
+                "inputName": "input"
+            },
+            {
+                "name": "minNumPerInt",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "minNumPerInt",
+                "min": 0,
+                "max": 100,
+                "exported": false
+            }
+        ],
+        "ports": [
+            {
+                "ioType": "INPUT",
+                "sequence": 1,
+                "type": "DATA",
+                "name": "input"
+            },
+            {
+                "ioType": "OUTPUT",
+                "sequence": 1,
+                "type": "MODEL",
+                "name": "output"
+            }
+        ],
+        "metas": {
+            "xflowName": "RandomForests",
+            "xflowProjectName": "algo_public"
+        }
+    },
+    {
+        "isEnabled": true,
+        "type": 0,
+        "codeName": "LogisticRegression",
+        "catId": 12,
+        "ioType": 0,
+        "isComposite": false,
+        "reloadFields": false,
+        "params": [
+            {
+                "name": "inputTableName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "inputTableName",
+                "exporter": "get_input_table_name",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "featureColNames",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "featureColNames",
+                "min": 0,
+                "max": 1000,
+                "exporter": "get_feature_columns",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "labelColName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "labelColName",
+                "min": 0,
+                "max": 1000,
+                "exporter": "get_label_column",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "modelName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "modelName",
+                "exporter": "generate_model_name",
+                "exported": true,
+                "outputName": "output"
+            },
+            {
+                "name": "inputTablePartitions",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "inputTablePartitions",
+                "exporter": "get_input_partitions",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "maxIter",
+                "value": "100",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "maxIter",
+                "min": 1,
+                "max": 10000,
+                "exported": true
+            },
+            {
+                "name": "epsilon",
+                "value": "0.000001",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "epsilon",
+                "max": 1000,
+                "exported": true
+            },
+            {
+                "name": "regularizedType",
+                "value": "l1",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "regularizedType",
+                "max": 1000,
+                "exported": true
+            },
+            {
+                "name": "goodValue",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "goodValue",
+                "max": 1000,
+                "exported": true
+            },
+            {
+                "name": "regularizedLevel",
+                "value": "1",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "regularizedLevel",
+                "exported": true
+            },
+            {
+                "name": "isInheritLastType",
+                "value": "false",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "isInheritLastType",
+                "exported": false,
+                "inputName": "input"
+            },
+            {
+                "name": "twoClassification",
+                "value": "false",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "twoClassification",
+                "exported": false
+            },
+            {
+                "name": "enableSparse",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "enableSparse",
+                "exported": true
+            },
+            {
+                "name": "kvDelimiter",
+                "value": ":",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "kvDelimiter",
+                "exported": true
+            },
+            {
+                "name": "itemDelimiter",
+                "value": ",",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "itemDelimiter",
+                "exported": true
+            }
+        ],
+        "ports": [
+            {
+                "ioType": "INPUT",
+                "sequence": 1,
+                "type": "DATA",
+                "name": "input"
+            },
+            {
+                "ioType": "OUTPUT",
+                "sequence": 1,
+                "type": "MODEL",
+                "name": "output"
+            }
+        ],
+        "metas": {
+            "xflowName": "LogisticRegression",
+            "xflowProjectName": "algo_public"
+        }
+    },
+    {
+        "isEnabled": true,
+        "type": 0,
+        "codeName": "LinearSVM",
+        "catId": 12,
+        "ioType": 0,
+        "isComposite": false,
+        "reloadFields": false,
+        "params": [
+            {
+                "name": "isInheritLastType",
+                "value": "false",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "isInheritLastType",
+                "exported": false,
+                "inputName": "input"
+            },
+            {
+                "name": "inputTableName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "inputTableName",
+                "exporter": "get_input_table_name",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "inputTablePartitions",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "inputTablePartitions",
+                "exporter": "get_input_partitions",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "labelColName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "labelColName",
+                "exporter": "get_label_column",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "modelName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "modelName",
+                "exporter": "generate_model_name",
+                "exported": true,
+                "outputName": "output"
+            },
+            {
+                "name": "featureColNames",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "featureColNames",
+                "exporter": "get_feature_columns",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "positiveLabel",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "positiveLabel",
+                "exported": true
+            },
+            {
+                "name": "epsilon",
+                "value": "0.001",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "epsilon",
+                "min": 0,
+                "max": 1,
+                "exported": true
+            },
+            {
+                "name": "positiveCost",
+                "value": "1.0",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "positiveCost",
+                "exporter": "get_svm_positive_cost",
+                "exported": true
+            },
+            {
+                "name": "negativeCost",
+                "value": "1.0",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "negativeCost",
+                "exporter": "get_svm_negative_cost",
+                "exported": true
+            },
+            {
+                "name": "cost",
+                "value": "1",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "cost",
+                "min": 0,
+                "exported": false
+            },
+            {
+                "name": "positiveWeight",
+                "value": "1.0",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "positiveWeight",
+                "min": 0,
+                "exported": false
+            },
+            {
+                "name": "negativeWeight",
+                "value": "1.0",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "negativeWeight",
+                "min": 0,
+                "exported": false
+            },
+            {
+                "name": "setCostWeight",
+                "value": "false",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "setCostWeight",
+                "exported": false
+            }
+        ],
+        "ports": [
+            {
+                "ioType": "INPUT",
+                "sequence": 1,
+                "type": "DATA",
+                "name": "input"
+            },
+            {
+                "ioType": "OUTPUT",
+                "sequence": 1,
+                "type": "MODEL",
+                "name": "output"
+            }
+        ],
+        "metas": {
+            "xflowName": "LinearSVM",
+            "xflowProjectName": "algo_public"
+        }
+    },
+    {
+        "isEnabled": true,
+        "type": 0,
+        "codeName": "GBDT_LR",
+        "catId": 12,
+        "ioType": 0,
+        "isComposite": false,
+        "reloadFields": false,
+        "params": [
+            {
+                "name": "isInheritLastType",
+                "value": "false",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "isInheritLastType",
+                "exported": false,
+                "inputName": "input"
+            },
+            {
+                "name": "inputTableName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "inputTableName",
+                "exporter": "get_input_table_name",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "inputTablePartitions",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "inputTablePartitions",
+                "exporter": "get_input_partitions",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "modelName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "modelName",
+                "exporter": "generate_model_name",
+                "exported": true,
+                "outputName": "output"
+            },
+            {
+                "name": "labelColName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "labelColName",
+                "exporter": "get_label_column",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "featureColNames",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "featureColNames",
+                "exporter": "get_feature_columns",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "groupIDColName",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "groupIDColName",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "metricType",
+                "value": "2",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "metricType",
+                "min": 1,
+                "max": 10000,
+                "exported": true
+            },
+            {
+                "name": "treeCount",
+                "value": "500",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "treeCount",
+                "min": 1,
+                "max": 10000,
+                "exported": true
+            },
+            {
+                "name": "shrinkage",
+                "value": "0.05",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "shrinkage",
+                "min": 0,
+                "max": 1,
+                "exported": true
+            },
+            {
+                "name": "maxLeafCount",
+                "value": "32",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "maxLeafCount",
+                "min": 2,
+                "max": 1000,
+                "exported": true
+            },
+            {
+                "name": "maxDepth",
+                "value": "11",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "maxDepth",
+                "min": 1,
+                "max": 11,
+                "exported": true
+            },
+            {
+                "name": "minLeafSampleCount",
+                "value": "500",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "minLeafSampleCount",
+                "min": 100,
+                "max": 1000,
+                "exported": true
+            },
+            {
+                "name": "sampleRatio",
+                "value": "0.6",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "sampleRatio",
+                "min": 0,
+                "max": 1,
+                "exported": true
+            },
+            {
+                "name": "featureRatio",
+                "value": "0.6",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "featureRatio",
+                "min": 0,
+                "max": 1,
+                "exported": true
+            },
+            {
+                "name": "testRatio",
+                "value": "0.0",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "testRatio",
+                "min": 0,
+                "max": 1,
+                "exported": true
+            },
+            {
+                "name": "randSeed",
+                "value": "0",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "randSeed",
+                "min": 0,
+                "max": 10,
+                "exported": true
+            },
+            {
+                "name": "featureSplitValueMaxSize",
+                "value": "500",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "featureSplitValueMaxSize",
+                "min": 1,
+                "max": 1000,
+                "exported": true
+            }
+        ],
+        "ports": [
+            {
+                "ioType": "INPUT",
+                "sequence": 1,
+                "type": "DATA",
+                "name": "input"
+            },
+            {
+                "ioType": "OUTPUT",
+                "sequence": 1,
+                "type": "MODEL",
+                "name": "output"
+            }
+        ],
+        "metas": {
+            "xflowName": "GBDT_LR",
+            "xflowProjectName": "algo_public"
+        }
+    },
+    {
+        "isEnabled": true,
+        "type": 0,
+        "codeName": "NaiveBayes",
+        "catId": 12,
+        "ioType": 0,
+        "isComposite": false,
+        "reloadFields": false,
+        "params": [
+            {
+                "name": "isInheritLastType",
+                "value": "false",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "isInheritLastType",
+                "exported": false,
+                "inputName": "input"
+            },
+            {
+                "name": "inputTableName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "inputTableName",
+                "exporter": "get_input_table_name",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "inputTablePartitions",
+                "value": "",
+                "type": "string",
+                "isRequired": false,
+                "propertyName": "inputTablePartitions",
+                "exporter": "get_input_partitions",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "featureColNames",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "featureColNames",
+                "exporter": "get_feature_columns",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "labelColName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "labelColName",
+                "exporter": "get_label_column",
+                "exported": true,
+                "inputName": "input"
+            },
+            {
+                "name": "modelName",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "modelName",
+                "exporter": "generate_model_name",
+                "exported": true,
+                "outputName": "output"
+            },
+            {
+                "name": "isFeatureContinuous",
+                "value": "",
+                "type": "string",
+                "isRequired": true,
+                "propertyName": "isFeatureContinuous",
+                "exporter": "get_feature_continuous",
+                "exported": true,
+                "inputName": "input"
+            }
+        ],
+        "ports": [
+            {
+                "ioType": "INPUT",
+                "sequence": 1,
+                "type": "DATA",
+                "name": "input"
+            },
+            {
+                "ioType": "OUTPUT",
+                "sequence": 1,
+                "type": "MODEL",
+                "name": "output"
+            }
+        ],
+        "metas": {
+            "xflowName": "NaiveBayes",
+            "xflowProjectName": "algo_public"
+        }
+    }
+]

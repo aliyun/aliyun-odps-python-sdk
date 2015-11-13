@@ -19,26 +19,42 @@
 from setuptools import setup, find_packages
 
 import sys
+import os
 
 version = sys.version_info
 if version[0] != 2:
     raise Exception('pyodps does not support python3 yet.')
-if version[1] < 7:
-    raise Exception('Python version must be >= 2.7 (but not python3)')
+
+PY2 = version[0] == 2
+PY3 = version[0] == 3
+LESS_PY34 = version[:2] < (3, 4)
 
 requirements = []
 with open('requirements.txt') as f:
     requirements.extend(f.read().splitlines())
 
+if PY2:
+    requirements.append('protobuf>=2.5.0')
+else:
+    requirements.append('python3-protobuf>=2.5.0')
+if LESS_PY34:
+    requirements.append('enum34>=1.0.4')
+
+long_description = None
+if os.path.exists('README.rst'):
+    with open('README.rst') as f:
+        long_description = f.read()
+
 setup(name='pyodps',
-      version='0.1.0',
+      version='0.2.0',
       description='ODPS Python SDK',
+      long_description=long_description,
       author='Wu Wei',
       author_email='weiwu@cacheme.net',
       maintainer='Qin Xuye',
       maintainer_email='qin@qinxuye.me',
       url='http://github.com/aliyun/aliyun-odps-python-sdk',
-      packages=find_packages(exclude=('*.test.*', '*.test')),
+      packages=find_packages(exclude=('*.tests.*', '*.tests')),
       scripts=['scripts/pyou',],
       install_requires=requirements,
       )

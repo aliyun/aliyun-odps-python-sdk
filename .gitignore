@@ -30,8 +30,13 @@ pip-log.txt
 .tox
 nosetests.xml
 
+# intellij
+.idea
+
 # virtualenv
 env
 
 # FIXME: Find a better place for test.conf
-odps/test/test.conf
+test.conf
+
+.DS_Store

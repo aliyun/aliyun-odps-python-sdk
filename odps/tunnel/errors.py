@@ -24,8 +24,6 @@ try:
 except ImportError:
     import xml.etree.ElementTree as ET
 
-from odps import errors
-
 
 class TunnelError(RuntimeError):
 
