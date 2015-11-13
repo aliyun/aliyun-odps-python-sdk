@@ -49,7 +49,7 @@ datetime.datetime(2014, 6, 6, 13, 28, 24)
 False
 >>> dual.size
 448
->>> dual.columns
+>>> dual.schema.columns
 [{u'comment': u'', u'type': u'string', u'name': u'id', u'label': u''}]
 ```
 

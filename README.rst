@@ -56,7 +56,7 @@ Usage
     False
     >>> dual.size
     448
-    >>> dual.columns
+    >>> dual.schema.columns
     [{u'comment': u'', u'type': u'string', u'name': u'id', u'label': u''}]
 
 Python UDF Debugging Tool
