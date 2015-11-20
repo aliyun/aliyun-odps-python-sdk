@@ -4,6 +4,7 @@ ODPS Python SDK
 |PyPI version|
 
 Elegent way to access ODPS API.
+`Documentation <http://pyodps.readthedocs.org>`__
 
 Installation
 ------------

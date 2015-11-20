@@ -2,7 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/pyodps.svg)](https://badge.fury.io/py/pyodps)
 
-Elegent way to access ODPS API.
+Elegent way to access ODPS API. [Documentation](http://pyodps.readthedocs.org)
 
 ## Installation
 
