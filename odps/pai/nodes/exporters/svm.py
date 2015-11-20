@@ -16,8 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import unicode_literals
-
 
 def get_svm_negative_cost(context, node):
     cost = node.parameters['cost']

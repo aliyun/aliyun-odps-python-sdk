@@ -16,8 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import unicode_literals
-
 import logging
 from xml.etree.ElementTree import Element
 
@@ -132,8 +130,7 @@ class PAIContext(object):
         self._managed_models = set()
 
         # init odps
-        self._odps = ODPS(self._access_id.encode('ascii'), self._access_key.encode('ascii'),
-                          project=self._project_name, endpoint=self._endpoint.encode('ascii'))
+        self._odps = ODPS(self._access_id, self._access_key, project=self._project_name, endpoint=self._endpoint)
 
     def __del__(self):
         self.cleanup()

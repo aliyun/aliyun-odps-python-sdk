@@ -37,7 +37,7 @@ class DependencyNotInstalledError(Exception):
 def parse_response(resp):
     """Parses the content of response and returns an exception object.
     """
-    host_id = None
+    host_id, msg, code = None, None, None
     try:
         content = resp.content
         root = ET.fromstring(content)
@@ -47,9 +47,12 @@ def parse_response(resp):
         host_id = root.find('./HostId').text
     except ET.ParseError:
         request_id = resp.headers.get('x-odps-request-id', None)
-        obj = json.loads(resp.content)
-        msg = obj['Message']
-        code = obj['Code']
+        if len(resp.content) > 0:
+            obj = json.loads(resp.text)
+            msg = obj['Message']
+            code = obj['Code']
+        else:
+            return
     clz = globals().get(code, ODPSError)
     return clz(msg, request_id, code, host_id)
 
@@ -86,9 +89,13 @@ class ODPSError(RuntimeError):
         self.host_id = host_id
 
     def __str__(self):
+        if hasattr(self, 'message'):
+            message = self.message
+        else:
+            message = self.args[0]  # py3
         if self.code:
-            return '%s: %s' % (self.code, self.message)
-        return self.message
+            return '%s: %s' % (self.code, message)
+        return message
     
     @classmethod
     def parse(cls, resp):

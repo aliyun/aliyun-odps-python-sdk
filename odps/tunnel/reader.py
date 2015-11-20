@@ -17,16 +17,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from datetime import datetime
-
 from . import io
 from .. import utils, types, compat
 from .checksum import Checksum
 from ..models import Record
+from ..readers import AbstractRecordReader
 from .wireconstants import ProtoWireConstants
 
 
-class TunnelReader(object):
+class TunnelReader(AbstractRecordReader):
     def __init__(self, schema, data, compress_option=None,
                  compress_algo=None, compres_level=None, compress_strategy=None):
         self._compress_option = compress_option
@@ -37,6 +36,7 @@ class TunnelReader(object):
         self._schema = schema
         self._columns = self._schema.columns
 
+        self._stream = data
         self._reader = io.ProtobufReader(data, compress_option=self._compress_option)
 
         self._crc = Checksum()
@@ -56,7 +56,7 @@ class TunnelReader(object):
                 res.append(None)
             else:
                 if value_type == types.string:
-                    val = str(self._reader.read_string())
+                    val = utils.to_text(self._reader.read_string())
                     self._crc.update(val)
                 elif value_type == types.bigint:
                     val = self._reader.read_long()
@@ -83,7 +83,7 @@ class TunnelReader(object):
                 continue
             if index == ProtoWireConstants.TUNNEL_END_RECORD:
                 checksum = utils.long_to_int(self._crc.getvalue())
-                if int(self._reader.read_uint32() != utils.int_to_uint(checksum)):
+                if int(self._reader.read_uint32()) != utils.int_to_uint(checksum):
                     raise IOError('Checksum invalid')
                 self._crc.reset()
                 self._crccrc.update_int(checksum)
@@ -123,14 +123,13 @@ class TunnelReader(object):
                 self._crc.update_long(val)
                 record[i] = val
             elif data_type == types.string:
-                val = str(self._reader.read_string())
+                val = utils.to_text(self._reader.read_string())
                 self._crc.update(val)
                 record[i] = val
             elif data_type == types.datetime:
                 val = self._reader.read_long()
                 self._crc.update_long(val)
-                t = val / 1000.0
-                record[i] = datetime.fromtimestamp(t)
+                record[i] = utils.to_datetime(val)
             elif data_type == types.decimal:
                 val = self._reader.read_string()
                 self._crc.update(val)
@@ -157,10 +156,8 @@ class TunnelReader(object):
 
     next = __next__
 
-    def __iter__(self):
-        return self
-    
-    reads = __iter__
+    def reads(self):
+        return self.__iter__()
 
     @property
     def n_bytes(self):
@@ -168,3 +165,10 @@ class TunnelReader(object):
         
     def get_total_bytes(self):
         return self.n_bytes
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        if hasattr(self._schema, 'close'):
+            self._schema.close()

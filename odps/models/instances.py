@@ -18,6 +18,7 @@
 # under the License.
 
 import uuid
+from datetime import datetime
 
 import six
 
@@ -60,10 +61,16 @@ class Instances(Iterable):
         if from_time is not None or end_time is not None:
             daterange = six.StringIO()
             if from_time is not None:
-                daterange.write(utils.to_timestamp(from_time))
+                if isinstance(from_time, datetime):
+                    daterange.write(str(utils.to_timestamp(from_time)))
+                else:
+                    daterange.write(str(int(from_time)))
             daterange.write(':')
             if end_time is not None:
-                daterange.write(utils.to_timestamp(end_time))
+                if isinstance(end_time, datetime):
+                    daterange.write(str(utils.to_timestamp(end_time)))
+                else:
+                    daterange.write(str(int(end_time)))
             params['daterange'] = daterange.getvalue()
         if only_owner is not None:
             params['onlyowner'] = 'yes' if only_owner else 'no'
@@ -132,9 +139,9 @@ class Instances(Iterable):
 
         instance_id = location.rsplit('/', 1)[1]
 
-        body = resp.content
+        body = resp.text
         if body:
-            instance_result = Instance.InstanceResult.parse(self._client, body)
+            instance_result = Instance.InstanceResult.parse(self._client, resp)
             results = dict([(r.name, r.result) for r in instance_result.task_results])
         else:
             results = None

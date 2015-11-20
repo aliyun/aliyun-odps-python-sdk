@@ -26,6 +26,7 @@ import six
 
 PY26 = six.PY2 and sys.version_info[1] == 6
 LESS_PY26 = six.PY2 and sys.version_info[1] < 6
+LESS_PY32 = six.PY3 and sys.version_info[1] < 2
 
 SEEK_SET = 0
 SEEK_CUR = 1
@@ -33,9 +34,10 @@ SEEK_END = 2
 
 if six.PY3:
     lrange = lambda x: list(range(x))
-    lzip = lambda x: list(zip(x))
+    lzip = lambda *x: list(zip(*x))
     lkeys = lambda x: list(x.keys())
     lvalues = lambda x: list(x.values())
+    litems = lambda x: list(x.items())
 
     import unittest
     from collections import OrderedDict
@@ -46,6 +48,7 @@ else:
     lzip = zip
     lkeys = lambda x: x.keys()
     lvalues = lambda x: x.values()
+    litems = lambda x: x.items()
 
     if PY26:
         import unittest2 as unittest
@@ -53,15 +56,16 @@ else:
             from ordereddict import OrderedDict
         except ImportError:
             raise
-
-        try:
-            from .tests.dictconfig import dictConfig
-            dictconfig = lambda config: dictConfig(config)
-        except ImportError:
-            pass
     else:
         import unittest
         from collections import OrderedDict
 
         dictconfig = lambda config: logging.config.dictConfig(config)
+
+if PY26 or LESS_PY32:
+    try:
+        from .tests.dictconfig import dictConfig
+        dictconfig = lambda config: dictConfig(config)
+    except ImportError:
+        pass
 

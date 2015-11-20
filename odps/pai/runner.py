@@ -16,7 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import unicode_literals
 import logging
 import time
 import weakref
@@ -83,7 +82,7 @@ class Runner(object):
                          (code_name, pai_project,
                           ' '.join(['-D%s="%s"' % (k, v) for k, v in iteritems(params)])))
             if not dry_run:
-                inst = self._odps.run_xflow(code_name.encode('ascii'), pai_project.encode('ascii'), params)
+                inst = self._odps.run_xflow(code_name, pai_project, params)
                 inst.wait_for_success()
 
             node.after_exec(self._context(), True)

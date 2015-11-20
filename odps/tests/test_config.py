@@ -29,7 +29,7 @@ class Test(TestBase):
         with option_context() as local_options:
             self.assertIsNone(local_options.access_id, None)
             self.assertIsNone(local_options.access_key, None)
-            self.assertIsNone(local_options.endpoint, None)
+            self.assertIsNone(local_options.end_point, None)
             self.assertIsNone(local_options.default_project, None)
             self.assertIsNone(local_options.log_view_host, None)
             self.assertIsNone(local_options.tunnel_endpoint, None)
@@ -45,7 +45,7 @@ class Test(TestBase):
 
         self.assertIsNone(options.access_id, None)
         self.assertIsNone(options.access_key, None)
-        self.assertIsNone(options.endpoint, None)
+        self.assertIsNone(options.end_point, None)
         self.assertIsNone(options.default_project, None)
         self.assertIsNone(options.log_view_host, None)
         self.assertIsNone(options.tunnel_endpoint, None)

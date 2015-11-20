@@ -16,15 +16,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import unicode_literals
 import json
 from pkg_resources import resource_string
+from six import PY3
 
 from .base_loader import BaseContentLoader
 
 
 class FileContentLoader(BaseContentLoader):
     def load(self, env, name):
-        cats = json.loads(resource_string('odps.pai.algorithms.defs', 'algo_cats.json'))
-        cat_nodes = json.loads(resource_string('odps.pai.algorithms.defs', name + '.json'))
+        cats = json.loads(self.load_resource_string('odps.pai.algorithms.defs', 'algo_cats.json'))
+        cat_nodes = json.loads(self.load_resource_string('odps.pai.algorithms.defs', name + '.json'))
         self._load_algorithms(cat_nodes, cats[name], env)
+
+    @staticmethod
+    def load_resource_string(path, file):
+        res_str = resource_string(path, file)
+        if PY3:
+            res_str = res_str.decode('UTF-8')
+        return res_str

@@ -36,7 +36,7 @@ class TunnelServerRouter(object):
         resp = self.client.get(url, params=params)
 
         if self.client.is_ok(resp):
-            addr = resp.content
+            addr = resp.text
             return urlparse('%s://%s' % (protocol, addr)).geturl()
         else:
             raise TunnelError("Can't get tunnel server address")

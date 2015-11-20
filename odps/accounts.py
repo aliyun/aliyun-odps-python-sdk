@@ -21,26 +21,15 @@
 import base64
 import hmac
 import hashlib
-import urllib
-import urlparse
 import logging
-import email.utils
 
-from . import compat
+import six
+from six.moves.urllib.parse import urlparse, unquote, parse_qsl
+
+from . import compat, utils
 
 
 LOG = logging.getLogger(__name__)
-
-
-def parse_qsl(query):
-    params = []
-    tokens = query.split('&')
-    for token in tokens:
-        kv = token.split('=', 1)
-        if len(kv) == 2 and not kv[1]:
-            kv = [kv[0],]
-        params.append(kv)
-    return params
 
 
 class AliyunAccount(object):
@@ -51,61 +40,64 @@ class AliyunAccount(object):
          self.access_id = access_id
          self.secret_access_key = secret_access_key
 
-    def sign_request(self, req, endpoint):
-        url = req.url[len(endpoint):]
-        url_compo = urlparse.urlparse(urllib.unquote(url))
-        CanonicalizedResource = url_compo.path
-        param_dict = {}
-        if url_compo.query:
-            params = parse_qsl(url_compo.query)
-            params.sort(key=lambda a:a[0])
-            for kv in params:
-                assert kv[0] not in param_dict
-                if len(kv) == 1:
-                    # Parameters with only key lacking of value, such as 'key0' in
-                    # 'key0=&k2=v2'
-                    param_dict[kv[0]] = ''
-                else:
-                    param_dict[kv[0]] = kv[1]
-            paramstr = '&'.join(['='.join(p) for p in params])
-            CanonicalizedResource += '?%s' % paramstr
+    def _build_canonical_str(self, url_components, req):
         # Build signing string
-        lines = []
-        headers_to_sign = {}
-        method = req.method
-        lines.append(method)
-        
+        lines = [req.method, ]
+        headers_to_sign = dict()
+
+        canonical_resource = url_components.path
+        params = dict()
+        if url_components.query:
+            params_list = sorted(parse_qsl(url_components.query, True),
+                                 key=lambda it: it[0])
+            assert len(params_list) == len(set(it[0] for it in params_list))
+            params = dict(params_list)
+            convert = lambda kv: kv if kv[1] != '' else (kv[0], )
+            params_str = '&'.join(['='.join(convert(kv)) for kv in params_list])
+
+            canonical_resource = '%s?%s' % (canonical_resource, params_str)
+
         headers = req.headers
         LOG.debug('headers before signing: %s' % headers)
-        for k, v in headers.iteritems():
+        for k, v in six.iteritems(headers):
             k = k.lower()
             if k in ('content-type', 'content-md5') or k.startswith('x-odps'):
-               headers_to_sign[k] = v
+                headers_to_sign[k] = v
         for k in ('content-type', 'content-md5'):
             if k not in headers_to_sign:
                 headers_to_sign[k] = ''
         date_str = headers.get('Date')
         if not date_str:
-            req_date = email.utils.formatdate(usegmt=True)
+            req_date = utils.formatdate(usegmt=True)
             headers['Date'] = req_date
             date_str = req_date
         headers_to_sign['date'] = date_str
-        for param_key, param_value in param_dict.iteritems():
+        for param_key, param_value in six.iteritems(params):
             if param_key.startswith('x-odps-'):
                 headers_to_sign[param_key] = param_value
+
         headers_to_sign = compat.OrderedDict([(k, headers_to_sign[k])
                                               for k in sorted(headers_to_sign)])
         LOG.debug('headers to sign: %s' % headers_to_sign)
-        for k, v in headers_to_sign.iteritems():
+        for k, v in six.iteritems(headers_to_sign):
             if k.startswith('x-odps-'):
                 lines.append('%s:%s' % (k, v))
             else:
                 lines.append(v)
-        
-        lines.append(CanonicalizedResource)
-        canonicalString = '\n'.join(lines)
-        LOG.debug('canonical string: ' + canonicalString)
-        signature = base64.b64encode(hmac.new(self.secret_access_key, canonicalString, hashlib.sha1).digest())
-        auth_str = 'ODPS %s:%s' % (self.access_id, signature)
-        headers['Authorization'] = auth_str
-        LOG.debug('headers after signing: ' + repr(headers))
+
+        lines.append(canonical_resource)
+        return '\n'.join(lines)
+
+    def sign_request(self, req, endpoint):
+        url = req.url[len(endpoint):]
+        url_components = urlparse(unquote(url))
+
+        canonical_str = self._build_canonical_str(url_components, req)
+        LOG.debug('canonical string: ' + canonical_str)
+
+        signature = base64.b64encode(hmac.new(
+            utils.to_binary(self.secret_access_key), utils.to_binary(canonical_str),
+            hashlib.sha1).digest())
+        auth_str = 'ODPS %s:%s' % (self.access_id, utils.to_text(signature))
+        req.headers['Authorization'] = auth_str
+        LOG.debug('headers after signing: ' + repr(req.headers))

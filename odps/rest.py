@@ -22,9 +22,10 @@ import logging
 import platform
 
 import requests
+import six
 
 from . import __version__
-from . import errors
+from . import errors, utils
 from .config import options
 
 
@@ -75,7 +76,7 @@ class RestClient(object):
         LOG.debug('url: ' + url)
         session = requests.Session()
         for k, v in kwargs.items():
-            LOG.debug(k + ': ' + str(v))
+            LOG.debug(k + ': ' + utils.to_text(v))
 
         # mount adapters with retry times
         session.mount(
@@ -106,9 +107,11 @@ class RestClient(object):
         return self.request(url, 'get', **kwargs)
 
     def post(self, url, data, **kwargs):
+        data = utils.to_binary(data) if isinstance(data, six.string_types) else data
         return self.request(url, 'post', data=data, **kwargs)
 
     def put(self, url, data, **kwargs):
+        data = utils.to_binary(data) if isinstance(data, six.string_types) else data
         return self.request(url, 'put', data=data, **kwargs)
 
     def head(self, url, **kwargs):
@@ -119,4 +122,4 @@ class RestClient(object):
 
     # Misc helper methods
     def is_ok(self, resp):
-        return resp.status_code / 100 == 2
+        return resp.ok

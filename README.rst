@@ -1,17 +1,9 @@
 ODPS Python SDK
 ===============
 
+|PyPI version|
+
 Elegent way to access ODPS API.
-
-Dependencies
-------------
-
--  Python (=2.7.x)
--  setuptools (>=3.0)
--  requests (>=2.1.0)
--  enum34 (>=1.0.4)
--  six (>=1.10.0)
--  protobuf (>=2.5.0)
 
 Installation
 ------------
@@ -22,6 +14,8 @@ The quick way:
 
     pip install pyodps
 
+The dependencies will be installed automatically.
+
 Or from source code:
 
 .. code:: shell
@@ -31,6 +25,16 @@ Or from source code:
     $ git clone ...
     $ cd pyodps
     $ python setup.py install
+
+Dependencies
+------------
+
+-  Python (>=2.6), including Python 3+, pypy
+-  setuptools (>=3.0)
+-  requests (>=2.4.0)
+-  enum34 (>=1.0.4)
+-  six (>=1.10.0)
+-  protobuf (>=2.5.0)
 
 Run Unittest
 ------------
@@ -50,6 +54,19 @@ Usage
     >>> dual = o.get_table('dual')
     >>> dual.name
     'dual'
+    >>> dual.schema
+    odps.Schema {
+      c_int_a                 bigint
+      c_int_b                 bigint
+      c_double_a              double
+      c_double_b              double
+      c_string_a              string
+      c_string_b              string
+      c_bool_a                boolean
+      c_bool_b                boolean
+      c_datetime_a            datetime
+      c_datetime_b            datetime
+    }
     >>> dual.creation_time
     datetime.datetime(2014, 6, 6, 13, 28, 24)
     >>> dual.is_virtual_view
@@ -57,7 +74,16 @@ Usage
     >>> dual.size
     448
     >>> dual.schema.columns
-    [{u'comment': u'', u'type': u'string', u'name': u'id', u'label': u''}]
+    [<column c_int_a, type bigint>,
+     <column c_int_b, type bigint>,
+     <column c_double_a, type double>,
+     <column c_double_b, type double>,
+     <column c_string_a, type string>,
+     <column c_string_b, type string>,
+     <column c_bool_a, type boolean>,
+     <column c_bool_b, type boolean>,
+     <column c_datetime_a, type datetime>,
+     <column c_datetime_b, type datetime>]
 
 Python UDF Debugging Tool
 -------------------------
@@ -86,3 +112,6 @@ License
 
 Licensed under the `Apache License
 2.0 <https://www.apache.org/licenses/LICENSE-2.0.html>`__
+
+.. |PyPI version| image:: https://badge.fury.io/py/pyodps.svg
+   :target: https://badge.fury.io/py/pyodps

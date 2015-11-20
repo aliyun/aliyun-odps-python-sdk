@@ -25,7 +25,7 @@ import inspect
 import requests
 import six
 
-from . import compat
+from . import compat, utils
 from .compat import ElementTree
 
 
@@ -156,14 +156,15 @@ class SerializableModelMetaClass(type):
         fields = compat.OrderedDict(
             sorted(six.iteritems(fields), key=lambda s: slots_pos.get(s[0], float('inf'))))
 
+        for attr in attrs:
+            if attr in kv:
+                del kv[attr]
+
+        slots = tuple([slot for slot in slots if slot not in kv])
         if len(slots) > 0:
             kv['__slots__'] = slots
         if len(fields) > 0:
             kv['__fields'] = fields
-
-        for attr in attrs:
-            if attr in kv:
-                del kv[attr]
 
         return type.__new__(mcs, name, bases, kv)
 
@@ -293,7 +294,8 @@ class XMLSerializableModel(SerializableModel):
         if 'parent' in kw:
             kw['_parent'] = kw.pop('parent')
         if isinstance(response, requests.Response):
-            response = response.content
+            # PY2 prefer bytes, while PY3 prefer str
+            response = response.text if six.PY3 else response.content
         return cls.deserial(response, obj=obj, **kw)
 
     def serialize(self):
@@ -318,7 +320,8 @@ class JSONSerializableModel(SerializableModel):
         if 'parent' in kw:
             kw['_parent'] = kw.pop('parent')
         if isinstance(response, requests.Response):
-            response = response.content
+            # PY2 prefer bytes, while PY3 prefer str
+            response = response.text if six.PY3 else response.content
         return cls.deserial(response, obj=obj, **kw)
 
     def serialize(self):
@@ -367,9 +370,9 @@ class XMLNodeField(SerializeField):
 
         node = _route_xml_path(root, create_if_not_exists=True, *self._path_keys)
         if self._serialize_callback:
-            node.text = str(self._serialize_callback(value))
+            node.text = utils.to_text(self._serialize_callback(value))
         else:
-            node.text = str(value)
+            node.text = utils.to_text(value)
 
 
 class XMLNodeAttributeField(SerializeField):
@@ -442,7 +445,7 @@ class XMLNodesField(SerializeField):
 
         for val in value:
             element = ElementTree.Element(self._path_keys[-1])
-            element.text = str(val)
+            element.text = utils.to_text(val)
             root.append(element)
 
 
@@ -600,10 +603,10 @@ class XMLNodePropertiesField(SerializeField):
         for k, v in six.iteritems(value):
             element = ElementTree.Element(self._path_keys[-1])
             key_node = ElementTree.Element(self._key_tag)
-            key_node.text = str(k)
+            key_node.text = utils.to_text(k)
             element.append(key_node)
             value_node = ElementTree.Element(self._value_tag)
-            value_node.text = str(v)
+            value_node.text = utils.to_text(v)
             element.append(value_node)
 
             root.append(element)

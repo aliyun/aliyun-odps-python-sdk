@@ -53,7 +53,10 @@ class Test(TestBase):
 
     def testFunction(self):
         functions = self.odps.list_functions()
-        function = next(functions)
+        try:
+            function = next(functions)
+        except StopIteration:
+            return
 
         self.assertIs(function, self.odps.get_function(function.name))
 

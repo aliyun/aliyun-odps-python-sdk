@@ -91,7 +91,7 @@ class DownloadSession(serializers.JSONSerializableModel):
             e = TunnelError.parse(resp)
             raise e
             
-    def open_record_reader(self, start, count, compress=False):
+    def open_record_reader(self, start, count, compress=False, columns=None):
         compress_option = self._compress_option or CompressOption()
 
         params = {}
@@ -111,6 +111,9 @@ class DownloadSession(serializers.JSONSerializableModel):
         params['rowrange'] = '(%s,%s)' % (start, count)
         if self._partition_spec is not None and len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
+        if columns is not None and len(columns) > 0:
+            col_name = lambda col: col.name if isinstance(col, types.Column) else col
+            params['columns'] = ','.join(col_name(col) for col in columns)
 
         url = self._table.resource()
         resp = self._client.get(url, params=params, headers=headers)

@@ -78,6 +78,12 @@ class Partition(LazyLoad):
 
             return object.__getattribute__(self, attr)
 
+        val = object.__getattribute__(self, attr)
+        if val is None and not self._loaded:
+            if attr in getattr(Partition.PartitionMeta, '__fields'):
+                self.reload()
+                return object.__getattribute__(self, attr)
+
         return super(Partition, self).__getattribute__(attr)
 
     def _name(self):
@@ -98,7 +104,9 @@ class Partition(LazyLoad):
     def partition_spec(self):
         return self.get_partition_spec(self._getattr('columns'), self._getattr('spec'))
 
-    name = partition_spec
+    @property
+    def name(self):
+        return str(self.partition_spec)
 
     def reload(self):
         url = self.resource()

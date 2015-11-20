@@ -29,6 +29,17 @@ RESOURCE_SIZE_MAX = 512 * 1024 * 1024  # a single resource's size must be at mos
 
 
 class Resource(LazyLoad):
+    """
+    Resource is useful when writing UDF or MapReduce. This is an abstract class.
+
+    Basically, resource can be either a file resource or a table resource.
+    File resource can be ``file``, ``py``, ``jar``, ``archive`` in details.
+
+    .. seealso:: :class:`odps.models.FileResource`, :class:`odps.models.PyResource`,
+                 :class:`odps.models.JarResource`, :class:`odps.models.ArchiveResource`,
+                 :class:`odps.models.TableResource`
+    """
+
     __slots__ = 'content_md5', 'is_temp_resource', 'volumn_path', '_type_indicator'
 
     class Type(Enum):
@@ -129,6 +140,12 @@ class Resource(LazyLoad):
 
 
 class FileResource(Resource):
+    """
+    File resource represents for a file.
+
+    Use ``open`` method to open this resource as an file-like object.
+    """
+
     __slots__ = '_fp', '_mode', '_opened', '_size', '_need_commit', \
                 '_open_binary', '_encoding'
 
@@ -162,6 +179,44 @@ class FileResource(Resource):
             return True
 
     def open(self, mode='r', encoding='utf-8'):
+        """
+        The argument ``mode`` stands for the open mode for this file resource.
+        It can be binary mode if the 'b' is inside. For instance,
+        'rb' means opening the resource as read binary mode
+        while 'r+b' means opening the resource as read+write binary mode.
+        This is most import when the file is actually binary such as tar or jpeg file,
+        so be aware of opening this file as a correct mode.
+
+        Basically, the text mode can be 'r', 'w', 'a', 'r+', 'w+', 'a+'
+        just like the builtin python ``open`` method.
+
+        * ``r`` means read only
+        * ``w`` means write only, the file will be truncated when opening
+        * ``a`` means append only
+        * ``r+`` means read+write without constraint
+        * ``w+`` will truncate first then opening into read+write
+        * ``a+`` can read+write, however the written content can only be appended to the end
+
+        :param mode: the mode of opening file, described as above
+        :param encoding: utf-8 as default
+        :return: file-like object
+
+        :Example:
+
+        >>> with resource.open('r') as fp:
+        >>>     fp.read(1)  # read one unicode character
+        >>>     fp.write('test')  # wrong, cannot write under read mode
+        >>>
+        >>> with resource.open('wb') as fp:
+        >>>     fp.readlines() # wrong, cannot read under write mode
+        >>>     fp.write('hello world') # write bytes
+        >>>
+        >>> with resource.open('test_resource', 'r+') as fp: # open as read-write mode
+        >>>     fp.seek(5)
+        >>>     fp.truncate()
+        >>>     fp.flush()
+        """
+
         # TODO: when reading, do not read all the data at once
 
         if 'b' in mode:
@@ -197,14 +252,44 @@ class FileResource(Resource):
         self.seek(curr_pos)
 
     def read(self, size=-1):
+        """
+        Read the file resource, read all as default.
+
+        :param size: unicode or byte length depends on text mode or binary mode.
+        :return: unicode or bytes depends on text mode or binary mode
+        :rtype: str or unicode(Py2), bytes or str(Py3)
+        """
+
         self._check_read()
         return self._fp.read(size)
 
     def readline(self, size=-1):
+        """
+        Read a single line.
+
+        :param size: If the size argument is present and non-negative,
+                     it is a maximum byte count (including the trailing newline)
+                     and an incomplete line may be returned.
+                     When size is not 0,
+                     an empty string is returned only when EOF is encountered immediately
+        :return: unicode or bytes depends on text mode or binary mode
+        :rtype: str or unicode(Py2), bytes or str(Py3)
+        """
+
         self._check_read()
         return self._fp.readline(size)
 
     def readlines(self, sizehint=-1):
+        """
+        Read as lines.
+
+        :param sizehint: If the optional sizehint argument is present, instead of reading up to EOF,
+                     whole lines totalling approximately sizehint bytes
+                     (possibly after rounding up to an internal buffer size) are read.
+        :return: lines
+        :rtype: list
+        """
+
         self._check_read()
         return self._fp.readlines(sizehint)
 
@@ -227,6 +312,13 @@ class FileResource(Resource):
         return content
 
     def write(self, content):
+        """
+        Write content into the file resource
+
+        :param content: content to write
+        :return: None
+        """
+
         content = self._convert(content)
 
         length = len(content)
@@ -243,6 +335,13 @@ class FileResource(Resource):
         return res
 
     def writelines(self, seq):
+        """
+        Write lines into the file resource.
+
+        :param seq: lines
+        :return: None
+        """
+
         seq = [self._convert(s) for s in seq]
 
         length = sum(len(s) for s in seq)
@@ -259,12 +358,35 @@ class FileResource(Resource):
         return res
 
     def seek(self, pos, whence=compat.SEEK_SET):  # io.SEEK_SET
+        """
+        Seek to some place.
+
+        :param pos: position to seek
+        :param whence: if set to 2, will seek to the end
+        :return: None
+        """
+
         return self._fp.seek(pos, whence)
 
     def tell(self):
+        """
+        Tell the current position
+
+        :return: current position
+        """
+
         return self._fp.tell()
 
     def truncate(self, size=None):
+        """
+        Truncate the file resource's size.
+
+        :param size: If the optional size argument is present,
+                     the file is truncated to (at most) that size.
+                     The size defaults to the current position.
+        :return: None
+        """
+
         self._check_write()
 
         curr_pos = self.tell()
@@ -278,6 +400,13 @@ class FileResource(Resource):
         self._need_commit = True
 
     def flush(self):
+        """
+        Commit the change to ODPS if any change happens.
+        Close will do this automatically.
+
+        :return: None
+        """
+
         if self._need_commit:
             is_create = self._is_create()
 
@@ -291,6 +420,12 @@ class FileResource(Resource):
             self._need_commit = False
 
     def close(self):
+        """
+        Close this file resource.
+
+        :return: None
+        """
+
         self.flush()
 
         self._fp = None
@@ -319,24 +454,40 @@ class FileResource(Resource):
 
 
 class JarResource(FileResource):
+    """
+    File resource representing for the .jar file.
+    """
+
     def __init__(self, **kw):
         super(JarResource, self).__init__(**kw)
         self.type = Resource.Type.JAR
 
 
 class PyResource(FileResource):
+    """
+    File resource representing for the .py file.
+    """
+
     def __init__(self, **kw):
         super(PyResource, self).__init__(**kw)
         self.type = Resource.Type.PY
 
 
 class ArchiveResource(FileResource):
+    """
+    File resource representing for the compressed file like .zip/.tgz/.tar.gz/.tar/jar
+    """
+
     def __init__(self, **kw):
         super(ArchiveResource, self).__init__(**kw)
         self.type = Resource.Type.ARCHIVE
 
 
 class TableResource(Resource):
+    """
+    Take a table as a resource.
+    """
+
     def __init__(self, **kw):
         project_name = kw.pop('project_name', None)
         table_name = kw.pop('table_name', None)
@@ -363,6 +514,15 @@ class TableResource(Resource):
                                      % (self.source_table_name, partition_spec)
 
     def get_source_table(self):
+        """
+        Get the table object.
+
+        :return: source table
+        :rtype: :class:`odps.models.Table`
+
+        .. seealso:: :class:`odps.models.Table`
+        """
+
         if self.source_table_name is None:
             return
 
@@ -378,6 +538,12 @@ class TableResource(Resource):
         return Projects(client=self._client)[project_name].tables[table_name]
 
     def get_source_table_partition(self):
+        """
+        Get the source table partition.
+
+        :return: the source table partition
+        """
+
         if self.source_table_name is None:
             return
 
@@ -389,6 +555,15 @@ class TableResource(Resource):
         return types.PartitionSpec(partition)
 
     def update(self, project_name=None, table_name=None, partition=None):
+        """
+        Update this resource.
+
+        :param project_name: the source table's project
+        :param table_name: the source table's name
+        :param partition: the source table's partition
+        :return: self
+        """
+
         self._init(project_name=project_name, table_name=table_name,
                    partition=partition)
         resources = self.parent

@@ -16,12 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import unicode_literals
-
 from copy import deepcopy
 from xml.etree.ElementTree import Element
 import logging
-
 from six import iteritems
 
 logger = logging.getLogger(__name__)
@@ -71,7 +68,7 @@ class FieldParam(object):
 
 
 def fetch_table_fields(odps, table_name):
-    table = odps.get_table(table_name.encode('ascii'))
+    table = odps.get_table(table_name)
     return [FieldParam(c.name, c.type.name, FieldRole.FEATURE,
                        FieldContinuity.CONTINUOUS if c.type.name == 'double' else FieldContinuity.DISCRETE)
             for c in table.schema.columns]
@@ -79,9 +76,9 @@ def fetch_table_fields(odps, table_name):
 
 def is_table_exists(odps, table_name):
     try:
-        odps.get_table(table_name.encode('ascii'))
-    except Exception, ex:
-        logger.debug('Table not found: ' + ex.message)
+        odps.get_table(table_name)
+    except Exception as ex:
+        logger.debug('Table not found: {0}'.format(ex))
         return False
     return True
 

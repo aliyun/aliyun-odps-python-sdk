@@ -88,7 +88,7 @@ class Example(XMLSerializableModel):
 
     name = XMLNodeField('Name')
     type = XMLNodeAttributeField('.', attr='type')
-    date = XMLNodeField('Created', serialize_callback=utils.gen_rfc822,
+    date = XMLNodeField('Created', serialize_callback=lambda t: utils.gen_rfc822(t, localtime=True),
                         parse_callback=utils.parse_rfc822)
     lessons = XMLNodesField('Lessons', 'Lesson')
     teacher = XMLNodeReferenceField(Teacher, 'Teacher')
@@ -112,7 +112,8 @@ class Test(TestBase):
                           properties={'test': 'true'}, jsn=jsn)
         sel = example.serialize()
 
-        self.assertEqual(to_str(expected_xml_template % utils.gen_rfc822(dt)), to_str(sel))
+        self.assertEqual(
+            to_str(expected_xml_template % utils.gen_rfc822(dt, localtime=True)), to_str(sel))
 
         parsed_example = Example.parse(sel)
 

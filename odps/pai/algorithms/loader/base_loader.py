@@ -16,7 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import unicode_literals
 import codecs
 import getpass
 import json
@@ -36,8 +35,6 @@ PARAMETER_ACCESSOR_BLACK_LIST = {'isInheritLastType', 'inputTableName', 'inputTa
 
 TEMPLATE_IMPORT = Template("""
 # encoding: utf-8
-from __future__ import unicode_literals
-
 from odps.pai.algorithms.base_algo import $base_class
 from odps.pai.algorithms.algorithm_nodes import AlgorithmParameter, AlgorithmIO
 """)

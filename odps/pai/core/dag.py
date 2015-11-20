@@ -16,8 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import unicode_literals
-
 from xml.etree.ElementTree import Element, SubElement
 from six import iteritems, itervalues, iterkeys
 from six.moves import queue

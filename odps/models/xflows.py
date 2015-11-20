@@ -155,7 +155,7 @@ class XFlows(Iterable):
         try:
             inst = XFlows.AnonymousSubmitXFlowInstance.parse(self._client, content)
             return inst.instance
-        except compat.ElementTree.ParseError, e:
+        except compat.ElementTree.ParseError as e:
             raise errors.ODPSError(e)
 
     def is_xflow_instance(self, instance):

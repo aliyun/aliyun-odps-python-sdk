@@ -21,6 +21,7 @@ import base64
 import json
 import time
 from datetime import datetime
+import contextlib
 
 import six
 from enum import Enum
@@ -31,6 +32,27 @@ from .. import serializers, utils, errors, compat, readers
 
 
 class Instance(LazyLoad):
+    """
+    Instance means that a ODPS task will sometimes run as an instance.
+
+    ``status`` can reflect the current situation of a instance.
+    ``is_terminated`` method indicates if the instance has finished.
+    ``is_successful`` method indicates if the instance runs successfully.
+    ``wait_for_success`` method will block the main process until the instance has finished.
+
+    For a SQL instance, we can use open_reader to read the results.
+
+    :Example:
+
+    >>> instance = odps.execute_sql('select * from dual')  # this sql return the structured data
+    >>> with instance.open_reader() as reader:
+    >>>     # handle the record
+    >>>
+    >>> instance = odps.execute_sql('desc dual')  # this sql do not return structured data
+    >>> with instance.open_reader() as reader:
+    >>>    print(reader.raw)  # just return the raw result
+    """
+
     __slots__ = '_task_results', '_is_sync'
 
     def __init__(self, **kwargs):
@@ -83,6 +105,11 @@ class Instance(LazyLoad):
         task_results = serializers.XMLNodesReferencesField(TaskResult, 'Tasks', 'Task')
 
     class Task(XMLRemoteModel):
+        """
+        Task stands for each task inside an instance.
+
+        It has a name, a task type, the start to end time, and a running status.
+        """
 
         name = serializers.XMLNodeField('Name')
         type = serializers.XMLNodeAttributeField(attr='Type')
@@ -101,6 +128,17 @@ class Instance(LazyLoad):
             CANCELLED = 'CANCELLED'
 
         class TaskProgress(XMLRemoteModel):
+            """
+            TaskProgress reprents for the progress of a task.
+
+            A single TaskProgress may consist of several stages.
+
+            :Example:
+
+            >>> progress = instance.get_task_progress('task_name')
+            >>> progress.get_stage_progress_formatted_string()
+            2015-11-19 16:39:07 M1_Stg1_job0:0/0/1[0%]	R2_1_Stg1_job0:0/0/1[0%]
+            """
 
             class StageProgress(XMLRemoteModel):
 
@@ -127,7 +165,7 @@ class Instance(LazyLoad):
                         stage.running_workers,
                         stage.terminated_workers,
                         stage.total_workers,
-                        '(+%s backups)' % self.backup_workers if self.backup_workers > 0 else '',
+                        '(+%s backups)' % stage.backup_workers if stage.backup_workers > 0 else '',
                         stage.finished_percentage
                     ))
 
@@ -163,6 +201,12 @@ class Instance(LazyLoad):
         # remember not to set `_loaded = True`
 
     def stop(self):
+        """
+        Stop this instance.
+
+        :return: None
+        """
+
         instance_status = Instance.InstanceStatus(status='Terminated')
         xml_content = instance_status.serialize()
 
@@ -184,13 +228,35 @@ class Instance(LazyLoad):
         return compat.OrderedDict([(r.name, r.result) for r in instance_result.task_results])
 
     def get_task_results(self):
+        """
+        Get all the task results.
+
+        :return: a dict which key is task name, and value is the task result as string
+        :rtype: dict
+        """
+
         results = self.get_task_results_without_format()
         return compat.OrderedDict([(k, str(result)) for k, result in six.iteritems(results)])
 
     def get_task_result(self, task_name):
+        """
+        Get a single task result.
+
+        :param task_name: task name
+        :return: task result
+        :rtype: str
+        """
         return self.get_task_results().get(task_name)
 
     def get_task_summary(self, task_name):
+        """
+        Get a task's summary, mostly used for MapReduce.
+
+        :param task_name: task name
+        :return: summary as a dict parsed from JSON
+        :rtype: dict
+        """
+
         params = {'instancesummary': '', 'taskname': task_name}
         resp = self._client.get(self.resource(), params=params)
 
@@ -205,6 +271,13 @@ class Instance(LazyLoad):
                 return summary
 
     def get_task_statuses(self):
+        """
+        Get all tasks' statuses
+
+        :return: a dict which key is the task name and value is the :class:`odps.models.Instance.Task` object
+        :rtype: dict
+        """
+
         params = {'taskstatus': ''}
 
         resp = self._client.get(self.resource(), params=params)
@@ -213,6 +286,13 @@ class Instance(LazyLoad):
         return dict([(task.name, task) for task in self._tasks])
 
     def get_task_names(self):
+        """
+        Get names of all tasks
+
+        :return: task names
+        :rtype: list
+        """
+
         return compat.lkeys(self.get_task_statuses())
 
     @property
@@ -223,9 +303,23 @@ class Instance(LazyLoad):
         return self._status
 
     def is_terminated(self):
+        """
+        If this instance has finished or not.
+
+        :return: True if finished else False
+        :rtype: bool
+        """
+
         return self.status == Instance.Status.TERMINATED
 
     def is_successful(self):
+        """
+        If the instance runs successfully.
+
+        :return: True if successful else False
+        :rtype: bool
+        """
+
         if not self.is_terminated():
             return False
         return all(task.status == Instance.Task.TaskStatus.SUCCESS
@@ -236,6 +330,13 @@ class Instance(LazyLoad):
         return self._is_sync
 
     def wait_for_completion(self, interval=1):
+        """
+        Wait for the instance to complete, and neglect the consequence.
+
+        :param interval: time interval to check
+        :return: None
+        """
+
         while not self.is_terminated():
             try:
                 time.sleep(interval)
@@ -243,6 +344,14 @@ class Instance(LazyLoad):
                 break
 
     def wait_for_success(self, interval=1):
+        """
+        Wait for instance to complete, and check if the instance is successful.
+
+        :param interval: time interval to check
+        :return: None
+        :raise: :class:`odps.errors.ODPSError` if the instance failed
+        """
+
         self.wait_for_completion(interval=interval)
 
         if not self.is_successful():
@@ -253,10 +362,18 @@ class Instance(LazyLoad):
                     raise errors.ODPSError('%s, status=%s' % (task_name, task.status.value))
 
     def get_task_progress(self, task_name):
+        """
+        Get task's current progress
+
+        :param task_name: task_name
+        :return: the task's progress
+        :rtype: :class:`odps.models.Instance.Task.TaskProgress`
+        """
+
         params = {'instanceprogress': task_name, 'taskname': task_name}
 
         resp = self._client.get(self.resource(), params=params)
-        return Instance.Task.TaskProgress.parse(self._client, resp).stages
+        return Instance.Task.TaskProgress.parse(self._client, resp)
 
     def __str__(self):
         return self.id
@@ -278,7 +395,8 @@ class Instance(LazyLoad):
         job = self._get_job()
         return job.priority
 
-    def open_reader(self, schema, task_name=None):
+    @contextlib.contextmanager
+    def open_reader(self, schema=None, task_name=None):
         if not self.is_successful():
             raise errors.ODPSError(
                 'Cannot open reader, instance(%s) may fail or has not finished yet' % self.id)
@@ -299,4 +417,5 @@ class Instance(LazyLoad):
                 'Cannot open reader, job has no sql task')
 
         result = self.get_task_result(task_name)
-        return readers.RecordReader(schema, result)
+        with readers.RecordReader(schema, result) as reader:
+            yield reader

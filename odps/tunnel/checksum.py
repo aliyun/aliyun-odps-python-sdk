@@ -23,6 +23,7 @@ import struct
 import six
 
 from ..crc import Crc32c
+from .. import utils
 
 
 class Checksum(object):
@@ -57,6 +58,8 @@ class Checksum(object):
         self.update(val)
             
     def update(self, b, off=None, length=None):
+        b = utils.to_binary(b)
+
         off = off or 0
         length = length or len(b)
         self.crc.update(b, off, length)

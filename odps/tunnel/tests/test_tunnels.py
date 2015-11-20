@@ -21,9 +21,12 @@ import math
 from datetime import datetime
 from decimal import Decimal
 import random
-import string
 import time
 from multiprocessing.pool import ThreadPool
+try:
+    from string import letters
+except ImportError:
+    from string import ascii_letters as letters
 
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest, OrderedDict
@@ -43,12 +46,12 @@ class Test(TestBase):
         writer.close()
         upload_ss.commit([0, ])
 
-    def _download_data(self, test_table, compress=False, **kw):
+    def _download_data(self, test_table, compress=False, columns=None, **kw):
         download_ss = self.tunnel.create_download_session(test_table, **kw)
-        reader = download_ss.open_record_reader(0, 3, compress=compress)
-        records = [tuple(record.values) for record in reader.reads()]
+        with download_ss.open_record_reader(0, 3, compress=compress, columns=columns) as reader:
+            records = [tuple(record.values) for record in reader]
 
-        return records
+            return records
 
     def _gen_data(self):
         return [
@@ -91,6 +94,19 @@ class Test(TestBase):
 
         self._delete_table(test_table_name)
 
+    def testDownloadWithSpecifiedColumns(self):
+        test_table_name = 'pyodps_test_raw_tunnel_columns'
+        self._create_table(test_table_name)
+
+        data = self._gen_data()
+        self._upload_data(test_table_name, data)
+
+        records = self._download_data(test_table_name, columns=['id'])
+        self.assertSequenceEqual([r[0] for r in records], [r[0] for r in data])
+        for r in records:
+            for i in range(1, len(r)):
+                self.assertIsNone(r[i])
+
     def testPartitionUploadAndDownloadByRawTunnel(self):
         test_table_name = 'pyodps_test_raw_partition_tunnel'
         test_table_partition = 'ds=test'
@@ -132,7 +148,7 @@ class Test(TestBase):
         return random.randint(*types.bigint._bounds)
 
     def _gen_random_string(self, max_length=15):
-        gen_letter = lambda: string.letters[random.randint(0, 51)]
+        gen_letter = lambda: letters[random.randint(0, 51)]
         return to_str(''.join([gen_letter() for _ in range(random.randint(1, 15))]))
 
     def _gen_random_double(self):
@@ -269,50 +285,51 @@ class Test(TestBase):
         records = [table.new_record(values=d) for d in data]
 
         n_blocks = 5
-        blocks = range(n_blocks)
+        blocks = list(range(n_blocks))
         n_threads = 2
         thread_pool = ThreadPool(n_threads)
 
         def gen_block_records(block_id):
             c = len(data)
-            st = c / n_blocks * block_id
+            st = int(c / n_blocks * block_id)
             if block_id < n_blocks - 1:
-                ed = c / n_blocks * (block_id + 1)
+                ed = int(c / n_blocks * (block_id + 1))
             else:
                 ed = c
             return records[st: ed]
 
         def write(w):
-            def inner((idx, r)):
+            def inner(arg):
+                idx, r = arg
                 w.write(idx, r)
             return inner
 
         with table.open_writer(partition=p, blocks=blocks) as writer:
             thread_pool.map(write(writer), [(i, gen_block_records(i)) for i in blocks])
 
-        with table.open_reader(partition=p) as reader:
-            count = reader.count
+        for step in range(1, 4):
+            with table.open_reader(partition=p) as reader:
+                count = reader.count
 
-            reads = []
-            for i in range(n_blocks):
-                start = count / n_blocks * i
-                if i < n_blocks - 1:
-                    end = count / n_blocks * (i + 1)
-                else:
-                    end = count
-                size = end - start
-                for record in reader.read(start, size):
-                    reads.append(record)
+                reads = []
+                for i in range(n_blocks):
+                    start = int(count / n_blocks * i)
+                    if i < n_blocks - 1:
+                        end = int(count / n_blocks * (i + 1))
+                    else:
+                        end = count
+                    for record in reader[start:end:step]:
+                        reads.append(record)
 
-        for val1, val2 in zip(data, [r.values for r in reads]):
-            for it1, it2 in zip(val1[:-1], val2[:-1]):
-                if isinstance(it1, dict):
-                    self.assertEqual(len(it1), len(it2))
-                    self.assertTrue(any(it1[k] == it2[k] for k in it1))
-                elif isinstance(it1, list):
-                    self.assertSequenceEqual(it1, it2)
-                else:
-                    self.assertEqual(it1, it2)
+            for val1, val2 in zip(data[::step], [r.values for r in reads]):
+                for it1, it2 in zip(val1[:-1], val2[:-1]):
+                    if isinstance(it1, dict):
+                        self.assertEqual(len(it1), len(it2))
+                        self.assertTrue(any(it1[k] == it2[k] for k in it1))
+                    elif isinstance(it1, list):
+                        self.assertSequenceEqual(it1, it2)
+                    else:
+                        self.assertEqual(it1, it2)
 
         table.drop()
 

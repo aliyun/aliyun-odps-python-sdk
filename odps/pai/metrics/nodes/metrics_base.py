@@ -16,8 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import unicode_literals
-
 import logging
 
 from ...utils.odps_utils import drop_table
@@ -38,5 +36,5 @@ class MetricNode(BaseDagNode):
     def calc_metrics(self, context):
         try:
             drop_table(context._odps, self._data_table_name)
-        except Exception, ex:
+        except Exception as ex:
             logger.warn(ex)

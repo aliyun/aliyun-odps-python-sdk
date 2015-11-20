@@ -16,7 +16,7 @@
 # under the License.
 
 import itertools
-from datetime import datetime, timedelta
+import time
 
 import six
 
@@ -68,14 +68,10 @@ class Test(TestBase):
             self.assertTrue(all(instance.status == Instance.Status.RUNNING for instance in instances))
             self.assertEqual(len(set(instance.owner for instance in instances)), 1)
 
-        from_time = datetime.now() - timedelta(days=10)
-        end_time = datetime.now() - timedelta(days=1)
+        from_time = time.time() - 10 * 24 * 3600
+        end_time = time.time() - 24 * 3600
         instances = list(self.odps.list_instances(from_time=from_time, end_time=end_time))
         self.assertGreaterEqual(len(instances), 0)
-        if len(instances) > 0:
-            for instance in instances:
-                self.assertGreater(instance.start_time, from_time)
-                self.assertLess(instance.end_time, end_time)
 
     def testInstanceExists(self):
         non_exists_instance = 'a_non_exists_instance'
@@ -179,11 +175,30 @@ class Test(TestBase):
             table, 0, [table.new_record([1]), table.new_record([2])])
         self.odps.write_table(table, [table.new_record([3]), ])
 
-        instance = self.odps.execute_sql('select sum(size) as count from %s' % test_table)
+        instance = self.odps.run_sql('select sum(size) as count from %s' % test_table)
+
+        while len(instance.get_task_names()) == 0 or \
+                instance.get_task_statuses().values()[0].status == Instance.Task.TaskStatus.WAITING:
+            continue
+
+        while True:
+            progress = instance.get_task_progress(instance.get_task_names()[0])
+            if len(progress.stages) == 0:
+                continue
+            self.assertGreater(len(progress.get_stage_progress_formatted_string().split()), 2)
+            break
+
+        instance.wait_for_success()
+
         with instance.open_reader(Schema.from_lists(['count'], ['bigint'])) as reader:
             records = list(reader)
             self.assertEqual(len(records), 1)
-            self.assertTrue(records[0]['count'], 6)
+            self.assertEqual(records[0]['count'], 6)
+
+        with instance.open_reader() as reader:
+            records = list(reader)
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]['count'], '6')
 
         table.drop()
 

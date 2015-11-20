@@ -30,6 +30,24 @@ from .. import types, serializers, utils, readers
 
 
 class TableSchema(types.OdpsSchema, JSONRemoteModel):
+    """
+    Schema includes the columns and partitions information of a :class:`odps.models.Table`.
+
+    There are two ways to initialize a Schema object, first is to provide columns and partitions,
+    the second way is to call the class method ``from_lists``. See the examples below:
+
+    :Example:
+
+    >>> columns = [Column(name='num', type='bigint', comment='the column')]
+    >>> partitions = [Partition(name='pt', type='string', comment='the partition')]
+    >>> schema = Schema(columns=columns, partitions=partitions)
+    >>> schema.columns
+    [<column num, type bigint>, <partition pt, type string>]
+    >>>
+    >>> schema = Schema.from_lists(['num'], ['bigint'], ['pt'], ['string'])
+    >>> schema.columns
+    [<column num, type bigint>, <partition pt, type string>]
+    """
 
     class Shard(JSONRemoteModel):
 
@@ -46,10 +64,12 @@ class TableSchema(types.OdpsSchema, JSONRemoteModel):
 
         def __init__(self, **kwargs):
             JSONRemoteModel.__init__(self, **kwargs)
+            if self.type is not None:
+                self.type = types.validate_data_type(self.type)
 
     class TablePartition(types.Partition, TableColumn):
         def __init__(self, **kwargs):
-            JSONRemoteModel.__init__(self, **kwargs)
+            TableSchema.TableColumn.__init__(self, **kwargs)
 
     def __init__(self, **kwargs):
         kwargs['_columns'] = columns = kwargs.pop('columns', None)
@@ -92,6 +112,39 @@ class TableSchema(types.OdpsSchema, JSONRemoteModel):
 
 
 class Table(LazyLoad):
+    """
+    Table means the same to the RDBMS table, besides, a table can consist of partitions.
+
+    Table's properties are the same to the ones of :class:`odps.models.Project`,
+    which will not load from remote ODPS service until users try to get them.
+
+    In order to write data into table, users should call the ``open_writer``
+    method with **with statement**. At the same time, the ``open_reader`` method is used
+    to provide the ability to read records from a table or its partition.
+
+    :Example:
+
+    >>> table = odps.get_table('my_table')
+    >>> table.owner  # first will load from remote
+    >>> table.reload()  # reload to update the properties
+    >>>
+    >>> for record in table.head(5):
+    >>>     # check the first 5 records
+    >>> for record in table.head(5, partition='pt=test', columns=['my_column'])
+    >>>     # only check the `my_column` column from certain partition of this table
+    >>>
+    >>> with table.open_reader() as reader:
+    >>>     count = reader.count  # How many records of a table or its partition
+    >>>     for record in record[0: count]:
+    >>>         # read all data, actually better to split into reading for many times
+    >>>
+    >>> with table.open_writer() as writer:
+    >>>     writer.write(records)
+    >>> with table.open_writer(partition='pt=test', blocks=[0, 1]):
+    >>>     writer.write(0, gen_records(block=0))
+    >>>     writer.write(1, gen_records(block=1))  # we can do this parallel
+    """
+
     __slots__ = '_is_extend_info_loaded', 'last_meta_modified_time', 'is_virtual_view', \
                 'lifecycle', 'view_text', 'size', \
                 'is_archived', 'physical_size', 'file_num', 'shard', \
@@ -140,21 +193,26 @@ class Table(LazyLoad):
 
         val = object.__getattribute__(self, attr)
         if val is None and not self._loaded:
-            try:
-                schema = object.__getattribute__(self, 'schema')
-            except AttributeError:
-                schema = None
-
-            if schema is None:
-                return super(Table, self).__getattribute__(attr)
-
-            if attr in getattr(schema, '__fields'):
+            if attr in getattr(TableSchema, '__fields'):
                 self.reload()
                 return object.__getattribute__(self, attr)
 
         return super(Table, self).__getattribute__(attr)
 
-    def read(self, limit, partition=None, columns=None):
+    def head(self, limit, partition=None, columns=None):
+        """
+        Get the head records of a table or its partition.
+
+        :param limit: records' size, 10000 at most
+        :param partition: partition of this table
+        :param columns: the columns which is subset of the table columns
+        :type columns: list
+        :return: records
+        :rtype: list
+
+        .. seealso:: :class:`odps.models.Record`
+        """
+
         if limit <= 0:
             raise ValueError('limit number should >= 0.')
 
@@ -168,7 +226,9 @@ class Table(LazyLoad):
             params['cols'] = ','.join(col_name(col) for col in columns)
 
         resp = self._client.get(self.resource(), params=params, stream=True)
-        return readers.RecordReader(self.schema, resp)
+        with readers.RecordReader(self.schema, resp) as reader:
+            for record in reader:
+                yield record
 
     def _create_table_tunnel(self, endpoint=None):
         if self._table_tunnel is not None:
@@ -182,6 +242,29 @@ class Table(LazyLoad):
 
     @contextlib.contextmanager
     def open_reader(self, partition=None, **kw):
+        """
+        Open the reader to read the entire records from this table or its partition.
+
+        :param partition: partition of this table
+        :param reopen: the reader will reuse last one, reopen is true means open a new reader.
+        :type reopen: bool
+        :param endpoint: the tunnel service URL
+        :param compress_option: compression algorithm, level and strategy
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param compress_algo: compression algorithm, work when ``compress_option`` is not provided,
+                              can be ``zlib``, ``snappy``
+        :param compress_level: used for ``zlib``, work when ``compress_option`` is not provided
+        :param compress_strategy: used for ``zlib``, work when ``compress_option`` is not provided
+        :return: reader, ``count`` means the full size, ``status`` means the tunnel status
+
+        :Example:
+
+        >>> with table.open_reader() as reader:
+        >>>     count = reader.count  # How many records of a table or its partition
+        >>>     for record in record[0: count]:
+        >>>         # read all data, actually better to split into reading for many times
+        """
+
         reopen = kw.pop('reopen', False)
         endpoint = kw.pop('endpoint', None)
 
@@ -191,7 +274,10 @@ class Table(LazyLoad):
                                                           download_id=download_id, **kw)
         self._download_id = download_session.id
 
-        class RecordReader(object):
+        class RecordReader(readers.AbstractRecordReader):
+            def __init__(self):
+                self._it = iter(self)
+
             @property
             def count(self):
                 return download_session.count
@@ -200,18 +286,54 @@ class Table(LazyLoad):
             def status(self):
                 return download_session.status
 
-            def read(self, start=None, count=None, compress=False):
+            def __iter__(self):
+                for record in self.read():
+                    yield record
+
+            def __next__(self):
+                return next(self._it)
+
+            next = __next__
+
+            def read(self, start=None, count=None, step=None,
+                     compress=False, columns=None):
                 start = start or 0
                 count = count or self.count-start
 
-                for record in download_session.open_record_reader(
-                        start, count, compress=compress):
-                    yield record
+                with download_session.open_record_reader(
+                        start, count, compress=compress, columns=columns) as reader:
+                    for record in reader[::step]:
+                        yield record
 
         yield RecordReader()
 
     @contextlib.contextmanager
     def open_writer(self, partition=None, blocks=None, **kw):
+        """
+        Open the writer to write records into this table or its partition.
+
+        :param partition: partition of this table
+        :param blocks: block ids to open
+        :param reopen: the reader will reuse last one, reopen is true means open a new reader.
+        :type reopen: bool
+        :param endpoint: the tunnel service URL
+        :param compress_option: compression algorithm, level and strategy
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param compress_algo: compression algorithm, work when ``compress_option`` is not provided,
+                              can be ``zlib``, ``snappy``
+        :param compress_level: used for ``zlib``, work when ``compress_option`` is not provided
+        :param compress_strategy: used for ``zlib``, work when ``compress_option`` is not provided
+        :return: writer, status means the tunnel writer status
+
+        :Example:
+
+        >>> with table.open_writer() as writer:
+        >>>     writer.write(records)
+        >>> with table.open_writer(partition='pt=test', blocks=[0, 1]):
+        >>>     writer.write(0, gen_records(block=0))
+        >>>     writer.write(1, gen_records(block=1))  # we can do this parallel
+        """
+
         reopen = kw.pop('reopen', False)
         commit = kw.pop('commit', True)
         endpoint = kw.pop('endpoint', None)
@@ -288,7 +410,30 @@ class Table(LazyLoad):
         return self.partitions[partition_spec]
 
     def drop(self):
+        """
+        drop this table.
+
+        :return: None
+        """
         return self.parent.delete(self)
 
     def new_record(self, values=None):
+        """
+        Generate a record of the table.
+
+        :param values: the values of this records
+        :type values: list
+        :return: record
+        :rtype: :class:`odps.models.Record`
+
+        :Example:
+
+        >>> table = odps.create_table('test_table', schema=Schema.from_lists(['name', 'id'], ['sring', 'string']))
+        >>> record = table.new_record()
+        >>> record[0] = 'my_name'
+        >>> record[1] = 'my_id'
+        >>> record = table.new_record(['my_name', 'my_id'])
+
+        .. seealso:: :class:`odps.models.Record`
+        """
         return types.Record(schema=self.schema, values=values)

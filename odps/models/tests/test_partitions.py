@@ -91,9 +91,6 @@ class Test(TestBase):
         self.assertIsNone(partition._getattr('physical_size'))
         self.assertIsNone(partition._getattr('file_num'))
 
-        self.assertTrue(table.exist_partition(partition))
-        self.assertFalse(table.exist_partition('s=a_non_exist_partition'))
-
         self.assertIsInstance(partition.is_archived, bool)
         self.assertIsInstance(partition.is_exstore, bool)
         self.assertIsInstance(partition.lifecycle, int)
@@ -106,6 +103,9 @@ class Test(TestBase):
 
         self.assertTrue(partition._is_extend_info_loaded)
         self.assertTrue(partition.is_loaded)
+
+        self.assertTrue(table.exist_partition(partition))
+        self.assertFalse(table.exist_partition('s=a_non_exist_partition'))
 
         self.odps.delete_table(test_table_name)
         self.assertFalse(table.exist_partition(partition))

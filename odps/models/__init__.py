@@ -32,3 +32,6 @@ from .xflow import XFlow
 from .tasks import *
 
 from ..types import Record  # compatible
+
+Column = Schema.TableColumn
+Partition = Schema.TablePartition

@@ -16,7 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import unicode_literals
 from ..core.dag import BaseDagNode, DagEndpointType
 from ..nodes.exporters import get_input_table_name, get_input_partitions, get_output_table_name, \
     get_output_table_partitions

@@ -54,7 +54,6 @@ class Test(TestBase):
 
         self.assertIsInstance(project.extended_properties, dict)
         self.assertIsInstance(project.owner, six.string_types)
-        self.assertIsInstance(project.comment, six.string_types)
         self.assertIsInstance(project.creation_time, datetime)
         self.assertIsInstance(project.last_modified_time, datetime)
         self.assertIsInstance(project.properties, dict)

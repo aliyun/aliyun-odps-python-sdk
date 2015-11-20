@@ -139,7 +139,7 @@ class UploadSession(serializers.JSONSerializableModel):
     def commit(self, blocks):
         if blocks is None:
             raise ValueError('Invalid parameter: blocks.')
-        if isinstance(blocks, (int, long)):
+        if isinstance(blocks, six.integer_types):
             blocks = [blocks, ]
         
         server_block_map = dict([(int(block_id), True) for block_id \

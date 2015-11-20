@@ -18,13 +18,68 @@
 # under the License.
 
 import csv
+import math
 
 from requests import Response
+import six
 
 from . import types
 
 
-class RecordReader(object):
+class AbstractRecordReader(object):
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        raise NotImplementedError
+
+    next = __next__
+
+    def __getitem__(self, item):
+        if isinstance(item, six.integer_types):
+            start = item
+            end = start + 1
+            step = 1
+        elif isinstance(item, slice):
+            start = item.start or 0
+            end = item.stop
+            step = item.step or 1
+        else:
+            raise ValueError('Reader only supports index and slice operation.')
+
+        if end is None:
+            count = None
+        else:
+            count = int(math.ceil((end - start) / step))
+        return self._iter(start=start, count=count, step=step)
+
+    def _iter(self, start=None, count=None, step=None):
+        start = start or 0
+        step = step or 1
+        curr = 0
+
+        if start < 0 or (count is not None and count < 0) or step < 0:
+            raise ValueError('start, count, or step cannot be negative')
+
+        while True:
+            try:
+                for i in range(step):
+                    record = next(self)
+                    if record is None:
+                        return
+                    if i == 0:
+                        yield record
+            except StopIteration:
+                break
+
+            if count is not None:
+                curr += 1
+                if curr >= count:
+                    break
+
+
+class RecordReader(AbstractRecordReader):
     NULL_TOKEN = '\\N'
 
     def __init__(self, schema, stream, **kwargs):
@@ -32,15 +87,28 @@ class RecordReader(object):
         self._columns = None
         self._fp = stream
         if isinstance(self._fp, Response):
-            content = self._fp.content
+            self.raw = self._fp.content if six.PY2 else self._fp.text
         else:
-            content = self._fp
-        self._csv = csv.reader(content.splitlines())
+            self.raw = self._fp
+        self._csv = csv.reader(self.raw.splitlines())
 
     def _readline(self):
         try:
-            return [item if item != self.NULL_TOKEN else None
-                    for item in self._csv.next()]
+            values = next(self._csv)
+            res = []
+            for i, value in enumerate(values):
+                if value == self.NULL_TOKEN:
+                    res.append(None)
+                elif self._columns and self._columns[i].type == types.boolean:
+                    if value == 'true':
+                        res.append(True)
+                    elif value == 'false':
+                        res.append(False)
+                    else:
+                        res.append(value)
+                else:
+                    res.append(value)
+            return res
         except StopIteration:
             return
 
@@ -54,21 +122,8 @@ class RecordReader(object):
 
     next = __next__
 
-    def __iter__(self):
-        return self
-
-    reads = __iter__  # compatible
-
-    def read(self):
-        try:
-            return next(self)
-        except StopIteration:
-            return
-
-    def read_raw(self):
-        self._load_columns()
-
-        return self._readline()
+    def read(self, start=None, count=None, step=None):
+        return self._iter(start=start, count=count, step=step)
 
     def _load_columns(self):
         if self._columns is not None:
@@ -77,10 +132,13 @@ class RecordReader(object):
         values = self._readline()
         self._columns = []
         for value in values:
-            if self._schema.is_partition(value):
-                self._columns.append(self._schema.get_partition(value))
+            if self._schema is None:
+                self._columns.append(types.Column(name=value, typo='string'))
             else:
-                self._columns.append(self._schema.get_column(value))
+                if self._schema.is_partition(value):
+                    self._columns.append(self._schema.get_partition(value))
+                else:
+                    self._columns.append(self._schema.get_column(value))
 
     def close(self):
         if hasattr(self._fp, 'close'):

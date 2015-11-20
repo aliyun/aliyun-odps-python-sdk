@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,7 +22,7 @@ import itertools
 
 import six
 
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, to_str
 from odps.compat import unittest
 from odps.models import Schema, Record
 
@@ -77,12 +79,12 @@ class Test(TestBase):
         self.assertIsInstance(table.is_archived, bool)
         self.assertGreaterEqual(table.physical_size, 0)
         self.assertGreaterEqual(table.file_num, 0)
+        self.assertIsInstance(table.creation_time, datetime)
         self.assertIsInstance(table.schema, Schema)
         self.assertGreater(len(table.schema.get_columns()), 0)
         self.assertGreaterEqual(len(table.schema.get_partitions()), 0)
         self.assertIsInstance(table.owner, six.string_types)
         self.assertIsInstance(table.table_label, six.string_types)
-        self.assertIsInstance(table.creation_time, datetime)
         self.assertIsInstance(table.last_modified_time, datetime)
         self.assertIsInstance(table.last_meta_modified_time, datetime)
         self.assertIsInstance(table.is_virtual_view, bool)
@@ -117,23 +119,39 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name, if_exists=True)
         self.assertFalse(self.odps.exist_table(test_table_name))
 
+    def testCreateTableWithChineseColumn(self):
+        test_table_name = 'pyodps_t_tmp_create_table_with_chinese_columns'
+        schema = Schema.from_lists(['序列', '值'], ['bigint', 'string'], ['ds', ], ['string',])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self.odps.create_table(test_table_name, schema)
+        self.assertSequenceEqual([col.name for col in table.schema.columns],
+                                 [col.name for col in schema.columns])
+
     def testReadWriteTable(self):
         test_table_name = 'pyodps_t_tmp_read_write_table'
-        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'])
+        schema = Schema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
         self.assertFalse(self.odps.exist_table(test_table_name))
 
         table = self.odps.create_table(test_table_name, schema)
-        data = [[111, 'aaa'],
-                [222, 'bbb'],
-                [333, 'ccc']]
+        data = [[111, 'aaa', True],
+                [222, 'bbb', False],
+                [333, 'ccc', True],
+                [444, '中文', False]]
+        length = len(data)
         records = [Record(schema=schema, values=values) for values in data]
 
-        self.odps.write_table(table, 0, records)
-        self.assertSequenceEqual(data, [record.values for record in self.odps.read_table(table, 3)])
+        texted_data = [[it[0], to_str(it[1]), it[2]] for it in data]
 
-        self.assertSequenceEqual(data, [record.values for record in table.read(3)])
+        self.odps.write_table(table, 0, records)
+        self.assertSequenceEqual(texted_data, [record.values for record in self.odps.read_table(table, length)])
+        self.assertSequenceEqual(texted_data[::2],
+                                 [record.values for record in self.odps.read_table(table, length, step=2)])
+
+        self.assertSequenceEqual(texted_data, [record.values for record in table.head(length)])
 
         self.odps.delete_table(test_table_name)
         self.assertFalse(self.odps.exist_table(test_table_name))

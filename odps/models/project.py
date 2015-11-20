@@ -28,6 +28,25 @@ from .. import serializers, utils
 
 
 class Project(LazyLoad):
+    """
+    Project is the counterpart of **database** in a RDBMS.
+
+    By get an object of Project, users can get the properties like ``name``, ``owner``,
+    ``comment``, ``creation_time``, ``last_modified_time``, and so on.
+
+    These properties will not load from remote ODPS service, unless users
+    try to get them explicitly. If users want to check the newest status,
+    try use ``reload`` method.
+
+    :Example:
+
+    >>> project = odps.get_project('my_project')
+    >>> project.last_modified_time  # this property will be fetched from the remote ODPS service
+    >>> project.last_modified_time  # Once loaded, the property will not bring remote call
+    >>> project.owner  # so do the other properties, they are fetched together
+    >>> project.reload()  # force to update each properties
+    >>> project.last_modified_time  # already updated
+    """
 
     __slots__ = 'extended_properties'
 

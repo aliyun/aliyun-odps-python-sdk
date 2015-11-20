@@ -148,10 +148,14 @@ class Resources(Iterable):
         obj = obj or Resource(parent=self, client=self._client, **kwargs)
         if obj.type == Resource.Type.UNKOWN:
             raise ValueError('Unknown resource type to create.')
+        if obj.parent is None:
+            obj._parent = self
+        if obj._client is None:
+            obj._client = self._client
 
         if isinstance(obj, FileResource):
             if fp is None:
-                raise ValueError('parameter `fp` cannot be None, either string or file-like object')
+                raise ValueError('parameter `file_obj` cannot be None, either string or file-like object')
             if isinstance(fp, six.text_type):
                 fp = fp.encode('utf-8')
             if isinstance(fp, six.binary_type):

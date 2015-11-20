@@ -17,7 +17,7 @@
 from enum import Enum
 
 from .core import AbstractXMLRemoteModel
-from .. import serializers, errors
+from .. import serializers, errors, compat
 
 
 class TaskType(Enum):
@@ -33,6 +33,8 @@ def _get_task_type(name):
 
 
 class Task(AbstractXMLRemoteModel):
+
+    __slots__ = 'name', 'comment', 'properties'
 
     _type_indicator = 'type'
 
@@ -54,7 +56,7 @@ class Task(AbstractXMLRemoteModel):
 
     def set_property(self, key, value):
         if self.properties is None:
-            self.properties = dict()
+            self.properties = compat.OrderedDict()
         self.properties[key] = value
 
     def serialize(self):
@@ -85,7 +87,7 @@ class SQLTask(Task):
 
     def serial(self):
         if self.properties is None:
-            self.properties = {}
+            self.properties = compat.OrderedDict()
 
         key = 'settings'
         if key not in self.properties:

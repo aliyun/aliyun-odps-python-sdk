@@ -15,15 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
-__version__ = '0.2.0'
-__all__ = ['ODPS',]
-
 import sys
 
+__version__ = '0.2.1'
+__all__ = ['ODPS',]
+
 version = sys.version_info
-if version[0] != 2:
-    raise Exception('pyodps does not support python3 yet.')
+if version[0] == 2 and version[:2] < (2, 6):
+    raise Exception('pyodps supports python 2.6+ (including python 3+).')
 
 import pkg_resources
 pkg_resources.declare_namespace(__name__)

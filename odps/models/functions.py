@@ -79,6 +79,10 @@ class Functions(Iterable):
 
     def create(self, obj=None, **kwargs):
         function = obj or Function(parent=self, client=self._client, **kwargs)
+        if function.parent is None:
+            function._parent = self
+        if function._client is None:
+            function._client = self._client
 
         headers = {'Content-Type': 'application/xml'}
         data = function.serialize()

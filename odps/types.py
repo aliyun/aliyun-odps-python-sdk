@@ -34,9 +34,13 @@ class Column(object):
         self.comment = comment
         self.label = label
 
+    def __repr__(self):
+        return '<column {0}, type {1}>'.format(self.name, self.type.name.lower())
+
 
 class Partition(Column):
-    pass
+    def __repr__(self):
+        return '<partition {0}, type {1}>'.format(self.name, self.type.name.lower())
 
 
 class PartitionSpec(object):
@@ -227,6 +231,33 @@ class OdpsSchema(Schema):
 
 
 class Record(object):
+    """
+    A record generally means the data of a single line in a table.
+
+    :Example:
+
+    >>> schema = Schema.from_lists(['name', 'id'], ['string', 'string'])
+    >>> record = Record(schema=schema, values=['test', 'test2'])
+    >>> record[0] = 'test'
+    >>> record[0]
+    >>> 'test'
+    >>> record['name']
+    >>> 'test'
+    >>> record[0:2]
+    >>> ('test', 'test2')
+    >>> record[0, 1]
+    >>> ('test', 'test2')
+    >>> record['name', 'id']
+    >>> for field in record:
+    >>>     print(field)
+    ('name', u'test')
+    ('id', u'test2')
+    >>> len(record)
+    2
+    >>> 'name' in record
+    True
+    """
+
     # set __slots__ to save memory in the situation that records' size may be quite large
     __slots__ = '_values', '_columns', '_name_indexes'
 
@@ -376,7 +407,7 @@ class DataType(object):
     def _can_cast_or_throw(self, value, data_type):
         if not self.can_implicit_cast(data_type):
             raise ValueError('Cannot cast value(%s) from type(%s) to type(%s)' % (
-                value, self, data_type))
+                value, data_type, self))
 
     def cast_value(self, value, data_type):
         raise NotImplementedError
@@ -387,7 +418,7 @@ class OdpsPrimitive(DataType):
 
 
 class Bigint(OdpsPrimitive):
-    __slots__ = '_bounds',
+    __slots__ = ()
 
     _bounds = (-9223372036854775808, 9223372036854775807)
 
@@ -430,7 +461,7 @@ class Double(OdpsPrimitive):
 
 
 class String(OdpsPrimitive):
-    __slots__ = '_max_length',
+    __slots__ = ()
 
     _max_length = 8 * 1024 * 1024  # 8M
 
@@ -455,14 +486,12 @@ class String(OdpsPrimitive):
 
         if isinstance(data_type, Datetime):
             return value.strftime('%Y-%m-%d %H:%M:%S')
-        val = str(value)
-        if isinstance(val, six.binary_type):
-            val = val.decode('utf-8')
+        val = utils.to_text(value)
         return val
 
 
 class Datetime(OdpsPrimitive):
-    __slots__ = '_ticks_bound',
+    __slots__ = ()
 
     _ticks_bound = (-6213579840.00, 2534022719.99)
 
@@ -499,7 +528,7 @@ class Boolean(OdpsPrimitive):
 
 
 class Decimal(OdpsPrimitive):
-    __slots__ = '_max_int_len', '_max_scale'
+    __slots__ = ()
 
     _max_int_len = 36
     _max_scale = 18
@@ -672,7 +701,7 @@ def _infer_primitive_data_type(value):
 
 def _validate_primitive_value(value, data_type):
     if isinstance(value, bytearray):
-        value = str(value)
+        value = value.decode('utf-8')
     if value is None:
         return None
 

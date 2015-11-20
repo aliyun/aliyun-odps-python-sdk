@@ -16,9 +16,9 @@
 # under the License.
 
 import os
-import ConfigParser
 
 import six
+from six.moves import configparser as ConfigParser
 
 from .. import compat
 from .. import ODPS
@@ -88,7 +88,7 @@ def get_config():
                            tunnel_endpoint=tunnel_endpoint)
         config.tunnel = TableTunnel(config.odps, endpoint=tunnel_endpoint)
         config.datahub_endpoint = datahub_endpoint
-        logging_level = config.get('test', 'logging_level', 'INFO')
+        logging_level = config.get('test', 'logging_level')
         LOGGING_CONFIG['handlers']['console']['level'] = logging_level
     else:
         config = Config.config

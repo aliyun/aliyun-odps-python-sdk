@@ -31,6 +31,10 @@ import traceback
 import time
 from email.utils import parsedate_tz, formatdate
 
+import six
+
+from . import compat
+
 
 def fixed_writexml(self, writer, indent="", addindent="", newl=""):
     # indent = current indentation
@@ -39,7 +43,7 @@ def fixed_writexml(self, writer, indent="", addindent="", newl=""):
     writer.write(indent + "<" + self.tagName)
 
     attrs = self._get_attributes()
-    a_names = attrs.keys()
+    a_names = compat.lkeys(attrs)
     a_names.sort()
 
     for a_name in a_names:
@@ -153,8 +157,12 @@ def parse_rfc822(s):
     return timetuple_to_datetime(parsedate_tz(s))
 
 
-def gen_rfc822(dt):
-    return formatdate(time.mktime(dt.timetuple()), localtime=True)
+def gen_rfc822(dt=None, localtime=False, usegmt=False):
+    if dt is not None:
+        t = time.mktime(dt.timetuple())
+    else:
+        t = None
+    return formatdate(t, localtime=localtime, usegmt=usegmt)
 
 
 def to_timestamp(dt):
@@ -163,3 +171,27 @@ def to_timestamp(dt):
 
 def to_milliseconds(dt):
     return int((time.mktime(dt.timetuple()) + dt.microsecond/1000000.0) * 1000)
+
+
+def to_datetime(milliseconds):
+    seconds = int(milliseconds / 1000)
+    microseconds = milliseconds % 1000 * 1000
+    return datetime.fromtimestamp(seconds).replace(microsecond=microseconds)
+
+
+def to_binary(text, encoding='utf-8'):
+    if isinstance(text, six.text_type):
+        return text.encode(encoding)
+    elif isinstance(text, (six.binary_type, bytearray)):
+        return bytes(text)
+    else:
+        return str(text).encode(encoding)
+
+
+def to_text(binary, encoding='utf-8'):
+    if isinstance(binary, (six.binary_type, bytearray)):
+        return binary.decode(encoding)
+    elif isinstance(binary, six.text_type):
+        return binary
+    else:
+        return str(binary)

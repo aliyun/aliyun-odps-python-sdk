@@ -23,6 +23,9 @@ from .. import serializers, utils
 
 
 class Function(LazyLoad):
+    """
+    Function can be used in UDF when user writes a SQL.
+    """
 
     _root = 'Function'
 
@@ -48,6 +51,15 @@ class Function(LazyLoad):
 
     @property
     def resources(self):
+        """
+        Return all the resources which this function refer to.
+
+        :return: resources
+        :rtype: list
+
+        .. seealso:: :class:`odps.models.Resource`
+        """
+
         resources = self.parent.parent.resources
         resources = [resources[name] for name in self._resources]
         return resources
@@ -58,4 +70,10 @@ class Function(LazyLoad):
         self._resources = [get_name(res) for res in value]
 
     def drop(self):
+        """
+        Delete this Function.
+
+        :return: None
+        """
+
         return self.parent.delete(self)
