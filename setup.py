@@ -49,7 +49,7 @@ if os.path.exists('README.rst'):
         long_description = f.read()
 
 setup(name='pyodps',
-      version='0.2.1',
+      version='0.2.2',
       description='ODPS Python SDK',
       long_description=long_description,
       author='Wu Wei',
@@ -59,6 +59,7 @@ setup(name='pyodps',
       url='http://github.com/aliyun/aliyun-odps-python-sdk',
       license='Apache License 2.0',
       packages=find_packages(exclude=('*.tests.*', '*.tests')),
+      include_package_data=True,
       scripts=['scripts/pyou',],
       install_requires=requirements,
       )
