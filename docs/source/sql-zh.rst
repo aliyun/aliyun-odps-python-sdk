@@ -30,6 +30,6 @@ PyOdps支持ODPS SQL的查询，并可以读取执行的结果。
 
 .. code-block:: python
 
-   >>> with odps.execute_sql('desc dual').open_reader as reader:
+   >>> with odps.execute_sql('desc dual').open_reader() as reader:
    >>>     print(reader.raw)
 
