@@ -295,10 +295,15 @@ class Table(LazyLoad):
 
             next = __next__
 
+            def _iter(self, start=None, end=None, step=None):
+                count = self._calc_count(start, end, step)
+                return self.read(start=start, count=count, step=step)
+
             def read(self, start=None, count=None, step=None,
                      compress=False, columns=None):
                 start = start or 0
-                count = count or self.count-start
+                step = step or 1
+                count = count*step if count is not None else self.count-start
 
                 with download_session.open_record_reader(
                         start, count, compress=compress, columns=columns) as reader:

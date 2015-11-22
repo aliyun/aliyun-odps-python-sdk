@@ -308,10 +308,12 @@ class Test(TestBase):
             thread_pool.map(write(writer), [(i, gen_block_records(i)) for i in blocks])
 
         for step in range(1, 4):
+            reads = []
+            expected = []
+
             with table.open_reader(partition=p) as reader:
                 count = reader.count
 
-                reads = []
                 for i in range(n_blocks):
                     start = int(count / n_blocks * i)
                     if i < n_blocks - 1:
@@ -320,8 +322,10 @@ class Test(TestBase):
                         end = count
                     for record in reader[start:end:step]:
                         reads.append(record)
+                    expected.extend(data[start:end:step])
 
-            for val1, val2 in zip(data[::step], [r.values for r in reads]):
+            self.assertEqual(len(expected), len(reads))
+            for val1, val2 in zip(expected, [r.values for r in reads]):
                 for it1, it2 in zip(val1[:-1], val2[:-1]):
                     if isinstance(it1, dict):
                         self.assertEqual(len(it1), len(it2))

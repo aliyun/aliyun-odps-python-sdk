@@ -36,7 +36,14 @@ class AbstractRecordReader(object):
 
     next = __next__
 
-    def __getitem__(self, item):
+    @classmethod
+    def _calc_count(cls, start, end, step):
+        if end is None:
+            return end
+        return int(math.ceil(float(end - start) / step))
+
+    @classmethod
+    def _get_slice(cls, item):
         if isinstance(item, six.integer_types):
             start = item
             end = start + 1
@@ -48,35 +55,39 @@ class AbstractRecordReader(object):
         else:
             raise ValueError('Reader only supports index and slice operation.')
 
-        if end is None:
-            count = None
-        else:
-            count = int(math.ceil((end - start) / step))
-        return self._iter(start=start, count=count, step=step)
+        return start, end, step
 
-    def _iter(self, start=None, count=None, step=None):
-        start = start or 0
-        step = step or 1
-        curr = 0
+    def __getitem__(self, item):
+        start, end, step = self._get_slice(item)
+        count = self._calc_count(start, end, step)
 
-        if start < 0 or (count is not None and count < 0) or step < 0:
+        if start < 0 or (count is not None and count <= 0) or step < 0:
             raise ValueError('start, count, or step cannot be negative')
 
-        while True:
-            try:
-                for i in range(step):
-                    record = next(self)
-                    if record is None:
-                        return
-                    if i == 0:
-                        yield record
-            except StopIteration:
-                break
+        return self._iter(start=start, end=end, step=step)
 
-            if count is not None:
+    def _iter(self, start=None, end=None, step=None):
+        start = start or 0
+        step = step or 1
+        curr = start
+
+        for _ in range(start):
+            try:
+                next(self)
+            except StopIteration:
+                return
+
+        while True:
+            for i in range(step):
+                try:
+                    record = next(self)
+                except StopIteration:
+                    return
+                if i == 0:
+                    yield record
                 curr += 1
-                if curr >= count:
-                    break
+                if end is not None and curr >= end:
+                    return
 
 
 class RecordReader(AbstractRecordReader):

@@ -17,5 +17,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from offlinemodels import OfflineModels
-from offlinemodel import OfflineModel
+from .offlinemodels import OfflineModels
+from .offlinemodel import OfflineModel

@@ -19,7 +19,6 @@
 from setuptools import setup, find_packages
 
 import sys
-import os
 
 version = sys.version_info
 PY2 = version[0] == 2
@@ -43,15 +42,9 @@ if LESS_PY34:
 if PY26:
     requirements.append('ordereddict>=1.1')
 
-long_description = None
-if os.path.exists('README.rst'):
-    with open('README.rst') as f:
-        long_description = f.read()
-
 setup(name='pyodps',
-      version='0.2.2',
+      version='0.2.3',
       description='ODPS Python SDK',
-      long_description=long_description,
       author='Wu Wei',
       author_email='weiwu@cacheme.net',
       maintainer='Qin Xuye',

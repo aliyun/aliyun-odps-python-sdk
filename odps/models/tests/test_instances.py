@@ -23,7 +23,7 @@ import six
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest
 from odps.models import Instance, SQLTask, Schema
-from odps import errors
+from odps import errors, compat
 
 expected_xml_template = '''<?xml version="1.0" ?>
 <Instance>
@@ -175,10 +175,16 @@ class Test(TestBase):
             table, 0, [table.new_record([1]), table.new_record([2])])
         self.odps.write_table(table, [table.new_record([3]), ])
 
+        instance = self.odps.execute_sql('select * from %s' % test_table)
+        with instance.open_reader(table.schema) as reader:
+            self.assertEqual(len(list(reader[::2])), 2)
+        with instance.open_reader(table.schema) as reader:
+            self.assertEqual(len(list(reader[1::2])), 1)
+
         instance = self.odps.run_sql('select sum(size) as count from %s' % test_table)
 
         while len(instance.get_task_names()) == 0 or \
-                instance.get_task_statuses().values()[0].status == Instance.Task.TaskStatus.WAITING:
+                compat.lvalues(instance.get_task_statuses())[0].status == Instance.Task.TaskStatus.WAITING:
             continue
 
         while True:
