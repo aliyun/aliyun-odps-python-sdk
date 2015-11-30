@@ -37,6 +37,9 @@ class Column(object):
     def __repr__(self):
         return '<column {0}, type {1}>'.format(self.name, self.type.name.lower())
 
+    def __hash__(self):
+        return hash((type(self), self.name, self.type, self.comment, self.label))
+
 
 class Partition(Column):
     def __repr__(self):
@@ -108,7 +111,7 @@ class Schema(object):
         return len(self.names)
 
     def __contains__(self, name):
-        return name in self._names_indexes
+        return name in self._name_indexes
 
     def _repr(self):
         buf = six.StringIO()
@@ -116,7 +119,10 @@ class Schema(object):
         for name, tp in zip(self.names, self.types):
             buf.write('\n{0}{1}'.format(name.ljust(space), repr(tp)))
 
-        return 'odps.Schema {{{0}\n}}'.format(utils.indent(buf.getvalue(), 2))
+        return 'Schema {{{0}\n}}'.format(utils.indent(buf.getvalue(), 2))
+
+    def __hash__(self):
+        return hash((type(self), tuple(self.names), tuple(self.types)))
 
     def __eq__(self, other):
         if not isinstance(other, Schema):
@@ -158,7 +164,8 @@ class OdpsSchema(Schema):
         return super(OdpsSchema, self).__len__() + len(self._partition_schema)
 
     def __contains__(self, name):
-        return name in self or name in self._partition_schema
+        return super(OdpsSchema, self).__contains__(name) or \
+               name in self._partition_schema
 
     def __eq__(self, other):
         if not isinstance(other, OdpsSchema):
@@ -167,9 +174,69 @@ class OdpsSchema(Schema):
         return super(OdpsSchema, self).__eq__(other) and \
             self._partition_schema == other._partition_schema
 
+    def __hash__(self):
+        return hash((type(self), tuple(self.names), tuple(self.types),
+                     self._partition_schema))
+
+    def __getitem__(self, item):
+        if isinstance(item, six.integer_types):
+            n_columns = len(self._name_indexes)
+            if item < n_columns:
+                return self._columns[item]
+            elif item < len(self):
+                return self._partitions[item-n_columns]
+            else:
+                raise IndexError('Index out of range')
+        elif isinstance(item, six.string_types):
+            if item in self._name_indexes:
+                idx = self._name_indexes[item]
+                return self[idx]
+            elif item in self._partition_schema:
+                idx = self._partition_schema._name_indexes[item]
+                n_columns = len(self._name_indexes)
+                return self[n_columns+idx]
+            else:
+                raise ValueError('Unknown column name: %s' % item)
+        elif isinstance(item, (list, tuple)):
+            return [self[it] for it in item]
+        else:
+            return self.columns[item]
+
     def _repr(self):
-        # TODO output ODPS info
-        return super(OdpsSchema, self)._repr()
+        buf = six.StringIO()
+
+        name_space = 2 * max(len(col.name) for col in self.columns)
+        type_space = 2 * max(len(repr(col.type)) for col in self.columns)
+
+        not_empty = lambda field: field is not None and len(field.strip()) > 0
+
+        buf.write('odps.Schema {\n')
+        cols_strs = []
+        for col in self._columns:
+            cols_strs.append('{0}{1}{2}'.format(
+                col.name.ljust(name_space),
+                repr(col.type).ljust(type_space),
+                '# {0}'.format(col.comment) if not_empty(col.comment) else ''
+            ))
+        buf.write(utils.indent('\n'.join(cols_strs), 2))
+        buf.write('\n')
+        buf.write('}\n')
+
+        if self._partitions:
+            buf.write('Partitions {\n')
+
+            partition_strs = []
+            for partition in self._partitions:
+                partition_strs.append('{0}{1}{2}'.format(
+                    partition.name.ljust(name_space),
+                    repr(partition.type).ljust(type_space),
+                    '# {0}'.format(partition.comment) if not_empty(partition.comment) else ''
+                ))
+            buf.write(utils.indent('\n'.join(partition_strs), 2))
+            buf.write('\n')
+            buf.write('}\n')
+
+        return buf.getvalue()
 
     @property
     def columns(self):
@@ -205,6 +272,13 @@ class OdpsSchema(Schema):
         except ValueError:
             return False
 
+    def get_type(self, name):
+        if name in self._name_indexes:
+            return super(OdpsSchema, self).get_type(name)
+        elif name in self._partition_schema:
+            return self._partition_schema.get_type(name)
+        raise ValueError('Column does not exist: %s' % name)
+
     def update(self, columns, partitions):
         self._columns = columns
         self._partitions = partitions
@@ -228,6 +302,19 @@ class OdpsSchema(Schema):
         else:
             partitions = None
         return cls(columns=columns, partitions=partitions)
+
+    @classmethod
+    def from_dict(cls, fields_dict, partitions_dict=None):
+        fields = compat.lkeys(fields_dict)
+        fields_types = compat.lvalues(fields_dict)
+        partitions = compat.lkeys(partitions_dict) \
+            if partitions_dict is not None else None
+        partitions_types = compat.lvalues(partitions_dict) \
+            if partitions_dict is not None else None
+
+        return cls.from_lists(fields, fields_types,
+                              partition_names=partitions,
+                              partition_types=partitions_types)
 
 
 class Record(object):
@@ -334,6 +421,30 @@ class Record(object):
         for i, col in enumerate(self._columns):
             yield (col.name, self[i])
 
+    def __repr__(self):
+        buf = six.StringIO()
+
+        buf.write('odps.Record {\n')
+
+        space = 2 * max(len(it.name) for it in self._columns)
+        content = '\n'.join(
+            ['{0}{1}'.format(col.name.ljust(space), repr(value))
+             for col, value in zip(self._columns, self._values)])
+        buf.write(utils.indent(content, 2))
+
+        buf.write('\n}')
+
+        return buf.getvalue()
+
+    def __hash__(self):
+        return hash((type(self), tuple(self._columns), tuple(self._values)))
+
+    def __eq__(self, other):
+        if not isinstance(other, Record):
+            return False
+
+        return self._columns == other._columns and self._values == other._values
+
     @property
     def values(self):
         return self._values
@@ -399,8 +510,7 @@ class DataType(object):
     def can_explicit_cast(self, other):
         return self.can_implicit_cast(other)
 
-    @classmethod
-    def validate_value(cls, val):
+    def validate_value(self, val):
         # directly return True means without checking
         return True
 
@@ -430,9 +540,10 @@ class Bigint(OdpsPrimitive):
             return True
         return super(Bigint, self).can_implicit_cast(other)
 
-    @classmethod
-    def validate_value(cls, val):
-        smallest, largest = cls._bounds
+    def validate_value(self, val):
+        if val is None and self.nullable:
+            return True
+        smallest, largest = self._bounds
         if smallest <= val <= largest:
             return True
         raise ValueError('InvalidData: Bigint(%s) out of range' % val)
@@ -473,13 +584,14 @@ class String(OdpsPrimitive):
             return True
         return super(String, self).can_implicit_cast(other)
 
-    @classmethod
-    def validate_value(cls, val):
-        if len(val) <= cls._max_length:
+    def validate_value(self, val):
+        if val is None and self.nullable:
+            return True
+        if len(val) <= self._max_length:
             return True
         raise ValueError(
             "InvalidData: Length of string(%s) is more than %sM.'" %
-            (val, cls._max_length / (1024 ** 2)))
+            (val, self._max_length / (1024 ** 2)))
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
@@ -503,10 +615,12 @@ class Datetime(OdpsPrimitive):
             return True
         return super(Datetime, self).can_implicit_cast(other)
 
-    @classmethod
-    def validate_value(cls, val):
-        timestamp = utils.to_timestamp(val)
-        smallest, largest = cls._ticks_bound
+    def validate_value(self, val):
+        if val is None and self.nullable:
+            return True
+
+        timestamp = self.to_timestamp(val)
+        smallest, largest = self._ticks_bound
         if smallest <= timestamp <= largest:
             return True
         raise ValueError('InvalidData: Datetime(%s) out of range' % val)
@@ -541,15 +655,17 @@ class Decimal(OdpsPrimitive):
             return True
         return super(Decimal, self).can_implicit_cast(other)
 
-    @classmethod
-    def validate_value(cls, val):
-        to_scale = _decimal.Decimal(str(10 * -cls._max_scale))
+    def validate_value(self, val):
+        if val is None and self.nullable:
+            return True
+
+        to_scale = _decimal.Decimal(str(10 * -self._max_scale))
         scaled_val = val.quantize(to_scale, _decimal.ROUND_HALF_UP)
-        int_len = len(str(scaled_val)) - cls._max_scale - 1
-        if int_len > cls._max_int_len:
+        int_len = len(str(scaled_val)) - self._max_scale - 1
+        if int_len > self._max_int_len:
             raise ValueError(
                 'decimal value %s overflow, max integer digit number is %s.' %
-                (val, cls._max_int_len))
+                (val, self._max_int_len))
         return True
 
     def cast_value(self, value, data_type):
@@ -721,12 +837,16 @@ def validate_value(value, data_type):
     if data_type in _odps_primitive_to_builtin_types:
         res = _validate_primitive_value(value, data_type)
     elif isinstance(data_type, Array):
+        if value is None and data_type.nullable:
+            return value
         if not isinstance(value, list):
             raise ValueError('Array data type requires `list`, instead of %s' % value)
         element_data_type = data_type.value_type
         res = [_validate_primitive_value(element, element_data_type)
                for element in value]
     elif isinstance(data_type, Map):
+        if value is None and data_type.nullable:
+            return value
         if not isinstance(value, dict):
             raise ValueError('Map data type requires `dict`, instead of %s' % value)
         key_data_type = data_type.key_type

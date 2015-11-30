@@ -16,7 +16,7 @@
 # under the License.
 
 from odps import distcache
-from odps.udf import annotate, BaseUDAF, BaseUDTF, distcache
+from odps.udf import annotate, BaseUDAF, BaseUDTF
 
 
 @annotate(' bigint, bigint -> bigint ')

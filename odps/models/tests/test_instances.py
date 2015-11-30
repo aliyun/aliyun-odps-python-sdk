@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -208,7 +210,26 @@ class Test(TestBase):
 
         table.drop()
 
-    def test_instance_logview(self):
+    def testReadChineseSQLInstance(self):
+        test_table = 'pyodps_t_tmp_read_chn_sql_instance'
+        self.odps.delete_table(test_table, if_exists=True)
+        table = self.odps.create_table(
+            test_table,
+            schema=Schema.from_lists(['size', 'name'], ['bigint', 'string']), if_not_exists=True)
+
+        data = [[1, '中文'], [2, '测试数据']]
+        self.odps.write_table(
+            table, 0, [table.new_record(it) for it in data])
+
+        with self.odps.execute_sql('select name from %s' % test_table).open_reader() as reader:
+            read_data = sorted([to_str(r[0]) for r in reader])
+            expected_data = sorted([to_str(r[1]) for r in data])
+
+            self.assertSequenceEqual(read_data, expected_data)
+
+        table.drop()
+
+    def testInstanceLogview(self):
         instance = next(self.odps.list_instances())
         self.assertIsInstance(self.odps.get_logview_address(instance.id, 12), six.string_types)
 

@@ -49,7 +49,7 @@ if os.path.exists('README.rst'):
         long_description = f.read()
 
 setup(name='pyodps',
-      version='0.2.3',
+      version='0.2.4',
       description='ODPS Python SDK',
       long_description=long_description,
       author='Wu Wei',

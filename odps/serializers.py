@@ -160,7 +160,7 @@ class SerializableModelMetaClass(type):
             if attr in kv:
                 del kv[attr]
 
-        slots = tuple([slot for slot in slots if slot not in kv])
+        slots = tuple(slot for slot in slots if slot not in kv)
         if len(slots) > 0:
             kv['__slots__'] = slots
         if len(fields) > 0:

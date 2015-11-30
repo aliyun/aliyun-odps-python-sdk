@@ -91,12 +91,16 @@ class Instance(LazyLoad):
                 text = serializers.XMLNodeField('.', default='')
 
                 def __str__(self):
+                    if six.PY2:
+                        text = utils.to_binary(self.text)
+                    else:
+                        text = self.text
                     if self.transform is not None and self.transform == 'Base64':
                         try:
-                            return base64.b64decode(self.text)
+                            return base64.b64decode(text)
                         except TypeError:
-                            return self.text
-                    return self.text
+                            return text
+                    return text
 
             type = serializers.XMLNodeAttributeField(attr='Type')
             name = serializers.XMLNodeField('Name')

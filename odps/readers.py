@@ -64,7 +64,13 @@ class AbstractRecordReader(object):
         if start < 0 or (count is not None and count <= 0) or step < 0:
             raise ValueError('start, count, or step cannot be negative')
 
-        return self._iter(start=start, end=end, step=step)
+        it = self._iter(start=start, end=end, step=step)
+        if isinstance(item, six.integer_types):
+            try:
+                return next(it)
+            except StopIteration:
+                raise IndexError('Index out of range: %s' % item)
+        return it
 
     def _iter(self, start=None, end=None, step=None):
         start = start or 0
@@ -134,7 +140,13 @@ class RecordReader(AbstractRecordReader):
     next = __next__
 
     def read(self, start=None, count=None, step=None):
-        return self._iter(start=start, count=count, step=step)
+        if count is None:
+            end = None
+        else:
+            start = start or 0
+            step = step or 1
+            end = start + count * step
+        return self._iter(start=start, end=end, step=step)
 
     def _load_columns(self):
         if self._columns is not None:

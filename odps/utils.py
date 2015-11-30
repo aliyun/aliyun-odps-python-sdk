@@ -149,6 +149,8 @@ def stringify_expt():
 
 
 def indent(text, n_spaces):
+    if n_spaces <= 0:
+        return text
     block = ' ' * n_spaces
     return '\n'.join(block + it for it in text.split('\n'))
 
@@ -185,7 +187,7 @@ def to_binary(text, encoding='utf-8'):
     elif isinstance(text, (six.binary_type, bytearray)):
         return bytes(text)
     else:
-        return str(text).encode(encoding)
+        return str(text).encode(encoding) if six.PY3 else str(text)
 
 
 def to_text(binary, encoding='utf-8'):
@@ -194,4 +196,4 @@ def to_text(binary, encoding='utf-8'):
     elif isinstance(binary, six.text_type):
         return binary
     else:
-        return str(binary)
+        return str(binary) if six.PY3 else str(binary).decode(encoding)

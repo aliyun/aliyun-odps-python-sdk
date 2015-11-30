@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,17 +17,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
 
-__version__ = '0.2.4'
-__all__ = ['ODPS',]
+from odps.types import *
+from odps.models import Schema
+from odps.tests.core import TestBase
+from odps.compat import unittest
 
-version = sys.version_info
-if version[0] == 2 and version[:2] < (2, 6):
-    raise Exception('pyodps supports python 2.6+ (including python 3+).')
 
-import pkg_resources
-pkg_resources.declare_namespace(__name__)
+class Test(TestBase):
 
-from .core import ODPS
-from .config import options
+    def testNullableRecord(self):
+        s = Schema.from_lists(
+            ['col%s'%i for i in range(8)],
+            ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal',
+             'array<string>', 'map<string,bigint>'])
+        r = Record(schema=s, values=[None]*8)
+        self.assertSequenceEqual(r.values, [None]*8)
+
+if __name__ == '__main__':
+    unittest.main()

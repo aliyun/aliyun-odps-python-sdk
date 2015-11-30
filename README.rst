@@ -40,8 +40,8 @@ Dependencies
 Run Unittest
 ------------
 
--  copy conf/test.conf.template to odps/test/test.conf, and fill it with
-   your account
+-  copy conf/test.conf.template to odps/tests/test.conf, and fill it
+   with your account
 -  run ``python -m unittest discover``
 
 Usage

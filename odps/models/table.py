@@ -199,6 +199,42 @@ class Table(LazyLoad):
 
         return super(Table, self).__getattribute__(attr)
 
+    def __repr__(self):
+        buf = six.StringIO()
+
+        buf.write('odps.Table\n')
+        buf.write('  name: {0}.`{1}`\n'.format(self.project.name, self.name))
+
+        name_space = 2 * max(len(col.name) for col in self.schema.columns)
+        type_space = 2 * max(len(repr(col.type)) for col in self.schema.columns)
+
+        not_empty = lambda field: field is not None and len(field.strip()) > 0
+
+        buf.write('  schema:\n')
+        cols_strs = []
+        for col in self.schema._columns:
+            cols_strs.append('{0}: {1}{2}'.format(
+                col.name.ljust(name_space),
+                repr(col.type).ljust(type_space),
+                '# {0}'.format(col.comment) if not_empty(col.comment) else ''
+            ))
+        buf.write(utils.indent('\n'.join(cols_strs), 4))
+        buf.write('\n')
+
+        if self.schema._partitions:
+            buf.write('  partitions:\n')
+
+            partition_strs = []
+            for partition in self.schema._partitions:
+                partition_strs.append('{0}: {1}{2}'.format(
+                    partition.name.ljust(name_space),
+                    repr(partition.type).ljust(type_space),
+                    '# {0}'.format(partition.comment) if not_empty(partition.comment) else ''
+                ))
+            buf.write(utils.indent('\n'.join(partition_strs), 4))
+
+        return buf.getvalue()
+
     def head(self, limit, partition=None, columns=None):
         """
         Get the head records of a table or its partition.

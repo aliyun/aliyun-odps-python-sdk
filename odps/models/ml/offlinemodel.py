@@ -38,5 +38,12 @@ class OfflineModel(LazyLoad):
         resp = self._client.get(self.resource())
         self.parse(self._client, resp, obj=self)
 
+    def get_model(self):
+        url = self.resource()
+        params = {'data': ''}
+        resp = self._client.get(url, params=params)
+
+        return resp.text
+
     def drop(self):
         self.parent.delete(self)

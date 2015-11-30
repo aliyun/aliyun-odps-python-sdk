@@ -139,6 +139,20 @@ class LazyLoad(RestModel):
     def is_loaded(self):
         return self._loaded
 
+    def __repr__(self):
+        if hasattr(self, '_repr'):
+            return self._repr()
+        return super(LazyLoad, self).__repr__()
+
+    def __hash__(self):
+        return hash((self.name, self.parent))
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+
+        return self.name == other.name and self.parent == other.parent
+
 
 class Container(RestModel):
     @cache
