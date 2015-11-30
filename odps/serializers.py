@@ -79,6 +79,11 @@ class SerializeField(object):
 
         self.set_to_parent = kwargs.get('set_to_parent', False)
 
+    def _to_str(self, val):
+        if isinstance(val, six.string_types):
+            return utils.to_str(val)
+        return val
+
     def parse(self, root, **kwargs):
         raise NotImplementedError
 
@@ -621,6 +626,7 @@ class JSONNodeField(SerializeField):
         if val is None:
             return
 
+        val = self._to_str(val)
         if self._parse_callback:
             return self._parse_callback(val)
         return val
@@ -653,7 +659,8 @@ class JSONNodesField(SerializeField):
 
         values = self._default
         if root is not None:
-            values = [node[self._path_keys[-1]] for node in root]
+            values = [self._to_str(node[self._path_keys[-1]])
+                      for node in root]
 
         if values is None:
             return

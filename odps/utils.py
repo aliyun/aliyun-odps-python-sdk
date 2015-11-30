@@ -152,7 +152,8 @@ def indent(text, n_spaces):
     if n_spaces <= 0:
         return text
     block = ' ' * n_spaces
-    return '\n'.join(block + it for it in text.split('\n'))
+    return '\n'.join((block + it) if len(it) > 0 else it
+                     for it in text.split('\n'))
 
 
 def parse_rfc822(s):
@@ -182,6 +183,8 @@ def to_datetime(milliseconds):
 
 
 def to_binary(text, encoding='utf-8'):
+    if text is None:
+        return text
     if isinstance(text, six.text_type):
         return text.encode(encoding)
     elif isinstance(text, (six.binary_type, bytearray)):
@@ -191,9 +194,15 @@ def to_binary(text, encoding='utf-8'):
 
 
 def to_text(binary, encoding='utf-8'):
+    if binary is None:
+        return binary
     if isinstance(binary, (six.binary_type, bytearray)):
         return binary.decode(encoding)
     elif isinstance(binary, six.text_type):
         return binary
     else:
         return str(binary) if six.PY3 else str(binary).decode(encoding)
+
+
+def to_str(text, encoding='utf-8'):
+    return to_text(text) if six.PY3 else to_binary(text)
