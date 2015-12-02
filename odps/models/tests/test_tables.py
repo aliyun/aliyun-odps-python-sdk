@@ -156,5 +156,28 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name)
         self.assertFalse(self.odps.exist_table(test_table_name))
 
+    def testSimpleReadWriteTable(self):
+        test_table_name = 'pyodps_t_tmp_simpe_read_write_table'
+        schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self.odps.create_table(test_table_name, schema)
+        partition = 'pt=20151122'
+        table.create_partition(partition)
+
+        with table.open_writer(partition) as writer:
+            record = table.new_record()
+            record[0] = '1'
+            writer.write(record)
+
+        with table.open_reader(partition) as reader:
+            self.assertEqual(reader.count, 1)
+            record = next(reader)
+            self.assertEqual(record[0], '1')
+            self.assertEqual(record.num, '1')
+
+        table.drop()
+
 if __name__ == '__main__':
     unittest.main()

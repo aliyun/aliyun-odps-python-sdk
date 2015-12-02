@@ -19,7 +19,6 @@
 
 from datetime import datetime
 import contextlib
-import collections
 
 import six
 
@@ -405,10 +404,10 @@ class Table(LazyLoad):
 
                 if len(args) == 1:
                     arg = args[0]
-                    if isinstance(arg, collections.Iterable):
-                        records = arg
-                    else:
+                    if isinstance(arg, types.Record):
                         records = [arg, ]
+                    else:
+                        records = arg
                 elif len(args) > 1:
                     records = args
                 else:
