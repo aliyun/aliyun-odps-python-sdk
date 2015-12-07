@@ -38,7 +38,7 @@ class TestDistributedCache(unittest.TestCase):
 
     @unittest.skip("Not implemented yet")
     def test_get_cache_table(self):
-        from odps.udf import distcache
+        from odps import distcache
         self.assertEqual(distcache.get_cache_table('dual'), ('0',))
 
 

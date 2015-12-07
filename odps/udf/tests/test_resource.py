@@ -16,7 +16,7 @@
 # under the License.
 
 import odps.tests.core as ut
-from odps.udf import distcache
+from odps import distcache
 
 
 class TestDistCache(ut.TestBase):

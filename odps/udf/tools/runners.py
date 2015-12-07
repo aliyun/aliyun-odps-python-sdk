@@ -20,8 +20,8 @@
 
 import sys
 
-from odps import (udf)
-from odps.udf import distcache
+from odps import udf
+from odps import distcache
 from . import utils
 
 
