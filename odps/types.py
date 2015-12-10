@@ -619,7 +619,7 @@ class Datetime(OdpsPrimitive):
         if val is None and self.nullable:
             return True
 
-        timestamp = self.to_timestamp(val)
+        timestamp = utils.to_timestamp(val)
         smallest, largest = self._ticks_bound
         if smallest <= timestamp <= largest:
             return True
