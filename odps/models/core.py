@@ -155,6 +155,8 @@ class LazyLoad(RestModel):
 
 
 class Container(RestModel):
+    skip_null = False
+
     @cache
     def __new__(cls, *args, **kwargs):
         return object.__new__(cls)

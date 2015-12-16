@@ -54,6 +54,19 @@ expected_xml_template = '''<?xml version="1.0" ?>
 </Example>
 '''
 
+LIST_OBJ_TMPL = '''<?xml version="1.0" ?>
+<objs>
+  <marker>%s</marker>
+  <obj>%s</obj>
+</objs>
+'''
+
+LIST_OBJ_LAST_TMPL = '''<?xml version="1.0" ?>
+<objs>
+  <obj>%s</obj>
+</objs>
+'''
+
 
 class Example(XMLSerializableModel):
     __slots__ = 'name', 'type', 'date', 'lessons', 'teacher', \
@@ -130,6 +143,31 @@ class Test(TestBase):
         self.assertEqual(example.jsn.tags, parsed_example.jsn.tags)
         self.assertEqual(example.jsn.nest, parsed_example.jsn.nest)
         self.assertSequenceEqual(example.jsn.nests, parsed_example.jsn.nests)
+
+    def testPropertyOverride(self):
+        def gen_objs(marker):
+            assert marker > 0
+            if marker >= 3:
+                return LIST_OBJ_LAST_TMPL % 3
+            else:
+                return LIST_OBJ_TMPL % (marker, marker)
+
+        class Objs(XMLSerializableModel):
+            skip_null = False
+
+            marker = XMLNodeField('marker')
+            obj = XMLNodeField('obj')
+
+        objs = Objs()
+        i = 1
+        while True:
+            objs.parse(gen_objs(i), obj=objs)
+            if objs.marker is None:
+                break
+            i += 1
+
+        self.assertEqual(i, 3)
+
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

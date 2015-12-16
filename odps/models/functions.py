@@ -53,8 +53,8 @@ class Functions(Iterable):
     def __iter__(self):
         return self.iterate()
 
-    def iterate(self):
-        params = {'expectmarker': 'true'}
+    def iterate(self, **params):
+        params['expectmarker'] = 'true'
 
         def _it():
             last_marker = params.get('marker')

@@ -194,8 +194,10 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
         return self._parent
 
     @classmethod
-    def _setattr(cls, obj, k, v):
+    def _setattr(cls, obj, k, v, skip_null=True):
         if v is None:
+            if not skip_null:
+                setattr(obj, k, v)
             return
 
         fields = getattr(type(obj), '__fields')
@@ -213,7 +215,8 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
             for k in six.iterkeys(sub_fields):
                 if sub_fields[k].set_to_parent is True:
                     continue
-                cls._setattr(sub_obj, k, object.__getattribute__(new_obj, k))
+                cls._setattr(sub_obj, k, object.__getattribute__(new_obj, k),
+                             skip_null=skip_null)
 
     @classmethod
     def _init_obj(cls, content, obj=None, **kw):
@@ -260,7 +263,7 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
                     parent_kw[attr] = prop.parse(content, **kwargs)
 
         for k, v in six.iteritems(self_kw):
-            cls._setattr(obj, k, v)
+            cls._setattr(obj, k, v, skip_null=getattr(cls, 'skip_null', True))
 
         if obj.parent is not None:
             for k, v in six.iteritems(parent_kw):

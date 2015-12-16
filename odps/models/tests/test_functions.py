@@ -38,7 +38,9 @@ class Test(TestBase):
     def testFunctions(self):
         self.assertIs(self.odps.get_project().functions, self.odps.get_project().functions)
 
-        functions = list(self.odps.list_functions())
+        functions_model = self.odps.get_project().functions
+
+        functions = list(functions_model.iterate(maxitems=400))
         size = len(functions)
         self.assertGreaterEqual(size, 0)
 
