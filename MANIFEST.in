@@ -1,2 +1,4 @@
 include odps/pai/algorithms/defs/*.json
+include odps/internal/pai/algorithms/defs/*.json
+include odps/examples/data/*.txt
 include requirements.txt

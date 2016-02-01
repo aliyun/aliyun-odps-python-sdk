@@ -153,6 +153,13 @@ class LazyLoad(RestModel):
 
         return self.name == other.name and self.parent == other.parent
 
+    def __getstate__(self):
+        return self.name, self._parent, self._client
+
+    def __setstate__(self, state):
+        name, parent, client = state
+        self.__init__(name=name, _parent=parent, _client=client)
+
 
 class Container(RestModel):
     skip_null = False
@@ -175,6 +182,13 @@ class Container(RestModel):
 
     def __contains__(self, item):
         raise NotImplementedError
+
+    def __getstate__(self):
+        return self._parent, self._client
+
+    def __setstate__(self, state):
+        parent, client = state
+        self.__init__(_parent=parent, _client=client)
 
 
 class Iterable(Container):

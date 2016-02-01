@@ -29,6 +29,7 @@ from google.protobuf.internal.decoder import *
 from google.protobuf.internal import wire_format
 
 from odps import errors
+from odps import compat
 
 
 class CompressOption(object):
@@ -96,7 +97,7 @@ class ProtobufWriter(object):
     def _get_buffer(cls, compress_option=None):
         if compress_option is None or \
                         compress_option == CompressOption.CompressAlgorithm.ODPS_RAW:
-            return six.BytesIO()
+            return compat.BytesIO()
         elif compress_option.algorithm == \
                 CompressOption.CompressAlgorithm.ODPS_ZLIB:
             compress_obj = zlib.compressobj(
@@ -114,7 +115,7 @@ class ProtobufWriter(object):
         self._buffer.flush()
         if self._curr_cursor > 0:
             self._queue.put(self._buffer.getvalue())
-            self._buffer = six.BytesIO()
+            self._buffer = compat.BytesIO()
 
             self._curr_cursor = 0
 

@@ -163,6 +163,17 @@ class OdpsSchema(Schema):
     def __len__(self):
         return super(OdpsSchema, self).__len__() + len(self._partition_schema)
 
+    def __setattr__(self, key, value):
+        if key == '_columns' and value and not getattr(self, 'names', None) and \
+                not getattr(self, 'types', None):
+            names = [c.name for c in value]
+            types = [c.type for c in value]
+            self._init(names, types)
+        elif key == '_partitions' and value:
+            self._partition_schema = Schema(
+                *compat.lzip(*[(c.name, c.type) for c in value]))
+        object.__setattr__(self, key, value)
+
     def __contains__(self, name):
         return super(OdpsSchema, self).__contains__(name) or \
                name in self._partition_schema
@@ -551,6 +562,8 @@ class Bigint(OdpsPrimitive):
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
 
+        if isinstance(value, six.string_types):
+            return int(float(value))
         return int(value)
 
 

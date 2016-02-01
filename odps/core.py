@@ -76,7 +76,7 @@ class ODPS(object):
         self.account = self._build_account(access_id, secret_access_key)
         self.endpoint = endpoint
         self.project = project
-        self.rest = RestClient(self.account, endpoint)
+        self.rest = RestClient(self.account, endpoint, project)
 
         self._projects = models.Projects(client=self.rest)
         self._project = self.get_project()

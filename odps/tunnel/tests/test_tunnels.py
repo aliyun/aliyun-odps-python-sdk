@@ -106,6 +106,7 @@ class Test(TestBase):
         for r in records:
             for i in range(1, len(r)):
                 self.assertIsNone(r[i])
+        self._delete_table(test_table_name)
 
     def testPartitionUploadAndDownloadByRawTunnel(self):
         test_table_name = 'pyodps_test_raw_partition_tunnel'
@@ -119,6 +120,22 @@ class Test(TestBase):
         self._upload_data(test_table_name, data, partition_spec=test_table_partition)
         records = self._download_data(test_table_name, partition_spec=test_table_partition)
         self.assertSequenceEqual(data, [r[:-1] for r in records])
+
+        self._delete_table(test_table_name)
+
+    def testPartitionDownloadWithSpecifiedColumns(self):
+        test_table_name = 'pyodps_test_raw_tunnel_partition_columns'
+        test_table_partition = 'ds=test'
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self._create_partitioned_table(test_table_name)
+        table.create_partition(test_table_partition)
+        data = self._gen_data()
+
+        self._upload_data(test_table_name, data, partition_spec=test_table_partition)
+        records = self._download_data(test_table_name, partition_spec=test_table_partition,
+                                      columns=['int_num'])
+        self.assertSequenceEqual([r[1] for r in data], [r[0] for r in records])
 
         self._delete_table(test_table_name)
 

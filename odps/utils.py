@@ -30,8 +30,10 @@ import xml.dom.minidom
 import traceback
 import time
 from email.utils import parsedate_tz, formatdate
+import bisect
 
 import six
+from pkg_resources import resource_string
 
 from . import compat
 
@@ -112,6 +114,15 @@ timetuple_to_datetime = lambda t: datetime(*t[:6])
 def camel_to_underline(name):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+
+def underline_to_capitalized(name):
+    return "".join([s[0].upper() + s[1:len(s)] for s in name.split('_')])
+
+
+def underline_to_camel(name):
+    parts = name.split('_')
+    return parts[0] + ''.join(v.title() for v in parts[1:])
 
 
 def camel_to_underscore(chars):
@@ -206,3 +217,47 @@ def to_text(binary, encoding='utf-8'):
 
 def to_str(text, encoding='utf-8'):
     return to_text(text) if six.PY3 else to_binary(text)
+
+
+def is_lambda(f):
+    lam = lambda: 0
+    return isinstance(f, type(lam)) and f.__name__ == lam.__name__
+
+
+def interval_select(val, intervals, targets):
+    return targets[bisect.bisect_left(intervals, val)]
+
+
+def is_namedtuple(obj):
+    return isinstance(obj, tuple) and hasattr(obj, '_fields')
+
+
+def load_resource_string(path, file_name):
+    res_str = resource_string(path, file_name)
+    if six.PY3:
+        res_str = res_str.decode('UTF-8')
+    return res_str
+
+
+def init_progress_bar(val=1):
+    try:
+        from traitlets import TraitError
+        ipython = True
+    except ImportError:
+        try:
+            from IPython.utils.traitlets import TraitError
+            ipython = True
+        except ImportError:
+            ipython = False
+
+    from odps.console import ProgressBar
+
+    if not ipython:
+        bar = ProgressBar(val)
+    else:
+        try:
+            bar = ProgressBar(val, True)
+        except TraitError:
+            bar = ProgressBar(val)
+
+    return bar

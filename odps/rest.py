@@ -21,8 +21,11 @@ from __future__ import absolute_import
 import logging
 import platform
 
-import requests
 import six
+import requests
+import requests.packages.urllib3.util.ssl_
+requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
+requests.packages.urllib3.disable_warnings()
 
 from . import __version__
 from . import errors, utils
@@ -48,17 +51,18 @@ def default_user_agent():
 
 class RestClient(object):
     """A simple wrapper on requests api, with ODPS signing enabled.
-    URLs are constructed by chaining of attributes accessing. 
+    URLs are constructed by chaining of attributes accessing.
     Example:
         >>> rest_client.projects.dev.tables.dual.get()
     """
 
-    def __init__(self, account, endpoint, user_agent=None):
+    def __init__(self, account, endpoint, project=None, user_agent=None):
         if endpoint.endswith('/'):
             endpoint = endpoint[:-1]
         self._account = account
         self._endpoint = endpoint
         self._user_agent = user_agent or default_user_agent()
+        self.project = project
 
     @property
     def endpoint(self):
@@ -75,8 +79,9 @@ class RestClient(object):
         LOG.debug('Start request.')
         LOG.debug('url: ' + url)
         session = requests.Session()
-        for k, v in kwargs.items():
-            LOG.debug(k + ': ' + utils.to_text(v))
+        if LOG.level == logging.DEBUG:
+            for k, v in kwargs.items():
+                LOG.debug(k + ': ' + utils.to_text(v))
 
         # mount adapters with retry times
         session.mount(
@@ -87,13 +92,17 @@ class RestClient(object):
         # Construct user agent without handling the letter case.
         headers = kwargs.setdefault('headers', {})
         headers['User-Agent'] = self._user_agent
+        params = kwargs.setdefault('params', {})
+        if 'curr_project' not in params and self.project is not None:
+            params['curr_project'] = self.project
         req = requests.Request(method, url, **kwargs)
         prepared_req = req.prepare()
         LOG.debug("request url + params %s" % prepared_req.path_url)
         self._account.sign_request(prepared_req, self._endpoint)
 
         res = session.send(prepared_req, stream=stream,
-                           timeout=(options.connect_timeout, options.read_timeout))
+                           timeout=(options.connect_timeout, options.read_timeout),
+                           verify=False)
 
         LOG.debug('response.status_code %d' % res.status_code)
         LOG.debug('response.headers: \n%s' % res.headers)

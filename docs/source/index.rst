@@ -47,6 +47,8 @@ PyOdps的相关依赖会自动安装。
    resources-zh
    functions-zh
    tunnel-zh
+   cl-zh
+   df-zh
    api
 
 

@@ -194,8 +194,16 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
         return self._parent
 
     @classmethod
-    def _setattr(cls, obj, k, v, skip_null=True):
+    def _is_null(cls, v):
         if v is None:
+            return True
+        if isinstance(v, (list, dict)) and len(v) == 0:
+            return True
+        return False
+
+    @classmethod
+    def _setattr(cls, obj, k, v, skip_null=True):
+        if cls._is_null(v) and object.__getattribute__(obj, k) is not None:
             if not skip_null:
                 setattr(obj, k, v)
             return
@@ -332,9 +340,9 @@ class JSONSerializableModel(SerializableModel):
             response = response.text if six.PY3 else response.content
         return cls.deserial(response, obj=obj, **kw)
 
-    def serialize(self):
+    def serialize(self, **kwargs):
         root = self.serial()
-        return json.dumps(root)
+        return json.dumps(root, **kwargs)
 
 
 class XMLTagField(SerializeField):

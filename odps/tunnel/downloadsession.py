@@ -136,4 +136,4 @@ class DownloadSession(serializers.JSONSerializableModel):
             compress = False
         
         option = compress_option if compress else None
-        return TunnelReader(self.schema, resp.content, option)
+        return TunnelReader(self.schema, resp.content, option, columns=columns)

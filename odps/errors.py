@@ -34,6 +34,10 @@ class DependencyNotInstalledError(Exception):
     pass
 
 
+class InteractiveError(Exception):
+    pass
+
+
 def parse_response(resp):
     """Parses the content of response and returns an exception object.
     """

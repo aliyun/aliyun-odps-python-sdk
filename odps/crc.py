@@ -118,10 +118,12 @@ class Crc32c(object):
         self.crc = _CRC_INIT
 
     def update(self, buf, off, length):
-        assert isinstance(buf, (six.binary_type, bytearray))
-        if isinstance(buf, six.binary_type):
-            buf = bytearray(buf)
-
+        """
+        :param buf: buf to update
+        :type buf: bytearray
+        :param off: offset
+        :param length: length
+        """
         to_crc = buf[off: off+length]
 
         crc = self.crc

@@ -27,14 +27,17 @@ from .wireconstants import ProtoWireConstants
 
 class TunnelReader(AbstractRecordReader):
     def __init__(self, schema, data, compress_option=None,
-                 compress_algo=None, compres_level=None, compress_strategy=None):
+                 compress_algo=None, compres_level=None, compress_strategy=None, columns=None):
         self._compress_option = compress_option
         if self._compress_option is None and compress_algo is not None:
             self._compress_option = io.CompressOption(
                 compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
 
         self._schema = schema
-        self._columns = self._schema.columns
+        if columns is None:
+            self._columns = self._schema.columns
+        else:
+            self._columns = [self._schema[c] for c in columns]
 
         self._stream = data
         self._reader = io.ProtobufReader(data, compress_option=self._compress_option)

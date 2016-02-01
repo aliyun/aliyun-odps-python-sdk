@@ -62,7 +62,7 @@ class TableTunnel(object):
         if endpoint is None:
             scheme = urlparse(self._client.endpoint).scheme
             endpoint = self._router.get_tunnel_server(self._project, scheme)
-        self._tunnel_rest = RestClient(self._account, endpoint)
+        self._tunnel_rest = RestClient(self._account, endpoint, self._client.project)
         return self._tunnel_rest
 
     def create_download_session(self, table, partition_spec=None,

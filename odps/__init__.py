@@ -17,7 +17,7 @@
 
 import sys
 
-__version__ = '0.2.10'
+__version__ = '0.3.0'
 __all__ = ['ODPS',]
 
 version = sys.version_info
@@ -29,3 +29,7 @@ pkg_resources.declare_namespace(__name__)
 
 from .core import ODPS
 from .config import options
+try:
+    from .ipython.magics import *
+except ImportError:
+    pass

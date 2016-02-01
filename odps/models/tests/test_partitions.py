@@ -43,6 +43,11 @@ class Test(TestBase):
         self.assertEqual(sorted([str(types.PartitionSpec(p)) for p in partitions[1:]]),
                          sorted([str(p.partition_spec) for p in table.partitions]))
 
+        p = next(table.partitions)
+        self.assertGreater(len(p.columns), 0)
+        p.reload()
+        self.assertGreater(len(p.columns), 0)
+
         self.odps.delete_table(test_table_name)
 
     def testSubPartitions(self):

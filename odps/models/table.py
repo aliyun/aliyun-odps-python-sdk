@@ -109,6 +109,13 @@ class TableSchema(types.OdpsSchema, JSONRemoteModel):
     _columns = serializers.JSONNodesReferencesField(TableColumn, 'columns')
     _partitions = serializers.JSONNodesReferencesField(TablePartition, 'partitionKeys')
 
+    def __getstate__(self):
+        return self._columns, self._partitions
+
+    def __setstate__(self, state):
+        columns, partitions = state
+        self.__init__(_columns=columns, _partitions=partitions)
+
 
 class Table(LazyLoad):
     """

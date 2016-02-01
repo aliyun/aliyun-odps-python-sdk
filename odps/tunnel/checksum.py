@@ -58,7 +58,7 @@ class Checksum(object):
         self.update(val)
             
     def update(self, b, off=None, length=None):
-        b = utils.to_binary(b)
+        b = bytearray(utils.to_binary(b))
 
         off = off or 0
         length = length or len(b)

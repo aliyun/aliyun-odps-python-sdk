@@ -177,7 +177,7 @@ class StdoutCollector(BaseCollector):
         self.formater = ArgFormater(schema)
 
     def handle_collect(self, *args):
-        print self.formater.format(*args)
+        print(self.formater.format(*args))
 
 
 class DirectCollector(BaseCollector):

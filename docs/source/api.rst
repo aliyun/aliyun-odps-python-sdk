@@ -5,7 +5,7 @@ API Reference
 ***************
 
 
-Definations
+Definitions
 ------------
 
 .. autoclass:: odps.ODPS
@@ -54,4 +54,19 @@ Definations
     :members:
 
 .. autoclass:: odps.models.ml.OfflineModel
+    :members:
+
+DataFrame Reference
+--------------------
+
+.. autoclass:: odps.df.core.DataFrame
+    :members:
+
+.. autoclass:: odps.df.expr.expressions.CollectionExpr
+    :members:
+
+.. autoclass:: odps.df.expr.expressions.SequenceExpr
+    :members:
+
+.. autoclass:: odps.df.expr.expressions.Scalar
     :members:

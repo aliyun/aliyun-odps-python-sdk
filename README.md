@@ -1,4 +1,4 @@
-# ODPS Python SDK
+# ODPS Python SDK and data analysis framework
 
 [![PyPI version](https://badge.fury.io/py/pyodps.svg)](https://badge.fury.io/py/pyodps)
 
@@ -76,6 +76,52 @@ False
  <column c_bool_b, type boolean>,
  <column c_datetime_a, type datetime>,
  <column c_datetime_b, type datetime>]
+```
+
+## DataFrame API
+
+```python
+>>> from odps.df import DataFrame
+>>> df = DataFrame(o.get_table('pyodps_iris'))
+>>> df.dtypes
+odps.Schema {
+  sepallength           float64
+  sepalwidth            float64
+  petallength           float64
+  petalwidth            float64
+  name                  string
+}
+>>> df.head(5)
+|==========================================|   1 /  1  (100.00%)         0s
+   sepallength  sepalwidth  petallength  petalwidth         name
+0          5.1         3.5          1.4         0.2  Iris-setosa
+1          4.9         3.0          1.4         0.2  Iris-setosa
+2          4.7         3.2          1.3         0.2  Iris-setosa
+3          4.6         3.1          1.5         0.2  Iris-setosa
+4          5.0         3.6          1.4         0.2  Iris-setosa
+>>> df[df.sepalwidth > 3]['name', 'sepalwidth'].head(5)
+|==========================================|   1 /  1  (100.00%)        12s
+          name  sepalwidth
+0  Iris-setosa         3.5
+1  Iris-setosa         3.2
+2  Iris-setosa         3.1
+3  Iris-setosa         3.6
+4  Iris-setosa         3.9
+```
+
+## Commandline and IPython enhancement
+
+```python
+>>> %load_ext odps
+>>> %enter
+>>> %sql select * from pyodps_iris limit 5
+|==========================================|   1 /  1  (100.00%)         2s
+   sepallength  sepalwidth  petallength  petalwidth         name
+0          5.1         3.5          1.4         0.2  Iris-setosa
+1          4.9         3.0          1.4         0.2  Iris-setosa
+2          4.7         3.2          1.3         0.2  Iris-setosa
+3          4.6         3.1          1.5         0.2  Iris-setosa
+4          5.0         3.6          1.4         0.2  Iris-setosa
 ```
 
 ## Python UDF Debugging Tool

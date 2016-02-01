@@ -20,11 +20,11 @@
 import six
 
 from .partition import Partition
-from .core import Container
+from .core import Iterable
 from .. import serializers, errors, types
 
 
-class Partitions(Container):
+class Partitions(Iterable):
     marker = serializers.XMLNodeField('Marker')
     max_items = serializers.XMLNodeField('MaxItems')
     partitions = serializers.XMLNodesReferencesField(Partition, 'Partition')
