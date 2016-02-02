@@ -209,9 +209,9 @@ class GroupBy(BaseGroupBy):
         if not all(self._is_reduction(agg) for agg in aggregations):
             raise TypeError('Only aggregate functions can be provided')
 
-        names = [by.name for by in self._by if isinstance(by, Column)] + \
+        names = [by.name for by in self._by if isinstance(by, SequenceExpr)] + \
                 [agg.name for agg in aggregations]
-        types = [by._data_type for by in self._by if isinstance(by, Column)] + \
+        types = [by._data_type for by in self._by if isinstance(by, SequenceExpr)] + \
                 [agg._data_type for agg in aggregations]
 
         return GroupByCollectionExpr(_input=self, _aggregations=aggregations,

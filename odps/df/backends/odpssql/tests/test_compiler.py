@@ -136,6 +136,11 @@ class Test(TestBase):
                    "GROUP BY REGEXP_EXTRACT(t1.`name`, '/projects/(.*?)/', 1)"
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
+        expr = self.expr.groupby(
+                self.expr.name.extract('/projects/(.*?)/', group=1).rename('project')).count()
+        self.assertEqual(len(expr.dtypes), 2)
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
         expr = self.expr.describe()
         expected = 'SELECT SUM(IF(t1.`id` IS NOT NULL, 1, 0)) AS id_count, ' \
                    'MIN(t1.`id`) AS id_min, MAX(t1.`id`) AS id_max, ' \
