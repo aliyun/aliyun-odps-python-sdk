@@ -82,6 +82,18 @@ else:
         # Just define a dummy class
         class PyreadlineConsole(object): pass
 
+    # import widgets and display
+    try:
+        widgets = None
+        if ipython_major_version < 4:
+            from IPython.html import widgets
+        else:
+            from ipywidgets import widgets
+    except ImportError:
+        pass
+    from IPython.display import display
+
+
 import six
 
 from .config import options
@@ -801,6 +813,7 @@ class ProgressBar(six.Iterator):
             self._update_console(value)
 
     def close(self):
+        self.__exit__(None, None, None)
         if self._ipython_widget and self._widget:
             self._widget.close()
 
@@ -860,12 +873,9 @@ class ProgressBar(six.Iterator):
         if not hasattr(self, '_widget'):
             # Import only if an IPython widget, i.e., widget in iPython NB
             if ipython_major_version < 4:
-                from IPython.html import widgets
                 self._widget = widgets.FloatProgressWidget()
             else:
-                from ipywidgets import widgets
                 self._widget = widgets.FloatProgress()
-            from IPython.display import display
 
             display(self._widget)
             self._widget.value = 0
@@ -944,11 +954,6 @@ class StatusLine(object):
     def update(self, text):
         if self.ipython_widget:
             if not self._widget:
-                if ipython_major_version < 4:
-                    from IPython.html import widgets
-                else:
-                    from ipywidgets import widgets
-                from IPython.display import display
                 self._widget = widgets.HTML()
                 display(self._widget)
             self._widget.value = text
