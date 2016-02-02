@@ -770,7 +770,7 @@ string相关操作包括：
       </tr>
       <tr>
         <td>replace</td>
-        <td>将某个pattern的子串全部替换成另一个子串，``n``参数若指定，则替换n次</td>
+        <td>将某个pattern的子串全部替换成另一个子串，<code class="docutils literal">n</code>参数若指定，则替换n次</td>
       </tr>
       <tr>
         <td>get</td>
@@ -778,11 +778,11 @@ string相关操作包括：
       </tr>
       <tr>
         <td>ljust</td>
-        <td>若未达到指定的``width``的长度，则在右侧填充``fillchar``指定的字符串（默认空格）</td>
+        <td>若未达到指定的<code class="docutils literal">width</code>的长度，则在右侧填充<code class="docutils literal">fillchar</code>指定的字符串（默认空格）</td>
       </tr>
       <tr>
         <td>rjust</td>
-        <td>若未达到指定的``width``的长度，则在左侧填充``fillchar``指定的字符串（默认空格）</td>
+        <td>若未达到指定的<code class="docutils literal">width</code>的长度，则在左侧填充<code class="docutils literal">fillchar</code>指定的字符串（默认空格）</td>
       </tr>
       <tr>
         <td>lower</td>
@@ -806,11 +806,11 @@ string相关操作包括：
       </tr>
       <tr>
         <td>pad</td>
-        <td>在指定的位置（left，right或者both）用指定填充字符（用``fillchar``指定，默认空格）来对齐</td>
+        <td>在指定的位置（left，right或者both）用指定填充字符（用<code class="docutils literal">fillchar</code>指定，默认空格）来对齐</td>
       </tr>
       <tr>
         <td>repeat</td>
-        <td>重复指定``n``次</td>
+        <td>重复指定<code class="docutils literal">n</code>次</td>
       </tr>
       <tr>
         <td>slice</td>
@@ -826,7 +826,7 @@ string相关操作包括：
       </tr>
       <tr>
         <td>zfill</td>
-        <td>长度没达到指定``width``，则左侧填充0</td>
+        <td>长度没达到指定<code class="docutils literal">width</code>，则左侧填充0</td>
       </tr>
       <tr>
         <td>isalnum</td>
@@ -998,6 +998,10 @@ string相关操作包括：
       <tr>
         <td>dayofweek</td>
         <td>同weekday</td>
+      </tr>
+      <tr>
+        <td>strftime</td>
+        <td>格式化时间，时间格式和Python标准库相同，详细参考<a href='https://docs.python.org/2/library/datetime.html#strftime-and-strptime-behavior'>Python时间格式化</a></td>
       </tr>
     </table>
     </div>
