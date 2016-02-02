@@ -813,7 +813,8 @@ class ProgressBar(six.Iterator):
             self._update_console(value)
 
     def close(self):
-        self.__exit__(None, None, None)
+        if not self._ipython_widget:
+            self.__exit__(None, None, None)
         if self._ipython_widget and self._widget:
             self._widget.close()
 
