@@ -118,15 +118,19 @@ DataFrame API
     3  Iris-setosa         3.6
     4  Iris-setosa         3.9
 
-Commandline and IPython enhancement
------------------------------------
+Command-line and IPython enhancement
+------------------------------------
 
-.. code:: python
+::
 
-    >>> %load_ext odps
-    >>> %enter
-    >>> %sql select * from pyodps_iris limit 5
+    In [1]: %load_ext odps
+
+    In [2]: %enter
+    Out[2]: <odps.inter.Room at 0x10fe0e450>
+
+    In [3]: %sql select * from pyodps_iris limit 5
     |==========================================|   1 /  1  (100.00%)         2s
+    Out[3]: 
        sepallength  sepalwidth  petallength  petalwidth         name
     0          5.1         3.5          1.4         0.2  Iris-setosa
     1          4.9         3.0          1.4         0.2  Iris-setosa
