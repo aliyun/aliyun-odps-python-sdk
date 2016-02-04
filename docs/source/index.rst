@@ -3,11 +3,11 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-PyOdps: ODPS Python SDK
+PyOdps: ODPS Python SDK and data analysis framework
 =======================
 
 `PyOdps <https://github.com/aliyun/aliyun-odps-python-sdk>`_ 是ODPS的Python版本的SDK，
-它提供了对ODPS对象的基本操作。
+它提供了对ODPS对象的基本操作；并提供了DataFrame框架，能轻松在ODPS上进行数据分析。
 
 安装
 -------
@@ -49,6 +49,7 @@ PyOdps的相关依赖会自动安装。
    tunnel-zh
    cl-zh
    df-zh
+   pai-int-zh
    api
 
 
