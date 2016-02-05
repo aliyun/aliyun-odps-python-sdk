@@ -32,10 +32,17 @@ class AnyOp(TypedExpr):
     @classmethod
     def _new_cls(cls, *args, **kwargs):
         if '_data_type' in kwargs:
-            bases = cls, SequenceExpr._new_cls(cls, *args, **kwargs)
+            seq_cls = SequenceExpr._new_cls(cls, *args, **kwargs)
+            if issubclass(cls, seq_cls):
+                return cls
+            bases = cls, seq_cls
         else:
             assert '_value_type' in kwargs
-            bases = cls, Scalar._new_cls(cls, *args, **kwargs)
+
+            scalar_cls = Scalar._new_cls(cls, *args, **kwargs)
+            if issubclass(cls, scalar_cls):
+                return cls
+            bases = cls, scalar_cls
 
         return type(cls.__name__, bases, dict(cls.__dict__))
 
@@ -48,6 +55,9 @@ class ElementWise(AnyOp):
     @classmethod
     def _new_cls(cls, *args, **kwargs):
         base = AnyOp._new_cls(*args, **kwargs)
+
+        if issubclass(cls, base):
+            return cls
 
         dic = dict(cls.__dict__)
         dic['_args'] = cls._args

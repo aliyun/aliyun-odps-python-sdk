@@ -49,10 +49,11 @@ def repr_obj(obj):
 
 
 class Expr(Node):
-    __slots__ = '__execution', '__ban_optimize'
+    __slots__ = '__execution', '__ban_optimize', '_engine'
 
     def __init__(self, *args, **kwargs):
         self.__ban_optimize = False
+        self._engine = None
         super(Expr, self).__init__(*args, **kwargs)
 
     def __repr__(self):
@@ -1084,8 +1085,9 @@ class Scalar(TypedExpr):
             }
             if '_source_value_type' in kw:
                 kw['_source_data_type'] = kw.pop('_source_value_type')
+
             cls = next(c for c in inspect.getmro(type(self))[1:]
-                       if c.__name__ == type(self).__name__)
+                       if c.__name__ == type(self).__name__ and not issubclass(c, Scalar))
             seq = cls._new(**kw)
 
             for attr, value in six.iteritems(attr_values):

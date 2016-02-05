@@ -20,6 +20,7 @@
 import re
 from datetime import datetime
 import base64  # noqa
+from decimal import Decimal
 
 import six
 
@@ -275,6 +276,11 @@ class Test(TestBase):
         expr = self.expr.birth < now
         expect = 'SELECT t1.`birth` < FROM_UNIXTIME(%s) AS birth \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1' % unix_time
+        self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr.scale < Decimal('3.14')
+        expect = "SELECT t1.`scale` < CAST('3.14' AS DECIMAL) AS scale \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
         self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
 
     def testMathCompilation(self):

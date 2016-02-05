@@ -88,6 +88,12 @@ class Test(TestBase):
         self.assertGreater(len(expr.aggregations), 0)
         self.assertIsInstance(expr.aggregations[0], GroupedMedian)
 
+        metric = self.expr.int32.mean() > 10
+        field = (metric.ifelse(self.expr.int64.max(), 0) + 1).rename('int64_max')
+        expr = self.expr.groupby('string').agg(field)
+        self.assertIsInstance(expr, GroupByCollectionExpr)
+        self.assertIsInstance(expr.int64_max, Int64SequenceExpr)
+
     def testGroupbyField(self):
         grouped = self.expr.groupby(['int32', 'boolean']).string.sum()
         self.assertIsInstance(grouped, StringSequenceExpr)
@@ -103,7 +109,6 @@ class Test(TestBase):
                                  ['int16', 'datetime', 'float64_sum', 'count'])
         self.assertSequenceEqual(expr._schema.types,
                                  [types.int16, types.datetime, types.float64, types.int64])
-
 
 if __name__ == '__main__':
     unittest.main()

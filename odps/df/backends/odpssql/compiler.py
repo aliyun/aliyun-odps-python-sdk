@@ -878,15 +878,15 @@ class OdpsSQLCompiler(Backend):
     def visit_scalar(self, expr):
         compiled = None
         if expr._value is not None:
-            if isinstance(expr._value, bool):
+            if expr.dtype == df_types.string and isinstance(expr.value, six.text_type):
+                compiled = repr(utils.to_str(expr.value))
+            elif isinstance(expr._value, bool):
                 compiled = 'true' if expr._value else 'false'
             elif isinstance(expr._value, datetime):
                 # FIXME: just ignore shorter than second
                 compiled= 'FROM_UNIXTIME({0})'.format(utils.to_timestamp(expr._value))
             elif isinstance(expr._value, Decimal):
-                raise NotImplementedError
-        elif expr.dtype == df_types.string and isinstance(expr.value, six.text_type):
-            compiled = repr(utils.to_str(expr.value))
+                compiled = 'CAST({0} AS DECIMAL)'.format(repr(str(expr._value)))
 
         if compiled is None:
             compiled = repr(expr._value)

@@ -161,8 +161,8 @@ class GroupBy(BaseGroupBy):
                     else:
                         continue
 
+                    path[idx] = to_sub
                     if idx == 0:
-                        path[0] = to_sub
                         root = to_sub
                     else:
                         path[idx - 1].substitute(node, to_sub)
