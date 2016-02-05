@@ -54,13 +54,13 @@ class Expr(Node):
     def __init__(self, *args, **kwargs):
         self.__ban_optimize = False
         self._engine = None
+        self.__execution = None
         super(Expr, self).__init__(*args, **kwargs)
 
     def __repr__(self):
         if not options.interactive or is_called_by_inspector():
             return self._repr()
         else:
-            self.__execution = self.execute()
             return self.__execution.__repr__()
 
     def _repr_html_(self):
@@ -72,16 +72,23 @@ class Expr(Node):
             return repr(self.__execution)
 
     @run_at_once
-    def execute(self):
+    def execute(self, use_cache=None):
         """
+        :param use_cache: use the executed result if has been executed
         :return: execution result
         :rtype: :class:`odps.df.backends.frame.ResultFrame`
         """
 
+        if use_cache is None:
+            use_cache = options.df.use_cache
+        if use_cache and self.__execution:
+            return self.__execution
+
         from ..engines import get_default_engine
 
         engine = get_default_engine(self)
-        return engine.execute(self)
+        self.__execution = engine.execute(self)
+        return self.__execution
 
     def compile(self):
         """
@@ -558,10 +565,11 @@ class CollectionExpr(Expr):
         raise NotImplementedError
 
     @run_at_once
-    def to_pandas(self):
+    def to_pandas(self, use_cache=None):
         """
         Convert to pandas DataFrame. Execute at once.
 
+        :param use_cache: return executed result if have been executed
         :return: pandas DataFrame
         """
 
@@ -571,7 +579,7 @@ class CollectionExpr(Expr):
             raise DependencyNotInstalledError(
                     'to_pandas requires for `pandas` library')
 
-        return self.execute().values
+        return self.execute(use_cache=use_cache).values
 
     @property
     def dtypes(self):
@@ -764,10 +772,11 @@ class SequenceExpr(TypedExpr):
         return collection.tail(n=n)
 
     @run_at_once
-    def to_pandas(self):
+    def to_pandas(self, use_cache=None):
         """
         Convert to pandas Series. Execute at once.
 
+        :param use_cache: return executed result if have been executed
         :return: pandas Series
         """
 
@@ -777,7 +786,7 @@ class SequenceExpr(TypedExpr):
             raise DependencyNotInstalledError(
                     'to_pandas requires for `pandas` library')
 
-        df = self.execute().values
+        df = self.execute(use_cache=use_cache).values
         return df[self.name]
 
     @property

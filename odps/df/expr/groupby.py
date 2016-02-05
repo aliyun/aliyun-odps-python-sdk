@@ -431,7 +431,7 @@ CollectionExpr.groupby = groupby
 
 
 class ValueCounts(CollectionExpr):
-    _args = '_input', '_by'
+    _args = '_input', '_by', '_sort',
     node_name = 'ValueCounts'
 
     def __init__(self, *args, **kwargs):
@@ -439,9 +439,11 @@ class ValueCounts(CollectionExpr):
 
         self._by = self._input
         self._input = self._input._input
+        if isinstance(self._sort, bool):
+            self._sort = Scalar(_value=self._sort)
 
     def iter_args(self):
-        for it in zip(['collection', 'by'], self.args):
+        for it in zip(['collection', 'by', '_sort'], self.args):
             yield it
 
     @property
@@ -452,7 +454,7 @@ class ValueCounts(CollectionExpr):
         return visitor.visit_value_counts(self)
 
 
-def value_counts(expr):
+def value_counts(expr, sort=True):
     """
     Return object containing counts of unique values.
 
@@ -466,7 +468,7 @@ def value_counts(expr):
 
     names = [expr.name, 'count']
     typos = [expr.dtype, types.int64]
-    return ValueCounts(_input=expr, _schema=Schema.from_lists(names, typos))
+    return ValueCounts(_input=expr, _schema=Schema.from_lists(names, typos), _sort=sort)
 
 
 def topk(expr, k):

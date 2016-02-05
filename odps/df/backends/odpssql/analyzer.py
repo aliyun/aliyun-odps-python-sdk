@@ -321,8 +321,11 @@ class Analyzer(Backend):
     def visit_value_counts(self, expr):
         collection = expr.input
         by = expr._by
+        sort = expr._sort.value
 
-        to_sub = collection.groupby(by).agg(count=by.count()).sort('count', ascending=False)
+        to_sub = collection.groupby(by).agg(count=by.count())
+        if sort:
+            to_sub = to_sub.sort('count', ascending=False)
         self._sub(expr, to_sub)
 
     def visit_unary_op(self, expr):

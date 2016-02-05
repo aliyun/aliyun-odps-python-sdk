@@ -50,12 +50,6 @@ def default_user_agent():
 
 
 class RestClient(object):
-    """A simple wrapper on requests api, with ODPS signing enabled.
-    URLs are constructed by chaining of attributes accessing.
-    Example:
-        >>> rest_client.projects.dev.tables.dual.get()
-    """
-
     def __init__(self, account, endpoint, project=None, user_agent=None):
         if endpoint.endswith('/'):
             endpoint = endpoint[:-1]
@@ -73,9 +67,6 @@ class RestClient(object):
         return self._account
 
     def request(self, url, method, stream=False, **kwargs):
-        """Issue an restful http request and return the response object.
-        method: one of restful methods
-        """
         LOG.debug('Start request.')
         LOG.debug('url: ' + url)
         session = requests.Session()

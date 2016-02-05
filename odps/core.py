@@ -866,6 +866,11 @@ class ODPS(object):
     def _build_account(cls, access_id, secret_access_key):
         return accounts.AliyunAccount(access_id, secret_access_key)
 
+    def to_global(self):
+        options.access_id = self.account.access_id
+        options.access_key = self.account.secret_access_key
+        options.default_project = self.project
+        options.end_point = self.endpoint
 
 try:
     from odps.internal.core import *

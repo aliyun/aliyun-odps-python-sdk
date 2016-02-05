@@ -142,7 +142,9 @@ options.register_option('access_key', None)
 options.register_option('end_point', None)
 options.register_option('default_project', None)
 options.register_option('log_view_host', None)
+options.register_option('log_view_hours', 24, validator=is_integer)
 options.register_option('tunnel_endpoint', None)
+options.register_option('biz_id', None)
 
 # network connections
 options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
@@ -160,6 +162,15 @@ options.register_option('interactive', is_interactive(), validator=is_bool)
 options.register_option('verbose', False, validator=is_bool)
 options.register_option('verbose_log', None)
 options.register_option('df.analyze', True, validator=is_bool)
+options.register_option('df.use_cache', False, validator=is_bool)
+
+# PAI
+options.register_option('pai.temp_lifecycle', 1, validator=is_integer)
+options.register_option('pai.global_lifecycle', None, validator=any_validator(is_null, is_integer))
+options.register_option('pai.algorithm_project', 'algo_public', validator=is_string)
+options.register_option('pai.algorithm_behavior', 'integrated', validator=is_string)
+options.register_option('pai.parallel_count', 5, validator=is_integer)
+options.register_option('pai.dry_run', False, validator=is_bool)
 
 # display
 from .console import detect_console_encoding

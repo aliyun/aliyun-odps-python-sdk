@@ -23,6 +23,7 @@ import time
 from odps.inter import enter, setup, teardown, list_rooms
 from odps.compat import StringIO
 from odps import types as odps_types
+from odps import options, ODPS
 from odps.models import Schema
 from odps.utils import init_progress_bar
 from odps.df.backends.frame import ResultFrame
@@ -45,6 +46,20 @@ except ImportError:
 class ODPSSql(Magics):
 
     _odps = None
+
+    def _set_odps(self):
+        if self._odps is not None:
+            return
+
+        if options.access_id is not None and \
+                        options.access_key is not None and \
+                        options.default_project is not None:
+            self._odps = ODPS(
+                options.access_id, options.access_key, options.default_project,
+                endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint
+            )
+        else:
+            self._odps = enter().odps
 
     @line_magic('enter')
     def enter(self, line):
@@ -96,8 +111,7 @@ class ODPSSql(Magics):
 
     @line_cell_magic('sql')
     def execute(self, line, cell=''):
-        if self._odps is None:
-            self._odps = enter().odps
+        self._set_odps()
 
         sql = line + '\n' + cell
         sql = sql.strip()
@@ -124,23 +138,25 @@ class ODPSSql(Magics):
             instance.wait_for_success()
             bar.update(1)
 
-            with instance.open_reader() as reader:
-                try:
-                    import pandas as pd
-
+            try:
+                with instance.open_reader() as reader:
                     try:
-                        return pd.read_csv(StringIO(reader.raw))
-                    except ValueError:
-                        return reader.raw
-                except ImportError:
-                    return ResultFrame(list(reader), columns=reader._columns)
+                        import pandas as pd
+
+                        try:
+                            return pd.read_csv(StringIO(reader.raw))
+                        except ValueError:
+                            return reader.raw
+                    except ImportError:
+                        return ResultFrame(list(reader), columns=reader._columns)
+            finally:
+                bar.close()
 
     @line_magic('persist')
     def persist(self, line):
         import pandas as pd
 
-        if self._odps is None:
-            self._odps = enter().odps
+        self._set_odps()
 
         line = line.strip().strip(';')
 

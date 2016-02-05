@@ -32,11 +32,45 @@ class PlottingCore(Enum):
 def _plot_pandas(df, kind='line', **kwargs):
     x_label, y_label = kwargs.pop('xlabel', None), kwargs.pop('ylabel', None)
 
+    x_label_size, y_label_size = kwargs.pop('xlabelsize', None), kwargs.pop('ylabelsize', None)
+    label_size = kwargs.pop('labelsize', None)
+    x_label_size = x_label_size or label_size
+    y_label_size = y_label_size or label_size
+
+    title_size = kwargs.pop('titlesize', None)
+
+    annotate = kwargs.pop('annotate', None)
+    x_annotate_scale = kwargs.pop('xannotatescale', 1.005)
+    y_annotate_scale = kwargs.pop('yannotatescale', 1.005)
+
     fig = df.plot(kind=kind, **kwargs)
+
+    import numpy as np
+    if isinstance(fig, np.ndarray):
+        figs = fig
+        fig = fig[0]
+    else:
+        figs = [fig, ]
+
     if x_label:
-        fig.set_xlabel(x_label)
+        if x_label_size:
+            fig.set_xlabel(x_label, fontsize=x_label_size)
+        else:
+            fig.set_xlabel(x_label)
     if y_label:
-        fig.set_ylabel(y_label)
+        if y_label_size:
+            fig.set_ylabel(y_label, fontsize=y_label_size)
+        else:
+            fig.set_ylabel(y_label)
+
+    if title_size:
+        fig.title.set_fontsize(title_size)
+
+    if annotate:
+        for ax in figs:
+            for p in ax.patches:
+                ax.annotate(str(p.get_height()),
+                            (p.get_x() * x_annotate_scale, p.get_height() * y_annotate_scale))
 
     return fig
 
@@ -72,13 +106,13 @@ def _boxplot_pandas(df, **kwargs):
 
 
 @run_at_once
-def _plot_sequence(expr, kind='line', **kwargs):
+def _plot_sequence(expr, kind='line', use_cache=None, **kwargs):
     try:
         import pandas as pd
     except ImportError:
         raise DependencyNotInstalledError('plot requires for pandas')
 
-    series = expr.to_pandas()
+    series = expr.to_pandas(use_cache=use_cache)
     xerr = kwargs.get('xerr', None)
     if xerr is not None and isinstance(xerr, (CollectionExpr, SequenceExpr)):
         kwargs['xerr'] = xerr.to_pandas()
@@ -89,18 +123,18 @@ def _plot_sequence(expr, kind='line', **kwargs):
 
 
 @run_at_once
-def _hist_sequence(expr, **kwargs):
+def _hist_sequence(expr, use_cache=None, **kwargs):
     try:
         import pandas as pd
     except ImportError:
         raise DependencyNotInstalledError('plot requires for pandas')
 
-    series = expr.to_pandas()
+    series = expr.to_pandas(use_cache=use_cache)
     return _hist_pandas(series, **kwargs)
 
 
 @run_at_once
-def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
+def _plot_collection(expr, x=None, y=None, kind='line', use_cache=None, **kwargs):
     try:
         import pandas as pd
     except ImportError:
@@ -130,7 +164,11 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
             elif is_number(col.type):
                 fields.append(col.name)
 
-    df = expr[fields].to_pandas()
+    if len(fields) != len(expr.dtypes):
+        df = expr[fields].to_pandas()
+    else:
+        df = expr.to_pandas(use_cache=use_cache)
+
     if x_name is not None:
         kwargs['x'] = x_name
     if y is not None:
@@ -147,7 +185,7 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
 
 
 @run_at_once
-def _hist_collection(expr, **kwargs):
+def _hist_collection(expr, use_cache=None, **kwargs):
     try:
         import pandas as pd
     except ImportError:
@@ -159,13 +197,13 @@ def _hist_collection(expr, **kwargs):
     if column is not None:
         expr = expr[column]
 
-    df = expr.to_pandas()
+    df = expr.to_pandas(use_cache=use_cache)
 
     return _hist_pandas(df, **kwargs)
 
 
 @run_at_once
-def _boxplot_collection(expr, **kwargs):
+def _boxplot_collection(expr, use_cache=None, **kwargs):
     try:
         import pandas as pd
     except ImportError:
@@ -187,7 +225,8 @@ def _boxplot_collection(expr, **kwargs):
 
     if fields:
         expr = expr[list(fields)]
-    df = expr.to_pandas()
+
+    df = expr.to_pandas(use_cache=use_cache)
 
     return _boxplot_pandas(df, **kwargs)
 
