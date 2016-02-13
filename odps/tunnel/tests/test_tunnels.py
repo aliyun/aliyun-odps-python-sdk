@@ -31,7 +31,7 @@ except ImportError:
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest, OrderedDict
 from odps.models import Schema
-from odps import types
+from odps import types, options
 
 
 class Test(TestBase):
@@ -140,15 +140,21 @@ class Test(TestBase):
         self._delete_table(test_table_name)
 
     def testUploadAndDownloadByZlibTunnel(self):
-        test_table_name = 'pyodps_test_zlib_tunnel'
-        self._create_table(test_table_name)
-        data = self._gen_data()
+        raw_chunk_size = options.chunk_size
+        options.chunk_size = 16
 
-        self._upload_data(test_table_name, data, compress=True)
-        records = self._download_data(test_table_name, compress=True)
-        self.assertSequenceEqual(data, records)
+        try:
+            test_table_name = 'pyodps_test_zlib_tunnel'
+            self._create_table(test_table_name)
+            data = self._gen_data()
 
-        self._delete_table(test_table_name)
+            self._upload_data(test_table_name, data, compress=True)
+            records = self._download_data(test_table_name, compress=True)
+            self.assertSequenceEqual(data, records)
+
+            self._delete_table(test_table_name)
+        finally:
+            options.chunk_size = raw_chunk_size
 
     def testUploadAndDownloadBySnappyTunnel(self):
         test_table_name = 'pyodps_test_snappy_tunnel'

@@ -18,7 +18,7 @@ Or from source code:
 ```shell
 $ virtualenv pyodps_env
 $ source pyodps_env/bin/activate
-$ git clone ...
+$ git clone <git clone URL> pyodps
 $ cd pyodps
 $ python setup.py install
 ```
