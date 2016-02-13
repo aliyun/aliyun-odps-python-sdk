@@ -18,7 +18,7 @@ Or from source code:
 ```shell
 $ virtualenv pyodps_env
 $ source pyodps_env/bin/activate
-$ git clone ...
+$ git clone https://github.com/aliyun/aliyun-odps-python-sdk.git pyodps
 $ cd pyodps
 $ python setup.py install
 ```
