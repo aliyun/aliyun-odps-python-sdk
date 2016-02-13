@@ -86,7 +86,7 @@ class ProtobufWriter(object):
     def __init__(self, compress_option=None, buffer_size=None, encoding='utf-8'):
         self._buffer = ProtobufWriter._get_buffer(compress_option)
         self._queue = Queue.Queue()
-
+        self._compress_option = compress_option
         self._buffer_size = buffer_size or self.BUFFER_SIZE
         self._curr_cursor = 0
         self._n_total = 0
@@ -115,8 +115,7 @@ class ProtobufWriter(object):
         self._buffer.flush()
         if self._curr_cursor > 0:
             self._queue.put(self._buffer.getvalue())
-            self._buffer = compat.BytesIO()
-
+            self._buffer = ProtobufWriter._get_buffer(self._compress_option)
             self._curr_cursor = 0
 
     def close(self):
