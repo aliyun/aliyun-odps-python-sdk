@@ -34,6 +34,7 @@ from ... import types as df_types
 from . import types
 from ..core import Backend
 from .... import utils
+from ....models import Function
 from ..errors import CompileError
 
 GROUPBY_LIMIT = 10000
@@ -178,18 +179,20 @@ class OdpsSQLCompiler(Backend):
     def _compile_join_node(self, expr, traversed):
         compiled = self._compile(expr.lhs)
         if not self._is_source_table(expr.lhs) and not isinstance(expr.lhs, JoinCollectionExpr):
+            alias_collection = self._retrieve_alias_collection(expr.lhs)
             self._sub_compiles[expr].append(
                 '(\n{0}\n) {1}'.format(utils.indent(compiled, self._indent_size),
-                                     self._ctx.get_collection_alias(expr.lhs, True)[0])
+                                     self._ctx.get_collection_alias(alias_collection, True)[0])
             )
         else:
             self._sub_compiles[expr].append(self._ctx.get_expr_compiled(expr.lhs))
 
         compiled = self._compile(expr.rhs)
         if not self._is_source_table(expr.rhs):
+            alias_collection = self._retrieve_alias_collection(expr.rhs)
             self._sub_compiles[expr].append(
                 '(\n{0}\n) {1}'.format(utils.indent(compiled, self._indent_size),
-                                     self._ctx.get_collection_alias(expr.rhs, True)[0])
+                                     self._ctx.get_collection_alias(alias_collection, True)[0])
             )
         else:
             self._sub_compiles[expr].append(self._ctx.get_expr_compiled(expr.rhs))
@@ -280,17 +283,23 @@ class OdpsSQLCompiler(Backend):
         self._re_init()
         return '\n'.join(lines)
 
-    def sub_sql_to_from_clause(self, expr):
-        sql = self.to_sql()
-
+    @classmethod
+    def _retrieve_alias_collection(cls, collection):
         while True:
             # lift the collection to fit the analyzer's column-lifting
-            if isinstance(expr, (SliceCollectionExpr, SortedCollectionExpr,
-                                 FilterCollectionExpr)):
-                expr = expr.input
+            if isinstance(collection, (SliceCollectionExpr, SortedCollectionExpr,
+                                       FilterCollectionExpr)):
+                collection = collection.input
                 continue
             else:
                 break
+
+        return collection
+
+    def sub_sql_to_from_clause(self, expr):
+        sql = self.to_sql()
+
+        expr = self._retrieve_alias_collection(expr)
 
         alias, _ = self._ctx.get_collection_alias(expr, create=True)
         from_clause = '(\n{0}\n) {1}'.format(
@@ -651,14 +660,6 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, strings.Repeat):
             compiled = 'REPEAT(%s, %s)' % (
                 input, self._ctx.get_expr_compiled(expr._repeats))
-        elif isinstance(expr, strings.Substr):
-            if expr.length is not None:
-                compiled = 'SUBSTR(%s, %s, %s)' % (
-                    input, self._ctx.get_expr_compiled(expr._start),
-                    self._ctx.get_expr_compiled(expr._length))
-            else:
-                compiled = 'SUBSTR(%s, %s)' % (
-                    input, self._ctx.get_expr_compiled(expr._start))
 
         if compiled is not None:
             self._ctx.add_expr_compiled(expr, compiled)
@@ -777,9 +778,18 @@ class OdpsSQLCompiler(Backend):
         self._ctx.add_expr_compiled(expr, compiled)
 
     def visit_map(self, expr):
-        func_name = self._ctx.get_udf(expr._func)
+        if isinstance(expr._func, six.string_types):
+            func_name = expr._func
+        elif isinstance(expr._func, Function):
+            func_name = expr._func.name
+        else:
+            func_name = self._ctx.get_udf(expr._func)
 
-        compiled = '{0}({1})'.format(func_name, self._ctx.get_expr_compiled(expr.input))
+        args = [self._ctx.get_expr_compiled(expr.input), ]
+        if hasattr(expr, '_func_args') and expr._func_args is not None:
+            func_args = [repr(arg) for arg in expr._func_args]
+            args.extend(func_args)
+        compiled = '{0}({1})'.format(func_name, ', '.join(args))
 
         self._ctx.add_expr_compiled(expr, compiled)
 
@@ -934,7 +944,7 @@ class OdpsSQLCompiler(Backend):
         from_clause = '{0} \nUNION ALL\n{1}'.format(left_compiled, utils.indent(right_compiled, self._indent_size))
 
         compiled = '(\n{0}\n) {1}'.format(utils.indent(from_clause, self._indent_size),
-                                          self._ctx.get_collection_alias(from_clause, True)[0])
+                                          self._ctx.get_collection_alias(expr, True)[0])
 
         self.add_from_clause(expr, compiled)
         self._ctx.add_expr_compiled(expr, compiled)

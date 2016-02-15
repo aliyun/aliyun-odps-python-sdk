@@ -29,7 +29,7 @@ class PlottingCore(Enum):
     PANDAS = 'pandas'
 
 
-def _plot_pandas(df, kind='line', **kwargs):
+def _plot_pandas(df, method='plot', **kwargs):
     x_label, y_label = kwargs.pop('xlabel', None), kwargs.pop('ylabel', None)
 
     x_label_size, y_label_size = kwargs.pop('xlabelsize', None), kwargs.pop('ylabelsize', None)
@@ -40,10 +40,10 @@ def _plot_pandas(df, kind='line', **kwargs):
     title_size = kwargs.pop('titlesize', None)
 
     annotate = kwargs.pop('annotate', None)
-    x_annotate_scale = kwargs.pop('xannotatescale', 1.005)
-    y_annotate_scale = kwargs.pop('yannotatescale', 1.005)
+    x_annotate_scale = kwargs.pop('xannotatescale', 1.0)
+    y_annotate_scale = kwargs.pop('yannotatescale', 1.0)
 
-    fig = df.plot(kind=kind, **kwargs)
+    fig = getattr(df, method)(**kwargs)
 
     import numpy as np
     if isinstance(fig, np.ndarray):
@@ -69,40 +69,26 @@ def _plot_pandas(df, kind='line', **kwargs):
     if annotate:
         for ax in figs:
             for p in ax.patches:
-                ax.annotate(str(p.get_height()),
-                            (p.get_x() * x_annotate_scale, p.get_height() * y_annotate_scale))
+                ax.annotate(str(p.get_height()), (p.get_x(), p.get_height()),
+                            xytext=(p.get_x() * (x_annotate_scale - 1),
+                                    p.get_height() * (y_annotate_scale - 1)),
+                            textcoords='offset points')
+            for l in ax.lines:
+                xs, ys = l.get_data()
+                for x, y in zip(xs, ys):
+                    ax.annotate(str(y), (x, y),
+                                xytext=(x * (x_annotate_scale - 1), y * (y_annotate_scale - 1)),
+                                textcoords='offset points')
 
     return fig
 
 
 def _hist_pandas(df, **kwargs):
-    x_label, y_label = kwargs.pop('xlabel', None), kwargs.pop('ylabel', None)
-    title = kwargs.pop('title', None)
-
-    fig = df.hist(**kwargs)
-    if x_label:
-        fig.set_xlabel(x_label)
-    if y_label:
-        fig.set_ylabel(y_label)
-    if title:
-        fig.set_title(title)
-
-    return fig
+    return _plot_pandas(df, method='hist', **kwargs)
 
 
 def _boxplot_pandas(df, **kwargs):
-    x_label, y_label = kwargs.pop('xlabel', None), kwargs.pop('ylabel', None)
-    title = kwargs.pop('title', None)
-
-    fig = df.boxplot(**kwargs)
-    if x_label:
-        fig.set_xlabel(x_label)
-    if y_label:
-        fig.set_ylabel(y_label)
-    if title:
-        fig.set_title(title)
-
-    return fig
+    return _plot_pandas(df, method='boxplot', **kwargs)
 
 
 @run_at_once

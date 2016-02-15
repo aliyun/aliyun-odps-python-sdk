@@ -467,6 +467,10 @@ class Test(TestBase):
         data = ['aa' * 15, 'd']
         self._testify_udf([d[-5: -1] for d in data], [(d,) for d in data])
 
+        self.engine.compile(self.expr.name.slice(-5).value_counts(sort=False))
+        data = ['ab' * 15, 'def']
+        self._testify_udf([d[-5:] for d in data], [(d,) for d in data])
+
         self.engine.compile(self.expr.name.title())
         data = ['Abc Def', 'ADEFddEE']
         self._testify_udf([d.title() for d in data], [(d,) for d in data])
@@ -874,6 +878,19 @@ class Test(TestBase):
 
         self.assertEqual(to_str(expected), to_str(self.engine.compile(joined3, prettify=False)))
 
+        joined = e.distinct('fid', 'id')[:10].join(e1, ['fid', 'id'])
+        expected = 'SELECT t9.`fid` AS fid_x, t9.`id` AS id_x, t2.`name`, ' \
+                   't2.`id` AS id_y, t2.`fid` AS fid_y, t2.`isMale`, t2.`scale`, t2.`birth` \n' \
+                   'FROM (\n' \
+                   '  SELECT DISTINCT t1.`fid`, t1.`id` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  LIMIT 10\n' \
+                   ') t9 \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table1` t2\n' \
+                   'ON (t9.`fid` == t2.`fid`) AND (t9.`id` == t2.`id`)'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(joined, prettify=False)))
+
     def testSelfJoin(self):
         joined = self.expr.join(self.expr, 'name')
         expected = 'SELECT t1.`name` AS name_x, t1.`id` AS id_x, t1.`fid` AS fid_x, t1.`isMale` AS isMale_x, ' \
@@ -958,13 +975,21 @@ class Test(TestBase):
                    '  UNION ALL\n' \
                    '    SELECT t7.`id`, t7.`name` \n' \
                    '    FROM mocked_project.`pyodps_test_expr_table2` t7\n' \
-                   ') t6'
+                   ') t8'
 
         try:
             self.assertEqual(to_str(expected), to_str(self.engine.compile(e1.union(e2), False)))
         except AssertionError:
             self.assertEqual(to_str(expected)[:-1], to_str(self.engine.compile(e1.union(e2), False)[:-1]))
 
+        expected = 'SELECT * \n' \
+                   'FROM (\n' \
+                   '  SELECT t2.`id`, t2.`name` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table1` t2 \n' \
+                   '  UNION ALL\n' \
+                   '    SELECT t7.`id`, t7.`name` \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table2` t7\n' \
+                   ') t9'
         try:
             self.assertEqual(to_str(expected), to_str(self.engine.compile(e1.concat(e2), False)))
         except AssertionError:

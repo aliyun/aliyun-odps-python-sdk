@@ -77,6 +77,7 @@ class Analyzer(Backend):
         else:
             [p.substitute(expr, to_sub, parent_cache=self._memo)
              for p in set(parents)]
+            self._memo[id(to_sub)] = self._memo.get(id(to_sub), set()).union(parents)
 
     def visit_project_collection(self, expr):
         # FIXME how to handle nested reduction?
@@ -327,6 +328,9 @@ class Analyzer(Backend):
         if sort:
             to_sub = to_sub.sort('count', ascending=False)
         self._sub(expr, to_sub)
+
+        # traverse to add parents cache
+        list(to_sub.traverse(parent_cache=self._memo, unique=True))
 
     def visit_unary_op(self, expr):
         if not options.df.analyze:

@@ -438,7 +438,8 @@ class ValueCounts(CollectionExpr):
         super(ValueCounts, self).__init__(*args, **kwargs)
 
         self._by = self._input
-        self._input = self._input._input
+        self._input = next(it for it in self._input.traverse(top_down=True)
+                           if isinstance(it, CollectionExpr))
         if isinstance(self._sort, bool):
             self._sort = Scalar(_value=self._sort)
 

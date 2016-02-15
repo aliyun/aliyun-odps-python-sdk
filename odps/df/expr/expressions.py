@@ -61,6 +61,8 @@ class Expr(Node):
         if not options.interactive or is_called_by_inspector():
             return self._repr()
         else:
+            if self.__execution is None:
+                self.__execution = self.execute()
             return self.__execution.__repr__()
 
     def _repr_html_(self):
@@ -836,11 +838,12 @@ class SequenceExpr(TypedExpr):
     def output_type(self):
         return 'sequence(%s)' % repr(self._data_type)
 
-    def map(self, func, rtype=None):
+    def map(self, func, rtype=None, func_args=None):
         """
         Call func on each element of this sequence.
 
-        :param func: lambda or function
+        :param func: lambda, function, :class:`odps.models.Function`,
+                     or str which is the name of :class:`odps.models.Funtion`
         :param rtype: if not provided, will be the dtype of this sequence
         :return: a new sequence
 
@@ -849,13 +852,20 @@ class SequenceExpr(TypedExpr):
         >>> df.id.map(lambda x: x + 1)
         """
 
+        from odps.models import Function
+
         rtype = rtype or self._data_type
         output_type = types.validate_data_type(rtype)
 
-        if not inspect.isfunction(func):
+        if isinstance(func, six.string_types):
+            pass
+        elif isinstance(func, Function):
+            pass
+        elif not inspect.isfunction(func):
             raise ValueError('`func` must be a function')
 
-        return MappedSequenceExpr(_data_type=output_type, _func=func, _input=self)
+        return MappedSequenceExpr(_data_type=output_type, _func=func, _input=self,
+                                  _func_args=func_args)
 
     def accept(self, visitor):
         visitor.visit_sequence(self)
@@ -969,7 +979,7 @@ class Column(SequenceExpr):
 
 
 class MappedSequenceExpr(SequenceExpr):
-    __slots__ = '_func',
+    __slots__ = '_func', '_func_args'
     _args = '_input',
     node_name = 'Map'
 
