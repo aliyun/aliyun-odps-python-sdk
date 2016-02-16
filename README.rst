@@ -3,6 +3,14 @@ ODPS Python SDK and data analysis framework
 
 |PyPI version|
 
+.. raw:: html
+
+   <div align="center">
+     <img src="http://pyodps.readthedocs.org/zh_CN/latest/_static/PyODPS.png"><br><br>
+   </div>
+
+--------------
+
 Elegent way to access ODPS API.
 `Documentation <http://pyodps.readthedocs.org>`__
 
