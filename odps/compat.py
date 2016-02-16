@@ -125,3 +125,14 @@ if PY26 or LESS_PY32:
     except ImportError:
         pass
 
+if six.PY3:
+    from contextlib import suppress
+else:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def suppress(*exceptions):
+        try:
+            yield
+        except exceptions:
+            pass
