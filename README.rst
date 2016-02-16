@@ -5,9 +5,10 @@ ODPS Python SDK and data analysis framework
 
 .. raw:: html
 
-   <div align="center">
-     <img src="http://pyodps.readthedocs.org/zh_CN/latest/_static/PyODPS.png"><br><br>
-   </div>
+    <div align="center">
+      <img src="http://pyodps.readthedocs.org/zh_CN/latest/_static/PyODPS.png"><br><br>
+    </div>
+
 
 --------------
 
