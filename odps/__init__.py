@@ -17,7 +17,7 @@
 
 import sys
 
-__version__ = '0.3.7'
+__version__ = '0.3.8'
 __all__ = ['ODPS',]
 
 version = sys.version_info
