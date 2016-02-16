@@ -109,7 +109,9 @@ DataFrame函数支持对Sequence使用map，它会对它的每个元素调用自
 
 
 
-map的实现使用了ODPS Python UDF，因此，如果用户所在的Project不支持Python
+map也支持使用现有的UDF函数，传入的参数是str类型（函数名）或者 `Function对象 <functions-zh.html>`_ 。
+
+map传入Python函数的实现使用了ODPS Python UDF，因此，如果用户所在的Project不支持Python
 UDF，则map函数无法使用。除此以外，所有Python
 UDF的限制在此都适用。因此目前，第三方库只能使用\ ``numpy``\ 。
 

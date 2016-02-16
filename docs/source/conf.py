@@ -14,6 +14,7 @@
 
 import sys
 import os
+from sphinx.directives import Include
 import shlex
 
 dirname = os.path.dirname
@@ -22,6 +23,7 @@ dirname = os.path.dirname
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, dirname(dirname(dirname(os.path.abspath(__file__)))))
+sys.path.append(os.path.abspath('../sphinx-ext/'))
 
 # -- General configuration ------------------------------------------------
 
@@ -85,7 +87,13 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = []
+try:
+    import odps.internal
+    with_internal = True
+    exclude_patterns = []
+except ImportError:
+    with_internal = False
+    exclude_patterns = ['*-int.rst', '*-int-*.rst']
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -138,7 +146,7 @@ html_theme = 'sphinx_rtd_theme'
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-#html_logo = None
+html_logo = '_static/PyODPS.png'
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -299,3 +307,18 @@ texinfo_documents = [
 intersphinx_mapping = {'https://docs.python.org/': None}
 
 mathjax_path = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+
+
+class IncludeInternal(Include):
+    def run(self):
+        if with_internal:
+            return Include.run(self)
+        else:
+            return []
+
+
+# config for internal label
+def setup(app):
+    if with_internal:
+        tags.add('internal')
+    app.add_directive('intinclude', IncludeInternal)
