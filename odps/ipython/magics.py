@@ -25,7 +25,7 @@ from odps.compat import StringIO
 from odps import types as odps_types
 from odps import options, ODPS
 from odps.models import Schema
-from odps.utils import init_progress_bar
+from odps.utils import init_progress_bar, replace_sql_parameters
 from odps.df.backends.frame import ResultFrame
 
 from IPython.core.magic import Magics, magics_class, line_cell_magic, line_magic
@@ -52,8 +52,8 @@ class ODPSSql(Magics):
             return
 
         if options.access_id is not None and \
-                        options.access_key is not None and \
-                        options.default_project is not None:
+                    options.access_key is not None and \
+                    options.default_project is not None:
             self._odps = ODPS(
                 options.access_id, options.access_key, options.default_project,
                 endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint
@@ -116,6 +116,9 @@ class ODPSSql(Magics):
         sql = line + '\n' + cell
         sql = sql.strip()
 
+        # replace user defined parameters
+        sql = replace_sql_parameters(sql, self.shell.user_ns)
+
         if sql:
             bar = init_progress_bar()
 
@@ -175,7 +178,7 @@ class ODPSSql(Magics):
         types = [np_to_odps_types.get(tp, odps_types.string) for tp in frame.dtypes]
 
         if self._odps.exist_table(table_name, project=project_name):
-            raise TypeError('%s already exists')
+            raise TypeError('%s already exists' % table_name)
 
         tb = self._odps.create_table(table_name, Schema.from_lists(columns, types))
 

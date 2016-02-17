@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,21 +17,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
+from odps.tests.core import TestBase
+from odps.compat import unittest
+from odps.utils import replace_sql_parameters
 
-__version__ = '0.3.9'
-__all__ = ['ODPS',]
 
-version = sys.version_info
-if version[0] == 2 and version[:2] < (2, 6):
-    raise Exception('pyodps supports python 2.6+ (including python 3+).')
+class Test(TestBase):
+    def testReplaceSqlParameters(self):
+        ns = {'test1': 'new_test1', 'test3': 'new_test3'}
 
-import pkg_resources
-pkg_resources.declare_namespace(__name__)
+        sql = 'select :test1 from dual where :test2 > 0 and f=:test3'
+        replaced_sql = replace_sql_parameters(sql, ns)
 
-from .core import ODPS
-from .config import options
-try:
-    from .ipython.magics import *
-except ImportError:
-    pass
+        expected = 'select new_test1 from dual where :test2 > 0 and f=new_test3'
+        self.assertEqual(expected, replaced_sql)
+
+
+if __name__ == '__main__':
+    unittest.main()

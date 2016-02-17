@@ -17,7 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
+import codecs
+import os
 import sys
 import hmac
 from hashlib import sha1, md5
@@ -33,7 +34,6 @@ from email.utils import parsedate_tz, formatdate
 import bisect
 
 import six
-from pkg_resources import resource_string
 
 from . import compat
 
@@ -232,11 +232,21 @@ def is_namedtuple(obj):
     return isinstance(obj, tuple) and hasattr(obj, '_fields')
 
 
-def load_resource_string(path, file_name):
-    res_str = resource_string(path, file_name)
-    if six.PY3:
-        res_str = res_str.decode('UTF-8')
-    return res_str
+def load_text_file(path):
+    file_path = os.path.dirname(sys.modules[__name__].__file__) + path
+    if not os.path.exists(file_path):
+        return None
+    with codecs.open(file_path, encoding='utf-8') as f:
+        inp_file = f.read()
+    return inp_file
+
+
+def load_static_text_file(path):
+    return load_text_file('/static/' + path)
+
+
+def load_internal_static_text_file(path):
+    return load_text_file('/internal/static/' + path)
 
 
 def init_progress_bar(val=1):
@@ -261,3 +271,17 @@ def init_progress_bar(val=1):
             bar = ProgressBar(val)
 
     return bar
+
+
+def replace_sql_parameters(sql, ns):
+    param_re = re.compile(r':(\S+)(?=\s|$)')
+
+    def replace(matched):
+        name = matched.group(1)
+        val = ns.get(name)
+        if val is None:
+            return matched.group(0)
+        else:
+            return val
+
+    return param_re.sub(replace, sql)
