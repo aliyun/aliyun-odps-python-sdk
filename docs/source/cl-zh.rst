@@ -266,6 +266,9 @@ PyOdps还提供了IPython的插件，来更方便得操作ODPS。
     </div>
 
 
+SQL命令
+---------
+
 
 PyOdps还提供了SQL插件，来执行ODPS SQL。下面是单行SQL：
 
@@ -410,8 +413,30 @@ PyOdps还提供了SQL插件，来执行ODPS SQL。下面是单行SQL：
     </div>
 
 
+如果想执行参数化SQL查询，则需要替换的参数可以使用\ ``:参数``\ 的方式。
 
-PyOdps还提供把Pandas DataFrame上传到ODPS表的命令:
+
+.. code:: python
+
+    In [1]: %load_ext odps
+
+    In [2]: mytable = 'dual'
+
+    In [3]: %sql select * from :mytable
+    |==========================================|   1 /  1  (100.00%)         2s
+    Out[3]:
+       c_int_a  c_int_b  c_double_a  c_double_b  c_string_a  c_string_b c_bool_a  \
+    0        0        0       -1203           0           0       -1203     True
+
+      c_bool_b         c_datetime_a         c_datetime_b
+    0    False  2012-03-30 23:59:58  2012-03-30 23:59:59
+
+
+持久化pandas DataFrame到ODPS表
+----------------------------------
+
+
+PyOdps还提供把pandas DataFrame上传到ODPS表的命令:
 
 .. code:: python
 
