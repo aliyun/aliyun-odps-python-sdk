@@ -106,7 +106,11 @@ else:
             return len(data)
 
     if PY26:
-        import unittest2 as unittest
+        try:
+            import unittest2 as unittest
+        except ImportError:
+            pass
+
         try:
             from ordereddict import OrderedDict
         except ImportError:
