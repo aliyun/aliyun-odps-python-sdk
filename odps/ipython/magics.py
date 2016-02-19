@@ -145,10 +145,11 @@ class ODPSSql(Magics):
                 with instance.open_reader() as reader:
                     try:
                         import pandas as pd
+                        from pandas.parser import CParserError
 
                         try:
                             return pd.read_csv(StringIO(reader.raw))
-                        except ValueError:
+                        except (ValueError, CParserError):
                             return reader.raw
                     except ImportError:
                         return ResultFrame(list(reader), columns=reader._columns)
