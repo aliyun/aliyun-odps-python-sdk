@@ -53,7 +53,12 @@ class Test(TestBase):
             InteractiveError,
             lambda: setup(access_id, access_key, project, room=test_room))
 
+        self.assertIn(test_room, list_rooms())
+
         teardown(test_room)
+        self.assertRaises(
+            InteractiveError, lambda: enter(test_room)
+        )
 
     def testRoomStores(self):
         class FakeRoom(Room):
@@ -86,6 +91,8 @@ class Test(TestBase):
                 with t2.open_reader() as reader:
                     values = [r.values for r in reader]
                     self.assertEqual(data, values)
+
+                self.assertEqual(room.list_stores(), [['table', None]])
             finally:
                 t.drop()
         finally:

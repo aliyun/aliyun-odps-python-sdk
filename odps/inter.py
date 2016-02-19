@@ -29,6 +29,7 @@ from .config import options
 from .core import ODPS
 from .errors import InteractiveError
 from .models import Schema
+from .utils import to_binary
 from .df.backends.frame import ResultFrame
 
 
@@ -55,7 +56,7 @@ class Room(object):
             raise InteractiveError(
                 'This room(%s) is not configured' % self._room_name)
 
-        with open(odps_file) as f:
+        with open(odps_file, 'rb') as f:
             try:
                 access_id, access_key, default_project, \
                     endpoint, tunnel_endpoint = pickle.load(f)
@@ -85,7 +86,7 @@ class Room(object):
         return self.fetch(item)
 
     def _obj_store_dir(self, name):
-        fn = md5(name).hexdigest()
+        fn = md5(to_binary(name)).hexdigest()
         return os.path.join(self._room_dir, fn)
 
     def store(self, name, obj, desc=None):
@@ -95,10 +96,10 @@ class Room(object):
             raise InteractiveError('%s already exists' % name)
 
         os.makedirs(path)
-        with open(os.path.join(path, INFO_FILE_NAME), 'w') as f:
+        with open(os.path.join(path, INFO_FILE_NAME), 'wb') as f:
             pickle.dump((name, desc), f)
 
-        with open(os.path.join(path, OBJECT_FILE_NAME), 'w') as f:
+        with open(os.path.join(path, OBJECT_FILE_NAME), 'wb') as f:
             pickle.dump(obj, f, protocol=1)
 
     def fetch(self, name):
@@ -107,7 +108,7 @@ class Room(object):
         if not os.path.exists(path):
             raise InteractiveError('%s does not exist' % name)
 
-        with open(os.path.join(path, OBJECT_FILE_NAME)) as f:
+        with open(os.path.join(path, OBJECT_FILE_NAME), 'rb') as f:
             return pickle.load(f)
 
     def drop(self, name):
@@ -121,7 +122,7 @@ class Room(object):
         for obj_dir in os.listdir(self._room_dir):
             info_path = os.path.join(self._room_dir, obj_dir, INFO_FILE_NAME)
             if os.path.exists(info_path):
-                with open(info_path) as f:
+                with open(info_path, 'rb') as f:
                     results.append(list(pickle.load(f)))
 
         return results
@@ -153,7 +154,7 @@ def _get_root_dir():
 def _get_room_dir(room_name, mkdir=False):
     rooms_dir = _get_root_dir()
 
-    room_name = md5(room_name).hexdigest()
+    room_name = md5(to_binary(room_name)).hexdigest()
     room_dir = os.path.join(rooms_dir, room_name)
     if not os.path.exists(room_dir) and mkdir:
         os.makedirs(room_dir)
@@ -175,11 +176,11 @@ def setup(access_id, access_key, default_project,
     obj = (access_id, access_key, default_project,
            endpoint, tunnel_endpoint)
 
-    with open(odps_file, 'w') as f:
+    with open(odps_file, 'wb') as f:
         pickle.dump(obj, f)
 
-    with open(os.path.join(room_dir, INFO_FILE_NAME), 'w') as f:
-        f.write(room)
+    with open(os.path.join(room_dir, INFO_FILE_NAME), 'wb') as f:
+        f.write(to_binary(room))
 
 
 def enter(room=DEFAULT_ROOM_NAME):
