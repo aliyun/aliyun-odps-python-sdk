@@ -230,9 +230,12 @@ def get_console_size():
         if in_ipython_frontend():
             # sane defaults for interactive non-shell terminal
             # match default for width,height in config_init
-            from pandas.core.config import get_default_val
-            terminal_width = get_default_val('display.width')
-            terminal_height = get_default_val('display.height')
+            try:
+                from pandas.core.config import get_default_val
+                terminal_width = get_default_val('display.width')
+                terminal_height = get_default_val('display.height')
+            except ImportError:
+                terminal_width, terminal_height = None, None
         else:
             # pure terminal
             terminal_width, terminal_height = get_terminal_size()
