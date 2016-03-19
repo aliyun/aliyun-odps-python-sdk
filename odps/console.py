@@ -28,6 +28,7 @@ import math
 import locale
 import codecs
 
+
 try:
     import fcntl
     import termios
@@ -45,6 +46,7 @@ try:
 except NameError:
     OutStream = None
     IPythonIOStream = None
+    widgets = None
 else:
     from IPython import version_info
     ipython_major_version = version_info[0]
@@ -62,7 +64,6 @@ else:
                     OutStream = None
             else:
                 OutStream = None
-
 
     if OutStream is not None:
         from IPython.utils import io as ipyio
@@ -84,13 +85,12 @@ else:
 
     # import widgets and display
     try:
-        widgets = None
         if ipython_major_version < 4:
             from IPython.html import widgets
         else:
             from ipywidgets import widgets
     except ImportError:
-        pass
+        widgets = None
     from IPython.display import display
 
 
@@ -723,15 +723,17 @@ class ProgressBar(six.Iterator):
             to detect the IPython console), the progress bar will be
             completely silent.
         """
-
         if ipython_widget:
             # Import only if ipython_widget, i.e., widget in IPython
             # notebook
-            if ipython_major_version < 4:
-                from IPython.html import widgets
-            else:
-                from ipywidgets import widgets
-            from IPython.display import display
+            try:
+                if ipython_major_version < 4:
+                    from IPython.html import widgets
+                else:
+                    from ipywidgets import widgets
+                from IPython.display import display
+            except ImportError:
+                ipython_widget = False
 
         if file is None:
             file = _get_stdout()
@@ -952,6 +954,9 @@ class ProgressBar(six.Iterator):
 
 class StatusLine(object):
     def __init__(self, ipython_widget=False):
+        if widgets is None:
+            ipython_widget = False
+
         self.ipython_widget = ipython_widget
         self._widget = None
 

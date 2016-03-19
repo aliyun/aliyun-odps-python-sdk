@@ -30,6 +30,8 @@ class Crc32(object):
         assert isinstance(buf, (six.binary_type, bytearray))
 
         to_crc = buf[off: off+length]
+        if isinstance(to_crc, bytearray):
+            to_crc = bytes(to_crc)
         if self.crc:
             self.crc = zlib.crc32(to_crc, self.crc)
         else:

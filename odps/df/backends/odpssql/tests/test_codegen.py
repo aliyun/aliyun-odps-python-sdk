@@ -17,7 +17,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import base64
+import base64  # noqa
+from collections import namedtuple  # noqa
+import inspect  # noqa
 
 from odps.tests.core import TestBase
 from odps.compat import unittest
@@ -27,7 +29,7 @@ from odps.df.types import validate_data_type
 from odps.df.backends.odpssql.engine import ODPSEngine, UDF_CLASS_NAME
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.expr.tests.core import MockTable
-from odps.df.backends.odpssql.cloudpickle import *
+from odps.df.backends.odpssql.cloudpickle import * # noqa
 
 
 class Test(TestBase):
@@ -115,6 +117,39 @@ class Test(TestBase):
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-9, ), (10, ), (15, )]))
 
+    def testApplyToSequenceFuntion(self):
+        def my_func(row):
+            return row.name + str(row.id)
+
+        self.engine.compile(self.expr.apply(my_func, axis=1, reduce=True).rename('test'))
+        udf = self.engine._ctx._func_to_udfs.values()[0]
+        exec(udf, globals(), locals())
+        udf = locals()[UDF_CLASS_NAME]
+        self.assertEqual(['name1', 'name2'],
+                         runners.simple_run(udf, [('name', 1, None), ('name', 2, None)]))
+
+    def testApplyFunction(self):
+        def my_func(row):
+            return row.name, row.id
+
+        self.engine.compile(self.expr.apply(my_func, axis=1, names=['name', 'id'], types=['string', 'int']))
+        udtf = self.engine._ctx._func_to_udfs.values()[0]
+        exec(udtf, globals(), locals())
+        udtf = locals()[UDF_CLASS_NAME]
+        self.assertEqual([('name1', 1), ('name2', 2)],
+                          runners.simple_run(udtf, [('name1', 1, None), ('name2', 2, None)]))
+
+    def testApplyGeneratorFunction(self):
+        def my_func(row):
+            for n in row.name.split(','):
+                yield n
+
+        self.engine.compile(self.expr.apply(my_func, axis=1, names='name'))
+        udtf = self.engine._ctx._func_to_udfs.values()[0]
+        exec(udtf, globals(), locals())
+        udtf = locals()[UDF_CLASS_NAME]
+        self.assertEqual(['name1', 'name2', 'name3', 'name4'],
+                         runners.simple_run(udtf, [('name1,name2', 1, None), ('name3,name4', 2, None)]))
 
 if __name__ == '__main__':
     unittest.main()

@@ -18,9 +18,10 @@
 # under the License.
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import base64  # noqa
 from decimal import Decimal
+import time
 
 import six
 
@@ -28,7 +29,7 @@ from odps.tests.core import TestBase, to_str
 from odps.compat import unittest
 from odps.udf.tools import runners
 from odps.models import Schema
-from odps.utils import to_timestamp
+from odps.utils import to_timestamp, to_milliseconds
 from odps.df.types import validate_data_type
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.backends.odpssql.engine import ODPSEngine, UDF_CLASS_NAME
@@ -37,7 +38,7 @@ from odps.df.backends.odpssql.compiler import BINARY_OP_COMPILE_DIC, \
 from odps.df.backends.errors import CompileError
 from odps.df.expr.tests.core import MockTable
 from odps.df.backends.odpssql.cloudpickle import *  # noqa
-from odps.df import Scalar, switch
+from odps.df import Scalar, switch, year, month, day, hour, minute, second, millisecond
 
 
 class Test(TestBase):
@@ -119,7 +120,7 @@ class Test(TestBase):
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
         expr = self.expr[self.expr.id < 100].groupby('name').agg(id=lambda x: x.id.sum()).sort('id')[:1000]['id']
-        expected = 'SELECT t2.`id` \n' \
+        expected = 'SELECT t3.`id` \n' \
                    'FROM (\n' \
                    '  SELECT t1.`name`, SUM(t1.`id`) AS id \n' \
                    '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
@@ -127,19 +128,24 @@ class Test(TestBase):
                    '  GROUP BY t1.`name` \n' \
                    '  ORDER BY id \n' \
                    '  LIMIT 1000\n' \
-                   ') t2'
+                   ') t3'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
         expr = self.expr[[self.expr.name.extract('/projects/(.*?)/', group=1).rename('project')]]\
             .groupby('project').count()
-        expected = "SELECT REGEXP_EXTRACT(t1.`name`, '/projects/(.*?)/', 1) AS project, COUNT(1) AS count \n" \
-                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
-                   "GROUP BY REGEXP_EXTRACT(t1.`name`, '/projects/(.*?)/', 1)"
+        expected = "SELECT COUNT(1) AS count \n" \
+                   "FROM (\n" \
+                   "  SELECT REGEXP_EXTRACT(t1.`name`, '/projects/(.*?)/', 1) AS project \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   ") t1 \n" \
+                   "GROUP BY t4.`project`"
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
         expr = self.expr.groupby(
                 self.expr.name.extract('/projects/(.*?)/', group=1).rename('project')).count()
-        self.assertEqual(len(expr.dtypes), 2)
+        expected = "SELECT COUNT(1) AS count \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "GROUP BY REGEXP_EXTRACT(t1.`name`, '/projects/(.*?)/', 1)"
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
         expr = self.expr.describe()
@@ -278,10 +284,58 @@ class Test(TestBase):
                  'FROM mocked_project.`pyodps_test_expr_table` t1' % unix_time
         self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
 
+        expr = self.expr.birth + year(1)
+        expect = "SELECT DATEADD(t1.`birth`, 1, 'yyyy') AS birth \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr.birth + month(1)
+        expect = "SELECT DATEADD(t1.`birth`, 1, 'mm') AS birth \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr.birth + day(1)
+        expect = "SELECT DATEADD(t1.`birth`, 1, 'dd') AS birth \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr.birth + hour(1)
+        expect = "SELECT DATEADD(t1.`birth`, 1, 'hh') AS birth \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr.birth + minute(1)
+        expect = "SELECT DATEADD(t1.`birth`, 1, 'mi') AS birth \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr.birth + second(1)
+        expect = "SELECT DATEADD(t1.`birth`, 1, 'ss') AS birth \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
+
+        data = [datetime.now()]
+
+        expr = self.expr.birth - millisecond(100)
+        self.engine.compile(expr)
+        self._testify_udf([to_milliseconds(d - timedelta(milliseconds=100)) for d in data],
+                          [(d, 100, '-') for d in data])
+
+        expr = self.expr.birth - datetime.now()
+        self.engine.compile(expr)
+        now = datetime.now()
+        self._testify_udf([(d - now).microseconds / 1000 for d in data],
+                          [(d, now, '-') for d in data])
+
         expr = self.expr.scale < Decimal('3.14')
         expect = "SELECT t1.`scale` < CAST('3.14' AS DECIMAL) AS scale \n" \
                  "FROM mocked_project.`pyodps_test_expr_table` t1"
         self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
+
+        data = [(30, 8)]
+
+        self.engine.compile(self.expr.id // 8)
+        self._testify_udf([l // r for l, r in data], [d for d in data])
 
     def testMathCompilation(self):
         for math_cls, func in MATH_COMPILE_DIC.items():
@@ -510,10 +564,33 @@ class Test(TestBase):
         self.engine.compile(self.expr.name.isdecimal())
         self._testify_udf([to_str(d).isdecimal() for d in data], [(d,) for d in data])
 
-    def testDatetimeCompilation(self):
-        self.assertRaises(NotImplementedError,
-                          lambda: self.engine.compile(self.expr.birth.date))
+    def testValueCounts(self):
+        labels = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79']
+        expr = self.expr.id.cut(list(range(0, 81, 10)), labels=labels).rename('id_group').value_counts()
 
+        expected = "SELECT CASE WHEN (0 < t1.`id`) AND (t1.`id` <= 10) THEN '0-9' WHEN (10 < t1.`id`) " \
+                   "AND (t1.`id` <= 20) THEN '10-19' WHEN (20 < t1.`id`) AND (t1.`id` <= 30) THEN '20-29' " \
+                   "WHEN (30 < t1.`id`) AND (t1.`id` <= 40) THEN '30-39' WHEN (40 < t1.`id`) AND (t1.`id` <= 50) " \
+                   "THEN '40-49' WHEN (50 < t1.`id`) AND (t1.`id` <= 60) THEN '50-59' " \
+                   "WHEN (60 < t1.`id`) AND (t1.`id` <= 70) THEN '60-69' WHEN (70 < t1.`id`) AND (t1.`id` <= 80) " \
+                   "THEN '70-79' END AS id_group, COUNT(CASE WHEN (0 < t1.`id`) AND (t1.`id` <= 10) THEN '0-9' " \
+                   "WHEN (10 < t1.`id`) AND (t1.`id` <= 20) THEN '10-19' WHEN (20 < t1.`id`) AND (t1.`id` <= 30) " \
+                   "THEN '20-29' WHEN (30 < t1.`id`) AND (t1.`id` <= 40) THEN '30-39' " \
+                   "WHEN (40 < t1.`id`) AND (t1.`id` <= 50) THEN '40-49' WHEN (50 < t1.`id`) AND (t1.`id` <= 60) " \
+                   "THEN '50-59' WHEN (60 < t1.`id`) AND (t1.`id` <= 70) THEN '60-69' WHEN (70 < t1.`id`) " \
+                   "AND (t1.`id` <= 80) THEN '70-79' END) AS count \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "GROUP BY CASE WHEN (0 < t1.`id`) AND (t1.`id` <= 10) THEN '0-9' WHEN (10 < t1.`id`) " \
+                   "AND (t1.`id` <= 20) THEN '10-19' WHEN (20 < t1.`id`) AND (t1.`id` <= 30) " \
+                   "THEN '20-29' WHEN (30 < t1.`id`) AND (t1.`id` <= 40) THEN '30-39' WHEN (40 < t1.`id`) " \
+                   "AND (t1.`id` <= 50) THEN '40-49' WHEN (50 < t1.`id`) AND (t1.`id` <= 60) " \
+                   "THEN '50-59' WHEN (60 < t1.`id`) AND (t1.`id` <= 70) THEN '60-69' WHEN (70 < t1.`id`) " \
+                   "AND (t1.`id` <= 80) THEN '70-79' END \n" \
+                   "ORDER BY count DESC \n" \
+                   "LIMIT 10000"
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
+    def testDatetimeCompilation(self):
         self.assertRaises(NotImplementedError,
                           lambda: self.engine.compile(self.expr.birth.time))
 
@@ -581,6 +658,13 @@ class Test(TestBase):
                    ') t2'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
+        expr = self.expr.sort(self.expr.id + 1)[:50]
+        expected = 'SELECT * \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'ORDER BY t1.`id` + 1 \n' \
+                   'LIMIT 50'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
     def testDistinctCompilation(self):
         expr = self.expr.distinct(['name', self.expr.id + 1])
 
@@ -591,6 +675,15 @@ class Test(TestBase):
 
         expected = 'SELECT DISTINCT t1.`name`, t1.`id` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr['name'].unique()
+
+        expected = 'SELECT t2.`name` \n' \
+                   'FROM (\n' \
+                   '  SELECT DISTINCT t1.`name` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   ') t2'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
     def testGroupByCompilation(self):
@@ -641,7 +734,7 @@ class Test(TestBase):
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr2, prettify=False)))
 
         expr = self.expr.groupby('name').count()
-        expected = 'SELECT t1.`name`, COUNT(1) AS count \n' \
+        expected = 'SELECT COUNT(1) AS count \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    'GROUP BY t1.`name`'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
@@ -661,6 +754,38 @@ class Test(TestBase):
                    'HAVING MAX(t1.`id`) < 10'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
+    def testWindowRewrite(self):
+        expr = self.expr[self.expr.id - self.expr.id.mean() < 10][
+            [lambda x: x.id - x.id.max()]][[lambda x: x.id - x.id.min()]][lambda x: x.id - x.id.std(ddof=0) > 0]
+
+        expected = "SELECT t8.`id` \n" \
+                   "FROM (\n" \
+                   "  SELECT t7.`id`, STDDEV(t7.`id`) OVER (PARTITION BY 1) AS id_std_0 \n" \
+                   "  FROM (\n" \
+                   "    SELECT t6.`id` - t6.`id_min_1` AS id \n" \
+                   "    FROM (\n" \
+                   "      SELECT t5.`id`, MIN(t5.`id`) OVER (PARTITION BY 1) AS id_min_1 \n" \
+                   "      FROM (\n" \
+                   "        SELECT t4.`id` - t4.`id_max_2` AS id \n" \
+                   "        FROM (\n" \
+                   "          SELECT t3.`id`, MAX(t3.`id`) OVER (PARTITION BY 1) AS id_max_2 \n" \
+                   "          FROM (\n" \
+                   "            SELECT t2.`name`, t2.`id`, t2.`fid`, t2.`isMale`, t2.`scale`, t2.`birth` \n" \
+                   "            FROM (\n" \
+                   "              SELECT t1.`birth`, t1.`fid`, t1.`id`, " \
+                   "AVG(t1.`id`) OVER (PARTITION BY 1) AS id_mean_3, t1.`isMale`, t1.`name`, t1.`scale` \n" \
+                   "              FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "            ) t2 \n" \
+                   "            WHERE (t2.`id` - t2.`id_mean_3`) < 10 \n" \
+                   "          ) t3 \n" \
+                   "        ) t4 \n" \
+                   "      ) t5 \n" \
+                   "    ) t6 \n" \
+                   "  ) t7 \n" \
+                   ") t8 \n" \
+                   "WHERE (t8.`id` - t8.`id_std_0`) > 0"
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
     def testWindowRewriteInSelectCompilation(self):
         # to test rewriting the window function in select clause
         expr = self.expr.id - self.expr.id.max()
@@ -676,8 +801,8 @@ class Test(TestBase):
         expr = self.expr[self.expr.id - self.expr.id.mean() < 10]
         expected = 'SELECT t2.`name`, t2.`id`, t2.`fid`, t2.`isMale`, t2.`scale`, t2.`birth` \n' \
                    'FROM (\n' \
-                   '  SELECT t1.`id`, AVG(t1.`id`) OVER (PARTITION BY 1) AS id_mean_0, t1.`name`, ' \
-                   't1.`fid`, t1.`isMale`, t1.`scale`, t1.`birth` \n' \
+                   '  SELECT t1.`birth`, t1.`fid`, t1.`id`, AVG(t1.`id`) OVER (PARTITION BY 1) AS id_mean_0, ' \
+                   't1.`isMale`, t1.`name`, t1.`scale` \n' \
                    '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    ') t2 \n' \
                    'WHERE (t2.`id` - t2.`id_mean_0`) < 10'
@@ -714,6 +839,11 @@ class Test(TestBase):
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertTrue(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
+        expr = self.expr.id.nunique()
+        expected = 'SELECT COUNT(DISTINCT t1.`id`) AS id_nunique \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
         expr = self.expr.groupby(['id']).agg(name=self.expr.name.sum()).count()
         expected = 'SELECT COUNT(1) AS count \n' \
                    'FROM (\n' \
@@ -736,6 +866,20 @@ class Test(TestBase):
                    'GROUP BY t1.`name`'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
+        expr = self.expr.groupby(['name']).name.nunique()
+        expected = 'SELECT COUNT(DISTINCT t1.`name`) AS name_nunique \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`name`'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
+    def testProjectionCompact(self):
+        expr = self.expr[self.expr.id.rename('new_id'), self.expr.name, self.expr.name.rename('new_name2')]
+        expr = expr[expr.new_id.rename('new_id2'), expr.name.rename('new_name'), expr.new_name2]
+
+        expected = 'SELECT t1.`id` AS new_id2, t1.`name` AS new_name, t1.`name` AS new_name2 \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
     def testWindowCompilation(self):
         # TODO test all window functions
         expr = self.expr.groupby('name').id.cumcount(unique=True)
@@ -749,18 +893,29 @@ class Test(TestBase):
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
+        expr = self.expr[self.expr.name, self.expr.id + 1][
+            'name', lambda x: x.groupby('name').sort('id', ascending=False).row_number().rename('rank')]
+        expected = "SELECT t1.`name`, ROW_NUMBER() OVER (PARTITION BY t1.`name` ORDER BY t1.`id` + 1 DESC) AS rank \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr[self.expr.name, self.expr.groupby(Scalar(1)).id.cumcount()]
+        expected = 'SELECT t1.`name`, COUNT(t1.`id`) OVER (PARTITION BY 1) AS id_count \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(expected, self.engine.compile(expr, prettify=False))
+
     def testJoin(self):
         e = self.expr
         e1 = self.expr1
         e2 = self.expr2
-        joined = e.join(e1, ['fid'])
-        expected = 'SELECT t1.`name` AS name_x, t1.`id` AS id_x, t1.`fid` AS fid_x, t1.`isMale` AS isMale_x, ' \
-                   't1.`scale` AS scale_x, t1.`birth` AS birth_x, t2.`name` AS name_y \n' \
-                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
-                   'INNER JOIN \n' \
-                   '  mocked_project.`pyodps_test_expr_table1` t2\nON t1.`fid` == t2.`fid`'
-
-        self.assertEqual(to_str(expected), to_str(self.engine.compile(joined[e, e1.name], prettify=False)))
+        # joined = e.join(e1, ['fid'])
+        # expected = 'SELECT t1.`name` AS name_x, t1.`id` AS id_x, t1.`fid` AS fid_x, t1.`isMale` AS isMale_x, ' \
+        #            't1.`scale` AS scale_x, t1.`birth` AS birth_x, t2.`name` AS name_y \n' \
+        #            'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+        #            'INNER JOIN \n' \
+        #            '  mocked_project.`pyodps_test_expr_table1` t2\nON t1.`fid` == t2.`fid`'
+        #
+        # self.assertEqual(to_str(expected), to_str(self.engine.compile(joined[e, e1.name], prettify=False)))
 
         expected = 'SELECT t1.`name` AS name_x, t1.`id` AS id_x, t1.`fid` AS fid_x, t1.`isMale` AS isMale_x, ' \
                    't1.`scale` AS scale_x, t1.`birth` AS birth_x, t2.`name` AS name_y, t2.`id` AS id_y,' \
@@ -901,6 +1056,174 @@ class Test(TestBase):
                    '  mocked_project.`pyodps_test_expr_table` t2\n' \
                    'ON t1.`name` == t2.`name`'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(joined, prettify=False)))
+
+        proj = self.expr['name', 'id']
+        joined = proj.join(proj, 'name').join(proj, ('name_x', 'name'))
+        expected = 'SELECT t3.`name` AS name_x, t3.`id` AS id_x, t4.`name` AS name_y, ' \
+                   't4.`id` AS id_y, t5.`name`, t5.`id` \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`name`, t1.`id` \n' \
+                   '  FROM (\n' \
+                   '    SELECT t1.`name`, t1.`id` \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table` t1\n' \
+                   '  ) t3 \n' \
+                   '  INNER JOIN \n' \
+                   '    (\n' \
+                   '      SELECT t1.`name`, t1.`id` \n' \
+                   '      FROM mocked_project.`pyodps_test_expr_table` t1\n' \
+                   '    ) t4\n' \
+                   '  ON t3.`name` == t4.`name` \n' \
+                   '  INNER JOIN \n' \
+                   '    (\n' \
+                   '      SELECT t1.`name`, t1.`id` \n' \
+                   '      FROM mocked_project.`pyodps_test_expr_table` t1\n' \
+                   '    ) t5\n' \
+                   '  ON t3.`name` == t5.`name` \n' \
+                   ') t6'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(joined, prettify=False)))
+
+    def testLeftJoin(self):
+        left = self.expr.select(self.expr, type='normal')
+        right = self.expr[:4]
+        joined = left.left_join(right, on='id')
+        res = joined[joined.id_x.rename('id')]
+
+        expected = "SELECT t2.`id` \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, t1.`scale`, " \
+                   "t1.`birth`, 'normal' AS type \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1\n" \
+                   ") t2 \n" \
+                   "LEFT OUTER JOIN \n" \
+                   "  (\n" \
+                   "    SELECT * \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "    LIMIT 4\n" \
+                   "  ) t1\n" \
+                   "ON t2.`id` == t1.`id`"
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(res, prettify=False)))
+
+    def testMapJoin(self):
+        joined = self.expr.join(self.expr1, on=[], mapjoin=True)
+        expected = \
+            'SELECT /*+mapjoin(t2)*/ t1.`name` AS name_x, t1.`id` AS id_x, t1.`fid` AS fid_x, ' \
+            't1.`isMale` AS isMale_x, t1.`scale` AS scale_x, t1.`birth` AS birth_x, t2.`name` AS name_y, ' \
+            't2.`id` AS id_y, t2.`fid` AS fid_y, t2.`isMale` AS isMale_y, t2.`scale` AS scale_y, ' \
+            't2.`birth` AS birth_y \n' \
+            'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+            'INNER JOIN \n' \
+            '  mocked_project.`pyodps_test_expr_table1` t2'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(joined, prettify=False)))
+
+        joined = self.expr.join(self.expr1, on=[lambda x,y:x.name>y.name], mapjoin=True).select(self.expr1.name)
+        expected = 'SELECT /*+mapjoin(t2)*/ t2.`name` AS name_y \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table1` t2\n' \
+                   'ON t1.`name` > t2.`name`'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(joined, prettify=False)))
+
+        joined = self.expr.join(self.expr1, on=[], mapjoin=True).join(self.expr2, on=[], mapjoin=True).select(self.expr.name)
+        expected = 'SELECT /*+mapjoin(t2,t3)*/ t1.`name` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table1` t2 \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table2` t3'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(joined, prettify=False)))
+        joined = self.expr.join(self.expr1.join(self.expr2, on=[], mapjoin=True).select(self.expr2.name), mapjoin=True, on=[]).select(self.expr.name)
+
+        expected = 'SELECT /*+mapjoin(t4)*/ t1.`name` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'INNER JOIN \n' \
+                   '  (\n' \
+                   '    SELECT /*+mapjoin(t3)*/ t3.`name` AS name_y \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table1` t2 \n' \
+                   '    INNER JOIN \n' \
+                   '      mocked_project.`pyodps_test_expr_table2` t3\n' \
+                   '  ) t4'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(joined, prettify=False)))
+
+        joined = self.expr['name', 'id'].join(self.expr1.limit(4), on=[], mapjoin=True)
+
+        expected = 'SELECT /*+mapjoin(t2)*/ t5.`name` AS name_x, t5.`id` AS id_x, t2.`name` AS name_y, ' \
+                   't2.`id` AS id_y, t2.`fid`, t2.`isMale`, t2.`scale`, t2.`birth` \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`name`, t1.`id` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1\n' \
+                   ') t5 \n' \
+                   'INNER JOIN \n' \
+                   '  (\n' \
+                   '    SELECT * \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table1` t2 \n' \
+                   '    LIMIT 4\n' \
+                   '  ) t2'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(joined, prettify=False)))
+
+        expr = joined[joined.id_x == 1]
+        expected = 'SELECT /*+mapjoin(t2)*/ *  \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`name`, t1.`id` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1\n' \
+                   ') t5 \n' \
+                   'INNER JOIN \n' \
+                   '  (\n' \
+                   '    SELECT * \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table1` t2 \n' \
+                   '    LIMIT 4\n' \
+                   '  ) t2 \n' \
+                   'WHERE t5.`id` == 1'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
+    def testComplexMapJoin(self):
+        def distance(x1,y1,x2,y2):
+            return (x1-x2)**2+(y1-y2)**2
+
+        input = self.expr[self.expr.id.rename('uid'), self.expr.fid.rename('ux'), self.expr.fid.rename('uy')]
+        center = self.expr[self.expr.id.rename('cid'), self.expr.fid.rename('x'), self.expr.fid.rename('y')][:4]
+        for i in range(2):
+            join_tmp = input.join(center, mapjoin=True, on=[])
+            join_tmp2 = join_tmp.select(join_tmp.uid, join_tmp.ux, join_tmp.uy,
+                                        distance(join_tmp.ux, join_tmp.uy, join_tmp.x, join_tmp.y).rename('distance'),
+                                        join_tmp.cid)
+            join_tmp3 = join_tmp2['uid', 'ux', 'uy', 'cid',
+                                  join_tmp2.groupby('uid').sort(join_tmp2.distance, ascending=True).row_number()
+            ].filter(lambda x: x.row_number == 1)
+            join_tmp4 = join_tmp3.groupby('cid').agg(join_tmp3.ux.mean().rename('x'),
+                                                     join_tmp3.uy.mean().rename('y'),
+                                                     cnt=join_tmp3.count())
+            center = join_tmp4[join_tmp4.cid, 'x', 'y']
+
+        expected = 'SELECT t6.`cid`, AVG(t6.`ux`) AS x, AVG(t6.`uy`) AS y \n' \
+                   'FROM (\n' \
+                   '  SELECT /*+mapjoin(t5)*/ t2.`uid`, t2.`ux`, t2.`uy`, t5.`cid`, ROW_NUMBER() OVER (PARTITION BY t2.`uid` ORDER BY (POW(t2.`ux` - t5.`x`, 2)) + (POW(t2.`uy` - t5.`y`, 2))) AS row_number \n' \
+                   '  FROM (\n' \
+                   '    SELECT t1.`id` AS uid, t1.`fid` AS ux, t1.`fid` AS uy \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table` t1\n' \
+                   '  ) t2 \n' \
+                   '  INNER JOIN \n' \
+                   '    (\n' \
+                   '      SELECT t4.`cid`, AVG(t4.`ux`) AS x, AVG(t4.`uy`) AS y \n' \
+                   '      FROM (\n' \
+                   '        SELECT /*+mapjoin(t3)*/ t2.`uid`, t2.`ux`, t2.`uy`, t3.`cid`, ROW_NUMBER() OVER (PARTITION BY t2.`uid` ORDER BY (POW(t2.`ux` - t3.`x`, 2)) + (POW(t2.`uy` - t3.`y`, 2))) AS row_number \n' \
+                   '        FROM (\n' \
+                   '          SELECT t1.`id` AS uid, t1.`fid` AS ux, t1.`fid` AS uy \n' \
+                   '          FROM mocked_project.`pyodps_test_expr_table` t1\n' \
+                   '        ) t2 \n' \
+                   '        INNER JOIN \n' \
+                   '          (\n' \
+                   '            SELECT t1.`id` AS cid, t1.`fid` AS x, t1.`fid` AS y \n' \
+                   '            FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '            LIMIT 4\n' \
+                   '          ) t3 \n' \
+                   '      ) t4 \n' \
+                   '      WHERE t4.`row_number` == 1 \n' \
+                   '      GROUP BY t4.`cid`\n' \
+                   '    ) t5 \n' \
+                   ') t6 \n' \
+                   'WHERE t6.`row_number` == 1 \n' \
+                   'GROUP BY t6.`cid`'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(center, prettify=False)))
 
     def testAsType(self):
         e = self.expr

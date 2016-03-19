@@ -66,6 +66,10 @@
         <td>数量</td>
       </tr>
       <tr>
+        <td>nunique</td>
+        <td>不重复值数量</td>
+      </tr>
+      <tr>
         <td>min</td>
         <td>最小值</td>
       </tr>

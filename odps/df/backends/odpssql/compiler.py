@@ -17,16 +17,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import re
 from datetime import datetime
 from decimal import Decimal
 
 from collections import defaultdict
 
 from ...expr.reduction import *
-from ...expr.arithmetic import BinOp, Add, Power, Invert, Negate, Abs
+from ...expr.arithmetic import BinOp, Add, Substract, Power, Invert, Negate, Abs
 from ...expr.merge import JoinCollectionExpr, UnionCollectionExpr
-from ...expr.collections import SortedCollectionExpr
+from ...expr.collections import SortedCollectionExpr, RowAppliedCollectionExpr
+from ...expr.element import MappedExpr
 from ...expr.window import CumSum
+from ...expr.datetimes import DTScalar
 from ...expr import element
 from ...expr import strings
 from ...expr import datetimes
@@ -102,6 +105,10 @@ DATE_PARTS_DIC = {
 
 
 class OdpsSQLCompiler(Backend):
+    """
+    OdpsSQLCompiler will compile an Expr into an ODPS SQL.
+    """
+
     def __init__(self, ctx, indent_size=2, beautify=False):
         self._ctx = ctx
         self._indent_size = indent_size
@@ -127,7 +134,6 @@ class OdpsSQLCompiler(Backend):
         self._having_clause = None
         self._order_by_clause = None
         self._limit = None
-        self._join_predicates = None
 
     def _cleanup(self):
         self._sub_compiles = dict()
@@ -177,7 +183,10 @@ class OdpsSQLCompiler(Backend):
         expr._cached_args = [None] * len(expr.args)
 
     def _compile_join_node(self, expr, traversed):
-        compiled = self._compile(expr.lhs)
+        travs = set()
+
+        compiled, trav = self._compile(expr.lhs, return_traversed=True)
+        travs.update(trav)
         if not self._is_source_table(expr.lhs) and not isinstance(expr.lhs, JoinCollectionExpr):
             alias_collection = self._retrieve_alias_collection(expr.lhs)
             self._sub_compiles[expr].append(
@@ -187,7 +196,8 @@ class OdpsSQLCompiler(Backend):
         else:
             self._sub_compiles[expr].append(self._ctx.get_expr_compiled(expr.lhs))
 
-        compiled = self._compile(expr.rhs)
+        compiled, trav = self._compile(expr.rhs, return_traversed=True)
+        travs.update(trav)
         if not self._is_source_table(expr.rhs):
             alias_collection = self._retrieve_alias_collection(expr.rhs)
             self._sub_compiles[expr].append(
@@ -197,8 +207,16 @@ class OdpsSQLCompiler(Backend):
         else:
             self._sub_compiles[expr].append(self._ctx.get_expr_compiled(expr.rhs))
 
-        self._compile(expr.predicate, traversed)
-        self._sub_compiles[expr].append(self._ctx.get_expr_compiled(expr.predicate))
+        if expr.predicate is None:
+            self._sub_compiles[expr].append(None)
+            traversed.update(travs)
+        else:
+            self._compile(expr.predicate, traversed)
+            self._sub_compiles[expr].append(self._ctx.get_expr_compiled(expr.predicate))
+
+        if expr._mapjoin:
+            rhs = self._retrieve_alias_collection(expr.rhs)
+            self._ctx._mapjoin_hints.append(self._ctx.get_collection_alias(rhs)[0])
 
         cached_args = expr.args
 
@@ -229,7 +247,8 @@ class OdpsSQLCompiler(Backend):
 
         expr._cached_args = [None] * len(expr.args)
 
-    def _compile(self, expr, traversed=None):
+    def _compile(self, expr, traversed=None,
+                 return_traversed=False, root_expr=None):
         roots = self._retrieve_until_find_root(expr)
 
         if traversed is None:
@@ -251,11 +270,18 @@ class OdpsSQLCompiler(Backend):
                 node.accept(self)
                 traversed.add(id(node))
 
-        return self.to_sql().strip()
+        if expr is root_expr and self._select_clause is None and \
+                self._ctx._mapjoin_hints:
+            self.add_select_clause(expr, '* ')
+
+        sql = self.to_sql().strip()
+        if not return_traversed:
+            return sql
+        return sql, traversed
 
     def compile(self, expr):
         try:
-            return self._compile(expr)
+            return self._compile(expr, root_expr=expr)
         finally:
             self._cleanup()
 
@@ -265,18 +291,18 @@ class OdpsSQLCompiler(Backend):
             'FROM {0} '.format(self._from_clause),
         ]
 
-        if self._join_predicates:
-            lines.append('ON {0}'.format(self._join_predicates))
         if self._where_clause:
             lines.append('WHERE {0} '.format(self._where_clause))
         if self._group_by_clause:
-            lines.append('GROUP BY {0} '.format(self._group_by_clause))
+            lines.append(self._group_by_clause)
             if self._having_clause:
                 lines.append('HAVING {0} '.format(self._having_clause))
         if self._order_by_clause:
-            if not self._limit:
+            if self._order_by_clause.startswith('ORDER BY') and not self._limit:
+                # for `order by`, limit is required
+                # for `sort by`, limit is unnecessary
                 self._limit = GROUPBY_LIMIT
-            lines.append('ORDER BY {0} '.format(self._order_by_clause))
+            lines.append(self._order_by_clause)
         if self._limit is not None:
             lines.append('LIMIT {0}'.format(self._limit))
 
@@ -314,6 +340,10 @@ class OdpsSQLCompiler(Backend):
             self.sub_sql_to_from_clause(expr.input)
 
         self._select_clause = select_clause
+        if self._ctx._mapjoin_hints:
+            self._select_clause = '/*+mapjoin({0})*/ {1}'.format(
+                ','.join(self._ctx._mapjoin_hints), self._select_clause)
+            self._ctx._mapjoin_hints = []
 
     def add_from_clause(self, expr, from_clause):
         if self._from_clause is None:
@@ -501,6 +531,24 @@ class OdpsSQLCompiler(Backend):
                 self._ctx.get_expr_compiled(expr.lhs),
                 self._ctx.get_expr_compiled(expr.rhs),
             )
+        elif isinstance(expr, (Add, Substract)) and expr.dtype == df_types.datetime:
+            if isinstance(expr, Add) and \
+                    all(child.dtype == df_types.datetime for child in (expr.lhs, expr.rhs)):
+                raise CompileError('Cannot ad two datetimes')
+            if isinstance(expr.rhs, DTScalar) or (isinstance(expr, Add) and expr.lhs, DTScalar):
+                if isinstance(expr.rhs, DTScalar):
+                    dt, scalar = expr.lhs, expr.rhs
+                else:
+                    dt, scalar = expr.rhs, expr.lhs
+
+                class_name = type(scalar).__name__[:-6]
+                date_part = DATE_PARTS_DIC[class_name]
+                val = scalar.value
+                if isinstance(expr, Substract):
+                    val = -val
+                compiled = 'DATEADD({0}, {1}, {2})'.format(
+                    self._ctx.get_expr_compiled(dt), repr(val), repr(date_part)
+                )
         else:
             compiled, op = None, None
             try:
@@ -678,6 +726,8 @@ class OdpsSQLCompiler(Backend):
             compiled = 'WEEKOFYEAR(%s)' % input
         elif isinstance(expr, datetimes.WeekDay):
             compiled = 'WEEKDAY(%s)' % input
+        elif isinstance(expr, datetimes.Date):
+            compiled = 'DATETRUNC(%s, %r)' % (input, 'dd')
 
         if compiled is not None:
             self._ctx.add_expr_compiled(expr, compiled)
@@ -690,7 +740,7 @@ class OdpsSQLCompiler(Backend):
             fields = bys + aggs
 
         by_fields = [self._ctx.get_expr_compiled(by) for by in bys]
-        group_by_clause = self._join_compiled_fields(by_fields)
+        group_by_clause = 'GROUP BY {0} '.format(self._join_compiled_fields(by_fields))
 
         select_fields = [self._compile_select_field(field) for field in fields]
         select_clause = self._join_compiled_fields(select_fields)
@@ -709,16 +759,23 @@ class OdpsSQLCompiler(Backend):
 
         self.add_select_clause(expr, select_clause)
 
-    def _compile_sort_expr(self, field):
-        get_field = lambda field: self._ctx.get_expr_compiled(field)
-        return '{0} DESC'.format(get_field(field)) \
-            if not field._ascending else get_field(field)
+    def visit_sort_column(self, expr):
+        def get_field(field):
+            if isinstance(field.input, CollectionExpr):
+                return field._source_name
+            elif isinstance(field.input, Column):
+                return field.input.source_name
+            else:
+                return self._ctx.get_expr_compiled(field.input)
+        compiled = '{0} DESC'.format(get_field(expr)) \
+            if not expr._ascending else get_field(expr)
+        self._ctx.add_expr_compiled(expr, compiled)
 
     def visit_sort(self, expr):
         keys_fields = expr.args[1]
 
-        order_by_clause = self._join_compiled_fields(
-            [self._compile_sort_expr(field) for field in keys_fields])
+        order_by_clause = 'ORDER BY {0} '.format(self._join_compiled_fields(
+            [self._ctx.get_expr_compiled(field) for field in keys_fields]))
 
         self.add_order_by_clause(expr, order_by_clause)
 
@@ -760,6 +817,8 @@ class OdpsSQLCompiler(Backend):
             compiled = 'MAX(IF(%s, 1, 0)) == 1' % self._ctx.get_expr_compiled(expr.args[0])
         elif isinstance(expr, (All, GroupedAll)):
             compiled = 'MIN(IF(%s, 1, 0)) == 1' % self._ctx.get_expr_compiled(expr.args[0])
+        elif isinstance(expr, (NUnique, GroupedNUnique)):
+            compiled = 'COUNT(DISTINCT %s)' % self._ctx.get_expr_compiled(expr.args[0])
         else:
             node_name = expr.node_name
 
@@ -777,21 +836,73 @@ class OdpsSQLCompiler(Backend):
         compiled = '{0}.`{1}`'.format(alias, expr.source_name)
         self._ctx.add_expr_compiled(expr, compiled)
 
-    def visit_map(self, expr):
+    def visit_function(self, expr):
+        is_func_created = False
         if isinstance(expr._func, six.string_types):
             func_name = expr._func
         elif isinstance(expr._func, Function):
             func_name = expr._func.name
         else:
             func_name = self._ctx.get_udf(expr._func)
+            is_func_created = True
 
-        args = [self._ctx.get_expr_compiled(expr.input), ]
-        if hasattr(expr, '_func_args') and expr._func_args is not None:
+        if isinstance(expr, MappedExpr):
+            args = [self._ctx.get_expr_compiled(f) for f in expr.inputs]
+        else:
+            raise NotImplementedError
+        if hasattr(expr, '_func_args') and expr._func_args is not None \
+                and not is_func_created:
             func_args = [repr(arg) for arg in expr._func_args]
             args.extend(func_args)
         compiled = '{0}({1})'.format(func_name, ', '.join(args))
 
         self._ctx.add_expr_compiled(expr, compiled)
+
+    def _unquote(self, compiled):
+        reg = re.compile('`([^`]+)`')
+        matched = reg.search(compiled)
+        if matched:
+            return matched.group(1)
+        return compiled
+
+    def visit_apply_collection(self, expr):
+        is_func_created = False
+        if isinstance(expr._func, six.string_types):
+            func_name = expr._func
+        elif isinstance(expr._func, Function):
+            func_name = expr._func.name
+        else:
+            func_name = self._ctx.get_udf(expr._func)
+            is_func_created = True
+
+        args = [self._ctx.get_expr_compiled(f) for f in expr.fields]
+        if hasattr(expr, '_func_args') and expr._func_args is not None \
+                and not is_func_created:
+            func_args = [repr(arg) for arg in expr._func_args]
+            args.extend(func_args)
+        compiled = '{0}({1}) AS ({2})'.format(
+            func_name, ', '.join(args), ', '.join(expr.schema.names))
+
+        if isinstance(expr, GroupbyAppliedCollectionExpr):
+            # Hack for ODPS SQL
+            self.add_select_clause(expr, '* ')
+
+            bys, sorts, fields = tuple(expr.args[1:])
+
+            by_fields = [self._unquote(self._ctx.get_expr_compiled(by)) for by in bys]
+            distribute_by_clause = 'DISTRIBUTE BY {0} '.format(
+                self._join_compiled_fields(by_fields))
+
+            self.add_group_by_clause(expr, distribute_by_clause)
+
+            if sorts:
+                sort_fields = [self._ctx.get_expr_compiled(sort) for sort in sorts]
+                sort_by_clause = 'SORT BY {0}'.format(self._join_compiled_fields(sort_fields))
+
+                self.add_order_by_clause(expr, sort_by_clause)
+
+        self._ctx.add_expr_compiled(expr, compiled)
+        self.add_select_clause(expr, compiled)
 
     def _wrap_typed(self, expr, compiled):
         if expr._source_data_type != expr._data_type:
@@ -841,7 +952,7 @@ class OdpsSQLCompiler(Backend):
 
         partition_by = ', '.join(self._ctx.get_expr_compiled(by)
                                  for by in expr._partition_by) if expr._partition_by else None
-        order_by = ', '.join(self._compile_sort_expr(by)
+        order_by = ', '.join(self._ctx.get_expr_compiled(by)
                              for by in expr._order_by) if expr._order_by else None
 
         func_name = WINDOW_COMPILE_DIC[expr.node_name].upper()
@@ -856,7 +967,7 @@ class OdpsSQLCompiler(Backend):
 
         partition_by = ', '.join(self._ctx.get_expr_compiled(by)
                                  for by in expr._partition_by) if expr._partition_by else None
-        order_by = ', '.join(self._compile_sort_expr(by)
+        order_by = ', '.join(self._ctx.get_expr_compiled(by)
                              for by in expr._order_by) if expr._order_by else None
 
         compiled = self._compile_window_function(func_name, '', partition_by=partition_by,
@@ -877,7 +988,7 @@ class OdpsSQLCompiler(Backend):
 
         partition_by = ', '.join(self._ctx.get_expr_compiled(by)
                                  for by in expr._partition_by) if expr._partition_by else None
-        order_by = ', '.join(self._compile_sort_expr(by)
+        order_by = ', '.join(self._ctx.get_expr_compiled(by)
                              for by in expr._order_by) if expr._order_by else None
 
         compiled = self._compile_window_function(func_name, col_compiled, partition_by=partition_by,
@@ -929,8 +1040,8 @@ class OdpsSQLCompiler(Backend):
         from_clause = '{0} \n{1} JOIN \n{2}'.format(
             left_compiled, expr._how, utils.indent(right_compiled, self._indent_size)
         )
-
-        from_clause += '\nON {0}'.format(predicate_compiled)
+        if predicate_compiled:
+            from_clause += '\nON {0}'.format(predicate_compiled)
 
         self.add_from_clause(expr, from_clause)
         self._ctx.add_expr_compiled(expr, from_clause)

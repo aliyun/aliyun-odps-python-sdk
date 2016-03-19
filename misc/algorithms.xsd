@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="algorithms" type="algorithmsType"/>
+  <xs:complexType name="paramType" mixed="true">
+    <xs:choice maxOccurs="unbounded" minOccurs="0">
+      <xs:element type="xs:string" name="exporter"/>
+      <xs:element type="xs:string" name="inputName"/>
+      <xs:element type="xs:string" name="outputName"/>
+      <xs:element type="xs:string" name="value"/>
+      <xs:element type="xs:string" name="required"/>
+      <xs:element type="xs:decimal" name="min"/>
+      <xs:element type="xs:decimal" name="max"/>
+      <xs:element type="xs:string" name="exported"/>
+      <xs:element type="xs:string" name="docs"/>
+      <xs:element type="xs:string" name="alias"/>
+    </xs:choice>
+    <xs:attribute type="xs:string" name="name" use="optional"/>
+    <xs:attribute type="xs:string" name="required" use="optional"/>
+  </xs:complexType>
+  <xs:complexType name="portType">
+    <xs:choice maxOccurs="unbounded" minOccurs="0">
+      <xs:element name="ioType">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="INPUT"/>
+            <xs:enumeration value="OUTPUT"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element type="xs:int" name="sequence"/>
+      <xs:element name="type">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="DATA"/>
+            <xs:enumeration value="MODEL"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element type="schemaType" name="schema"/>
+      <xs:element type="xs:string" name="required"/>
+      <xs:element type="xs:string" name="docs"/>
+      <xs:element type="modelType" name="model"/>
+    </xs:choice>
+    <xs:attribute type="xs:string" name="name" use="optional"/>
+  </xs:complexType>
+  <xs:complexType name="algorithmType">
+    <xs:choice maxOccurs="unbounded" minOccurs="0">
+      <xs:element name="reloadFields">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="false"/>
+            <xs:enumeration value="true"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="baseClass">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="BaseProcessAlgorithm"/>
+            <xs:enumeration value="BaseMetricsAlgorithm"/>
+            <xs:enumeration value="BaseTrainingAlgorithm"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element type="xs:string" name="docs"/>
+      <xs:element type="paramsType" name="params"/>
+      <xs:element type="portsType" name="ports"/>
+      <xs:element type="metasType" name="metas"/>
+      <xs:element name="fieldChangable">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="true"/>
+            <xs:enumeration value="false"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element type="xs:string" name="enabled"/>
+      <xs:element type="xs:string" name="exportFunction"/>
+      <xs:element type="xs:string" name="public"/>
+    </xs:choice>
+    <xs:attribute type="xs:string" name="codeName" use="optional"/>
+  </xs:complexType>
+  <xs:complexType name="portsType">
+    <xs:sequence>
+      <xs:element type="portType" name="port" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="metasType">
+    <xs:sequence>
+      <xs:element type="metaType" name="meta" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="schemaType" mixed="true">
+    <xs:choice maxOccurs="unbounded" minOccurs="0">
+      <xs:element type="xs:string" name="copyInput"/>
+      <xs:element type="xs:string" name="dynamic"/>
+      <xs:element type="xs:string" name="schema"/>
+      <xs:element type="xs:string" name="directCopy" minOccurs="0"/>
+    </xs:choice>
+    <xs:attribute type="xs:string" name="name" use="optional"/>
+  </xs:complexType>
+  <xs:complexType name="algorithmsType">
+    <xs:sequence>
+      <xs:element type="algorithmType" name="algorithm" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="metaType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute type="xs:string" name="name" use="optional"/>
+        <xs:attribute type="xs:string" name="value" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="modelType">
+    <xs:sequence>
+      <xs:element name="type">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="PmmlModel"/>
+            <xs:enumeration value="TablesModel"/>
+            <xs:enumeration value="TablesRecommendModel"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element type="xs:string" name="copyParams" minOccurs="0"/>
+      <xs:element type="schemasType" name="schemas"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="schemasType">
+    <xs:sequence>
+      <xs:element type="schemaType" name="schema" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="paramsType">
+    <xs:sequence>
+      <xs:element type="paramType" name="param" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

@@ -183,7 +183,8 @@ class Test(TestBase):
         with instance.open_reader(table.schema) as reader:
             self.assertEqual(len(list(reader[1::2])), 1)
 
-        instance = self.odps.run_sql('select sum(size) as count from %s' % test_table)
+        hints = {'odps.sql.mapper.split.size': 16}
+        instance = self.odps.run_sql('select sum(size) as count from %s' % test_table, hints=hints)
 
         while len(instance.get_task_names()) == 0 or \
                 compat.lvalues(instance.get_task_statuses())[0].status == Instance.Task.TaskStatus.WAITING:

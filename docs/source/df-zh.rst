@@ -15,7 +15,7 @@ PyOdps提供了DataFrame API，它提供了类似pandas的接口，但是能充�
    df-query-zh
    df-element-zh
    df-agg-zh
-   df-sort-distinct-zh
+   df-sort-distinct-apply-zh
    df-join-union-zh
    df-window-zh
    df-plot-zh

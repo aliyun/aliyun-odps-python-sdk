@@ -17,12 +17,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from datetime import datetime
+
 from odps.tests.core import TestBase
 from odps.compat import unittest
 from odps.models import Schema
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
-from odps.df.expr.expressions import *
 from odps.df.expr.datetimes import *
 
 
@@ -117,6 +118,17 @@ class Test(TestBase):
         self.assertIsInstance(self.expr.birth.strftime('%Y'), Strftime)
         self.assertIsInstance(self.expr.birth.strftime('%Y'), StringSequenceExpr)
         self.assertIsInstance(self.expr.birth.max().strftime('%Y'), StringScalar)
+
+        expr = self.expr.birth + hour(10)
+        self.assertIsInstance(expr, DatetimeSequenceExpr)
+
+        expr = self.expr.birth - microsecond(100)
+        self.assertIsInstance(expr, DatetimeSequenceExpr)
+
+        expr = self.expr.birth - datetime.now()
+        self.assertIsInstance(expr, Int64SequenceExpr)
+
+        self.assertRaises(ExpressionError, lambda: self.expr.birth + datetime.now())
 
 
 if __name__ == '__main__':

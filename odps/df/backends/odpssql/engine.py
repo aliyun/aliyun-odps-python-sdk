@@ -21,8 +21,11 @@ import time
 import sys
 
 from ....errors import ODPSError
-from ....utils import init_progress_bar
-from ....models import Schema, Partition
+
+from ....utils import init_progress_bar, TEMP_TABLE_PREFIX
+from ....models import Partition
+from ....tempobj import register_temp_table
+from ....types import PartitionSpec
 from ...core import DataFrame
 from ...expr.reduction import *
 from ...expr.arithmetic import And, Equal
@@ -30,15 +33,18 @@ from ..core import Engine
 from ..frame import ResultFrame
 from . import types
 from . import analyzer as ana
+from ..errors import CompileError
 from .context import ODPSContext, UDF_CLASS_NAME
 from .compiler import OdpsSQLCompiler
 from .codegen import gen_udf
 
 
 class ODPSEngine(Engine):
-    def __init__(self, odps):
+    def __init__(self, odps, global_optimize=True):
         self._odps = odps
         self._ctx = ODPSContext(self._odps)
+
+        self._global_optimize = global_optimize
 
     def _get_task_percent(self, instance, task_name):
         progress = instance.get_task_progress(task_name)
@@ -63,11 +69,16 @@ class ODPSEngine(Engine):
         return isinstance(expr, CollectionExpr) and \
                expr._source_data is not None
 
-    def _run(self, sql, bar, max_progress=1, async=False):
-        instance = self._odps.run_sql(sql)
+    def _run(self, sql, bar, start_progress=0, max_progress=1, async=False, hints=None):
+        self._ctx.create_udfs()
+        instance = self._odps.run_sql(sql, hints=hints)
 
         self._log('logview:')
         self._log(self._odps.get_logview_address(instance.id, 24))
+
+        if async:
+            return instance
+
         try:
             percent = 0
             while not instance.is_terminated():
@@ -79,14 +90,15 @@ class ODPSEngine(Engine):
                 else:
                     percent = 0
                 percent = min(1, max(percent, last_percent))
-                bar.update(percent * max_progress)
+                bar.update(start_progress + percent * max_progress)
 
                 time.sleep(1)
 
             instance.wait_for_success()
-            bar.update(max_progress)
+            bar.update(start_progress + max_progress)
         except KeyboardInterrupt:
             instance.stop()
+            self._ctx.close()
             sys.exit(1)
 
         return instance
@@ -175,7 +187,8 @@ class ODPSEngine(Engine):
             return list(zip(cols, values))
         return False
 
-    def _handle_cases(self, expr, bar=None, tail=None):
+    def _handle_cases(self, expr, bar=None, start_progress=0, max_progress=1,
+                      head=None, tail=None):
         if bar is None:
             bar = init_progress_bar()
 
@@ -222,7 +235,7 @@ class ODPSEngine(Engine):
         if isinstance(expr, Count):
             try:
                 with table.open_reader(reopen=True, partition=partition) as reader:
-                    bar.update(1)
+                    bar.update(start_progress + max_progress)
                     return reader.count
             except ODPSError:
                 return
@@ -236,6 +249,8 @@ class ODPSEngine(Engine):
                         start = max(reader.count - tail, 0)
                     else:
                         start = None
+                    if head is not None:
+                        count = min(count, head) if count is not None else head
 
                     data = []
                     curr = itertools.count(0)
@@ -243,43 +258,87 @@ class ODPSEngine(Engine):
                     for r in reader.read(start=start, count=count, columns=columns):
                         i = next(curr)
                         if i % 50 == 0:
-                            bar.update(min(float(i) / size, 1))
+                            bar.update(start_progress + min(float(i) / size * max_progress, 1))
                         data.append(r.values)
-                    bar.update(1)
+                    bar.update(start_progress + max_progress)
 
                     schema = types.df_schema_to_odps_schema(expr._schema, ignorecase=True)
                     return ResultFrame(data, schema=schema)
             except ODPSError:
                 return
 
-    def execute(self, expr, async=False):
-        bar = init_progress_bar()
+    def execute(self, expr, bar=None, async=False, start_progress=0,
+                max_progress=1, lifecycle=None, head=None, tail=None, hints=None, **kw):
+        close_bar = bar is None
+        bar = bar or init_progress_bar()
 
         if isinstance(expr, Scalar) and expr.value is not None:
-            bar.update(1)
+            bar.update(start_progress+max_progress)
             return expr.value
 
         src_expr = expr
         expr = self._pre_process(expr)
 
         try:
-            result = self._handle_cases(expr, bar)
+            result = self._handle_cases(expr, bar, head=head, tail=tail)
         except KeyboardInterrupt:
             sys.exit(1)
         if result is not None:
             try:
                 return result
             finally:
-                bar.close()
+                if close_bar:
+                    bar.close()
 
         sql = self._compile(expr)
+
+        cache_data = None
+        if isinstance(expr, CollectionExpr):
+            tmp_table_name = '%s_%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))
+            register_temp_table(self._odps, tmp_table_name)
+            cache_data = self._odps.get_table(tmp_table_name)
+
+            lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
+            sql = 'CREATE TABLE {0} {1}AS \n{2}'.format(tmp_table_name, lifecycle_str, sql)
+
         self._log('Sql compiled:')
         self._log(sql)
 
-        self._ctx.create_udfs()
-        instance = self._run(sql, bar, max_progress=0.9, async=async)
-        self._ctx.close()  # clear udfs and resources generated
+        instance = self._run(sql, bar, start_progress=start_progress,
+                             max_progress=0.9*max_progress, async=async, hints=hints)
 
+        if async:
+            engine = self
+
+            global_head, global_tail = head, tail
+
+            class AsyncResult(object):
+                @property
+                def instance(self):
+                    return instance
+
+                def wait(self):
+                    instance.wait_for_completion()
+
+                def is_done(self):
+                    return instance.is_terminated()
+
+                def fetch(self, head=None, tail=None):
+                    head = head or global_head
+                    tail = tail or global_tail
+                    return engine._fetch(expr, src_expr, instance, bar,
+                                         finish_progress=start_progress+max_progress,
+                                         close_bar=close_bar, cache_data=cache_data,
+                                         head=head, tail=tail)
+
+            return AsyncResult()
+        else:
+            self._ctx.close()  # clear udfs and resources generated
+            return self._fetch(expr, src_expr, instance, bar, close_bar=close_bar,
+                               cache_data=cache_data, head=head, tail=tail)
+
+    def _fetch(self, expr, src_expr, instance, bar, finish_progress=1,
+               close_bar=True, cache_data=None, head=None, tail=None):
         if isinstance(expr, (CollectionExpr, Summary)):
             df_schema = expr._schema
             schema = types.df_schema_to_odps_schema(expr._schema, ignorecase=True)
@@ -290,43 +349,47 @@ class ODPSEngine(Engine):
             df_schema = None
             schema = None
         try:
-            with instance.open_reader(schema=schema) as reader:
-                if not isinstance(src_expr, Scalar):
+            if cache_data is not None:
+                with cache_data.open_reader(reopen=True) as reader:
+                    if head:
+                        reader = reader[:head]
+                    elif tail:
+                        start = max(reader.count - tail, 0)
+                        reader = reader[start: ]
                     try:
                         return ResultFrame([r.values for r in reader], schema=df_schema)
                     finally:
-                        bar.update(1)
+                        src_expr._cache_data = cache_data
+                        bar.update(finish_progress)
+
+            with instance.open_reader(schema=schema) as reader:
+                if not isinstance(src_expr, Scalar):
+                    if head:
+                        reader = reader[:head]
+                    elif tail:
+                        start = max(reader.count - tail, 0)
+                        reader = reader[start: ]
+                    try:
+                        return ResultFrame([r.values for r in reader], schema=df_schema)
+                    finally:
+                        src_expr._cache_data = cache_data
+                        bar.update(finish_progress)
                 else:
-                    bar.update(1)
+                    bar.update(finish_progress)
                     odps_type = types.df_type_to_odps_type(src_expr._value_type)
-                    return types.odps_types.validate_value(reader[0][0], odps_type)
+                    res = types.odps_types.validate_value(reader[0][0], odps_type)
+                    src_expr._cache_data = res
+                    return res
         finally:
-            bar.close()
-
-    def _convert_table(self, expr):
-        for node in expr.traverse(top_down=True, unique=True):
-            if hasattr(node, 'raw_input') and \
-                    isinstance(node.raw_input, (SequenceGroupBy, GroupBy)):
-                grouped = node.raw_input.input
-                return grouped.agg(expr)[[expr.name, ]]
-            elif isinstance(node, Column):
-                return node.input[[expr, ]]
-            elif isinstance(node, Count) and isinstance(node.input, CollectionExpr):
-                return node.input[[expr, ]]
-
-        raise NotImplementedError
+            if close_bar:
+                bar.close()
 
     def _optimize(self, expr):
-        # We just traverse first to get all the parents
-        # TODO think a better way
-        memo = dict()
-        list(expr.traverse(parent_cache=memo, unique=True))
+        if self._global_optimize:
+            from ..optimize import Optimizer
+            expr = Optimizer(expr).optimize()
 
-        # TODO optimizer should be lifted to planner, before the compile action
-        from ..optimize import Optimizer
-        expr = Optimizer(expr, memo).optimize()
-
-        expr = ana.Analyzer(expr, memo).analyze()
+        expr = ana.Analyzer(expr).analyze()
         return expr
 
     def _pre_process(self, expr):
@@ -358,12 +421,42 @@ class ODPSEngine(Engine):
 
         return backend.compile(expr)
 
-    def persist(self, expr, name, partitions=None):
-        bar = init_progress_bar()
+    def persist(self, expr, name, partitions=None, partition=None, project=None, bar=None,
+                start_progress=0, max_progress=1, lifecycle=None, hints=None,
+                create_table=True, drop_partition=False, create_partition=False, **kw):
+        close_bar = bar is None
+        bar = bar or init_progress_bar()
 
-        if partitions is None:
+        should_cache = False
+
+        table_name = name if project is None else '%s.`%s`' % (project, name)
+        if partitions is None and partition is None:
             sql = self.compile(expr, prettify=False)
-            sql = 'CREATE TABLE {0} AS \n{1}'.format(name, sql)
+            lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
+            sql = 'CREATE TABLE {0} {1}AS \n{2}'.format(table_name, lifecycle_str, sql)
+
+            should_cache = True
+        elif partition is not None:
+            sql = self.compile(expr, prettify=False)
+            t = self._odps.get_table(name, project=project)
+
+            for col in expr.schema.columns:
+                if col.name.lower() not in t.schema:
+                    raise CompileError('Column %s does not exist in table' % col.name)
+                t_col = t.schema[col.name.lower()]
+                if types.df_type_to_odps_type(col.type) != t_col.type:
+                    raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
+                        col.name, t_col.type, col.type))
+
+            if drop_partition:
+                t.delete_partition(partition, if_exists=True)
+            if create_partition:
+                t.create_partition(partition, if_not_exists=True)
+
+            partition = PartitionSpec(partition)
+            sql = 'INSERT OVERWRITE TABLE {0} PARTITION({1}) \n{2}'.format(
+                name, partition, sql
+            )
         else:
             if isinstance(partitions, tuple):
                 partitions = list(partitions)
@@ -384,8 +477,8 @@ class ODPSEngine(Engine):
 
             columns = [c for c in schema.columns if c.name not in partitions]
             ps = [Partition(name=t, type=schema.get_type(t)) for t in partitions]
-            self._odps.create_table(name, Schema(columns=columns, partitions=ps))
-
+            if create_table:
+                self._odps.create_table(name, Schema(columns=columns, partitions=ps), project=project)
             expr = expr[[c.name for c in expr.schema if c.name not in partitions] + partitions]
 
             sql = self.compile(expr, prettify=False)
@@ -394,9 +487,21 @@ class ODPSEngine(Engine):
                 name, ', '.join(partitions), sql
             )
 
+        self._log('Sql compiled:')
+        self._log(sql)
+
         try:
-            self._run(sql, bar)
-            return DataFrame(self._odps.get_table(name))
+            self._run(sql, bar, start_progress=start_progress, max_progress=max_progress, hints=hints)
+            t = self._odps.get_table(name, project=project)
+            if should_cache:
+                expr._cache_data = t
+            if partition:
+                filters = []
+                for k in partition.keys:
+                    filters.append(lambda x: x[k] == partition[k])
+                return DataFrame(t).filter(*filters)
+            return DataFrame(t)
         finally:
-            bar.close()
+            if close_bar:
+                bar.close()
 

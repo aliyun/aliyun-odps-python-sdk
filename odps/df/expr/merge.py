@@ -31,23 +31,26 @@ from .. import types
 
 class JoinCollectionExpr(CollectionExpr):
     __slots__ = '_how', '_left_suffix', '_right_suffix', '_column_origins', \
-                '_renamed_columns', '_column_conflict'
+                '_renamed_columns', '_column_conflict', '_mapjoin'
     _args = '_lhs', '_rhs', '_predicate'
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._left_suffix = None
         self._right_suffix = None
         self._column_origins = dict()
         self._renamed_columns = dict()
         self._column_conflict = False
 
-        super(JoinCollectionExpr, self).__init__(*args, **kwargs)
+        super(JoinCollectionExpr, self)._init(*args, **kwargs)
         if not isinstance(self._lhs, CollectionExpr):
             raise TypeError('Can only join collection expressions, got %s for left expr.' % type(self._lhs))
         if not isinstance(self._rhs, CollectionExpr):
             raise TypeError('Can only join collection expressions, got %s for right expr.' % type(self._rhs))
 
         if self._rhs is self._lhs:
+            self._rhs = self._rhs.view()
+        if isinstance(self._lhs, JoinCollectionExpr) and \
+                (self._rhs is self._lhs._lhs or self._rhs is self._lhs._rhs):
             self._rhs = self._rhs.view()
 
         if self._left_suffix is None and self._right_suffix is None:
@@ -67,7 +70,12 @@ class JoinCollectionExpr(CollectionExpr):
         return super(JoinCollectionExpr, self).__getitem__(item)
 
     def _defunc(self, field):
-        return field(self._lhs, self._rhs) if inspect.isfunction(field) else field
+        if inspect.isfunction(field):
+            if field.func_code.co_argcount == 1:
+                return field(self)
+            else:
+                return field(self._lhs, self._rhs)
+        return field
 
     def _get_child(self, expr):
         while isinstance(expr, JoinProjectCollectionExpr):
@@ -101,7 +109,7 @@ class JoinCollectionExpr(CollectionExpr):
         for field in fields:
             if isinstance(field, CollectionExpr):
                 if isinstance(field, ProjectCollectionExpr) and \
-                                field not in (self._lhs, self._rhs):
+                                id(field) not in (id(self._lhs), id(self._rhs)):
                     idx = self._valid_collection(field.input)
 
                     for select in field.fields:
@@ -196,7 +204,8 @@ class JoinCollectionExpr(CollectionExpr):
     def _validate_predicates(self, predicates):
         is_validate = False
         subs = []
-
+        if self._mapjoin:
+            is_validate = True
         for p in predicates:
             if (isinstance(p, tuple) and len(p) == 2) or isinstance(p, six.string_types):
                 if isinstance(p, six.string_types):
@@ -219,50 +228,54 @@ class JoinCollectionExpr(CollectionExpr):
 
                 is_validate = True
             elif isinstance(p, BooleanSequenceExpr):
-                if is_validate:
-                    subs.append(p)
-                else:
+                if not is_validate:
                     it = (expr for expr in p.traverse(top_down=True, unique=True)
                           if isinstance(expr, Equal))
                     while not is_validate:
                         try:
                             validate = self._validate_equal(next(it))
                             if validate:
-                                subs.append(p)
                                 is_validate = True
                                 break
                         except StopIteration:
                             break
             else:
                 raise ExpressionError('Invalid predicate: {0!s}'.format(repr_obj(p)))
-        if len(subs) == 0:
-            raise ExpressionError('Invalid predicate: {0!s}'.format(repr_obj(p)))
+        if not is_validate:
+            raise ExpressionError('Invalid predicate: no validate predicate assigned')
 
-        self._predicate = reduce(operator.and_, subs)
+        for p in predicates:
+            if isinstance(p, BooleanSequenceExpr):
+                subs.append(p)
+
+        if len(subs) ==0:
+            self._predicate = None
+        else:
+            self._predicate = reduce(operator.and_, subs)
 
 
 class InnerJoin(JoinCollectionExpr):
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._how = 'INNER'
-        super(InnerJoin, self).__init__(*args, **kwargs)
+        super(InnerJoin, self)._init(*args, **kwargs)
 
 
 class LeftJoin(JoinCollectionExpr):
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._how = 'LEFT OUTER'
-        super(LeftJoin, self).__init__(*args, **kwargs)
+        super(LeftJoin, self)._init(*args, **kwargs)
 
 
 class RightJoin(JoinCollectionExpr):
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._how = 'RIGHT OUTER'
-        super(RightJoin, self).__init__(*args, **kwargs)
+        super(RightJoin, self)._init(*args, **kwargs)
 
 
 class OuterJoin(JoinCollectionExpr):
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._how = 'FULL OUTER'
-        super(OuterJoin, self).__init__(*args, **kwargs)
+        super(OuterJoin, self)._init(*args, **kwargs)
 
 
 class JoinProjectCollectionExpr(ProjectCollectionExpr):
@@ -280,12 +293,12 @@ _join_dict = {
 }
 
 
-def join(left, right, on=None, how='inner', suffix=('_x', '_y')):
+def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False):
     """
     Join two collections.
 
     If `on` is not specified, we will find the common fields of the left and right collection.
-    `suffix` means that if column names conflict, the suffix will be added automatically.
+    `suffixes` means that if column names conflict, the suffixes will be added automatically.
     For example, both left and right has a field named `col`,
     there will be col_x, and col_y in the joined collection.
 
@@ -293,7 +306,8 @@ def join(left, right, on=None, how='inner', suffix=('_x', '_y')):
     :param right: right collection
     :param on: fields to join on
     :param how: 'inner', 'left', 'right', or 'outer'
-    :param suffix: when name conflict, the suffix will be added to both columns.
+    :param suffixes: when name conflict, the suffix will be added to both columns.
+    :param mapjoin: set use mapjoin or not, default value False.
     :return: collection
 
     :Example:
@@ -307,6 +321,7 @@ def join(left, right, on=None, how='inner', suffix=('_x', '_y')):
     >>> df.join(df2, on=('id', 'id1'))
     >>> df.join(df2, on=['name', ('id', 'id1')])
     >>> df.join(df2, on=[df.name == df2.name, df.id == df2.id1])
+    >>> df.join(df2, mapjoin=False)
     """
     if on is None:
         on = [name for name in left.schema.names if name in right.schema]
@@ -314,13 +329,13 @@ def join(left, right, on=None, how='inner', suffix=('_x', '_y')):
             raise ValueError('No coexist fields found, please specify `on` conditions')
 
         if how.lower() == 'inner':
-            suffix = ('', '_x')
-            return join(left, right, on=on, how=how, suffix=suffix)\
+            suffixes = ('', '_x')
+            return join(left, right, on=on, how=how, suffixes=suffixes, mapjoin=mapjoin)\
                 .select(left, right.exclude(on))
-        return join(left, right, on=on, how=how, suffix=suffix)
+        return join(left, right, on=on, how=how, suffixes=suffixes, mapjoin=mapjoin)
 
-    if isinstance(suffix, tuple) and len(suffix) == 2:
-        left_suffix, right_suffix = suffix
+    if isinstance(suffixes, tuple) and len(suffixes) == 2:
+        left_suffix, right_suffix = suffixes
     else:
         left_suffix, right_suffix = None, None
     if not isinstance(on, list):
@@ -332,25 +347,25 @@ def join(left, right, on=None, how='inner', suffix=('_x', '_y')):
 
     try:
         return _join_dict[how.upper()](_lhs=left, _rhs=right, _predicate=on, _left_suffix=left_suffix,
-                                       _right_suffix=right_suffix)
+                                       _right_suffix=right_suffix, _mapjoin=mapjoin)
     except KeyError:
         return JoinCollectionExpr(_lhs=left, _rhs=right, _predicate=on, _how=how, _left_suffix=left_suffix,
-                                  _right_suffix=right_suffix)
+                                  _right_suffix=right_suffix, _mapjoin=mapjoin)
 
 
-def inner_join(left, right, on=None, suffix=('_x', '_y')):
+def inner_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     """
     Inner join two collections.
 
     If `on` is not specified, we will find the common fields of the left and right collection.
-    `suffix` means that if column names conflict, the suffix will be added automatically.
+    `suffixes` means that if column names conflict, the suffixes will be added automatically.
     For example, both left and right has a field named `col`,
     there will be col_x, and col_y in the joined collection.
 
     :param left: left collection
     :param right: right collection
     :param on: fields to join on
-    :param suffix: when name conflict, the suffix will be added to both columns.
+    :param suffixes: when name conflict, the suffixes will be added to both columns.
     :return: collection
 
     :Example:
@@ -366,22 +381,23 @@ def inner_join(left, right, on=None, suffix=('_x', '_y')):
     >>> df.inner_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
 
-    return join(left, right, on, suffix=suffix)
+    return join(left, right, on, suffixes=suffixes, mapjoin=mapjoin)
 
 
-def left_join(left, right, on=None, suffix=('_x', '_y')):
+def left_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     """
     Left join two collections.
 
     If `on` is not specified, we will find the common fields of the left and right collection.
-    `suffix` means that if column names conflict, the suffix will be added automatically.
+    `suffixes` means that if column names conflict, the suffixes will be added automatically.
     For example, both left and right has a field named `col`,
     there will be col_x, and col_y in the joined collection.
 
     :param left: left collection
     :param right: right collection
     :param on: fields to join on
-    :param suffix: when name conflict, the suffix will be added to both columns.
+    :param suffixes: when name conflict, the suffixes will be added to both columns.
+    :param mapjoin: set use mapjoin or not, default value False.
     :return: collection
 
     :Example:
@@ -397,22 +413,23 @@ def left_join(left, right, on=None, suffix=('_x', '_y')):
     >>> df.left_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
 
-    return join(left, right, on, how='left', suffix=suffix)
+    return join(left, right, on, how='left', suffixes=suffixes, mapjoin=mapjoin)
 
 
-def right_join(left, right, on=None, suffix=('_x', '_y')):
+def right_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     """
     Right join two collections.
 
     If `on` is not specified, we will find the common fields of the left and right collection.
-    `suffix` means that if column names conflict, the suffix will be added automatically.
+    `suffixes` means that if column names conflict, the suffixes will be added automatically.
     For example, both left and right has a field named `col`,
     there will be col_x, and col_y in the joined collection.
 
     :param left: left collection
     :param right: right collection
     :param on: fields to join on
-    :param suffix: when name conflict, the suffix will be added to both columns.
+    :param suffixes: when name conflict, the suffixes will be added to both columns.
+    :param mapjoin: set use mapjoin or not, default value False.
     :return: collection
 
     :Example:
@@ -428,22 +445,23 @@ def right_join(left, right, on=None, suffix=('_x', '_y')):
     >>> df.right_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
 
-    return join(left, right, on, how='right', suffix=suffix)
+    return join(left, right, on, how='right', suffixes=suffixes, mapjoin=mapjoin)
 
 
-def outer_join(left, right, on=None, suffix=('_x', '_y')):
+def outer_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     """
     Outer join two collections.
 
     If `on` is not specified, we will find the common fields of the left and right collection.
-    `suffix` means that if column names conflict, the suffix will be added automatically.
+    `suffixes` means that if column names conflict, the suffixes will be added automatically.
     For example, both left and right has a field named `col`,
     there will be col_x, and col_y in the joined collection.
 
     :param left: left collection
     :param right: right collection
     :param on: fields to join on
-    :param suffix: when name conflict, the suffix will be added to both columns.
+    :param suffixes: when name conflict, the suffixes will be added to both columns.
+    :param mapjoin: set use mapjoin or not, default value False.
     :return: collection
 
     :Example:
@@ -459,7 +477,7 @@ def outer_join(left, right, on=None, suffix=('_x', '_y')):
     >>> df.outer_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
 
-    return join(left, right, on, how='outer', suffix=suffix)
+    return join(left, right, on, how='outer', suffixes=suffixes, mapjoin=mapjoin)
 
 
 CollectionExpr.join = join
@@ -474,8 +492,8 @@ class UnionCollectionExpr(CollectionExpr):
     _args = '_lhs', '_rhs',
     node_name = 'Union'
 
-    def __init__(self, *args, **kwargs):
-        super(UnionCollectionExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(UnionCollectionExpr, self)._init(*args, **kwargs)
 
         self._validate()
         self._schema = self._clean_schema()
@@ -513,9 +531,6 @@ class UnionCollectionExpr(CollectionExpr):
 
     def accept(self, visitor):
         return visitor.visit_union(self)
-
-    def _get_args(self):
-        return self._lhs, self._rhs,
 
     def iter_args(self):
         for it in zip(['collection(left)', 'collection(right)'], self.args):

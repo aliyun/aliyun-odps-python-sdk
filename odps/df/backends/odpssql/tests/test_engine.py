@@ -17,28 +17,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import random
-import time
-from datetime import datetime
-from decimal import Decimal
-try:
-    from string import letters
-except ImportError:
-    from string import ascii_letters as letters
-import os
-import signal
+from datetime import datetime, timedelta
 
-from odps.tests.core import TestBase, to_str
+from odps.df.backends.tests.core import TestBase, to_str
 from odps.compat import unittest
-from odps.models import Schema
+from odps.models import Schema, Instance
 from odps import types
 from odps.df.types import validate_data_type
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema, \
     odps_schema_to_df_schema
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.backends.odpssql.engine import ODPSEngine
-from odps.df.backends.frame import ResultFrame
-from odps.df import Scalar
+from odps.df import Scalar, output_names, output_types, output, day, millisecond
 
 
 class Test(TestBase):
@@ -59,25 +49,6 @@ class Test(TestBase):
             def update(self, *args, **kwargs):
                 pass
         self.faked_bar = FakeBar()
-
-    def _gen_random_bigint(self, value_range=None):
-        return random.randint(*(value_range or types.bigint._bounds))
-
-    def _gen_random_string(self, max_length=15):
-        gen_letter = lambda: letters[random.randint(0, 51)]
-        return to_str(''.join([gen_letter() for _ in range(random.randint(1, 15))]))
-
-    def _gen_random_double(self):
-        return random.uniform(-2**32, 2**32)
-
-    def _gen_random_datetime(self):
-        return datetime.fromtimestamp(random.randint(0, int(time.time())))
-
-    def _gen_random_boolean(self):
-        return random.uniform(-1, 1) > 0
-
-    def _gen_random_decimal(self):
-        return Decimal(str(self._gen_random_double()))
 
     def _gen_data(self, rows=None, data=None, nullable_field=None, value_range=None):
         if data is None:
@@ -100,19 +71,6 @@ class Test(TestBase):
 
         self.odps.write_table(self.table, 0, [self.table.new_record(values=d) for d in data])
         return data
-
-    def _get_result(self, res):
-        if isinstance(res, ResultFrame):
-            res = res.values
-        try:
-            import pandas
-
-            if isinstance(res, pandas.DataFrame):
-                return [list(it) for it in res.values]
-            else:
-                return res
-        except ImportError:
-            return res
 
     def testTunnelCases(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
@@ -138,7 +96,8 @@ class Test(TestBase):
 
         table_name = 'pyodps_test_engine_partitioned'
         self.odps.delete_table(table_name, if_exists=True)
-        df = self.expr.persist(table_name, partitions=['name'])
+
+        df = self.engine.persist(self.expr, table_name, partitions=['name'])
 
         try:
             expr = df.count()
@@ -154,6 +113,17 @@ class Test(TestBase):
             self.assertGreater(len(res), 0)
         finally:
             self.odps.delete_table(table_name, if_exists=True)
+
+    def testAsync(self):
+        data = self._gen_data(10, value_range=(-1000, 1000))
+
+        expr = self.expr.id.sum()
+
+        res = self.engine.execute(expr, async=True)
+        self.assertNotEqual(res.instance.status, Instance.Status.TERMINATED)
+        res.wait()
+
+        self.assertEqual(sum(it[1] for it in data), res.fetch())
 
     def testBase(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
@@ -258,6 +228,9 @@ class Test(TestBase):
             (-self.expr.fid).rename('fid2'),
             (~self.expr.isMale).rename('isMale1'),
             (-self.expr.isMale).rename('isMale2'),
+            (self.expr.id // 2).rename('id6'),
+            (self.expr.birth + day(1).rename('birth1')),
+            (self.expr.birth - (self.expr.birth - millisecond(10))).rename('birth2'),
         ]
 
         expr = self.expr[fields]
@@ -297,7 +270,13 @@ class Test(TestBase):
         self.assertEqual([not it[3] for it in data],
                          [it[9] for it in result])
 
-        # TODO: test the datetime add and substract
+        self.assertEqual([it[1] // 2 for it in data],
+                         [it[11] for it in result])
+
+        self.assertEqual([it[5] + timedelta(days=1) for it in data],
+                         [it[12] for it in result])
+
+        self.assertEqual([10] * len(data), [it[13] for it in result])
 
     def testMath(self):
         data = self._gen_data(5, value_range=(1, 90))
@@ -393,6 +372,35 @@ class Test(TestBase):
             second = [it[i] for it in result]
             self.assertEqual(first, second)
 
+    def testApply(self):
+        data = self._gen_data(5)
+
+        def my_func(row):
+            return row.name,
+
+        expr = self.expr['name', 'id'].apply(my_func, axis=1, names='name')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual([r[0] for r in result], [r[0] for r in data])
+
+        def my_func2(row):
+            yield len(row.name)
+            yield row.id
+
+        expr = self.expr['name', 'id'].apply(my_func2, axis=1, names='cnt', types='int')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        def gen_expected(data):
+            for r in data:
+                yield len(r[0])
+                yield r[1]
+
+        self.assertEqual([r[0] for r in result], [r for r in gen_expected(data)])
+
     def testDatetime(self):
         data = self._gen_data(5)
 
@@ -408,6 +416,8 @@ class Test(TestBase):
             (lambda s: list(s.birth.dt.weekofyear.values), self.expr.birth.weekofyear),
             (lambda s: list(s.birth.dt.dayofweek.values), self.expr.birth.dayofweek),
             (lambda s: list(s.birth.dt.weekday.values), self.expr.birth.weekday),
+            (lambda s: list(s.birth.dt.date.values), self.expr.birth.date),
+            (lambda s: list(s.birth.dt.strftime('%Y%d')), self.expr.birth.strftime('%Y%d'))
         ]
 
         fields = [it[1].rename('birth'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -423,7 +433,14 @@ class Test(TestBase):
             method = it[0]
 
             first = method(df)
-            second = [it[i] for it in result]
+
+            def conv(v):
+                if isinstance(v, pd.Timestamp):
+                    return v.to_datetime().date()
+                else:
+                    return v
+
+            second = [conv(it[i]) for it in result]
             self.assertEqual(first, second)
 
     def testSortDistinct(self):
@@ -516,7 +533,19 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
-        self.assertEqual(expected, result)
+        self.assertEqual([it[1:] for it in expected], result)
+
+        expected = [
+            ['name1', 2],
+            ['name2', 1]
+        ]
+
+        expr = self.expr.groupby('name').id.nunique()
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual([it[1:] for it in expected], result)
 
     def testFilterGroupby(self):
         data = [
@@ -554,7 +583,6 @@ class Test(TestBase):
         expr = self.expr[self.expr.id - self.expr.id.mean() < 10][
             [lambda x: x.id - x.id.max()]][[lambda x: x.id - x.id.min()]][lambda x: x.id - x.id.std() > 0]
 
-        # FIXME compiling too slow
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
@@ -584,8 +612,10 @@ class Test(TestBase):
             (lambda s: df.isMale.min(), self.expr.isMale.min()),
             (lambda s: df.name.max(), self.expr.name.max()),
             (lambda s: df.birth.max(), self.expr.birth.max()),
-            (lambda s: df.name.sum(), self.expr.name.sum()),
             (lambda s: df.isMale.sum(), self.expr.isMale.sum()),
+            (lambda s: df.isMale.any(), self.expr.isMale.any()),
+            (lambda s: df.isMale.all(), self.expr.isMale.all()),
+            (lambda s: df.name.nunique(), self.expr.name.nunique()),
         ]
 
         fields = [it[1].rename('f'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -602,7 +632,143 @@ class Test(TestBase):
 
             first = method(df)
             second = [it[i] for it in result][0]
-            self.assertAlmostEqual(first, second)
+            if isinstance(first, float):
+                self.assertAlmostEqual(first, second)
+            else:
+                self.assertEqual(first, second)
+
+    def testMapReduceByApplyDistributeSort(self):
+        data = [
+            ['name key', 4, 5.3, None, None, None],
+            ['name', 2, 3.5, None, None, None],
+            ['key', 4, 4.2, None, None, None],
+            ['name', 3, 2.2, None, None, None],
+            ['key name', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        def mapper(row):
+            for word in row[0].split():
+                yield word, 1
+
+        class reducer(object):
+            def __init__(self):
+                self._curr = None
+                self._cnt = 0
+
+            def __call__(self, row):
+                if self._curr is None:
+                    self._curr = row.word
+                elif self._curr != row.word:
+                    yield (self._curr, self._cnt)
+                    self._curr = row.word
+                    self._cnt = 0
+                self._cnt += row.count
+
+            def close(self):
+                if self._curr is not None:
+                    yield (self._curr, self._cnt)
+
+        expr = self.expr['name', ].apply(
+            mapper, axis=1, names=['word', 'count'], types=['string', 'int'])
+        expr = expr.groupby('word').sort('word').apply(
+            reducer, names=['word', 'count'], types=['string', 'int'])
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [['key', 3], ['name', 4]]
+        self.assertEqual(sorted(result), sorted(expected))
+
+    def testMapReduce(self):
+        data = [
+            ['name key', 4, 5.3, None, None, None],
+            ['name', 2, 3.5, None, None, None],
+            ['key', 4, 4.2, None, None, None],
+            ['name', 3, 2.2, None, None, None],
+            ['key name', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        @output(['word', 'cnt'], ['string', 'int'])
+        def mapper(row):
+            for word in row[0].split():
+                yield word, 1
+
+        @output(['word', 'cnt'], ['string', 'int'])
+        def reducer(keys):
+            cnt = [0, ]
+
+            def h(row, done):
+                cnt[0] += row[1]
+                if done:
+                    yield keys[0], cnt[0]
+
+            return h
+
+        expr = self.expr['name', ].map_reduce(mapper, reducer, group='word')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [['key', 3], ['name', 4]]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        @output(['word', 'cnt'], ['string', 'int'])
+        class reducer2(object):
+            def __init__(self, keys):
+                self.cnt = 0
+
+            def __call__(self, row, done):
+                self.cnt += row.cnt
+                if done:
+                    yield row.word, self.cnt
+
+        expr = self.expr['name', ].map_reduce(mapper, reducer2, group='word')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [['key', 3], ['name', 4]]
+        self.assertEqual(sorted(result), sorted(expected))
+
+    def testDistributeSort(self):
+        data = [
+            ['name', 4, 5.3, None, None, None],
+            ['name', 2, 3.5, None, None, None],
+            ['key', 4, 4.2, None, None, None],
+            ['name', 3, 2.2, None, None, None],
+            ['key', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        @output_names('name', 'id')
+        @output_types('string', 'int')
+        class reducer(object):
+            def __init__(self):
+                self._curr = None
+                self._cnt = 0
+
+            def __call__(self, row):
+                if self._curr is None:
+                    self._curr = row.name
+                elif self._curr != row.name:
+                    yield (self._curr, self._cnt)
+                    self._curr = row.name
+                    self._cnt = 0
+                self._cnt += 1
+
+            def close(self):
+                if self._curr is not None:
+                    yield (self._curr, self._cnt)
+
+        expr = self.expr['name', ].groupby('name').sort('name').apply(reducer)
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [['key', 2], ['name', 3]]
+        self.assertEqual(sorted(expected), sorted(result))
 
     def testJoin(self):
         data = [
@@ -715,7 +881,7 @@ class Test(TestBase):
         table_name = 'pyodps_test_engine_persist_table'
 
         try:
-            df = self.expr.persist(table_name)
+            df = self.engine.persist(self.expr, table_name)
 
             res = self.engine.execute(df)
             result = self._get_result(res)
@@ -725,7 +891,19 @@ class Test(TestBase):
             self.odps.delete_table(table_name, if_exists=True)
 
         try:
-            self.expr.persist(table_name, partitions=['name'])
+            schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds'], ['string'])
+            self.odps.create_table(table_name, schema)
+            df = self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
+
+            res = self.engine.execute(df)
+            result = self._get_result(res)
+            self.assertEqual(len(result), 5)
+            self.assertEqual(data, [d[:-1] for d in result])
+        finally:
+            self.odps.delete_table(table_name, if_exists=True)
+
+        try:
+            self.engine.persist(self.expr, table_name, partitions=['name'])
 
             t = self.odps.get_table(table_name)
             self.assertEqual(2, len(list(t.partitions)))

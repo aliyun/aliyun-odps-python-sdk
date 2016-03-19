@@ -414,8 +414,11 @@ class XMLNodeAttributeField(SerializeField):
 
     def serialize(self, root, value):
         value = value or self._default
-        if value is None and self._blank_if_null:
-            value = ''
+        if value is None:
+            if self._default is not None:
+                value = self._default
+            elif self._blank_if_null:
+                value = ''
 
         if not self._required and value is None:
             return
@@ -643,7 +646,7 @@ class JSONNodeField(SerializeField):
         return val
 
     def serialize(self, root, value):
-        value = value or self._default
+        value = value if value is not None else self._default
         if value is None and self._blank_if_null:
             value = ''
 

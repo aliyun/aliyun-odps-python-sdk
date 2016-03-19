@@ -19,7 +19,7 @@
 
 import inspect
 import operator
-
+import uuid
 import six
 from six.moves import reduce
 
@@ -29,6 +29,7 @@ from .utils import get_attrs, is_called_by_inspector
 from .. import types
 from ...config import options
 from ...errors import DependencyNotInstalledError
+from ...utils import TEMP_TABLE_PREFIX
 
 
 def run_at_once(func):
@@ -49,13 +50,17 @@ def repr_obj(obj):
 
 
 class Expr(Node):
-    __slots__ = '__execution', '__ban_optimize', '_engine'
+    __slots__ = '__execution', '__ban_optimize', '_engine', '_cache_data', '_need_cache'
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self.__ban_optimize = False
         self._engine = None
         self.__execution = None
-        super(Expr, self).__init__(*args, **kwargs)
+
+        self._cache_data = None
+        self._need_cache = False
+
+        super(Expr, self)._init(*args, **kwargs)
 
     def __repr__(self):
         if not options.interactive or is_called_by_inspector():
@@ -74,22 +79,16 @@ class Expr(Node):
             return repr(self.__execution)
 
     @run_at_once
-    def execute(self, use_cache=None):
+    def execute(self, **kwargs):
         """
-        :param use_cache: use the executed result if has been executed
         :return: execution result
         :rtype: :class:`odps.df.backends.frame.ResultFrame`
         """
 
-        if use_cache is None:
-            use_cache = options.df.use_cache
-        if use_cache and self.__execution:
-            return self.__execution
-
         from ..engines import get_default_engine
 
         engine = get_default_engine(self)
-        self.__execution = engine.execute(self)
+        self.__execution = engine.execute(self, **kwargs)
         return self.__execution
 
     def compile(self):
@@ -106,7 +105,7 @@ class Expr(Node):
         return engine.compile(self)
 
     @run_at_once
-    def persist(self, name, partitions=None):
+    def persist(self, name, partitions=None, lifecycle=None, project=None, **kwargs):
         """
         Persist the execution into a new table. If `partitions` not specfied,
         will create a new table without partitions, and insert the SQL result into it.
@@ -115,6 +114,7 @@ class Expr(Node):
         :param name: table name
         :param partitions: list of string, the partition fields
         :type partitions: list
+        :param int lifecycle: table lifecycle. If absent, `options.lifecycle` will be used.
         :return: :class:`odps.df.DataFrame`
 
         :Example:
@@ -127,7 +127,18 @@ class Expr(Node):
         from ..engines import get_default_engine
 
         engine = get_default_engine(self)
-        return engine.persist(self, name, partitions=partitions)
+
+        if lifecycle is None and options.lifecycle is not None:
+            lifecycle = \
+                options.lifecycle if not name.startswith(TEMP_TABLE_PREFIX) \
+                    else options.temp_lifecycle
+        return engine.persist(self, name, partitions=partitions, lifecycle=lifecycle,
+                              project=project, **kwargs)
+
+    def cache(self):
+        self._need_cache = True
+        self.__ban_optimize = True
+        return self
 
     def verify(self):
         """
@@ -168,6 +179,7 @@ class Expr(Node):
         cached_args = self._get_attr('_cached_args')
         if cached_args:
             return cached_args[args.index(arg_name)]
+
         return self._get_attr(arg_name)
 
     def __getattribute__(self, attr):
@@ -324,8 +336,8 @@ class CollectionExpr(Expr):
 
     __slots__ = '_schema', '_source_data'
 
-    def __init__(self, *args, **kwargs):
-        super(CollectionExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(CollectionExpr, self)._init(*args, **kwargs)
         if hasattr(self, '_schema') and any(it is None for it in self._schema.names):
             raise TypeError('Schema cannot has field which name is None')
         self._source_data = getattr(self, '_source_data', None)
@@ -448,7 +460,12 @@ class CollectionExpr(Expr):
             fields = list(fields)
         fields = [self._defunc(it) for it in fields]
         if kw:
-            fields.extend([self._defunc(f).rename(new_name)
+            def handle(it):
+                it = self._defunc(it)
+                if not isinstance(it, Expr):
+                    it = Scalar(it)
+                return it
+            fields.extend([handle(f).rename(new_name)
                            for new_name, f in six.iteritems(kw)])
 
         return self._project(fields)
@@ -503,12 +520,9 @@ class CollectionExpr(Expr):
 
         return self._schema.columns
 
-    def data_source(self):
+    def _data_source(self):
         if hasattr(self, '_source_data') and self._source_data is not None:
             yield self._source_data
-
-        for s in super(CollectionExpr, self).data_source():
-            yield s
 
     def __getattr__(self, attr):
         try:
@@ -528,7 +542,7 @@ class CollectionExpr(Expr):
         return self[:n]
 
     @run_at_once
-    def head(self, n=None):
+    def head(self, n=None, **kwargs):
         """
         Return the first n rows. Execute at once.
 
@@ -539,12 +553,13 @@ class CollectionExpr(Expr):
         if n is None:
             n = options.display.max_rows
 
-        df = self.limit(n)
+        from ..engines import get_default_engine
 
-        return df.execute()
+        engine = get_default_engine(self)
+        return engine.execute(self, head=n, **kwargs)
 
     @run_at_once
-    def tail(self, n=None):
+    def tail(self, n=None, **kwargs):
         """
         Return the last n rows. Execute at once.
 
@@ -558,20 +573,14 @@ class CollectionExpr(Expr):
         from ..engines import get_default_engine
 
         engine = get_default_engine(self)
-        result = engine._handle_cases(self, tail=n)
-
-        if result:
-            return result
-
-        # TODO: The tail will not be supported until the instance tunnel is ready
-        raise NotImplementedError
+        return engine.execute(self, tail=n, **kwargs)
 
     @run_at_once
-    def to_pandas(self, use_cache=None):
+    def to_pandas(self, wrap=False, **kwargs):
         """
         Convert to pandas DataFrame. Execute at once.
 
-        :param use_cache: return executed result if have been executed
+        :param wrap: if True, wrap the pandas DataFrame into a PyOdps DataFrame
         :return: pandas DataFrame
         """
 
@@ -581,7 +590,11 @@ class CollectionExpr(Expr):
             raise DependencyNotInstalledError(
                     'to_pandas requires for `pandas` library')
 
-        return self.execute(use_cache=use_cache).values
+        res = self.execute(**kwargs).values
+        if wrap:
+            from .. import DataFrame
+            return DataFrame(res)
+        return res
 
     @property
     def dtypes(self):
@@ -627,7 +640,7 @@ class TypedExpr(Expr):
             typed_classes = cls._typed_classes(*args, **kwargs)
 
             data_type = types.validate_data_type(data_type)
-            name = data_type.__class__.__name__ + base_class.__name__
+            name = data_type.CLASS_NAME + base_class.__name__
             typed_cls = globals().get(name)
             assert typed_cls is not None
 
@@ -680,12 +693,7 @@ class TypedExpr(Expr):
         attr_dict['_source_name'] = self._source_name
         attr_dict['_name'] = new_name
 
-        new_sequence = type(self)(**attr_dict)
-
-        new_sequence._source_name = self._source_name
-        new_sequence._name = new_name
-
-        return new_sequence
+        return type(self)(**attr_dict)
 
     @property
     def name(self):
@@ -721,9 +729,9 @@ class SequenceExpr(TypedExpr):
     def _base_class(cls, *args, **kwargs):
         return SequenceExpr
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._name = None
-        super(SequenceExpr, self).__init__(*args, **kwargs)
+        super(SequenceExpr, self)._init(*args, **kwargs)
 
         if '_data_type' in kwargs:
             self._data_type = types.validate_data_type(kwargs.get('_data_type'))
@@ -736,8 +744,11 @@ class SequenceExpr(TypedExpr):
         else:
             self._source_data_type = self._data_type
 
+    def cache(self):
+        raise ExpressionError('Cache operation does not support for sequence.')
+
     @run_at_once
-    def head(self, n=None):
+    def head(self, n=None, **kwargs):
         """
         Return first n rows. Execute at once.
 
@@ -746,17 +757,16 @@ class SequenceExpr(TypedExpr):
         :rtype: :class:`odps.df.expr.expressions.CollectionExpr`
         """
 
+        if n is None:
+            n = options.display.max_rows
+
         from ..engines import get_default_engine
 
         engine = get_default_engine(self)
-
-        collection = engine._ctx.get_replaced_expr(self)
-        if collection is None:
-            collection = engine._convert_table(self)
-        return collection.head(n=n)
+        return engine.execute(self, head=n, **kwargs)
 
     @run_at_once
-    def tail(self, n=None):
+    def tail(self, n=None, **kwargs):
         """
         Return the last n rows. Execute at once.
 
@@ -764,21 +774,20 @@ class SequenceExpr(TypedExpr):
         :return:
         """
 
+        if n is None:
+            n = options.display.max_rows
+
         from ..engines import get_default_engine
 
         engine = get_default_engine(self)
-
-        collection = engine._ctx.get_replaced_expr(self)
-        if collection is None:
-            collection = engine._convert_table(self)
-        return collection.tail(n=n)
+        return engine.execute(self, tail=n, **kwargs)
 
     @run_at_once
-    def to_pandas(self, use_cache=None):
+    def to_pandas(self, wrap=False, **kwargs):
         """
         Convert to pandas Series. Execute at once.
 
-        :param use_cache: return executed result if have been executed
+        :param wrap: if True, wrap the pandas DataFrame into a PyOdps DataFrame
         :return: pandas Series
         """
 
@@ -788,7 +797,10 @@ class SequenceExpr(TypedExpr):
             raise DependencyNotInstalledError(
                     'to_pandas requires for `pandas` library')
 
-        df = self.execute(use_cache=use_cache).values
+        df = self.execute(**kwargs).values
+        if wrap:
+            from .. import DataFrame
+            df = DataFrame(df)
         return df[self.name]
 
     @property
@@ -838,96 +850,67 @@ class SequenceExpr(TypedExpr):
     def output_type(self):
         return 'sequence(%s)' % repr(self._data_type)
 
-    def map(self, func, rtype=None, func_args=None):
-        """
-        Call func on each element of this sequence.
-
-        :param func: lambda, function, :class:`odps.models.Function`,
-                     or str which is the name of :class:`odps.models.Funtion`
-        :param rtype: if not provided, will be the dtype of this sequence
-        :return: a new sequence
-
-        :Example:
-
-        >>> df.id.map(lambda x: x + 1)
-        """
-
-        from odps.models import Function
-
-        rtype = rtype or self._data_type
-        output_type = types.validate_data_type(rtype)
-
-        if isinstance(func, six.string_types):
-            pass
-        elif isinstance(func, Function):
-            pass
-        elif not inspect.isfunction(func):
-            raise ValueError('`func` must be a function')
-
-        return MappedSequenceExpr(_data_type=output_type, _func=func, _input=self,
-                                  _func_args=func_args)
-
     def accept(self, visitor):
         visitor.visit_sequence(self)
 
 
 class BooleanSequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(BooleanSequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(BooleanSequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.boolean
 
 
 class Int8SequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(Int8SequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Int8SequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.int8
 
 
 class Int16SequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(Int16SequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Int16SequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.int16
 
 
 class Int32SequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(Int32SequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Int32SequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.int32
 
 
 class Int64SequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(Int64SequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Int64SequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.int64
 
 
 class Float32SequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(Float32SequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Float32SequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.float32
 
 
 class Float64SequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(Float64SequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Float64SequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.float64
 
 
 class DecimalSequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(DecimalSequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(DecimalSequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.decimal
 
 
 class StringSequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(StringSequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(StringSequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.string
 
 
 class DatetimeSequenceExpr(SequenceExpr):
-    def __init__(self, *args, **kwargs):
-        super(DatetimeSequenceExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(DatetimeSequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.datetime
 
 
@@ -978,31 +961,6 @@ class Column(SequenceExpr):
         return visitor.visit_column(self)
 
 
-class MappedSequenceExpr(SequenceExpr):
-    __slots__ = '_func', '_func_args'
-    _args = '_input',
-    node_name = 'Map'
-
-    @property
-    def input(self):
-        return self._input
-
-    @property
-    def name(self):
-        return self._name or self._input.name
-
-    @property
-    def source_name(self):
-        return self._source_name or self._input.source_name
-
-    @property
-    def input_type(self):
-        return self._input.data_type
-
-    def accept(self, visitor):
-        return visitor.visit_map(self)
-
-
 class Scalar(TypedExpr):
     """
     Represent for the scalar type.
@@ -1037,13 +995,13 @@ class Scalar(TypedExpr):
     def _base_class(cls, *args, **kwargs):
         return Scalar
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._name = None
 
         value = args[0] if len(args) > 0 else None
         value_type = args[1] if len(args) > 1 else None
 
-        super(Scalar, self).__init__(**kwargs)
+        super(Scalar, self)._init(**kwargs)
 
         val = getattr(self, '_value', None)
         if val is None:
@@ -1158,62 +1116,62 @@ class AsTypedScalar(Scalar):
 
 
 class BooleanScalar(Scalar):
-    def __init__(self, *args, **kwargs):
-        super(BooleanScalar, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(BooleanScalar, self)._init(*args, **kwargs)
         self._value_type = types.boolean
 
 
 class Int8Scalar(Scalar):
-    def __init__(self, *args, **kwargs):
-        super(Int8Scalar, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Int8Scalar, self)._init(*args, **kwargs)
         self._value_type = types.int8
 
 
 class Int16Scalar(Scalar):
-    def __init__(self, *args, **kwargs):
-        super(Int16Scalar, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Int16Scalar, self)._init(*args, **kwargs)
         self._value_type = types.int16
 
 
 class Int32Scalar(Scalar):
-    def __init__(self, *args, **kwargs):
-        super(Int32Scalar, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Int32Scalar, self)._init(*args, **kwargs)
         self._value_type = types.int32
 
 
 class Int64Scalar(Scalar):
-    def __init__(self, *args, **kwargs):
-        super(Int64Scalar, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Int64Scalar, self)._init(*args, **kwargs)
         self._value_type = types.int64
 
 
 class Float32Scalar(Scalar):
-    def __init__(self, *args, **kwargs):
-        super(Float32Scalar, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Float32Scalar, self)._init(*args, **kwargs)
         self._value_type = types.float32
 
 
 class Float64Scalar(Scalar):
     def __int__(self, *args, **kwargs):
-        super(Float64Scalar, self).__init__(*args, **kwargs)
+        super(Float64Scalar, self)._init(*args, **kwargs)
         self._value_type = types.float64
 
 
 class DecimalScalar(Scalar):
-    def __init__(self, *args, **kwargs):
-        super(DecimalScalar, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(DecimalScalar, self)._init(*args, **kwargs)
         self._value_type = types.decimal
 
 
 class StringScalar(Scalar):
-    def __init__(self, *args, **kwargs):
-        super(StringScalar, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(StringScalar, self)._init(*args, **kwargs)
         self._value_type = types.string
 
 
 class DatetimeScalar(Scalar):
-    def __init__(self, *args, **kwargs):
-        super(DatetimeScalar, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(DatetimeScalar, self)._init(*args, **kwargs)
         self._value_type = types.datetime
 
 
@@ -1225,8 +1183,8 @@ class FilterCollectionExpr(CollectionExpr):
     _args = '_input', '_predicate'
     node_name = 'Filter'
 
-    def __init__(self, *args, **kwargs):
-        super(FilterCollectionExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(FilterCollectionExpr, self)._init(*args, **kwargs)
 
         if self._schema is None:
             self._schema = self._input.schema
@@ -1247,7 +1205,7 @@ class ProjectCollectionExpr(CollectionExpr):
     _args = '_input', '_fields'
     node_name = 'Projection'
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         fields = kwargs.get('_fields')
         if fields is None and len(args) >= 2:
             fields = args[1]
@@ -1256,7 +1214,7 @@ class ProjectCollectionExpr(CollectionExpr):
                 raise ExpressionError('Column does not have a name, '
                                       'please specify one by `rename`: %s' % repr_obj(field._repr()))
 
-        super(ProjectCollectionExpr, self).__init__(*args, **kwargs)
+        super(ProjectCollectionExpr, self)._init(*args, **kwargs)
 
         get_field = lambda field: Column(
             self._input, _name=field, _data_type=self._schema[field].type)
@@ -1276,11 +1234,12 @@ class ProjectCollectionExpr(CollectionExpr):
 
 
 class SliceCollectionExpr(CollectionExpr):
+
     _args = '_input', '_indexes'
     node_name = 'Slice'
 
-    def __init__(self, *args, **kwargs):
-        super(SliceCollectionExpr, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(SliceCollectionExpr, self)._init(*args, **kwargs)
 
         if isinstance(self._indexes, slice):
             scalar = lambda v: Scalar(_value=v) if v is not None else None
@@ -1289,15 +1248,18 @@ class SliceCollectionExpr(CollectionExpr):
 
     @property
     def start(self):
-        return self._indexes[0].value
+        res = self._indexes[0]
+        return res.value if res is not None else None
 
     @property
     def stop(self):
-        return self._indexes[1].value
+        res = self._indexes[1]
+        return res.value if res is not None else None
 
     @property
     def step(self):
-        return self._indexes[2].value
+        res = self._indexes[2]
+        return res.value if res is not None else None
 
     @property
     def input(self):
@@ -1311,13 +1273,12 @@ class SliceCollectionExpr(CollectionExpr):
     def accept(self, visitor):
         visitor.visit_slice_collection(self)
 
-
 class Summary(Expr):
     __slots__ = '_schema',
     _args = '_input', '_fields'
 
-    def __init__(self, *args, **kwargs):
-        super(Summary, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Summary, self)._init(*args, **kwargs)
         if hasattr(self, '_schema') and any(it is None for it in self._schema.names):
             raise TypeError('Schema cannot has field which name is None')
 
@@ -1328,6 +1289,10 @@ class Summary(Expr):
     @property
     def fields(self):
         return self._fields
+
+    @property
+    def schema(self):
+        return self._schema
 
     def iter_args(self):
         for it in zip(['collection', 'fields'], self.args):

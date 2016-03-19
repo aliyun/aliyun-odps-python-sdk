@@ -45,8 +45,4 @@ Definitions
 .. autoclass:: odps.models.Function
     :members:
 
-.. autoclass:: odps.models.XFlow
-    :members:
-
-.. autoclass:: odps.models.ml.OfflineModel
-    :members:
+.. intinclude:: api-def-int.rst

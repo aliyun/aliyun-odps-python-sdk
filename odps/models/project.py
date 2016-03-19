@@ -22,6 +22,7 @@ from .tables import Tables
 from .instances import Instances
 from .functions import Functions
 from .resources import Resources
+from .volumes import Volumes
 from .xflows import XFlows
 from .ml.offlinemodels import OfflineModels
 from .. import serializers, utils
@@ -120,6 +121,10 @@ class Project(LazyLoad):
     @property
     def resources(self):
         return Resources(client=self._client, parent=self)
+
+    @property
+    def volumes(self):
+        return Volumes(client=self._client, parent=self)
 
     @property
     def xflows(self):

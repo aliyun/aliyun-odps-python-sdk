@@ -26,10 +26,10 @@ class Test(TestBase):
     def testReplaceSqlParameters(self):
         ns = {'test1': 'new_test1', 'test3': 'new_test3'}
 
-        sql = 'select :test1 from dual where :test2 > 0 and f=:test3'
+        sql = 'select :test1 from dual where :test2 > 0 and f=:test3.abc'
         replaced_sql = replace_sql_parameters(sql, ns)
 
-        expected = 'select new_test1 from dual where :test2 > 0 and f=new_test3'
+        expected = 'select new_test1 from dual where :test2 > 0 and f=new_test3.abc'
         self.assertEqual(expected, replaced_sql)
 
 

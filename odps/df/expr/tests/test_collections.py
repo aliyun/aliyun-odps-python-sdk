@@ -69,6 +69,8 @@ class Test(TestBase):
         self.assertIsInstance(distinct, CollectionExpr)
         self.assertEqual(distinct._schema, self.expr[['boolean', 'decimal']]._schema)
 
+        self.assertRaises(ExpressionError, lambda: self.expr['boolean', self.expr.string.unique()])
+
 
 if __name__ == '__main__':
     unittest.main()

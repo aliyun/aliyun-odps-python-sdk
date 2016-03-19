@@ -27,9 +27,9 @@ class SequenceReduction(Scalar):
     __slots__ = '_name',
     _args = '_input',
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._name = None
-        super(SequenceReduction, self).__init__(*args, **kwargs)
+        super(SequenceReduction, self)._init(*args, **kwargs)
 
     @property
     def node_name(self):
@@ -70,12 +70,12 @@ class SequenceReduction(Scalar):
 
 
 class GroupedSequenceReduction(SequenceExpr):
-    __slots__ = '_column',
+    __slots__ = '_column', '_inited'
     _args = '_input',
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._column = None
-        super(GroupedSequenceReduction, self).__init__(*args, **kwargs)
+        super(GroupedSequenceReduction, self)._init(*args, **kwargs)
 
     @property
     def source_name(self):
@@ -89,21 +89,33 @@ class GroupedSequenceReduction(SequenceExpr):
         if source_name:
             return '%s_%s' % (source_name, self.node_name.lower())
 
-    def _get_args(self):
-        if isinstance(self._input, SequenceGroupBy):
+    @property
+    def args(self):
+        input = self.raw_input
+        if isinstance(input, SequenceGroupBy):
             if self._column:
                 return self._column,
 
-            grouped = self._input._input
+            grouped = input._input
             self._column = grouped._input[self.source_name]
             return self._column,
-        else:
-            return super(GroupedSequenceReduction, self)._get_args()
+        elif isinstance(input, GroupBy):
+            return input.input,
+
+        return super(GroupedSequenceReduction, self).args
 
     def _repr(self):
-        expr = self._input._input.agg(self)[self.name]
+        if isinstance(self._input, SequenceGroupBy):
+            grouped = self._input._input
+        else:
+            grouped = self._input
+        expr = grouped.agg(self)[self.name]
 
         return expr._repr()
+
+    @property
+    def input(self):
+        return self.args[0]
 
     @property
     def raw_input(self):
@@ -195,6 +207,14 @@ class GroupedAll(GroupedSequenceReduction):
     node_name = 'all'
 
 
+class NUnique(SequenceReduction):
+    __slots__ = ()
+
+
+class GroupedNUnique(GroupedSequenceReduction):
+    node_name = 'nunique'
+
+
 def _reduction(expr, output_cls, output_type=None, **kw):
     grouped_output_cls = globals()['Grouped%s' % output_cls.__name__]
     method_name = output_cls.__name__.lower()
@@ -243,7 +263,7 @@ def count(expr):
     elif isinstance(expr, CollectionExpr):
         return Count(_value_type=types.int64, _input=expr).rename('count')
     elif isinstance(expr, GroupBy):
-        return expr.agg(expr._input.count())
+        return GroupedCount(_data_type=types.int64, _input=expr).rename('count')
 
 
 def _stats_type(expr):
@@ -297,6 +317,11 @@ def any_(expr):
 def all_(expr):
     output_type = types.boolean
     return _reduction(expr, All, output_type)
+
+
+def nunique(expr):
+    output_type = types.int64
+    return _reduction(expr, NUnique, output_type)
 
 
 def as_grouped(reduction_expr):
@@ -358,6 +383,7 @@ _sequence_methods = dict(
     max=max_,
     count=count,
     size=count,
+    nunique=nunique,
 )
 
 number_sequences = [globals().get(repr(t).capitalize() + SequenceExpr.__name__)

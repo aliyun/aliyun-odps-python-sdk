@@ -19,6 +19,7 @@
 """
 
 import sys
+from datetime import datetime
 
 from odps import udf
 from odps import distcache
@@ -189,7 +190,10 @@ class DirectCollector(BaseCollector):
         self.results = []
 
     def handle_collect(self, *args):
-        self.results.append(*args)
+        if len(self.schema) == 1:
+            self.results.append(args[0])
+        else:
+            self.results.append(args)
 
 
 class BaseRunner(object):

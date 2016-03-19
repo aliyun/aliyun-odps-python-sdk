@@ -441,11 +441,11 @@ class Table(LazyLoad):
     def partitions(self):
         return Partitions(parent=self, client=self._client)
 
-    def create_partition(self, partition_spec, if_not_exists=False):
-        return self.partitions.create(partition_spec, if_not_exists=if_not_exists)
+    def create_partition(self, partition_spec, if_not_exists=False, async=False):
+        return self.partitions.create(partition_spec, if_not_exists=if_not_exists, async=async)
 
-    def delete_partition(self, partition_spec, if_exists=False):
-        return self.partitions.delete(partition_spec, if_exists=if_exists)
+    def delete_partition(self, partition_spec, if_exists=False, async=False):
+        return self.partitions.delete(partition_spec, if_exists=if_exists, async=async)
 
     def exist_partition(self, partition_spec):
         return partition_spec in self.partitions
@@ -456,13 +456,14 @@ class Table(LazyLoad):
     def get_partition(self, partition_spec):
         return self.partitions[partition_spec]
 
-    def drop(self):
+    def drop(self, async=False):
         """
         drop this table.
 
+        :param async: run asynchronously if True
         :return: None
         """
-        return self.parent.delete(self)
+        return self.parent.delete(self, async=async)
 
     def new_record(self, values=None):
         """

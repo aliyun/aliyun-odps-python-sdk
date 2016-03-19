@@ -1,0 +1,896 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseProcessAlgorithm">
+    <algorithm codeName="NodeDensity">
+        <reloadFields>false</reloadFields>
+        <docs><![CDATA[
+在无向图G中，计算每一个节点周围的稠密度，星状网络稠密度为0，全联通网络稠密度为1。
+
+%params%
+%inputs%
+%outputs%
+        ]]></docs>
+        <params>
+            <param name="inputEdgeTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="maxEdgeCnt">
+                <value>500</value>
+                <docs>若节点度大于该值，则进行抽样</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>node:string, node_cnt:bigint, edge_cnt:bigint, density:double, log_density:double</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="NodeDensity"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="MaximalConnectedComponent">
+        <fieldChangable>true</fieldChangable>
+        <docs><![CDATA[
+在无向图G中，若从顶点A到顶点B有路径相连，则称A和B是连通的；在图G种存在若干子图，其中每个子图中所有顶点之间都是连通的，但在不同
+子图间不存在顶点连通，那么称图G的这些子图为最大连通子图。
+
+%params%
+%inputs%
+%outputs%
+        ]]></docs>
+        <params>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="inputEdgeTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>node:string, grp_id:string</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="MaximalConnectedComponent"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="TriangleCount">
+        <fieldChangable>true</fieldChangable>
+        <docs><![CDATA[
+在无向图G中，输出所有三角形。
+
+%params%
+%inputs%
+%outputs%
+        ]]></docs>
+        <params>
+            <param name="inputEdgeTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="maxEdgeCnt">
+                <value>500</value>
+                <docs>若节点度大于该值，则进行抽样</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>node1:string, node2:string, node3:string</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="TriangleCount"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="EdgeDensity">
+        <fieldChangable>true</fieldChangable>
+        <docs><![CDATA[
+在无向图G中，计算每一条边周围的稠密度。
+
+%params%
+%inputs%
+%outputs%
+        ]]></docs>
+        <params>
+            <param name="inputEdgeTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>node1:string, node2:string, node1_edge_cnt:bigint, node2_edge_cnt:bigint,
+                        triangle_cnt:bigint, density:double
+                    </schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="EdgeDensity"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="PageRank">
+        <docs><![CDATA[
+PageRank起于网页的搜索排序，google利用网页的链接结构计算每个网页的等级排名，其基本思路是：如果一个网页被其他多个网页指向，这
+说明该网页比较重要或者质量较高。除考虑网页的链接数量，还考虑网页本身的权重级别，以及该网页有多少条出链到其它网页。 对于用户构成
+的人际网络，除了用户本身的影响力之外，边的权重也是重要因素之一。例如：新浪微博的某个用户，会更容易影响粉丝中关系比较亲密的家人、
+同学、同事等，而对陌生的弱关系粉丝影响较小。在人际网络中，边的权重等价为用户-用户的关系强弱指数。带连接权重的PageRank公式为：
+
+.. math::
+    w_i = (1-d)+d \cdot \sum_{j} (w_j \cdot c_{ij})
+
+其中，:math:`w_i` 为节点 i 的权重，:math:`c_{ij}` 为链接权重，d 为阻尼系数，算法迭代稳定后的节点权重W即为每个用户的影响力指数。
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>true</fieldChangable>
+        <params>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表的起点所在列</docs>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表的终点所在列</docs>
+            </param>
+            <param name="edgeWeightCol">
+                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表边的权重所在列</docs>
+            </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
+            <param name="inputEdgeTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputEdgeTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartitions">
+                <exporter>get_output_table_partition</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="hasEdgeWeight">
+                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表的边是否有权重</docs>
+            </param>
+            <param name="maxIter">
+                <value>30</value>
+                <min>0</min>
+                <docs>最大迭代次数</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>node: string, weight: double</schema>
+                </schema>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="PageRankWithWeight"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="LabelPropagationClustering">
+        <docs><![CDATA[
+图聚类是根据图的拓扑结构，进行子图的划分，使得子图内部节点的链接较多，子图之间的连接较少。标签传播算法（Label Propagation
+Algorithm, LPA）是基于图的半监督学习方法，其基本思路是节点的标签（community）依赖其邻居节点的标签信息，影响程度由节点相似度
+决定，并通过传播迭代更新达到稳定。
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>true</fieldChangable>
+        <params>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表的起点所在列</docs>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表的终点所在列</docs>
+            </param>
+            <param name="edgeWeightCol">
+                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表边的权重所在列</docs>
+            </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
+            <param name="vertexCol" required="true">
+                <exporter>$package_root.network.customize.get_vertex_id_column</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点所在列</docs>
+            </param>
+            <param name="vertexWeightCol">
+                <exporter>$package_root.network.customize.get_vertex_weight_column</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点的权重所在列</docs>
+            </param>
+            <param name="inputEdgeTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>edge</inputName>
+            </param>
+            <param name="inputVertexTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>vertex</inputName>
+            </param>
+            <param name="inputEdgeTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>edge</inputName>
+            </param>
+            <param name="inputVertexTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>vertex</inputName>
+            </param>
+            <param name="outputTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartitions">
+                <exporter>get_output_table_partition</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="hasEdgeWeight">
+                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表的边是否有权重</docs>
+            </param>
+            <param name="hasVertexWeight">
+                <exporter>$package_root.network.customize.graph_has_vertex_weight</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点是否有权重</docs>
+            </param>
+            <param name="randSelect">
+                <value>false</value>
+                <docs>是否随机选择最大标签</docs>
+            </param>
+            <param name="maxIter">
+                <value>30</value>
+                <min>0</min>
+                <docs>最大迭代次数</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="edge">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="vertex">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>node: string, group_id: string</schema>
+                </schema>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="LabelPropagationClustering"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="KCore">
+        <docs><![CDATA[
+一个图的KCore是指反复去除度小于或等于k的节点后，所剩余的子图。若一个节点存在于KCore，而在(K+1)CORE中被移去，那么此节点的核数（coreness）为k。因此所有度为1的节点的核数必然为0，节点核数的最大值被称为图的核数。
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <params>
+            <param name="k" required="true">
+                <value>1</value>
+                <min>1</min>
+                <docs>核数</docs>
+            </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>input</inputName>
+                <docs>边表中起点所在列</docs>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>input</inputName>
+                <docs>边表中终点所在列</docs>
+            </param>
+            <param name="inputEdgeTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputEdgeTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartitions">
+                <exporter>get_output_table_partition</exporter>
+                <outputName>output</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>node1: string, node2: string</schema>
+                </schema>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="KCore"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="SSSP">
+        <docs><![CDATA[
+单源最短路径参考Dijkstra算法，本算法中当给定起点，则输出该点和其他所有节点的最短路径。
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>true</fieldChangable>
+        <params>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表的起点所在列</docs>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表的终点所在列</docs>
+            </param>
+            <param name="edgeWeightCol">
+                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表边的权重所在列</docs>
+            </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
+            <param name="inputEdgeTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputEdgeTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartitions">
+                <exporter>get_output_table_partition</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="hasEdgeWeight">
+                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表的边是否有权重</docs>
+            </param>
+            <param name="startVertex" required="true">
+                <docs>起始节点ID</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>start_node: string, dest_node: string, node_value: double</schema>
+                </schema>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="SSSP"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="FastUnfolding">
+        <enabled>false</enabled>
+        <docs><![CDATA[
+社区发现是根据图中的Modularity，进行子图的划分，使得子图内部节点的链接较多，子图之间的连接较少。Fast Unfolding是基于图的无监督
+学习方法，其基本思路是节点的标签（community）依赖其邻居节点的标签信息，影响程度由归属社区后的Modularity增益决定，并通过传播
+迭代更新达到稳定。
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>false</fieldChangable>
+        <params>
+            <param name="vertexCol">
+                <exporter>$package_root.network.customize.get_vertex_id_column</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点所在列</docs>
+            </param>
+            <param name="vertexWeightCol">
+                <exporter>$package_root.network.customize.get_vertex_weight_column</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点的权重所在列</docs>
+            </param>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表的起点所在列</docs>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表的终点所在列</docs>
+            </param>
+            <param name="edgeWeightCol">
+                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表边的权重所在列</docs>
+            </param>
+            <param name="maxIter">
+                <value>30</value>
+                <required>true</required>
+                <min>1</min>
+                <docs>最大迭代次数</docs>
+            </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
+            <param name="inputEdgeTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>edge</inputName>
+            </param>
+            <param name="inputEdgeTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>edge</inputName>
+            </param>
+            <param name="inputVertexTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>vertex</inputName>
+            </param>
+            <param name="inputVertexTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>vertex</inputName>
+            </param>
+            <param name="outputTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartitions">
+                <exporter>get_output_table_partition</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="hasVertexWeight">
+                <exporter>$package_root.network.customize.graph_has_vertex_weight</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点是否有权重</docs>
+            </param>
+            <param name="hasEdgeWeight">
+                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表的边是否有权重</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="edge">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="vertex">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="FastUnfolding"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="LabelPropagationClassification">
+        <docs><![CDATA[
+该算法为半监督的分类算法，原理为用已标记节点的标签信息去预测未标记节点的标签信息。  
+
+在算法执行过程中，每个节点的标签按相似度传播给相邻节点，在节点传播的每一步，每个节点根据相邻节点的标签来更新自己的标签，与该节点相似度越大，其相邻节点对其标注的影响权值越大，相似节点的标签越趋于一致，其标签就越容易传播。在标签传播过程中，保持已标注数据的标签不变，使其像一个源头把标签传向未标注数据。  
+
+最终，当迭代过程结束时，相似节点的概率分布也趋于相似，可以划分到同一个类别中，从而完成标签传播过程
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>true</fieldChangable>
+        <params>
+            <param name="vertexCol" required="true">
+                <exporter>$package_root.network.customize.get_vertex_id_column</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点所在列</docs>
+            </param>
+            <param name="vertexWeightCol">
+                <exporter>$package_root.network.customize.get_vertex_weight_column</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点的权重所在列</docs>
+            </param>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表的起点所在列</docs>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表的终点所在列</docs>
+            </param>
+            <param name="edgeWeightCol">
+                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表边的权重所在列</docs>
+            </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
+            <param name="inputEdgeTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>edge</inputName>
+            </param>
+            <param name="inputEdgeTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>edge</inputName>
+            </param>
+            <param name="inputVertexTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>vertex</inputName>
+            </param>
+            <param name="inputVertexTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>vertex</inputName>
+            </param>
+            <param name="outputTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartitions">
+                <exporter>get_output_table_partition</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="hasEdgeWeight">
+                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <inputName>edge</inputName>
+                <docs>输入边表的边是否有权重</docs>
+            </param>
+            <param name="hasVertexWeight">
+                <exporter>$package_root.network.customize.graph_has_vertex_weight</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点是否有权重</docs>
+            </param>
+            <param name="vertexLabelCol" required="true">
+                <exporter>$package_root.network.customize.get_vertex_label_column</exporter>
+                <inputName>vertex</inputName>
+                <docs>输入点表的点的标签</docs>
+            </param>
+            <param name="maxIter">
+                <value>30</value>
+                <min>0</min>
+                <docs>最大迭代次数</docs>
+            </param>
+            <param name="alpha">
+                <value>0.8</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>阻尼系数</docs>
+            </param>
+            <param name="epsilon">
+                <value>0.000001</value>
+                <min>0</min>
+                <docs>收敛系数</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="edge">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="vertex">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>node: string, tag: string, weight: double</schema>
+                </schema>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="LabelPropagationClassification"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="Modularity">
+        <docs><![CDATA[
+Modularity是一种评估社区网络结构的指标，来评估网络结构中划分出来社区的紧密程度，往往0.3以上是比较明显的社区结构。
+
+%params%
+
+:Returns: modularity value
+]]></docs>
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <params>
+            <param name="inputEdgeTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputEdgeTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="fromGroupCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表起点的群组</docs>
+            </param>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表的起点所在列</docs>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表的终点所在列</docs>
+            </param>
+            <param name="workerNum">
+                <min>1</min>
+                <max>1000</max>
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <min>2048</min>
+                <max>32768</max>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
+            <param name="toGroupCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入边表终点的群组</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="Modularity"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.network.customize.get_modularity_result"/>
+        </metas>
+    </algorithm>
+</algorithms>

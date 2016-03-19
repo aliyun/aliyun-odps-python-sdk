@@ -130,5 +130,5 @@ class Partition(LazyLoad):
         self.parse(self._client, resp, obj=self)
         self._is_extend_info_loaded = True
 
-    def drop(self):
-        return self.parent.delete(self)
+    def drop(self, async=False):
+        return self.parent.delete(self, async=async)

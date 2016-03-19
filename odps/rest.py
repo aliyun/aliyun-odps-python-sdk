@@ -18,6 +18,7 @@
 """Restful client enhanced by URL building and request signing facilities.
 """
 from __future__ import absolute_import
+import json
 import logging
 import platform
 
@@ -30,6 +31,7 @@ requests.packages.urllib3.disable_warnings()
 from . import __version__
 from . import errors, utils
 from .config import options
+from .utils import get_survey_calls, clear_survey_calls
 
 
 LOG = logging.getLogger(__name__)
@@ -67,6 +69,8 @@ class RestClient(object):
         return self._account
 
     def request(self, url, method, stream=False, **kwargs):
+        self.upload_survey_log()
+
         LOG.debug('Start request.')
         LOG.debug('url: ' + url)
         session = requests.Session()
@@ -119,6 +123,21 @@ class RestClient(object):
 
     def delete(self, url, **kwargs):
         return self.request(url, 'delete', **kwargs)
+
+    def upload_survey_log(self):
+        try:
+            from .models.core import RestModel
+
+            survey = get_survey_calls()
+            clear_survey_calls()
+            if not survey:
+                return
+            if self.project is None:
+                return
+            url = '/'.join([self.endpoint, 'projects', RestModel._encode(self.project), 'logs'])
+            self.put(url, json.dumps(survey))
+        except:
+            pass
 
     # Misc helper methods
     def is_ok(self, resp):

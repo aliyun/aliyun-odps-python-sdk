@@ -17,15 +17,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import itertools
 import time
 
 from odps.inter import enter, setup, teardown, list_rooms
 from odps.compat import StringIO
 from odps import types as odps_types
 from odps import options, ODPS
-from odps.models import Schema
 from odps.utils import init_progress_bar, replace_sql_parameters
+from odps.df import DataFrame, Scalar
 from odps.df.backends.frame import ResultFrame
 
 from IPython.core.magic import Magics, magics_class, line_cell_magic, line_magic
@@ -71,6 +70,9 @@ class ODPSSql(Magics):
             r = enter()
             self._odps = r.odps
 
+        if 'o' not in self.shell.user_ns:
+            self.shell.user_ns['o'] = self._odps
+
         return r
 
     @line_magic('setup')
@@ -109,12 +111,48 @@ class ODPSSql(Magics):
         else:
             return 0
 
+    def _to_stdout(cls, msg):
+        print(msg)
+
+    @line_magic('set')
+    def set_hint(self, line):
+        if '=' not in line:
+            raise ValueError('Hint for sql is not allowed')
+
+        key, val = line.strip().strip(';').split('=', 1)
+        key, val = key.strip(), val.strip()
+
+        settings = options.sql.settings
+        if settings is None:
+            options.sql.settings = {key: val}
+        else:
+            options.sql.settings[key] = val
+
     @line_cell_magic('sql')
     def execute(self, line, cell=''):
         self._set_odps()
 
-        sql = line + '\n' + cell
-        sql = sql.strip()
+        content = line + '\n' + cell
+        content = content.strip()
+
+        sql = None
+        hints = dict()
+
+        splits = content.split(';')
+        for s in splits:
+            s = s.strip()
+            if s.lower().startswith('set '):
+                hint = s.split(' ', 1)[1]
+                k, v = hint.split('=', 1)
+                k, v = k.strip(), v.strip()
+                hints[k] = v
+            elif len(s) == 0:
+                continue
+            else:
+                if sql is None:
+                    sql = s
+                else:
+                    raise ValueError('More than one SQL is not allowed')
 
         # replace user defined parameters
         sql = replace_sql_parameters(sql, self.shell.user_ns)
@@ -122,7 +160,11 @@ class ODPSSql(Magics):
         if sql:
             bar = init_progress_bar()
 
-            instance = self._odps.run_sql(sql)
+            instance = self._odps.run_sql(sql, hints=hints)
+            if options.verbose:
+                stdout = options.verbose_log or self._to_stdout
+                stdout('logview:')
+                stdout(self._odps.get_logview_address(instance.id, 24))
 
             percent = 0
             while not instance.is_terminated():
@@ -158,7 +200,11 @@ class ODPSSql(Magics):
 
     @line_magic('persist')
     def persist(self, line):
-        import pandas as pd
+        try:
+            import pandas as pd
+            has_pandas = True
+        except ImportError:
+            has_pandas = False
 
         self._set_odps()
 
@@ -172,40 +218,22 @@ class ODPSSql(Magics):
             project_name = None
 
         frame = self.shell.user_ns[frame_name]
-        if not isinstance(frame, pd.DataFrame):
-            raise TypeError('%s is not a Pandas DataFrame' % frame_name)
-
-        columns = list(frame.columns)
-        types = [np_to_odps_types.get(tp, odps_types.string) for tp in frame.dtypes]
-
         if self._odps.exist_table(table_name, project=project_name):
             raise TypeError('%s already exists' % table_name)
 
-        tb = self._odps.create_table(table_name, Schema.from_lists(columns, types))
-
-        def gen(df):
-            size = len(df)
-
-            bar = init_progress_bar(size)
-
-            try:
-                c = itertools.count()
-                for row in df.values:
-                    i = next(c)
-                    if i % 50 == 0:
-                        bar.update(min(i, size))
-
-                    yield tb.new_record(list(row))
-
-                bar.update(size)
-            finally:
-                bar.close()
-
-        with tb.open_writer() as writer:
-            writer.write(gen(frame))
+        if isinstance(frame, DataFrame):
+            frame.persist(name=table_name, project=project_name)
+        elif has_pandas and isinstance(frame, pd.DataFrame):
+            frame = DataFrame(frame)
+            frame.persist(name=table_name, project=project_name)
 
 
 def load_ipython_extension(ipython):
     ipython.register_magics(ODPSSql)
     js = "IPython.CodeCell.config_defaults.highlight_modes['magic_sql'] = {'reg':[/^%%sql/]};"
     display_javascript(js, raw=True)
+
+    # Do global import when load extension
+    ipython.user_ns['DataFrame'] = DataFrame
+    ipython.user_ns['Scalar'] = Scalar
+    ipython.user_ns['options'] = options

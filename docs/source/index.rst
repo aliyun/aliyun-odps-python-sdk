@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 PyOdps: ODPS Python SDK and data analysis framework
-=======================
+===================================================
 
 `PyOdps <https://github.com/aliyun/aliyun-odps-python-sdk>`_ 是ODPS的Python版本的SDK，
 它提供了对ODPS对象的基本操作；并提供了DataFrame框架，能轻松在ODPS上进行数据分析。
@@ -46,10 +46,12 @@ PyOdps的相关依赖会自动安装。
    sql-zh
    resources-zh
    functions-zh
+   volume-int-zh
    tunnel-zh
    cl-zh
    df-zh
    pai-int-zh
+   options-zh
    api
 
 

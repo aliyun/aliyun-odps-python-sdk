@@ -232,8 +232,6 @@ class Test(TestBase):
 
         self.assertIsInstance(expr['birth'] == date, arithmetic.Equal)
         self.assertIsInstance(expr['birth'] != date, arithmetic.NotEqual)
-        self.assertIsInstance(expr['birth'] + expr['birth'] - expr['birth'], arithmetic.Substract)
-        self.assertIsInstance(date + expr['birth'] + date, arithmetic.Add)
         self.assertIsInstance(date - expr['birth'] - date, arithmetic.Substract)
         self.assertIsInstance(expr['birth'] >= date, arithmetic.GreaterEqual)
         self.assertIsInstance(expr['birth'] <= date, arithmetic.LessEqual)

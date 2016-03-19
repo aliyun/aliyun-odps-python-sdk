@@ -1,0 +1,101 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseTrainingAlgorithm">
+    <algorithm codeName="etrec">
+        <baseClass>BaseProcessAlgorithm</baseClass>
+        <docs><![CDATA[
+eTREC是推荐系统中广泛使用的基于物品的协同过滤（item-based collaborative filtering）算法在MR上的高效实现(上亿的user和item
+矩阵可在20分钟左右计算完成)，支持常用的以及自定义的相似度计算方法。
+
+目前应用在手机淘宝、PC淘宝首页及各行业、非搜广告、一淘和淘宝搜索等数十个上线场景中，是计算行为相关性的有效利器，大幅度提升了各
+业务指标。
+
+%params%
+%inputs%
+%outputs%
+        ]]></docs>
+        <params>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="selectedColNames">
+                <exporter>$package_root.recommend.customize.get_rec_triple_selected_col_names</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="inputTableFormat">
+                <exporter>$package_root.recommend.customize.get_etrec_table_format</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="similarityType">
+                <value>wbcosine</value>
+                <docs>相似度类型，可选 wbcosine,asymcosine,jaccard，默认为 wbcosine</docs>
+            </param>
+            <param name="topN">
+                <value>2000</value>
+                <min>1</min>
+                <max>10000</max>
+                <docs>输出结果中最多保留多少个相似物品。默认为 2000</docs>
+            </param>
+            <param name="minUserBehavior">
+                <value>2</value>
+                <min>2</min>
+                <docs>当用户的物品数小于此值时，忽略该用户的行为。默认为 2</docs>
+            </param>
+            <param name="maxUserBehavior">
+                <value>500</value>
+                <min>2</min>
+                <max>100000</max>
+                <docs>当用户的物品数大于此值时，忽略该用户的行为。默认为 500</docs>
+            </param>
+            <param name="kvDelimiter">
+                <exporter>get_kv_delimiter(default=:)</exporter>
+                <inputName>input</inputName>
+                <docs>输出表物品id与相似度间的分割符，当输入表格式为items时，也是输入表物品与payload的分隔符。默认为半角冒号</docs>
+            </param>
+            <param name="itemDelimiter">
+                <exporter>get_item_delimiter(default=\,)</exporter>
+                <inputName>input</inputName>
+                <docs>输出表不同物品间的分割符，当输入表格式为items时，也是输入表物品间的分隔符。默认为半角逗号</docs>
+            </param>
+            <param name="alpha">
+                <value>0.5</value>
+                <docs>当similarityType为asymcosine类型时，平滑因子的值。默认为 0.5</docs>
+            </param>
+            <param name="weight">
+                <value>1.0</value>
+                <docs>当similarityType为asymcosine类型时，权重指数。默认为 1.0</docs>
+            </param>
+            <param name="operator">
+                <value>add</value>
+                <docs>当同一user的某个物品出现多次时，payload的计算行为。默认为 add</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>itemid: string, similarity: string</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="etrec"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+</algorithms>

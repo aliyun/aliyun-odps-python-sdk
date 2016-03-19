@@ -17,6 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from ..expr.expressions import *
+from ..expr.groupby import GroupBy, SequenceGroupBy
+from ..expr.reduction import Count
+
 
 class Backend(object):
 
@@ -24,6 +28,9 @@ class Backend(object):
         raise NotImplementedError
 
     def visit_project_collection(self, expr):
+        raise NotImplementedError
+
+    def visit_apply_collection(self, expr):
         raise NotImplementedError
 
     def visit_filter_collection(self, expr):
@@ -62,6 +69,9 @@ class Backend(object):
     def visit_sort(self, expr):
         raise NotImplementedError
 
+    def visit_sort_column(self, expr):
+        raise NotImplementedError
+
     def visit_distinct(self, expr):
         raise NotImplementedError
 
@@ -71,7 +81,7 @@ class Backend(object):
     def visit_column(self, expr):
         raise NotImplementedError
 
-    def visit_map(self, expr):
+    def visit_function(self, expr):
         raise NotImplementedError
 
     def visit_sequence(self, expr):
@@ -98,12 +108,32 @@ class Backend(object):
     def visit_union(self, expr):
         raise NotImplementedError
 
+
 class Engine(object):
+    def _convert_table(self, expr):
+        for node in expr.traverse(top_down=True, unique=True):
+            if hasattr(node, 'raw_input') and \
+                    isinstance(node.raw_input, (SequenceGroupBy, GroupBy)):
+                if isinstance(node.raw_input, SequenceGroupBy):
+                    grouped = node.raw_input.input
+                else:
+                    grouped = node.raw_input
+                return grouped.agg(expr)[[expr.name, ]]
+            elif isinstance(node, Column):
+                return node.input[[expr, ]]
+            elif isinstance(node, Count) and isinstance(node.input, CollectionExpr):
+                return node.input[[expr, ]]
+            elif isinstance(node, SequenceExpr) and hasattr(node, '_input') and \
+                    isinstance(node._input, CollectionExpr):
+                return node.input[[expr, ]]
+
+        raise NotImplementedError
+
     def compile(self, expr):
         raise NotImplementedError
 
     def execute(self, expr):
         raise NotImplementedError
 
-    def persisit(self, expr):
+    def persist(self, expr, name, partitions=None, bar=None, **kwargs):
         raise NotImplementedError

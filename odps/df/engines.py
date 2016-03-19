@@ -17,43 +17,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from enum import Enum
-
-from .backends.odpssql.engine import ODPSEngine
-from .errors import NoBackendFound
-from ..models import Table
-from ..config import options
-from .. import ODPS
-
-
-class Engines(Enum):
-    ODPS = 'ODPS'
-
-
-def available_engines(expr):
-    engines = set()
-
-    for src in expr.data_source():
-        if isinstance(src, Table):
-            engines.add(Engines.ODPS)
-
-    return engines
-
-
-def _build_odps_from_table(table):
-    client = table._client
-
-    account = client.account
-    endpoint = client.endpoint
-    project = client.project
-
-    return ODPS(account.access_id, account.secret_access_key,
-                project, endpoint=endpoint)
-
-
-def get_default_engine(expr):
-    for src in expr.data_source():
-        if isinstance(src, Table):
-            return ODPSEngine(_build_odps_from_table(src))
-
-    raise NoBackendFound('No backend found for expression: %s' % expr)
+from .backends.engine import get_default_engine

@@ -11,7 +11,7 @@
 窗口函数
 ========
 
-DataFrame API也支持使用窗口函数：
+DataFrame API也支持使用窗口函数（注意，pandas计算后端尚未支持）：
 
 .. code:: python
 
@@ -155,6 +155,16 @@ DataFrame API也支持使用窗口函数：
       </tbody>
     </table>
     </div>
+
+
+
+窗口函数按标量聚合时，和分组聚合的处理方式一致。
+
+
+.. code:: python
+
+    from odps.df import Scalar
+    iris.groupby(Scalar(1)).sort('sepallength').sepallength.cumcount()
 
 
 

@@ -20,3 +20,7 @@
 
 class CompileError(Exception):
     pass
+
+
+class NoBackendFound(Exception):
+    pass

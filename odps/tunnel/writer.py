@@ -39,9 +39,9 @@ class TunnelWriter(object):
 
         self._schema = schema
         self._columns = self._schema.columns
-        self._do_upload = do_upload
+        self._req_io = io.RequestsIO(do_upload)
 
-        self._writer = io.ProtobufWriter(compress_option=self._compress_option,
+        self._writer = io.ProtobufWriter(self._req_io, compress_option=self._compress_option,
                                          buffer_size=options.chunk_size, encoding=encoding)
 
         self._crc = Checksum()
@@ -49,23 +49,12 @@ class TunnelWriter(object):
         self._curr_cursor = 0
 
         self._upload_started = False
-        self._upload_thread = None
 
     def _start_upload(self):
         if self._upload_started:
             return
 
-        def gen_data():
-            for data in self._writer:
-                yield data
-
-        def do_upload():
-            self._do_upload(gen_data())
-
-        self._upload_thread = threading.Thread(target=do_upload)
-        self._upload_thread.setDaemon(True)
-        self._upload_thread.start()
-
+        self._req_io.start()
         self._upload_started = True
 
     def _write_bool(self, pb_index, data):
@@ -181,9 +170,7 @@ class TunnelWriter(object):
         self._writer.write_uint32(ProtoWireConstants.TUNNEL_META_CHECKSUM,
                                   utils.long_to_uint(self._crccrc.getvalue()))
         self._writer.close()
-        if self._upload_thread is not None:
-            self._upload_thread.join()
-
+        self._req_io.finish()
         self._curr_cursor = 0
 
     @property

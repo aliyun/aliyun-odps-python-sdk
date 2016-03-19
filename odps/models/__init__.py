@@ -27,6 +27,9 @@ from .functions import Functions
 from .function import Function
 from .resources import Resources
 from .resource import *
+from .volumes import *
+from .volume_partition import VolumePartition
+from .volume import Volume
 from .xflows import XFlows
 from .xflow import XFlow
 from .tasks import *

@@ -126,11 +126,11 @@
 .. code-block:: python
 
    >>> with t.open_writer(partition='pt=test') as writer:
-   >>>     t.write(records)  # 这里records可以是任意可迭代的records，默认写到block 0
+   >>>     writer.write(records)  # 这里records可以是任意可迭代的records，默认写到block 0
    >>>
    >>> with t.open_writer(partition='pt=test', blocks=[0, 1]) as writer:  # 这里同是打开两个block
-   >>>     t.write(0, gen_records(block=0))
-   >>>     t.write(1, gen_records(block=1))  # 这里两个写操作可以多线程并行，各个block间是独立的
+   >>>     writer.write(0, gen_records(block=0))
+   >>>     writer.write(1, gen_records(block=1))  # 这里两个写操作可以多线程并行，各个block间是独立的
 
 同样，向表写数据也是对Tunnel API的封装，详细参考 `数据上传下载通道 <tunnel-zh.html>`_ 。
 

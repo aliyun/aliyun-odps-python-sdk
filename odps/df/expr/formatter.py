@@ -128,17 +128,22 @@ class ExprFormatter(object):
         buf.write(utils.indent(content, indent))
 
     def _format_count_table(self, expr, buf, indent=0):
-        input_ref_id, _ = self._format_collection(expr._input)
+        input_ref_id, _ = self._format_collection(expr.input)
 
         buf.write(utils.indent("{0} = {1}[{2}]\n".format(
                 expr.name, expr.node_name, expr.output_type()), indent))
         buf.write(utils.indent("collection: {0}\n".format(input_ref_id), indent+self._indent_size))
 
     def _format_sorted_column(self, expr, buf, indent=0):
-        input_ref_id, _ = self._format_collection(expr._input)
+        if isinstance(expr.input, Column):
+            col = expr.input
+            input_ref_id, _ = self._format_collection(expr.input.input)
+        else:
+            col = expr
+            input_ref_id, _ = self._format_collection(expr._input)
 
         contents = ['SortKey', utils.indent('by', self._indent_size),
-                    utils.indent(self._format_column_content(expr), self._indent_size*2).rstrip('\n'),
+                    utils.indent(self._format_column_content(col), self._indent_size*2).rstrip('\n'),
                     utils.indent('ascending', self._indent_size),
                     utils.indent(str(expr._ascending), self._indent_size*2)
                     ]

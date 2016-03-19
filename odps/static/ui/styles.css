@@ -1,0 +1,72 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+#pyodps-progress-viewer .generated-time {
+    color: #ccc;
+    padding-right: 10px;
+}
+
+#pyodps-progress-viewer .stage {
+    width: 100%;
+    display: table;
+    table-layout: fixed;
+    margin-top: 3px;
+    margin-bottom: 3px;
+}
+
+#pyodps-progress-viewer .stage-name {
+    display: table-cell;
+    width: 30%;
+}
+
+#pyodps-progress-viewer .stage-progress {
+    display: table-cell; vertical-align: middle;
+}
+
+#pyodps-progress-viewer .progress {
+    margin: 0;
+}
+
+#pyodps-progress-viewer .progress-bar {
+    width: 0;
+}
+
+#pyodps-progress-viewer .task-name {
+    border-bottom: 1px solid #ccc;
+}
+
+.retry-btn {
+    cursor: pointer;
+    font-size: larger;
+    padding-right: 5px;
+    padding-top: 4px;
+    color: steelblue;
+    display: block;
+}
+
+.retry-btn:hover {
+    color: skyblue;
+}
+
+.retry-btn:active {
+    color: steelblue;
+}
+
+.retry-btn:visited {
+    color: steelblue;
+}

@@ -125,7 +125,7 @@ class Tables(Iterable):
         return buf.getvalue()
 
     def create(self, table_name, table_schema, comment=None, if_not_exists=False,
-               lifecycle=None, shard_num=None, hub_lifecycle=None):
+               lifecycle=None, shard_num=None, hub_lifecycle=None, async=False):
         sql = self._gen_create_table_sql(table_name, table_schema, comment=comment,
                                          if_not_exists=if_not_exists, lifecycle=lifecycle,
                                          shard_num=shard_num, hub_lifecycle=hub_lifecycle)
@@ -134,11 +134,14 @@ class Tables(Iterable):
         task = SQLTask(name='SQLCreateTableTask', query=sql)
         instance = self._parent.instances.create(task=task)
 
-        instance.wait_for_success()
+        if not async:
+            instance.wait_for_success()
 
-        table = Table(parent=self, client=self._client,
-                      name=table_name, schema=table_schema)
-        return table
+            table = Table(parent=self, client=self._client,
+                          name=table_name, schema=table_schema)
+            return table
+        else:
+            return instance
 
     def _gen_delete_table_sql(self, table_name, if_exists=False):
         project_name = self._parent.name
@@ -152,7 +155,7 @@ class Tables(Iterable):
 
         return buf.getvalue()
 
-    def delete(self, table_name, if_exists=False):
+    def delete(self, table_name, if_exists=False, async=False):
         if isinstance(table_name, Table):
             table_name = table_name.name
 
@@ -164,4 +167,7 @@ class Tables(Iterable):
         task = SQLTask(name='SQLDropTableTask', query=sql)
         instance = self._parent.instances.create(task=task)
 
-        instance.wait_for_success()
+        if not async:
+            instance.wait_for_success()
+        else:
+            return instance

@@ -17,6 +17,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import six
+import inspect
+
 from .core import DataFrame
 from .expr.expressions import Scalar
 from .expr.element import switch
+from .expr.datetimes import year, month, day, hour, minute, second, millisecond
+from .utils import output_types, output_names, output
+
+try:
+    import pandas as pd
+    from pandas.io.api import *
+
+    def wrap(func):
+        def inner(*args, **kwargs):
+            res = func(*args, **kwargs)
+            if isinstance(res, pd.DataFrame):
+                return DataFrame(res)
+            return res
+        return inner
+
+    for k, v in six.iteritems(dict(locals())):
+        if k.startswith('read_') and inspect.isfunction(v):
+            locals()[k] = wrap(v)
+except ImportError:
+    pass

@@ -29,11 +29,11 @@ from .. import types
 class StringOp(ElementWise):
     __slots__ = ()
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         for arg in self._args[1:]:
             setattr(self, arg, None)
 
-        super(StringOp, self).__init__(*args, **kwargs)
+        super(StringOp, self)._init(*args, **kwargs)
 
         for attr in self._args[1:]:
             val = getattr(self, attr)
@@ -111,6 +111,11 @@ class Get(StringOp):
     _add_args_slots = False
 
 
+class Join(StringOp):
+    _args = '_input', '_sep'
+    _add_args_slots = False
+
+
 class Len(StringOp):
     _args = '_input',
     _add_args_slots = False
@@ -155,8 +160,8 @@ class Pad(StringOp):
     _args = '_input', '_width', '_side', '_fillchar'
     _add_args_slots = False
 
-    def __init__(self, *args, **kwargs):
-        super(Pad, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Pad, self)._init(*args, **kwargs)
 
         if self.side not in ('left', 'right', 'both'):
             raise ValueError('Side should be left, right or both')
@@ -164,6 +169,16 @@ class Pad(StringOp):
 
 class Repeat(StringOp):
     _args = '_input', '_repeats'
+    _add_args_slots = False
+
+
+class Split(StringOp):
+    _args = '_input', '_pat', '_n'
+    _add_args_slots = False
+
+
+class RSplit(StringOp):
+    _args = '_input', '_pat', '_n'
     _add_args_slots = False
 
 
@@ -388,6 +403,19 @@ def _get(expr, index):
     return _string_op(expr, Get, _index=index)
 
 
+def _join(expr, sep):
+    """
+    Join lists contained as elements in the Series/Index with passed delimiter.
+    Equivalent to str.join().
+
+    :param expr:
+    :param sep: Delimiter
+    :return: sequence or scalar
+    """
+
+    return _string_op(expr, Join, _sep=sep)
+
+
 def _len(expr):
     """
     Compute length of each string in the sequence or scalar
@@ -470,6 +498,37 @@ def _rstrip(expr, to_strip=None):
     """
 
     return _string_op(expr, Rstrip, _to_strip=to_strip)
+
+
+def _split(expr, pat=None, n=-1):
+    """
+    Split each string (a la re.split) in the Series/Index by given pattern, propagating NA values.
+    Equivalent to str.split().
+
+    :param expr:
+    :param pat: Separator to split on. If None, splits on whitespace
+    :param n: None, 0 and -1 will be interpreted as return all splits
+    :return: sequence or scalar
+    """
+
+    return _string_op(expr, Split, output_type=types.List(types.string),
+                      _pat=pat, _n=n)
+
+
+def _rsplit(expr, pat=None, n=-1):
+    """
+    Split each string in the Series/Index by the given delimiter string,
+    starting at the end of the string and working to the front.
+    Equivalent to str.rsplit().
+
+    :param expr:
+    :param pat: Separator to split on. If None, splits on whitespace
+    :param n: None, 0 and -1 will be interpreted as return all splits
+    :return: sequence or scalar
+    """
+
+    return _string_op(expr, RSplit, output_type=types.List(types.string),
+                      _pat=pat, _n=n)
 
 
 def _strip(expr, to_strip=None):

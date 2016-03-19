@@ -18,7 +18,7 @@
 # under the License.
 
 import itertools
-import random
+import uuid
 import time
 import weakref
 
@@ -45,6 +45,7 @@ class ODPSContext(object):
         self._func_to_functions = OrderedDict()
 
         self._indent_size = indent_size
+        self._mapjoin_hints = []
 
     def new_alias_table_name(self):
         return 't%s' % next(self._index)
@@ -74,7 +75,7 @@ class ODPSContext(object):
         return self._compiled_exprs[id(expr)]
 
     def _gen_udf_name(self):
-        return 'pyodps_udf_%s_%s' % (random.randint(0, 20000), int(time.time()))
+        return 'pyodps_udf_%s_%s' % (int(time.time()), str(uuid.uuid4()).replace('-', '_'))
 
     def register_udfs(self, func_to_udfs):
         self._func_to_udfs = func_to_udfs

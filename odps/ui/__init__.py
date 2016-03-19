@@ -1,4 +1,4 @@
-# encoding: utf-8
+# -*- coding: utf-8 -*-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,4 +16,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .tables import TestDataMixIn
+from .common import init_frontend_scripts, html_notify
+from .progress import create_instance_group, fetch_instance_group, reload_instance_status, ProgressGroupUI

@@ -1,0 +1,219 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseProcessAlgorithm">
+    <algorithm codeName="Histograms">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+Output histograms for multiple columns.
+
+%params%
+
+:Returns: histograms for every columns, containing histograms and bins.
+
+:Example:
+>>> from odps.pai.statistics import *
+>>> hists = histograms(ionosphere)
+>>> # get a column from results
+>>> hist, bins = hists['a04']
+>>> # plot the result
+>>> plt.bar(bins[:-1], hist, width=bins[1] - bins[0])
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName" required="true">
+                <value>100</value>
+                <exporter>get_output_table_name</exporter>
+            </param>
+            <param name="selectedColNames" required="true">
+                <alias>cols</alias>
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>selected columns, feature columns by default</docs>
+            </param>
+            <param name="intervalNum">
+                <value>10</value>
+                <docs>number of intervals for histograms</docs>
+            </param>
+            <param name="coreNum">
+                <docs>number of cores for calculation</docs>
+            </param>
+            <param name="memSizePerCore">
+                <docs>memory size per core</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>input data set</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="histograms"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.statistics.customize.get_histograms"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="Pearson">
+        <docs><![CDATA[
+Calculate Pearson coefficient for two fields in the input data set. If not specified, the first column will be label
+column, while the second will be regressed value.
+
+%params%
+
+:Returns: pearson coefficient for two given columns.
+]]></docs>
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <params>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="col1Name" required="true">
+                <alias>col1</alias>
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>the first selected column</docs>
+            </param>
+            <param name="col2Name">
+                <alias>col2</alias>
+                <required>true</required>
+                <exporter>$package_root.statistics.customize.get_predicted_value_column</exporter>
+                <inputName>input</inputName>
+                <docs>the second selected column</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>input data set</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="pearson"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.statistics.customize.get_pearson_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="TTest">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+Student's T test verifies the equality of means when the sample conforms to normal distribution. This module supports
+three types of T tests.
+
+1. Test between a sample field and a fixed value. x_col and mu should be configured. e.g.,
+
+>>> t_test(ds, x_col='col_name', mu=1)
+
+2. Test between two independent normal-distributed samples. x_col and y_col as well as mu should be configured. paired should be False. e.g.,
+
+>>> t_test(ds, x_col='col1', y_col='col2', mu=1, paired=False)
+
+3. Test between two paired samples. paird should be True. e.g.,
+
+>>> t_test(ds, x_col='col1', y_col='col2', mu=1, paired=True)
+
+%params%
+
+:Returns: a json object representing test report.
+        ]]></docs>
+        <params>
+            <param name="xTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>x</inputName>
+            </param>
+            <param name="xTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>x</inputName>
+            </param>
+            <param name="xColName">
+                <alias>xCol</alias>
+                <docs>column X</docs>
+            </param>
+            <param name="yTableName">
+                <exporter>$package_root.statistics.customize.get_y_table_name</exporter>
+                <inputName>y</inputName>
+            </param>
+            <param name="yTablePartitions">
+                <exporter>$package_root.statistics.customize.get_y_partitions</exporter>
+                <inputName>y</inputName>
+            </param>
+            <param name="yColName">
+                <alias>yCol</alias>
+                <docs>column Y</docs>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="alternative">
+                <value>two.sided</value>
+                <docs>type of significance. Possible values are 'two.sided', 'less' or 'greater'</docs>
+            </param>
+            <param name="mu">
+                <value>0</value>
+                <docs>assumed means</docs>
+            </param>
+            <param name="confidenceLevel">
+                <value>0.95</value>
+                <docs>confidence level</docs>
+            </param>
+            <param name="paired">
+                <docs>True for paired test, otherwise False</docs>
+            </param>
+            <param name="varEqual">
+                <docs>True if variance between two distributions are equal, otherwise False</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="x">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>left input data set</docs>
+            </port>
+            <port name="y">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+                <required>false</required>
+                <docs>right input data set. If absent, left input data set will be used.</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="t_test"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.statistics.customize.get_t_test_result"/>
+        </metas>
+    </algorithm>
+</algorithms>

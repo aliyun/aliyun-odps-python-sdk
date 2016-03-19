@@ -1,0 +1,113 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseProcessAlgorithm">
+    <algorithm codeName="KMeans">
+        <docs><![CDATA[
+K均值聚类是一种得到最广泛使用的聚类算法，把n个对象分为k个簇，使簇内具有较高的相似度。相似度的计算根据一个簇中对象的平均值来
+进行。它与处理混合正态分布的最大期望算法很相似，因为他们都试图找到数据中自然聚类的中心。
+
+算法首先随机地选择k个对象，每个对象初始地代表了一个簇的平均值或中心。对剩余的每个对象根据其与各个簇中心的距离，将它赋给最近的
+簇，然后重新计算每个簇的平均值。这个过程不断重复，直到准则函数收敛。
+
+它假设对象属性来自于空间向量，并且目标是使各个群组内部的均方误差总和最小。更多详细介绍请点击
+`这里 <http://www.cs.cmu.edu/~guestrin/Class/10701-S07/Slides/clustering.pdf>`_。
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="centerCount" required="true">
+                <value>10</value>
+                <docs>聚类数，单位整数型。默认是10</docs>
+            </param>
+            <param name="idxTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>index</outputName>
+                <docs>输出聚类编号表。行数等于输入表总行数，每行的值表示输入表对应行表示的点的聚类编号</docs>
+            </param>
+            <param name="centerTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>centroid</outputName>
+                <docs>输出聚类质心表，列数等于输入表(有选中则等于选中列总数)，行数等于聚类数，每行表示一个聚类质心位置</docs>
+            </param>
+            <param name="selectedColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="selectedPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="loop">
+                <value>100</value>
+                <required>true</required>
+                <docs>计算最大迭代次数， 整数型，默认为100</docs>
+            </param>
+            <param name="accuracy" required="true">
+                <value>0.0</value>
+                <docs>算法终止条件，如果两次迭代之间变化低于该值，算法终止</docs>
+            </param>
+            <param name="distanceType" required="true">
+                <value>euclidean</value>
+                <docs>距离测度方法。支持欧式距离(euclidean，)，绝度误差和(cityblock)，夹角余弦(cosine)。默认欧式距离(euclidean)</docs>
+            </param>
+            <param name="initCentersMethod" required="true">
+                <value>sample</value>
+                <docs>
+                    初始质心位置选择，支持sample(随机选取)，topk(前K行)，uniform(分布范围均匀随机生成)，
+                    matrix(指定表作为初始质心位置)，kmpp（kmeans++初始化）。默认sample
+                </docs>
+            </param>
+            <param name="initCenterTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>initCenter</inputName>
+            </param>
+            <param name="appendColsIndex">
+                <exporter>$package_root.clustering.customize.get_kmeans_input_append_col_idx</exporter>
+                <inputName>input</inputName>
+            </param>
+        </params>
+
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="initCenter">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+                <required>false</required>
+                <docs>初始质心表，仅在 init_centers_method 为 matrix 时有效</docs>
+            </port>
+            <port name="index">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <copyInput>input</copyInput>
+                    <schema>index: bigint</schema>
+                </schema>
+            </port>
+            <port name="centroid">
+                <ioType>OUTPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+                <schema>
+                    <dynamic>true</dynamic>
+                    <schema>$package_root.clustering.customize.kmeans_centroid</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="KMeans"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+</algorithms>

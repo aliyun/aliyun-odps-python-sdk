@@ -70,7 +70,16 @@ def df_type_to_odps_type(df_type):
 
 def df_schema_to_odps_schema(df_schema, ignorecase=False):
     names = [col.name.lower() if ignorecase else col.name
-             for col in df_schema.columns]
-    types = [df_type_to_odps_type(col.type) for col in df_schema.columns]
+             for col in df_schema._columns]
+    types = [df_type_to_odps_type(col.type) for col in df_schema._columns]
 
-    return Schema.from_lists(names, types)
+    partition_names, partition_types = None, None
+    if df_schema._partitions:
+        partition_names = [col.name.lower() if ignorecase else col.name
+                           for col in df_schema._partitions]
+        partition_types = [df_type_to_odps_type(col.type)
+                           for col in df_schema._partitions]
+
+    return Schema.from_lists(names, types,
+                             partition_names=partition_names,
+                             partition_types=partition_types)

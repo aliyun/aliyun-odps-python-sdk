@@ -28,11 +28,11 @@ from ...utils import camel_to_underline
 class Window(SequenceExpr):
     _args = '_input', '_partition_by', '_order_by', '_preceding', '_following'
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._preceding = None
         self._following = None
 
-        super(Window, self).__init__(*args, **kwargs)
+        super(Window, self)._init(*args, **kwargs)
 
         self._preceding, self._following = \
             self._de_scalar(self._preceding), self._de_scalar(self._following)
@@ -131,10 +131,10 @@ class CumulativeOp(Window):
     _args = '_input', '_partition_by', '_distinct', '_order_by', \
             '_preceding', '_following'
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._distinct = False
 
-        super(CumulativeOp, self).__init__(*args, **kwargs)
+        super(CumulativeOp, self)._init(*args, **kwargs)
 
         self._distinct = self._de_scalar(self._distinct)
         self._check_unique()
@@ -201,6 +201,8 @@ class RankOp(Window):
 
     @property
     def name(self):
+        if self._name:
+            return self._name
         return camel_to_underline(self.__class__.__name__)
 
     def accept(self, visitor):

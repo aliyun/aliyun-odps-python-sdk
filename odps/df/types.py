@@ -22,13 +22,17 @@ from decimal import Decimal as _Decimal
 
 import six
 
-from ..types import DataType
+from ..types import DataType, Array, Map, ARRAY_RE, MAP_RE
 from ..models import Schema  # noqa
 from ..compat import OrderedDict
 
 
 class Primitive(DataType):
     __slots__ = ()
+
+    @property
+    def CLASS_NAME(self):
+        return self.__class__.__name__
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
@@ -107,6 +111,11 @@ class Float64(Float):
 class Datetime(Primitive):
     __slots__ = ()
 
+    def can_implicit_cast(self, other):
+        if isinstance(other, Integer):
+            return True
+        return False
+
 
 class Boolean(Primitive):
     __slots__ = ()
@@ -123,6 +132,74 @@ class Decimal(Primitive):
 
 class String(Primitive):
     __slots__ = ()
+
+
+class List(Array):
+    __slots__ = ()
+
+    def __init__(self, value_type, nullable=True):
+        DataType.__init__(self, nullable=nullable)
+        value_type = validate_data_type(value_type)
+        if not isinstance(value_type, Integer) and not isinstance(value_type, Float) and \
+                value_type not in (string, boolean, decimal):
+            raise ValueError('Invalid value type: %s' % repr(value_type))
+        self.value_type = value_type
+
+    @property
+    def CLASS_NAME(self):
+        return '%s%s' % (self.value_type.CLASS_NAME, 'List')
+
+    def _equals(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        return DataType._equals(self, other) and \
+            self.value_type == other.value_type
+
+    def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        return isinstance(other, List) and \
+            self.value_type == other.value_type and \
+            self.nullable == other.nullable
+
+
+class Dict(Map):
+    __slots__ = ()
+
+    def __init__(self, key_type, value_type, nullable=True):
+        DataType.__init__(self, nullable=nullable)
+        key_type = validate_data_type(key_type)
+        if not isinstance(key_type, Integer) and key_type != string:
+            raise ValueError('Invalid key type: %s' % repr(key_type))
+        value_type = validate_data_type(value_type)
+        if not isinstance(value_type, Integer) and not isinstance(value_type, Float) and \
+                value_type != string:
+            raise ValueError('Invalid value type: %s' % repr(value_type))
+        self.key_type = key_type
+        self.value_type = value_type
+
+    @property
+    def CLASS_NAME(self):
+        return '%s%s%s' % (self.key_type.CLASS_NAME, self.value_type.CLASS_NAME, 'Dict')
+
+    def _equals(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        return DataType._equals(self, other) and \
+            self.key_type == other.key_type and \
+            self.value_type == other.value_type
+
+    def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        return isinstance(other, Dict) and \
+            self.key_type == other.key_type and \
+            self.value_type == other.value_type and \
+            self.nullable == other.nullable
 
 
 int8 = Int8()
@@ -156,6 +233,17 @@ def validate_data_type(data_type):
             data_type = 'float64'
         if data_type in _data_types:
             return _data_types[data_type]
+
+        array_match = ARRAY_RE.match(data_type)
+        if array_match:
+            value_type = array_match.group(1)
+            return List(value_type)
+
+        map_match = MAP_RE.match(data_type)
+        if map_match:
+            key_type = map_match.group(1).strip()
+            value_type = map_match.group(2).strip()
+            return Dict(key_type, value_type)
 
     raise ValueError('Invalid data type: %s' % repr(data_type))
 

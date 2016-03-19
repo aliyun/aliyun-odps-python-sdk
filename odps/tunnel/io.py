@@ -21,7 +21,7 @@ import zlib
 
 from enum import Enum
 import six
-from six.moves import queue as Queue
+import threading
 from google.protobuf.internal.encoder import _EncodeSignedVarint, _EncodeVarint
 from google.protobuf.internal.encoder import *
 from google.protobuf.internal.decoder import _DecodeSignedVarint32
@@ -30,6 +30,74 @@ from google.protobuf.internal import wire_format
 
 from odps import errors
 from odps import compat
+
+
+class BaseRequestsIO(object):
+    def __init__(self, post_call):
+        self._queue = None
+        self._resp = None
+
+        def data_generator():
+            while True:
+                data = self.get()
+                if data is not None:
+                    yield data
+                else:
+                    break
+
+        def async_func():
+            self._resp = post_call(data_generator())
+
+        self._async_func = async_func
+        self._wait_obj = None
+
+    def start(self):
+        pass
+
+    def get(self):
+        return self._queue.get()
+
+    def put(self, data):
+        self._queue.put(data)
+
+    def finish(self):
+        self._queue.put(None)
+        if self._wait_obj:
+            self._wait_obj.join()
+        return self._resp
+
+
+class ThreadRequestsIO(BaseRequestsIO):
+    def __init__(self, post_call):
+        super(ThreadRequestsIO, self).__init__(post_call)
+        from six.moves.queue import Queue
+        self._queue = Queue()
+        self._wait_obj = threading.Thread(target=self._async_func)
+
+    def start(self):
+        self._wait_obj.start()
+
+
+class GreenletRequestsIO(BaseRequestsIO):
+    def __init__(self, post_call):
+        super(GreenletRequestsIO, self).__init__(post_call)
+        import gevent
+        from gevent.queue import Queue
+        self._queue = Queue()
+        self._wait_obj = gevent.spawn(self._async_func)
+        self._gevent_mod = gevent
+
+    def put(self, data):
+        super(GreenletRequestsIO, self).put(data)
+        # handover control
+        self._gevent_mod.sleep(0)
+
+
+try:
+    import gevent
+    RequestsIO = GreenletRequestsIO
+except ImportError:
+    RequestsIO = ThreadRequestsIO
 
 
 class CompressOption(object):
@@ -83,9 +151,9 @@ class ProtobufWriter(object):
             content = self._compressobj.compress(data)
             six.BytesIO.write(self, content)
 
-    def __init__(self, compress_option=None, buffer_size=None, encoding='utf-8'):
+    def __init__(self, req_io, compress_option=None, buffer_size=None, encoding='utf-8'):
         self._buffer = ProtobufWriter._get_buffer(compress_option)
-        self._queue = Queue.Queue()
+        self._req_io = req_io
         self._compress_option = compress_option
         self._buffer_size = buffer_size or self.BUFFER_SIZE
         self._curr_cursor = 0
@@ -114,14 +182,12 @@ class ProtobufWriter(object):
     def flush(self):
         self._buffer.flush()
         if self._curr_cursor > 0:
-            self._queue.put(self._buffer.getvalue())
+            self._req_io.put(self._buffer.getvalue())
             self._buffer = ProtobufWriter._get_buffer(self._compress_option)
             self._curr_cursor = 0
 
     def close(self):
         self.flush()
-        self._queue.put(None)  # put None to remind the receiver that it is closed
-
         self._buffer.close()
 
     @property
@@ -140,7 +206,7 @@ class ProtobufWriter(object):
         length = length or len(b)-off
         length = min(length, rest)
 
-        self._buffer.write(b[off: off+length])
+        self._buffer.write(six.binary_type(b[off: off+length]))
 
         self._curr_cursor += length
         self._n_total += length
@@ -194,23 +260,6 @@ class ProtobufWriter(object):
     def write_bool_no_tag(self, val):
         val = bytearray([1]) if val else bytearray([0])
         self._write(val)
-
-    def __next__(self):
-        """
-        make it iterable to support chunk upload,
-        remember to do the iteration in a separate thread,
-        or the queue will block current thread
-        """
-        val = self._queue.get()
-        if val is not None:
-            return val
-        else:
-            raise StopIteration
-
-    next = __next__
-
-    def __iter__(self):
-        return self
 
     def __enter__(self):
         return self

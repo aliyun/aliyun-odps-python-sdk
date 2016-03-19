@@ -17,12 +17,13 @@
 
 import json
 from xml.etree import ElementTree
-from collections import  Iterable
+from collections import Iterable
 
 import six
 
 from .rest import RestClient
 from .config import options
+from .tempobj import clean_objects
 from . import models
 from . import accounts
 
@@ -83,6 +84,8 @@ class ODPS(object):
 
         self._tunnel_endpoint = tunnel_endpoint
         options.tunnel_endpoint = self._tunnel_endpoint
+
+        clean_objects(self)
 
     def get_project(self, name=None):
         """
@@ -161,7 +164,7 @@ class ODPS(object):
         return name in project.tables
 
     def create_table(self, name, schema, project=None, comment=None, if_not_exists=False,
-                     lifecycle=None, shard_num=None, hub_lifecycle=None):
+                     lifecycle=None, shard_num=None, hub_lifecycle=None, async=False):
         """
         Create an table by given schema and other optional parameters.
 
@@ -172,35 +175,41 @@ class ODPS(object):
         :param comment:  table comment
         :param if_not_exists:  will not create if this table already exists, default False
         :type if_not_exists: bool
-        :param lifecycle:  table's lifecycle
+        :param lifecycle:  table's lifecycle. If absent, `options.lifecycle` will be used.
         :type lifecycle: int
         :param shard_num:  table's shard num
         :type shard_num: int
         :param hub_lifecycle:  hub lifecycle
         :type hub_lifecycle: int
-        :return: the created Table
-        :rtype: :class:`odps.models.Table`
+        :param async: if True, will run asynchronously
+        :type async: bool
+        :return: the created Table if not async else odps instance
+        :rtype: :class:`odps.models.Table` or :class:`odps.models.Instance`
 
         .. seealso:: :class:`odps.models.Table`, :class:`odps.models.Schema`
         """
 
+        if lifecycle is None and options.lifecycle is not None:
+            lifecycle = options.lifecycle
         project = self.get_project(name=project)
         return project.tables.create(name, schema, comment=comment, if_not_exists=if_not_exists,
                                      lifecycle=lifecycle, shard_num=shard_num,
-                                     hub_lifecycle=hub_lifecycle)
+                                     hub_lifecycle=hub_lifecycle, async=async)
 
-    def delete_table(self, name, project=None, if_exists=False):
+    def delete_table(self, name, project=None, if_exists=False, async=False):
         """
         Delete the table with given name
 
         :param name: table name
         :param project: project name, if not provided, will be the default project
         :param if_exists:  will not delete the table if not exists, default False
-        :return: None
+        :param async: if True, will run asynchronously
+        :type async: bool
+        :return: None if not async else odps instance
         """
 
         project = self.get_project(name=project)
-        return project.tables.delete(name, if_exists=if_exists)
+        return project.tables.delete(name, if_exists=if_exists, async=async)
 
     def read_table(self, name, limit=None, start=0, step=None,
                    project=None, partition=None, **kw):
@@ -596,7 +605,8 @@ class ODPS(object):
 
     stop_job = stop_instance  # to keep compatible
 
-    def execute_sql(self, sql, project=None, priority=None, running_cluster=None, **kwargs):
+    def execute_sql(self, sql, project=None, priority=None, running_cluster=None,
+                    hints=None, **kwargs):
         """
         Run a given SQL statement and block until the SQL executed successfully.
 
@@ -606,6 +616,8 @@ class ODPS(object):
         :param priority: instance priority, 9 as default
         :type priority: int
         :param running_cluster: cluster to run this instance
+        :param hints: settings for SQL, e.g. `odps.mapred.map.split.size`
+        :type hints: dict
         :return: instance
         :rtype: :class:`odps.models.Instance`
 
@@ -623,12 +635,18 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Instance`
         """
 
+        async = kwargs.pop('async', False)
+
         inst = self.run_sql(
-            sql, project=project, priority=priority, running_cluster=running_cluster, **kwargs)
-        inst.wait_for_success()
+            sql, project=project, priority=priority, running_cluster=running_cluster,
+            hints=hints, **kwargs)
+        if not async:
+            inst.wait_for_success()
+
         return inst
 
-    def run_sql(self, sql, project=None, priority=None, running_cluster=None, **kwargs):
+    def run_sql(self, sql, project=None, priority=None, running_cluster=None,
+                hints=None, **kwargs):
         """
         Run a given SQL statement asynchronously
 
@@ -638,16 +656,198 @@ class ODPS(object):
         :param priority: instance priority, 9 as default
         :type priority: int
         :param running_cluster: cluster to run this instance
+        :param hints: settings for SQL, e.g. `odps.mapred.map.split.size`
+        :type hints: dict
         :return: instance
         :rtype: :class:`odps.models.Instance`
 
         .. seealso:: :class:`odps.models.Instance`
         """
         task = models.SQLTask(query=sql, **kwargs)
+        if hints or options.sql.settings:
+            if task.properties is None:
+                task.properties = dict()
+            settings = dict()
+
+            def update(kv):
+                if not kv:
+                    return
+                for k, v in six.iteritems(kv):
+                    if isinstance(v, bool):
+                        settings[k] = 'true' if v else 'false'
+                    else:
+                        settings[k] = str(v)
+
+            update(options.sql.settings)
+            update(hints)
+            task.properties['settings'] = json.dumps(settings)
 
         project = self.get_project(name=project)
         return project.instances.create(task=task, priority=priority,
                                         running_cluster=running_cluster)
+
+    def list_volumes(self, project=None, owner=None):
+        """
+        List volumes of a project.
+
+        :param project: project name, if not provided, will be the default project
+        :param owner: Aliyun account
+        :type owner: str
+        :return: volumes
+        :rtype: list
+        """
+        project = self.get_project(name=project)
+        return project.volumes.iterate(owner=owner)
+
+    def create_volume(self, name, project=None, **kwargs):
+        """
+        Create a volume in a project.
+
+        :param str name: volume name name
+        :param str project: project name, if not provided, will be the default project
+        :return: volume
+        :rtype: :class:`odps.models.Volume`
+        """
+        project = self.get_project(name=project)
+        return project.volumes.create(name=name, **kwargs)
+
+    def exist_volume(self, name, project=None):
+        """
+        If the volume with given name exists or not.
+
+        :param str name: volume name
+        :param str project: project name, if not provided, will be the default project
+        :return: True if exists or False
+        :rtype: bool
+        """
+        project = self.get_project(name=project)
+        return name in project.volumes
+
+    def get_volume(self, name, project=None):
+        """
+        Get volume by given name
+
+        :param str name: volume name
+        :param str project: project name, if not provided, will be the default project
+        :return: volume
+        :rtype: :class:`odps.models.Volume`
+        """
+        project = self.get_project(name=project)
+        return project.volumes[name]
+
+    def delete_volume(self, name, project=None):
+        """
+        Delete volume by given name.
+
+        :param name: volume name
+        :param project: project name, if not provided, will be the default project
+        :return: None
+        """
+        project = self.get_project(name=project)
+        return project.volumes.delete(name)
+
+    def list_volume_partitions(self, volume, project=None):
+        """
+        List partitions of a volume.
+
+        :param str volume: volume name
+        :param str project: project name, if not provided, will be the default project
+        :return: partitions
+        :rtype: list
+        """
+        volume = self.get_volume(volume, project)
+        return volume.partitions.iterate
+
+    def get_volume_partition(self, volume, partition, project=None):
+        """
+        Get partition in a volume by given name
+
+        :param str volume: volume name
+        :param str partition: partition name
+        :param str project: project name, if not provided, will be the default project
+        :return: partitions
+        :rtype: :class:`odps.models.VolumePartition`
+        """
+        volume = self.get_volume(volume, project)
+        return volume.partitions[partition]
+
+    def exist_volume_partition(self, volume, partition, project=None):
+        """
+        If the volume with given name exists in a partition or not.
+
+        :param str volume: volume name
+        :param str partition: partition name
+        :param str project: project name, if not provided, will be the default project
+        """
+        volume = self.get_volume(volume, project)
+        return partition in volume.partitions
+
+    def delete_volume_partition(self, volume, partition, project=None):
+        """
+        Delete partition in a volume by given name
+
+        :param str volume: volume name
+        :param str partition: partition name
+        :param str project: project name, if not provided, will be the default project
+        """
+        volume = self.get_volume(volume, project)
+        return volume.delete_partition(partition)
+
+    def list_volume_files(self, volume, partition, project=None):
+        """
+        List files in a partition of a volume.
+
+        :param str volume: volume name
+        :param str partition: partition name
+        :param str project: project name, if not provided, will be the default project
+        :return: files
+        :rtype: list
+        """
+        volume = self.get_volume(volume, project)
+        return volume.partitions[partition].files.iterate
+
+    def open_volume_reader(self, volume, partition, file_name, project=None, endpoint=None,
+                           start=None, length=None, **kwargs):
+        """
+        Open a volume file for read. A file-like object will be returned which can be used to read contents from
+        volume files.
+
+        :param str volume: name of the volume
+        :param str partition: name of the partition
+        :param str file_name: name of the file
+        :param str project: project name, if not provided, will be the default project
+        :param str endpoint: tunnel service URL
+        :param start: start position
+        :param length: length limit
+        :param compress_option: the compression algorithm, level and strategy
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+
+        :Example:
+        >>> with odps.open_volume_reader('volume', 'partition', 'file') as reader:
+        >>>     [print(line) for line in reader]
+        """
+        volume = self.get_volume(volume, project)
+        return volume.partitions[partition].open_reader(file_name, endpoint=endpoint, start=start, length=length,
+                                                        **kwargs)
+
+    def open_volume_writer(self, volume, partition, project=None, endpoint=None, **kwargs):
+        """
+        Open a volume partition to write to. You can use `open` method to open a file inside the volume and write to it,
+        or use `write` method to write to specific files.
+
+        :param str volume: name of the volume
+        :param str partition: name of the partition
+        :param str project: project name, if not provided, will be the default project
+        :param str endpoint: tunnel service URL
+        :param compress_option: the compression algorithm, level and strategy
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :Example:
+        >>> with odps.open_volume_writer('volume', 'partition') as writer:
+        >>>     writer.open('file1').write('some content')
+        >>>     writer.write('file2', 'some content')
+        """
+        volume = self.get_volume(volume, project)
+        return volume.partitions[partition].open_writer(endpoint=endpoint, **kwargs)
 
     def list_xflows(self, project=None, owner=None):
         """

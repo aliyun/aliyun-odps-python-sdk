@@ -48,6 +48,10 @@ class Test(TestBase):
         self.assertSequenceEqual(grouped._schema.types, [types.float32, types.string, types.float64])
         self.assertEqual(grouped._aggregations[0]._ddof, 3)
 
+        selected = grouped[[grouped.float32.rename('new_col')]]
+        self.assertEqual(selected.schema.names, ['new_col'])
+
+
     def testGroupbyReductions(self):
         expr = self.expr.groupby('string').min()
         self.assertIsInstance(expr, GroupByCollectionExpr)
@@ -59,7 +63,7 @@ class Test(TestBase):
         self.assertGreater(len(expr.aggregations), 0)
         self.assertIsInstance(expr.aggregations[0], GroupedMax)
 
-        expr = self.expr.groupby('string').count()['count']
+        expr = self.expr.groupby('string').count()
         self.assertIsInstance(expr, SequenceExpr)
         self.assertIsInstance(expr, Int64SequenceExpr)
 

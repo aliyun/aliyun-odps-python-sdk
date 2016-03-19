@@ -104,7 +104,7 @@ class Partitions(Iterable):
             for partition in partitions:
                 yield partition
 
-    def create(self, partition_spec, if_not_exists=False):
+    def create(self, partition_spec, if_not_exists=False, async=False):
         partition_spec = self._get_partition_spec(partition_spec)
 
         buf = six.StringIO()
@@ -119,11 +119,13 @@ class Partitions(Iterable):
         task = SQLTask(name='SQLAddPartitionTask', query=buf.getvalue())
         instance = self.project.instances.create(task=task)
 
-        instance.wait_for_success()
+        if not async:
+            instance.wait_for_success()
+            return self[partition_spec]
+        else:
+            return instance
 
-        return self[partition_spec]
-
-    def delete(self, partition_spec, if_exists=False):
+    def delete(self, partition_spec, if_exists=False, async=False):
         if isinstance(partition_spec, Partition):
             partition_spec = partition_spec.partition_spec
         else:
@@ -141,4 +143,7 @@ class Partitions(Iterable):
         task = SQLTask(name='SQLDropPartitionTask', query=buf.getvalue())
         instance = self.project.instances.create(task=task)
 
-        instance.wait_for_success()
+        if not async:
+            instance.wait_for_success()
+        else:
+            return instance

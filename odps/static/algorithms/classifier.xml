@@ -1,0 +1,767 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseTrainingAlgorithm">
+    <algorithm codeName="KNN">
+        <reloadFields>false</reloadFields>
+        <baseClass>BaseProcessAlgorithm</baseClass>
+        <docs><![CDATA[
+KNN (k-Nearest Neighbor) algorithm classifies an instance by selecting K nearest neighbors and choose the label
+shared by largest numbers of nodes. Click `here <http://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm>`_ to get
+more information.
+
+Note that different to other algorithms, KNN use ``transform`` to predict and does not produce models.
+
+%params%
+%inputs%
+%outputs%
+
+Example:
+    >>> labeled = ds.set_label_field('class')
+    >>> predicted = KNN(k=5).transform(labeled, to_be_predict)
+    >>> predicted.store_odps('predicted')
+        ]]>
+        </docs>
+        <params>
+            <param name="trainTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>train</inputName>
+            </param>
+            <param name="trainFeatureColNames">
+                <exporter>get_feature_columns</exporter>
+                <inputName>train</inputName>
+            </param>
+            <param name="trainLabelColName">
+                <exporter>get_label_column</exporter>
+                <inputName>train</inputName>
+            </param>
+            <param name="trainTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>train</inputName>
+            </param>
+            <param name="predictTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>predict</inputName>
+            </param>
+            <param name="predictFeatureColNames">
+                <exporter>get_feature_columns</exporter>
+                <inputName>predict</inputName>
+            </param>
+            <param name="predictTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>predict</inputName>
+            </param>
+            <param name="appendColNames">
+                <exporter>get_original_columns</exporter>
+                <inputName>predict</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartition">
+                <exporter>get_output_table_partitions</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="k">
+                <value>100</value>
+                <docs>size of nearest neighbors</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="train">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="predict">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+                <docs>test set with the same number of features as train set</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <copyInput>predict</copyInput>
+                    <schema>predict_label: bigint</schema>
+                </schema>
+                <docs>test set with label information stored in ``predict_label`` field</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="knn"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="xgboost">
+        <docs><![CDATA[
+xgboost是一种高效率boosting算法，适用回归和二分类问题，详见 https://github.com/dmlc/xgboost 。
+PAI平台目前只开放树形模型（gbtree），暂不开放线性模型（gblinear）。
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <params>
+            <param name="featureColNames">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>输入表中用于训练的特征的列名</docs>
+            </param>
+            <param name="labelColName">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入表中标签列的列名</docs>
+            </param>
+            <param name="booster">
+                <value>gbtree</value>
+            </param>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="modelName">
+                <exporter>generate_model_name</exporter>
+                <outputName>output</outputName>
+                <docs>输出的模型名</docs>
+            </param>
+            <param name="itemDelimiter">
+                <exporter>get_item_delimiter</exporter>
+                <inputName>input</inputName>
+                <docs>item(key value对)之间的分隔符</docs>
+            </param>
+            <param name="kvDelimiter">
+                <exporter>get_kv_delimiter</exporter>
+                <inputName>input</inputName>
+                <docs>表中每个item的key和value之间的分隔符</docs>
+            </param>
+            <param name="enableSparse">
+                <exporter>get_enable_sparse</exporter>
+                <inputName>input</inputName>
+                <docs>是否稀疏数据</docs>
+            </param>
+            <param name="silent">
+                <value>1</value>
+            </param>
+            <param name="eta">
+                <value>0.3</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>为了防止过拟合，更新过程中用到的收缩步长。在每次提升计算之后，算法会直接获得新特征的权重。 eta通过缩减特征的权重使提升计算过程更加保守</docs>
+            </param>
+            <param name="gamma">
+                <value>0</value>
+                <min>0</min>
+                <docs>最小损失衰减</docs>
+            </param>
+            <param name="max_depth">
+                <value>6</value>
+                <min>0</min>
+                <docs>树的最大深度</docs>
+            </param>
+            <param name="min_child_weight">
+                <value>1</value>
+                <min>0</min>
+                <docs>孩子节点中最小的样本权重和。如果一个叶子节点的样本权重和小于min_child_weight则拆分过程结束。在线性回归模型中，这个参数是指建立每个模型所需的最小样本数</docs>
+            </param>
+            <param name="max_delta_step">
+                <value>0</value>
+                <min>0</min>
+                <docs>每个树所允许的最大delta步进</docs>
+            </param>
+            <param name="colsample_bytree">
+                <value>1</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>在建立树时对特征采样的比例</docs>
+            </param>
+            <param name="base_score">
+                <value>0.5</value>
+                <docs>初始的predict score</docs>
+            </param>
+            <param name="seed">
+                <value>0</value>
+                <docs>随机数的种子</docs>
+            </param>
+            <param name="objective">
+                <value>binary:logistic</value>
+                <docs>定义学习任务及相应的学习目标，可选的目标函数</docs>
+            </param>
+            <param name="eval_metric">
+                <value>error</value>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="xgboost"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="RandomForests">
+        <reloadFields>false</reloadFields>
+        <docs><![CDATA[
+Random forest is a classifier which contains multiple decision trees and its output category depends on the mode of
+individual tree output categories.
+
+%params%
+%inputs%
+%outputs%
+
+Example:
+    >>> labeled = ds.set_label_field('class')
+    >>> model = RandomForests(tree_num=10).train(labeled)
+    >>> predicted = model.predict(dataset_to_be_predicted)
+    >>> predicted.store_odps('predicted')
+        ]]>
+        </docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="featureColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>input columns. the feature column names selected from input table, which are used for training
+                </docs>
+            </param>
+            <param name="isFeatureContinuous" required="true">
+                <exporter>get_feature_continuous</exporter>
+                <inputName>input</inputName>
+                <docs>types of feature columns, '1' indicates that features are continuous; '0' means features are
+                    discrete. '1,0,0' indicates that the first column is continuous and the second and third column are
+                    discrete in three feature columns. The number of values corresponds to the length of features
+                </docs>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>label column.the name of label column selected from input table</docs>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>generate_model_name</exporter>
+                <outputName>output</outputName>
+                <docs>the random forest model</docs>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="treeNum">
+                <value>10</value>
+                <required>true</required>
+                <min>0</min>
+                <max>1000</max>
+                <docs>the number of trees in forest and the range is (0, 1000]</docs>
+            </param>
+            <param name="weightColName">
+                <exporter>get_weight_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of weight column in input table. If there is no weight column, then the parameter is None.
+                    weightColName&gt;0。
+                </docs>
+            </param>
+            <param name="algorithmTypes">
+                <exporter>$package_root.classifiers.customize.random_forest_algo_types</exporter>
+            </param>
+            <param name="randomColNum">
+                <exporter>$package_root.classifiers.customize.random_forest_random_column_number</exporter>
+                <inputName>input</inputName>
+                <docs>num. of features: the feature number selected randomly when a single tree is generated. The types
+                    to be selected include logN, N/3, sqrtN and N. -1 indicates log2N(N refers to the total number of
+                    features) and effective value is [1,N]
+                </docs>
+            </param>
+            <param name="minNumObj">
+                <value>2</value>
+                <docs>minimal leaf size, the minimum number is 2</docs>
+            </param>
+            <param name="minNumPer">
+                <exporter>$package_root.classifiers.customize.random_forest_min_num_per</exporter>
+                <docs>the minimal proportion accounted by leaf node number for parent nodes. -1 indicates no this
+                    limitation. The default value is -1 and the range is [0.0,1.0]
+                </docs>
+            </param>
+            <param name="maxTreeDeep">
+                <value>10</value>
+                <min>1</min>
+                <docs>maximal depth of tree: -1 indicates completed growth. The range is [1, ∞)</docs>
+            </param>
+            <param name="maxRecordSize">
+                <value>100000</value>
+                <min>1000</min>
+                <max>1000000</max>
+                <docs>maximal num. of instance per tree: the random data number of single tree in forest. The range is
+                    (1000, 1000000]. -1 indicates that the record number is 100000
+                </docs>
+            </param>
+            <param name="algorithmType">
+                <value>mix</value>
+                <exported>false</exported>
+                <docs>the algorithm types to be selected include: 'id3', 'cart', 'c45' and the default type 'mix', which
+                    divides three algorithms mentioned above equally
+                </docs>
+            </param>
+            <param name="randomAttrType">
+                <value>logN</value>
+                <exported>false</exported>
+                <inputName>input</inputName>
+                <docs>the feature number selected randomly when a single tree is generated. The types to be selected
+                    include 'logN', 'N/3', 'sqrtN' and 'N'
+                </docs>
+            </param>
+            <param name="minNumPerInt">
+                <min>0</min>
+                <max>100</max>
+                <exported>false</exported>
+                <docs>the random data number of single tree in forest. The range is (1000, 1000000]</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="RandomForests"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="LogisticRegression">
+        <reloadFields>false</reloadFields>
+        <docs><![CDATA[
+Logistic regression is a classification method utilizing logistic functions. Detailed information can be found
+`here <https://en.wikipedia.org/wiki/Logistic_regression>`_.
+
+Note that although the original logistic regression algorithm only support binary classification, algorithm implemented
+in PAI extends it using one-vs-rest strategy. It also use L-BFGS to improve performance.
+
+%params%
+%inputs%
+%outputs%
+
+Example:
+    >>> labeled = ds.set_label_field('class')
+    >>> model = LogisticRegression(max_iter=100).train(labeled)
+    >>> predicted = model.predict(dataset_to_be_predicted)
+    >>> predicted.store_odps('predicted')
+        ]]>
+        </docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="featureColNames" required="true">
+                <min>0</min>
+                <max>1000</max>
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>names of feature columns, selected from input table and used for training</docs>
+            </param>
+            <param name="labelColName" required="true">
+                <min>0</min>
+                <max>1000</max>
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>generate_model_name</exporter>
+                <outputName>output</outputName>
+                <docs>name of output model</docs>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="maxIter">
+                <value>100</value>
+                <min>1</min>
+                <max>10000</max>
+                <docs>maximual iterations of L-BFGS. The default value is 100</docs>
+            </param>
+            <param name="epsilon">
+                <value>0.000001</value>
+                <max>1000</max>
+                <docs>termination condition of L-BFGS, that is the log-likelihood deviation between two interations. The
+                    default is 1.0e-06
+                </docs>
+            </param>
+            <param name="regularizedType">
+                <value>l1</value>
+                <max>1000</max>
+                <docs>regularization type. You can select 'l1', 'l2' or None and the default is 'l1'</docs>
+            </param>
+            <param name="goodValue">
+                <max>1000</max>
+                <docs>positive label. If you select binary classification, specify the label value of training
+                    coefficient. If it is null, system will select a value randomly
+                </docs>
+            </param>
+            <param name="regularizedLevel">
+                <value>1</value>
+                <docs>regularization coeffcient: default value is 1.0; When regularizedType is 'None', this item will be
+                    ignored
+                </docs>
+            </param>
+            <param name="twoClassification">
+                <value>false</value>
+                <exported>false</exported>
+                <docs>default is multionmial logistic regression. If this item is checked, it indicates selecting binary
+                    classification
+                </docs>
+            </param>
+            <param name="enableSparse">
+                <exporter>get_enable_sparse</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="kvDelimiter">
+                <exporter>get_kv_delimiter</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="itemDelimiter">
+                <exporter>get_item_delimiter</exporter>
+                <inputName>input</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="LogisticRegression"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="LinearSVM">
+        <docs><![CDATA[
+Support Vector Machine (SVM) is a kind of pattern recognition method based on VC dimension theory and minimal
+structural risk principle. This version only supports linear binary classification.
+
+%params%
+%inputs%
+%outputs%
+
+Example:
+    >>> labeled = ds.set_label_field('class')
+    >>> model = LinearSVM(epsilon=0.001).train(labeled)
+    >>> predicted = model.predict(dataset_to_be_predicted)
+    >>> predicted.store_odps('predicted')
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column</docs>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>generate_model_name</exporter>
+                <outputName>output</outputName>
+                <docs>name of output model</docs>
+            </param>
+            <param name="featureColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>names of feature columns selected from input table, used for training</docs>
+            </param>
+            <param name="positiveLabel">
+                <docs>positive label. If it is not specified, select a random value. When there is an obvious quantity
+                    variance between the positive and negative samples, you are supported to specify a value as the
+                    positive label
+                </docs>
+            </param>
+            <param name="epsilon">
+                <value>0.001</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>convergence coefficient: convergence error, the default value is 0.001 and the range is (0, 1)
+                </docs>
+            </param>
+            <param name="positiveCost">
+                <value>1</value>
+                <docs>positive weight: the default value is 1.0 and its range is (0, ~)</docs>
+            </param>
+            <param name="negativeCost">
+                <value>1</value>
+                <docs>negative weight: the default value is 1.0 and its range is (0, ~)</docs>
+            </param>
+            <param name="cost">
+                <value>1</value>
+                <exported>false</exported>
+                <setter>$package_root.classifiers.customize.linear_svm_set_cost</setter>
+                <docs>shortcut for setting both positive cost and negative cost</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="LinearSVM"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="GBDT_LR">
+        <docs><![CDATA[
+Gradient Boosting Decision Tree is a machine learning technique for regression problems, which produces a prediction
+model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in
+a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary
+differentiable loss function. This GBDT_LR module is used for binary classification. That is to set a threshold,
+if the label value is greater than the threshold, it is indicated as a positive example, otherwise it is indicated as
+a negative example.
+
+%params%
+%inputs%
+%outputs%
+
+Example:
+    >>> labeled = ds.set_label_field('class')
+    >>> model = GBDTLR(tree_count=500).train(labeled)
+    >>> predicted = model.predict(dataset_to_be_predicted)
+    >>> predicted.store_odps('predicted')
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>generate_model_name</exporter>
+                <outputName>output</outputName>
+                <docs>name of modle to be output</docs>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column selected from input table</docs>
+            </param>
+            <param name="featureColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>feature columns of input table, used for training</docs>
+            </param>
+            <param name="groupIDColName">
+                <exporter>get_group_id_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of grouping column. The default is to take a whole table as a group</docs>
+            </param>
+            <param name="metricType">
+                <value>2</value>
+                <min>1</min>
+                <max>10000</max>
+            </param>
+            <param name="treeCount">
+                <value>500</value>
+                <min>1</min>
+                <max>10000</max>
+                <docs>num. of trees: the range is [1,10000] and default value is 500</docs>
+            </param>
+            <param name="shrinkage">
+                <value>0.05</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>leaning rate: the range is (0,1] and default value is 0.05</docs>
+            </param>
+            <param name="maxLeafCount">
+                <value>32</value>
+                <min>2</min>
+                <max>1000</max>
+                <docs>maximal num. of leaves: it must be an integer. The range is [2,1000] and the default value is 32
+                </docs>
+            </param>
+            <param name="maxDepth">
+                <value>11</value>
+                <min>1</min>
+                <max>11</max>
+                <docs>maximal depth of tree: it must be an integer. The range is [1,11] and the default value is 11
+                </docs>
+            </param>
+            <param name="minLeafSampleCount">
+                <value>500</value>
+                <min>100</min>
+                <max>1000</max>
+                <docs>minimal leaf size: it must be an integer and the range is [100,1000]. The default value is 500
+                </docs>
+            </param>
+            <param name="sampleRatio">
+                <value>0.6</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>ratio of instances for training: the range is (0,1] and the default value is 0.6</docs>
+            </param>
+            <param name="featureRatio">
+                <value>0.6</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>ratio of features for training: the range is (0,1] and the default value is 0.6</docs>
+            </param>
+            <param name="testRatio">
+                <value>0.0</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>ratio of test instances: the range is [0,1) and the default value is 0.0</docs>
+            </param>
+            <param name="randSeed">
+                <value>0</value>
+                <min>0</min>
+                <max>10</max>
+                <docs>random Seed: it must be an integer and the range is [0,10]. The default value is 0</docs>
+            </param>
+            <param name="featureSplitValueMaxSize">
+                <value>500</value>
+                <min>1</min>
+                <max>1000</max>
+                <docs>maximal splits: the range is [1,1000] and the default value is 500</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="GBDT_LR"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="NaiveBayes">
+        <reloadFields>false</reloadFields>
+        <docs><![CDATA[
+Naive Bayes classifiers are a family of simple probabilistic classifiers based on applying Bayes' theorem with strong
+(naive) independence assumptions between the features in machine learning. Click
+`here <http://en.wikipedia.org/wiki/Naive_Bayes_classifier>`_ for more information.
+
+%params%
+%inputs%
+%outputs%
+
+Example:
+    >>> labeled = ds.set_label_field('class')
+    >>> model = NaiveBayes().train(labeled)
+    >>> predicted = model.predict(dataset_to_be_predicted)
+    >>> predicted.store_odps('predicted')
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="featureColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>feature columns in input table, used for training</docs>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>generate_model_name</exporter>
+                <outputName>output</outputName>
+                <docs>name of generated model</docs>
+            </param>
+            <param name="isFeatureContinuous" required="true">
+                <exporter>get_feature_continuous</exporter>
+                <inputName>input</inputName>
+                <docs>whether the feature is continuous. 1: continuous; 0: discrete. '1,0,0' indicates that the first
+                    column is continuous and the second column and third column are discrete. The value number
+                    corresponds to the length of features
+                </docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="NaiveBayes"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+</algorithms>

@@ -27,6 +27,9 @@ class FakeNode(Node):
     __slots__ = 'name',
     _args = 'child1', 'child2', 'child3'
 
+    def __str__(self):
+        return self.name
+
 
 class Test(TestBase):
     def testNodes(self):
@@ -40,6 +43,10 @@ class Test(TestBase):
                                  [node1, node1, node3, node2, node4, node5])
         self.assertSequenceEqual(list(node5.traverse(top_down=True)),
                                  [node5, node1, node4, node3, node1, node2])
+        self.assertSequenceEqual(list(node5.traverse(unique=True)),
+                                 [node1, node3, node2, node4, node5])
+        self.assertSequenceEqual(list(node5.traverse(top_down=True, unique=True)),
+                                 [node5, node1, node4, node3, node2])
 
         self.assertSequenceEqual(list(node5.leaves()), [node1, node1, node2])
 
@@ -68,11 +75,8 @@ class Test(TestBase):
         self.assertSequenceEqual(list(node5.traverse()),
                                  [node1, node6, node3, node2, node4, node5])
 
-        cache = dict()
-        list(node5.traverse(parent_cache=cache))
-        self.assertEqual(len(cache), 5)
-        self.assertIs(cache[id(node4)].pop(), node5)
-        self.assertIs(cache[id(node2)].pop(), node4)
+        self.assertIs(node4.parents[0], node5)
+        self.assertIs(node2.parents[0], node4)
 
 
 if __name__ == '__main__':

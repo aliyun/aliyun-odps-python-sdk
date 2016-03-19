@@ -1,4 +1,3 @@
-include odps/pai/algorithms/defs/*.json
-include odps/internal/pai/algorithms/defs/*.json
-include odps/examples/data/*.txt
+recursive-include odps/static *.*
+recursive-include odps/internal/static *.*
 include requirements.txt

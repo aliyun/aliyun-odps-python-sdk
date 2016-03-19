@@ -25,6 +25,9 @@ dirname = os.path.dirname
 sys.path.insert(0, dirname(dirname(dirname(os.path.abspath(__file__)))))
 sys.path.append(os.path.abspath('../sphinx-ext/'))
 
+# on_rtd is whether we are on readthedocs.org, this line of code grabbed from docs.readthedocs.org
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
@@ -59,7 +62,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'PyOdps'
-copyright = u'2014-2015, The Alibaba Group Holding Ltd.'
+copyright = u'2014-2016, The Alibaba Group Holding Ltd.'
 author = u'Qin Xuye'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -90,7 +93,7 @@ language = None
 try:
     import odps.internal
     with_internal = True
-    exclude_patterns = []
+    exclude_patterns = ['*-pub.rst', '*-pub-*.rst']
 except ImportError:
     with_internal = False
     exclude_patterns = ['*-int.rst', '*-int-*.rst']
@@ -321,4 +324,6 @@ class IncludeInternal(Include):
 def setup(app):
     if with_internal:
         tags.add('internal')
+    if not on_rtd:
+        app.add_stylesheet('theme_override.css')
     app.add_directive('intinclude', IncludeInternal)

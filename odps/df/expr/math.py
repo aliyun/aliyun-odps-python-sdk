@@ -75,9 +75,9 @@ class Log(Math):
     _args = '_input', '_base'
     _add_args_slots = False
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._base = None
-        super(Log, self).__init__(*args, **kwargs)
+        super(Log, self)._init(*args, **kwargs)
 
 
 class Log10(Math):
@@ -137,9 +137,9 @@ class Trunc(Math):
     _args = '_input', '_decimals'
     _add_args_slots = False
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._decimals = None
-        super(Trunc, self).__init__(*args, **kwargs)
+        super(Trunc, self)._init(*args, **kwargs)
 
 
 def _math(expr, math_cls, output_type):

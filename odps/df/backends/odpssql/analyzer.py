@@ -35,49 +35,40 @@ from ... import types
 
 
 class Analyzer(Backend):
-    def __init__(self, expr, memo=None):
+    def __init__(self, expr, traversed=None):
         self._expr = expr
-        self._memo = dict() if memo is None else memo
         self._indexer = itertools.count(0)
+        self._traversed = traversed or set()
 
         self._iters = []
 
     def analyze(self):
-        traversed = set()
-
         for node in self._iter():
-            self._visit_node(node, traversed)
+            self._visit_node(node)
 
         return self._expr
 
     def _iter(self):
-        for node in self._expr.traverse(parent_cache=self._memo, top_down=True):
+        for node in self._expr.traverse(top_down=True, unique=True,
+                                        traversed=self._traversed):
             yield node
 
         for node in itertools.chain(
-                *(it.traverse(parent_cache=self._memo, top_down=True)
+                *(it.traverse(top_down=True, unique=True, traversed=self._traversed)
                   for it in self._iters)):
             yield node
 
-    def _visit_node(self, node, traversed):
-        if id(node) not in traversed:
-            traversed.add(id(node))
-            try:
-                node.accept(self)
-            except NotImplementedError:
-                return
+    def _visit_node(self, node):
+        try:
+            node.accept(self)
+        except NotImplementedError:
+            return
 
-    def _get_parent(self, expr):
-        return self._memo.get(id(expr))
-
-    def _sub(self, expr, to_sub):
-        parents = self._get_parent(expr)
-        if parents is None:
+    def _sub(self, expr, to_sub, parents):
+        if not parents and expr is self._expr:
             self._expr = to_sub
         else:
-            [p.substitute(expr, to_sub, parent_cache=self._memo)
-             for p in set(parents)]
-            self._memo[id(to_sub)] = self._memo.get(id(to_sub), set()).union(parents)
+            [p.substitute(expr, to_sub) for p in parents]
 
     def visit_project_collection(self, expr):
         # FIXME how to handle nested reduction?
@@ -94,28 +85,34 @@ class Analyzer(Backend):
         for field in expr.fields:
             has_window = False
             traversed = set()
-            for node in itertools.chain(*(field.all_path(collection, strict=True))):
-                if id(node) in traversed:
-                    continue
-                else:
-                    traversed.add(id(node))
-                if isinstance(node, SequenceReduction):
-                    windows_rewrite = True
-                    has_window = True
+            for path in field.all_path(collection, strict=True):
+                for node in path:
+                    if id(node) in traversed:
+                        continue
+                    else:
+                        traversed.add(id(node))
+                    if isinstance(node, SequenceReduction):
+                        windows_rewrite = True
+                        has_window = True
 
-                    win = self._reduction_to_window(node)
-                    window_name = '%s_%s' % (win.name, next(self._indexer))
-                    sink_selects.append(win.rename(window_name))
-                    to_replace.append((node, window_name))
-                elif isinstance(node, Column):
-                    if node.input is not collection:
-                        continue
-                    if node.name in columns:
+                        win = self._reduction_to_window(node)
+                        window_name = '%s_%s' % (win.name, next(self._indexer))
+                        sink_selects.append(win.rename(window_name))
+                        to_replace.append((node, window_name))
+                        break
+                    elif isinstance(node, Column):
+                        if node.input is not collection:
+                            continue
+
+                        if node.name in columns:
+                            to_replace.append((node, node.name))
+                            continue
+                        columns.add(node.name)
+                        select_field = collection[node.source_name]
+                        if node.is_renamed():
+                            select_field = select_field.rename(node.name)
+                        sink_selects.append(select_field)
                         to_replace.append((node, node.name))
-                        continue
-                    columns.add(node.name)
-                    sink_selects.append(node)
-                    to_replace.append((node, node.name))
 
             if has_window:
                 field._name = field.name
@@ -123,13 +120,14 @@ class Analyzer(Backend):
         if not windows_rewrite:
             return
 
-        projected = collection[sink_selects]
-        self._memo[id(collection)].add(projected)
+        get = lambda x: x.name if not isinstance(x, six.string_types) else x
+        projected = collection[sorted(sink_selects, key=get)]
         projected.optimize_banned = True  # TO prevent from optimizing
-        expr.substitute(collection, projected, parent_cache=self._memo)
+        expr.substitute(collection, projected)
 
         for col, col_name in to_replace:
-            self._sub(col, projected[col_name])
+            parents = col.parents
+            self._sub(col, projected[col_name], parents)
 
     def visit_filter_collection(self, expr):
         # FIXME how to handle nested reduction?
@@ -141,27 +139,32 @@ class Analyzer(Backend):
 
         windows_rewrite = False
         traversed = set()
-        for node in itertools.chain(*(expr.predicate.all_path(collection, strict=True))):
-            if id(node) in traversed:
-                continue
-            else:
-                traversed.add(id(node))
-            if isinstance(node, SequenceReduction):
-                windows_rewrite = True
+        for path in expr.predicate.all_path(collection, strict=True):
+            for node in path:
+                if id(node) in traversed:
+                    continue
+                else:
+                    traversed.add(id(node))
+                if isinstance(node, SequenceReduction):
+                    windows_rewrite = True
 
-                win = self._reduction_to_window(node)
-                window_name = '%s_%s' % (win.name, next(self._indexer))
-                sink_selects.append(win.rename(window_name))
-                to_replace.append((node, window_name))
-            elif isinstance(node, Column):
-                if node.input is not collection:
-                    continue
-                if node.name in columns:
+                    win = self._reduction_to_window(node)
+                    window_name = '%s_%s' % (win.name, next(self._indexer))
+                    sink_selects.append(win.rename(window_name))
+                    to_replace.append((node, window_name))
+                    break
+                elif isinstance(node, Column):
+                    if node.input is not collection:
+                        continue
+                    if node.name in columns:
+                        to_replace.append((node, node.name))
+                        continue
+                    columns.add(node.name)
+                    select_field = collection[node.source_name]
+                    if node.is_renamed():
+                        select_field = select_field.rename(node.name)
+                    sink_selects.append(select_field)
                     to_replace.append((node, node.name))
-                    continue
-                columns.add(node.name)
-                sink_selects.append(node)
-                to_replace.append((node, node.name))
 
         for column_name in expr.schema.names:
             if column_name in columns:
@@ -172,16 +175,18 @@ class Analyzer(Backend):
         if not windows_rewrite:
             return
 
-        projected = collection[sink_selects]
-        self._memo[id(collection)].add(projected)
+        get = lambda x: x.name if not isinstance(x, six.string_types) else x
+        projected = collection[sorted(sink_selects, key=get)]
         projected.optimize_banned = True  # TO prevent from optimizing
-        expr.substitute(collection, projected, parent_cache=self._memo)
+        expr.substitute(collection, projected)
 
         for col, col_name in to_replace:
-            self._sub(col, projected[col_name])
+            parents = col.parents
+            self._sub(col, projected[col_name], parents)
 
+        parents = expr.parents
         to_sub = expr[expr.schema.names]
-        self._sub(expr, to_sub)
+        self._sub(expr, to_sub, parents)
         self._iters.append(to_sub)
 
     def _reduction_to_window(self, expr):
@@ -190,18 +195,14 @@ class Analyzer(Backend):
 
     def visit_join(self, expr):
         for node in (expr.rhs, ):
+            parents = node.parents
             if isinstance(node, JoinCollectionExpr):
                 projection = JoinProjectCollectionExpr(
                     _input=node, _schema=node.schema,
                     _fields=node.schema.names)
-                self._sub(node, projection)
+                self._sub(node, projection, parents)
             elif isinstance(node, JoinProjectCollectionExpr):
-                parents = self._get_parent(node.input)
-                if parents is not None:
-                    for parent in parents:
-                        if parent is not node:
-                            parent.substitute(node.input, node,
-                                              parent_cache=self._memo)
+                self._sub(node.input, node, parents)
 
         need_project = [False, ]
 
@@ -217,12 +218,12 @@ class Analyzer(Backend):
         walk(expr)
 
         if need_project[0]:
-            parents = self._get_parent(expr)
-            if parents is None or \
+            parents = expr.parents
+            if not parents or \
                     not any(isinstance(parent, (ProjectCollectionExpr, JoinCollectionExpr))
                             for parent in parents):
                 to_sub = expr[expr.lhs, expr.rhs]
-                self._sub(expr, to_sub)
+                self._sub(expr, to_sub, parents)
                 self._iters.append(to_sub)
 
     def visit_column(self, expr):
@@ -240,11 +241,12 @@ class Analyzer(Backend):
             else:
                 break
 
-        if column_name != expr.name:
+        if column_name != expr.name or expr.is_renamed():
+            parents = expr.parents
             new_col = collection[column_name].rename(expr.name)
-            self._sub(expr, new_col)
+            self._sub(expr, new_col, parents)
         elif collection is not expr.input:
-            expr.substitute(expr.input, collection, parent_cache=self._memo)
+            expr.substitute(expr.input, collection)
 
     def _visit_cut(self, expr):
         is_seq = isinstance(expr, SequenceExpr)
@@ -289,8 +291,9 @@ class Analyzer(Backend):
                 conditions.append(bin <= expr.input)
             thens.append(expr.labels[-1])
 
+        parents = expr.parents
         to_sub = Switch(_conditions=conditions, _thens=thens, **kw)
-        self._sub(expr, to_sub)
+        self._sub(expr, to_sub, parents)
 
     def _find(self, expr, tp):
         res = next(it for it in expr.traverse(top_down=True, unique=True)
@@ -309,11 +312,12 @@ class Analyzer(Backend):
 
     def visit_element_op(self, expr):
         if isinstance(expr, Between):
+            parents = expr.parents
             if expr.inclusive:
                 to_sub = ((expr.left <= expr.input) & (expr.input <= expr.right))
             else:
                 to_sub = ((expr.left < expr.input) & (expr.input < expr.right))
-            self._sub(expr, to_sub.rename(expr.name))
+            self._sub(expr, to_sub.rename(expr.name), parents)
         elif isinstance(expr, Cut):
             self._visit_cut(expr)
         else:
@@ -324,21 +328,81 @@ class Analyzer(Backend):
         by = expr._by
         sort = expr._sort.value
 
+        parents = expr.parents
         to_sub = collection.groupby(by).agg(count=by.count())
         if sort:
             to_sub = to_sub.sort('count', ascending=False)
-        self._sub(expr, to_sub)
+        self._sub(expr, to_sub, parents)
 
-        # traverse to add parents cache
-        list(to_sub.traverse(parent_cache=self._memo, unique=True))
+    def visit_binary_op(self, expr):
+        if not options.df.analyze:
+            raise NotImplementedError
+
+        if isinstance(expr, FloorDivide):
+            kwargs = dict(
+                _inputs=(expr.lhs, expr.rhs),
+                _func=lambda l, r: l // r,
+                _name=expr.name, _func_args=None, _func_kwargs=None,
+                _multiple=True
+            )
+            if isinstance(expr, SequenceExpr):
+                kwargs['_data_type'] = expr.dtype
+            else:
+                kwargs['_value_type'] = expr.dtype
+            to_sub = MappedExpr(**kwargs)
+            parents = expr.parents
+            self._sub(expr, to_sub, parents)
+            return
+        if isinstance(expr, Add) and \
+                all(child.dtype == types.datetime for child in (expr.lhs, expr.rhs)):
+            return
+        elif isinstance(expr, (Add, Substract)):
+            if expr.lhs.dtype == types.datetime and expr.rhs.dtype == types.datetime:
+                pass
+            elif any(isinstance(child, MilliSecondScalar) for child in (expr.lhs, expr.rhs)):
+                pass
+            else:
+                return
+
+            def func(l, r, method):
+                from datetime import datetime, timedelta
+                if not isinstance(l, datetime):
+                    l = timedelta(milliseconds=l)
+                if not isinstance(r, datetime):
+                    r = timedelta(milliseconds=r)
+
+                if method == '+':
+                    res = l + r
+                else:
+                    res = l - r
+                if isinstance(res, timedelta):
+                    return int(res.microseconds / 1000)
+                return res
+
+            inputs = expr.lhs, expr.rhs, Scalar('+') if isinstance(expr, Add) else Scalar('-')
+            kwargs = dict(
+                _inputs=inputs, _func=func, _name=expr.name,
+                _func_args=None, _func_kwargs=None,
+                _multiple=True
+            )
+            if isinstance(expr, SequenceExpr):
+                kwargs['_data_type'] = expr.dtype
+            else:
+                kwargs['_value_type'] = expr.dtype
+            to_sub = MappedExpr(**kwargs)
+            parents = expr.parents
+            self._sub(expr, to_sub, parents)
+
+        raise NotImplementedError
 
     def visit_unary_op(self, expr):
         if not options.df.analyze:
             raise NotImplementedError
 
         if isinstance(expr, Invert) and isinstance(expr.input.dtype, types.Integer):
+            parents = expr.parents
             to_sub = expr.input.map(lambda x: ~x)
-            self._sub(expr, to_sub)
+            self._sub(expr, to_sub, parents)
             return
 
         raise NotImplementedError
@@ -371,8 +435,9 @@ class Analyzer(Backend):
             else:
                 raise NotImplementedError
 
+            parents = expr.parents
             to_sub = expr.input.map(func, expr.dtype)
-            self._sub(expr, to_sub)
+            self._sub(expr, to_sub, parents)
             return
 
         raise NotImplementedError
@@ -387,29 +452,31 @@ class Analyzer(Backend):
             def func(x):
                 return x.strftime(date_format)
 
+            parents = expr.parents
             to_sub = expr.input.map(func, expr.dtype)
-            self._sub(expr, to_sub)
+            self._sub(expr, to_sub, parents)
             return
 
         raise NotImplementedError
 
     def visit_string_op(self, expr):
+        parents = expr.parents
         if isinstance(expr, Ljust):
             rest = expr.width - expr.input.len()
             to_sub = expr.input + \
                      (rest >= 0).ifelse(expr._fillchar.repeat(rest), '')
-            self._sub(expr, to_sub.rename(expr.name))
+            self._sub(expr, to_sub.rename(expr.name), parents)
             return
         elif isinstance(expr, Rjust):
             rest = expr.width - expr.input.len()
             to_sub = (rest >= 0).ifelse(expr._fillchar.repeat(rest), '') + expr.input
-            self._sub(expr, to_sub.rename(expr.name))
+            self._sub(expr, to_sub.rename(expr.name), parents)
             return
         elif isinstance(expr, Zfill):
             fillchar = Scalar('0')
             rest = expr.width - expr.input.len()
             to_sub = (rest >= 0).ifelse(fillchar.repeat(rest), '') + expr.input
-            self._sub(expr, to_sub.rename(expr.name))
+            self._sub(expr, to_sub.rename(expr.name), parents)
             return
 
         if not options.df.analyze:
@@ -517,14 +584,15 @@ class Analyzer(Backend):
 
         if func is not None:
             to_sub = expr.input.map(func, expr.dtype)
-            self._sub(expr, to_sub)
+            self._sub(expr, to_sub, parents)
             return
 
         raise NotImplementedError
 
     def visit_reduction(self, expr):
+        parents = expr.parents
         if isinstance(expr, (Var, GroupedVar)):
             to_sub = expr.input.std(ddof=expr._ddof) ** 2
-            self._sub(expr, to_sub)
+            self._sub(expr, to_sub, parents)
 
         raise NotImplementedError

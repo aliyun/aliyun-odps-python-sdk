@@ -22,7 +22,7 @@ import struct
 
 import six
 
-from ..crc import Crc32c
+from ..crc import Crc32c, Crc32
 from .. import utils
 
 
@@ -30,8 +30,8 @@ class Checksum(object):
     TRUE = bytearray([1])
     FALSE = bytearray([0])
     
-    def __init__(self):
-        self.crc = Crc32c()
+    def __init__(self, method='crc32c'):
+        self.crc = Crc32c() if method.lower() == 'crc32c' else Crc32()
 
     def update_bool(self, val):
         assert isinstance(val, bool)

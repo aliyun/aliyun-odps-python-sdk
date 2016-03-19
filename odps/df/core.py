@@ -17,10 +17,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
+try:
+    import pandas as pd
+    has_pandas = True
+except ImportError:
+    has_pandas = False
+
 from ..models import Table
 from .expr.utils import get_attrs
 from .expr.expressions import CollectionExpr
 from .backends.odpssql.types import odps_schema_to_df_schema
+from .backends.pd.types import pd_to_df_schema
 
 
 class DataFrame(CollectionExpr):
@@ -67,6 +74,9 @@ class DataFrame(CollectionExpr):
         """
         if isinstance(data, Table):
             schema = odps_schema_to_df_schema(data.schema)
+            super(DataFrame, self).__init__(_source_data=data, _schema=schema, **kwargs)
+        elif has_pandas and isinstance(data, pd.DataFrame):
+            schema = pd_to_df_schema(data)
             super(DataFrame, self).__init__(_source_data=data, _schema=schema, **kwargs)
         else:
             raise ValueError('Unknown type: %s' % data)

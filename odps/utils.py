@@ -17,25 +17,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import bisect
 import codecs
-import os
-import sys
+import copy
+import glob
 import hmac
+import inspect
+import multiprocessing
+import os
+import re
+import string
+import struct
+import sys
+import time
+import traceback
+import xml.dom.minidom
 from hashlib import sha1, md5
 from base64 import b64encode
-import struct
-import string
 from datetime import datetime
-import re
-import xml.dom.minidom
-import traceback
-import time
 from email.utils import parsedate_tz, formatdate
-import bisect
 
 import six
 
 from . import compat
+
+TEMP_TABLE_PREFIX = 'tmp_pyodps_'
 
 
 def fixed_writexml(self, writer, indent="", addindent="", newl=""):
@@ -232,13 +238,50 @@ def is_namedtuple(obj):
     return isinstance(obj, tuple) and hasattr(obj, '_fields')
 
 
+def str_to_bool(s):
+    if isinstance(s, bool):
+        return s
+    s = s.lower().strip()
+    if s == 'true':
+        return True
+    elif s == 'false':
+        return False
+    else:
+        raise ValueError
+
+
+def get_root_dir():
+    return os.path.dirname(sys.modules[__name__].__file__)
+
+
 def load_text_file(path):
-    file_path = os.path.dirname(sys.modules[__name__].__file__) + path
+    file_path = get_root_dir() + path
     if not os.path.exists(file_path):
         return None
     with codecs.open(file_path, encoding='utf-8') as f:
         inp_file = f.read()
     return inp_file
+
+
+def load_file_paths(pattern):
+    file_path = os.path.normpath(os.path.dirname(sys.modules[__name__].__file__) + pattern)
+    return glob.glob(file_path)
+
+
+def load_static_file_paths(path):
+    return load_file_paths('/static/' + path)
+
+
+def load_text_files(pattern, func=None):
+    file_path = os.path.normpath(os.path.dirname(sys.modules[__name__].__file__) + pattern)
+    content_dict = dict()
+    for file_path in glob.glob(file_path):
+        _, fn = os.path.split(file_path)
+        if func and not func(fn):
+            continue
+        with codecs.open(file_path, encoding='utf-8') as f:
+            content_dict[fn] = f.read()
+    return content_dict
 
 
 def load_static_text_file(path):
@@ -247,6 +290,10 @@ def load_static_text_file(path):
 
 def load_internal_static_text_file(path):
     return load_text_file('/internal/static/' + path)
+
+
+def load_static_text_files(pattern, func=None):
+    return load_text_files('/static/' + pattern, func)
 
 
 def init_progress_bar(val=1):
@@ -273,8 +320,14 @@ def init_progress_bar(val=1):
     return bar
 
 
+def escape_odps_string(src):
+    trans_dict = {'\b': r'\b', '\t': r'\t', '\n': r'\n', '\r': r'\r', '\'': r'\'', '\"': r'\"', '\\': r'\\',
+                  '\;': r'\;', '\Z': r'\Z', '\0': r'\0'}
+    return ''.join(trans_dict[ch] if ch in trans_dict else ch for ch in src)
+
+
 def replace_sql_parameters(sql, ns):
-    param_re = re.compile(r':(\S+)(?=\s|$)')
+    param_re = re.compile(r':([a-zA-Z_][a-zA-Z0-9_]*)')
 
     def replace(matched):
         name = matched.group(1)
@@ -285,3 +338,78 @@ def replace_sql_parameters(sql, ns):
             return val
 
     return param_re.sub(replace, sql)
+
+
+def is_main_process():
+    return 'main' in multiprocessing.current_process().name.lower()
+
+
+survey_calls = dict()
+
+
+def survey(func):
+    def _decorator(*args, **kwargs):
+        arg_spec = inspect.getargspec(func)
+
+        if 'self' in arg_spec.args:
+            func_cls = args[0].__class__
+        else:
+            func_cls = None
+
+        if func_cls:
+            func_sig = '.'.join([func_cls.__module__, func_cls.__name__, func.__name__])
+        else:
+            func_sig = '.'.join([func.__module__, func.__name__])
+
+        if func_sig not in survey_calls:
+            survey_calls[func_sig] = 1
+        else:
+            survey_calls[func_sig] += 1
+
+        return func(*args, **kwargs)
+
+    return _decorator
+
+
+def get_survey_calls():
+    return copy.copy(survey_calls)
+
+
+def clear_survey_calls():
+    survey_calls.clear()
+
+
+def require_package(pack_name):
+    def _decorator(func):
+        try:
+            __import__(pack_name, fromlist=[''])
+            return func
+        except ImportError:
+            return None
+
+    return _decorator
+
+
+def gen_repr_object(**kwargs):
+    obj = type('ReprObject', (), {})
+    text = kwargs.pop('text', None)
+    if six.PY2 and isinstance(text, unicode):
+        text = text.encode('utf-8')
+    if text:
+        setattr(obj, 'text', text)
+        setattr(obj, '__repr__', lambda self: text)
+    for k, v in six.iteritems(kwargs):
+        setattr(obj, k, v)
+        setattr(obj, '_repr_{0}_'.format(k), lambda self: v)
+    if 'gv' in kwargs:
+        try:
+            from graphviz import Source
+            setattr(obj, '_repr_svg_', lambda self: Source(self._repr_gv_(), encoding='utf-8')._repr_svg_())
+        except ImportError:
+            pass
+    return obj()
+
+
+def build_pyodps_dir(*args):
+    home_dir = os.environ.get('PYODPS_DIR') or os.path.join(os.path.expanduser('~'), '.pyodps')
+    return os.path.join(home_dir, *args)

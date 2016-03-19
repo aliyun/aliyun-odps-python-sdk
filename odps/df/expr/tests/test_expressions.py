@@ -23,6 +23,7 @@ from odps.config import option_context
 from odps.compat import unittest
 from odps.df.expr.expressions import *
 from odps.df.expr import errors
+from odps.df.expr import tests
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.arithmetic import Add, GreaterEqual
 from odps.df import types
@@ -34,10 +35,13 @@ class Test(TestBase):
     def setup(self):
         schema = Schema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
         table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table._client = self.config.odps.rest
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
         table1 = MockTable(name='pyodps_test_expr_table1', schema=schema)
+        table1._client = self.config.odps.rest
         self.expr1 = CollectionExpr(_source_data=table1, _schema=schema)
         table2 = MockTable(name='pyodps_test_expr_table2', schema=schema)
+        table2._client = self.config.odps.rest
         self.expr2 = CollectionExpr(_source_data=table2, _schema=schema)
 
     def testSimpleJoin(self):
@@ -56,11 +60,22 @@ class Test(TestBase):
         df = expr.join(expr1).join(expr2)
         self.assertEqual(df.schema.names, ['name', 'id', 'value', 'num'])
 
+    def testJoinMapJoin(self):
+        e = self.expr
+        e1 = self.expr1
+        e2 = self.expr2
+        self.assertRaises(ExpressionError, lambda :e.join(e1,on=[]))
+        joined = e.join(e1, mapjoin=True)
+        joined = e2.join(joined, mapjoin=True, on = [])
+        self.assertIsNone(joined._predicate)
+
+        e.join(e1, mapjoin=True).join(e2, mapjoin = True)
+
     def testJoin(self):
         e = self.expr
         e1 = self.expr1
         e2 = self.expr2
-        joined = e.join(e1, ['fid'], suffix=('_tl', '_tr'))
+        joined = e.join(e1, ['fid'], suffixes=('_tl', '_tr'))
         self.assertIsInstance(joined, JoinCollectionExpr)
         self.assertIsInstance(joined, InnerJoin)
         self.assertNotIsInstance(joined, LeftJoin)
@@ -293,6 +308,10 @@ class Test(TestBase):
         self.assertNotIsInstance(column, Int64SequenceExpr)
         self.assertNotIsInstance(column, Int64Column)
 
+    def testSequenceCache(self):
+        df = self.expr.name
+        self.assertRaises(ExpressionError, lambda: df.cache())
+
     def testExprFieldValidation(self):
         df = self.expr
         self.assertRaises(errors.ExpressionError, lambda: df[df[:10].id])
@@ -319,6 +338,13 @@ class Test(TestBase):
         self.assertIsInstance(expr, UnionCollectionExpr)
         self.assertIsInstance(expr._lhs, ProjectCollectionExpr)
         self.assertIsInstance(expr._rhs, ProjectCollectionExpr)
+
+        expr = df[df.name.rename('new_name'), 'id'].union(df1[df1.name.rename('new_name'), 'id'])
+        self.assertIsInstance(expr, UnionCollectionExpr)
+        self.assertIsInstance(expr._lhs, ProjectCollectionExpr)
+        self.assertIsInstance(expr._rhs, ProjectCollectionExpr)
+        self.assertIn('new_name', expr._lhs.schema.names)
+        self.assertIn('new_name', expr._rhs.schema.names)
 
         expr = df.concat(df1)
         self.assertIsInstance(expr, UnionCollectionExpr)

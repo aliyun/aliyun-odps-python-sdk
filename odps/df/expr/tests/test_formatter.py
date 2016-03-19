@@ -206,14 +206,17 @@ Collection: ref_0
       name    : string
       id      : int64
 
-GroupBy[collection]
-  collection: ref_0
-  by:
-    name = Column[sequence(string)] 'name' from collection ref_0
-    id = Column[sequence(int64)] 'id' from collection ref_0
-  aggregations:
-    count = count[sequence(int64)]
-      collection: ref_0
+Collection: ref_1
+  GroupBy[collection]
+    collection: ref_0
+    by:
+      name = Column[sequence(string)] 'name' from collection ref_0
+      id = Column[sequence(int64)] 'id' from collection ref_0
+    aggregations:
+      count = count[sequence(int64)]
+        collection: ref_0
+
+count = Column[sequence(int64)] 'count' from collection ref_1
 '''
 
 

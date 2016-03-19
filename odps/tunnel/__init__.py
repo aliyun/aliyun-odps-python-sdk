@@ -20,6 +20,7 @@ from odps.tunnel.io import CompressOption
 from odps.tunnel.tabletunnel import TableTunnel
 from odps.tunnel.uploadsession import UploadSession
 from odps.tunnel.downloadsession import DownloadSession
+from odps.tunnel.volumetunnel import VolumeTunnel
 
 UploadStatus = UploadSession.Status
 DownloadStatus = DownloadSession.Status

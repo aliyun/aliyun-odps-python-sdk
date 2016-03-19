@@ -1,0 +1,222 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseProcessAlgorithm">
+    <algorithm codeName="binning">
+        <enabled>false</enabled>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>false</fieldChangable>
+        <params>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="selectedColNames">
+                <exporter>get_feature_columns</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="labelColName">
+                <exporter>get_label_column</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="nDivide">
+                <value>10</value>
+            </param>
+            <param name="isLeftOpen"/>
+            <param name="stringThreshold">
+                <value>-1</value>
+            </param>
+            <param name="positiveLabel">
+                <value>1</value>
+            </param>
+            <param name="inputBinTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>bins</inputName>
+            </param>
+            <param name="binningMethod"/>
+        </params>
+        <ports>
+            <port name="feature">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="bins">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>feature: string, json: string</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="binning"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="binning_training">
+        <baseClass>BaseTrainingAlgorithm</baseClass>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>false</fieldChangable>
+        <enabled>false</enabled>
+        <params>
+            <param name="featureColNames">
+                <exporter>get_feature_columns</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="labelColName">
+                <exporter>get_label_column</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="optimization">
+                <value>barrier_method</value>
+            </param>
+            <param name="loss">
+                <value>logistic_regression</value>
+            </param>
+            <param name="iterations">
+                <value>100</value>
+            </param>
+            <param name="l1Weight">
+                <value>0</value>
+            </param>
+            <param name="l2Weight">
+                <value>0</value>
+            </param>
+            <param name="m">
+                <value>10</value>
+            </param>
+            <param name="convergenceTolerance">
+                <value>0.000001</value>
+            </param>
+            <param name="positiveLabel">
+                <value>1</value>
+            </param>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_model_table_name(table_name=model)</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="inputBinTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>bins</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="feature">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="bins">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <model>
+                    <type>TablesModel</type>
+                    <schemas>
+                        <schema name="model">
+                            <schema>feaname: string, binid: bigint, bin: string, constraint: string, weight: double,
+                                scaled_weight: bigint, woe: double, constribution: double, total: bigint, positive:
+                                bigint, negative: bigint, percetage_pos: double, percetage_neg: double
+                            </schema>
+                        </schema>
+                        <schema name="bins">
+                            <copyInput>bins</copyInput>
+                            <directCopy>bins</directCopy>
+                        </schema>
+                    </schemas>
+                </model>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="linear_model"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="predictor" value="binning_predict"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="binning_predict">
+        <public>false</public>
+        <reloadFields>false</reloadFields>
+        <enabled>false</enabled>
+        <params>
+            <param name="inputFeatureTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="inputFeatureTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="inputBinTableName">
+                <exporter>get_input_model_table_name(table_name=bins)</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="inputModelTableName">
+                <exporter>get_input_model_table_name(table_name=model)</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="featureColNames">
+                <exporter>get_feature_columns</exporter>
+                <inputName>feature</inputName>
+            </param>
+            <param name="metaColNames">
+                <exporter>get_original_columns</exporter>
+                <inputName>feature</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="model">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+            </port>
+            <port name="feature">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>$package_root.preprocess.customize.binning_predict_output</schema>
+                    <dynamic>true</dynamic>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="lm_predict"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+</algorithms>

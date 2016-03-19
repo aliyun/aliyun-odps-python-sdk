@@ -120,5 +120,12 @@ class Test(TestBase):
         self.assertRaises(ValueError, lambda: self.expr.id.cut([5], include_under=True))
         self.assertRaises(ValueError, lambda: self.expr.id.cut([5], include_over=True))
 
+    def testReduceApply(self):
+        expr = self.expr[self.expr.id, self.expr['name', 'id'].apply(
+            lambda row: row.name + row.id, axis=1, reduce=True).rename('nameid')]
+
+        self.assertIsInstance(expr._fields[1], MappedExpr)
+
+
 if __name__ == '__main__':
     unittest.main()

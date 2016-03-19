@@ -186,7 +186,7 @@ API会寻找名字相同的列，并作为join的条件。
 
 
 
-可以看到，\ ``movie_id``\ 被重命名为movie\_id\_x，以及movie\_id\_y，这和\ ``suffix``\ 参数有关（默认是\ ``('_x', '_y')``\ ），当遇到重名的列时，就会被重命名为指定的后缀。
+可以看到，\ ``movie_id``\ 被重命名为movie\_id\_x，以及movie\_id\_y，这和\ ``suffixes``\ 参数有关（默认是\ ``('_x', '_y')``\ ），当遇到重名的列时，就会被重命名为指定的后缀。
 
 .. code:: python
 
@@ -405,6 +405,8 @@ self-join的时候，可以调用\ ``view``\ 方法，这样就可以分别取�
 
 
 除了\ ``join``\ 以外，DataFrame还支持\ ``left_join``\ ，\ ``right_join``\ ，和\ ``outer_join``\ 。
+
+要使用 **mapjoin**\ 也很简单，只需将mapjoin设为True，执行时会对右表做mapjoin操作。
 
 Union操作
 =========

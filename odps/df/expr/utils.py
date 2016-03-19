@@ -52,12 +52,12 @@ def highest_precedence_data_type(*data_types):
 
     precedences = dict((t, idx) for idx, t in enumerate(
         [types.string, types.boolean, types.int8, types.int16, types.int32, types.int64,
-         types.decimal, types.float32, types.float64]))
+         types.datetime, types.decimal, types.float32, types.float64]))
 
     type_precedences = [(precedences[data_type], data_type) for data_type in data_types]
     highest_data_type = sorted(type_precedences)[-1][1]
     for data_type in data_types :
-        if data_type != highest_data_type and highest_data_type.can_implicit_cast(data_type) == False:
+        if data_type != highest_data_type and not highest_data_type.can_implicit_cast(data_type):
             raise TypeError(
                 'Type cast error: %s cannot implicitly cast to %s' % (data_type, highest_data_type))
 

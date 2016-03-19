@@ -3,7 +3,7 @@
 创建DataFrame
 =============
 
-创建DataFrame非常简单，只需将Table对象传入即可。
+创建DataFrame非常简单，只需将Table对象传入，或者传入pandas DataFrame对象即可。
 
 .. code:: python
 
@@ -12,6 +12,12 @@
 .. code:: python
 
     iris = DataFrame(o.get_table('pyodps_iris'))
+
+.. code:: python
+
+    import pandas as pd
+    import numpy as np
+    df = DataFrame(pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc')))
 
 ``dtypes``\ 可以用来查看DataFrame的字段和类型。
 
@@ -44,8 +50,8 @@ DataFrame中包括三个基本对象：\ ``Collection``\ ，\ ``Sequence``\ ，\
 ========
 
 PyOdps
-DataFrame包括自己的类型系统，在使用Table初始化的时候，ODPS的类型会被进行转换。这样做的好处是，能支持更多的计算后端。目前，DataFrame的执行后端只有ODPS
-SQL。
+DataFrame包括自己的类型系统，在使用Table初始化的时候，ODPS的类型会被进行转换。这样做的好处是，能支持更多的计算后端。目前，DataFrame的执行后端支持ODPS
+SQL和pandas。目前，pandas计算后端尚未支持窗口函数。
 
 PyOdps DataFrame包括以下类型：
 
@@ -111,15 +117,15 @@ DataFrame上的所有操作并不会立即执行，只有当用户显式调用\ 
       </tr>
       <tr>
         <td>head</td>
-        <td>查看开头N行数据</td>
+        <td>查看开头N行数据，这个方法会执行所有结果，并取开头N行数据</td>
       </tr>
       <tr>
         <td>tail</td>
-        <td>查看结尾N行数据</td>
+        <td>查看结尾N行数据，这个方法会执行所有结果，并取结尾N行数据</td>
       </tr>
       <tr>
         <td>to_pandas</td>
-        <td>转化为pandas DataFrame或者Series</td>
+        <td>转化为pandas DataFrame或者Series，wrap参数为True的时候，返回PyOdps DataFrame对象</td>
       </tr>
       <tr>
         <td>plot，hist，boxplot</td>
@@ -244,27 +250,6 @@ DataFrame会在打印或者repr的时候，调用\ ``execute``\ 方法，这样�
 
 此时打印或者repr对象，会显示整棵抽象语法树。
 
-查看编译到ODPS SQL的结果
-========================
-
-只需要直接调用compile方法即可。
-
-.. code:: python
-
-    print(iris[iris.sepallength < 5].exclude('sepallength')[:5].compile())
-
-
-.. parsed-literal::
-
-    SELECT 
-      t1.`sepalwidth`,
-      t1.`petallength`,
-      t1.`petalwidth`,
-      t1.`name` 
-    FROM odps_test_sqltask_finance.`pyodps_iris` t1 
-    WHERE t1.`sepallength` < 5 
-    LIMIT 5
-
 
 运行时显示详细信息
 ==================
@@ -273,6 +258,7 @@ DataFrame会在打印或者repr的时候，调用\ ``execute``\ 方法，这样�
 
 .. code:: python
 
+    from odps import options
     options.verbose = True
 
 .. code:: python

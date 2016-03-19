@@ -17,12 +17,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import inspect
+
+import six
 
 from .expressions import TypedExpr, SequenceExpr, Scalar, \
     BooleanSequenceExpr, BooleanScalar, CollectionExpr, Expr
 from . import utils
 from . import errors
 from .. import types
+from ..utils import FunctionWrapper
 
 
 class AnyOp(TypedExpr):
@@ -89,6 +93,42 @@ class ElementOp(ElementWise):
         return visitor.visit_element_op(self)
 
 
+class MappedExpr(ElementWise):
+    _slots = '_func', '_func_args', '_func_kwargs', '_multiple'
+    _args = '_inputs',
+    node_name = 'Map'
+    _add_args_slots = False
+
+    def _init(self, *args, **kwargs):
+        self._multiple = False
+        super(MappedExpr, self)._init(*args, **kwargs)
+
+    @property
+    def inputs(self):
+        return self._inputs
+
+    @property
+    def name(self):
+        if self._name is not None:
+            return self._name
+        if len(self._inputs) == 1:
+            return self._inputs[0].name
+
+    @property
+    def source_name(self):
+        if self._source_name is not None:
+            return self._source_name
+        if len(self._inputs) == 1:
+            return self._inputs[0].source_name
+
+    @property
+    def input_types(self):
+        return [it.dtype for it in self._inputs]
+
+    def accept(self, visitor):
+        return visitor.visit_function(self)
+
+
 class IsNull(ElementOp):
     __slots__ = ()
 
@@ -101,10 +141,10 @@ class FillNa(ElementOp):
     _args = '_input', '_value'
     _add_args_slots = False
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._value = None
 
-        super(FillNa, self).__init__(*args, **kwargs)
+        super(FillNa, self)._init(*args, **kwargs)
 
         if self._value is not None and not isinstance(self._value, Expr):
             tp = types.validate_value_type(self._value)
@@ -129,8 +169,8 @@ class IsIn(ElementOp):
     _args = '_input', '_values',
     _add_args_slots = False
 
-    def __init__(self, *args, **kwargs):
-        super(IsIn, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(IsIn, self)._init(*args, **kwargs)
 
         self._values = _scalar(self._values, tp=self._input.dtype)
         if isinstance(self._values, list):
@@ -149,8 +189,8 @@ class NotIn(ElementOp):
     _args = '_input', '_values',
     _add_args_slots = False
 
-    def __init__(self, *args, **kwargs):
-        super(NotIn, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(NotIn, self)._init(*args, **kwargs)
 
         self._values = _scalar(self._values, tp=self._input.dtype)
         if isinstance(self._values, list):
@@ -169,12 +209,12 @@ class Between(ElementOp):
     _args = '_input', '_left', '_right', '_inclusive'
     _add_args_slots = False
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._left = None
         self._right = None
         self._inclusive = None
 
-        super(Between, self).__init__(*args, **kwargs)
+        super(Between, self)._init(*args, **kwargs)
 
         for attr in self._args[1:]:
             val = getattr(self, attr)
@@ -243,8 +283,8 @@ class Cut(ElementOp):
             '_include_under', '_include_over'
     _add_args_slots = False
 
-    def __init__(self, *args, **kwargs):
-        super(Cut, self).__init__(*args, **kwargs)
+    def _init(self, *args, **kwargs):
+        super(Cut, self)._init(*args, **kwargs)
 
         if len(self._bins) == 0:
             raise ValueError('Must be at least one bin edge')
@@ -285,6 +325,51 @@ class Cut(ElementOp):
     @property
     def name(self):
         return self._name
+
+
+def _map(expr, func, rtype=None, args=(), **kwargs):
+    """
+    Call func on each element of this sequence.
+
+    :param func: lambda, function, :class:`odps.models.Function`,
+                 or str which is the name of :class:`odps.models.Funtion`
+    :param rtype: if not provided, will be the dtype of this sequence
+    :return: a new sequence
+
+    :Example:
+
+    >>> df.id.map(lambda x: x + 1)
+    """
+
+    name = None
+    if isinstance(func, FunctionWrapper):
+        if func.output_names:
+            if len(func.output_names) > 1:
+                raise ValueError('Map column has more than one name')
+            name = func.output_names[0]
+        if func.output_types:
+            rtype = rtype or func.output_types[0]
+        func = func._func
+
+    from odps.models import Function
+
+    rtype = rtype or expr.dtype
+    output_type = types.validate_data_type(rtype)
+
+    if isinstance(func, six.string_types):
+        pass
+    elif isinstance(func, Function):
+        pass
+    elif not inspect.isfunction(func):
+        raise ValueError('`func` must be a function')
+
+    is_seq = isinstance(expr, SequenceExpr)
+    if is_seq:
+        return MappedExpr(_data_type=output_type, _func=func, _inputs=[expr, ],
+                          _func_args=args, _func_kwargs=kwargs, _name=name)
+    else:
+        return MappedExpr(_value_type=output_type, _func=func, _inputs=[expr, ],
+                          _func_args=args, _func_kwargs=kwargs, _name=name)
 
 
 def _isnull(expr):
@@ -521,6 +606,7 @@ def _cut(expr, bins, right=True, labels=None, include_lowest=False,
 
 
 _element_methods = dict(
+    map=_map,
     isnull=_isnull,
     notnull=_notnull,
     fillna=_fillna,

@@ -20,6 +20,7 @@ from setuptools import setup, find_packages
 
 import sys
 import os
+import warnings
 
 version = sys.version_info
 PY2 = version[0] == 2
@@ -43,13 +44,20 @@ if LESS_PY34:
 if PY26:
     requirements.append('ordereddict>=1.1')
 
+pai_requirements = []
+if os.path.exists('odps/internal'):
+    if sys.platform == 'win32':
+        warnings.warn('You need JPype to run XLib tasks. Installation should be done manually.')
+    else:
+        pai_requirements.append('jpype1>=0.6')
+
 long_description = None
 if os.path.exists('README.rst'):
     with open('README.rst') as f:
         long_description = f.read()
 
 setup(name='pyodps',
-      version='0.3.12',
+      version='0.4.0',
       description='ODPS Python SDK',
       long_description=long_description,
       author='Wu Wei',
@@ -60,6 +68,7 @@ setup(name='pyodps',
       license='Apache License 2.0',
       packages=find_packages(exclude=('*.tests.*', '*.tests')),
       include_package_data=True,
-      scripts=['scripts/pyou',],
+      scripts=['scripts/pyou', ],
       install_requires=requirements,
+      extras_require={'pai': pai_requirements}
       )

@@ -25,6 +25,9 @@ __pycache__
 # Installer logs
 pip-log.txt
 
+# xlib logs
+xlibsyslog
+
 # Unit test / coverage reports
 .coverage
 .tox
@@ -44,4 +47,4 @@ test.conf
 
 # notebook
 .ipynb_checkpoints
-test.ipynb
+test*.ipynb

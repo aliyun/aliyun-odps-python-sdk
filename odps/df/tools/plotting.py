@@ -21,7 +21,7 @@ from enum import Enum
 import six
 
 from odps.errors import DependencyNotInstalledError
-from odps.df.expr.expressions import CollectionExpr, SequenceExpr, run_at_once
+from odps.df.expr.expressions import CollectionExpr, SequenceExpr, run_at_once, Expr
 from odps.df.types import is_number
 
 
@@ -99,12 +99,10 @@ def _plot_sequence(expr, kind='line', use_cache=None, **kwargs):
         raise DependencyNotInstalledError('plot requires for pandas')
 
     series = expr.to_pandas(use_cache=use_cache)
-    xerr = kwargs.get('xerr', None)
-    if xerr is not None and isinstance(xerr, (CollectionExpr, SequenceExpr)):
-        kwargs['xerr'] = xerr.to_pandas()
-    yerr = kwargs.get('yerr', None)
-    if yerr is not None and isinstance(yerr, (CollectionExpr, SequenceExpr)):
-        kwargs['yerr'] = yerr.to_pandas()
+    for k in list(kwargs.keys()):
+        v = kwargs[k]
+        if v is not None and isinstance(v, (CollectionExpr, SequenceExpr)):
+            kwargs[k] = v.to_pandas()
     return _plot_pandas(series, kind=kind, **kwargs)
 
 
@@ -120,11 +118,13 @@ def _hist_sequence(expr, use_cache=None, **kwargs):
 
 
 @run_at_once
-def _plot_collection(expr, x=None, y=None, kind='line', use_cache=None, **kwargs):
+def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
     try:
         import pandas as pd
     except ImportError:
         raise DependencyNotInstalledError('plot requires for pandas')
+
+    expr.cache()
 
     fields = []
     x_name = None
@@ -150,50 +150,64 @@ def _plot_collection(expr, x=None, y=None, kind='line', use_cache=None, **kwargs
             elif is_number(col.type):
                 fields.append(col.name)
 
-    if len(fields) != len(expr.dtypes):
-        df = expr[fields].to_pandas()
-    else:
-        df = expr.to_pandas(use_cache=use_cache)
+    to_replace = dict()
+    for k, v in six.iteritems(kwargs):
+        if isinstance(v, Expr):
+            fields.append(v)
+            to_replace[k] = v.name
+
+    df = expr[fields].to_pandas()
 
     if x_name is not None:
         kwargs['x'] = x_name
     if y is not None:
         kwargs['y'] = y_name
 
-    xerr = kwargs.get('xerr', None)
-    if xerr is not None and isinstance(xerr, (CollectionExpr, SequenceExpr)):
-        kwargs['xerr'] = xerr.to_pandas()
-    yerr = kwargs.get('yerr', None)
-    if yerr is not None and isinstance(yerr, (CollectionExpr, SequenceExpr)):
-        kwargs['yerr'] = yerr.to_pandas()
+    for k, v in six.iteritems(to_replace):
+        kwargs[k] = df[v]
 
     return _plot_pandas(df, kind=kind, **kwargs)
 
 
 @run_at_once
-def _hist_collection(expr, use_cache=None, **kwargs):
+def _hist_collection(expr, **kwargs):
     try:
         import pandas as pd
     except ImportError:
         raise DependencyNotInstalledError('plot requires for pandas')
 
+    expr.cache()
+
+    fields = []
     column = kwargs.get('column')
     if isinstance(column, six.string_types):
-        column = [column, ]
-    if column is not None:
-        expr = expr[column]
+        fields.append(column)
 
-    df = expr.to_pandas(use_cache=use_cache)
+    to_replace = dict()
+    for k, v in six.iteritems(kwargs):
+        if isinstance(v, Expr):
+            fields.append(v)
+            to_replace[k] = v.name
+
+    if fields:
+        expr = expr[fields]
+
+    df = expr.to_pandas()
+
+    for k, v in six.iteritems(to_replace):
+        kwargs[k] = df[v]
 
     return _hist_pandas(df, **kwargs)
 
 
 @run_at_once
-def _boxplot_collection(expr, use_cache=None, **kwargs):
+def _boxplot_collection(expr, **kwargs):
     try:
         import pandas as pd
     except ImportError:
         raise DependencyNotInstalledError('plot requires for pandas')
+
+    expr.cache()
 
     fields = set()
 
@@ -209,10 +223,20 @@ def _boxplot_collection(expr, use_cache=None, **kwargs):
     elif by is not None:
         fields = fields.union(by)
 
-    if fields:
-        expr = expr[list(fields)]
+    fields = list(fields)
+    to_replace = dict()
+    for k, v in six.iteritems(kwargs):
+        if isinstance(v, Expr):
+            fields.append(v)
+            to_replace[k] = v.name
 
-    df = expr.to_pandas(use_cache=use_cache)
+    if fields:
+        expr = expr[fields]
+
+    df = expr.to_pandas()
+
+    for k, v in six.iteritems(to_replace):
+        kwargs[k] = df[v]
 
     return _boxplot_pandas(df, **kwargs)
 
@@ -222,4 +246,16 @@ CollectionExpr.hist = _hist_collection
 CollectionExpr.boxplot = _boxplot_collection
 SequenceExpr.plot = _plot_sequence
 SequenceExpr.hist = _hist_sequence
+
+try:
+    from pandas.tools.plotting import plot_frame, hist_frame, boxplot, \
+        plot_series, hist_series
+
+    _plot_collection.__doc__ = plot_frame.__doc__
+    _hist_collection.__doc__ = hist_frame.__doc__
+    _boxplot_collection.__doc__ = boxplot.__doc__
+    _plot_sequence.__doc__ = plot_series.__doc__
+    _hist_sequence.__doc__ = hist_series.__doc__
+except ImportError:
+    pass
 

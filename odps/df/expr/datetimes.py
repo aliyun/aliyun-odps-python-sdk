@@ -18,7 +18,7 @@
 # under the License.
 
 from .arithmetic import UnaryOp
-from .expressions import DatetimeSequenceExpr, DatetimeScalar, Scalar
+from .expressions import *
 from . import utils
 from .. import types
 
@@ -62,6 +62,10 @@ class Second(DatetimeOp):
     __slots__ = ()
 
 
+class MilliSecond(DatetimeOp):
+    __slots__ = ()
+
+
 class MicroSecond(DatetimeOp):
     __slots__ = ()
 
@@ -98,14 +102,50 @@ class IsYearEnd(DatetimeOp):
     __slots__ = ()
 
 
+class DTScalar(Int64Scalar):
+    __slots__ = ()
+
+
+class YearScalar(DTScalar):
+    __slots__ = ()
+
+
+class MonthScalar(DTScalar):
+    __slots__ = ()
+
+
+class DayScalar(DTScalar):
+    __slots__ = ()
+
+
+class HourScalar(DTScalar):
+    __slots__ = ()
+
+
+class MinuteScalar(DTScalar):
+    __slots__ = ()
+
+
+class SecondScalar(DTScalar):
+    __slots__ = ()
+
+
+class MilliSecondScalar(DTScalar):
+    __slots__ = ()
+
+
+class MicroSecondScalar(DTScalar):
+    __slots__ = ()
+
+
 class Strftime(DatetimeOp):
     _args = '_input', '_date_format'
     _add_args_slots = False
 
-    def __init__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         self._date_format = None
 
-        super(Strftime, self).__init__(*args, **kwargs)
+        super(Strftime, self)._init(*args, **kwargs)
 
         if self._date_format is not None and not isinstance(self._date_format, Scalar):
             self._date_format = Scalar(_value=self._date_format)
@@ -168,6 +208,11 @@ def _second(expr):
 
 
 @property
+def _millisecond(expr):
+    return datetime_op(expr, MilliSecond, output_type=types.int64)
+
+
+@property
 def _microsecond(expr):
     return datetime_op(expr, MicroSecond, output_type=types.int64)
 
@@ -215,6 +260,38 @@ def _is_year_end(expr):
 def _strftime(expr, date_format):
     return datetime_op(expr, Strftime, output_type=types.string,
                        _date_format=date_format)
+
+
+def year(val):
+    return YearScalar(_value=val, _value_type=types.int64)
+
+
+def month(val):
+    return MonthScalar(_value=val, _value_type=types.int64)
+
+
+def day(val):
+    return DayScalar(_value=val, _value_type=types.int64)
+
+
+def hour(val):
+    return HourScalar(_value=val, _value_type=types.int64)
+
+
+def minute(val):
+    return MinuteScalar(_value=val, _value_type=types.int64)
+
+
+def second(val):
+    return SecondScalar(_value=val, _value_type=types.int64)
+
+
+def millisecond(val):
+    return MilliSecondScalar(_value=val, _value_type=types.int64)
+
+
+def microsecond(val):
+    return MicroSecondScalar(_value=val, _value_type=types.int64)
 
 
 _datetime_methods = dict(

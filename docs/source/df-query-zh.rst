@@ -484,6 +484,7 @@
 
 
 另一种方法是，我们可以传入一个lambda表达式，它接收一个参数，参数传递过来的就是上一步的结果。
+这个方式在很多地方也是通用的，即当需要取到上一步的结果。
 
 .. code:: python
 
@@ -938,6 +939,68 @@
     </div>
 
 
+对于Collection，如果它包含一个列是boolean类型，则可以直接使用该列作为过滤条件。
+
+
+.. code:: python
+
+    df.dtypes
+
+
+.. parsed-literal::
+
+    odps.Schema {
+      a boolean
+      b int64
+    }
+
+
+.. code:: python
+
+    df[df.a]
+
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>a</th>
+          <th>b</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>True</td>
+          <td>1</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>True</td>
+          <td>3</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+因此，记住对Collection取单个squence的操作时，只有boolean列是合法的，即对Collection作过滤操作。
+
+
+.. code:: python
+
+    df[df.a, ]       # 取列操作
+    df[[df.a]]       # 取列操作
+    df.select(df.a)  # 显式取列
+    df[df.a]         # a列是boolean列，执行过滤操作
+    df.a             # 取单列
+    df['a']          # 取单列
+
+
 
 限制条数
 ========
@@ -1050,7 +1113,7 @@
 
 **另外，切片操作只能作用在collection上，不能作用于sequence。**
 
-保存DataFrame的执行结果为新的表
+保存DataFrame的执行结果为ODPS表
 ===============================
 
 我们可以调用\ ``persist``\ 方法，参数为表名。返回一个新的DataFrame对象
@@ -1139,7 +1202,6 @@
 
 
 
-
 .. parsed-literal::
 
     odps.Table
@@ -1150,6 +1212,41 @@
         petallength           : double      
         petalwidth            : double      
       partitions:
-        name                  : string      
+        name                  : string
 
 
+
+如果想写入已经存在的表的某个分区，``persist``\ 可以传入partition参数，指明写入表的哪个分区（如ds=******）。
+这时要注意，该DataFrame的每个字段都必须在该表存在，且类型相同。drop_partition和create_partition参数只有在此时有效,
+分别表示是否要删除（如果分区存在）或创建（如果分区不存在）该分区。
+
+
+.. code:: python
+
+    iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', partition='ds=test', drop_partition=True, create_partition=True)
+
+
+
+保存执行结果为pandas DataFrame
+===============================
+
+我们可以使用 ``to_pandas``\ 方法，如果wrap参数为True，将返回PyOdps DataFrame对象。
+
+.. code:: python
+
+    type(iris[iris.sepalwidth < 2.5].to_pandas())
+
+
+.. parsed-literal::
+
+    pandas.core.frame.DataFrame
+
+
+.. code:: python
+
+    type(iris[iris.sepalwidth < 2.5].to_pandas(wrap=True))
+
+
+.. parsed-literal::
+
+    odps.df.core.DataFrame

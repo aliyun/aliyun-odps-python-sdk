@@ -1,0 +1,361 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseTrainingAlgorithm">
+    <algorithm codeName="LinearRegression">
+        <reloadFields>false</reloadFields>
+        <docs><![CDATA[
+将输入表的数据，选择某些列作为feature，某一列作为label，进行线性回归训练，产生线性回归模型
+
+%params%
+%inputs%
+%outputs%]]></docs>
+        <params>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="featureColNames">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="modelName">
+                <exporter>generate_model_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="maxIter">
+                <value>100</value>
+                <docs>最大迭代次数</docs>
+            </param>
+            <param name="epsilon">
+                <value>0.000001</value>
+                <docs>终止条件，即两次迭代之间log-likelihood的差</docs>
+            </param>
+            <param name="regularizedType">
+                <docs>正则化类型，可选 'l1'、'l2'和 None</docs>
+            </param>
+            <param name="regularizedLevel">
+                <value>1.0</value>
+                <min>0</min>
+                <docs>正则项系数,当 regularized_type 为 None 时，该参数会被忽略</docs>
+            </param>
+            <param name="itemDelimiter">
+                <exporter>get_item_delimiter</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="kvDelimiter">
+                <exporter>get_kv_delimiter</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="enableSparse">
+                <exporter>get_enable_sparse</exporter>
+                <inputName>input</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="linearregression"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="xgboost">
+        <docs><![CDATA[
+xgboost是一种高效率boosting算法，适用回归和二分类问题，详见 https://github.com/dmlc/xgboost 。
+PAI平台目前只开放树形模型（gbtree），暂不开放线性模型（gblinear）。
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <params>
+            <param name="featureColNames">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>输入表中用于训练的特征的列名</docs>
+            </param>
+            <param name="labelColName">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入表中标签列的列名</docs>
+            </param>
+            <param name="booster">
+                <value>gbtree</value>
+            </param>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="modelName">
+                <exporter>generate_model_name</exporter>
+                <outputName>output</outputName>
+                <docs>输出的模型名</docs>
+            </param>
+            <param name="itemDelimiter">
+                <exporter>get_item_delimiter</exporter>
+                <inputName>input</inputName>
+                <docs>item(key value对)之间的分隔符</docs>
+            </param>
+            <param name="kvDelimiter">
+                <exporter>get_kv_delimiter</exporter>
+                <inputName>input</inputName>
+                <docs>表中每个item的key和value之间的分隔符</docs>
+            </param>
+            <param name="enableSparse">
+                <exporter>get_enable_sparse</exporter>
+                <inputName>input</inputName>
+                <docs>是否稀疏数据</docs>
+            </param>
+            <param name="silent">
+                <value>1</value>
+            </param>
+            <param name="eta">
+                <value>0.3</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>为了防止过拟合，更新过程中用到的收缩步长。在每次提升计算之后，算法会直接获得新特征的权重。 eta通过缩减特征的权重使提升计算过程更加保守</docs>
+            </param>
+            <param name="gamma">
+                <value>0</value>
+                <min>0</min>
+                <docs>最小损失衰减</docs>
+            </param>
+            <param name="max_depth">
+                <value>6</value>
+                <min>0</min>
+                <docs>树的最大深度</docs>
+            </param>
+            <param name="min_child_weight">
+                <value>1</value>
+                <min>0</min>
+                <docs>孩子节点中最小的样本权重和。如果一个叶子节点的样本权重和小于min_child_weight则拆分过程结束。在线性回归模型中，这个参数是指建立每个模型所需的最小样本数</docs>
+            </param>
+            <param name="max_delta_step">
+                <value>0</value>
+                <min>0</min>
+                <docs>每个树所允许的最大delta步进</docs>
+            </param>
+            <param name="colsample_bytree">
+                <value>1</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>在建立树时对特征采样的比例</docs>
+            </param>
+            <param name="base_score">
+                <value>0.5</value>
+                <docs>初始的predict score</docs>
+            </param>
+            <param name="seed">
+                <value>0</value>
+                <docs>随机数的种子</docs>
+            </param>
+            <param name="objective">
+                <value>reg:linear</value>
+                <docs>定义学习任务及相应的学习目标，可选的目标函数</docs>
+            </param>
+            <param name="eval_metric">
+                <value>error</value>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="xgboost"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="GBDT">
+        <reloadFields>false</reloadFields>
+        <docs><![CDATA[
+Gradient Boosting Decision Tree is a machine learning technique for regression problems, which produces a prediction
+model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in
+a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary
+differentiable loss function. The gradient boosting method can also be used for classification problems by reducing them
+to regression with a suitable loss function.
+
+GBDT could be used in all regression problems (linear/ nonlinear) while logistic regression can only be used for linear
+regression. So the application of GBDT is very wide.
+
+%params%
+%inputs%
+%outputs%
+
+Example:
+    >>> labeled = ds.set_label_field('class')
+    >>> model = GBDT(tree_count=500).train(labeled)
+    >>> predicted = model.predict(dataset_to_be_predicted)
+    >>> predicted.store_odps('predicted')
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>generate_model_name</exporter>
+                <outputName>output</outputName>
+                <docs>name of modle to be output</docs>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column selected from input table</docs>
+            </param>
+            <param name="featureColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>feature columns of input table, used for training</docs>
+            </param>
+            <param name="groupIDColName">
+                <exporter>get_group_id_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of grouping column. The default is to take a whole table as a group</docs>
+            </param>
+            <param name="metricType">
+                <value>2</value>
+            </param>
+            <param name="treeCount">
+                <value>500</value>
+                <min>1</min>
+                <max>10000</max>
+                <docs>num. of trees.the range is [1,10000] and the default value is 500</docs>
+            </param>
+            <param name="shrinkage">
+                <value>0.05</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>learning rate: the range is (0, 1] and default value is 0.05</docs>
+            </param>
+            <param name="maxLeafCount">
+                <value>32</value>
+                <min>2</min>
+                <max>1000</max>
+                <docs>maximal num. of leaves: it must be an integer. The range is [2,1000] and the default value is 32
+                </docs>
+            </param>
+            <param name="maxDepth">
+                <value>11</value>
+                <min>1</min>
+                <max>11</max>
+                <docs>maximal depth of tree.it must be an integer. The range is [1, 11] and the default value is 11
+                </docs>
+            </param>
+            <param name="minLeafSampleCount">
+                <value>500</value>
+                <docs>minimal leaf size: it must be an integer. The range is [100,1000] and the default value is 500
+                </docs>
+            </param>
+            <param name="sampleRatio">
+                <value>0.6</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>ratio of instances for training. the range is (0,1] and the default value is 0.6</docs>
+            </param>
+            <param name="featureRatio">
+                <value>0.6</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>ratio of features for training: the range is (0,1] and the default value is 0.6</docs>
+            </param>
+            <param name="testRatio">
+                <value>0.0</value>
+                <min>0</min>
+                <max>1</max>
+                <docs>ratio of test instances. the range is [0,1) and the default value is 0.0</docs>
+            </param>
+            <param name="tau">
+                <value>0.6</value>
+                <min>0</min>
+                <max>1</max>
+            </param>
+            <param name="p">
+                <value>1</value>
+                <min>1</min>
+                <max>5</max>
+            </param>
+            <param name="randSeed">
+                <value>0</value>
+                <min>0</min>
+                <max>10</max>
+                <docs>random seed. It must be an integer and the range is [0,10]. The default value is 0</docs>
+            </param>
+            <param name="newtonStep">
+                <value>0</value>
+                <min>0</min>
+                <max>1</max>
+            </param>
+            <param name="featureSplitValueMaxSize">
+                <value>500</value>
+                <min>1</min>
+                <max>1000</max>
+                <docs>maximal splits: the range is [1,1000] and the default value is 500</docs>
+            </param>
+            <param name="lossType">
+                <value>3</value>
+                <docs><![CDATA[function: the default type is regression loss. If the grouping column is not set, you can
+only select regression loss. Select the types:
+GBRANK LOSS `thesis <http://www.cc.gatech.edu/~zha/papers/fp086-zheng.pdf>`_,
+DCG LOSS `thesis <http://research-srv.microsoft.com/pubs/132652/MSR-TR-2010-82.pdf>`_,
+NDCG LOSS `thesis <http://research-srv.microsoft.com/pubs/132652/MSR-TR-2010-82.pdf>`_,
+REGRESSION LOSS mean squared error loss]]></docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="GBDT"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+</algorithms>

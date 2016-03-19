@@ -17,7 +17,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import absolute_import
+
 import inspect
+import itertools
+from collections import deque, defaultdict
 
 import six
 
@@ -28,7 +32,7 @@ from . import utils
 class NodeMetaclass(type):
     def __new__(mcs, name, bases, kv):
         if kv.get('_add_args_slots', True):
-            slots = list(kv.get('__slots__', []))
+            slots = list(kv.get('__slots__', [])) + list(kv.get('_slots', []))
             args = kv.get('_args', [])
             slots.extend(args)
             slots = compat.OrderedDict.fromkeys(slots)
@@ -39,10 +43,14 @@ class NodeMetaclass(type):
 
 
 class Node(six.with_metaclass(NodeMetaclass)):
-    __slots__ = '_cached_args', '__weakref__'
+    __slots__ = '_cached_args', '__weakref__', '__parents'
     _args = ()
 
     def __init__(self, *args, **kwargs):
+        self._init(*args, **kwargs)
+        self._fill_parents()
+
+    def _init(self, *args, **kwargs):
         for arg, value in zip(self._args, args):
             setattr(self, arg, value)
 
@@ -50,6 +58,25 @@ class Node(six.with_metaclass(NodeMetaclass)):
             setattr(self, key, value)
 
         self._cached_args = None
+        self.__parents = set()
+
+    def _fill_parents(self):
+        for child in self.children():
+            child.__parents.add((id(self), self))
+        self._cached_args = None
+
+    def _remove_parent(self, parent):
+        key = id(parent), parent
+        if key in self.__parents:
+            self.__parents.remove(key)
+
+    def _add_parent(self, parent):
+        key = id(parent), parent
+        self.__parents.add(key)
+
+    @property
+    def parents(self):
+        return [p[1] for p in self.__parents]
 
     @property
     def args(self):
@@ -62,19 +89,23 @@ class Node(six.with_metaclass(NodeMetaclass)):
         return tuple(getattr(self, arg, None) for arg in self._args)
 
     def iter_args(self):
-        for arg in self._args:
-            yield arg, getattr(self, arg, None)
+        for name, arg in zip(self._args, self.args):
+            yield name, arg
+
+    def _data_source(self):
+        yield None
 
     def data_source(self):
-        for arg in self.children():
-            for source in arg.data_source():
-                yield source
+        for n in self.traverse(top_down=True, unique=True):
+            for ds in n._data_source():
+                if ds is not None:
+                    yield ds
 
     def output_type(self):
         if hasattr(self, '_validator'):
             return self.validator.output_type()
 
-    def substitute(self, old_arg, new_arg, parent_cache=None):
+    def substitute(self, old_arg, new_arg):
         if hasattr(old_arg, '_name') and old_arg._name is not None and \
                         new_arg._name is None:
             new_arg = new_arg.rename(old_arg._name)
@@ -94,16 +125,8 @@ class Node(six.with_metaclass(NodeMetaclass)):
                 cached_args.append(type(arg)(subs))
         self._cached_args = tuple(cached_args)
 
-        if parent_cache is None:
-            return
-        if id(old_arg) in parent_cache:
-            try:
-                parent_cache[id(old_arg)].remove(self)
-            except KeyError:
-                pass
-        if id(new_arg) not in parent_cache:
-            parent_cache[id(new_arg)] = set()
-        parent_cache[id(new_arg)].add(self)
+        old_arg._remove_parent(self)
+        new_arg._add_parent(self)
 
     def children(self):
         args = []
@@ -120,53 +143,46 @@ class Node(six.with_metaclass(NodeMetaclass)):
         args = self.children()
 
         for arg in args:
-            if arg is None:
-                continue
-            if len(arg.args) == 0:
-                yield arg
-            else:
-                for leave in arg.leaves():
-                    yield leave
+            for leave in arg.leaves():
+                yield leave
 
         if len(args) == 0:
             yield self
 
-    def traverse(self, top_down=False, parent_cache=None, unique=False):
-        def _traverse(node):
-            args = node.children()
+    def traverse(self, top_down=False, unique=False, traversed=None):
+        traversed = traversed if traversed is not None else set()
 
+        def is_trav(n):
+            if not unique:
+                return False
+            if id(n) in traversed:
+                return True
+            traversed.add(id(n))
+            return False
+
+        q = deque()
+        q.append(self)
+        if is_trav(self):
+            return
+
+        checked = set()
+        while len(q) > 0:
+            curr = q.popleft()
             if top_down:
-                yield node
-
-            for arg in args:
-                if arg is None:
-                    continue
-
-                if parent_cache is not None:
-                    if id(arg) not in parent_cache:
-                        parent_cache[id(arg)] = set([node, ])
+                yield curr
+                children = [c for c in curr.children() if not is_trav(c)]
+                q.extendleft(children[::-1])
+            else:
+                if id(curr) not in checked:
+                    children = curr.children()
+                    if len(children) == 0:
+                        yield curr
                     else:
-                        parent_cache[id(arg)].add(node)
-                if len(arg.args) == 0:
-                    yield arg
+                        q.appendleft(curr)
+                        q.extendleft([c for c in children if not is_trav(c)][::-1])
+                    checked.add(id(curr))
                 else:
-                    for item in _traverse(arg):
-                        yield item
-
-            if not top_down:
-                yield node
-
-        if unique:
-            traversed = set()
-            for arg in _traverse(self):
-                if id(arg) in traversed:
-                    continue
-                else:
-                    yield arg
-                    traversed.add(id(arg))
-        else:
-            for n in _traverse(self):
-                yield n
+                    yield curr
 
     def _slot_values(self):
         return [getattr(self, slot, None) for slot in utils.get_attrs(self)
@@ -203,51 +219,76 @@ class Node(six.with_metaclass(NodeMetaclass)):
         to_tuple = lambda it: tuple(it) if isinstance(it, list) else it
         return hash((type(self), tuple(to_tuple(arg) for arg in self.args)))
 
-    def is_ancestor(self, other):
-        for node in self.traverse(unique=True):
-            if node is other:
+    def _is_ancestor_bottom_up(self, other):
+        traversed = set()
+        def is_trav(n):
+            if id(n) in traversed:
                 return True
+            traversed.add(id(n))
+            return False
 
+        q = deque()
+        q.append(other)
+        is_trav(other)
+
+        while len(q) > 0:
+            curr = q.popleft()
+            if curr is self:
+                return True
+            q.extendleft(
+                [p for p in curr.parents if not is_trav(p)])
         return False
 
-    def path(self, other):
-        if not self.is_ancestor(other):
-            if not other.is_ancestor(self):
-                return
-            else:
-                expr, other = other, self
+    def is_ancestor(self, other, updown=True):
+        if updown:
+            for n in self.traverse(top_down=True, unique=True):
+                if n is other:
+                    return True
+            return False
         else:
-            expr = self
+            return self._is_ancestor_bottom_up(other)
 
-        while not expr.equals(other):
-            yield expr
+    def path(self, other, strict=False):
+        all_apaths = self.all_path(other, strict=strict)
+        try:
+            return next(all_apaths)
+        except StopIteration:
+            return
 
-            for child in expr.children():
-                if child.is_ancestor(other):
-                    expr = child
-                    break
+    def _all_path(self, other):
+        if self is other:
+            yield [self, ]
 
-        yield expr
+        node_poses = defaultdict(lambda: 0)
+
+        q = deque()
+        q.append(self)
+
+        while len(q) > 0:
+            curr = q[-1]
+            children = curr.children()
+
+            pos = node_poses[id(curr)]
+            if len(children) == 0 or pos >= len(children):
+                q.pop()
+                continue
+
+            n = children[pos]
+            q.append(n)
+            if n is other:
+                yield list(q)
+                q.pop()
+
+            node_poses[id(curr)] += 1
 
     def all_path(self, other, strict=False):
-        if not self.is_ancestor(other):
-            if strict:
-                return
+        i = 0
+        for i, path in zip(itertools.count(1), self._all_path(other)):
+            yield path
 
-            if not other.is_ancestor(self):
-                return
-            else:
-                expr, other = other, self
-        else:
-            expr = self
-
-        if self is other:
-            yield [other, ]
-
-        for child in expr.children():
-            if child.is_ancestor(other):
-                for path in child.all_path(other):
-                    yield [expr, ] + path
+        if i == 0 and not strict:
+            for path in other._all_path(self):
+                yield path
 
     def __getstate__(self):
         slots = utils.get_attrs(self)

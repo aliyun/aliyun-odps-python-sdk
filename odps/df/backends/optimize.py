@@ -21,37 +21,66 @@ import itertools
 
 from .core import Backend
 from ..expr.expressions import *
-from ..expr.groupby import GroupByCollectionExpr, SequenceGroupBy
+from ..expr.groupby import GroupByCollectionExpr, GroupbyAppliedCollectionExpr
 from ..expr.reduction import SequenceReduction
-from ..expr.collections import DistinctCollectionExpr
+from ..expr.collections import DistinctCollectionExpr, RowAppliedCollectionExpr
 from ..expr.utils import get_attrs
+from ...models import Schema
 
 
 class Optimizer(Backend):
-    def __init__(self, expr, memo=None):
+    def __init__(self, expr, traversed=None, use_cache=None):
         self._expr = expr
-        self._memo = dict() if memo is None else memo
+        self._traversed = traversed or set()
+        self._use_cache = use_cache if use_cache is not None \
+            else options.df.use_cache
 
     def optimize(self):
-        for node in self._expr.traverse(parent_cache=self._memo, top_down=True,
-                                        unique=True):
+        for node in self._expr.traverse(top_down=True, unique=True,
+                                        traversed=self._traversed):
+            expr = self._handle_cache(node, root=self._expr)
+            if node is self._expr and expr is not None:
+                break
+            if expr is not None:
+                continue
             try:
                 node.accept(self)
             except NotImplementedError:
                 continue
 
-        return self._memo.get(id(self._expr)) or self._expr
+        return self._expr
 
-    def _get_parent(self, expr):
-        return self._memo.get(id(expr))
+    def _handle_cache(self, expr, root=None):
+        if not self._use_cache:
+            return
 
-    def _sub(self, expr, to_sub):
-        parents = self._get_parent(expr)
-        if parents is None:
+        if expr is root and expr._cache_data is not None:
+            sub = None
+            if isinstance(expr, CollectionExpr):
+                sub = CollectionExpr(_source_data=expr._cache_data,
+                                      _schema=expr._schema)
+            elif isinstance(expr, SequenceExpr):
+                if expr is not root:
+                    return
+                sub = CollectionExpr(_source_data=expr._cache_data,
+                                     _schema=Schema.from_lists([expr.name], [expr.dtype]))
+                sub = sub[expr.name]
+            elif isinstance(expr, Scalar):
+                sub = Scalar(_value=expr._cache_data, _value_type=expr.dtype)
+
+            if sub:
+                if expr is root:
+                    parents = None
+                else:
+                    parents = expr.parents
+                self._sub(expr, sub, parents)
+                return sub
+
+    def _sub(self, expr, to_sub, parents):
+        if not parents and expr is self._expr:
             self._expr = to_sub
         else:
-            [p.substitute(expr, to_sub, parent_cache=self._memo)
-             for p in set(parents)]
+            [p.substitute(expr, to_sub) for p in parents]
 
     def visit_filter_collection(self, expr):
         if isinstance(expr.input, GroupByCollectionExpr):
@@ -63,37 +92,46 @@ class Optimizer(Backend):
             else:
                 predicates = predicate
 
+            parents = expr.parents
+
             attrs = get_attrs(expr.input)
             attrs_values = dict((attr, getattr(expr.input, attr)) for attr in attrs)
             groupby_collection = type(expr.input)(**attrs_values)
             groupby_collection._having = predicates
 
-            self._sub(expr, groupby_collection)
+            self._sub(expr, groupby_collection, parents)
 
         raise NotImplementedError
 
     def visit_project_collection(self, expr):
         # Summary does not attend here
+        if not options.df.optimize:
+            return
         self._visit_need_compact_collection(expr)
 
     def visit_groupby(self, expr):
+        if not options.df.optimize:
+            return
         self._visit_need_compact_collection(expr)
 
     def visit_distinct(self, expr):
+        if not options.df.optimize:
+            return
+        self._visit_need_compact_collection(expr)
+
+    def visit_apply_collection(self, expr):
+        if not options.df.optimize:
+            return
         self._visit_need_compact_collection(expr)
 
     def _visit_need_compact_collection(self, expr):
+        parents = expr.parents
+
         compacted = self._compact(expr)
         if compacted is None:
             return
 
-        self._sub(expr, compacted)
-
-    def _add_parent_memo(self, expr, parent):
-        if id(expr) not in self._memo:
-            self._memo[id(expr)] = set([parent, ])
-        else:
-            self._memo[id(expr)].add(parent)
+        self._sub(expr, compacted, parents)
 
     def _compact(self, expr):
         to_compact = [expr, ]
@@ -122,18 +160,15 @@ class Optimizer(Backend):
 
         changed = False
         for field in self._get_fields(expr):
-            self._add_parent_memo(field, expr)
-
             if not isinstance(field, SequenceExpr):
                 continue
             broadcast_field = self._broadcast_field(field, to_compact[-1])
             if broadcast_field is not None:
                 changed = True
-                expr.substitute(field, broadcast_field, parent_cache=self._memo)
+                expr.substitute(field, broadcast_field)
 
         if changed:
-            expr.substitute(expr.input, to_compact[-1].input,
-                            parent_cache=self._memo)
+            expr.substitute(expr.input, to_compact[-1].input)
             return expr
 
     def _broadcast_field(self, expr, collection):
@@ -143,8 +178,6 @@ class Optimizer(Backend):
             for i, node in enumerate(path):
                 if isinstance(node, Column):
                     col = node
-                    if i > 0:
-                        self._add_parent_memo(col, path[i - 1])
                     continue
                 elif isinstance(node, SequenceExpr):
                     continue
@@ -153,19 +186,18 @@ class Optimizer(Backend):
 
                 # find a collection
                 if col is not None:
+                    parents = col.parents
                     field = self._get_field(node, col.source_name or col.name)
+                    if col.is_renamed():
+                        field = field.rename(col.name)
+                    self._sub(col, field, parents)
 
-                    parents = set(self._memo[id(col)])
-                    for parent in parents:
-                        parent.substitute(col, field, parent_cache=self._memo)
-                        self._add_parent_memo(field, parent)
-
-                    col = field
+                    col = next(n for n in field.traverse(top_down=True, unique=True)
+                               if isinstance(n, Column))
                 else:
                     if i > 0:
                         parent = path[i - 1]
                         parent.substitute(node, collection.input)
-                        self._add_parent_memo(collection.input, parent)
 
                 changed = True
 
@@ -178,6 +210,8 @@ class Optimizer(Backend):
         elif isinstance(collection, DistinctCollectionExpr):
             return collection.unique_fields
         elif isinstance(collection, GroupByCollectionExpr):
+            return collection.fields
+        elif isinstance(collection, (RowAppliedCollectionExpr, GroupbyAppliedCollectionExpr)):
             return collection.fields
 
     def _get_field(self, collection, name):

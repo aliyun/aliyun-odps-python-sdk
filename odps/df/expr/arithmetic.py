@@ -17,6 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from datetime import datetime
+
 from .expressions import *
 from .element import AnyOp, ElementWise
 from . import utils
@@ -210,20 +212,37 @@ def _logic(expr, other, output_expr_cls):
         raise TypeError('Logic operation needs boolean operand')
 
 
+def _is_datetime(expr):
+    if isinstance(expr, Expr):
+        return expr.dtype == types.datetime
+    else:
+        return isinstance(expr, datetime)
+
+
 def _add(expr, other):
+    if _is_datetime(expr) and _is_datetime(other):
+        raise ExpressionError('Cannot add two datetimes')
     return _arithmetic(expr, other, Add)
 
 
 def _radd(expr, other):
+    if _is_datetime(expr) and _is_datetime(other):
+        raise ExpressionError('Cannot add two datetimes')
     return _add(expr, other)
 
 
 def _sub(expr, other):
-    return _arithmetic(expr, other, Substract)
+    rtype = None
+    if _is_datetime(expr) and _is_datetime(other):
+        rtype = types.int64
+    return _arithmetic(expr, other, Substract, output_type=rtype)
 
 
 def _rsub(expr, other):
-    return _reversed_arithmetic(expr, other, Substract)
+    rtype = None
+    if _is_datetime(expr) and _is_datetime(other):
+        rtype = types.int64
+    return _reversed_arithmetic(expr, other, Substract, output_type=rtype)
 
 
 def _eq(expr, other):

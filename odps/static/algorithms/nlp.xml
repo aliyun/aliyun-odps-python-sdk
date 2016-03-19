@@ -1,0 +1,254 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseProcessAlgorithm">
+    <algorithm codeName="doc_word_stat">
+        <docs><![CDATA[
+在对文章进行分词的基础上，按行保序输出对应文章ID列(docId)对应文章的词，统计指定文章ID列(docId)对应文章内容(docContent)的词频。
+
+%params%
+%inputs%
+%outputs%
+]]></docs>
+        <reloadFields>false</reloadFields>
+        <params>
+            <param name="docId" required="true">
+                <value>id</value>
+                <exporter>$package_root.nlp.customize.get_doc_id_column</exporter>
+                <inputName>input</inputName>
+                <docs>标识文章id的列名</docs>
+            </param>
+            <param name="docContent" required="true">
+                <exporter>$package_root.nlp.customize.get_doc_content_column</exporter>
+                <inputName>input</inputName>
+                <docs>标识文章内容的列名</docs>
+            </param>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableNameMulti">
+                <exporter>get_output_table_name</exporter>
+                <outputName>multi</outputName>
+                <docs>输出保序词语表名</docs>
+            </param>
+            <param name="outputTableNameTriple">
+                <exporter>get_output_table_name</exporter>
+                <outputName>triple</outputName>
+                <docs>输出词频统计表名</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="triple">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>id: bigint: doc_id, word: string: word, count: bigint: word_count</schema>
+                </schema>
+            </port>
+            <port name="multi">
+                <ioType>OUTPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>id: bigint: doc_id, word: string: word</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="doc_word_stat"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="TFIDF">
+        <docs><![CDATA[
+TF-IDF（term frequency–inverse document frequency）是一种用于资讯检索与文本挖掘的常用加权技术。TF-IDF是一种统计方法，用以
+评估一字词对于一个文件集或一个语料库中的其中一份文件的重要程度。 字词的重要性随着它在文件中出现的次数成正比增加，但同时会随着
+它在语料库中出现的频率成反比下降。TF-IDF加权的各种形式常被搜索引擎应用，作为文件与用户查询之间相关程度的度量或评级。详细介绍
+请参考 `这里 <https://en.wikipedia.org/wiki/Tf%E2%80%93idf>`_。
+
+本组件是词频统计输出的基础上，计算各个word对于各个文章的tfidf值
+
+%params%
+%inputs%
+%outputs%
+]]></docs><reloadFields>false</reloadFields>
+        <params>
+            <param name="docIdCol">
+                <value>id</value>
+                <required>true</required>
+                <exporter>$package_root.nlp.customize.get_doc_id_column</exporter>
+                <inputName>input</inputName>
+                <docs>标识文章id的列名</docs>
+            </param>
+            <param name="wordCol" required="true">
+                <value>word</value>
+                <exporter>$package_root.nlp.customize.get_word_column</exporter>
+                <inputName>input</inputName>
+                <docs>word列名</docs>
+            </param>
+            <param name="countCol" required="true">
+                <value>count</value>
+                <exporter>$package_root.nlp.customize.get_word_count_column</exporter>
+                <inputName>input</inputName>
+                <docs>count列名</docs>
+            </param>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartition">
+                <exporter>get_output_table_partition</exporter>
+                <outputName>output</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>total_word_count: bigint: feature, doc_count: bigint: feature, total_doc_count: bigint:
+                        feature, tf: double: feature, idf: double: feature, tfidf: double: feature
+                    </schema>
+                </schema>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="tfidf"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="split_word">
+        <docs><![CDATA[
+基于AliWS(Alibaba Word Segmenter)词法分析系统，对指定列对应的文章内容进行分词，分词后的各个词语间以空格作为分隔符，若
+用户指定了词性标注或语义标注相关参数，则会将分词结果、词性标注结果和语义标注结果一同输出，其中词性标注分隔符为"/"，语义标注
+分隔符为"|"。目前仅支持中文淘宝分词和互联网分词。
+
+%params%
+%inputs%
+%outputs%
+]]></docs><reloadFields>false</reloadFields>
+        <params>
+            <param name="enablePosTagger">
+                <value>false</value>
+                <docs>是否词性标注</docs>
+            </param>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartition">
+                <exporter>get_output_table_partition</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="selectedColNames">
+                <exporter>$package_root.nlp.customize.get_doc_content_column</exporter>
+                <inputName>input</inputName>
+                <docs>输入表中用于分词的列名</docs>
+            </param>
+            <param name="enableDfa">
+                <value>true</value>
+                <docs>简单实体识别</docs>
+            </param>
+            <param name="enablePersonNameTagger">
+                <value>false</value>
+                <docs>人名识别</docs>
+            </param>
+            <param name="enableOrgnizationTagger">
+                <value>false</value>
+                <docs>机构名识别</docs>
+            </param>
+            <param name="enableTelephoneRetrievalUnit">
+                <value>true</value>
+                <docs>检索单元配置－电话号码识别</docs>
+            </param>
+            <param name="enableTimeRetrievalUnit">
+                <value>true</value>
+                <docs>检索单元配置－时间号码识别</docs>
+            </param>
+            <param name="enableDateRetrievalUnit">
+                <value>true</value>
+                <docs>检索单元配置－日期号码识别</docs>
+            </param>
+            <param name="enableNumberLetterRetrievalUnit">
+                <value>true</value>
+                <docs>检索单元配置－数字字母识别</docs>
+            </param>
+            <param name="enableChnNumMerge">
+                <value>false</value>
+                <docs>中文数字合并为一个检索单元</docs>
+            </param>
+            <param name="enableNumMerge">
+                <value>true</value>
+                <docs>普通数字合并为一个检索单元</docs>
+            </param>
+            <param name="enableChnDateMerge">
+                <value>false</value>
+                <docs>中文日期合并为一个语意单元</docs>
+            </param>
+            <param name="enableChnTimeMerge">
+                <value>false</value>
+                <docs>中文时间合并为一个语意单元</docs>
+            </param>
+            <param name="tokenizer">
+                <value>TAOBAO_CHN</value>
+                <docs>分类器类型</docs>
+            </param>
+            <param name="enableSemanticTagger">
+                <value>false</value>
+                <docs>是否语义标准</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="split_word"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+</algorithms>

@@ -29,7 +29,7 @@ from .config import options
 from .core import ODPS
 from .errors import InteractiveError
 from .models import Schema
-from .utils import to_binary
+from .utils import to_binary, build_pyodps_dir
 from .df.backends.frame import ResultFrame
 
 
@@ -145,8 +145,7 @@ class Room(object):
 
 
 def _get_root_dir():
-    home_dir = os.path.expanduser('~')
-    rooms_dir = os.path.join(home_dir, '.pyodps')
+    rooms_dir = build_pyodps_dir('rooms')
 
     return os.path.join(rooms_dir, str(sys.version_info[0]))
 

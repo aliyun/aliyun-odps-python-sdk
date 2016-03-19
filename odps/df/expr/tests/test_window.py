@@ -109,7 +109,7 @@ class Test(TestBase):
                           lambda: grouped.int64.cumstd(preceding=(10, 3), following=(3, 10)))
 
     def testRank(self):
-        rank = self.expr.groupby('boolean').sort('float64').rank()
+        rank = self.expr.groupby('boolean').sort(lambda x: x['float64']).rank()
 
         self.assertIsInstance(rank, Rank)
         self.assertIsInstance(rank, Int64SequenceExpr)
@@ -131,8 +131,9 @@ class Test(TestBase):
         self.assertIsInstance(percentrank, Float64SequenceExpr)
 
     def testRowNumber(self):
-        rownumber = self.expr.groupby('string').row_number()
+        rownumber = self.expr.groupby('string').row_number().rename('rank')
 
+        self.assertEqual(rownumber.name, 'rank')
         self.assertIsInstance(rownumber, RowNumber)
         self.assertIsInstance(rownumber, Int64SequenceExpr)
 
