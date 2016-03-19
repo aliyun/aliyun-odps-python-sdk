@@ -408,6 +408,8 @@ self-join的时候，可以调用\ ``view``\ 方法，这样就可以分别取�
 
 要使用 **mapjoin**\ 也很简单，只需将mapjoin设为True，执行时会对右表做mapjoin操作。
 
+用户也能join分别来自ODPS和pandas的Collection，此时计算会在ODPS上执行。
+
 Union操作
 =========
 
@@ -458,4 +460,4 @@ Union操作
     </table>
     </div>
 
-
+用户也能union分别来自ODPS和pandas的Collection，此时计算会在ODPS上执行。

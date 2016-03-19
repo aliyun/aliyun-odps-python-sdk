@@ -416,6 +416,110 @@ DataFrame会在打印或者repr的时候，调用\ ``execute``\ 方法，这样�
     ['Sql compiled:', 'SELECT t1.`sepalwidth`, t1.`petallength`, t1.`petalwidth`, t1.`name` \nFROM odps_test_sqltask_finance.`pyodps_iris` t1 \nWHERE t1.`sepallength` < 5 \nLIMIT 5', 'logview:', u'http://logview']
 
 
+
+缓存中间Collection计算结果
+=============================
+
+
+DataFrame的计算过程中，一些Collection被多处使用，或者用户需要查看中间过程的执行结果，
+这时用户可以使用 ``cache``\ 标记某个collection需要被优先计算。
+
+值得注意的是，``cache``\ 延迟执行，调用cache不会触发立即计算。
+
+
+.. code:: python
+
+    cached = iris[iris.sepalwidth < 3.5].cache()
+    df = cached['sepallength', 'name'].head(3)
+    df
+
+
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>sepallength</th>
+          <th>name</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>4.9</td>
+          <td>Iris-setosa</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>4.7</td>
+          <td>Iris-setosa</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>4.6</td>
+          <td>Iris-setosa</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+
+.. code:: python
+
+    cached.head(3)  # 由于cached已经被计算，所以能立刻取到计算结果
+
+
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>sepallength</th>
+          <th>sepalwidth</th>
+          <th>petallength</th>
+          <th>petalwidth</th>
+          <th>name</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>4.9</td>
+          <td>3.0</td>
+          <td>1.4</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>4.7</td>
+          <td>3.2</td>
+          <td>1.3</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>4.6</td>
+          <td>3.1</td>
+          <td>1.5</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
 关于列名
 ========
 
