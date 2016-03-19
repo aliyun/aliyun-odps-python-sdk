@@ -34,8 +34,8 @@ _np_to_df_types = dict()
 _df_to_np_types = dict()
 
 if has_np:
-    _np_int_types = map(np.dtype, [np.int_, np.int8, np.int16, np.int32, np.int64])
-    _np_float_types = map(np.dtype, [np.float, np.float32, np.float64])
+    _np_int_types = list(map(np.dtype, [np.int_, np.int8, np.int16, np.int32, np.int64]))
+    _np_float_types = list(map(np.dtype, [np.float, np.float32, np.float64]))
 
     for np_type in _np_int_types + _np_float_types:
         _np_to_df_types[np_type] = getattr(types, str(np_type))

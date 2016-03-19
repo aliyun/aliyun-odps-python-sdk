@@ -624,7 +624,11 @@ def dumps(obj, protocol=2):
     return file.getvalue()
 
 # including pickles unloading functions in this namespace
-from pickle import Unpickler
+if PY3:
+    from pickle import _Unpickler as Unpickler
+else:
+    from pickle import Unpickler
+
 class CloudUnpickler(Unpickler):
     def __init__(self, *args, **kwargs):
         Unpickler.__init__(self, *args, **kwargs)
@@ -642,6 +646,8 @@ class CloudUnpickler(Unpickler):
     def find_class(self, module, name):
         # Subclasses may override this
         try:
+            if PY3 and module == '__builtin__':
+                module = 'builtins'
             __import__(module)
 
             mod = sys.modules[module]

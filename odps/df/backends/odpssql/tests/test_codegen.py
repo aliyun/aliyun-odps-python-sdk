@@ -46,7 +46,7 @@ class Test(TestBase):
 
     def testSimpleLambda(self):
         self.engine.compile(self.expr.id.map(lambda x: x + 1))
-        udf = self.engine._ctx._func_to_udfs.values()[0]
+        udf = list(self.engine._ctx._func_to_udfs.values())[0]
         exec(udf)
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([4, ], runners.simple_run(udf, [(3, ), ]))
@@ -61,7 +61,7 @@ class Test(TestBase):
                 return 1
 
         self.engine.compile(self.expr.id.map(my_func))
-        udf = self.engine._ctx._func_to_udfs.values()[0]
+        udf = list(self.engine._ctx._func_to_udfs.values())[0]
         exec(udf)
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-3, ), (0, ), (5, )]))
@@ -78,7 +78,7 @@ class Test(TestBase):
             return inner(x)
 
         self.engine.compile(self.expr.id.map(my_func))
-        udf = self.engine._ctx._func_to_udfs.values()[0]
+        udf = list(self.engine._ctx._func_to_udfs.values())[0]
         exec(udf, globals(), locals())
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([-2, 0, 2], runners.simple_run(udf, [(-3, ), (0, ), (5, )]))
@@ -94,7 +94,7 @@ class Test(TestBase):
                 return 1
 
         self.engine.compile(self.expr.id.map(my_func))
-        udf = self.engine._ctx._func_to_udfs.values()[0]
+        udf = list(self.engine._ctx._func_to_udfs.values())[0]
         exec(udf, globals(), locals())
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-9, ), (10, ), (15, )]))
@@ -112,7 +112,7 @@ class Test(TestBase):
             return my_func1(y)
 
         self.engine.compile(self.expr.id.map(my_func))
-        udf = self.engine._ctx._func_to_udfs.values()[0]
+        udf = list(self.engine._ctx._func_to_udfs.values())[0]
         exec(udf, globals(), locals())
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-9, ), (10, ), (15, )]))
@@ -122,7 +122,7 @@ class Test(TestBase):
             return row.name + str(row.id)
 
         self.engine.compile(self.expr.apply(my_func, axis=1, reduce=True).rename('test'))
-        udf = self.engine._ctx._func_to_udfs.values()[0]
+        udf = list(self.engine._ctx._func_to_udfs.values())[0]
         exec(udf, globals(), locals())
         udf = locals()[UDF_CLASS_NAME]
         self.assertEqual(['name1', 'name2'],
@@ -133,7 +133,7 @@ class Test(TestBase):
             return row.name, row.id
 
         self.engine.compile(self.expr.apply(my_func, axis=1, names=['name', 'id'], types=['string', 'int']))
-        udtf = self.engine._ctx._func_to_udfs.values()[0]
+        udtf = list(self.engine._ctx._func_to_udfs.values())[0]
         exec(udtf, globals(), locals())
         udtf = locals()[UDF_CLASS_NAME]
         self.assertEqual([('name1', 1), ('name2', 2)],
@@ -145,7 +145,7 @@ class Test(TestBase):
                 yield n
 
         self.engine.compile(self.expr.apply(my_func, axis=1, names='name'))
-        udtf = self.engine._ctx._func_to_udfs.values()[0]
+        udtf = list(self.engine._ctx._func_to_udfs.values())[0]
         exec(udtf, globals(), locals())
         udtf = locals()[UDF_CLASS_NAME]
         self.assertEqual(['name1', 'name2', 'name3', 'name4'],

@@ -43,7 +43,7 @@ BINARY_OP_TO_PANDAS = {
     'Add': operator.add,
     'Substract': operator.sub,
     'Multiply': operator.mul,
-    'Divide': operator.div,
+    'Divide': operator.div if six.PY2 else operator.truediv,
     'FloorDivide': operator.floordiv,
     'Power': operator.pow,
     'Greater': operator.gt,
