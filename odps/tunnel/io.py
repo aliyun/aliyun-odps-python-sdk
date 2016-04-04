@@ -70,7 +70,7 @@ class BaseRequestsIO(object):
 class ThreadRequestsIO(BaseRequestsIO):
     def __init__(self, post_call):
         super(ThreadRequestsIO, self).__init__(post_call)
-        from six.moves.queue import Queue
+        from ..compat import Queue
         self._queue = Queue()
         self._wait_obj = threading.Thread(target=self._async_func)
 

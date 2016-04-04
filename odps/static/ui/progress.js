@@ -79,7 +79,7 @@ require(["nbextensions/widgets/widgets/js/widget", "nbextensions/widgets/widgets
                      '  <div class="stage-progress">' +
                      '    <div class="progress">' +
                      '      <div class="terminated progress-bar progress-bar-success" role="progressbar"></div>' +
-                     '      <div class="running progress-bar progress-bar-danger" role="progressbar"></div>' +
+                     '      <div class="running progress-bar progress-bar-success" role="progressbar"></div>' +
                      '    </div>' +
                      '  </div>' +
                      '</div>';
@@ -170,9 +170,9 @@ require(["nbextensions/widgets/widgets/js/widget", "nbextensions/widgets/widgets
 
                             if (stage_json.total_workers == 0)
                                 stage_json.total_workers = 1;
-                            var terminated_perc = (stage_json.terminated_workers * 100 / stage_json.total_workers) + '%';
+                            var terminated_perc = (stage_json.terminated_workers * 100 / stage_json.total_workers).toFixed(2) + '%';
                             $('.terminated', stage_obj).width(terminated_perc).text(terminated_perc);
-                            var running_perc = (stage_json.running_workers * 100 / stage_json.total_workers) + '%';
+                            var running_perc = (stage_json.running_workers * 100 / stage_json.total_workers).toFixed(2) + '%';
                             $('.running', stage_obj).width(running_perc).text(running_perc);
                             stages_holder.append(stage_obj);
                         });

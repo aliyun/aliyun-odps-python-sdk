@@ -22,7 +22,6 @@ import operator
 import inspect
 
 import six
-from six.moves import reduce
 
 from ...models import Schema
 from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
@@ -30,6 +29,7 @@ from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
 from .collections import SortedExpr
 from .errors import ExpressionError
 from . import utils
+from ...compat import reduce
 from ..utils import FunctionWrapper
 from .. import types
 from ..types import string, validate_data_type

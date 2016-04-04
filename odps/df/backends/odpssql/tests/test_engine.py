@@ -147,6 +147,12 @@ class Test(TestBase):
         result = self._get_result(res.values)
         self.assertEqual(sorted(data, key=lambda it: it[1])[:5], result)
 
+        expr = self.expr.sort('id')[:5]
+        # test do not use tunnel
+        res = self.engine.execute(expr, use_tunnel=False)
+        result = self._get_result(res.values)
+        self.assertEqual(sorted(data, key=lambda it: it[1])[:5], result)
+
     def testElement(self):
         data = self._gen_data(5, nullable_field='name')
 

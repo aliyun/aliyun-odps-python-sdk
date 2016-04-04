@@ -23,7 +23,6 @@ import struct
 from enum import Enum
 import six
 from requests.exceptions import StreamConsumedError
-from six.moves.urllib.parse import urlparse
 
 from . import io
 from .router import TunnelServerRouter
@@ -32,7 +31,7 @@ from .errors import TunnelError
 from .. import serializers, options
 from ..rest import RestClient
 from ..models import Projects
-from ..compat import lrange
+from ..compat import lrange, urlparse
 
 MAX_CHUNK_SIZE = 256 * 1024 * 1024
 MIN_CHUNK_SIZE = 1
@@ -103,7 +102,7 @@ class VolumeTunnel(object):
 class VolumeDownloadSession(serializers.JSONSerializableModel):
     __slots__ = 'id', '_client', 'project_name', 'volume_name', 'partition_spec', 'file_name', '_compress_option'
 
-    class DownloadStatus(Enum):
+    class Status(Enum):
         UNKNOWN = 'UNKNOWN'
         NORMAL = 'NORMAL'
         CLOSED = 'CLOSED'
@@ -111,7 +110,7 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
 
     id = serializers.JSONNodeField('DownloadID')
     status = serializers.JSONNodeField('Status',
-                                       parse_callback=lambda v: VolumeDownloadSession.DownloadStatus(v.upper()))
+                                       parse_callback=lambda v: VolumeDownloadSession.Status(v.upper()))
     file_name = serializers.JSONNodeField('File', 'FileName')
     file_length = serializers.JSONNodeField('File', 'FileLength')
     volume_name = serializers.JSONNodeField('Partition', 'Volume')
@@ -357,7 +356,7 @@ class VolumeReader(object):
 class VolumeUploadSession(serializers.JSONSerializableModel):
     __slots__ = 'id', '_client', '_compress_option', 'project_name', 'volume_name', 'partition_spec'
 
-    class UploadStatus(Enum):
+    class Status(Enum):
         UNKNOWN = 'UNKNOWN'
         NORMAL = 'NORMAL'
         CLOSING = 'CLOSING'
@@ -372,7 +371,7 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
 
     id = serializers.JSONNodeField('UploadID')
     status = serializers.JSONNodeField('Status',
-                                       parse_callback=lambda v: VolumeUploadSession.UploadStatus(v.upper()))
+                                       parse_callback=lambda v: VolumeUploadSession.Status(v.upper()))
     file_list = serializers.JSONNodesReferencesField(UploadFile, 'FileList')
 
     def __init__(self, client, volume, partition_spec, upload_id=None, compress_option=None):

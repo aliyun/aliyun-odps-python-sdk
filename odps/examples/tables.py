@@ -19,14 +19,13 @@
 import os
 import glob
 import codecs
-import pickle
 import shutil
 import tarfile
 import warnings
 
-from six.moves.urllib.request import urlretrieve
 from itertools import groupby, product
 
+from ..compat import urlretrieve, pickle
 from ..tunnel import TableTunnel
 from ..utils import load_static_text_file, build_pyodps_dir
 
@@ -42,7 +41,11 @@ def create_function(func):
     def method(self, table_name, **kwargs):
         if self.odps.exist_table(table_name):
             return
-        func(self.odps, table_name, tunnel=self.tunnel, **kwargs)
+        if kwargs.get('project', self.odps.project) != self.odps.project:
+            tunnel = TableTunnel(self.odps, project=kwargs['project'])
+        else:
+            tunnel = self.tunnel
+        func(self.odps, table_name, tunnel=tunnel, **kwargs)
         self.after_create_test_data(table_name)
 
     method.__name__ = func.__name__
@@ -57,12 +60,12 @@ Simple Data Sets
 
 
 @create_function
-def create_ionosphere(odps, table_name, tunnel=None):
+def create_ionosphere(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
+        tunnel = TableTunnel(odps, project=project)
     fields = ','.join('a%02d double' % i for i in range(1, 35)) + ', class bigint'
-    odps.execute_sql('drop table if exists ' + table_name)
-    odps.execute_sql('create table %s (%s)' % (table_name, fields))
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (%s)' % (table_name, fields), project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -77,14 +80,14 @@ def create_ionosphere(odps, table_name, tunnel=None):
 
 
 @create_function
-def create_ionosphere_one_part(odps, table_name, partition_count=3, tunnel=None):
+def create_ionosphere_one_part(odps, table_name, partition_count=3, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
+        tunnel = TableTunnel(odps, project=project)
     fields = ','.join('a%02d double' % i for i in range(1, 35)) + ', class bigint'
-    odps.execute_sql('drop table if exists ' + table_name)
-    odps.execute_sql('create table %s (%s) partitioned by (part bigint)' % (table_name, fields))
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (%s) partitioned by (part bigint)' % (table_name, fields), project=project)
     for part_id in range(partition_count):
-        odps.execute_sql('alter table %s add if not exists partition (part=%d)' % (table_name, part_id))
+        odps.execute_sql('alter table %s add if not exists partition (part=%d)' % (table_name, part_id), project=project)
 
     upload_sses = [tunnel.create_upload_session(table_name, 'part=%d' % part_id) for part_id in range(partition_count)]
     writers = [session.open_record_writer(0) for session in upload_sses]
@@ -101,15 +104,16 @@ def create_ionosphere_one_part(odps, table_name, partition_count=3, tunnel=None)
 
 
 @create_function
-def create_ionosphere_two_parts(odps, table_name, partition1_count=2, partition2_count=3, tunnel=None):
+def create_ionosphere_two_parts(odps, table_name, partition1_count=2, partition2_count=3, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
+        tunnel = TableTunnel(odps, project=project)
     fields = ','.join('a%02d double' % i for i in range(1, 35)) + ', class bigint'
-    odps.execute_sql('drop table if exists ' + table_name)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
     odps.execute_sql(
-        'create table %s (%s) partitioned by (part1 bigint, part2 bigint)' % (table_name, fields))
+        'create table %s (%s) partitioned by (part1 bigint, part2 bigint)' % (table_name, fields), project=project)
     for id1, id2 in product(range(partition1_count), range(partition2_count)):
-        odps.execute_sql('alter table %s add if not exists partition (part1=%d, part2=%d)' % (table_name, id1, id2))
+        odps.execute_sql('alter table %s add if not exists partition (part1=%d, part2=%d)' % (table_name, id1, id2),
+                         project=project)
 
     upload_sses = [[tunnel.create_upload_session(table_name, 'part1=%d,part2=%d' % (id1, id2))
                     for id2 in range(partition2_count)] for id1 in range(partition1_count)]
@@ -127,12 +131,12 @@ def create_ionosphere_two_parts(odps, table_name, partition1_count=2, partition2
 
 
 @create_function
-def create_iris(odps, table_name, tunnel=None):
+def create_iris(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
-    odps.execute_sql('drop table if exists ' + table_name)
+        tunnel = TableTunnel(odps, project=project)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
     odps.execute_sql(('create table %s (sepal_length double, sepal_width double, petal_length double, '
-                      + 'petal_width double, category string)') % table_name)
+                      + 'petal_width double, category string)') % table_name, project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -149,11 +153,11 @@ def create_iris(odps, table_name, tunnel=None):
 
 
 @create_function
-def create_iris_kv(odps, table_name, tunnel=None):
+def create_iris_kv(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
-    odps.execute_sql('drop table if exists ' + table_name)
-    odps.execute_sql('create table %s (content string, category bigint)' % table_name)
+        tunnel = TableTunnel(odps, project=project)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (content string, category bigint)' % table_name, project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -169,11 +173,11 @@ def create_iris_kv(odps, table_name, tunnel=None):
 
 
 @create_function
-def create_corpus(odps, table_name, tunnel=None):
+def create_corpus(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
-    odps.execute_sql('drop table if exists ' + table_name)
-    odps.execute_sql('create table %s (id string, content string)' % table_name)
+        tunnel = TableTunnel(odps, project=project)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (id string, content string)' % table_name, project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -188,11 +192,11 @@ def create_corpus(odps, table_name, tunnel=None):
 
 
 @create_function
-def create_word_triple(odps, table_name, tunnel=None):
+def create_word_triple(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
-    odps.execute_sql('drop table if exists ' + table_name)
-    odps.execute_sql('create table %s (id string, word string, count bigint)' % table_name)
+        tunnel = TableTunnel(odps, project=project)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (id string, word string, count bigint)' % table_name, project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -211,11 +215,11 @@ def create_word_triple(odps, table_name, tunnel=None):
 
 
 @create_function
-def create_splited_words(odps, table_name, tunnel=None):
+def create_splited_words(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
-    odps.execute_sql('drop table if exists ' + table_name)
-    odps.execute_sql('create table %s (id string, content string)' % table_name)
+        tunnel = TableTunnel(odps, project=project)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (id string, content string)' % table_name, project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -233,18 +237,18 @@ def create_splited_words(odps, table_name, tunnel=None):
 
 
 @create_function
-def create_weighted_graph_edges(odps, table_name, tunnel=None):
+def create_weighted_graph_edges(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
+        tunnel = TableTunnel(odps, project=project)
     data_rows = [
         ['1', '1', '2', '1', 0.7], ['1', '1', '3', '1', 0.7], ['1', '1', '4', '1', 0.6], ['2', '1', '3', '1', 0.7],
         ['2', '1', '4', '1', 0.6], ['3', '1', '4', '1', 0.6], ['4', '1', '6', '5', 0.3], ['5', '5', '6', '5', 0.6],
         ['5', '5', '7', '5', 0.7], ['5', '5', '8', '5', 0.7], ['6', '5', '7', '5', 0.6], ['6', '5', '8', '5', 0.6],
         ['7', '5', '8', '5', 0.7]
     ]
-    odps.execute_sql('drop table if exists ' + table_name)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
     odps.execute_sql(('create table %s (flow_out_id string, group_out_id string, flow_in_id string, ' +
-                      'group_in_id string, edge_weight double)') % table_name)
+                      'group_in_id string, edge_weight double)') % table_name, project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -258,15 +262,16 @@ def create_weighted_graph_edges(odps, table_name, tunnel=None):
 
 
 @create_function
-def create_weighted_graph_vertices(odps, table_name, tunnel=None):
+def create_weighted_graph_vertices(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
+        tunnel = TableTunnel(odps, project=project)
     data_rows = [
         ['1', '1', 0.7, 1.0], ['2', '1', 0.7, 1.0], ['3', '1', 0.7, 1.0], ['4', '1', 0.5, 1.0], ['5', '5', 0.7, 1.0],
         ['6', '5', 0.5, 1.0], ['7', '5', 0.7, 1.0], ['8', '5', 0.7, 1.0]
     ]
-    odps.execute_sql('drop table if exists ' + table_name)
-    odps.execute_sql('create table %s (node string, label string, node_weight double, label_weight double)' % table_name)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (node string, label string, node_weight double, label_weight double)' % table_name,
+                     project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -280,9 +285,9 @@ def create_weighted_graph_vertices(odps, table_name, tunnel=None):
 
 
 @create_function
-def create_user_item_table(odps, table_name, tunnel=None, agg=False):
+def create_user_item_table(odps, table_name, tunnel=None, agg=False, project=None):
     if tunnel is None:
-        tunnel = TableTunnel(odps)
+        tunnel = TableTunnel(odps, project=project)
     data_rows = [
         ['CST0000', 'a', 0], ['CST0000', 'b', 1], ['CST0000', 'c', 2], ['CST0000', 'd', 3], ['CST0001', 'a', 0],
         ['CST0001', 'b', 0], ['CST0001', 'a', 1], ['CST0001', 'b', 1], ['CST0001', 'c', 1], ['CST0001', 'b', 2],
@@ -301,12 +306,12 @@ def create_user_item_table(odps, table_name, tunnel=None, agg=False):
         ['CST0001', 'c', 2], ['CST0001', 'd', 2], ['CST0001', 'e', 3], ['CST0002', 'a', 0], ['CST0002', 'c', 0],
         ['CST0002', 'b', 1], ['CST0002', 'a', 2], ['CST0002', 'b', 2], ['CST0002', 'c', 2], ['CST0002', 'a', 3]
     ]
-    odps.execute_sql('drop table if exists ' + table_name)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
     if agg:
         data_rows = [k + (len(list(p)), ) for k, p in groupby(sorted(data_rows, key=lambda item: (item[0], item[1])), lambda item: (item[0], item[1]))]
-        odps.execute_sql('create table %s (user string, item string, payload bigint)' % table_name)
+        odps.execute_sql('create table %s (user string, item string, payload bigint)' % table_name, project=project)
     else:
-        odps.execute_sql('create table %s (user string, item string, time bigint)' % table_name)
+        odps.execute_sql('create table %s (user string, item string, time bigint)' % table_name, project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -375,7 +380,7 @@ def cache_newsgroup_tar(target_tar, target_dir, cache_dir):
 
 
 @create_function
-def create_newsgroup_table(odps, table_name, tunnel=None, data_part='train'):
+def create_newsgroup_table(odps, table_name, tunnel=None, data_part='train', project=None):
     cache_file = os.path.join(USER_DATA_REPO, CACHE_NAME)
     if not os.path.exists(USER_DATA_REPO):
         os.makedirs(USER_DATA_REPO)
@@ -387,10 +392,10 @@ def create_newsgroup_table(odps, table_name, tunnel=None, data_part='train'):
         cache = pickle.loads(codecs.decode(f.read(), 'zlib_codec'))
 
     if tunnel is None:
-        tunnel = TableTunnel(odps)
+        tunnel = TableTunnel(odps, project=project)
 
-    odps.execute_sql('drop table if exists ' + table_name)
-    odps.execute_sql('create table %s (id string, category string, message string)' % table_name)
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (id string, category string, message string)' % table_name, project=project)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)

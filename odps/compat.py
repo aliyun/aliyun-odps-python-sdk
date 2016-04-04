@@ -140,3 +140,12 @@ else:
             yield
         except exceptions:
             pass
+
+from six.moves import reduce
+from six.moves.queue import Queue
+from six.moves.urllib.request import urlretrieve
+from six.moves import cPickle as pickle
+from six.moves.urllib.parse import urlparse
+
+__all__ = ['sys', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress', 'reduce', 'Queue',
+           'urlretrieve', 'pickle', 'urlparse']

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,21 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-
-__version__ = '0.4.1'
-__all__ = ['ODPS',]
-
-version = sys.version_info
-if version[0] == 2 and version[:2] < (2, 6):
-    raise Exception('pyodps supports python 2.6+ (including python 3+).')
-
-import pkg_resources
-pkg_resources.declare_namespace(__name__)
-
-from .core import ODPS
-from .config import options
-try:
-    from .ipython.magics import *
-except ImportError:
-    pass
+from .tabletunnel import TableTunnel
+from .uploadsession import TableUploadSession
+from .downloadsession import TableDownloadSession

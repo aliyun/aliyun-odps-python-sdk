@@ -3,6 +3,8 @@ ODPS Python SDK and data analysis framework
 
 |PyPI version|
 
+--------------
+
 Elegent way to access ODPS API.
 `Documentation <http://pyodps.readthedocs.org>`__
 

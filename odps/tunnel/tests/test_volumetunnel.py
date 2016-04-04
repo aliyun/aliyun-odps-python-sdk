@@ -37,7 +37,7 @@ class Test(TestBase):
 
     def tearDown(self):
         self.odps.delete_volume(TEST_VOLUME_NAME)
-        super(Test, self).setUp()
+        super(Test, self).tearDown()
 
     def testTextUploadDownload(self):
         text_content = 'Life is short, \r\n Java is tedious.    \n\n\r\nI use PyODPS. \n\n'

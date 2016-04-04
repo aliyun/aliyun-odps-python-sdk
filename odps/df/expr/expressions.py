@@ -21,12 +21,12 @@ import inspect
 import operator
 import uuid
 import six
-from six.moves import reduce
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
 from .utils import get_attrs, is_called_by_inspector
 from .. import types
+from ...compat import reduce
 from ...config import options
 from ...errors import DependencyNotInstalledError
 from ...utils import TEMP_TABLE_PREFIX

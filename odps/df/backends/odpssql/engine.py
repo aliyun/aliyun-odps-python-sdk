@@ -307,6 +307,7 @@ class ODPSEngine(Engine):
         instance = self._run(sql, bar, start_progress=start_progress,
                              max_progress=0.9*max_progress, async=async, hints=hints)
 
+        use_tunnel = kw.get('use_tunnel', True)
         if async:
             engine = self
 
@@ -329,16 +330,17 @@ class ODPSEngine(Engine):
                     return engine._fetch(expr, src_expr, instance, bar,
                                          finish_progress=start_progress+max_progress,
                                          close_bar=close_bar, cache_data=cache_data,
-                                         head=head, tail=tail)
+                                         head=head, tail=tail, use_tunnel=use_tunnel)
 
             return AsyncResult()
         else:
             self._ctx.close()  # clear udfs and resources generated
             return self._fetch(expr, src_expr, instance, bar, close_bar=close_bar,
-                               cache_data=cache_data, head=head, tail=tail)
+                               cache_data=cache_data, head=head, tail=tail,
+                               use_tunnel=use_tunnel)
 
     def _fetch(self, expr, src_expr, instance, bar, finish_progress=1,
-               close_bar=True, cache_data=None, head=None, tail=None):
+               close_bar=True, cache_data=None, head=None, tail=None, use_tunnel=True):
         if isinstance(expr, (CollectionExpr, Summary)):
             df_schema = expr._schema
             schema = types.df_schema_to_odps_schema(expr._schema, ignorecase=True)
@@ -350,17 +352,32 @@ class ODPSEngine(Engine):
             schema = None
         try:
             if cache_data is not None:
-                with cache_data.open_reader(reopen=True) as reader:
-                    if head:
-                        reader = reader[:head]
-                    elif tail:
-                        start = max(reader.count - tail, 0)
-                        reader = reader[start: ]
+                if use_tunnel:
                     try:
-                        return ResultFrame([r.values for r in reader], schema=df_schema)
-                    finally:
-                        src_expr._cache_data = cache_data
-                        bar.update(finish_progress)
+                        with cache_data.open_reader(reopen=True) as reader:
+                            if head:
+                                reader = reader[:head]
+                            elif tail:
+                                start = max(reader.count - tail, 0)
+                                reader = reader[start: ]
+                            try:
+                                return ResultFrame([r.values for r in reader], schema=df_schema)
+                            finally:
+                                src_expr._cache_data = cache_data
+                                bar.update(finish_progress)
+                    except ODPSError:
+                        # some project has closed the tunnel download
+                        # we just ignore the error
+                        pass
+
+                if tail:
+                    raise NotImplementedError
+
+                try:
+                    return ResultFrame(cache_data.head(head or 10000), schema=df_schema)
+                finally:
+                    src_expr._cache_data = cache_data
+                    bar.update(finish_progress)
 
             with instance.open_reader(schema=schema) as reader:
                 if not isinstance(src_expr, Scalar):

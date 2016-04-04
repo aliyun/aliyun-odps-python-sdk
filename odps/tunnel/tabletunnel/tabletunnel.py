@@ -17,18 +17,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import platform
-
 import six
-from six.moves.urllib.parse import urlparse
 
-from .uploadsession import UploadSession
-from .downloadsession import DownloadSession
-from .io import CompressOption
-from .router import TunnelServerRouter
-from ..rest import RestClient
-from .. import options
-from ..models import Projects
+from .uploadsession import TableUploadSession
+from .downloadsession import TableDownloadSession
+from ..io import CompressOption
+from ..router import TunnelServerRouter
+from ...rest import RestClient
+from ... import options
+from ...compat import urlparse
+from ...models import Projects
 
 
 class TableTunnel(object):
@@ -76,9 +74,9 @@ class TableTunnel(object):
             compress_option = CompressOption(
                 compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
 
-        return DownloadSession(self.tunnel_rest, table, partition_spec,
-                               download_id=download_id,
-                               compress_option=compress_option)
+        return TableDownloadSession(self.tunnel_rest, table, partition_spec,
+                                    download_id=download_id,
+                                    compress_option=compress_option)
 
     def create_upload_session(self, table, partition_spec=None,
                               upload_id=None, compress_option=None,
@@ -91,6 +89,6 @@ class TableTunnel(object):
             compress_option = CompressOption(
                 compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
 
-        return UploadSession(self.tunnel_rest, table, partition_spec,
-                             upload_id=upload_id,
-                             compress_option=compress_option)
+        return TableUploadSession(self.tunnel_rest, table, partition_spec,
+                                  upload_id=upload_id,
+                                  compress_option=compress_option)

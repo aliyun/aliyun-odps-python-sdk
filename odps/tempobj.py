@@ -27,13 +27,13 @@ import json
 import time
 import uuid
 import hashlib
-import pickle
 import threading
 import traceback
 from multiprocessing.pool import ThreadPool
 
 from six import iteritems, string_types, itervalues
 
+from .compat import pickle
 from .config import options
 from .errors import NoSuchObject
 from .utils import is_main_process, build_pyodps_dir

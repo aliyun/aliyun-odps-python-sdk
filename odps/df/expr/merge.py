@@ -20,11 +20,11 @@
 import operator
 import inspect
 import six
-from six.moves import reduce
 from .expressions import CollectionExpr, ProjectCollectionExpr, \
     Column, BooleanSequenceExpr, SequenceExpr, repr_obj
 from .arithmetic import Equal
 from .errors import ExpressionError
+from ...compat import reduce
 from ...models import Schema
 from .. import types
 
