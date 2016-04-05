@@ -588,7 +588,7 @@ class CollectionExpr(Expr):
             import pandas as pd
         except ImportError:
             raise DependencyNotInstalledError(
-                    'to_pandas requires for `pandas` library')
+                    'to_pandas requires `pandas` library')
 
         res = self.execute(**kwargs).values
         if wrap:

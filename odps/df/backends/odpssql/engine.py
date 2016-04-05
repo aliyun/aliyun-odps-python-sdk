@@ -294,7 +294,7 @@ class ODPSEngine(Engine):
 
         cache_data = None
         if isinstance(expr, CollectionExpr):
-            tmp_table_name = '%s_%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))
+            tmp_table_name = '%s%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))
             register_temp_table(self._odps, tmp_table_name)
             cache_data = self._odps.get_table(tmp_table_name)
 

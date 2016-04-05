@@ -98,6 +98,10 @@ class Test(TestBase):
         result = self._get_result(res.values)
         self.assertEqual(sorted(data, key=lambda it: it[1])[1:5:2], result)
 
+        res = self.expr.head(10)
+        result = self._get_result(res.values)
+        self.assertEqual(data[:10], result)
+
     def testElement(self):
         data = self._gen_data(5, nullable_field='name')
 
@@ -658,6 +662,38 @@ class Test(TestBase):
         result = self._get_result(res)
 
         self.assertEqual([it[1:] for it in expected], result)
+
+    def testJoinGroupby(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+
+        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+                                    [types.string, types.int64, types.int64])
+
+        self._gen_data(data=data)
+
+        data2 = [
+            ['name1', 4, -1],
+            ['name2', 1, -2]
+        ]
+
+        import pandas as pd
+        expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
+                               _schema=schema2)
+
+        expr = self.expr.join(expr2, on='name')[self.expr]
+        expr = expr.groupby('id').agg(expr.fid.sum())
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = pd.DataFrame(data, columns=self.expr.schema.names).groupby('id').agg({'fid': 'sum'})
+        self.assertEqual(expected.reset_index().values.tolist(), result)
 
     def testFilterGroupby(self):
         data = [

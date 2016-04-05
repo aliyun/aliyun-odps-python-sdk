@@ -21,6 +21,7 @@
 from odps.tests.core import TestBase
 from odps.compat import unittest
 from odps.models import Schema
+from odps.errors import ODPSError
 from odps.df.backends.engine import MixedEngine
 from odps.df.backends.pd.engine import PandasEngine
 from odps.df import DataFrame
@@ -159,6 +160,18 @@ class Test(TestBase):
         self.assertEqual(result, 2)
 
         self.assertEqual(df4._cache_data, 2)
+
+    def testUseCache(self):
+        df = self.odps_df[self.odps_df['name'] == 'name1']
+        self.assertEqual(len(df.head(10)), 2)
+
+        df._cache_data.drop()
+
+        self.assertRaises(ODPSError, lambda: self.engine.execute(df['name', 'id']))
+
+        def plot(**_):
+            pass
+        self.assertRaises(ODPSError, lambda: df.plot(x='id', plot_func=plot))
 
     def testHeadAndTail(self):
         res = self.odps_df.head(2)

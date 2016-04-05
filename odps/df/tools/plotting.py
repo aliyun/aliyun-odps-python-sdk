@@ -124,8 +124,6 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
     except ImportError:
         raise DependencyNotInstalledError('plot requires for pandas')
 
-    expr.cache()
-
     fields = []
     x_name = None
     y_name = None
@@ -166,7 +164,8 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
     for k, v in six.iteritems(to_replace):
         kwargs[k] = df[v]
 
-    return _plot_pandas(df, kind=kind, **kwargs)
+    _plot_func = kwargs.pop('plot_func', _plot_pandas)
+    return _plot_func(df, kind=kind, **kwargs)
 
 
 @run_at_once
@@ -175,8 +174,6 @@ def _hist_collection(expr, **kwargs):
         import pandas as pd
     except ImportError:
         raise DependencyNotInstalledError('plot requires for pandas')
-
-    expr.cache()
 
     fields = []
     column = kwargs.get('column')
@@ -197,7 +194,8 @@ def _hist_collection(expr, **kwargs):
     for k, v in six.iteritems(to_replace):
         kwargs[k] = df[v]
 
-    return _hist_pandas(df, **kwargs)
+    _plot_func = kwargs.pop('plot_func', _hist_pandas)
+    return _plot_func(df, **kwargs)
 
 
 @run_at_once
@@ -206,8 +204,6 @@ def _boxplot_collection(expr, **kwargs):
         import pandas as pd
     except ImportError:
         raise DependencyNotInstalledError('plot requires for pandas')
-
-    expr.cache()
 
     fields = set()
 
@@ -238,7 +234,8 @@ def _boxplot_collection(expr, **kwargs):
     for k, v in six.iteritems(to_replace):
         kwargs[k] = df[v]
 
-    return _boxplot_pandas(df, **kwargs)
+    _plot_func = kwargs.pop('plot_func', _boxplot_pandas)
+    return _plot_func(df, **kwargs)
 
 
 CollectionExpr.plot = _plot_collection

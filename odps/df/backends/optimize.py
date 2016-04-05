@@ -25,7 +25,9 @@ from ..expr.groupby import GroupByCollectionExpr, GroupbyAppliedCollectionExpr
 from ..expr.reduction import SequenceReduction
 from ..expr.collections import DistinctCollectionExpr, RowAppliedCollectionExpr
 from ..expr.utils import get_attrs
-from ...models import Schema
+from ..expr.merge import JoinCollectionExpr
+from ...models import Schema, Table
+from ...errors import ODPSError
 
 
 class Optimizer(Backend):
@@ -54,17 +56,14 @@ class Optimizer(Backend):
         if not self._use_cache:
             return
 
-        if expr is root and expr._cache_data is not None:
+        if expr._cache_data is not None:
+            if hasattr(expr, '_source_data') and expr._source_data is not None:
+                return
+
             sub = None
             if isinstance(expr, CollectionExpr):
                 sub = CollectionExpr(_source_data=expr._cache_data,
-                                      _schema=expr._schema)
-            elif isinstance(expr, SequenceExpr):
-                if expr is not root:
-                    return
-                sub = CollectionExpr(_source_data=expr._cache_data,
-                                     _schema=Schema.from_lists([expr.name], [expr.dtype]))
-                sub = sub[expr.name]
+                                     _schema=expr._schema)
             elif isinstance(expr, Scalar):
                 sub = Scalar(_value=expr._cache_data, _value_type=expr.dtype)
 
@@ -112,6 +111,14 @@ class Optimizer(Backend):
     def visit_groupby(self, expr):
         if not options.df.optimize:
             return
+
+        # we do not do compact on the projections from Join
+        input = expr.input
+        while isinstance(input, ProjectCollectionExpr):
+            input = input._input
+        if isinstance(input, JoinCollectionExpr):
+            return
+
         self._visit_need_compact_collection(expr)
 
     def visit_distinct(self, expr):

@@ -151,7 +151,7 @@ class PandasCompiler(Backend):
         if not isinstance(df, pd.DataFrame):
             raise ValueError('Expr data must be a pandas DataFrame.')
 
-        handle = lambda _: df
+        handle = lambda _: df.copy()  # make a copy to avoid modify
         self._add_node(expr, handle)
 
     @classmethod

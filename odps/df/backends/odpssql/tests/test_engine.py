@@ -553,6 +553,45 @@ class Test(TestBase):
 
         self.assertEqual([it[1:] for it in expected], result)
 
+    def testJoinGroupby(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+
+        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+                                    [types.string, types.bigint, types.bigint])
+
+        table_name = 'pyodps_test_engine_table2'
+        self.odps.delete_table(table_name, if_exists=True)
+        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
+
+        self._gen_data(data=data)
+
+        data2 = [
+            ['name1', 4, -1],
+            ['name2', 1, -2]
+        ]
+
+        self.odps.write_table(table2, 0, [table2.new_record(values=d) for d in data2])
+
+        expr = self.expr.join(expr2, on='name')[self.expr]
+        expr = expr.groupby('id').agg(expr.fid.sum())
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        import pandas as pd
+        expected = pd.DataFrame(data, columns=self.expr.schema.names).groupby('id').agg({'fid': 'sum'})\
+            .reset_index().values.tolist()
+        for it in zip(sorted(expected, key=lambda it: it[0]), sorted(result, key=lambda it: it[0])):
+            self.assertAlmostEqual(it[0][0], it[1][0])
+            self.assertAlmostEqual(it[0][1], it[1][1])
+
     def testFilterGroupby(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
