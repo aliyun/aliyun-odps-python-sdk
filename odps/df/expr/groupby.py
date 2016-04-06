@@ -373,6 +373,13 @@ class GroupByCollectionExpr(CollectionExpr):
         return dict((expr.name, expr) for expr in exprs if hasattr(expr, 'name'))
 
     def _project(self, fields):
+        # FIXME: move to optimize
+        # consider the case:
+        # df = input.groupby(**).agg(**)
+        # df.cache()
+        # df.select(***)
+        # the cached will not be executed
+
         selections = []
         names = []
         tps = []
@@ -469,7 +476,7 @@ class GroupbyAppliedCollectionExpr(CollectionExpr):
 
         self._fields = sorted(
             [self._input[f] if isinstance(f, six.string_types) else f
-             for f in self._fields], key=lambda f: self._schema._name_indexes[f.name]
+             for f in self._fields], key=lambda f: self._input._schema._name_indexes[f.name]
         )
 
     @property

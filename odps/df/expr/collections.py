@@ -255,17 +255,21 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
                                             _fields=[expr[n] for n in expr.schema.names])
 
 
-def map_reduce(expr, mapper, reducer, group=None, sort=None,
+def map_reduce(expr, mapper, reducer, group=None, sort=None, ascending=True,
                mapper_output_names=None, mapper_output_types=None,
                reducer_output_names=None, reducer_output_types=None):
-    def conv(l):
+    def conv(l, collection=None):
         if l is None:
             return
         if isinstance(l, tuple):
-            return list(l)
+            l = list(l)
         elif not isinstance(l, list):
-            return [l, ]
-        return l
+            l = [l, ]
+
+        if collection is None:
+            return l
+        return [it if not inspect.isfunction(it) else it(collection)
+                for it in l]
 
     def gen_name():
         return 'pyodps_field_%s' % str(uuid.uuid4()).replace('-', '_')
@@ -282,11 +286,16 @@ def map_reduce(expr, mapper, reducer, group=None, sort=None,
 
     mapped = expr.apply(mapper, axis=1, names=mapper_output_names,
                         types=mapper_output_types)
-    group = conv(group) or mapper_output_names
+    group = conv(group, collection=mapped) or mapper_output_names
     sort = sort or tuple()
-    sort = list(OrderedDict.fromkeys(group + conv(sort)))
+    sort = list(OrderedDict.fromkeys(group + conv(sort, collection=mapped)))
 
-    clustered = mapped.groupby(group).sort(sort)
+    if len(sort) > len(group):
+        ascending = [ascending, ] * (len(sort) - len(group)) \
+            if isinstance(ascending, bool) else list(ascending)
+        ascending = [True] * len(group) + ascending
+
+    clustered = mapped.groupby(group).sort(sort, ascending=ascending)
 
     if isinstance(reducer, FunctionWrapper):
         reducer_output_names = reducer_output_names or reducer.output_names

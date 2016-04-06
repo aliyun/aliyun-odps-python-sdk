@@ -271,6 +271,7 @@ class ODPSEngine(Engine):
                 max_progress=1, lifecycle=None, head=None, tail=None, hints=None, **kw):
         close_bar = bar is None
         bar = bar or init_progress_bar()
+        lifecycle = lifecycle or options.temp_lifecycle
 
         if isinstance(expr, Scalar) and expr.value is not None:
             bar.update(start_progress+max_progress)

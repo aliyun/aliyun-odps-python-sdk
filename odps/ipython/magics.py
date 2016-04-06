@@ -140,19 +140,19 @@ class ODPSSql(Magics):
 
         splits = content.split(';')
         for s in splits:
-            s = s.strip()
-            if s.lower().startswith('set '):
-                hint = s.split(' ', 1)[1]
+            stripped = s.strip()
+            if stripped.lower().startswith('set '):
+                hint = stripped.split(' ', 1)[1]
                 k, v = hint.split('=', 1)
                 k, v = k.strip(), v.strip()
                 hints[k] = v
-            elif len(s) == 0:
+            elif len(stripped) == 0:
                 continue
             else:
                 if sql is None:
                     sql = s
                 else:
-                    raise ValueError('More than one SQL is not allowed')
+                    sql = '%s;%s' % (sql, s)
 
         # replace user defined parameters
         sql = replace_sql_parameters(sql, self.shell.user_ns)

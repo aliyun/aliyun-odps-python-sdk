@@ -22,6 +22,7 @@ from odps.tests.core import TestBase
 from odps.compat import unittest
 from odps.models import Schema
 from odps.df.expr.expressions import *
+from odps.df import output
 
 
 class Test(TestBase):
@@ -70,6 +71,33 @@ class Test(TestBase):
         self.assertEqual(distinct._schema, self.expr[['boolean', 'decimal']]._schema)
 
         self.assertRaises(ExpressionError, lambda: self.expr['boolean', self.expr.string.unique()])
+
+    def testMapReduce(self):
+        @output(['id', 'name', 'rating'], ['int', 'string', 'int'])
+        def mapper(row):
+            yield row.int64, row.string, row.int32
+
+        @output(['name', 'rating'], ['string', 'int'])
+        def reducer(_):
+            i = [0]
+            def h(row):
+                if i[0] <= 1:
+                    yield row.name, row.rating
+            return h
+
+        expr = self.expr.map_reduce(mapper, reducer, group='name',
+                                    sort='rating', ascending=False)
+        self.assertEqual(expr.schema.names, ['name', 'rating'])
+        self.assertEqual(len(expr._sort_fields), 2)
+        self.assertTrue(expr._sort_fields[0]._ascending)
+        self.assertFalse(expr._sort_fields[1]._ascending)
+
+        expr = self.expr.map_reduce(mapper, reducer, group=lambda x: x.name,
+                                    sort=lambda x: -x.rating)
+        self.assertEqual(expr.schema.names, ['name', 'rating'])
+        self.assertEqual(len(expr._sort_fields), 2)
+        self.assertTrue(expr._sort_fields[0]._ascending)
+        self.assertFalse(expr._sort_fields[1]._ascending)
 
 
 if __name__ == '__main__':
