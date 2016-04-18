@@ -100,9 +100,12 @@ class TableUploadSession(serializers.JSONSerializableModel):
     def new_record(self, values=None):
         return Record(self.schema.columns, values=values)
 
-    def open_record_writer(self, block_id, compress=False):
+    def open_record_writer(self, block_id=None, compress=False, buffer_size=None):
         """
-        BlockId是由用户选取的0~19999之间的数值，标识本次上传数据块
+        BlockId 是由用户选取的 0~19999 之间的数值，它标识的上传数据块
+        1.但用户指定一个 BlockId 时打开 RecordWriter 时，将对该数据块进行异步上传
+        2.如果不指定 BlockId,则会打开 BufferredWriter 对数据进行自动分块上传，它将自动管理 BlockId，
+        并对每个 block 进行同步上传
         """
         compress_option = self._compress_option or io.CompressOption()
 
@@ -121,42 +124,49 @@ class TableUploadSession(serializers.JSONSerializableModel):
                     io.CompressOption.CompressAlgorithm.ODPS_RAW:
                 raise TunnelError('invalid compression option')
         params['uploadid'] = self.id
-        params['blockid'] = block_id
         if self._partition_spec is not None and len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
-
         url = self._table.resource()
-        chunk_upload = lambda data: self._client.put(
-            url, data=data, params=params, headers=headers)
         option = compress_option if compress else None
-        writer = TableTunnelWriter(self.schema, chunk_upload, compress_option=option)
 
+        if block_id is None:
+            def upload_block(blockid, data):
+                params['blockid'] = blockid
+                self._client.put(url, data=data, params=params, headers=headers)
+            writer = BufferredRecordWriter(self.schema, upload_block, compress_option=option,
+                                           buffer_size=buffer_size)
+        else:
+            params['blockid'] = block_id
+
+            def upload(data):
+                self._client.put(url, data=data, params=params, headers=headers)
+            writer = RecordWriter(self.schema, upload, compress_option=option)
         return writer
-    
+
     def get_block_list(self):
         self.reload()
         return self.blocks
-    
+
     def commit(self, blocks):
         if blocks is None:
             raise ValueError('Invalid parameter: blocks.')
         if isinstance(blocks, six.integer_types):
             blocks = [blocks, ]
-        
+
         server_block_map = dict([(int(block_id), True) for block_id \
                                  in self.get_block_list()])
         client_block_map = dict([(int(block_id), True) for block_id in blocks])
-        
+
         if len(server_block_map) != len(client_block_map):
             raise TunnelError('Blocks not match, server: '+str(len(server_block_map))+
                               ', tunnelServerClient: '+str(len(client_block_map)))
-        
+
         for block_id in blocks:
             if block_id not in server_block_map:
                 raise TunnelError('Block not exists on server, block id is'+block_id)
-            
+
         self._complete_upload()
-    
+
     def _complete_upload(self):
         params = {'uploadid': self.id}
         if self._partition_spec is not None and len(self._partition_spec) > 0:
@@ -166,35 +176,15 @@ class TableUploadSession(serializers.JSONSerializableModel):
         self.parse(resp, obj=self)
 
 
-class TableTunnelWriter(object):
-    def __init__(self, schema, do_upload, compress_option=None,
-                 compress_algo=None, compres_level=None, compress_strategy=None,
-                 encoding='utf-8'):
-        self._compress_option = compress_option
-        if self._compress_option is None and compress_algo is not None:
-            self._compress_option = io.CompressOption(
-                compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
+class BaseRecordWriter(object):
+    def __init__(self, schema, encoding='utf-8'):
         self._encoding = encoding
-
         self._schema = schema
         self._columns = self._schema.columns
-        self._req_io = io.RequestsIO(do_upload)
-
-        self._writer = io.ProtobufWriter(self._req_io, compress_option=self._compress_option,
-                                         buffer_size=options.chunk_size, encoding=encoding)
-
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._curr_cursor = 0
-
-        self._upload_started = False
-
-    def _start_upload(self):
-        if self._upload_started:
-            return
-
-        self._req_io.start()
-        self._upload_started = True
+        self._writer = None
 
     def _write_bool(self, pb_index, data):
         self._crc.update_bool(data)
@@ -249,7 +239,6 @@ class TableTunnelWriter(object):
         self._write_array(pb_index, compat.lvalues(data), value_type)
 
     def write(self, record):
-        self._start_upload()
 
         n_record_fields = len(record)
         n_columns = len(self._columns)
@@ -309,7 +298,6 @@ class TableTunnelWriter(object):
         self._writer.write_uint32(ProtoWireConstants.TUNNEL_META_CHECKSUM,
                                   utils.long_to_uint(self._crccrc.getvalue()))
         self._writer.close()
-        self._req_io.finish()
         self._curr_cursor = 0
 
     @property
@@ -324,3 +312,109 @@ class TableTunnelWriter(object):
 
     def __exit__(self, *_):
         self.close()
+
+
+class RecordWriter(BaseRecordWriter):
+    def __init__(self, schema, request_callback, compress_option=None, encoding='utf-8'):
+        super(RecordWriter, self).__init__(schema, encoding)
+        self._req_io = io.RequestsIO(request_callback, chunk_size=options.chunk_size)
+        self._compressor = io.StreamCompressor(compress_option, lambda data: self._req_io.put(data))
+        self._writer = io.ProtobufWriter(self._compressor.compress, encoding=encoding)
+        self._upload_started = False
+
+    def _start_upload(self):
+        if self._upload_started:
+            return
+
+        self._req_io.start()
+        self._upload_started = True
+
+    def write(self, record):
+        self._start_upload()
+        if self._req_io.ASYNC_ERR:
+            raise IOError("writer abort since an async error occurs")
+        super(RecordWriter, self).write(record)
+
+    def close(self):
+        super(RecordWriter, self).close()
+        self._compressor.close()
+        self._req_io.finish()
+
+
+class BufferredRecordWriter(BaseRecordWriter):
+
+    BUFFER_SIZE = 10485760
+
+    def __init__(self, schema, request_callback, compress_option=None, encoding='utf-8', buffer_size=None):
+        super(BufferredRecordWriter, self).__init__(schema, encoding)
+        self._buffer_size = buffer_size or self.BUFFER_SIZE
+        self._request_callback = request_callback
+        self._block_id = 0
+        self._encoding = encoding
+        self._blocks_written = []
+        self._buffer = compat.BytesIO()
+        self._buffer_n_bytes = 0
+        self._n_bytes_written = 0
+        self._compress_option = compress_option
+
+        def to_buffer(data):
+            self._buffer.write(data)
+            self._buffer_n_bytes += len(data)
+
+        self._compressor = io.StreamCompressor(compress_option, to_buffer)
+        self._writer = io.ProtobufWriter(self._compressor.compress, encoding=self._encoding)
+
+    def write(self, record):
+        super(BufferredRecordWriter, self).write(record)
+        if self._buffer_n_bytes > self._buffer_size:
+            self._flush()
+
+    def close(self):
+        self._writer.flush()
+        if self._buffer_n_bytes > 0:
+            self._flush()
+        self._writer.close()
+        self._compressor.close()
+        self._buffer.close()
+
+    def _flush(self):
+        self._writer.write_long(ProtoWireConstants.TUNNEL_META_COUNT, self.count)
+        self._writer.write_uint32(ProtoWireConstants.TUNNEL_META_CHECKSUM,
+                                  utils.long_to_uint(self._crccrc.getvalue()))
+
+        self._n_bytes_written += self._writer.n_bytes
+        self._writer.close()
+        self._compressor.close()
+
+        def to_buffer(data):
+            self._buffer.write(data)
+            self._buffer_n_bytes += len(data)
+
+        self._compressor = io.StreamCompressor(self._compress_option, to_buffer)
+        self._writer = io.ProtobufWriter(to_buffer, encoding=self._encoding)
+
+        self._curr_cursor = 0
+        self._crccrc.reset()
+        self._crc.reset()
+
+        def gen():
+            data = self._buffer.getvalue()
+            while data:
+                to_send = data[:options.chunk_size]
+                data = data[options.chunk_size:]
+                yield to_send
+
+        self._request_callback(self._block_id, gen())
+        self._buffer = compat.BytesIO()
+        self._blocks_written.append(self._block_id)
+        self._block_id += 1
+
+    @property
+    def n_bytes(self):
+        return self._n_bytes_written + self._writer.n_bytes
+
+    def get_total_bytes(self):
+        return self.n_bytes
+
+    def get_blocks_written(self):
+        return self._blocks_written

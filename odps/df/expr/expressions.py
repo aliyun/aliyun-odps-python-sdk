@@ -74,6 +74,8 @@ class Expr(Node):
         if not options.interactive:
             return '<code>' + repr(self) + '</code>'
         else:
+            if self.__execution is None:
+                self.__execution = self._execute()
             if hasattr(self.__execution, '_repr_html_'):
                 return self.__execution._repr_html_()
             return repr(self.__execution)

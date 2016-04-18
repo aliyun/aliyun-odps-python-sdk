@@ -19,13 +19,15 @@
 
 import time
 import sys
+from contextlib import contextmanager
 
 from ....errors import ODPSError
 
-from ....utils import init_progress_bar, TEMP_TABLE_PREFIX
+from ....utils import init_progress_bar
 from ....models import Partition
 from ....tempobj import register_temp_table
 from ....types import PartitionSpec
+from ....tunnel.tabletunnel.downloadsession import TableDownloadSession
 from ...core import DataFrame
 from ...expr.reduction import *
 from ...expr.arithmetic import And, Equal
@@ -180,12 +182,24 @@ class ODPSEngine(Engine):
             else:
                 return False
 
+            return True
+
         if not extract(expr.predicate):
             return False
 
         if len(cols) == len(values):
             return list(zip(cols, values))
         return False
+
+    @contextmanager
+    def _open_reader(self, t, **kwargs):
+        with t.open_reader(**kwargs) as reader:
+            if reader.status == TableDownloadSession.Status.Normal:
+                yield reader
+                return
+
+        with t.open_reader(reopen=True, **kwargs) as reader:
+            yield reader
 
     def _handle_cases(self, expr, bar=None, start_progress=0, max_progress=1,
                       head=None, tail=None):
@@ -194,8 +208,7 @@ class ODPSEngine(Engine):
 
         if isinstance(expr, (ProjectCollectionExpr, Summary)) and \
                 len(expr.fields) == 1 and \
-                isinstance(expr.fields[0], Count) and \
-                self._is_source_table(expr.input):
+                isinstance(expr.fields[0], Count):
             expr = expr.fields[0]
 
         columns, partition, count = (None, ) * 3
@@ -215,7 +228,7 @@ class ODPSEngine(Engine):
         while True:
             ret = self._filter_on_partition(input)
             if ret:
-                partition = ','.join(['='.join(it) for it in ret])
+                partition = ','.join(['='.join(str(i) for i in it) for it in ret])
                 input = input.input
                 continue
 
@@ -234,7 +247,7 @@ class ODPSEngine(Engine):
 
         if isinstance(expr, Count):
             try:
-                with table.open_reader(reopen=True, partition=partition) as reader:
+                with self._open_reader(table, partition=partition) as reader:
                     bar.update(start_progress + max_progress)
                     return reader.count
             except ODPSError:
@@ -244,7 +257,7 @@ class ODPSEngine(Engine):
             if isinstance(expr, SliceCollectionExpr):
                 count = expr.stop
             try:
-                with table.open_reader(reopen=True, partition=partition) as reader:
+                with self._open_reader(table, partition=partition) as reader:
                     if tail is not None:
                         start = max(reader.count - tail, 0)
                     else:

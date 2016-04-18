@@ -105,10 +105,29 @@ class Test(TestBase):
             self.assertIsNone(res)
 
             expr = df[df.name == data[0][0]]['fid', 'id'].count()
+            expr = self.engine._pre_process(expr)
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertGreater(res, 0)
 
             expr = df[df.name == data[0][0]]['fid', 'id']
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertGreater(len(res), 0)
+        finally:
+            self.odps.delete_table(table_name, if_exists=True)
+
+        df = self.engine.persist(self.expr, table_name, partitions=['name', 'id'])
+
+        try:
+            expr = df.count()
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertIsNone(res)
+
+            expr = df[(df.name == data[0][0]) & (df.id == data[0][1])]['fid', 'ismale'].count()
+            expr = self.engine._pre_process(expr)
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertGreater(res, 0)
+
+            expr = df[(df.name == data[0][0]) & (df.id == data[0][1])]['fid', 'ismale']
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertGreater(len(res), 0)
         finally:
@@ -552,6 +571,17 @@ class Test(TestBase):
         result = self._get_result(res)
 
         self.assertEqual([it[1:] for it in expected], result)
+
+        expr = self.expr[self.expr['id'] > 2].name.value_counts()[:25]
+
+        expected = [
+            ['name1', 4]
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(expected, result)
 
     def testJoinGroupby(self):
         data = [

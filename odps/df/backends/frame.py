@@ -32,6 +32,7 @@ from ...compat import u
 from ...config import options
 from ...console import get_console_size, in_interactive_session, \
     in_ipython_frontend, in_qtconsole
+from ...utils import to_str
 from . import formatter as fmt
 
 
@@ -214,6 +215,9 @@ class ResultFrame(six.Iterator):
         return repr_width < width
 
     def __repr__(self):
+        return to_str(self.__unicode__())
+
+    def __unicode__(self):
         """
         Return a string representation for a particular DataFrame
 

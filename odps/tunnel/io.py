@@ -33,20 +33,31 @@ from odps import compat
 
 
 class BaseRequestsIO(object):
-    def __init__(self, post_call):
+    ASYNC_ERR = None
+    CHUNK_SIZE = 1024
+
+    def __init__(self, post_call, chunk_size=None):
         self._queue = None
         self._resp = None
+        self._chunk_size = chunk_size or self.CHUNK_SIZE
 
         def data_generator():
             while True:
                 data = self.get()
                 if data is not None:
-                    yield data
+                    while data:
+                        to_send = data[:self._chunk_size]
+                        data = data[self._chunk_size:]
+                        yield to_send
                 else:
                     break
 
         def async_func():
-            self._resp = post_call(data_generator())
+            try:
+                self._resp = post_call(data_generator())
+            except Exception as e:
+                self.ASYNC_ERR = e
+                raise e
 
         self._async_func = async_func
         self._wait_obj = None
@@ -68,8 +79,8 @@ class BaseRequestsIO(object):
 
 
 class ThreadRequestsIO(BaseRequestsIO):
-    def __init__(self, post_call):
-        super(ThreadRequestsIO, self).__init__(post_call)
+    def __init__(self, post_call, chunk_size=None):
+        super(ThreadRequestsIO, self).__init__(post_call, chunk_size)
         from ..compat import Queue
         self._queue = Queue()
         self._wait_obj = threading.Thread(target=self._async_func)
@@ -79,8 +90,8 @@ class ThreadRequestsIO(BaseRequestsIO):
 
 
 class GreenletRequestsIO(BaseRequestsIO):
-    def __init__(self, post_call):
-        super(GreenletRequestsIO, self).__init__(post_call)
+    def __init__(self, post_call, chunk_size=None):
+        super(GreenletRequestsIO, self).__init__(post_call, chunk_size)
         import gevent
         from gevent.queue import Queue
         self._queue = Queue()
@@ -118,73 +129,67 @@ class CompressOption(object):
         self.strategy = strategy or 0
 
 
-class ProtobufWriter(object):
+class StreamCompressor(object):
+    def __init__(self, compress_option, output_callback):
+        self._compressor = StreamCompressor._get_compressobj(compress_option)
+        self._output_callback = output_callback
 
-    BUFFER_SIZE = 4096
-
-    class ZlibBuffer(six.BytesIO):
-        def __init__(self, compressobj, *args, **kwargs):
-            self._compressobj = compressobj
-            six.BytesIO.__init__(self, *args, **kwargs)
-
-        def write(self, data):
-            if isinstance(data, bytearray):
-                data = six.binary_type(data)
-            six.BytesIO.write(self, self._compressobj.compress(data))
-
-        def flush(self):
-            six.BytesIO.write(self, self._compressobj.flush())
-
-    class SnappyBuffer(six.BytesIO):
-        def __init__(self, *args, **kwargs):
+    @classmethod
+    def _get_compressobj(cls, compress_option):
+        if compress_option is None or \
+                        compress_option.algorithm == CompressOption.CompressAlgorithm.ODPS_RAW:
+            return None
+        elif compress_option.algorithm == \
+                CompressOption.CompressAlgorithm.ODPS_ZLIB:
+            return zlib.compressobj(compress_option.level, zlib.DEFLATED, zlib.MAX_WBITS,
+                                    zlib.DEF_MEM_LEVEL, compress_option.strategy)
+        elif compress_option.algorithm == \
+                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
             try:
                 import snappy
             except ImportError:
                 raise errors.DependencyNotInstalledError(
                     "python-snappy library is required for snappy support")
-            self._compressobj = snappy.StreamCompressor()
-            six.BytesIO.__init__(self, *args, **kwargs)
-
-        def write(self, data):
-            if isinstance(data, bytearray):
-                data = six.binary_type(data)
-            content = self._compressobj.compress(data)
-            six.BytesIO.write(self, content)
-
-    def __init__(self, req_io, compress_option=None, buffer_size=None, encoding='utf-8'):
-        self._buffer = ProtobufWriter._get_buffer(compress_option)
-        self._req_io = req_io
-        self._compress_option = compress_option
-        self._buffer_size = buffer_size or self.BUFFER_SIZE
-        self._curr_cursor = 0
-        self._n_total = 0
-
-        self._encoding = encoding
-
-    @classmethod
-    def _get_buffer(cls, compress_option=None):
-        if compress_option is None or \
-                        compress_option == CompressOption.CompressAlgorithm.ODPS_RAW:
-            return compat.BytesIO()
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_ZLIB:
-            compress_obj = zlib.compressobj(
-                compress_option.level, zlib.DEFLATED,
-                zlib.MAX_WBITS, zlib.DEF_MEM_LEVEL,
-                compress_option.strategy)
-            return ProtobufWriter.ZlibBuffer(compress_obj)
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-            return ProtobufWriter.SnappyBuffer()
+            return snappy.StreamCompressor()
         else:
             raise IOError('Invalid compression option.')
 
+    def compress(self, data):
+        if self._compressor:
+            compressed_data = self._compressor.compress(data)
+            # compressor may buffer input
+            if compressed_data:
+                self._output_callback(compressed_data)
+        else:
+            # no compress at all
+            self._output_callback(data)
+
+    def close(self):
+        if self._compressor:
+            remaining = self._compressor.flush()
+            if remaining:
+                self._output_callback(remaining)
+
+
+class ProtobufWriter(object):
+
+    BUFFER_SIZE = 4096
+
+    def __init__(self, output_callback, buffer_size=None, encoding='utf-8'):
+        self._buffer = compat.BytesIO()
+        self._output_callback = output_callback
+        self._buffer_size = buffer_size or self.BUFFER_SIZE
+        self._curr_cursor = 0
+        self._n_total = 0
+        self._encoding = encoding
+
     def flush(self):
-        self._buffer.flush()
         if self._curr_cursor > 0:
-            self._req_io.put(self._buffer.getvalue())
-            self._buffer = ProtobufWriter._get_buffer(self._compress_option)
+            self._buffer.flush()
+            data = self._buffer.getvalue()
+            self._buffer = compat.BytesIO()
             self._curr_cursor = 0
+            self._output_callback(data)
 
     def close(self):
         self.flush()

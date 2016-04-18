@@ -46,6 +46,17 @@ class Test(TestBase):
         writer.close()
         upload_ss.commit([0, ])
 
+    def _bufferred_upload_data(self, test_table, records, buffer_size=None, compress=False, **kw):
+        upload_ss = self.tunnel.create_upload_session(test_table, **kw)
+        writer = upload_ss.open_record_writer(buffer_size=buffer_size, compress=compress)
+        for r in records:
+            record = upload_ss.new_record()
+            for i, it in enumerate(r):
+                record[i] = it
+            writer.write(record)
+        writer.close()
+        upload_ss.commit(writer.get_blocks_written())
+
     def _download_data(self, test_table, compress=False, columns=None, **kw):
         download_ss = self.tunnel.create_download_session(test_table, **kw)
         with download_ss.open_record_reader(0, 3, compress=compress, columns=columns) as reader:
@@ -93,6 +104,19 @@ class Test(TestBase):
         self.assertSequenceEqual(data, records)
 
         self._delete_table(test_table_name)
+
+    def testBufferredUploadAndDownloadByRawTunnel(self):
+        table, data = self._gen_table(size=10)
+        self._bufferred_upload_data(table, data)
+        records = self._download_data(table)
+        self._assert_reads_data_equal(records, data)
+        self._delete_table(table)
+
+        table, data = self._gen_table(size=10)
+        self._bufferred_upload_data(table, data, buffer_size=1024)
+        records = self._download_data(table)
+        self._assert_reads_data_equal(records, data)
+        self._delete_table(table)
 
     def testDownloadWithSpecifiedColumns(self):
         test_table_name = 'pyodps_test_raw_tunnel_columns'
@@ -156,6 +180,13 @@ class Test(TestBase):
         finally:
             options.chunk_size = raw_chunk_size
 
+    def testBufferredUploadAndDownloadByZlibTunnel(self):
+        table, data = self._gen_table(size=10)
+        self._bufferred_upload_data(table, data, compress=True)
+        records = self._download_data(table, compress=True)
+        self._assert_reads_data_equal(records, data)
+        self._delete_table(table)
+
     def testUploadAndDownloadBySnappyTunnel(self):
         test_table_name = 'pyodps_test_snappy_tunnel'
         self._create_table(test_table_name)
@@ -166,6 +197,13 @@ class Test(TestBase):
         self.assertSequenceEqual(data, records)
 
         self._delete_table(test_table_name)
+
+    def testBufferredUploadAndDownloadBySnappyTunnel(self):
+        table, data = self._gen_table(size=10)
+        self._bufferred_upload_data(table, data, compress=True, compress_algo='snappy')
+        records = self._download_data(table, compress=True, compress_algo='snappy')
+        self._assert_reads_data_equal(records, data)
+        self._delete_table(table)
 
     def _gen_random_bigint(self):
         return random.randint(*types.bigint._bounds)
@@ -260,6 +298,17 @@ class Test(TestBase):
             data.append(record)
 
         return table, data
+
+    def _assert_reads_data_equal(self, reads, data):
+        for val1, val2 in zip(data, reads):
+            for it1, it2 in zip(val1, val2):
+                if isinstance(it1, dict):
+                    self.assertEqual(len(it1), len(it2))
+                    self.assertTrue(any(it1[k] == it2[k] for k in it1))
+                elif isinstance(it1, list):
+                    self.assertSequenceEqual(it1, it2)
+                else:
+                    self.assertEqual(it1, it2)
 
     def testTableUploadAndDownloadTunnel(self):
         table, data = self._gen_table()

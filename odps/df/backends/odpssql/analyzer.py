@@ -333,6 +333,7 @@ class Analyzer(Backend):
         if sort:
             to_sub = to_sub.sort('count', ascending=False)
         self._sub(expr, to_sub, parents)
+        self._iters.append(to_sub)
 
     def visit_binary_op(self, expr):
         if not options.df.analyze:

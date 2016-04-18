@@ -149,8 +149,11 @@ class Optimizer(Backend):
             if not isinstance(node, CollectionExpr):
                 continue
 
+            # We do not handle collection with Scalar column here
+            # TODO think way to compact in this situation
             if isinstance(node, ProjectCollectionExpr) and \
-                    not node.optimize_banned:
+                    not node.optimize_banned and \
+                    not any(isinstance(n, Scalar) for n in node._fields):
                 valid = True
                 for it in itertools.chain(*(node.all_path(to_compact[-1]))):
                     if isinstance(it, SequenceReduction):
@@ -222,5 +225,6 @@ class Optimizer(Backend):
             return collection.fields
 
     def _get_field(self, collection, name):
+        # FIXME: consider name with upper letters
         idx = collection.schema._name_indexes[name.lower()]
         return self._get_fields(collection)[idx]

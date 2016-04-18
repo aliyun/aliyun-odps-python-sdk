@@ -99,6 +99,24 @@ class Test(TestBase):
         self.assertTrue(expr._sort_fields[0]._ascending)
         self.assertFalse(expr._sort_fields[1]._ascending)
 
+        expr = self.expr.map_reduce(mapper, reducer, group='name',
+                                    sort=['rating', 'id'], ascending=[False, True])
+
+        self.assertEqual(expr.schema.names, ['name', 'rating'])
+        self.assertEqual(len(expr._sort_fields), 3)
+        self.assertTrue(expr._sort_fields[0]._ascending)
+        self.assertFalse(expr._sort_fields[1]._ascending)
+        self.assertTrue(expr._sort_fields[2]._ascending)
+
+        expr = self.expr.map_reduce(mapper, reducer, group='name',
+                                    sort=['rating', 'id'], ascending=False)
+
+        self.assertEqual(expr.schema.names, ['name', 'rating'])
+        self.assertEqual(len(expr._sort_fields), 3)
+        self.assertTrue(expr._sort_fields[0]._ascending)
+        self.assertFalse(expr._sort_fields[1]._ascending)
+        self.assertFalse(expr._sort_fields[2]._ascending)
+
 
 if __name__ == '__main__':
     unittest.main()

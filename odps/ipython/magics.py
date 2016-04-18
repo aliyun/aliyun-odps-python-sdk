@@ -194,7 +194,10 @@ class ODPSSql(Magics):
                         except (ValueError, CParserError):
                             return reader.raw
                     except ImportError:
-                        return ResultFrame(list(reader), columns=reader._columns)
+                        try:
+                            return ResultFrame(list(reader), columns=reader._columns)
+                        except TypeError:
+                            return reader.raw
             finally:
                 bar.close()
 

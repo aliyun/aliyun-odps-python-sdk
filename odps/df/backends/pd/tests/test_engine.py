@@ -663,6 +663,17 @@ class Test(TestBase):
 
         self.assertEqual([it[1:] for it in expected], result)
 
+        expr = self.expr[self.expr['id'] > 2].name.value_counts()[:25]
+
+        expected = [
+            ['name1', 4]
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(expected, result)
+
     def testJoinGroupby(self):
         data = [
             ['name1', 4, 5.3, None, None, None],

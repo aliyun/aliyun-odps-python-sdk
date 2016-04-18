@@ -161,6 +161,14 @@ class Test(TestBase):
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
+        expr = self.expr[self.expr, Scalar(3).rename('const')].exclude('isMale')
+        expected = 'SELECT t5.`name`, t5.`id`, t5.`fid`, t5.`scale`, t5.`birth`, t5.`const` \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, t1.`scale`, t1.`birth`, 3 AS const \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   ') t5'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
     def testElementCompilation(self):
         expect = 'SELECT t1.`id` IS NULL AS id \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
