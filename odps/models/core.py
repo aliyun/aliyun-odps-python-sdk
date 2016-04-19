@@ -26,6 +26,7 @@ import six
 
 from .. import serializers
 from .cache import cache, del_cache
+from ..config import options
 
 
 class XMLRemoteModel(serializers.XMLSerializableModel):
@@ -87,6 +88,14 @@ class RestModel(XMLRemoteModel):
         if name is None:
             return parent_res
         return '/'.join([parent_res, self._encode(name)])
+
+    @classmethod
+    def _to_stdout(cls, msg):
+        print(msg)
+
+    def log(self, msg):
+        if options.verbose:
+            (options.verbose_log or self._to_stdout)(msg)
 
     def __eq__(self, other):
         if other is None:

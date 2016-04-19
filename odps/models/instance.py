@@ -28,7 +28,8 @@ from enum import Enum
 
 from .core import LazyLoad, XMLRemoteModel
 from .job import Job
-from .. import serializers, utils, errors, compat, readers
+from .. import serializers, utils, errors, compat, readers, options
+from ..compat import ElementTree
 
 
 class Instance(LazyLoad):
@@ -378,6 +379,44 @@ class Instance(LazyLoad):
 
         resp = self._client.get(self.resource(), params=params)
         return Instance.Task.TaskProgress.parse(self._client, resp)
+
+    def get_logview_address(self, hours=None):
+        """
+        Get logview address of the instance object by hours.
+
+        :param hours:
+        :return: logview address
+        :rtype: str
+        """
+        hours = hours or options.log_view_hours
+
+        project = self.project
+        url = '%s/authorization' % project.resource()
+
+        policy = {
+            'expires_in_hours': hours,
+            'policy': {
+                'Statement': [{
+                    'Action': ['odps:Read'],
+                    'Effect': 'Allow',
+                    'Resource': 'acs:odps:*:projects/%s/instances/%s' % \
+                                (project.name, self.id)
+                }],
+                'Version': '1',
+            }
+        }
+        headers = {'Content-Type': 'application/json'}
+        params = {'sign_bearer_token': ''}
+        data = json.dumps(policy)
+        res = self._client.post(url, data, headers=headers, params=params)
+
+        content = res.text if six.PY3 else res.content
+        root = ElementTree.fromstring(content)
+        token = root.find('Result').text
+
+        link = options.log_view_host + "/logview/?h=" + self._client.endpoint + "&p=" \
+               + project.name + "&i=" + self.id + "&token=" + token
+        return link
 
     def __str__(self):
         return self.id

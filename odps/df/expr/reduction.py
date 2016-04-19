@@ -91,6 +91,9 @@ class GroupedSequenceReduction(SequenceExpr):
 
     @property
     def args(self):
+        if getattr(self, '_cached_args', None) and len(self._cached_args) == 1:
+            return self._cached_args[0],
+
         input = self.raw_input
         if isinstance(input, SequenceGroupBy):
             if self._column:
@@ -98,6 +101,7 @@ class GroupedSequenceReduction(SequenceExpr):
 
             grouped = input._input
             self._column = grouped._input[self.source_name]
+            self._column._add_parent(self)
             return self._column,
         elif isinstance(input, GroupBy):
             return input.input,

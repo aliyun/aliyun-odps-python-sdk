@@ -20,7 +20,6 @@ import json
 import os
 import time
 import codecs
-import warnings
 from six import iterkeys, itervalues
 from six.moves.urllib.parse import quote
 
@@ -95,8 +94,6 @@ else:
                         outf.write(minified)
         except ImportError:
             pass
-        finally:
-            warnings.filterwarnings('default')
 
     # load static resources, .min.* come first.
     def load_static_resources(ext):

@@ -216,7 +216,7 @@ regression. So the application of GBDT is very wide.
 %outputs%
 
 Example:
-    >>> labeled = ds.set_label_field('class')
+    >>> labeled = ds.label_field('class')
     >>> model = GBDT(tree_count=500).train(labeled)
     >>> predicted = model.predict(dataset_to_be_predicted)
     >>> predicted.store_odps('predicted')

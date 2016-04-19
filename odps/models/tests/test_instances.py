@@ -231,7 +231,7 @@ class Test(TestBase):
         table.drop()
 
     def testInstanceLogview(self):
-        instance = next(self.odps.list_instances())
+        instance = self.odps.run_sql('drop table if exists non_exist_table_name')
         self.assertIsInstance(self.odps.get_logview_address(instance.id, 12), six.string_types)
 
 

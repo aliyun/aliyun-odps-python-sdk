@@ -94,7 +94,7 @@ def create_instance_group(name):
     return key
 
 
-def reload_instance_status(odps, group_id, instance_id, logview_hours=24):
+def reload_instance_status(odps, group_id, instance_id):
     if group_id not in PROGRESS_REPO:
         raise KeyError('Instance group ID not exist.')
     group_json = PROGRESS_REPO[group_id]
@@ -112,7 +112,7 @@ def reload_instance_status(odps, group_id, instance_id, logview_hours=24):
 
     sub_inst = odps.get_instance(instance_id)
     inst_json.status = sub_inst.status
-    inst_json.logview = odps.get_logview_address(sub_inst.id, logview_hours)
+    inst_json.logview = sub_inst.get_logview_address()
 
     if old_status != Instance.Status.TERMINATED:
         for task_name, task in iteritems(sub_inst.get_task_statuses()):

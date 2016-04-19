@@ -1023,44 +1023,19 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.offline_models.delete(name)
 
-    def get_logview_address(self, instanceid, hours, project=None):
+    def get_logview_address(self, instance_id, hours=None, project=None):
         """
         Get logview address by given instance id and hours.
 
-        :param instanceid: instance id
+        :param instance_id: instance id
         :param hours:
         :param project: project name, if not provided, will be the default project
         :return: logview address
         :rtype: str
         """
-
-        project = self.get_project(name=project)
-        url = '%s/authorization' % project.resource()
-
-        policy = {
-            'expires_in_hours': hours,
-            'policy': {
-                'Statement': [{
-                    'Action': ['odps:Read'],
-                    'Effect': 'Allow',
-                    'Resource': 'acs:odps:*:projects/%s/instances/%s' % \
-                       (self.project, instanceid)
-                }],
-                'Version': '1',
-            }
-        }
-        headers = {'Content-Type': 'application/json'}
-        params = {'sign_bearer_token': ''}
-        data = json.dumps(policy)
-        res = self.rest.post(url, data, headers=headers, params=params)
-
-        content = res.text if six.PY3 else res.content
-        root = ElementTree.fromstring(content)
-        token = root.find('Result').text
-
-        link = LOG_VIEW_HOST_DEFAULT + "/logview/?h=" + self.endpoint + "&p=" \
-               + self.project + "&i=" + instanceid + "&token=" + token
-        return link
+        hours = hours or options.log_view_hours
+        inst = self.get_instance(instance_id, project=project)
+        return inst.get_logview_address(hours=hours)
 
     @classmethod
     def _build_account(cls, access_id, secret_access_key):
@@ -1076,3 +1051,5 @@ try:
     from odps.internal.core import *
 except ImportError:
     pass
+
+options.log_view_host = LOG_VIEW_HOST_DEFAULT

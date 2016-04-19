@@ -27,7 +27,7 @@ import os
 import math
 import locale
 import codecs
-
+import warnings
 
 try:
     import fcntl
@@ -92,6 +92,13 @@ else:
     except ImportError:
         widgets = None
     from IPython.display import display
+
+    # ignore widgets deprecated message
+    def _ignore_deprecated_warnings():
+        warnings.filterwarnings('ignore', category=DeprecationWarning, module=r'.*widget.*')
+
+    if get_ipython and get_ipython():
+        get_ipython().events.register('pre_execute', _ignore_deprecated_warnings)
 
 
 import six

@@ -75,8 +75,8 @@ class ODPSEngine(Engine):
         self._ctx.create_udfs()
         instance = self._odps.run_sql(sql, hints=hints)
 
-        self._log('logview:')
-        self._log(self._odps.get_logview_address(instance.id, 24))
+        self._log('Instance ID: ' + instance.id)
+        self._log('  Log view: ' + instance.get_logview_address())
 
         if async:
             return instance

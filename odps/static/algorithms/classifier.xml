@@ -15,7 +15,7 @@ Note that different to other algorithms, KNN use ``transform`` to predict and do
 %outputs%
 
 Example:
-    >>> labeled = ds.set_label_field('class')
+    >>> labeled = ds.label_field('class')
     >>> predicted = KNN(k=5).transform(labeled, to_be_predict)
     >>> predicted.store_odps('predicted')
         ]]>
@@ -228,7 +228,7 @@ individual tree output categories.
 %outputs%
 
 Example:
-    >>> labeled = ds.set_label_field('class')
+    >>> labeled = ds.label_field('class')
     >>> model = RandomForests(tree_num=10).train(labeled)
     >>> predicted = model.predict(dataset_to_be_predicted)
     >>> predicted.store_odps('predicted')
@@ -370,7 +370,7 @@ in PAI extends it using one-vs-rest strategy. It also use L-BFGS to improve perf
 %outputs%
 
 Example:
-    >>> labeled = ds.set_label_field('class')
+    >>> labeled = ds.label_field('class')
     >>> model = LogisticRegression(max_iter=100).train(labeled)
     >>> predicted = model.predict(dataset_to_be_predicted)
     >>> predicted.store_odps('predicted')
@@ -483,7 +483,7 @@ structural risk principle. This version only supports linear binary classificati
 %outputs%
 
 Example:
-    >>> labeled = ds.set_label_field('class')
+    >>> labeled = ds.label_field('class')
     >>> model = LinearSVM(epsilon=0.001).train(labeled)
     >>> predicted = model.predict(dataset_to_be_predicted)
     >>> predicted.store_odps('predicted')
@@ -573,7 +573,7 @@ a negative example.
 %outputs%
 
 Example:
-    >>> labeled = ds.set_label_field('class')
+    >>> labeled = ds.label_field('class')
     >>> model = GBDTLR(tree_count=500).train(labeled)
     >>> predicted = model.predict(dataset_to_be_predicted)
     >>> predicted.store_odps('predicted')
@@ -707,7 +707,7 @@ Naive Bayes classifiers are a family of simple probabilistic classifiers based o
 %outputs%
 
 Example:
-    >>> labeled = ds.set_label_field('class')
+    >>> labeled = ds.label_field('class')
     >>> model = NaiveBayes().train(labeled)
     >>> predicted = model.predict(dataset_to_be_predicted)
     >>> predicted.store_odps('predicted')

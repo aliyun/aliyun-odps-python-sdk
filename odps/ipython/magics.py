@@ -163,8 +163,8 @@ class ODPSSql(Magics):
             instance = self._odps.run_sql(sql, hints=hints)
             if options.verbose:
                 stdout = options.verbose_log or self._to_stdout
-                stdout('logview:')
-                stdout(self._odps.get_logview_address(instance.id, 24))
+                stdout('Instance ID: ' + instance.id)
+                stdout('  Log view: ' + instance.get_logview_address())
 
             percent = 0
             while not instance.is_terminated():

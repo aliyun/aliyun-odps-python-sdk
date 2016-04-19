@@ -60,7 +60,7 @@ PAI SDK 中的算法有两种可能的调用方式。以大写字母开头的算
 
 .. code-block:: python
 
-    labeled = ds.set_label_field('label')
+    labeled = ds.label_field('label')
     algo = LogisticRegression(epsilon=0.01)
     model = algo.train(labeled)
 
@@ -91,7 +91,7 @@ PAI SDK 中的算法有两种可能的调用方式。以大写字母开头的算
 
 .. code-block:: python
 
-    labeled = ds.set_label_field('class')
+    labeled = ds.label_field('class')
     predicted = KNN(k=5).transform(labeled, to_be_predict)
     predicted.store_odps('predicted')
 

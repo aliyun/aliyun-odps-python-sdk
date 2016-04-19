@@ -82,6 +82,9 @@ class Optimizer(Backend):
             [p.substitute(expr, to_sub) for p in parents]
 
     def visit_filter_collection(self, expr):
+        if not options.df.optimize:
+            return
+
         if isinstance(expr.input, GroupByCollectionExpr):
             predicate = self._broadcast_field(expr.predicate, expr.input)
 

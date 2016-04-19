@@ -17,6 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import absolute_import
+
 import bisect
 import codecs
 import copy
@@ -31,6 +33,8 @@ import struct
 import sys
 import time
 import traceback
+import types
+import warnings
 import xml.dom.minidom
 from hashlib import sha1, md5
 from base64 import b64encode
@@ -42,6 +46,27 @@ import six
 from . import compat
 
 TEMP_TABLE_PREFIX = 'tmp_pyodps_'
+
+
+def deprecated(msg):
+    def _decorator(func):
+        """This is a decorator which can be used to mark functions
+        as deprecated. It will result in a warning being emmitted
+        when the function is used."""
+        def _new_func(*args, **kwargs):
+            warn_msg = "Call to deprecated function %s." % func.__name__
+            if isinstance(msg, six.string_types):
+                warn_msg += ' ' + msg
+            warnings.warn(msg, category=DeprecationWarning)
+            return func(*args, **kwargs)
+        _new_func.__name__ = func.__name__
+        _new_func.__doc__ = func.__doc__
+        _new_func.__dict__.update(func.__dict__)
+        return _new_func
+
+    if isinstance(msg, (types.FunctionType, types.MethodType)):
+        return _decorator(msg)
+    return _decorator
 
 
 def fixed_writexml(self, writer, indent="", addindent="", newl=""):

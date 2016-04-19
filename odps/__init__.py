@@ -17,7 +17,7 @@
 
 import sys
 
-__version__ = '0.4.4'
+__version__ = '0.4.5'
 __all__ = ['ODPS',]
 
 version = sys.version_info
@@ -27,8 +27,8 @@ if version[0] == 2 and version[:2] < (2, 6):
 import pkg_resources
 pkg_resources.declare_namespace(__name__)
 
-from .core import ODPS
 from .config import options
+from .core import ODPS
 try:
     from .ipython.magics import *
 except ImportError:

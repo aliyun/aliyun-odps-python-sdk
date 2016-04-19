@@ -59,7 +59,7 @@ DataSet 也可以通过其他 DataSet 通过变换得到。变换的过程可以
 ================ ==========================================================================================
 方法类型          方法名
 ================ ==========================================================================================
-字段作用设置       select_features, exclude_fields, set_label_field, set_weight_field, set_xxxx_fields
+字段作用设置       select_features, exclude_fields, label_field, weight_field, xxxx_fields
 字段连续性设置     set_continuous, set_discrete
 字段稀疏性设置     set_key_value, erase_key_value
 数据变换           append_id, sample, split, sql_transform
@@ -151,15 +151,15 @@ REC_PAYLOAD          推荐       否             商品计数字段
 
 需要注意的是，在 DataSet 上标注这些内容并不意味着算法一定支持这些标签，需要参考算法文档是否有相关字段选择参数再作判断。
 
-PAI SDK 默认一个 DataSet 上的所有字段均为特征字段。set_xxx_fields 方法可以将某个字段设为其他作用，而 exclude_fields 会
-将字段排除出特征。大多数 set_xxx_fields 方法会在设置字段作用的同时将该字段排除出特征字段，但这并不是肯定的，如上表所示。
+PAI SDK 默认一个 DataSet 上的所有字段均为特征字段。xxx_field 方法可以将某个字段设为其他作用，而 exclude_fields 会
+将字段排除出特征。大多数 xxx_field 方法会在设置字段作用的同时将该字段排除出特征字段，但这并不是肯定的，如上表所示。
 
 设置字段作用的例子如下：
 
 .. code-block:: python
 
     dataset = pai_context.odps_data('iris')
-    labeled = dataset.set_label_field('category')
+    labeled = dataset.label_field('category')
 
 此外，为了简便标签的设置，也可以在使用 odps_data 方法从表创建 DataSet 时进行设置，例子如下：
 

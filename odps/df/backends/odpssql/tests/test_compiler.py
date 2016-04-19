@@ -1326,5 +1326,22 @@ class Test(TestBase):
         except AssertionError:
             self.assertEqual(to_str(expected)[:-1], to_str(self.engine.compile(e1.concat(e2), False)[:-1]))
 
+    def testAliases(self):
+        df = self.expr
+        df = df[(df.id == 1) | (df.id == 2)].exclude(['fid'])
+        df = df.groupby(df['id']).agg(df.name.count().rename('count')).sort('id', ascending=False)
+        df = df[df, Scalar('1').rename('part')]
+
+        expected = "SELECT t2.`id`, t2.`count`, '1' AS part \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`id`, COUNT(t1.`name`) AS count \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "  WHERE (t1.`id` == 1) OR (t1.`id` == 2) \n" \
+                   "  GROUP BY t1.`id` \n" \
+                   "  ORDER BY id DESC \n" \
+                   "  LIMIT 10000\n" \
+                   ") t2"
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(df, prettify=False)))
+
 if __name__ == '__main__':
     unittest.main()

@@ -99,7 +99,7 @@ class Tables(Iterable):
 
         for i, arr in enumerate([table_schema.get_columns(),
                                  table_schema.get_partitions()]):
-            if i == 1 and arr is None:
+            if i == 1 and not arr:
                 continue
             if i == 1:
                 buf.write(' PARTITIONED BY ')

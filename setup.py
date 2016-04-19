@@ -47,7 +47,7 @@ if PY26:
 pai_requirements = []
 if os.path.exists('odps/internal'):
     if sys.platform == 'win32':
-        warnings.warn('You need JPype to run XLib tasks. Installation should be done manually.')
+        warnings.warn('You should manually install JPype if you need to run XLib tasks.')
     else:
         pai_requirements.append('jpype1>=0.6')
 
@@ -57,7 +57,7 @@ if os.path.exists('README.rst'):
         long_description = f.read()
 
 setup(name='pyodps',
-      version='0.4.4',
+      version='0.4.5',
       description='ODPS Python SDK',
       long_description=long_description,
       author='Wu Wei',
