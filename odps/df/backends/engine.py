@@ -227,6 +227,8 @@ class MixedEngine(Engine):
             if engines[0] == Engines.ODPS:
                 if isinstance(node, (CollectionExpr, SequenceExpr)):
                     tmp_table_name = sub._source_data.name
+                    if 'lifecycle' not in kwargs:
+                        kwargs['lifecycle'] = options.temp_lifecycle
                     executor.persist(node, tmp_table_name, **kwargs)
                 else:
                     val = executor.execute(node, **kwargs)

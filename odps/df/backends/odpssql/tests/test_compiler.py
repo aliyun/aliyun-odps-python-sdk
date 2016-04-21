@@ -137,7 +137,7 @@ class Test(TestBase):
                    "FROM (\n" \
                    "  SELECT REGEXP_EXTRACT(t1.`name`, '/projects/(.*?)/', 1) AS project \n" \
                    "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
-                   ") t1 \n" \
+                   ") t4 \n" \
                    "GROUP BY t4.`project`"
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 

@@ -36,7 +36,7 @@
     # 归一化及拆分
     train, test = normalize(dataset).split(0.6)
     # 使用训练集训练模型
-    model = LogisticRegression(epsilon=0.01).train(train)
+    model = RandomForests(tree_num=10).train(train)
     # 载入森林中的第一棵决策树
     model.load_segments()[0]
 

@@ -22,7 +22,7 @@ import itertools
 from .core import Backend
 from ..expr.expressions import *
 from ..expr.groupby import GroupByCollectionExpr, GroupbyAppliedCollectionExpr
-from ..expr.reduction import SequenceReduction
+from ..expr.reduction import SequenceReduction, GroupedSequenceReduction
 from ..expr.collections import DistinctCollectionExpr, RowAppliedCollectionExpr
 from ..expr.utils import get_attrs
 from ..expr.merge import JoinCollectionExpr
@@ -120,6 +120,11 @@ class Optimizer(Backend):
         while isinstance(input, ProjectCollectionExpr):
             input = input._input
         if isinstance(input, JoinCollectionExpr):
+            return
+
+        if len(expr._aggregations) == 1 and \
+                isinstance(expr._aggregations[0], GroupedSequenceReduction) and \
+                isinstance(expr._aggregations[0].input, CollectionExpr):
             return
 
         self._visit_need_compact_collection(expr)
