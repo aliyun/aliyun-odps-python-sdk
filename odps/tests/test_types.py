@@ -34,5 +34,18 @@ class Test(TestBase):
         r = Record(schema=s, values=[None]*8)
         self.assertSequenceEqual(r.values, [None]*8)
 
+    def testRecordSetField(self):
+        s = Schema.from_lists(['col1'], ['string',])
+        r = Record(schema=s)
+        r.col1 = 'a'
+        self.assertEqual(r.col1, 'a')
+
+        r['col1'] = 'b'
+        self.assertEqual(r['col1'], 'b')
+
+        r[0] = 'c'
+        self.assertEqual(r[0], 'c')
+        self.assertEqual(r['col1'], 'c')
+
 if __name__ == '__main__':
     unittest.main()

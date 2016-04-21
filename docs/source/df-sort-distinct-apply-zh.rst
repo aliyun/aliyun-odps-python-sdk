@@ -817,6 +817,8 @@ PyOdps DataFrame也支持MapReduce API，用户可以分别编写map和reduce函
     </div>
 
 
+group参数用来指定reduce按哪些字段做分组，如果不指定，会按全部字段做分组。
+
 其中对于reducer来说，会稍微有些不同。它需要接收聚合的keys初始化，并能继续处理按这些keys聚合的每行数据。
 第2个参数表示这些keys相关的所有行是不是都迭代完成。
 

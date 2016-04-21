@@ -400,7 +400,8 @@ class Record(object):
     def __setitem__(self, key, value):
         if isinstance(key, six.string_types):
             setattr(self, key, value)
-        self._set(key, value)
+        else:
+            self._set(key, value)
 
     def __getattr__(self, item):
         if item == '_name_indexes':
@@ -414,7 +415,8 @@ class Record(object):
         if hasattr(self, '_name_indexes') and key in self._name_indexes:
             i = self._name_indexes[key]
             self._set(i, value)
-        object.__setattr__(self, key, value)
+        else:
+            object.__setattr__(self, key, value)
 
     def get_by_name(self, name):
         return getattr(self, name)

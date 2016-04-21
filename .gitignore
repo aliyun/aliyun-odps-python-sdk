@@ -30,8 +30,10 @@ xlibsyslog
 
 # Unit test / coverage reports
 .coverage
+htmlcov
 .tox
 nosetests.xml
+.cache
 
 # intellij
 .idea
