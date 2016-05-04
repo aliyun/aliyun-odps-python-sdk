@@ -348,7 +348,7 @@ class Test(TestBase):
             for it1, it2 in zip(first, second):
                 if np.isnan(it1) and np.isnan(it2):
                     continue
-                self.assertAlmostEqual(it1, it2)
+                self.assertAlmostEqual(it1, it2, delta=2)
 
     def testString(self):
         data = self._gen_data(5)

@@ -19,6 +19,8 @@
 
 from __future__ import print_function
 
+import six
+
 from odps.tests.core import TestBase
 
 FILE_CONTENT = '''This is a pyodps test file!
@@ -61,7 +63,10 @@ class Test(TestBase):
         assert partition.name == TEST_PARTITION_NAME
 
         with partition.open_reader(TEST_FILE_NAME) as reader:
-            assert reader.read() == TEST_FILE_CONTENT
+            out_content = reader.read()
+            if not six.PY2:
+                out_content = out_content.decode('utf-8')
+            assert out_content == TEST_FILE_CONTENT
 
         assert vol.exist_partition(TEST_PARTITION_NAME)
         assert not vol.exist_partition('non_existing_partition')

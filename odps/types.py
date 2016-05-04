@@ -674,7 +674,7 @@ class Decimal(OdpsPrimitive):
         if val is None and self.nullable:
             return True
 
-        to_scale = _decimal.Decimal(str(10 * -self._max_scale))
+        to_scale = _decimal.Decimal(str(10 ** -self._max_scale))
         scaled_val = val.quantize(to_scale, _decimal.ROUND_HALF_UP)
         int_len = len(str(scaled_val)) - self._max_scale - 1
         if int_len > self._max_int_len:

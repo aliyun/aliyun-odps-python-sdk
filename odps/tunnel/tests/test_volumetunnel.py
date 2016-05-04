@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from odps.compat import lrange
+from odps.compat import irange
 from odps.tests.core import TestBase
 from odps.tunnel import CompressOption
 
@@ -34,6 +34,8 @@ class Test(TestBase):
         super(Test, self).setUp()
         if not self.odps.exist_volume(TEST_VOLUME_NAME):
             self.odps.create_volume(TEST_VOLUME_NAME)
+        from odps.tunnel import io
+        io.reload_default_io()
 
     def tearDown(self):
         self.odps.delete_volume(TEST_VOLUME_NAME)
@@ -55,7 +57,7 @@ class Test(TestBase):
         from odps.tunnel import io
         io.RequestsIO = io.GreenletRequestsIO
 
-        block = bytes(bytearray([iid % TEST_MODULUS for iid in lrange(TEST_BLOCK_SIZE)]))
+        block = bytes(bytearray([iid % TEST_MODULUS for iid in irange(TEST_BLOCK_SIZE)]))
 
         partition = self.odps.get_volume_partition(TEST_VOLUME_NAME, TEST_PARTITION_NAME)
         with partition.open_writer() as writer:
@@ -68,7 +70,7 @@ class Test(TestBase):
         from odps.tunnel import io
         io.RequestsIO = io.ThreadRequestsIO
 
-        block = bytes(bytearray([iid % TEST_MODULUS for iid in lrange(TEST_BLOCK_SIZE)]))
+        block = bytes(bytearray([iid % TEST_MODULUS for iid in irange(TEST_BLOCK_SIZE)]))
 
         partition = self.odps.get_volume_partition(TEST_VOLUME_NAME, TEST_PARTITION_NAME)
         with partition.open_writer() as writer:
@@ -78,7 +80,7 @@ class Test(TestBase):
             assert reader.read() == block
 
     def testZLibUploadDownload(self):
-        block = bytes(bytearray([iid % TEST_MODULUS for iid in lrange(TEST_BLOCK_SIZE)]))
+        block = bytes(bytearray([iid % TEST_MODULUS for iid in irange(TEST_BLOCK_SIZE)]))
 
         comp_option = CompressOption(level=9)
 

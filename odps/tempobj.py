@@ -17,6 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import copy
 import os
 import platform
 import sys
@@ -29,14 +30,29 @@ import uuid
 import hashlib
 import threading
 import traceback
-from multiprocessing.pool import ThreadPool
 
-from six import iteritems, string_types, itervalues
+import six
 
-from .compat import pickle
+from .compat import PY26, pickle
 from .config import options
 from .errors import NoSuchObject
 from .utils import is_main_process, build_pyodps_dir
+
+if PY26:
+    # Compatible ThreadPool to avoid Issue 10015 of Python 2.6
+    import threadpool
+
+    class ThreadPool(threadpool.ThreadPool):
+        def map(self, func, iterable):
+            [self.putRequest(threadpool.WorkRequest(func, (v, ))) for v in iterable]
+
+        def close(self):
+            pass
+
+        def join(self):
+            self.wait()
+else:
+    from multiprocessing.pool import ThreadPool
 
 TEMP_ROOT = build_pyodps_dir('tempobjs')
 SESSION_KEY = '%d_%s' % (int(time.time()), uuid.uuid4())
@@ -65,17 +81,16 @@ biz_ids = json.loads(r\"\"\"
 sys.path.extend(import_paths)
 from odps import ODPS, tempobj
 
-try:
-    import pydevd
+if os.environ.get('WAIT_CLEANUP') == '1':
     tempobj.cleanup_timeout = None
-except:
+else:
     tempobj.cleanup_timeout = 5
 tempobj.cleanup_mode = True
 tempobj.host_pid = {host_pid}
 tempobj.biz_ids = set(biz_ids)
 
 for o_desc in temp_codes:
-    ODPS(**o_desc)
+    ODPS(**tempobj.compat_kwargs(o_desc))
 os._exit(0)
 """
 
@@ -91,26 +106,40 @@ class ExecutionEnv(object):
         global biz_ids
 
         self.os = os
-        self.sys = sys
+        self.executable = sys.executable
         self.biz_ids = biz_ids
         self.json = json
-        self.import_paths = sys.path
+
+        self.import_paths = copy.deepcopy(sys.path)
+        package_root = os.path.dirname(__file__)
+        if package_root not in self.import_paths:
+            self.import_paths.append(package_root)
+
+        self.open = open
         self.subprocess = subprocess
         self.temp_dir = tempfile.gettempdir()
         self.template = CLEANUP_SCRIPT_TMPL
         self.traceback = traceback
         self.is_main_process = is_main_process()
-        for k, v in iteritems(kwargs):
+        for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
 
 
 class TempObject(object):
-    _keys = []
+    __slots__ = []
     _type = ''
 
+    def __init__(self, *args, **kwargs):
+        for k, v in zip(self.__slots__, args):
+            setattr(self, k, v)
+        for k in self.__slots__:
+            if hasattr(self, k):
+                continue
+            setattr(self, k, kwargs.get(k))
+
     def __hash__(self):
-        if self._keys:
-            return hash(tuple(getattr(self, k) for k in self._keys))
+        if self.__slots__:
+            return hash(tuple(getattr(self, k) for k in self.__slots__))
         return super(TempObject, self).__hash__()
 
     def __eq__(self, other):
@@ -118,32 +147,42 @@ class TempObject(object):
             return False
         if self._type != other._type:
             return False
-        return all(getattr(self, k) == getattr(other, k) for k in self._keys)
+        return all(getattr(self, k) == getattr(other, k) for k in self.__slots__)
+
+    def __getstate__(self):
+        return dict((slot, getattr(self, slot)) for slot in self.__slots__ if hasattr(self, slot))
+
+    def __setstate__(self, state):
+        for slot, value in state.items():
+            setattr(self, slot, value)
 
 
 class TempTable(TempObject):
-    _keys = 'table', 'project'
+    __slots__ = 'table', 'project'
     _type = 'Table'
-
-    def __init__(self, table, project):
-        self.table = table
-        self.project = project
 
     def drop(self, odps):
         odps.run_sql('drop table if exists %s' % self.table, project=self.project)
 
 
 class TempModel(TempObject):
-    _keys = 'model', 'project'
+    __slots__ = 'model', 'project'
     _type = 'OfflineModel'
-
-    def __init__(self, model, project):
-        self.model = model
-        self.project = project
 
     def drop(self, odps):
         try:
             odps.delete_offline_model(self.model, self.project)
+        except NoSuchObject:
+            pass
+
+
+class TempVolumePartition(TempObject):
+    __slots__ = 'volume', 'partition', 'project'
+    _type = 'VolumePartition'
+
+    def drop(self, odps):
+        try:
+            odps.delete_volume_partition(self.volume, self.partition, self.project)
         except NoSuchObject:
             pass
 
@@ -213,17 +252,17 @@ class ObjectRepositoryLib(dict):
             return
 
         env = self._env
-        import_paths = json.dumps(env.import_paths)
-        odps_info_json = json.dumps(list(itervalues(env.odps_info)))
-        biz_ids_json = json.dumps(list(self._env.biz_ids))
+        import_paths = env.json.dumps(env.import_paths)
+        odps_info_json = env.json.dumps(list(six.itervalues(env.odps_info)))
+        biz_ids_json = env.json.dumps(list(self._env.biz_ids))
         script = env.template.format(import_paths=import_paths, odps_info=odps_info_json, host_pid=env.os.getpid(),
                                      biz_ids=biz_ids_json)
 
         script_name = env.temp_dir + env.os.sep + 'tmp_' + str(env.os.getpid()) + '_cleanup_script.py'
-        with open(script_name, 'w') as script_file:
+        with env.open(script_name, 'w') as script_file:
             script_file.write(script)
             script_file.close()
-        env.subprocess.call([env.sys.executable, script_name], close_fds=True)
+        env.subprocess.call([env.executable, script_name], close_fds=True)
 
 
 _odps_info = dict()
@@ -305,12 +344,29 @@ def _put_objects(odps, objs):
 
 
 def register_temp_table(odps, table, project=None):
-    if isinstance(table, string_types):
+    if isinstance(table, six.string_types):
         table = [table, ]
     _put_objects(odps, [TempTable(t, project if project else odps.project) for t in table])
 
 
 def register_temp_model(odps, model, project=None):
-    if isinstance(model, string_types):
+    if isinstance(model, six.string_types):
         model = [model, ]
     _put_objects(odps, [TempModel(m, project if project else odps.project) for m in model])
+
+
+def register_temp_volume_partition(odps, volume_partition_tuple, project=None):
+    if isinstance(volume_partition_tuple, tuple):
+        volume_partition_tuple = [volume_partition_tuple, ]
+    _put_objects(odps, [TempVolumePartition(v, p, project if project else odps.project)
+                        for v, p in volume_partition_tuple])
+
+
+def compat_kwargs(kwargs):
+    if PY26:
+        new_desc = dict()
+        for k, v in six.iteritems(kwargs):
+            new_desc[k.encode('utf-8')] = v.encode('utf-8')
+        return new_desc
+    else:
+        return kwargs

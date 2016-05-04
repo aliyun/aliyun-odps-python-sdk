@@ -18,9 +18,13 @@
 # under the License.
 
 import itertools
+import functools
+from collections import Iterable
 from copy import deepcopy
 
 import six
+
+from .compat import Queue
 
 
 class DAGValidationError(Exception):
@@ -120,6 +124,31 @@ class DAG(object):
         except ValueError:
             return False, 'Fail to topological sort'
         return True, 'Valid'
+
+    def bfs(self, start_nodes, successor=None, cond=None, graph=None):
+        graph = graph or self._graph
+        cond = cond or (lambda v: True)
+        successor = successor or functools.partial(self.successors, graph=graph)
+        start_nodes = [start_nodes, ] if not isinstance(start_nodes, Iterable) else start_nodes
+        start_nodes = [n for n in start_nodes if cond(n)]
+        assert all(id(node) in graph for node in start_nodes)
+
+        visited = set(id(node) for node in start_nodes)
+        node_queue = Queue()
+        [node_queue.put(node) for node in start_nodes]
+        while not node_queue.empty():
+            cur_node = node_queue.get()
+            for up_node in (n for n in successor(cur_node) if cond(n)):
+                if id(up_node) not in visited:
+                    visited.add(id(up_node))
+                    yield up_node
+                    node_queue.put(up_node)
+
+    def ancestors(self, start_nodes, cond=None, graph=None):
+        return list(self.bfs(start_nodes, functools.partial(self.predecessors, graph=graph), cond, graph))
+
+    def descendants(self, start_nodes, cond=None, graph=None):
+        return list(self.bfs(start_nodes, cond=cond, graph=graph))
 
     def topological_sort(self, graph=None):
         graph = graph or self._graph

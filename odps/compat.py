@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import struct
 import sys
 import logging.config
+import itertools
 try:
     import xml.etree.cElementTree as ElementTree
 except ImportError:
@@ -39,11 +41,14 @@ SEEK_END = 2
 _EAW_MAP = {'Na': 1, 'N': 1, 'W': 2, 'F': 2, 'H': 1}
 
 if six.PY3:
-    lrange = lambda x: list(range(x))
+    lrange = lambda *x: list(range(*x))
     lzip = lambda *x: list(zip(*x))
     lkeys = lambda x: list(x.keys())
     lvalues = lambda x: list(x.values())
     litems = lambda x: list(x.items())
+
+    irange = range
+    izip = zip
 
     import io
     StringIO = io.StringIO
@@ -76,6 +81,9 @@ else:
     lvalues = lambda x: x.values()
     litems = lambda x: x.items()
 
+    irange = xrange
+    izip = itertools.izip
+
     try:
         import cStringIO as StringIO
     except ImportError:
@@ -106,6 +114,10 @@ else:
             return len(data)
 
     if PY26:
+        import warnings
+        warnings.warn('Python 2.6 is no longer supported by the Python core team. A future version of PyODPS ' +
+                      'will drop support for this version.')
+
         try:
             import unittest2 as unittest
         except ImportError:

@@ -23,6 +23,7 @@ from decimal import Decimal
 import random
 import time
 from multiprocessing.pool import ThreadPool
+
 try:
     from string import letters
 except ImportError:
@@ -284,13 +285,15 @@ class Test(TestBase):
             table.create_partition('%s=%s' % (partition, partition_val))
 
         data = []
-        for _ in range(size):
+        for i in range(size):
             record = []
             for t in types:
                 n = t.split('<', 1)[0]
                 method = getattr(self, '_gen_random_'+n)
                 if n in ('map', 'array'):
                     record.append(method(t))
+                elif n == 'double' and i == 0:
+                    record.append(float('nan'))
                 else:
                     record.append(method())
             if partition is not None and partition_val is not None:
@@ -307,6 +310,9 @@ class Test(TestBase):
                     self.assertTrue(any(it1[k] == it2[k] for k in it1))
                 elif isinstance(it1, list):
                     self.assertSequenceEqual(it1, it2)
+                elif isinstance(it1, float) and math.isnan(it1) and \
+                        isinstance(it2, float) and math.isnan(it2):
+                    continue
                 else:
                     self.assertEqual(it1, it2)
 
@@ -325,6 +331,9 @@ class Test(TestBase):
                 elif isinstance(it1, list):
                     self.assertSequenceEqual(it1, it2)
                 else:
+                    if isinstance(it1, float) and math.isnan(it1) \
+                            and isinstance(it2, float) and math.isnan(it2):
+                        continue
                     self.assertEqual(it1, it2)
 
         table.drop()
@@ -345,6 +354,9 @@ class Test(TestBase):
                     self.assertTrue(any(it1[k] == it2[k] for k in it1))
                 elif isinstance(it1, list):
                     self.assertSequenceEqual(it1, it2)
+                elif isinstance(it1, float) and math.isnan(it1) and \
+                        isinstance(it2, float) and math.isnan(it2):
+                    continue
                 else:
                     self.assertEqual(it1, it2)
 
@@ -404,6 +416,9 @@ class Test(TestBase):
                         self.assertTrue(any(it1[k] == it2[k] for k in it1))
                     elif isinstance(it1, list):
                         self.assertSequenceEqual(it1, it2)
+                    elif isinstance(it1, float) and math.isnan(it1) and \
+                            isinstance(it2, float) and math.isnan(it2):
+                        continue
                     else:
                         self.assertEqual(it1, it2)
 

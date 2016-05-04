@@ -16,8 +16,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from enum import Enum
 import six
+import math
+
+from enum import Enum
 
 from .. import io
 from ..checksum import Checksum

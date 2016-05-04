@@ -21,11 +21,13 @@ import glob
 import codecs
 import shutil
 import tarfile
+import gzip
 import warnings
 
+from six import text_type
 from itertools import groupby, product
 
-from ..compat import urlretrieve, pickle
+from ..compat import pickle, urlretrieve
 from ..tunnel import TableTunnel
 from ..utils import load_static_text_file, build_pyodps_dir
 
@@ -37,7 +39,10 @@ class TestDataMixIn(object):
         pass
 
 
-def create_function(func):
+def table_creator(func):
+    """
+    Decorator for table creating method
+    """
     def method(self, table_name, **kwargs):
         if self.odps.exist_table(table_name):
             return
@@ -59,7 +64,7 @@ Simple Data Sets
 """
 
 
-@create_function
+@table_creator
 def create_ionosphere(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -79,7 +84,7 @@ def create_ionosphere(odps, table_name, tunnel=None, project=None):
     upload_ss.commit([0, ])
 
 
-@create_function
+@table_creator
 def create_ionosphere_one_part(odps, table_name, partition_count=3, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -103,7 +108,7 @@ def create_ionosphere_one_part(odps, table_name, partition_count=3, tunnel=None,
     [upload_ss.commit([0, ]) for upload_ss in upload_sses]
 
 
-@create_function
+@table_creator
 def create_ionosphere_two_parts(odps, table_name, partition1_count=2, partition2_count=3, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -130,7 +135,7 @@ def create_ionosphere_two_parts(odps, table_name, partition1_count=2, partition2
     [upload_ss.commit([0, ]) for upload_sss in upload_sses for upload_ss in upload_sss]
 
 
-@create_function
+@table_creator
 def create_iris(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -152,7 +157,7 @@ def create_iris(odps, table_name, tunnel=None, project=None):
     upload_ss.commit([0, ])
 
 
-@create_function
+@table_creator
 def create_iris_kv(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -172,7 +177,7 @@ def create_iris_kv(odps, table_name, tunnel=None, project=None):
     upload_ss.commit([0, ])
 
 
-@create_function
+@table_creator
 def create_corpus(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -191,7 +196,7 @@ def create_corpus(odps, table_name, tunnel=None, project=None):
     upload_ss.commit([0, ])
 
 
-@create_function
+@table_creator
 def create_word_triple(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -214,7 +219,7 @@ def create_word_triple(odps, table_name, tunnel=None, project=None):
     upload_ss.commit([0, ])
 
 
-@create_function
+@table_creator
 def create_splited_words(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -236,7 +241,7 @@ def create_splited_words(odps, table_name, tunnel=None, project=None):
     upload_ss.commit([0, ])
 
 
-@create_function
+@table_creator
 def create_weighted_graph_edges(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -261,7 +266,7 @@ def create_weighted_graph_edges(odps, table_name, tunnel=None, project=None):
     upload_ss.commit([0, ])
 
 
-@create_function
+@table_creator
 def create_weighted_graph_vertices(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -284,7 +289,7 @@ def create_weighted_graph_vertices(odps, table_name, tunnel=None, project=None):
     upload_ss.commit([0, ])
 
 
-@create_function
+@table_creator
 def create_user_item_table(odps, table_name, tunnel=None, agg=False, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -329,17 +334,17 @@ def create_user_item_table(odps, table_name, tunnel=None, agg=False, project=Non
 """
 
 NEWSGROUP_URL = 'http://people.csail.mit.edu/jrennie/20Newsgroups/20news-bydate.tar.gz'
-DATASET_NAME = '20news-bydate'
-ARCHIVE_NAME = '20news-bydate.tar.gz'
-CACHE_NAME = '20news-bydate.pkz'
-TRAIN_DIR = "20news-bydate-train"
-TEST_DIR = "20news-bydate-test"
-TRAIN_FOLDER = "20news-bydate-train"
-TEST_FOLDER = "20news-bydate-test"
+NEWSGROUP_DATASET_NAME = '20news-bydate'
+NEWSGROUP_ARCHIVE_NAME = '20news-bydate.tar.gz'
+NEWSGROUP_CACHE_NAME = '20news-bydate.pkz'
+NEWSGROUP_TRAIN_DIR = "20news-bydate-train"
+NEWSGROUP_TEST_DIR = "20news-bydate-test"
+NEWSGROUP_TRAIN_FOLDER = "20news-bydate-train"
+NEWSGROUP_TEST_FOLDER = "20news-bydate-test"
 
 
 def download_newsgroup(target_dir, cache_dir):
-    target_tar = os.path.join(os.path.expanduser('~'), ARCHIVE_NAME)
+    target_tar = os.path.join(os.path.expanduser('~'), NEWSGROUP_ARCHIVE_NAME)
     urlretrieve(NEWSGROUP_URL, target_tar)
     cache_newsgroup_tar(target_tar, target_dir, cache_dir)
 
@@ -351,9 +356,9 @@ def cache_newsgroup_tar(target_tar, target_dir, cache_dir):
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
 
-    train_path = os.path.join(target_dir, TRAIN_FOLDER)
-    test_path = os.path.join(target_dir, TEST_FOLDER)
-    cache_path = os.path.join(cache_dir, CACHE_NAME)
+    train_path = os.path.join(target_dir, NEWSGROUP_TRAIN_FOLDER)
+    test_path = os.path.join(target_dir, NEWSGROUP_TEST_FOLDER)
+    cache_path = os.path.join(cache_dir, NEWSGROUP_CACHE_NAME)
 
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
@@ -379,14 +384,14 @@ def cache_newsgroup_tar(target_tar, target_dir, cache_dir):
     shutil.rmtree(target_dir)
 
 
-@create_function
+@table_creator
 def create_newsgroup_table(odps, table_name, tunnel=None, data_part='train', project=None):
-    cache_file = os.path.join(USER_DATA_REPO, CACHE_NAME)
+    cache_file = os.path.join(USER_DATA_REPO, NEWSGROUP_CACHE_NAME)
     if not os.path.exists(USER_DATA_REPO):
         os.makedirs(USER_DATA_REPO)
     if not os.path.exists(cache_file):
         warnings.warn('We need to download data set from ' + NEWSGROUP_URL + '.')
-        download_newsgroup(os.path.join(USER_DATA_REPO, DATASET_NAME), USER_DATA_REPO)
+        download_newsgroup(os.path.join(USER_DATA_REPO, NEWSGROUP_DATASET_NAME), USER_DATA_REPO)
 
     with open(cache_file, 'rb') as f:
         cache = pickle.loads(codecs.decode(f.read(), 'zlib_codec'))
@@ -402,7 +407,59 @@ def create_newsgroup_table(odps, table_name, tunnel=None, data_part='train', pro
 
     for line in cache[data_part]:
         rec = upload_ss.new_record()
-        [rec.set(i, unicode(val)) for i, val in enumerate(line)]
+        [rec.set(i, text_type(val)) for i, val in enumerate(line)]
         writer.write(rec)
+    writer.close()
+    upload_ss.commit([0, ])
+
+
+"""
+MNIST
+"""
+
+MNIST_PICKLED_URL = 'http://deeplearning.net/data/mnist/mnist.pkl.gz'
+MNIST_FILE = 'mnist.pkl.gz'
+mnist_unpickled = None
+
+
+def load_mnist_data():
+    global mnist_unpickled
+
+    if mnist_unpickled is not None:
+        return mnist_unpickled
+
+    mnist_file = os.path.join(USER_DATA_REPO, MNIST_FILE)
+    if not os.path.exists(USER_DATA_REPO):
+        os.makedirs(USER_DATA_REPO)
+    if not os.path.exists(mnist_file):
+        warnings.warn('We need to download data set from ' + MNIST_PICKLED_URL + '.')
+        urlretrieve(MNIST_PICKLED_URL, mnist_file)
+
+    with gzip.open(mnist_file, 'rb') as fobj:
+        mnist_unpickled = pickle.load(fobj)
+        fobj.close()
+
+    return mnist_unpickled
+
+
+@table_creator
+def create_mnist_table(odps, table_name, part_id=0, tunnel=None):
+    train_data = load_mnist_data()[part_id]
+
+    if tunnel is None:
+        tunnel = TableTunnel(odps)
+
+    odps.execute_sql('drop table if exists ' + table_name)
+    odps.execute_sql('create table %s (feature string, class string)' % table_name)
+
+    upload_ss = tunnel.create_upload_session(table_name)
+    writer = upload_ss.open_record_writer(0)
+
+    for feature, label in zip(train_data[0], train_data[1]):
+        rec = upload_ss.new_record()
+        rec.set(0, text_type(','.join(str(n) for n in feature)))
+        rec.set(1, text_type(label))
+        writer.write(rec)
+
     writer.close()
     upload_ss.commit([0, ])

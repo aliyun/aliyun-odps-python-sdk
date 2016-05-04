@@ -247,7 +247,7 @@ def to_text(binary, encoding='utf-8'):
 
 
 def to_str(text, encoding='utf-8'):
-    return to_text(text) if six.PY3 else to_binary(text)
+    return to_text(text, encoding=encoding) if six.PY3 else to_binary(text, encoding=encoding)
 
 
 def is_lambda(f):

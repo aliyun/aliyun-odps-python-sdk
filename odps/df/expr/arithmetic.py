@@ -228,7 +228,7 @@ def _add(expr, other):
 def _radd(expr, other):
     if _is_datetime(expr) and _is_datetime(other):
         raise ExpressionError('Cannot add two datetimes')
-    return _add(expr, other)
+    return _reversed_arithmetic(expr, other, Add)
 
 
 def _sub(expr, other):

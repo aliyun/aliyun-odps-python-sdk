@@ -356,6 +356,96 @@ Example:
             <meta name="xflowProjectName" value="algo_public"/>
         </metas>
     </algorithm>
+    <algorithm codeName="RFFeatureImportance">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>计算随机森林模型中特征重要性。</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>get_input_model_name</exporter>
+                <inputName>model</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="model">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>MODEL</type>
+                <docs>random forests model</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="feature_importance"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.classifiers.customize.get_rf_feature_importance"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="GBDTFeatureImportance">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>计算 GBDT 模型中特征重要性。</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>get_input_model_name</exporter>
+                <inputName>model</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="model">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>MODEL</type>
+                <docs>random forests model</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="gbdt_importance"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.classifiers.customize.get_gbdt_feature_importance"/>
+        </metas>
+    </algorithm>
     <algorithm codeName="LogisticRegression">
         <reloadFields>false</reloadFields>
         <docs><![CDATA[
@@ -389,8 +479,6 @@ Example:
                 <docs>names of feature columns, selected from input table and used for training</docs>
             </param>
             <param name="labelColName" required="true">
-                <min>0</min>
-                <max>1000</max>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of label column in input table</docs>

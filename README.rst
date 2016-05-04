@@ -1,7 +1,7 @@
 ODPS Python SDK and data analysis framework
 ===========================================
 
-|PyPI version|
+|License| |PyPI version|
 
 Elegent way to access ODPS API.
 `Documentation <http://pyodps.readthedocs.org>`__
@@ -166,5 +166,6 @@ License
 Licensed under the `Apache License
 2.0 <https://www.apache.org/licenses/LICENSE-2.0.html>`__
 
+.. |License| image:: https://img.shields.io/pypi/l/pyodps.svg
 .. |PyPI version| image:: https://badge.fury.io/py/pyodps.svg
    :target: https://badge.fury.io/py/pyodps

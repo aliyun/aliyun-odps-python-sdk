@@ -16,7 +16,6 @@
 # under the License.
 
 import json
-from xml.etree import ElementTree
 from collections import Iterable
 
 import six
@@ -646,7 +645,7 @@ class ODPS(object):
         return inst
 
     def run_sql(self, sql, project=None, priority=None, running_cluster=None,
-                hints=None, **kwargs):
+                hints=None, aliases=None, **kwargs):
         """
         Run a given SQL statement asynchronously
 
@@ -658,29 +657,40 @@ class ODPS(object):
         :param running_cluster: cluster to run this instance
         :param hints: settings for SQL, e.g. `odps.mapred.map.split.size`
         :type hints: dict
+        :param aliases:
+        :type aliases: dict
         :return: instance
         :rtype: :class:`odps.models.Instance`
 
         .. seealso:: :class:`odps.models.Instance`
         """
+
+        def update(kv, dest):
+            if not kv:
+                return
+            for k, v in six.iteritems(kv):
+                if isinstance(v, bool):
+                    dest[k] = 'true' if v else 'false'
+                else:
+                    dest[k] = str(v)
+
         task = models.SQLTask(query=sql, **kwargs)
         if hints or options.sql.settings:
             if task.properties is None:
                 task.properties = dict()
             settings = dict()
 
-            def update(kv):
-                if not kv:
-                    return
-                for k, v in six.iteritems(kv):
-                    if isinstance(v, bool):
-                        settings[k] = 'true' if v else 'false'
-                    else:
-                        settings[k] = str(v)
-
-            update(options.sql.settings)
-            update(hints)
+            update(options.sql.settings, settings)
+            update(hints, settings)
             task.properties['settings'] = json.dumps(settings)
+
+        if aliases:
+            if task.properties is None:
+                task.properties = dict()
+
+            d = dict()
+            update(aliases, d)
+            task.properties['aliases'] = json.dumps(d)
 
         project = self.get_project(name=project)
         return project.instances.create(task=task, priority=priority,

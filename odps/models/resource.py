@@ -511,7 +511,8 @@ class TableResource(Resource):
             if not isinstance(partition, types.PartitionSpec):
                 partition_spec = types.PartitionSpec(partition)
             self.source_table_name = '%s partition(%s)' \
-                                     % (self.source_table_name, partition_spec)
+                                     % (self.source_table_name.split(' partition(')[0],
+                                        partition_spec)
 
     def get_source_table(self):
         """

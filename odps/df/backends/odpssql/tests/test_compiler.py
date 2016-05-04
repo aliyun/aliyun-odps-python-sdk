@@ -223,8 +223,8 @@ class Test(TestBase):
 
         expr = self.expr.name.switch('test', 'test' + self.expr.name,
                                      'test2', 'test2' + self.expr.name).rename('name')
-        expect = 'SELECT CASE t1.`name` WHEN \'test\' THEN CONCAT(t1.`name`, \'test\') ' \
-                 'WHEN \'test2\' THEN CONCAT(t1.`name`, \'test2\') END AS name \n' \
+        expect = 'SELECT CASE t1.`name` WHEN \'test\' THEN CONCAT(\'test\', t1.`name`) ' \
+                 'WHEN \'test2\' THEN CONCAT(\'test2\', t1.`name`) END AS name \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
 
@@ -261,7 +261,7 @@ class Test(TestBase):
         self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
 
     def testArithmeticCompilation(self):
-        for e in (self.expr.id + 5, 5 + self.expr.id, self.expr.id - 5, self.expr.id * 5,
+        for e in (self.expr.id + 5, self.expr.id - 5, self.expr.id * 5,
                   self.expr.id / 5, self.expr.id > 5, 5 < self.expr.id,
                   self.expr.id >= 5, 5 <= self.expr.id, self.expr.id < 5,
                   self.expr.id <= 5, self.expr.id == 5, self.expr.id != 5):
@@ -344,6 +344,11 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.id // 8)
         self._testify_udf([l // r for l, r in data], [d for d in data])
+
+        expr = 'tt' + self.expr.id.astype('string')
+        expect = "SELECT CONCAT('tt', CAST(t1.`id` AS STRING)) AS id \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
 
     def testMathCompilation(self):
         for math_cls, func in MATH_COMPILE_DIC.items():
@@ -751,6 +756,14 @@ class Test(TestBase):
         expected = 'SELECT MAX(t1.`id`) AS id_max \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    'GROUP BY 1'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(self.expr['name'].rename('name2')).agg(id=self.expr['id'].sum())
+        expr = expr[expr.name2, expr.id + 3]
+
+        expected = 'SELECT t1.`name` AS name2, SUM(t1.`id`) + 3 AS id \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`name`'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
     def testFilterGroupbySinkFilterCompilation(self):

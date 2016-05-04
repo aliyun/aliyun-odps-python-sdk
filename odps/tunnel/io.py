@@ -18,6 +18,7 @@
 # under the License.
 
 import zlib
+import math
 
 from enum import Enum
 import six
@@ -81,7 +82,7 @@ class BaseRequestsIO(object):
 class ThreadRequestsIO(BaseRequestsIO):
     def __init__(self, post_call, chunk_size=None):
         super(ThreadRequestsIO, self).__init__(post_call, chunk_size)
-        from ..compat import Queue
+        from six.moves.queue import Queue
         self._queue = Queue()
         self._wait_obj = threading.Thread(target=self._async_func)
 
@@ -103,12 +104,18 @@ class GreenletRequestsIO(BaseRequestsIO):
         # handover control
         self._gevent_mod.sleep(0)
 
+RequestIO = ThreadRequestsIO
 
-try:
-    import gevent
-    RequestsIO = GreenletRequestsIO
-except ImportError:
-    RequestsIO = ThreadRequestsIO
+
+def reload_default_io():
+    global RequestsIO
+    try:
+        import gevent
+        RequestsIO = GreenletRequestsIO
+    except ImportError:
+        RequestsIO = ThreadRequestsIO
+
+reload_default_io()
 
 
 class CompressOption(object):
@@ -344,7 +351,11 @@ class ProtobufReader(object):
         return self._decode_value(SInt64Decoder)
 
     def read_double(self):
-        return self._decode_value(DoubleDecoder)
+        # avoid using DoubleDecoder to skip the nan case
+        double_array = self._data[self._curr_cursor: self._curr_cursor + 8]
+        val = struct.unpack('<d', double_array)[0]
+        self._curr_cursor += 8
+        return val
 
     def read_string(self):
         return bytearray(self._decode_value(BytesDecoder, bytearray, ''))

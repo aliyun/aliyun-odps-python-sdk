@@ -25,6 +25,7 @@ import six
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest
 from odps.models import Instance, SQLTask, Schema
+from odps.errors import ODPSError
 from odps import errors, compat
 
 expected_xml_template = '''<?xml version="1.0" ?>
@@ -229,6 +230,76 @@ class Test(TestBase):
             self.assertSequenceEqual(read_data, expected_data)
 
         table.drop()
+
+
+    def testSQLAliasInstance(self):
+        test_table = 'pyodps_t_tmp_sql_aliases_instance'
+        self.odps.delete_table(test_table, if_exists=True)
+        table = self.odps.create_table(
+            test_table,
+            schema=Schema.from_lists(['size'], ['bigint']),
+            if_not_exists=True
+        )
+
+        data = [[1, ], ]
+        self.odps.write_table(table, 0, [table.new_record(it) for it in data])
+
+        res_name1 = 'pyodps_t_tmp_resource_1'
+        res_name2 = 'pyodps_t_tmp_resource_2'
+        try:
+            self.odps.delete_resource(res_name1)
+        except ODPSError:
+            pass
+        try:
+            self.odps.delete_resource(res_name2)
+        except ODPSError:
+            pass
+        res1 = self.odps.create_resource(res_name1, 'file', file_obj='1')
+        res2 = self.odps.create_resource(res_name2, 'file', file_obj='2')
+
+        test_func_content = """\
+from odps.udf import annotate
+from odps.distcache import get_cache_file
+
+@annotate('bigint->bigint')
+class Example(object):
+    def __init__(self):
+        self.n = int(get_cache_file('%s').read())
+
+    def evaluate(self, arg):
+        return arg + self.n
+""" % res_name1
+        py_res_name = 'pyodps_t_tmp_func_res'
+        try:
+            self.odps.delete_resource(py_res_name+'.py')
+        except ODPSError:
+            pass
+
+        py_res = self.odps.create_resource(py_res_name+'.py', 'py', file_obj=test_func_content)
+
+        test_func_name = 'pyodps_t_tmp_func_1'
+        try:
+            self.odps.delete_function(test_func_name)
+        except ODPSError:
+            pass
+        func = self.odps.create_function(test_func_name,
+                                         class_type='{0}.Example'.format(py_res_name),
+                                         resources=[py_res_name+'.py', res_name1])
+
+        for i in range(1, 3):
+            aliases = None
+            if i == 2:
+                aliases = {
+                    res_name1: res_name2
+                }
+            with self.odps.execute_sql(
+                    'select %s(size) from %s' % (test_func_name, test_table),
+                    aliases=aliases).open_reader() as reader:
+                data = reader[0]
+                self.assertEqual(int(data[0]), i + 1)
+
+        for obj in (func, py_res, res1, res2, table):
+            obj.drop()
 
     def testInstanceLogview(self):
         instance = self.odps.run_sql('drop table if exists non_exist_table_name')

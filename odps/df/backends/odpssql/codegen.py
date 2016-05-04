@@ -40,6 +40,11 @@ import base64
 from collections import namedtuple
 import time
 
+try:
+    import numpy
+except ImportError:
+    pass
+
 from odps.udf import annotate
 
 @annotate('%(from_type)s->%(to_type)s')
@@ -106,6 +111,11 @@ UDTF_TMPL = '''\
 import base64
 import inspect
 from collections import namedtuple
+
+try:
+    import numpy
+except ImportError:
+    pass
 
 from odps.udf import annotate
 from odps.udf import BaseUDTF

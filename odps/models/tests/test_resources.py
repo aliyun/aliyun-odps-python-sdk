@@ -69,13 +69,22 @@ class Test(TestBase):
         self.assertIsNone(res.get_source_table_partition())
 
         test_table_name = 'pyodps_t_tmp_resource_table'
-        test_table_partition = 'pt=test'
-        schema = Schema.from_lists(['id', 'name'], ['string', 'string'], ['pt', ], ['string', ])
+        test_table_partition = 'pt=test,sec=1'
+        schema = Schema.from_lists(['id', 'name'], ['string', 'string'], ['pt', 'sec'], ['string', 'bigint'])
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(test_table_name, schema)
         table.create_partition(test_table_partition)
 
         resource_name = 'pyodps_t_tmp_table_resource'
+        res = res.update(partition=test_table_partition)
+        self.assertIsInstance(res, TableResource)
+        self.assertEqual(res.get_source_table().name, test_table_name)
+        self.assertEqual(str(res.get_source_table_partition()),
+                         str(types.PartitionSpec(test_table_partition)))
+        self.assertIs(res, self.odps.get_resource(resource_name))
+
+        test_table_partition = 'pt=test,sec=2'
+        table.create_partition(test_table_partition)
         res = res.update(partition=test_table_partition)
         self.assertIsInstance(res, TableResource)
         self.assertEqual(res.get_source_table().name, test_table_name)

@@ -126,7 +126,11 @@ def reload_instance_status(odps, group_id, instance_id):
             inst_json.tasks[task_name] = task_json
             task_json.stages = []
 
-            task_prog = sub_inst.get_task_progress(task_name)
+            try:
+                task_prog = sub_inst.get_task_progress(task_name)
+            except Exception:
+                continue
+
             for stage in task_prog.stages:
                 stage_json = _StageProgressJSON()
                 for field_name in iterkeys(_StageProgressJSON.__fields):

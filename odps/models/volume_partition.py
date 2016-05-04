@@ -109,7 +109,7 @@ class VolumePartition(LazyLoad):
                 url = self.partition.resource()
                 resp = self.partition._client.get(url, params=params)
 
-                v = self.parse(resp.content, obj=self)
+                v = self.parse(resp, obj=self)
                 params['marker'] = v.marker
 
                 return v.files

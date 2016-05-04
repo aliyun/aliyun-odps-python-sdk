@@ -47,7 +47,10 @@ class Test(TestBase):
         for i, function in zip(itertools.count(1), functions):
             if i > 50:
                 break
-            self.assertTrue(all(map(lambda r: type(r) != Resource, function.resources)))
+            try:
+                self.assertTrue(all(map(lambda r: type(r) != Resource, function.resources)))
+            except errors.ODPSError:
+                continue
 
     def testFunctionExists(self):
         non_exists_function = 'a_non_exists_function'

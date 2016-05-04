@@ -122,33 +122,35 @@ else:
 
     _script_loaded = False
 
-    class ScriptLoadedStatus(object):
+    class init_frontend_scripts(object):
+        def __init__(self):
+            self.run()
+
         def __enter__(self):
             global _script_loaded
-            _script_loaded = True
+            if _script_loaded:
+                return self
+            return self.run()
 
         def __exit__(self, *_):
             global _script_loaded
             _script_loaded = False
 
-    def init_frontend_scripts():
-        global _script_loaded
-        if _script_loaded:
-            return ScriptLoadedStatus()
-        if in_ipython_frontend():
-            js = widgets.HTML()
-            js.value = '<script type="type/javascript">\n%s\n</script>' % js_contents
-            display(js)
-            # Wait for interrupt signal from the front end
-            try:
-                for _ in range(int(round(MAX_SCRIPT_LOAD_SEC / SCRIPT_LOAD_CHECK_INTERVAL))):
-                    time.sleep(SCRIPT_LOAD_CHECK_INTERVAL)
-            except KeyboardInterrupt:
-                pass
-            js.close()
-            return ScriptLoadedStatus()
-        else:
-            return ScriptLoadedStatus()
+        def run(self):
+            if in_ipython_frontend():
+                js = widgets.HTML()
+                js.value = '<script type="type/javascript">\n%s\n</script>' % js_contents
+                display(js)
+                # Wait for interrupt signal from the front end
+                try:
+                    for _ in range(int(round(MAX_SCRIPT_LOAD_SEC / SCRIPT_LOAD_CHECK_INTERVAL))):
+                        time.sleep(SCRIPT_LOAD_CHECK_INTERVAL)
+                except KeyboardInterrupt:
+                    pass
+                js.close()
+                return self
+            else:
+                return self
 
     def build_unicode_control(default_value=None, **metadata):
         from traitlets import version_info as traitlets_version, Unicode

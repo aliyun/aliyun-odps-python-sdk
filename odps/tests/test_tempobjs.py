@@ -33,7 +33,7 @@ SECONDARY_PROCESS_CODE = """
 import os
 import json
 from time import sleep
-from odps import ODPS
+from odps import ODPS, tempobj
 
 try:
     os.unlink(os.path.realpath(__file__))
@@ -44,7 +44,7 @@ odps_info = json.loads(\"\"\"
 {odps_info}
 \"\"\".strip())
 
-odps = ODPS(**odps_info)
+odps = ODPS(**tempobj.compat_kwargs(odps_info))
 sleep(5)
 """
 
@@ -52,8 +52,7 @@ sleep(5)
 PLENTY_CREATE_CODE = """
 import os
 import json
-from odps import ODPS
-from odps import tempobj
+from odps import ODPS, tempobj
 
 try:
     os.unlink(os.path.realpath(__file__))
@@ -64,7 +63,7 @@ odps_info = json.loads(\"\"\"
 {odps_info}
 \"\"\".strip())
 
-odps = ODPS(**odps_info)
+odps = ODPS(**tempobj.compat_kwargs(odps_info))
 for tid in range(50):
     odps.execute_sql('create table tmp_pyodps_create_temp_{{0}} (col1 string) lifecycle 1'.format(tid))
     tempobj.register_temp_table(odps, 'tmp_pyodps_create_temp_{{0}}'.format(tid))
@@ -87,8 +86,6 @@ class Test(TestBase):
         assert not self.odps.exist_table(TEMP_TABLE_NAME)
 
     def test_multi_process(self):
-        sleep(5)
-
         self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
 
         self.odps.execute_sql('create table {0} (col1 string) lifecycle 1'.format(TEMP_TABLE_NAME))
@@ -100,7 +97,9 @@ class Test(TestBase):
         with open(script_name, 'w') as script_file:
             script_file.write(script)
             script_file.close()
-        subprocess.call([sys.executable, script_name], close_fds=True)
+        subprocess.call([sys.executable, script_name], close_fds=True, env={'WAIT_CLEANUP': '1'})
+
+        sleep(5)
 
         assert self.odps.exist_table(TEMP_TABLE_NAME)
 
@@ -114,7 +113,7 @@ class Test(TestBase):
         with open(script_name, 'w') as script_file:
             script_file.write(script)
             script_file.close()
-        subprocess.call([sys.executable, script_name], close_fds=True)
+        subprocess.call([sys.executable, script_name], close_fds=True, env={'WAIT_CLEANUP': '1'})
 
-        sleep(5)
+        sleep(10)
         assert all(not self.odps.exist_table('tmp_pyodps_create_temp_%d' % tid) for tid in range(50))

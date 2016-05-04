@@ -43,13 +43,8 @@ if LESS_PY34:
     requirements.append('enum34>=1.0.4')
 if PY26:
     requirements.append('ordereddict>=1.1')
+    requirements.append('threadpool>=1.3')
 
-pai_requirements = []
-if os.path.exists('odps/internal'):
-    if sys.platform == 'win32':
-        warnings.warn('You should manually install JPype if you need to run XLib tasks.')
-    else:
-        pai_requirements.append('jpype1>=0.6')
 
 long_description = None
 if os.path.exists('README.rst'):
@@ -57,7 +52,7 @@ if os.path.exists('README.rst'):
         long_description = f.read()
 
 setup(name='pyodps',
-      version='0.4.7',
+      version='0.4.8',
       description='ODPS Python SDK',
       long_description=long_description,
       author='Wu Wei',
@@ -70,5 +65,4 @@ setup(name='pyodps',
       include_package_data=True,
       scripts=['scripts/pyou', ],
       install_requires=requirements,
-      extras_require={'pai': pai_requirements}
       )

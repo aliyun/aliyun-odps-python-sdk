@@ -1,6 +1,6 @@
 # ODPS Python SDK and data analysis framework
 
-[![PyPI version](https://badge.fury.io/py/pyodps.svg)](https://badge.fury.io/py/pyodps)
+![License](https://img.shields.io/pypi/l/pyodps.svg) [![PyPI version](https://badge.fury.io/py/pyodps.svg)](https://badge.fury.io/py/pyodps)
 
 <div align="center">
   <img src="http://pyodps.readthedocs.org/zh_CN/latest/_static/PyODPS.png"><br><br>

@@ -120,7 +120,7 @@ class Volume(LazyLoad):
                 url = self.volume.resource()
                 resp = self.volume._client.get(url, params=params)
 
-                v = Volume.Partitions.parse(resp.content, obj=self)
+                v = Volume.Partitions.parse(resp, obj=self)
                 params['marker'] = v.marker
 
                 return v.partitions

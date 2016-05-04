@@ -31,11 +31,14 @@ from .errors import TunnelError
 from .. import serializers, options
 from ..rest import RestClient
 from ..models import Projects
-from ..compat import lrange, urlparse
+from ..compat import irange, urlparse
+from ..utils import to_binary, to_text
 
 MAX_CHUNK_SIZE = 256 * 1024 * 1024
 MIN_CHUNK_SIZE = 1
 CHECKSUM_SIZE = 4
+
+CHECKSUM_PACKER = '>i' if six.PY2 else '>I'
 
 
 class VolumeTunnel(object):
@@ -233,7 +236,7 @@ class VolumeReader(object):
             # we have cached chunk left, add to buffer
             data_buffer.write(self._chunk_left)
             self._chunk_left = None
-        while data_buffer.len < self._buffer_size:
+        while data_buffer.tell() < self._buffer_size:
             try:
                 # len(buf) might be less than _buffer_size
                 buf = next(self._response.iter_content(self._buffer_size))
@@ -247,7 +250,7 @@ class VolumeReader(object):
             return None
 
         # check if we need to store the rest part.
-        if data_buffer.len <= self._buffer_size:
+        if data_buffer.tell() <= self._buffer_size:
             buf = data_buffer.getvalue()
         else:
             buf_all = data_buffer.getvalue()
@@ -256,7 +259,7 @@ class VolumeReader(object):
         if len(buf) >= CHECKSUM_SIZE:
             self._data_size = len(buf) - CHECKSUM_SIZE
             self._crc.update(buf, 0, self._data_size)
-            checksum = struct.unpack_from('>i', buf, self._data_size)[0]
+            checksum = struct.unpack_from(CHECKSUM_PACKER, buf, self._data_size)[0]
             if checksum != self._crc.getvalue():
                 raise IOError('CRC check error in VolumeReader.')
         else:
@@ -283,7 +286,7 @@ class VolumeReader(object):
                     self._last_line_ending = None
                     self._left_part_pos += 1
 
-                for idx in lrange(self._left_part_pos, len(self._left_part)):
+                for idx in irange(self._left_part_pos, len(self._left_part)):
                     if self._left_part[idx] not in (ord('\r'), ord('\n')):
                         continue
                     self._last_line_ending = self._left_part[idx]
@@ -303,7 +306,7 @@ class VolumeReader(object):
                 self._left_part = None
                 self._left_part_pos = 0
                 has_stuff = True
-        length_left = size - out_buf.len
+        length_left = size - out_buf.tell()
         while length_left > 0:
             buf = self._read_buf()
             if buf is None:
@@ -314,7 +317,7 @@ class VolumeReader(object):
             if break_line:
                 if buf[0] == ord('\n') and self._last_line_ending == ord('\r'):
                     start_pos = 1
-                for idx in lrange(start_pos, len(buf)):
+                for idx in irange(start_pos, len(buf)):
                     if buf[idx] not in (ord('\r'), ord('\n')):
                         continue
                     self._last_line_ending = buf[idx]
@@ -336,18 +339,19 @@ class VolumeReader(object):
                 length_left -= len(buf)
         return out_buf.getvalue() if has_stuff else None
 
-    def _it(self, size=sys.maxsize):
+    def _it(self, size=sys.maxsize, encoding='utf-8'):
         while True:
-            line = self.readline(size)
+            line = self.readline(size, encoding=encoding)
             if line is None:
                 break
             yield line
 
-    def readline(self, size=sys.maxsize):
-        return self.read(size, break_line=True)
+    def readline(self, size=sys.maxsize, encoding='utf-8'):
+        line = self.read(size, break_line=True)
+        return to_text(line, encoding=encoding)
 
-    def readlines(self, size=sys.maxsize):
-        return [line.strip() for line in self._it(size)]
+    def readlines(self, size=sys.maxsize, encoding='utf-8'):
+        return [line for line in self._it(size, encoding=encoding)]
 
     def __iter__(self):
         return self._it()
@@ -493,19 +497,19 @@ class VolumeWriter(object):
         self._client = client
         self._compress_option = compress_option
         self._req_io = io.RequestsIO(uploader)
-        self._writer = io.ProtobufWriter(self._req_io, compress_option=self._compress_option,
-                                      buffer_size=options.chunk_size)
+        self._compressor = io.StreamCompressor(compress_option, lambda data: self._req_io.put(data))
         self._crc = Checksum(method='crc32')
         self._initialized = False
         self._chunk_offset = 0
 
     def _init_writer(self):
         chunk_bytes = struct.pack('>I', self.CHUNK_SIZE)
-        self._writer.write_raw_bytes(chunk_bytes)
+        self._compressor.compress(chunk_bytes)
         self._crc.update(chunk_bytes)
         self._chunk_offset = 0
 
-    def write(self, buf):
+    def write(self, buf, encoding='utf-8'):
+        buf = to_binary(buf, encoding=encoding)
         if isinstance(buf, six.integer_types):
             buf = bytes(bytearray([buf, ]))
         elif isinstance(buf, six.BytesIO):
@@ -521,13 +525,12 @@ class VolumeWriter(object):
         while processed < len(buf):
             if self._chunk_offset == self.CHUNK_SIZE:
                 checksum = self._crc.getvalue()
-                self._writer.write_raw_bytes(struct.pack('>i', checksum))
-                self._writer.flush()
+                self._compressor.compress(struct.pack(CHECKSUM_PACKER, checksum))
                 self._chunk_offset = 0
             else:
                 size = self.CHUNK_SIZE - self._chunk_offset if len(buf) - processed > self.CHUNK_SIZE - self._chunk_offset\
                     else len(buf) - processed
-                self._writer.write_raw_bytes(buf, processed, size)
+                self._compressor.compress(buf[processed:processed + size])
                 self._crc.update(buf, processed, size)
                 processed += size
                 self._chunk_offset += size
@@ -539,8 +542,8 @@ class VolumeWriter(object):
 
         if self._chunk_offset != 0:
             checksum = self._crc.getvalue()
-            self._writer.write_raw_bytes(struct.pack('>i', checksum))
-        self._writer.close()
+            self._compressor.compress(struct.pack(CHECKSUM_PACKER, checksum))
+        self._compressor.close()
         result = self._req_io.finish()
         if result is None:
             raise TunnelError('No results returned in VolumeWriter.')
