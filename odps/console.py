@@ -100,9 +100,7 @@ else:
     if get_ipython and get_ipython():
         get_ipython().events.register('pre_execute', _ignore_deprecated_warnings)
 
-
-import six
-
+from .compat import six
 from .config import options
 
 

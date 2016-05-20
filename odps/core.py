@@ -18,11 +18,10 @@
 import json
 from collections import Iterable
 
-import six
-
 from .rest import RestClient
 from .config import options
 from .tempobj import clean_objects
+from .compat import six
 from . import models
 from . import accounts
 
@@ -691,6 +690,11 @@ class ODPS(object):
             d = dict()
             update(aliases, d)
             task.properties['aliases'] = json.dumps(d)
+
+        if options.biz_id:
+            if task.properties is None:
+                task.properties = dict()
+            task.properties['biz_id'] = str(options.biz_id)
 
         project = self.get_project(name=project)
         return project.instances.create(task=task, priority=priority,

@@ -76,7 +76,7 @@ class Log(Math):
     _add_args_slots = False
 
     def _init(self, *args, **kwargs):
-        self._base = None
+        self._init_attr('_base', None)
         super(Log, self)._init(*args, **kwargs)
 
 
@@ -138,15 +138,15 @@ class Trunc(Math):
     _add_args_slots = False
 
     def _init(self, *args, **kwargs):
-        self._decimals = None
+        self._init_attr('_decimals', None)
         super(Trunc, self)._init(*args, **kwargs)
 
 
-def _math(expr, math_cls, output_type):
+def _math(expr, math_cls, output_type, **kwargs):
     if isinstance(expr, SequenceExpr):
-        return math_cls(_input=expr, _data_type=output_type)
+        return math_cls(_input=expr, _data_type=output_type, **kwargs)
     elif isinstance(expr, Scalar):
-        return math_cls(_input=expr, _value_type=output_type)
+        return math_cls(_input=expr, _value_type=output_type, **kwargs)
 
 
 def _abs(expr):
@@ -197,10 +197,10 @@ def _expm1(expr):
 
 
 def _log(expr, base=None):
-    log = _math(expr, Log, _get_type(expr))
+    kw = dict()
     if base is not None and not isinstance(base, Scalar):
-        base = Scalar(_value=base)
-    log._base = base
+        kw['_base'] = Scalar(_value=base)
+    log = _math(expr, Log, _get_type(expr), **kw)
 
     return log
 
@@ -258,10 +258,10 @@ def _floor(expr):
 
 
 def _trunc(expr, decimals=None):
-    truncated = _math(expr, Trunc, _get_type(expr))
+    kw = dict()
     if decimals is not None and not isinstance(decimals, Scalar):
-        decimals = Scalar(_value=decimals)
-    truncated._decimals = decimals
+        kw['_decimals'] = Scalar(_value=decimals)
+    truncated = _math(expr, Trunc, _get_type(expr), **kw)
 
     return truncated
 

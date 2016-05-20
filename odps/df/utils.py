@@ -17,6 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import inspect
+
 
 class FunctionWrapper(object):
     def __init__(self, func):
@@ -29,7 +31,7 @@ class FunctionWrapper(object):
 
 
 def output_names(*names):
-    if len(names) == 1 and isinstance(names, (tuple, list)):
+    if len(names) == 1 and isinstance(names[0], (tuple, list)):
         names = tuple(names[0])
 
     def inner(func):
@@ -43,7 +45,7 @@ def output_names(*names):
 
 
 def output_types(*types):
-    if len(types) == 1 and isinstance(types, (tuple, list)):
+    if len(types) == 1 and isinstance(types[0], (tuple, list)):
         types = tuple(types[0])
 
     def inner(func):
@@ -76,3 +78,14 @@ def output(names, types):
         wrapper.output_types = types
         return wrapper
     return inner
+
+
+def make_copy(f):
+    if inspect.isfunction(f):
+        return lambda *args, **kwargs: f(*args, **kwargs)
+    elif inspect.isclass(f):
+        class NewCls(f):
+            pass
+        return NewCls
+    else:
+        return f

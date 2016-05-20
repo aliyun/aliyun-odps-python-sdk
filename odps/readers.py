@@ -21,9 +21,9 @@ import csv
 import math
 
 from requests import Response
-import six
 
 from . import types
+from .compat import six
 
 
 class AbstractRecordReader(object):

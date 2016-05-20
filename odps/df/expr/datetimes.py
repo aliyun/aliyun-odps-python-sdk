@@ -143,7 +143,7 @@ class Strftime(DatetimeOp):
     _add_args_slots = False
 
     def _init(self, *args, **kwargs):
-        self._date_format = None
+        self._init_attr('_date_format', None)
 
         super(Strftime, self)._init(*args, **kwargs)
 
@@ -258,6 +258,17 @@ def _is_year_end(expr):
 
 
 def _strftime(expr, date_format):
+    """
+    Return formatted strings specified by date_format,
+    which supports the same string format as the python standard library.
+    Details of the string format can be found in python string format doc
+
+    :param expr:
+    :param date_format: date format string (e.g. “%Y-%m-%d”)
+    :type date_format: str
+    :return:
+    """
+
     return datetime_op(expr, Strftime, output_type=types.string,
                        _date_format=date_format)
 

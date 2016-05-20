@@ -19,14 +19,12 @@
 
 import operator
 import inspect
-import six
 from .expressions import CollectionExpr, ProjectCollectionExpr, \
     Column, BooleanSequenceExpr, SequenceExpr, repr_obj
 from .arithmetic import Equal
 from .errors import ExpressionError
-from ...compat import reduce
+from ...compat import reduce, six
 from ...models import Schema
-from .. import types
 
 
 class JoinCollectionExpr(CollectionExpr):
@@ -63,15 +61,9 @@ class JoinCollectionExpr(CollectionExpr):
         self._validate_predicates(self._predicate)
         self._how = self._how.upper()
 
-    def __getitem__(self, item):
-        if not isinstance(item, (six.string_types, BooleanSequenceExpr, slice, list, tuple)):
-            item = [item, ]
-
-        return super(JoinCollectionExpr, self).__getitem__(item)
-
     def _defunc(self, field):
         if inspect.isfunction(field):
-            if field.func_code.co_argcount == 1:
+            if six.get_function_code(field).co_argcount == 1:
                 return field(self)
             else:
                 return field(self._lhs, self._rhs)
@@ -86,67 +78,75 @@ class JoinCollectionExpr(CollectionExpr):
     def _is_column(self, col, expr):
         return col.input is expr or col.input is self._get_child(expr)
 
-    def _validate_project_field(self, field):
-        valid = super(JoinCollectionExpr, self)._validate_project_field(field)
-        if valid:
-            return True
-        if isinstance(field, SequenceExpr):
-            if self._lhs._has_field(field):
-                return True
-            elif self._rhs._has_field(field):
-                return True
-
-        return valid
-
-    def _valid_collection(self, field):
-        idx = 0 if field is self._get_child(self._lhs) else 1
-        if idx == 1 and field is not self._get_child(self._rhs):
-            raise ValueError('Invalid projection field: %s' % repr_obj(field))
-        return idx
-
-    def _project(self, fields):
+    def _get_fields(self, fields):
         selects = []
+
         for field in fields:
+            field = self._defunc(field)
             if isinstance(field, CollectionExpr):
-                if isinstance(field, ProjectCollectionExpr) and \
-                                id(field) not in (id(self._lhs), id(self._rhs)):
-                    idx = self._valid_collection(field.input)
-
-                    for select in field.fields:
-                        if select.source_name in self._renamed_columns:
-                            new_name = self._renamed_columns[select.source_name][idx]
-                            if select.is_renamed():
-                                new_name = select._name
-                            selects.append(select.rename(new_name))
-                        else:
-                            selects.append(select)
+                if any(c is self for c in field.children()) or \
+                        any(c is self._get_child(self._lhs) for c in field.children()) or \
+                        any(c is self._get_child(self._rhs) for c in field.children()):
+                    selects.extend(self._get_fields(field._project_fields))
                 else:
-                    idx = self._valid_collection(field)
-
-                    for name in field.schema.names:
-                        new_name = self._renamed_columns.get(name, (name, name))[idx]
-                        selects.append(new_name)
-            elif isinstance(field, SequenceExpr) and not self._has_field(field):
-                if field.source_name in self._renamed_columns:
-                    col = next(n for n in field.traverse(top_down=True, unique=True)
-                               if isinstance(n, Column))
-                    idx = 0 if self._is_column(col, self._lhs) else 1
-                    if idx == 1: assert self._is_column(col, self._rhs)
-                    new_name = self._renamed_columns[field.source_name][idx]
-                    if field.is_renamed():
-                        new_name = field._name
-                    selects.append(field.rename(new_name))
-                else:
-                    selects.append(field)
+                    selects.extend(self._get_fields(field._fetch_fields()))
             else:
-                selects.append(field)
+                selects.append(self._get_field(field))
 
-        names = [field if isinstance(field, six.string_types) else field.name
-                 for field in selects]
-        typos = [self._schema.get_type(field) if isinstance(field, six.string_types)
-                 else field.data_type for field in selects]
-        return ProjectCollectionExpr(self, _fields=selects,
-                                     _schema=types.Schema.from_lists(names, typos))
+        return selects
+
+    def _get_field(self, field):
+        field = self._defunc(field)
+
+        if isinstance(field, six.string_types):
+            if field not in self._schema:
+                raise ValueError('Field(%s) does not exist' % field)
+            return Column(self, _name=field, _data_type=self._schema[field].type)
+
+        root = field
+        subs = dict()
+
+        collections = self, self._get_child(self._lhs), self._get_child(self._rhs)
+        collections_ids = set(id(c) for c in collections)
+        for collection in collections:
+            for path in root.all_path(collection, strict=True):
+                for i, node in enumerate(path):
+                    if id(node) in subs:
+                        path[i] = subs[id(node)]
+                        continue
+                    if id(node) in collections_ids:
+                        break
+
+                    if isinstance(node, Column):
+                        if self._is_column(node, self):
+                            subs[id(node)] = node
+                            continue
+                        idx = -1
+                        if self._is_column(node, self._lhs):
+                            idx = 0
+                        elif self._is_column(node, self._rhs):
+                            idx = 1
+
+                        if idx == -1:
+                            raise ExpressionError('field must come from Join collection '
+                                                  'or its left and right child collection: %s'
+                                                  % repr_obj(field))
+
+                        name = node.source_name
+                        if name in self._renamed_columns:
+                            name = self._renamed_columns[name][idx]
+                        to_sub = self._get_field(name)
+                        if node.is_renamed():
+                            to_sub = to_sub.rename(node.name)
+
+                        path[i] = to_sub
+                        subs[id(node)] = to_sub
+                        if i == 0:
+                            root = to_sub
+                        else:
+                            path[i - 1].substitute(node, to_sub)
+
+        return root
 
     def origin_collection(self, column_name):
         idx, name = self._column_origins[column_name]
@@ -167,26 +167,35 @@ class JoinCollectionExpr(CollectionExpr):
     def accept(self, visitor):
         visitor.visit_join(self)
 
+    def _get_non_suffixes_fields(self):
+        return set()
+
     def _set_schema(self):
         names, typos = [], []
 
-        for col in self._lhs.columns:
+        non_suffixes_fields = self._get_non_suffixes_fields()
+
+        for col in self._lhs.schema.columns:
             name = col.name
             if col.name in self._rhs.schema:
                 self._column_conflict = True
+            if col.name in self._rhs.schema and col.name not in non_suffixes_fields:
                 name = '%s%s' % (col.name, self._left_suffix)
                 self._renamed_columns[col.name] = (name,)
             names.append(name)
             typos.append(col.type)
 
             self._column_origins[name] = 0, col.name
-        for col in self._rhs.columns:
+        for col in self._rhs.schema.columns:
             name = col.name
             if col.name in self._lhs.schema:
                 self._column_conflict = True
+            if col.name in self._lhs.schema and col.name not in non_suffixes_fields:
                 name = '%s%s' % (col.name, self._right_suffix)
                 self._renamed_columns[col.name] = \
                     self._renamed_columns[col.name][0], name
+            if name in non_suffixes_fields:
+                continue
             names.append(name)
             typos.append(col.type)
 
@@ -213,16 +222,10 @@ class JoinCollectionExpr(CollectionExpr):
                 else:
                     left_name, right_name = p
 
-                if isinstance(left_name, Column):
-                    left_col = left_name
-                else:
-                    left_col = self._lhs[left_name]
-                if isinstance(right_name, Column):
-                    right_col = right_name
-                else:
-                    right_col = self._rhs[right_name]
+                left_col = self._lhs._get_field(left_name)
+                right_col = self._rhs._get_field(right_name)
 
-                if left_col.input is not self._lhs or right_col.input is not self._rhs:
+                if not left_col.is_ancestor(self._lhs) or not right_col.is_ancestor(self._rhs):
                     raise ExpressionError('Invalid predicate: {0!s}'.format(repr_obj(p)))
                 subs.append(left_col == right_col)
 
@@ -240,7 +243,8 @@ class JoinCollectionExpr(CollectionExpr):
                         except StopIteration:
                             break
             else:
-                raise ExpressionError('Invalid predicate: {0!s}'.format(repr_obj(p)))
+                if not is_validate:
+                    raise ExpressionError('Invalid predicate: {0!s}'.format(repr_obj(p)))
         if not is_validate:
             raise ExpressionError('Invalid predicate: no validate predicate assigned')
 
@@ -258,6 +262,38 @@ class InnerJoin(JoinCollectionExpr):
     def _init(self, *args, **kwargs):
         self._how = 'INNER'
         super(InnerJoin, self)._init(*args, **kwargs)
+
+    def _get_non_suffixes_fields(self):
+        non_suffixes = set()
+
+        for p in self._predicate:
+            if isinstance(p, six.string_types):
+                non_suffixes.add(p)
+            elif isinstance(p, (tuple, Equal)):
+                if isinstance(p, Equal):
+                    p = p.lhs, p.rhs
+                if isinstance(p, tuple) and len(p) != 2:
+                    continue
+
+                left_name = None
+                if isinstance(p[0], six.string_types):
+                    left_name = p[0]
+                elif isinstance(p[0], Column) and not p[0].is_renamed():
+                    left_name = p[0].name
+
+                if left_name is None:
+                    continue
+
+                right_name = None
+                if isinstance(p[1], six.string_types):
+                    right_name = p[1]
+                elif isinstance(p[1], Column) and not p[1].is_renamed():
+                    right_name = p[1].name
+
+                if left_name == right_name:
+                    non_suffixes.add(left_name)
+
+        return non_suffixes
 
 
 class LeftJoin(JoinCollectionExpr):
@@ -323,21 +359,13 @@ def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False
     >>> df.join(df2, on=[df.name == df2.name, df.id == df2.id1])
     >>> df.join(df2, mapjoin=False)
     """
-    if on is None:
+    if on is None and not mapjoin:
         on = [name for name in left.schema.names if name in right.schema]
-        if len(on) == 0:
-            raise ValueError('No coexist fields found, please specify `on` conditions')
 
-        if how.lower() == 'inner':
-            suffixes = ('', '_x')
-            return join(left, right, on=on, how=how, suffixes=suffixes, mapjoin=mapjoin)\
-                .select(left, right.exclude(on))
-        return join(left, right, on=on, how=how, suffixes=suffixes, mapjoin=mapjoin)
-
-    if isinstance(suffixes, tuple) and len(suffixes) == 2:
+    if isinstance(suffixes, (tuple, list)) and len(suffixes) == 2:
         left_suffix, right_suffix = suffixes
     else:
-        left_suffix, right_suffix = None, None
+        raise ValueError('suffixes must be a tuple or list with two elements, got %s' % suffixes)
     if not isinstance(on, list):
         on = [on, ]
     for i in range(len(on)):

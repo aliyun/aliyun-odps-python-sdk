@@ -24,12 +24,7 @@ from .. import types
 
 
 class SequenceReduction(Scalar):
-    __slots__ = '_name',
     _args = '_input',
-
-    def _init(self, *args, **kwargs):
-        self._name = None
-        super(SequenceReduction, self)._init(*args, **kwargs)
 
     @property
     def node_name(self):
@@ -61,6 +56,26 @@ class SequenceReduction(Scalar):
     def output_type(self):
         return repr(self._value_type)
 
+    def to_grouped_reduction(self, grouped):
+        collection = next(n for n in self._input.traverse(top_down=True, unique=True)
+                          if isinstance(n, CollectionExpr))
+        if collection is not grouped._input:
+            raise ExpressionError('Aggregation should be applied to %s, %s instead' % (
+                grouped._input, collection))
+
+        cls_name = 'Grouped%s' % self.__class__.__name__
+        clz = globals()[cls_name]
+
+        kwargs = dict((arg, getattr(self, arg, None)) for arg in utils.get_attrs(self)
+                       if arg != '_cache_args')
+        kwargs['_data_type'] = kwargs.pop('_value_type')
+        if '_source_value_type' in kwargs:
+            kwargs['_source_data_type'] = kwargs.pop('_source_value_type')
+        kwargs['_grouped'] = grouped
+        del kwargs['_value']
+
+        return clz(**kwargs)
+
     @property
     def input(self):
         return self._input
@@ -70,12 +85,13 @@ class SequenceReduction(Scalar):
 
 
 class GroupedSequenceReduction(SequenceExpr):
-    __slots__ = '_column', '_inited'
+    __slots__ = '_grouped',
     _args = '_input',
 
     def _init(self, *args, **kwargs):
-        self._column = None
+        self._init_attr('_grouped', None)
         super(GroupedSequenceReduction, self)._init(*args, **kwargs)
+        assert self._grouped is not None
 
     @property
     def source_name(self):
@@ -89,41 +105,14 @@ class GroupedSequenceReduction(SequenceExpr):
         if source_name:
             return '%s_%s' % (source_name, self.node_name.lower())
 
-    @property
-    def args(self):
-        if getattr(self, '_cached_args', None) and len(self._cached_args) == 1:
-            return self._cached_args[0],
-
-        input = self.raw_input
-        if isinstance(input, SequenceGroupBy):
-            if self._column:
-                return self._column,
-
-            grouped = input._input
-            self._column = grouped._input[self.source_name]
-            self._column._add_parent(self)
-            return self._column,
-        elif isinstance(input, GroupBy):
-            return input.input,
-
-        return super(GroupedSequenceReduction, self).args
-
     def _repr(self):
-        if isinstance(self._input, SequenceGroupBy):
-            grouped = self._input._input
-        else:
-            grouped = self._input
-        expr = grouped.agg(self)[self.name]
+        expr = self._grouped.agg(self)[self.name]
 
         return expr._repr()
 
     @property
     def input(self):
-        return self.args[0]
-
-    @property
-    def raw_input(self):
-        return object.__getattribute__(self, '_input')
+        return self._input
 
     def accept(self, visitor):
         return visitor.visit_reduction(self)
@@ -219,6 +208,48 @@ class GroupedNUnique(GroupedSequenceReduction):
     node_name = 'nunique'
 
 
+class Aggregation(SequenceReduction):
+    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources'
+    _args = '_input', '_collection_resources'
+    node_name = 'Aggregation'
+
+    @property
+    def raw_input(self):
+        return self._get_attr('_input')
+
+    @property
+    def func(self):
+        return self._aggregator
+
+    @func.setter
+    def func(self, f):
+        self._aggregator = f
+
+    def accept(self, visitor):
+        visitor.visit_user_defined_aggregator(self)
+
+
+class GroupedAggregation(GroupedSequenceReduction):
+    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources'
+    _args = '_input', '_collection_resources'
+    node_name = 'Aggregation'
+
+    @property
+    def raw_input(self):
+        return self._get_attr('_input')
+
+    @property
+    def func(self):
+        return self._aggregator
+
+    @func.setter
+    def func(self, f):
+        self._aggregator = f
+
+    def accept(self, visitor):
+        visitor.visit_user_defined_aggregator(self)
+
+
 def _reduction(expr, output_cls, output_type=None, **kw):
     grouped_output_cls = globals()['Grouped%s' % output_cls.__name__]
     method_name = output_cls.__name__.lower()
@@ -248,7 +279,9 @@ def _reduction(expr, output_cls, output_type=None, **kw):
     if isinstance(expr, SequenceExpr):
         return output_cls(_value_type=output_type, _input=expr, **kw)
     elif isinstance(expr, SequenceGroupBy):
-        return grouped_output_cls(_data_type=output_type, _input=expr, **kw)
+        collection = expr.input.input
+        return grouped_output_cls(_data_type=output_type, _input=collection[expr.name],
+                                  _grouped=expr.input, **kw)
 
 
 def min_(expr):
@@ -263,11 +296,13 @@ def count(expr):
     if isinstance(expr, SequenceExpr):
         return Count(_value_type=types.int64, _input=expr)
     elif isinstance(expr, SequenceGroupBy):
-        return GroupedCount(_data_type=types.int64, _input=expr)
+        collection = expr.input.input
+        return GroupedCount(_data_type=types.int64, _input=collection[expr.name])
     elif isinstance(expr, CollectionExpr):
         return Count(_value_type=types.int64, _input=expr).rename('count')
     elif isinstance(expr, GroupBy):
-        return GroupedCount(_data_type=types.int64, _input=expr).rename('count')
+        return GroupedCount(_data_type=types.int64, _input=expr.input,
+                            _grouped=expr).rename('count')
 
 
 def _stats_type(expr):
@@ -328,34 +363,6 @@ def nunique(expr):
     return _reduction(expr, NUnique, output_type)
 
 
-def as_grouped(reduction_expr):
-    if isinstance(reduction_expr, GroupedSequenceReduction):
-        return reduction_expr
-
-    cls_name = 'Grouped%s' % reduction_expr.__class__.__name__
-    clz = globals()[cls_name]
-
-    if isinstance(reduction_expr.input, CollectionExpr):
-        source_name = None
-    else:
-        source_name = reduction_expr._input.name
-
-    grouped = clz(_data_type=reduction_expr._value_type, _name=reduction_expr._name,
-                  _source_name=source_name, _input=reduction_expr._input)
-
-    for attr in utils.get_attrs(reduction_expr):
-        attr_val = getattr(reduction_expr, attr, None)
-        if attr_val is None:
-            continue
-        if attr not in grouped._args and getattr(grouped, attr, None) != attr_val:
-            try:
-                setattr(grouped, attr, attr_val)
-            except AttributeError:
-                continue
-
-    return grouped
-
-
 def describe(expr):
     methods = ['min', 'max', 'mean', 'std']
 
@@ -372,6 +379,37 @@ def describe(expr):
                     fields.append(getattr(expr[col.name], method)(**kwargs))
 
         return expr[fields]
+
+
+def aggregate(expr, aggregator, rtype=None, resources=None, args=(), **kwargs):
+    name = None
+    if isinstance(aggregator, FunctionWrapper):
+        if aggregator.output_names:
+            if len(aggregator.output_names) > 1:
+                raise ValueError('Aggregate column has more than one name')
+            name = aggregator.output_names[0]
+        if aggregator.output_types:
+            rtype = rtype or aggregator.output_types[0]
+        aggregator = aggregator._func
+
+    rtype = rtype or expr.dtype
+    output_type = types.validate_data_type(rtype)
+
+    collection_resources = utils.get_collection_resources(resources)
+    if isinstance(expr, SequenceGroupBy):
+        collection = expr.input.input
+        input = collection[expr.name]
+        return GroupedAggregation(_input=input, _aggregator=aggregator,
+                                  _data_type=output_type, _name=name,
+                                  _func_args=args, _func_kwargs=kwargs, _resources=resources,
+                                  _collection_resources=collection_resources,
+                                  _grouped=expr.input)
+    else:
+        input = expr
+        return Aggregation(_input=input, _aggregator=aggregator,
+                           _value_type=output_type, _name=name,
+                           _func_args=args, _func_kwargs=kwargs, _resources=resources,
+                           _collection_resources=collection_resources)
 
 
 _number_sequence_methods = dict(
@@ -402,6 +440,8 @@ StringSequenceExpr.sum = sum_
 BooleanSequenceExpr.sum = sum_
 BooleanSequenceExpr.any = any_
 BooleanSequenceExpr.all = all_
+SequenceExpr.aggregate = aggregate
+SequenceExpr.agg = aggregate
 
 number_sequences_groupby = [globals().get(repr(t).capitalize() + SequenceGroupBy.__name__)
                             for t in types.number_types()]
@@ -415,6 +455,8 @@ StringSequenceGroupBy.sum = sum_
 BooleanSequenceGroupBy.sum = sum_
 BooleanSequenceGroupBy.any = any_
 BooleanSequenceGroupBy.all = all_
+SequenceGroupBy.aggregate = aggregate
+SequenceGroupBy.agg = aggregate
 
 # add method to collection expression
 utils.add_method(CollectionExpr, _number_sequence_methods)

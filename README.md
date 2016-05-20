@@ -1,13 +1,13 @@
 # ODPS Python SDK and data analysis framework
 
-![License](https://img.shields.io/pypi/l/pyodps.svg) [![PyPI version](https://badge.fury.io/py/pyodps.svg)](https://badge.fury.io/py/pyodps)
+[![License](https://img.shields.io/pypi/l/pyodps.svg)](https://github.com/aliyun/aliyun-odps-python-sdk/blob/master/License) [![PyPI version](https://img.shields.io/pypi/v/pyodps.svg)](https://pypi.python.org/pypi/pyodps) [![Docs](https://img.shields.io/badge/docs-latest-brightgreen.svg)](http://pyodps.readthedocs.org/)
 
 <div align="center">
   <img src="http://pyodps.readthedocs.org/zh_CN/latest/_static/PyODPS.png"><br><br>
 </div>
 -----------------
 
-Elegent way to access ODPS API. [Documentation](http://pyodps.readthedocs.org)
+Elegent way to access ODPS API. [Documentation](http://pyodps.readthedocs.org/)
 
 ## Installation
 
@@ -30,12 +30,9 @@ $ python setup.py install
 
 ## Dependencies
 
- * Python (>=2.6), including Python 3+, pypy
+ * Python (>=2.6), including Python 3+, pypy, Python 2.7 recommended
  * setuptools (>=3.0)
  * requests (>=2.4.0)
- * enum34 (>=1.0.4)
- * six (>=1.10.0)
- * protobuf (>=2.5.0)
 
 ## Run Unittest
 

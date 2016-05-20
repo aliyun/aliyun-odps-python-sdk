@@ -17,10 +17,8 @@
 
 from datetime import datetime
 
-import six
-
 from odps.tests.core import TestBase
-from odps.compat import unittest
+from odps.compat import unittest, six
 from odps.models import Projects
 
 

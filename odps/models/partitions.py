@@ -17,11 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
-
 from .partition import Partition
 from .core import Iterable
 from .. import serializers, errors, types
+from ..compat import six
 
 
 class Partitions(Iterable):

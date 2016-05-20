@@ -17,11 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
-
 from ....models import Schema, Column
 from .... import types as odps_types
 from ... import types as df_types
+from ....compat import six
 
 
 _odps_to_df_types = {

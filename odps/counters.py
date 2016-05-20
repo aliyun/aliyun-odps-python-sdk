@@ -84,9 +84,9 @@ class Counters(object):
     def size(self):
         return len(self.groups)
 
-    def to_json_string(self):
+    def to_json_string(self, **json_options):
         data = dict()
-        for (k,v) in self.groups.items():
+        for (k, v) in self.groups.items():
             data[k] = v._get_data_obj()
 
-        return json.dumps(data)
+        return json.dumps(data, **json_options)

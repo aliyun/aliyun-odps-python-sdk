@@ -17,12 +17,12 @@
 
 import json
 
-from odps.compat import unittest
-
+from odps.compat import unittest, six
 from odps.counters import *
+from odps.tests.core import TestBase
 
 
-class TestUserCounter(unittest.TestCase):
+class TestUserCounter(TestBase):
     
     def test_counter(self):
         counter = Counter("test", 12)
@@ -44,7 +44,16 @@ class TestUserCounter(unittest.TestCase):
         self.assertEqual(2, counter_group.size())
 
     def test_counters(self):
-        result_json_str = '''
+        def _normalize_counter(json_str):
+            obj = json.loads(json_str)
+            for v in six.itervalues(obj):
+                if 'counters' not in v:
+                    continue
+                v['counters'] = sorted(v['counters'], key=lambda item: item['name'])
+
+            return json.dumps(obj, sort_keys=True)
+
+        result_json = '''
                 {
                   "group1" : {
                     "name" : "group1",
@@ -79,7 +88,7 @@ class TestUserCounter(unittest.TestCase):
         c3.increment(3)
 
         self.assertEqual(2, counters.size())
-        self.assertEqual(json.loads(result_json_str), json.loads(counters.to_json_string()))
+        self.assertEqual(_normalize_counter(result_json), _normalize_counter(counters.to_json_string()))
 
 if __name__ == '__main__':
     unittest.main()

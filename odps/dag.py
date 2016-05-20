@@ -22,9 +22,7 @@ import functools
 from collections import Iterable
 from copy import deepcopy
 
-import six
-
-from .compat import Queue
+from .compat import Queue, six
 
 
 class DAGValidationError(Exception):

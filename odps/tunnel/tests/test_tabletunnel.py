@@ -19,7 +19,6 @@
 
 import math
 from datetime import datetime
-from decimal import Decimal
 import random
 import time
 from multiprocessing.pool import ThreadPool
@@ -29,16 +28,58 @@ try:
 except ImportError:
     from string import ascii_letters as letters
 
-from odps.tests.core import TestBase, to_str
+from odps.compat import reload_module
+from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, OrderedDict
+from odps.compat import Decimal
 from odps.models import Schema
 from odps import types, options
+from odps.tunnel import TableTunnel
+from odps.config import option_context
+
+
+def bothPyAndC(func):
+    def inner(self, *args, **kwargs):
+        try:
+            import cython
+            ts = 'py', 'c'
+        except ImportError:
+            ts = 'py',
+            import warnings
+            warnings.warn('No c code tests for table tunnel')
+        for t in ts:
+            with option_context() as options:
+                setattr(options, 'force_{0}'.format(t), True)
+
+                from odps import crc as _crc
+                reload_module(_crc)
+
+                from odps.tunnel import checksum
+                reload_module(checksum)
+
+                from odps.tunnel import pb
+                reload_module(pb)
+
+                from odps.tunnel.pb import writer
+                reload_module(writer)
+
+                self.tunnel = TableTunnel(self.odps, endpoint=self.odps._tunnel_endpoint)
+                self.mode = t
+
+                func(self, *args, **kwargs)
+
+    return inner
 
 
 class Test(TestBase):
     def _upload_data(self, test_table, records, compress=False, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
         writer = upload_ss.open_record_writer(0, compress=compress)
+
+        # test use right py or c writer
+        self.assertEqual(self.mode, writer._crc._mode())
+        self.assertEqual(self.mode, writer._writer._mode())
+
         for r in records:
             record = upload_ss.new_record()
             for i, it in enumerate(r):
@@ -95,8 +136,9 @@ class Test(TestBase):
     def _delete_table(self, table_name):
         self.odps.delete_table(table_name)
 
+    @bothPyAndC
     def testUploadAndDownloadByRawTunnel(self):
-        test_table_name = 'pyodps_test_raw_tunnel'
+        test_table_name = tn('pyodps_test_raw_tunnel')
         self._create_table(test_table_name)
         data = self._gen_data()
 
@@ -106,6 +148,7 @@ class Test(TestBase):
 
         self._delete_table(test_table_name)
 
+    @bothPyAndC
     def testBufferredUploadAndDownloadByRawTunnel(self):
         table, data = self._gen_table(size=10)
         self._bufferred_upload_data(table, data)
@@ -119,8 +162,9 @@ class Test(TestBase):
         self._assert_reads_data_equal(records, data)
         self._delete_table(table)
 
+    @bothPyAndC
     def testDownloadWithSpecifiedColumns(self):
-        test_table_name = 'pyodps_test_raw_tunnel_columns'
+        test_table_name = tn('pyodps_test_raw_tunnel_columns')
         self._create_table(test_table_name)
 
         data = self._gen_data()
@@ -133,8 +177,9 @@ class Test(TestBase):
                 self.assertIsNone(r[i])
         self._delete_table(test_table_name)
 
+    @bothPyAndC
     def testPartitionUploadAndDownloadByRawTunnel(self):
-        test_table_name = 'pyodps_test_raw_partition_tunnel'
+        test_table_name = tn('pyodps_test_raw_partition_tunnel')
         test_table_partition = 'ds=test'
         self.odps.delete_table(test_table_name, if_exists=True)
 
@@ -148,8 +193,9 @@ class Test(TestBase):
 
         self._delete_table(test_table_name)
 
+    @bothPyAndC
     def testPartitionDownloadWithSpecifiedColumns(self):
-        test_table_name = 'pyodps_test_raw_tunnel_partition_columns'
+        test_table_name = tn('pyodps_test_raw_tunnel_partition_columns')
         test_table_partition = 'ds=test'
         self.odps.delete_table(test_table_name, if_exists=True)
 
@@ -164,12 +210,13 @@ class Test(TestBase):
 
         self._delete_table(test_table_name)
 
+    @bothPyAndC
     def testUploadAndDownloadByZlibTunnel(self):
         raw_chunk_size = options.chunk_size
         options.chunk_size = 16
 
         try:
-            test_table_name = 'pyodps_test_zlib_tunnel'
+            test_table_name = tn('pyodps_test_zlib_tunnel')
             self._create_table(test_table_name)
             data = self._gen_data()
 
@@ -181,6 +228,7 @@ class Test(TestBase):
         finally:
             options.chunk_size = raw_chunk_size
 
+    @bothPyAndC
     def testBufferredUploadAndDownloadByZlibTunnel(self):
         table, data = self._gen_table(size=10)
         self._bufferred_upload_data(table, data, compress=True)
@@ -188,8 +236,9 @@ class Test(TestBase):
         self._assert_reads_data_equal(records, data)
         self._delete_table(table)
 
+    @bothPyAndC
     def testUploadAndDownloadBySnappyTunnel(self):
-        test_table_name = 'pyodps_test_snappy_tunnel'
+        test_table_name = tn('pyodps_test_snappy_tunnel')
         self._create_table(test_table_name)
         data = self._gen_data()
 
@@ -199,6 +248,7 @@ class Test(TestBase):
 
         self._delete_table(test_table_name)
 
+    @bothPyAndC
     def testBufferredUploadAndDownloadBySnappyTunnel(self):
         table, data = self._gen_table(size=10)
         self._bufferred_upload_data(table, data, compress=True, compress_algo='snappy')
@@ -267,7 +317,7 @@ class Test(TestBase):
                 name = name[:2]
             return name
 
-        test_table_name = 'pyodps_test_tunnel'
+        test_table_name = tn('pyodps_test_tunnel')
         types = ['bigint', 'string', 'double', 'datetime', 'boolean', 'decimal']
         types.append(self._gen_random_array_type().name)
         types.append(self._gen_random_map_type().name)
@@ -316,6 +366,7 @@ class Test(TestBase):
                 else:
                     self.assertEqual(it1, it2)
 
+    @bothPyAndC
     def testTableUploadAndDownloadTunnel(self):
         table, data = self._gen_table()
 
@@ -338,6 +389,7 @@ class Test(TestBase):
 
         table.drop()
 
+    @bothPyAndC
     def testMultiTableUploadAndDownloadTunnel(self):
         table, data = self._gen_table(size=10)
 
@@ -360,6 +412,7 @@ class Test(TestBase):
                 else:
                     self.assertEqual(it1, it2)
 
+    @bothPyAndC
     def testParallelTableUploadAndDownloadTunnel(self):
         p = 'ds=test'
 

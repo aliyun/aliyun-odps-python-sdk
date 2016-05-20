@@ -21,15 +21,13 @@ import itertools
 import operator
 import inspect
 
-import six
-
 from ...models import Schema
 from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
     Column, SequenceExpr, Scalar, repr_obj
 from .collections import SortedExpr
 from .errors import ExpressionError
 from . import utils
-from ...compat import reduce
+from ...compat import reduce, six
 from ..utils import FunctionWrapper
 from .. import types
 from ..types import string, validate_data_type
@@ -42,20 +40,10 @@ class BaseGroupBy(Expr):
     def _init(self, *args, **kwargs):
         super(BaseGroupBy, self)._init(*args, **kwargs)
         if isinstance(self._by, list):
-            self._by = [self._get_group_by_field(field) for field in self._by]
+            self._by = self._input._get_fields(self._by)
         else:
-            self._by = [self._get_group_by_field(self._by)]
+            self._by = [self._input._get_field(self._by)]
         self._to_agg = set(col.name for col in self._input._schema.columns)
-
-    def _get_group_by_field(self, field):
-        field = self._defunc(field)
-
-        if isinstance(field, Column):
-            return field
-        elif isinstance(field, six.string_types):
-            return self._input[field]
-        else:
-            return field
 
     def __getitem__(self, item):
         if isinstance(item, six.string_types):
@@ -78,15 +66,10 @@ class BaseGroupBy(Expr):
                        _by_names=self._by_names, _to_agg=_to_agg)
 
     def __getattr__(self, attr):
-        try:
-            obj = object.__getattribute__(self, attr)
+        if attr in object.__getattribute__(self, '_to_agg'):
+            return self[attr]
 
-            return obj
-        except AttributeError as e:
-            if attr in object.__getattribute__(self, '_to_agg'):
-                return self[attr]
-
-            raise e
+        return super(BaseGroupBy, self).__getattribute__(attr)
 
     def sort_values(self, by, ascending=True):
         if hasattr(self, '_having') and self._having is not None:
@@ -100,7 +83,7 @@ class BaseGroupBy(Expr):
                            for attr in utils.get_attrs(self))
         attr_values['_sorted_fields'] = by
         attr_values['_ascending'] = ascending
-        del attr_values['_having']
+        attr_values.pop('_having', None)
 
         return SortedGroupBy(**attr_values)
 
@@ -111,7 +94,7 @@ class BaseGroupBy(Expr):
         if hasattr(self, '_having') and self._having is not None:
             raise ExpressionError('Cannot mutate GroupBy with `having`')
 
-        if len(windows) == 0 and isinstance(windows[0], list):
+        if len(windows) == 1 and isinstance(windows[0], list):
             windows = windows[0]
         else:
             windows = list(windows)
@@ -142,7 +125,7 @@ class BaseGroupBy(Expr):
         return MutateCollectionExpr(_input=self, _window_fields=windows,
                                     _schema=Schema.from_lists(names, types))
 
-    def apply(self, func, names=None, types=None, args=(), **kwargs):
+    def apply(self, func, names=None, types=None, resources=None, args=(), **kwargs):
         if isinstance(func, FunctionWrapper):
             names = names or func.output_names
             types = types or func.output_types
@@ -156,45 +139,71 @@ class BaseGroupBy(Expr):
         if hasattr(self, '_having') and self._having is not None:
             raise ExpressionError('Cannot apply function to GroupBy with `having`')
 
+        collection_resources = utils.get_collection_resources(resources)
+
         return GroupbyAppliedCollectionExpr(_input=self, _func=func, _func_args=args,
-                                            _func_kwargs=kwargs, _schema=schema)
+                                            _func_kwargs=kwargs, _schema=schema,
+                                            _resources=resources,
+                                            _collection_resources=collection_resources)
 
 
 class GroupBy(BaseGroupBy):
     __slots__ = '_having',
 
     def _init(self, *args, **kwargs):
-        self._having = None
+        self._init_attr('_having', None)
         super(GroupBy, self)._init(*args, **kwargs)
 
-    def _is_reduction(self, agg):
+    def _validate_agg(self, agg):
         from .reduction import GroupedSequenceReduction
 
-        return any(isinstance(node, GroupedSequenceReduction)
-                   for node in itertools.chain(*agg.all_path(self._input)))
+        for path in agg.all_path(self._input):
+            has_reduction = False
+            not_self = False
+            for n in path:
+                if isinstance(n, GroupedSequenceReduction):
+                    has_reduction = True
+                    if n._grouped is not self:
+                        not_self = True
+                elif isinstance(n, CollectionExpr) and n is not self._input:
+                    raise ExpressionError(
+                        'Aggregation should be applied to the columns of %s, not %s' % (
+                            repr_obj(self._input), repr_obj(n)))
 
-    def _as_grouped(self, reduction_expr):
+            if not_self:
+                raise ExpressionError(
+                    'Aggregation has not been applied to the right GroupBy: %s' % repr_obj(agg))
+            if not has_reduction:
+                raise ExpressionError('No aggregation found in %s' % repr_obj(agg))
+
+    def _transform(self, reduction_expr):
         if isinstance(reduction_expr, Scalar):
-            from .reduction import as_grouped, SequenceReduction
+            from .reduction import SequenceReduction
 
             root = reduction_expr
-            for path in reduction_expr.all_path(self._input):
+
+            # some nodes may have been changed during traversing
+            # thus we store them here to prevent from processing again
+            subs = dict()
+            for path in root.all_path(self._input, strict=True):
                 for idx, node in enumerate(path):
+                    if id(node) in subs:
+                        path[idx] = subs[id(node)]
+                        continue
+
                     if isinstance(node, SequenceReduction):
-                        agg = as_grouped(node)
-                        if isinstance(agg.input, Column):
-                            agg._input = self[agg.source_name]
-                        to_sub = agg
+                        to_sub = node.to_grouped_reduction(self)
                     elif isinstance(node, Scalar):
                         to_sub = node.to_sequence()
                     else:
                         continue
 
-                    path[idx] = to_sub
                     if idx == 0:
                         root = to_sub
-                    else:
-                        path[idx - 1].substitute(node, to_sub)
+
+                    path[idx] = to_sub
+                    subs[id(node)] = to_sub
+                    path[idx - 1].substitute(node, to_sub)
 
             return root
 
@@ -233,13 +242,12 @@ class GroupBy(BaseGroupBy):
                                  for new_name, agg in six.iteritems(kw)])
 
         # keep sequence to ensure that unittests works well
-        aggregations = sorted([self._as_grouped(agg) for agg in aggregations],
+        aggregations = sorted([self._transform(agg) for agg in aggregations],
                               key=lambda it: it.name)
 
         if not aggregations:
             raise ValueError('Cannot aggregate on grouped data')
-        if not all(self._is_reduction(agg) for agg in aggregations):
-            raise TypeError('Only aggregate functions can be provided')
+        [self._validate_agg(agg) for agg in aggregations]
 
         names = [by.name for by in self._by if isinstance(by, SequenceExpr)] + \
                 [agg.name for agg in aggregations]
@@ -263,9 +271,9 @@ class SequenceGroupBy(Expr):
             cls_name = data_type.__class__.__name__ + SequenceGroupBy.__name__
             clazz = globals()[cls_name]
 
-            return object.__new__(clazz)
+            return super(SequenceGroupBy, clazz).__new__(clazz)
         else:
-            return object.__new__(cls)
+            return super(SequenceGroupBy, cls).__new__(cls)
 
     @property
     def name(self):
@@ -359,7 +367,7 @@ class GroupByCollectionExpr(CollectionExpr):
             self._input = self._input._input
 
     def iter_args(self):
-        arg_names = ['collection', 'by', 'having', 'aggregations']
+        arg_names = ['collection', 'bys', 'having', 'aggregations']
         for it in zip(arg_names, self.args):
             yield it
         if self._fields is not None:
@@ -371,50 +379,6 @@ class GroupByCollectionExpr(CollectionExpr):
         else:
             exprs = self.args[1] + self.args[3]
         return dict((expr.name, expr) for expr in exprs if hasattr(expr, 'name'))
-
-    def _project(self, fields):
-        # FIXME: move to optimize
-        # consider the case:
-        # df = input.groupby(**).agg(**)
-        # df.cache()
-        # df.select(***)
-        # the cached will not be executed
-
-        selections = []
-        names = []
-        tps = []
-
-        select_fields = []
-        for field in fields:
-            if isinstance(field, CollectionExpr):
-                select_fields.extend(field.fields)
-            else:
-                select_fields.append(field)
-
-        name_to_exprs = self._name_to_exprs()
-        for field in select_fields:
-            if isinstance(field, six.string_types):
-                col = name_to_exprs[field]
-                selections.append(col)
-                names.append(field)
-                tps.append(col.dtype)
-            else:
-                for path in field.all_path(self):
-                    if len(path) >= 2 and isinstance(path[-2], Column):
-                        col = path[-2]
-                        to_sub = name_to_exprs[col.source_name or col.name]
-                        if col.source_name is not None and col.source_name != col.name:
-                            to_sub = to_sub.rename(col.name)
-                        if len(path) > 2:
-                            path[-3].substitute(col, to_sub)
-                        else:
-                            field = to_sub
-                selections.append(field)
-                names.append(field.name)
-                tps.append(field.dtype)
-        return GroupByCollectionExpr(self._input, self._by, self._having,
-                                     self._aggregations, selections,
-                                     _schema=Schema.from_lists(names, tps))
 
     @property
     def input(self):
@@ -438,11 +402,16 @@ class MutateCollectionExpr(CollectionExpr):
     def _init(self, *args, **kwargs):
         super(MutateCollectionExpr, self)._init(*args, **kwargs)
 
-        self._by = self._input._by
-        self._input = self._input._input
+        if isinstance(self._input, GroupBy):
+            self._by = self._input._by
+            self._input = self._input._input
+
+    @property
+    def _project_fields(self):
+        return self._window_fields
 
     def iter_args(self):
-        for it in zip(['collection', 'by', 'mutates'], self.args):
+        for it in zip(['collection', 'bys', 'mutates'], self.args):
             yield it
 
     @property
@@ -458,8 +427,8 @@ class MutateCollectionExpr(CollectionExpr):
 
 
 class GroupbyAppliedCollectionExpr(CollectionExpr):
-    __slots__ = '_func', '_func_args', '_func_kwargs'
-    _args = '_input', '_by', '_sort_fields', '_fields'
+    __slots__ = '_func', '_func_args', '_func_kwargs', '_resources'
+    _args = '_input', '_by', '_sort_fields', '_fields', '_collection_resources'
     node_name = 'Apply'
 
     def _init(self, *args, **kwargs):
@@ -491,8 +460,20 @@ class GroupbyAppliedCollectionExpr(CollectionExpr):
     def input_types(self):
         return [f.dtype for f in self._fields]
 
+    @property
+    def raw_input_types(self):
+        return [f.dtype for f in self._get_attr('_fields')]
+
+    @property
+    def func(self):
+        return self._func
+
+    @func.setter
+    def func(self, f):
+        self._func = f
+
     def iter_args(self):
-        arg_names = ['collection', 'by', 'sort', 'fields']
+        arg_names = ['collection', 'bys', 'sort', 'fields']
         for it in zip(arg_names, self.args):
             yield it
 

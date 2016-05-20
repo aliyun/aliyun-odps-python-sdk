@@ -17,10 +17,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
-
 from ..core import Iterable
 from ... import serializers, errors
+from ...compat import six
 from .offlinemodel import OfflineModel
 
 

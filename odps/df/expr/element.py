@@ -19,55 +19,56 @@
 
 import inspect
 
-import six
-
 from .expressions import TypedExpr, SequenceExpr, Scalar, \
     BooleanSequenceExpr, BooleanScalar, CollectionExpr, Expr
+from .core import NodeMetaclass
 from . import utils
 from . import errors
 from .. import types
 from ..utils import FunctionWrapper
+from ...compat import six
 
 
-class AnyOp(TypedExpr):
+class AnyOpNodeMetaClass(NodeMetaclass):
+    def __new__(mcs, name, bases, kv):
+        if '_add_args_slots' not in kv:
+            kv['_add_args_slots'] = False
+
+        return super(AnyOpNodeMetaClass, mcs).__new__(mcs, name, bases, kv)
+
+
+class AnyOp(six.with_metaclass(AnyOpNodeMetaClass, TypedExpr)):
     __slots__ = ()
-    _add_args_slots = False
 
     @classmethod
-    def _new_cls(cls, *args, **kwargs):
+    def _get_type(cls, *args, **kwargs):
         if '_data_type' in kwargs:
-            seq_cls = SequenceExpr._new_cls(cls, *args, **kwargs)
-            if issubclass(cls, seq_cls):
-                return cls
-            bases = cls, seq_cls
+            return SequenceExpr._get_type(cls, *args, **kwargs)
         else:
-            assert '_value_type' in kwargs
+            return Scalar._get_type(cls, *args, **kwargs)
 
-            scalar_cls = Scalar._new_cls(cls, *args, **kwargs)
-            if issubclass(cls, scalar_cls):
-                return cls
-            bases = cls, scalar_cls
+    @classmethod
+    def _typed_classes(cls, *args, **kwargs):
+        if '_data_type' in kwargs:
+            return SequenceExpr._typed_classes(cls, *args, **kwargs)
+        else:
+            return Scalar._typed_classes(cls, *args, **kwargs)
 
-        return type(cls.__name__, bases, dict(cls.__dict__))
+    @classmethod
+    def _base_class(cls, *args, **kwargs):
+        if '_data_type' in kwargs:
+            return SequenceExpr
+        else:
+            return Scalar
+
+    @classmethod
+    def is_seq(cls):
+        return issubclass(cls, SequenceExpr)
 
 
 class ElementWise(AnyOp):
     __slots__ = ()
     _args = '_input',
-    _add_args_slots = False
-
-    @classmethod
-    def _new_cls(cls, *args, **kwargs):
-        base = AnyOp._new_cls(*args, **kwargs)
-
-        if issubclass(cls, base):
-            return cls
-
-        dic = dict(cls.__dict__)
-        dic['_args'] = cls._args
-        if '_add_args_slots' in dic:
-            del dic['_add_args_slots']
-        return type(cls.__name__, (cls, base), dic)
 
     @property
     def node_name(self):
@@ -88,19 +89,19 @@ class ElementWise(AnyOp):
 
 
 class ElementOp(ElementWise):
+    __slots__ = ()
 
     def accept(self, visitor):
         return visitor.visit_element_op(self)
 
 
 class MappedExpr(ElementWise):
-    _slots = '_func', '_func_args', '_func_kwargs', '_multiple'
-    _args = '_inputs',
+    _slots = '_func', '_func_args', '_func_kwargs', '_resources', '_multiple'
+    _args = '_inputs', '_collection_resources'
     node_name = 'Map'
-    _add_args_slots = False
 
     def _init(self, *args, **kwargs):
-        self._multiple = False
+        self._init_attr('_multiple', False)
         super(MappedExpr, self)._init(*args, **kwargs)
 
     @property
@@ -125,6 +126,18 @@ class MappedExpr(ElementWise):
     def input_types(self):
         return [it.dtype for it in self._inputs]
 
+    @property
+    def raw_input_types(self):
+        return [it.dtype for it in self._get_attr('_inputs')]
+
+    @property
+    def func(self):
+        return self._func
+
+    @func.setter
+    def func(self, f):
+        self._func = f
+
     def accept(self, visitor):
         return visitor.visit_function(self)
 
@@ -139,7 +152,6 @@ class NotNull(ElementOp):
 
 class FillNa(ElementOp):
     _args = '_input', '_value'
-    _add_args_slots = False
 
     def _init(self, *args, **kwargs):
         self._value = None
@@ -167,7 +179,6 @@ class FillNa(ElementOp):
 
 class IsIn(ElementOp):
     _args = '_input', '_values',
-    _add_args_slots = False
 
     def _init(self, *args, **kwargs):
         super(IsIn, self)._init(*args, **kwargs)
@@ -187,7 +198,6 @@ class IsIn(ElementOp):
 
 class NotIn(ElementOp):
     _args = '_input', '_values',
-    _add_args_slots = False
 
     def _init(self, *args, **kwargs):
         super(NotIn, self)._init(*args, **kwargs)
@@ -207,12 +217,11 @@ class NotIn(ElementOp):
 
 class Between(ElementOp):
     _args = '_input', '_left', '_right', '_inclusive'
-    _add_args_slots = False
 
     def _init(self, *args, **kwargs):
-        self._left = None
-        self._right = None
-        self._inclusive = None
+        self._init_attr('_left', None)
+        self._init_attr('_right', None)
+        self._init_attr('_inclusive', None)
 
         super(Between, self)._init(*args, **kwargs)
 
@@ -244,7 +253,6 @@ class Between(ElementOp):
 
 class IfElse(ElementOp):
     _args = '_input', '_then', '_else'
-    _add_args_slots = False
 
     @property
     def name(self):
@@ -253,7 +261,6 @@ class IfElse(ElementOp):
 
 class Switch(ElementOp):
     _args = '_input', '_case', '_conditions', '_thens', '_default'
-    _add_args_slots = False
 
     def iter_args(self):
         def _names():
@@ -281,7 +288,6 @@ class Switch(ElementOp):
 class Cut(ElementOp):
     _args = '_input', '_bins', '_right', '_labels', '_include_lowest', \
             '_include_under', '_include_over'
-    _add_args_slots = False
 
     def _init(self, *args, **kwargs):
         super(Cut, self)._init(*args, **kwargs)
@@ -327,7 +333,7 @@ class Cut(ElementOp):
         return self._name
 
 
-def _map(expr, func, rtype=None, args=(), **kwargs):
+def _map(expr, func, rtype=None, resources=None, args=(), **kwargs):
     """
     Call func on each element of this sequence.
 
@@ -360,16 +366,36 @@ def _map(expr, func, rtype=None, args=(), **kwargs):
         pass
     elif isinstance(func, Function):
         pass
+    elif inspect.isclass(func):
+        pass
     elif not inspect.isfunction(func):
-        raise ValueError('`func` must be a function')
+        raise ValueError('`func` must be a function or a callable class')
+
+    collection_resources = utils.get_collection_resources(resources)
 
     is_seq = isinstance(expr, SequenceExpr)
     if is_seq:
         return MappedExpr(_data_type=output_type, _func=func, _inputs=[expr, ],
-                          _func_args=args, _func_kwargs=kwargs, _name=name)
+                          _func_args=args, _func_kwargs=kwargs, _name=name,
+                          _resources=resources, _collection_resources=collection_resources)
     else:
         return MappedExpr(_value_type=output_type, _func=func, _inputs=[expr, ],
-                          _func_args=args, _func_kwargs=kwargs, _name=name)
+                          _func_args=args, _func_kwargs=kwargs, _name=name,
+                          _resources=resources, _collection_resources=collection_resources)
+
+
+def _hash(expr, func=None):
+    """
+    Calculate the hash value.
+
+    :param expr:
+    :param func: hash function
+    :return:
+    """
+    if func is None:
+        func = lambda x: hash(x)
+
+    return _map(expr, func=func, rtype=types.int64)
 
 
 def _isnull(expr):
@@ -615,6 +641,7 @@ _element_methods = dict(
     cut=_cut,
     isin=_isin,
     notin=_notin,
+    hash=_hash,
 )
 
 utils.add_method(SequenceExpr, _element_methods)

@@ -350,3 +350,111 @@ API提供了一个\ ``value_counts``\ 操作，能返回按某列分组后，每
     </div>
 
 
+编写自定义聚合
+===================
+
+对字段调用agg或者aggregate方法来调用自定义聚合。自定义聚合需要提供一个类，这个类需要提供以下方法：
+
+* buffer()：返回一个mutable的object（比如list、dict），buffer大小不应随数据而递增。
+* __call__(buffer, val)：将值聚合到中间buffer。
+* merge(buffer, pbuffer)：讲pbuffer聚合到buffer中。
+* getvalue(buffer)：返回最终值。
+
+让我们看一个计算平均值的例子。
+
+.. code:: python
+
+    class Agg(object):
+
+        def buffer(self):
+            return [0.0, 0]
+
+        def __call__(self, buffer, val):
+            buffer[0] += val
+            buffer[1] += 1
+
+        def merge(self, buffer, pbuffer):
+            buffer[0] += pbuffer[0]
+            buffer[1] += pbuffer[1]
+
+        def getvalue(self, buffer):
+            if buffer[1] == 0:
+                return 0.0
+            return buffer[0] / buffer[1]
+
+.. code:: python
+
+    iris.sepalwidth.agg(Agg)
+
+
+.. code:: python
+
+    3.0540000000000007
+
+如果最终类型和输入类型发生了变化，则需要指定类型。
+
+.. code:: python
+
+    iris.sepalwidth.agg(Agg, 'float')
+
+
+自定义聚合也可以用在分组聚合中。
+
+.. code:: python
+
+    iris.groupby('name').sepalwidth.agg(Agg)
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>petallength_aggregation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>3.418</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>2.770</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>2.974</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+HyperLogLog计数
+==================
+
+PyOdps DataFrame提供了对列进行HyperLogLog计数的接口 ``hll_count``，这个接口是个近似的估计接口，
+当数据量很大时，能较快的对数据的唯一个数进行估计。
+
+这个接口在对比如海量用户UV进行计算时，能很快得出估计值。
+
+.. code:: python
+
+    df = DataFrame(pd.DataFrame({'a': np.random.randint(100000, size=100000)}))
+    df.a.hll_count()
+
+.. code:: python
+
+    63270
+
+.. code:: python
+
+    df.a.nunique()
+
+.. code:: python
+
+    63250
+
+提供 ``splitter`` 参数会对每个字段进行分隔，再计算唯一数。

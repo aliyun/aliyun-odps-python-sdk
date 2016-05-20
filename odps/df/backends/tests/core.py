@@ -26,7 +26,7 @@ try:
 except ImportError:
     from string import ascii_letters as letters
 
-from odps.tests.core import TestBase as Base, to_str
+from odps.tests.core import TestBase as Base, to_str, tn, pandas_case
 from odps import types
 from odps.df.backends.frame import ResultFrame
 
@@ -37,13 +37,17 @@ class TestBase(Base):
 
     def _gen_random_string(self, max_length=15):
         gen_letter = lambda: letters[random.randint(0, 51)]
-        return to_str(''.join([gen_letter() for _ in range(random.randint(1, 15))]))
+        return to_str(''.join([gen_letter() for _ in range(random.randint(1, max_length))]))
 
     def _gen_random_double(self):
         return random.uniform(-2**32, 2**32)
 
     def _gen_random_datetime(self):
-        return datetime.fromtimestamp(random.randint(0, int(time.time())))
+        dt = datetime.fromtimestamp(random.randint(0, int(time.time())))
+        if dt.year >= 1986 or dt.year <= 1992:  # ignore years when daylight saving time is used
+            return dt.replace(year=1996)
+        else:
+            return dt
 
     def _gen_random_boolean(self):
         return random.uniform(-1, 1) > 0
@@ -56,10 +60,21 @@ class TestBase(Base):
             res = res.values
         try:
             import pandas
+            import numpy
+
+            def conv(t):
+                try:
+                    if numpy.isnan(t):
+                        return None
+                except TypeError:
+                    return t
+                return t
 
             if isinstance(res, pandas.DataFrame):
-                return [list(it) for it in res.values]
+                return [list(conv(i) for i in it) for it in res.values]
             else:
                 return res
         except ImportError:
             return res
+
+__all__ = ['TestBase', 'to_str', 'tn', 'pandas_case']

@@ -5,7 +5,8 @@ PyOdps DataFrame
 *****************
 
 
-PyOdps提供了DataFrame API，它提供了类似pandas的接口，但是能充分利用ODPS的计算能力。
+PyOdps提供了DataFrame API，它提供了类似pandas的接口，但是能充分利用ODPS的计算能力；
+同时能在本地使用同样的接口，用pandas进行计算。
 
 .. toctree::
    :maxdepth: 1
@@ -19,3 +20,4 @@ PyOdps提供了DataFrame API，它提供了类似pandas的接口，但是能充�
    df-join-union-zh
    df-window-zh
    df-plot-zh
+   df-debug-instruction-zh

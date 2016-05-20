@@ -13,12 +13,10 @@ dist
 build
 eggs
 parts
-bin
 var
 sdist
 develop-eggs
 .installed.cfg
-lib
 lib64
 __pycache__
 
@@ -50,3 +48,8 @@ test.conf
 # notebook
 .ipynb_checkpoints
 test*.ipynb
+
+
+# cython generated
+odps/src/*/*_c.c
+odps/tunnel/pb/*_c.c

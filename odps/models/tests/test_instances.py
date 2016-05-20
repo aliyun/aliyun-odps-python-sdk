@@ -20,10 +20,8 @@
 import itertools
 import time
 
-import six
-
-from odps.tests.core import TestBase, to_str
-from odps.compat import unittest
+from odps.tests.core import TestBase, to_str, tn
+from odps.compat import unittest, six
 from odps.models import Instance, SQLTask, Schema
 from odps.errors import ODPSError
 from odps import errors, compat
@@ -148,7 +146,7 @@ class Test(TestBase):
         self.assertEqual(to_str(xml), to_str(expected_xml))
 
     def testCreateInstance(self):
-        test_table = 'pyodps_t_tmp_create_instance'
+        test_table = tn('pyodps_t_tmp_create_instance')
 
         task = SQLTask(query='drop table if exists %s' % test_table)
         instance = self.odps._project.instances.create(task=task)
@@ -170,7 +168,7 @@ class Test(TestBase):
         self.assertRaises(errors.InvalidStateSetting, instance.stop)
 
     def testReadSQLInstance(self):
-        test_table = 'pyodps_t_tmp_read_sql_instance'
+        test_table = tn('pyodps_t_tmp_read_sql_instance')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
@@ -213,7 +211,7 @@ class Test(TestBase):
         table.drop()
 
     def testReadChineseSQLInstance(self):
-        test_table = 'pyodps_t_tmp_read_chn_sql_instance'
+        test_table = tn('pyodps_t_tmp_read_chn_sql_instance')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table,
@@ -233,7 +231,7 @@ class Test(TestBase):
 
 
     def testSQLAliasInstance(self):
-        test_table = 'pyodps_t_tmp_sql_aliases_instance'
+        test_table = tn('pyodps_t_tmp_sql_aliases_instance')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table,
@@ -244,8 +242,8 @@ class Test(TestBase):
         data = [[1, ], ]
         self.odps.write_table(table, 0, [table.new_record(it) for it in data])
 
-        res_name1 = 'pyodps_t_tmp_resource_1'
-        res_name2 = 'pyodps_t_tmp_resource_2'
+        res_name1 = tn('pyodps_t_tmp_resource_1')
+        res_name2 = tn('pyodps_t_tmp_resource_2')
         try:
             self.odps.delete_resource(res_name1)
         except ODPSError:
@@ -269,7 +267,7 @@ class Example(object):
     def evaluate(self, arg):
         return arg + self.n
 """ % res_name1
-        py_res_name = 'pyodps_t_tmp_func_res'
+        py_res_name = tn('pyodps_t_tmp_func_res')
         try:
             self.odps.delete_resource(py_res_name+'.py')
         except ODPSError:
@@ -277,7 +275,7 @@ class Example(object):
 
         py_res = self.odps.create_resource(py_res_name+'.py', 'py', file_obj=test_func_content)
 
-        test_func_name = 'pyodps_t_tmp_func_1'
+        test_func_name = tn('pyodps_t_tmp_func_1')
         try:
             self.odps.delete_function(test_func_name)
         except ODPSError:

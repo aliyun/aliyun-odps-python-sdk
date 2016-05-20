@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, pandas_case
 from odps.compat import unittest
 from odps.models import Schema
 from odps.types import validate_data_type
@@ -27,6 +27,7 @@ from odps.df.backends.engine import MixedEngine, available_engines
 from odps.df import DataFrame
 
 
+@pandas_case
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
@@ -50,8 +51,8 @@ class Test(TestBase):
         self.assertEqual(len(dag._graph), 2)
 
         topos = dag.topological_sort()
-        root_node = root, _ = topos[0]
-        expr_node = expr, _ = topos[1]
+        root_node = root, _, _ = topos[0]
+        expr_node = expr, _, _ = topos[1]
 
         self.assertTrue(root.is_ancestor(expr))
         self.assertIn(id(expr_node), dag._graph[id(root_node)])
@@ -67,9 +68,9 @@ class Test(TestBase):
         self.assertEqual(len(dag._graph), 3)
 
         topos = dag.topological_sort()
-        project_node = projected, _ = topos[0]
-        groupby_node = grouped, _ = topos[1]
-        distinct_node = distincted, _ = topos[2]
+        project_node = projected, _, _ = topos[0]
+        groupby_node = grouped, _, _ = topos[1]
+        distinct_node = distincted, _, _ = topos[2]
 
         self.assertIn(id(groupby_node), dag._graph[id(project_node)])
         self.assertIn(id(distinct_node), dag._graph[id(groupby_node)])

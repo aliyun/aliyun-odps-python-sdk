@@ -19,13 +19,12 @@
 
 from __future__ import absolute_import
 
-import inspect
 import itertools
+import weakref
 from collections import deque, defaultdict
 
-import six
-
 from ... import compat
+from ...compat import six
 from . import utils
 
 
@@ -39,16 +38,21 @@ class NodeMetaclass(type):
 
             kv['__slots__'] = tuple(slot for slot in slots if slot not in kv)
 
+        if '__slots__' not in kv:
+            kv['__slots__'] = ()
         return type.__new__(mcs, name, bases, kv)
 
 
 class Node(six.with_metaclass(NodeMetaclass)):
-    __slots__ = '_cached_args', '__weakref__', '__parents'
+    __slots__ = '_cached_args', '_args_indexes', '__weakref__', '__parents', \
+                '__siblings', '__tmp_cached_args',
     _args = ()
 
     def __init__(self, *args, **kwargs):
+        self._args_indexes = dict((name, i) for i, name in enumerate(self._args))
         self._init(*args, **kwargs)
         self._fill_parents()
+        self.__tmp_cached_args = None
 
     def _init(self, *args, **kwargs):
         for arg, value in zip(self._args, args):
@@ -57,36 +61,73 @@ class Node(six.with_metaclass(NodeMetaclass)):
         for key, value in six.iteritems(kwargs):
             setattr(self, key, value)
 
-        self._cached_args = None
-        self.__parents = set()
+        # When we substitute an arg with another,
+        # we do not change the original arg,
+        # instead, we store the new arg in the _cached_args.
+        # When we traverse the node,
+        # we will try to fetch args from the _cached_args first.
+        self._init_attr('_cached_args', None)
+
+    def _init_attr(self, attr, val):
+        try:
+            object.__getattribute__(self, attr)
+        except AttributeError:
+            setattr(self, attr, val)
 
     def _fill_parents(self):
+        if not hasattr(self, '_Node__parents') or self.__parents is None:
+            self.__parents = weakref.WeakValueDictionary()
+
         for child in self.children():
-            child.__parents.add((id(self), self))
-        self._cached_args = None
+            child._add_parent(self)
 
     def _remove_parent(self, parent):
-        key = id(parent), parent
-        if key in self.__parents:
-            self.__parents.remove(key)
+        if id(parent) in self.__parents:
+            del self.__parents[id(parent)]
 
     def _add_parent(self, parent):
-        key = id(parent), parent
-        self.__parents.add(key)
+        self.__parents[id(parent)] = parent
+
+    def _extend_parents(self, parents):
+        for parent in parents:
+            self._add_parent(parent)
 
     @property
     def parents(self):
-        return [p[1] for p in self.__parents]
+        return compat.lvalues(self.__parents)
+
+    @property
+    def _tmp_cached_args(self):
+        return self.__tmp_cached_args
+
+    @_tmp_cached_args.setter
+    def _tmp_cached_args(self, args):
+        self.__tmp_cached_args = args
+
+    def _get_attr(self, attr, silent=False):
+        if silent:
+            try:
+                return object.__getattribute__(self, attr)
+            except AttributeError:
+                return
+        return object.__getattribute__(self, attr)
+
+    def _init_cached_args(self):
+        if self._cached_args is not None:
+            return self._cached_args
+        self._cached_args = tuple(self._get_attr(arg_name, True)
+                                  for arg_name in self._args)
+
+    def _get_arg(self, arg_name):
+        self._init_cached_args()
+
+        idx = self._args_indexes[arg_name]
+        return self._cached_args[idx]
 
     @property
     def args(self):
-        if self._cached_args is not None:
-            return self._cached_args
-        self._cached_args = self._get_args()
+        self._init_cached_args()
         return self._cached_args
-
-    def _get_args(self):
-        return tuple(getattr(self, arg, None) for arg in self._args)
 
     def iter_args(self):
         for name, arg in zip(self._args, self.args):
@@ -100,10 +141,6 @@ class Node(six.with_metaclass(NodeMetaclass)):
             for ds in n._data_source():
                 if ds is not None:
                     yield ds
-
-    def output_type(self):
-        if hasattr(self, '_validator'):
-            return self.validator.output_type()
 
     def substitute(self, old_arg, new_arg):
         if hasattr(old_arg, '_name') and old_arg._name is not None and \
@@ -140,14 +177,9 @@ class Node(six.with_metaclass(NodeMetaclass)):
         return [arg for arg in args if arg is not None]
 
     def leaves(self):
-        args = self.children()
-
-        for arg in args:
-            for leave in arg.leaves():
-                yield leave
-
-        if len(args) == 0:
-            yield self
+        for n in self.traverse(unique=True):
+            if len(n.children()) == 0:
+                yield n
 
     def traverse(self, top_down=False, unique=False, traversed=None):
         traversed = traversed if traversed is not None else set()
@@ -195,11 +227,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
         if other is None:
             return False
 
-        # Hack here, we cannot just check the type here,
-        # many types like Column is created dynamically,
-        # so we check the class name and the sub classes.
-        if self.__class__.__name__ !=  other.__class__.__name__ or \
-                inspect.getmro(type(self))[1:] != inspect.getmro(type(self))[1:]:
+        if not isinstance(other, type(self)):
             return False
 
         def cmp(x, y):
@@ -216,8 +244,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
         return all(map(cmp, self._slot_values(), other._slot_values()))
 
     def __hash__(self):
-        to_tuple = lambda it: tuple(it) if isinstance(it, list) else it
-        return hash((type(self), tuple(to_tuple(arg) for arg in self.args)))
+        return hash((type(self), tuple(self.children())))
 
     def _is_ancestor_bottom_up(self, other):
         traversed = set()
@@ -282,6 +309,9 @@ class Node(six.with_metaclass(NodeMetaclass)):
             node_poses[id(curr)] += 1
 
     def all_path(self, other, strict=False):
+        # remember, if the node has been changed into another one during traversing
+        # the modification may not be applied to the paths
+
         i = 0
         for i, path in zip(itertools.count(1), self._all_path(other)):
             yield path
@@ -289,6 +319,14 @@ class Node(six.with_metaclass(NodeMetaclass)):
         if i == 0 and not strict:
             for path in other._all_path(self):
                 yield path
+
+    def copy(self):
+        slots = utils.get_attrs(self)
+
+        attr_dict = dict((attr, getattr(self, attr, None)) for attr in slots)
+        copied = type(self)(**attr_dict)
+        copied._extend_parents(self.parents)
+        return copied
 
     def __getstate__(self):
         slots = utils.get_attrs(self)

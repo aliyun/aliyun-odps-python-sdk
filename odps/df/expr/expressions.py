@@ -17,16 +17,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import absolute_import
 import inspect
 import operator
-import uuid
-import six
+from collections import defaultdict, Iterable
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
 from .utils import get_attrs, is_called_by_inspector
 from .. import types
-from ...compat import reduce
+from ...compat import reduce, six
 from ...config import options
 from ...errors import DependencyNotInstalledError
 from ...utils import TEMP_TABLE_PREFIX
@@ -53,12 +53,12 @@ class Expr(Node):
     __slots__ = '__execution', '__ban_optimize', '_engine', '_cache_data', '_need_cache'
 
     def _init(self, *args, **kwargs):
-        self.__ban_optimize = False
-        self._engine = None
-        self.__execution = None
+        self._init_attr('_Expr__ban_optimize', False)
+        self._init_attr('_engine', None)
+        self._init_attr('_Expr__execution', None)
 
-        self._cache_data = None
-        self._need_cache = False
+        self._init_attr('_cache_data', None)
+        self._init_attr('_need_cache', False)
 
         super(Expr, self)._init(*args, **kwargs)
 
@@ -67,7 +67,10 @@ class Expr(Node):
             return self._repr()
         else:
             if self.__execution is None:
-                self.__execution = self.execute()
+                try:
+                    self.__execution = self.execute()
+                except Exception as e:
+                    self.__execution = e
             return self.__execution.__repr__()
 
     def _repr_html_(self):
@@ -75,10 +78,22 @@ class Expr(Node):
             return '<code>' + repr(self) + '</code>'
         else:
             if self.__execution is None:
-                self.__execution = self._execute()
+                self.__execution = self.execute()
+            else:
+                if isinstance(self.__execution, Exception):
+                    try:
+                        raise self.__execution
+                    finally:
+                        self.__execution = None
             if hasattr(self.__execution, '_repr_html_'):
                 return self.__execution._repr_html_()
             return repr(self.__execution)
+
+    def visualize(self):
+        from ..engines import get_default_engine
+
+        engine = get_default_engine(self)
+        return engine.visualize(self)
 
     @run_at_once
     def execute(self, **kwargs):
@@ -97,7 +112,7 @@ class Expr(Node):
         """
         Compile this expression into an ODPS SQL
 
-        :return: compiled ODPS SQL
+        :return: compiled DAG
         :rtype: str
         """
 
@@ -173,17 +188,6 @@ class Expr(Node):
 
         return self._repr()
 
-    def _get_attr(self, attr):
-        return object.__getattribute__(self, attr)
-
-    def _get_arg(self, arg_name):
-        args = self._get_attr('_args')
-        cached_args = self._get_attr('_cached_args')
-        if cached_args:
-            return cached_args[args.index(arg_name)]
-
-        return self._get_attr(arg_name)
-
     def __getattribute__(self, attr):
         try:
             if attr != '_get_attr' and attr in self._get_attr('_args'):
@@ -195,6 +199,25 @@ class Expr(Node):
                 if new_attr in self._get_attr('_args'):
                     return self._get_arg(new_attr)
             raise e
+
+    def __setattr__(self, key, value):
+        if self._get_attr('_args_indexes', True) and key in self._args_indexes \
+                and hasattr(self, '_cached_args') and self._cached_args:
+            cached_args = list(self._cached_args)
+            cached_args[self._args_indexes[key]] = value
+            if isinstance(value, six.string_types):
+                values = [value, ]
+            elif not isinstance(value, Iterable):
+                values = [value]
+            else:
+                values = value
+            for v in values:
+                if isinstance(v, Expr):
+                    v._add_parent(self)
+
+            self._cached_args = type(self._cached_args)(cached_args)
+
+        super(Expr, self).__setattr__(key, value)
 
     def _defunc(self, field):
         return field(self) if inspect.isfunction(field) else field
@@ -208,14 +231,17 @@ class Expr(Node):
         self.__ban_optimize = val
 
     def __hash__(self):
-        # due to that the __eq__ cannot be used as compare
-        return object.__hash__(self)
+        # As we will not create a new Expr unless its args are brand-new,
+        # so the expr is just different to any other exprs
+        return id(self) * hash(Expr)
 
     def __eq__(self, other):
         try:
             return self._eq(other)
         except AttributeError:
-            return super(Expr, self).__eq__(other)
+            # Due to current complexity of parent's eq,
+            # by now, every expression is unequal
+            return self is other
 
     def __ne__(self, other):
         try:
@@ -337,6 +363,7 @@ class CollectionExpr(Expr):
     """
 
     __slots__ = '_schema', '_source_data'
+    node_name = 'Collection'
 
     def _init(self, *args, **kwargs):
         super(CollectionExpr, self)._init(*args, **kwargs)
@@ -345,32 +372,31 @@ class CollectionExpr(Expr):
         self._source_data = getattr(self, '_source_data', None)
 
     def __getitem__(self, item):
-        if inspect.isfunction(item):
-            item = self._defunc(item)
-        if isinstance(item, (list, tuple)):
-            item = [self._defunc(it) for it in item]
+        item = self._defunc(item)
+        if isinstance(item, tuple):
+            item = list(item)
         if isinstance(item, CollectionExpr):
             item = [item, ]
 
         if isinstance(item, six.string_types):
-            if item not in self._schema:
-                raise ValueError('Field(%s) does not exist' % item)
-            return Column(self, _name=item, _data_type=self._schema[item].type)
-        elif isinstance(item, BooleanSequenceExpr): # need some constraint here to ensure `filter` correctness?
-            return self._filter(item)
+            return self._get_field(item)
         elif isinstance(item, list) and all(isinstance(it, Scalar) for it in item):
             return self._summary(item)
-        elif isinstance(item, list) and \
-                all(self._validate_project_field(it) for it in item):
-            return self._project(item)
         elif isinstance(item, slice):
             if item.start is None and item.stop is None and item.step is None:
                 return self
             return self._slice(item)
-        raise ExpressionError('Not supported projection: collection[%s]' % repr_obj(item))
+        elif isinstance(item, list):
+            return self._project(item)
+        else:
+            field = self._get_field(item)
+            if isinstance(field, BooleanSequenceExpr):
+                return self.filter(item)
 
-    def _filter(self, predicate):
-        return FilterCollectionExpr(self, predicate, _schema=self._schema)
+        if isinstance(item, SequenceExpr):
+            raise ExpressionError('No boolean sequence found for filtering, '
+                                  'a tuple or list is required for projection')
+        raise ExpressionError('Not supported projection: collection[%s]' % repr_obj(item))
 
     def filter(self, *predicates):
         """
@@ -380,69 +406,67 @@ class CollectionExpr(Expr):
         :return: new collection
         :rtype: :class:`odps.df.expr.expressions.CollectionExpr`
         """
-        predicates = [self._defunc(it) for it in predicates]
+        predicates = self._get_fields(predicates)
 
         predicate = reduce(operator.and_, predicates)
-        return self._filter(predicate)
+        return FilterCollectionExpr(self, predicate, _schema=self._schema)
 
     def _validate_field(self, field):
         if not isinstance(field, SequenceExpr):
             return True
 
-        if not self._has_field(field):
-            return False
-        else:
-            return True
-
-    def _validate_project_field(self, field):
-        if isinstance(field, six.string_types) and field in self._schema:
-            return True
-        elif isinstance(field, CollectionExpr):
-            if field is self:
-                return True
-            elif isinstance(field, ProjectCollectionExpr) and \
-                    field.input is self:
-                return True
-        elif not self._validate_field(field):
-            return False
-        return True
-
-    def _has_field(self, field):
         if not field.is_ancestor(self):
             return False
 
         for path in field.all_path(self):
-            if not all(not isinstance(n, CollectionExpr) for n in path[1: -1]):
+            if any(isinstance(n, CollectionExpr) for n in path[1: -1]):
+                return False
+
+            from .reduction import GroupedSequenceReduction
+            if any(isinstance(n, GroupedSequenceReduction) for n in path):
                 return False
         return True
 
-    def _project(self, fields):
-        names, typos, selects = [], [], []
+    def _get_field(self, field):
+        field = self._defunc(field)
+
+        if isinstance(field, six.string_types):
+            if field not in self._schema:
+                raise ValueError('Field(%s) does not exist, please check schema' % field)
+            return Column(self, _name=field, _data_type=self._schema[field].type)
+
+        if not self._validate_field(field):
+            raise ExpressionError('Cannot support projection on %s' % repr_obj(field))
+
+        return field
+
+    def _get_fields(self, fields):
+        selects = []
 
         for field in fields:
-            if isinstance(field, six.string_types):
-                names.append(field)
-                typos.append(self._schema.get_type(field))
-                selects.append(field)
-            elif isinstance(field, CollectionExpr):
-                from .groupby import MutateCollectionExpr
-
-                names.extend(field.schema.names)
-                typos.extend(field.schema.types)
-                if isinstance(field, (ProjectCollectionExpr,
-                                      MutateCollectionExpr)):
-                    selects.extend(field.fields)
-                elif field is self:
-                    selects.extend(field.schema.names)
+            field = self._defunc(field)
+            if isinstance(field, CollectionExpr):
+                if any(c is self for c in field.children()):
+                    selects.extend(self._get_fields(field._project_fields))
                 else:
-                    raise ExpressionError('Cannot support projection on %s' % repr_obj(field))
+                    selects.extend(self._get_fields(field._fetch_fields()))
             else:
-                names.append(field.name)
-                typos.append(field.dtype)
-                selects.append(field)
+                selects.append(self._get_field(field))
 
-        if any(n is None for n in names):
-            raise ExpressionError('Cannot projection on non-name field')
+        return selects
+
+    def _project(self, fields):
+        selects = self._get_fields(fields)
+
+        names = [select.name for select in selects]
+        typos = [select.dtype for select in selects]
+
+        if len(names) != len(set(names)):
+            counts = defaultdict(lambda: 0)
+            for n in names:
+                counts[n] += 1
+            raise ExpressionError('Duplicate column names: %s' %
+                                  ', '.join(n for n in counts if counts[n] > 1))
 
         return ProjectCollectionExpr(self, _fields=selects,
                                      _schema=types.Schema.from_lists(names, typos))
@@ -460,7 +484,6 @@ class CollectionExpr(Expr):
             fields = fields[0]
         else:
             fields = list(fields)
-        fields = [self._defunc(it) for it in fields]
         if kw:
             def handle(it):
                 it = self._defunc(it)
@@ -520,7 +543,14 @@ class CollectionExpr(Expr):
         :rtype: list which each element is an instance of :class:`odps.models.Column`
         """
 
-        return self._schema.columns
+        return [self[n] for n in self._schema.names]
+
+    def _fetch_fields(self):
+        return [self._get_field(name) for name in self._schema.names]
+
+    @property
+    def _project_fields(self):
+        return self._fetch_fields()
 
     def _data_source(self):
         if hasattr(self, '_source_data') and self._source_data is not None:
@@ -619,19 +649,25 @@ class CollectionExpr(Expr):
             raise NotImplementedError
 
 
+_cached_typed_expr = dict()
+
+
 class TypedExpr(Expr):
     __slots__ = '_name', '_source_name'
 
     @classmethod
     def _get_type(cls, *args, **kwargs):
+        # return the data type which extracted from args and kwargs
         raise NotImplementedError
 
     @classmethod
     def _typed_classes(cls, *args, **kwargs):
+        # return allowed data types
         raise NotImplementedError
 
     @classmethod
     def _base_class(cls, *args, **kwargs):
+        # base class, SequenceExpr or Scalar
         raise NotImplementedError
 
     @classmethod
@@ -643,6 +679,7 @@ class TypedExpr(Expr):
 
             data_type = types.validate_data_type(data_type)
             name = data_type.CLASS_NAME + base_class.__name__
+            # get the typed class, e.g. Int64SequenceExpr, StringScalar
             typed_cls = globals().get(name)
             assert typed_cls is not None
 
@@ -652,6 +689,10 @@ class TypedExpr(Expr):
                 return typed_cls
             elif cls in typed_classes:
                 return typed_cls
+
+            keys = (cls, typed_cls)
+            if keys in _cached_typed_expr:
+                return _cached_typed_expr[keys]
 
             mros = inspect.getmro(cls)
             has_data_type = len([sub for sub in mros if sub in typed_classes]) > 0
@@ -670,14 +711,26 @@ class TypedExpr(Expr):
                 bases.append(sub)
             bases = tuple(base for base in bases if base is not None)
 
-            clz = type(cls.__name__, bases, dict(cls.__dict__))
+            dic = dict()
+            if hasattr(cls, '_args'):
+                dic['_args'] = cls._args
+            dic['__slots__'] = cls.__slots__ + getattr(cls, '_slots', ())
+            dic['_add_args_slots'] = True
+            try:
+                accept_cls = next(c for c in bases if c.__name__ == cls.__name__)
+                if hasattr(accept_cls, 'accept'):
+                    dic['accept'] = accept_cls.accept
+            except StopIteration:
+                pass
+            clz = type(cls.__name__, bases, dic)
+            _cached_typed_expr[keys] = clz
             return clz
         else:
             return cls
 
     def __new__(cls, *args, **kwargs):
         clz = cls._new_cls(*args, **kwargs)
-        return object.__new__(clz)
+        return super(TypedExpr, clz).__new__(clz)
 
     @classmethod
     def _new(cls, *args, **kwargs):
@@ -926,8 +979,6 @@ class AsTypedSequenceExpr(SequenceExpr):
 
     @property
     def input(self):
-        if self._cached_args:
-            return self._cached_args[0]
         return self._input
 
     def accept(self, visitor):
@@ -955,8 +1006,6 @@ class Column(SequenceExpr):
 
     @property
     def input(self):
-        if self._cached_args:
-            return self._cached_args[0]
         return self._input
 
     def accept(self, visitor):
@@ -997,29 +1046,40 @@ class Scalar(TypedExpr):
     def _base_class(cls, *args, **kwargs):
         return Scalar
 
-    def _init(self, *args, **kwargs):
-        self._name = None
-
+    @classmethod
+    def _transform(cls, *args, **kwargs):
         value = args[0] if len(args) > 0 else None
         value_type = args[1] if len(args) > 1 else None
 
-        super(Scalar, self)._init(**kwargs)
+        if ('_value' not in kwargs or kwargs['_value'] is None) and \
+                value is not None:
+            kwargs['_value'] = value
+        if ('_value_type' not in kwargs or kwargs['_value_type'] is None) and \
+                value_type is not None:
+            kwargs['_value_type'] = types.validate_data_type(value_type)
 
-        val = getattr(self, '_value', None)
-        if val is None:
-            val = value
-
-        self._value = val
-        self._value_type = getattr(self, '_value_type', None) or value_type
-        self._value_type = types.validate_value_type(self._value, self._value_type)
+        kwargs['_value_type'] = types.validate_value_type(kwargs.get('_value'),
+                                                          kwargs.get('_value_type'))
 
         if '_source_name' not in kwargs:
-            self._source_name = self._name
+            kwargs['_source_name'] = kwargs.get('_name')
 
         if '_source_value_type' in kwargs:
-            self._source_value_type = types.validate_data_type(kwargs.get('_source_value_type'))
+            kwargs['_source_value_type'] = types.validate_data_type(kwargs['_source_value_type'])
         else:
-            self._source_value_type = self._value_type
+            kwargs['_source_value_type'] = kwargs['_value_type']
+        return kwargs
+
+    def __new__(cls, *args, **kwargs):
+        kwargs = cls._transform(*args, **kwargs)
+        return super(Scalar, cls).__new__(cls, **kwargs)
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_name', None)
+        self._init_attr('_value', None)
+
+        kwargs = self._transform(*args, **kwargs)
+        super(Scalar, self)._init(**kwargs)
 
     def equals(self, other):
         return super(Scalar, self).equals(other)
@@ -1059,21 +1119,14 @@ class Scalar(TypedExpr):
         if self._value is None:
             attr_values = dict((attr, getattr(self, attr)) for attr in get_attrs(self))
 
-            kw = {
-                '_data_type': attr_values['_value_type']
-            }
-            if '_source_value_type' in kw:
-                kw['_source_data_type'] = kw.pop('_source_value_type')
+            attr_values['_data_type'] = attr_values.pop('_value_type')
+            if '_source_value_type' in attr_values:
+                attr_values['_source_data_type'] = attr_values.pop('_source_value_type')
+            del attr_values['_value']
 
             cls = next(c for c in inspect.getmro(type(self))[1:]
                        if c.__name__ == type(self).__name__ and not issubclass(c, Scalar))
-            seq = cls._new(**kw)
-
-            for attr, value in six.iteritems(attr_values):
-                try:
-                    setattr(seq, attr, value)
-                except AttributeError:
-                    continue
+            seq = cls._new(**attr_values)
             return seq
 
         raise ExpressionError('Cannot convert valued scalar to sequence')
@@ -1181,6 +1234,23 @@ _typed_scalar_exprs = [globals()[t.__class__.__name__ + Scalar.__name__]
                        for t in types._data_types.values()]
 
 
+class BuiltinFunction(Scalar):
+    __slots__ = '_func_name', '_func_args', '_func_kwargs'
+
+    def __init__(self, name=None, rtype=None, args=(), **kwargs):
+        rtype = rtype or kwargs.pop('_value_type', types.string)
+        rtype = types.validate_data_type(rtype)
+        func_name = name or kwargs.pop('_func_name', None)
+        func_args = args or kwargs.pop('_func_args', ())
+        super(BuiltinFunction, self).__init__(_func_name=func_name,
+                                              _func_args=func_args,
+                                              _value_type=rtype,
+                                              **kwargs)
+
+    def accept(self, visitor):
+        visitor.visit_builtin_function(self)
+
+
 class FilterCollectionExpr(CollectionExpr):
     _args = '_input', '_predicate'
     node_name = 'Filter'
@@ -1212,16 +1282,15 @@ class ProjectCollectionExpr(CollectionExpr):
         if fields is None and len(args) >= 2:
             fields = args[1]
         for field in fields:
-            if isinstance(field, SequenceExpr) and field.name is None:
+            if field.name is None:
                 raise ExpressionError('Column does not have a name, '
                                       'please specify one by `rename`: %s' % repr_obj(field._repr()))
 
         super(ProjectCollectionExpr, self)._init(*args, **kwargs)
 
-        get_field = lambda field: Column(
-            self._input, _name=field, _data_type=self._schema[field].type)
-        self._fields = [get_field(field) if isinstance(field, six.string_types) else field
-                        for field in self._fields]
+    @property
+    def _project_fields(self):
+        return self._fields
 
     def iter_args(self):
         for it in zip(['collection', 'selections'], self.args):
@@ -1230,6 +1299,10 @@ class ProjectCollectionExpr(CollectionExpr):
     @property
     def input(self):
         return self._input
+
+    @property
+    def fields(self):
+        return self._fields
 
     def accept(self, visitor):
         visitor.visit_project_collection(self)
@@ -1275,6 +1348,7 @@ class SliceCollectionExpr(CollectionExpr):
     def accept(self, visitor):
         visitor.visit_slice_collection(self)
 
+
 class Summary(Expr):
     __slots__ = '_schema',
     _args = '_input', '_fields'
@@ -1314,7 +1388,7 @@ from . import math
 from . import strings
 from . import datetimes
 from . import merge
-from ..tools import plotting
+from ..tools import *
 
 
 # hack for count

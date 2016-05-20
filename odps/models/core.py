@@ -22,11 +22,10 @@ try:
 except ImportError:
     import xml.etree.ElementTree as ElementTree
 
-import six
-
 from .. import serializers
 from .cache import cache, del_cache
 from ..config import options
+from ..compat import six, quote_plus
 
 
 class XMLRemoteModel(serializers.XMLSerializableModel):
@@ -74,7 +73,6 @@ class RestModel(XMLRemoteModel):
 
     @classmethod
     def _encode(cls, name):
-        quote_plus = six.moves.urllib.parse.quote_plus
         name = quote_plus(name).replace('+', '%20')
         return name
 

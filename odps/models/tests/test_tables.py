@@ -20,10 +20,8 @@
 from datetime import datetime
 import itertools
 
-import six
-
-from odps.tests.core import TestBase, to_str
-from odps.compat import unittest
+from odps.tests.core import TestBase, to_str, tn
+from odps.compat import unittest, six
 from odps.models import Schema, Record
 
 
@@ -94,7 +92,7 @@ class Test(TestBase):
         self.assertTrue(table.is_loaded)
 
     def testCreateDeleteTable(self):
-        test_table_name = 'pyodps_t_tmp_create_table'
+        test_table_name = tn('pyodps_t_tmp_create_table')
         schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
 
         tables = self.odps._project.tables
@@ -120,7 +118,7 @@ class Test(TestBase):
         self.assertFalse(self.odps.exist_table(test_table_name))
 
     def testCreateTableWithChineseColumn(self):
-        test_table_name = 'pyodps_t_tmp_create_table_with_chinese_columns'
+        test_table_name = tn('pyodps_t_tmp_create_table_with_chinese_columns')
         schema = Schema.from_lists(['序列', '值'], ['bigint', 'string'], ['ds', ], ['string',])
 
         self.odps.delete_table(test_table_name, if_exists=True)
@@ -130,7 +128,7 @@ class Test(TestBase):
                                  [col.name for col in schema.columns])
 
     def testReadWriteTable(self):
-        test_table_name = 'pyodps_t_tmp_read_write_table'
+        test_table_name = tn('pyodps_t_tmp_read_write_table')
         schema = Schema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
@@ -157,7 +155,7 @@ class Test(TestBase):
         self.assertFalse(self.odps.exist_table(test_table_name))
 
     def testSimpleReadWriteTable(self):
-        test_table_name = 'pyodps_t_tmp_simpe_read_write_table'
+        test_table_name = tn('pyodps_t_tmp_simpe_read_write_table')
         schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)

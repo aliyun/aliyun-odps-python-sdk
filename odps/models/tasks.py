@@ -14,10 +14,9 @@
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 
-from enum import Enum
-
 from .core import AbstractXMLRemoteModel
 from .. import serializers, errors, compat
+from ..compat import Enum
 
 
 class TaskType(Enum):

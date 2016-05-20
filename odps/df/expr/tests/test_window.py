@@ -30,6 +30,14 @@ class Test(TestBase):
         schema = Schema.from_lists(types._data_types.keys(), types._data_types.values())
         self.expr = CollectionExpr(_source_data=None, _schema=schema)
 
+    # def testCacheNode(self):
+    #     self.assertIs(self.expr.groupby('boolean').int16.cumsum(),
+    #                   self.expr.groupby('boolean').int16.cumsum())
+    #     self.assertIs(self.expr.groupby('boolean').sort('int8').int16.cumsum(),
+    #                   self.expr.groupby('boolean').sort('int8').int16.cumsum())
+    #     self.assertIs(self.expr.groupby('string').decimal.lag(-5, sort=['int8']),
+    #                   self.expr.groupby('string').decimal.lag(-5, sort=['int8']))
+
     def testCumSum(self):
         grouped = self.expr.groupby('boolean')
 
@@ -120,18 +128,18 @@ class Test(TestBase):
         grouped = self.expr.groupby('datetime')
         denserank = grouped.boolean.dense_rank()
 
-        self.assertIs(denserank._input, grouped.dense_rank()._input)
+        self.assertIs(denserank._input, grouped.dense_rank(sort='boolean')._input)
         self.assertIsInstance(denserank, DenseRank)
         self.assertIsInstance(denserank, Int64SequenceExpr)
 
     def testPercentRank(self):
-        percentrank = self.expr.groupby('boolean').percent_rank()
+        percentrank = self.expr.groupby('boolean').percent_rank(sort='int16')
 
         self.assertIsInstance(percentrank, PercentRank)
         self.assertIsInstance(percentrank, Float64SequenceExpr)
 
     def testRowNumber(self):
-        rownumber = self.expr.groupby('string').row_number().rename('rank')
+        rownumber = self.expr.groupby('string').row_number(sort='int8').rename('rank')
 
         self.assertEqual(rownumber.name, 'rank')
         self.assertIsInstance(rownumber, RowNumber)

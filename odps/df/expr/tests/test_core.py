@@ -26,6 +26,7 @@ from odps.df.expr.core import Node
 class FakeNode(Node):
     __slots__ = 'name',
     _args = 'child1', 'child2', 'child3'
+    _cache_attrs = 'name',
 
     def __str__(self):
         return self.name
@@ -48,7 +49,7 @@ class Test(TestBase):
         self.assertSequenceEqual(list(node5.traverse(top_down=True, unique=True)),
                                  [node5, node1, node4, node3, node2])
 
-        self.assertSequenceEqual(list(node5.leaves()), [node1, node1, node2])
+        self.assertSequenceEqual(list(node5.leaves()), [node1, node2])
 
         node1_copy = FakeNode(name='1')
         self.assertEqual(node1, node1_copy)

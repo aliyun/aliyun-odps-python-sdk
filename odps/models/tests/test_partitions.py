@@ -19,7 +19,7 @@
 
 from datetime import datetime
 
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, tn
 from odps.compat import unittest
 from odps.models import Schema
 from odps import types
@@ -27,7 +27,7 @@ from odps import types
 
 class Test(TestBase):
     def testPartitions(self):
-        test_table_name = 'pyodps_t_tmp_partitions_table'
+        test_table_name = tn('pyodps_t_tmp_partitions_table')
         partitions = ['s=%s' % i for i in range(3)]
         schema = Schema.from_lists(['id', ], ['string', ], ['s', ], ['string', ])
 
@@ -51,7 +51,7 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name)
 
     def testSubPartitions(self):
-        test_table_name = 'pyodps_t_tmp_sub_partitions_table'
+        test_table_name = tn('pyodps_t_tmp_sub_partitions_table')
         root_partition = 'type=test'
         sub_partitions = ['s=%s' % i for i in range(3)]
         schema = Schema.from_lists(['id', ], ['string', ], ['type', 's'], ['string', 'string'])
@@ -75,7 +75,7 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name)
 
     def testPartition(self):
-        test_table_name = 'pyodps_t_tmp_partition_table'
+        test_table_name = tn('pyodps_t_tmp_partition_table')
         partition = 's=1'
         schema = Schema.from_lists(['id', ], ['string', ], ['s', ], ['string', ])
 

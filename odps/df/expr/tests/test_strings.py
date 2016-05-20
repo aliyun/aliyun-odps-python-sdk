@@ -35,6 +35,11 @@ class Test(TestBase):
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
+    # def testCacheNode(self):
+    #     self.assertIs(self.expr.name.count('test'), self.expr.name.count('test'))
+    #     self.assertIs(self.expr.name.rjust(3), self.expr.name.rjust(3))
+    #     self.assertIsNot(self.expr.name.zfill(3), self.expr.name.zfill(5))
+
     def testStrings(self):
         self.assertRaises(AttributeError, lambda: self.expr.id.strip())
         self.assertRaises(AttributeError, lambda: self.expr.fid.upper())
@@ -81,6 +86,12 @@ class Test(TestBase):
         self.assertIsInstance(self.expr.name.get(1), Get)
         self.assertIsInstance(self.expr.name.get(1), StringSequenceExpr)
         self.assertIsInstance(self.expr.name.sum().get(1), StringScalar)
+        self.assertIsInstance(self.expr.name[1], Get)
+        self.assertIsInstance(self.expr.name[1], StringSequenceExpr)
+        self.assertIsInstance(self.expr.name.sum()[1], StringScalar)
+        self.assertIsInstance(self.expr.name[self.expr.id], Get)
+        self.assertIsInstance(self.expr.name[self.expr.id], StringSequenceExpr)
+        self.assertIsInstance(self.expr.name.sum()[self.expr.id], StringScalar)
 
         self.assertIsInstance(self.expr.name.len(), Len)
         self.assertIsInstance(self.expr.name.len(), Int64SequenceExpr)
@@ -121,6 +132,9 @@ class Test(TestBase):
         self.assertIsInstance(self.expr.name.slice(0, 4), Slice)
         self.assertIsInstance(self.expr.name.slice(0, 4), StringSequenceExpr)
         self.assertIsInstance(self.expr.name.sum().slice(0, 4), StringScalar)
+        self.assertIsInstance(self.expr.name[0: 4], Slice)
+        self.assertIsInstance(self.expr.name[0: 4], StringSequenceExpr)
+        self.assertIsInstance(self.expr.name.sum()[0: 4], StringScalar)
 
         self.assertIsInstance(self.expr.name.swapcase(), Swapcase)
         self.assertIsInstance(self.expr.name.swapcase(), StringSequenceExpr)

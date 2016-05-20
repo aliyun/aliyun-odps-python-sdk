@@ -35,6 +35,18 @@ class Test(TestBase):
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
+    # def testCacheNode(self):
+    #     self.assertIs(self.expr.fid.isnull(), self.expr.fid.isnull())
+    #     self.assertIs(self.expr.name.fillna('test'), self.expr.name.fillna('test'))
+    #     self.assertIs(self.expr.id.cut([5, 10], labels=['mid']),
+    #                   self.expr.id.cut([5, 10], labels=['mid']))
+    #
+    #     s = self.expr.id.notnull()
+    #     s._cache_data = [4, ]
+    #     self.assertEqual(self.expr.id.notnull()._cache_data, [4, ])
+    #     self.expr.id.optimize_banned = True
+    #     self.assertTrue(self.expr.id.optimize_banned)
+
     def testIsNull(self):
         self.assertIsInstance(self.expr.fid.isnull(), IsNull)
         self.assertIsInstance(self.expr.fid.isnull(), BooleanSequenceExpr)

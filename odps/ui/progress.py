@@ -20,10 +20,9 @@ import json
 import time
 import uuid
 import logging
-from six import iterkeys, iteritems, itervalues, string_types
 
 from .common import init_frontend_scripts, build_unicode_control
-from ..compat import OrderedDict
+from ..compat import OrderedDict, six
 from ..models.instance import Instance
 from ..serializers import JSONSerializableModel, JSONNodeField, JSONNodesReferencesField
 
@@ -63,7 +62,7 @@ class _InstanceProgressJSON(JSONSerializableModel):
     status = JSONNodeField('status', parse_callback=lambda v: Instance.Status(v.upper()),
                            serialize_callback=lambda v: v.value)
     tasks = JSONNodeField('tasks', parse_callback=lambda v: _InstanceProgressJSON._parse_tasks(v),
-                          serialize_callback=lambda v: [d.serial() for d in itervalues(v)])
+                          serialize_callback=lambda v: [d.serial() for d in six.itervalues(v)])
 
     @staticmethod
     def _parse_tasks(obj):
@@ -76,7 +75,7 @@ class _InstancesProgressJSON(JSONSerializableModel):
     gen_time = JSONNodeField('gen_time')
     logview = JSONNodeField('logview')
     instances = JSONNodeField('instances', parse_callback=lambda v: _InstancesProgressJSON._parse_instances(v),
-                              serialize_callback=lambda v: [d.serial() for d in itervalues(v)])
+                              serialize_callback=lambda v: [d.serial() for d in six.itervalues(v)])
 
     @staticmethod
     def _parse_instances(obj):
@@ -115,11 +114,11 @@ def reload_instance_status(odps, group_id, instance_id):
     inst_json.logview = sub_inst.get_logview_address()
 
     if old_status != Instance.Status.TERMINATED:
-        for task_name, task in iteritems(sub_inst.get_task_statuses()):
+        for task_name, task in six.iteritems(sub_inst.get_task_statuses()):
             if task_name in inst_json.tasks:
                 task_json = inst_json.tasks[task_name]
                 task_json.status = task.status
-                if task.status not in {Instance.Task.TaskStatus.RUNNING, Instance.Task.TaskStatus.WAITING}:
+                if task.status not in set([Instance.Task.TaskStatus.RUNNING, Instance.Task.TaskStatus.WAITING]):
                     continue
             else:
                 task_json = _TaskProgressJSON(name=task_name, status=task.status, stages=[])
@@ -133,7 +132,7 @@ def reload_instance_status(odps, group_id, instance_id):
 
             for stage in task_prog.stages:
                 stage_json = _StageProgressJSON()
-                for field_name in iterkeys(_StageProgressJSON.__fields):
+                for field_name in six.iterkeys(_StageProgressJSON.__fields):
                     if hasattr(stage, field_name):
                         val = getattr(stage, field_name)
                         if val is not None:
@@ -165,6 +164,7 @@ else:
     if in_ipython_frontend():
         class InstancesProgress(widgets.DOMWidget):
             _view_name = build_unicode_control('InstancesProgress', sync=True)
+            _view_module = build_unicode_control('pyodps/progress', sync=True)
             text = build_unicode_control(sync=True)
 
             def __init__(self, **kwargs):
@@ -181,12 +181,12 @@ else:
                 self.send(json.dumps(dict(action='update', content=[])))
 
             def update_group(self, group_jsons):
-                if isinstance(group_jsons, string_types):
+                if isinstance(group_jsons, six.string_types):
                     group_jsons = [group_jsons, ]
                 self.send(json.dumps(dict(action='update', content=group_jsons)))
 
             def delete_group(self, group_keys):
-                if isinstance(group_keys, string_types):
+                if isinstance(group_keys, six.string_types):
                     group_keys = [group_keys, ]
                 self.send(json.dumps(dict(action='delete', content=group_keys)))
 
@@ -213,13 +213,13 @@ class ProgressGroupUI(object):
         self._update_text()
 
     def add_keys(self, keys):
-        if isinstance(keys, string_types):
+        if isinstance(keys, six.string_types):
             keys = [keys, ]
         self._group_keys.update(keys)
         self._update_group(keys)
 
     def remove_keys(self, keys):
-        if isinstance(keys, string_types):
+        if isinstance(keys, six.string_types):
             keys = [keys, ]
         self._group_keys -= set(keys)
         self._widget.delete_group(keys)
@@ -241,7 +241,7 @@ class ProgressGroupUI(object):
             if not self._widget:
                 self._widget = InstancesProgress()
                 display(self._widget)
-        if isinstance(keys, string_types):
+        if isinstance(keys, six.string_types):
             keys = [keys, ]
         data = [fetch_instance_group(key).serialize() for key in keys]
         self._widget.update_group(data)

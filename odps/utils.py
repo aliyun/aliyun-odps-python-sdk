@@ -41,9 +41,8 @@ from base64 import b64encode
 from datetime import datetime
 from email.utils import parsedate_tz, formatdate
 
-import six
-
 from . import compat
+from .compat import six
 
 TEMP_TABLE_PREFIX = 'tmp_pyodps_'
 
@@ -343,6 +342,49 @@ def init_progress_bar(val=1):
             bar = ProgressBar(val)
 
     return bar
+
+
+def init_progress_ui(val=1):
+    from odps.ui import ProgressGroupUI, html_notify
+
+    bar = init_progress_bar(val=val)
+    if bar._ipython_widget:
+        try:
+            progress_group = ProgressGroupUI(bar._ipython_widget)
+        except:
+            progress_group = None
+    else:
+        progress_group = None
+
+    class ProgressUI(object):
+        def update(self, value=None):
+            bar.update(value=value)
+
+        def status(self, text):
+            if progress_group:
+                progress_group.text = text
+
+        def add_keys(self, keys):
+            if progress_group:
+                progress_group.add_keys(keys)
+
+        def remove_keys(self, keys):
+            if progress_group:
+                progress_group.remove_keys(keys)
+
+        def update_group(self):
+            if progress_group:
+                progress_group.update()
+
+        def notify(self, msg):
+            html_notify(msg)
+
+        def close(self):
+            bar.close()
+            if progress_group:
+                progress_group.close()
+
+    return ProgressUI()
 
 
 def escape_odps_string(src):

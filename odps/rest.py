@@ -22,7 +22,6 @@ import json
 import logging
 import platform
 
-import six
 import requests
 import requests.packages.urllib3.util.ssl_
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
@@ -32,6 +31,7 @@ from . import __version__
 from . import errors, utils
 from .config import options
 from .utils import get_survey_calls, clear_survey_calls
+from .compat import six
 
 
 LOG = logging.getLogger(__name__)
@@ -107,8 +107,8 @@ class RestClient(object):
             errors.throw_if_parsable(res)
         return res
 
-    def get(self, url, **kwargs):
-        return self.request(url, 'get', **kwargs)
+    def get(self, url, stream=False, **kwargs):
+        return self.request(url, 'get', stream=stream, **kwargs)
 
     def post(self, url, data, **kwargs):
         data = utils.to_binary(data) if isinstance(data, six.string_types) else data

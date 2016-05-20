@@ -17,12 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
-from enum import Enum
-
 from .core import LazyLoad
 from .volume_partition import VolumePartition
 from .. import serializers, utils, errors
+from ..compat import Enum, six
 
 
 class Volume(LazyLoad):

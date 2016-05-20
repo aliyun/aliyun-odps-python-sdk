@@ -17,3 +17,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
+PY26_COMPAT = True

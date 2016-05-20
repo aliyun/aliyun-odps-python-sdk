@@ -20,11 +20,9 @@
 from datetime import datetime as _datetime
 from decimal import Decimal as _Decimal
 
-import six
-
 from ..types import DataType, Array, Map, ARRAY_RE, MAP_RE
 from ..models import Schema  # noqa
-from ..compat import OrderedDict
+from ..compat import OrderedDict, six
 
 
 class Primitive(DataType):

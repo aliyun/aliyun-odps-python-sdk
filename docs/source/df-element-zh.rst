@@ -118,6 +118,105 @@ UDF的限制在此都适用。因此目前，第三方库只能使用\ ``numpy``
 除了调用自定义函数，DataFrame还提供了很多内置函数，这些函数中部分使用了map函数来实现，因此，如果\ **用户所在Project未开通Python
 UDF，则这些函数也就无法使用**\ 。
 
+引用资源
+~~~~~~~~~~~~~
+
+自定义函数也能读取ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。
+此时，自定义函数需要写成函数闭包或callable的类。
+
+.. code:: python
+
+    file_resource = o.create_resource('pyodps_iris_file', 'file', file_obj='Iris-setosa')
+
+.. code:: python
+
+    iris_names_collection = iris.distinct('name')[:2]
+    iris_names_collection
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>sepallength</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>Iris-setosa</th>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>Iris-versicolor</th>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+.. code:: python
+
+    def myfunc(resources):  # resources按调用顺序传入
+        names = set()
+
+        fileobj = resources[0] # 文件资源是一个file-like的object
+        for l in fileobj:
+            names.add(l)
+
+        collection = resources[1]
+        for r in collection:
+            names.add(r.name)  # 这里可以通过字段名或者偏移来取
+
+        def h(x):
+            if x in names:
+                return True
+            else:
+                return False
+
+        return h
+
+    df = iris.distinct('name')
+    df = df[df.name,
+            df.name.map(myfunc, resources=[file_resource, iris_names_collection], rtype='boolean').rename('isin')]
+
+    df
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>name</th>
+          <th>isin</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>Iris-setosa</th>
+          <td>True</th>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>Iris-versicolor</th>
+          <td>True</th>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>Iris-virginica</th>
+          <td>False</th>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+
 NULL相关
 ========
 
@@ -866,6 +965,10 @@ string相关操作包括：
         <td>isdecimal</td>
         <td>同str.isdecimal</td>
       </tr>
+      <tr>
+        <td>strptime</td>
+        <td>按格式化读取成时间，时间格式和Python标准库相同，详细参考<a href='https://docs.python.org/2/library/datetime.html#strftime-and-strptime-behavior'>Python时间格式化</a></td>
+      </tr>
     </table>
     </div>
 
@@ -1149,3 +1252,12 @@ cut提供离散化的操作，可以将Sequence的数据拆成几个区段。
     </div>
 
 
+要想调用ODPS上的无参或者常数参的内建函数，我们可以使用 ``BuiltinFunction`` 类来完成。
+
+
+.. code:: python
+
+    from odps.df import BuiltinFunction
+
+    iris[iris.name, BuiltinFunction('rand', rtype='float').rename('rand')][:4]
+    iris[iris.name, BuiltinFunction('rand', rtype='float', args=(10, )).rename('rand')][:4]

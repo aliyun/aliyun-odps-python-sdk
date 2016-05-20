@@ -21,10 +21,10 @@ import itertools
 import inspect
 import traceback
 
-import six
-
 from .. import types
 from ... import compat
+from ...models import FileResource, TableResource
+from ...compat import six
 
 
 def add_method(expr, methods):
@@ -67,10 +67,44 @@ def highest_precedence_data_type(*data_types):
 def get_attrs(node):
     from .core import Node
 
+    tp = type(node) if not inspect.isclass(node) else node
+
+    if inspect.getmro(tp) is None:
+        tp = type(tp)
+
     return tuple(compat.OrderedDict.fromkeys(
         it for it in
-        itertools.chain(*(cls.__slots__ for cls in inspect.getmro(type(node)) if issubclass(cls, Node)))
+        itertools.chain(*(cls.__slots__ for cls in inspect.getmro(tp) if issubclass(cls, Node)))
         if not it.startswith('__')))
+
+
+def get_collection_resources(resources):
+    from .expressions import CollectionExpr
+
+    if resources:
+        for res in resources:
+            if not isinstance(res, (TableResource, FileResource, CollectionExpr)):
+                raise ValueError('resources must be ODPS file or table Resources or collections')
+    if resources is not None and len(resources) > 0:
+        ret = [res for res in resources if isinstance(res, CollectionExpr)]
+        [r.cache() for r in ret]  # we should execute the expressions by setting cache=True
+        return ret
+
+
+def get_executed_collection_table_name(collection):
+    from .expressions import CollectionExpr
+    from ...models import Table
+
+    if not isinstance(collection, CollectionExpr):
+        return
+
+    if collection._source_data is not None and \
+            isinstance(collection._source_data, Table):
+        return collection._source_data.name
+
+    if collection._cache_data is not None and \
+            isinstance(collection._cache_data, Table):
+        return collection._cache_data.name
 
 
 def is_called_by_inspector():

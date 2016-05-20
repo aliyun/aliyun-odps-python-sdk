@@ -23,13 +23,10 @@ import time
 from datetime import datetime
 import contextlib
 
-import six
-from enum import Enum
-
 from .core import LazyLoad, XMLRemoteModel
 from .job import Job
 from .. import serializers, utils, errors, compat, readers, options
-from ..compat import ElementTree
+from ..compat import ElementTree, Enum, six
 
 
 class Instance(LazyLoad):

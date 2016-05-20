@@ -16,16 +16,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, tn, pandas_case
 from odps.compat import unittest
 from odps.models import Schema
 from odps.df import DataFrame
+from odps.utils import to_text
 
 
 class Test(TestBase):
 
     def setup(self):
-        test_table_name = 'pyodps_test_dataframe'
+        test_table_name = tn('pyodps_test_dataframe')
         schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
@@ -54,8 +55,16 @@ class Test(TestBase):
         self.assertEqual(1, len(r))
         self.assertEqual([2, 'name2'], list(r[0]))
 
-        self.assertRaises(NotImplementedError, lambda: df[df.name == 'name2'].tail(1))
+    @pandas_case
+    def testUnicodePdDataFrame(self):
+        import pandas as pd
 
+        pd_df = pd.DataFrame([['中文'], [to_text('中文2')]], columns=[to_text('字段')])
+        df = DataFrame(pd_df)
+
+        r = df['字段'].execute()
+        self.assertEqual(to_text('中文'), to_text(r[0][0]))
+        self.assertEqual(to_text('中文2'), to_text(r[1][0]))
 
 if __name__ == '__main__':
     unittest.main()

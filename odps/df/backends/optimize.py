@@ -20,14 +20,14 @@
 import itertools
 
 from .core import Backend
+from ...models import Schema
 from ..expr.expressions import *
-from ..expr.groupby import GroupByCollectionExpr, GroupbyAppliedCollectionExpr
+from ..expr.groupby import GroupByCollectionExpr, GroupbyAppliedCollectionExpr, MutateCollectionExpr
 from ..expr.reduction import SequenceReduction, GroupedSequenceReduction
 from ..expr.collections import DistinctCollectionExpr, RowAppliedCollectionExpr
 from ..expr.utils import get_attrs
 from ..expr.merge import JoinCollectionExpr
-from ...models import Schema, Table
-from ...errors import ODPSError
+from ..expr.window import Window
 
 
 class Optimizer(Backend):
@@ -40,40 +40,12 @@ class Optimizer(Backend):
     def optimize(self):
         for node in self._expr.traverse(top_down=True, unique=True,
                                         traversed=self._traversed):
-            expr = self._handle_cache(node, root=self._expr)
-            if node is self._expr and expr is not None:
-                break
-            if expr is not None:
-                continue
             try:
                 node.accept(self)
             except NotImplementedError:
                 continue
 
         return self._expr
-
-    def _handle_cache(self, expr, root=None):
-        if not self._use_cache:
-            return
-
-        if expr._cache_data is not None:
-            if hasattr(expr, '_source_data') and expr._source_data is not None:
-                return
-
-            sub = None
-            if isinstance(expr, CollectionExpr):
-                sub = CollectionExpr(_source_data=expr._cache_data,
-                                     _schema=expr._schema)
-            elif isinstance(expr, Scalar):
-                sub = Scalar(_value=expr._cache_data, _value_type=expr.dtype)
-
-            if sub:
-                if expr is root:
-                    parents = None
-                else:
-                    parents = expr.parents
-                self._sub(expr, sub, parents)
-                return sub
 
     def _sub(self, expr, to_sub, parents):
         if not parents and expr is self._expr:
@@ -85,8 +57,12 @@ class Optimizer(Backend):
         if not options.df.optimize:
             return
 
-        if isinstance(expr.input, GroupByCollectionExpr):
+        if isinstance(expr.input, GroupByCollectionExpr) and \
+                not expr.input.optimize_banned:
+            # move filter on GroupBy to GroupBy's having
             predicate = self._broadcast_field(expr.predicate, expr.input)
+            if predicate is None:
+                predicate = expr.predicate
 
             having = expr.input.having
             if having is not None:
@@ -98,8 +74,9 @@ class Optimizer(Backend):
 
             attrs = get_attrs(expr.input)
             attrs_values = dict((attr, getattr(expr.input, attr)) for attr in attrs)
+            attrs_values['_having'] = predicates
+            del attrs_values['_cached_args']
             groupby_collection = type(expr.input)(**attrs_values)
-            groupby_collection._having = predicates
 
             self._sub(expr, groupby_collection, parents)
 
@@ -109,7 +86,32 @@ class Optimizer(Backend):
         # Summary does not attend here
         if not options.df.optimize:
             return
-        self._visit_need_compact_collection(expr)
+
+        parents = expr.parents
+
+        compacted = self._visit_need_compact_collection(expr)
+        if compacted:
+            expr = compacted
+
+        if isinstance(expr, ProjectCollectionExpr) and \
+                isinstance(expr.input, GroupByCollectionExpr) and \
+                not expr.input.optimize_banned:
+            # compact projection into Groupby
+            selects = []
+
+            for field in expr._fields:
+                selects.append(self._broadcast_field(field, expr.input) or field)
+
+            attrs = get_attrs(expr.input)
+            attrs_values = dict((attr, getattr(expr.input, attr)) for attr in attrs)
+            attrs_values['_fields'] = selects
+            attrs_values['_schema'] = Schema.from_lists([f.name for f in selects],
+                                                        [f.dtype for f in selects])
+            del attrs_values['_cached_args']
+            groupby_collection = type(expr.input)(**attrs_values)
+
+            self._sub(expr, groupby_collection, parents)
+            return
 
     def visit_groupby(self, expr):
         if not options.df.optimize:
@@ -124,7 +126,8 @@ class Optimizer(Backend):
 
         if len(expr._aggregations) == 1 and \
                 isinstance(expr._aggregations[0], GroupedSequenceReduction) and \
-                isinstance(expr._aggregations[0].input, CollectionExpr):
+                isinstance(expr._aggregations[0]._input, CollectionExpr):
+            # we just skip the case: df.groupby(***).count()
             return
 
         self._visit_need_compact_collection(expr)
@@ -147,6 +150,7 @@ class Optimizer(Backend):
             return
 
         self._sub(expr, compacted, parents)
+        return compacted
 
     def _compact(self, expr):
         to_compact = [expr, ]
@@ -157,11 +161,11 @@ class Optimizer(Backend):
             if not isinstance(node, CollectionExpr):
                 continue
 
-            # We do not handle collection with Scalar column here
+            # We do not handle collection with Scalar column or window function here
             # TODO think way to compact in this situation
             if isinstance(node, ProjectCollectionExpr) and \
                     not node.optimize_banned and \
-                    not any(isinstance(n, Scalar) for n in node._fields):
+                    not any(isinstance(n, Window) for n in node._fields):
                 valid = True
                 for it in itertools.chain(*(node.all_path(to_compact[-1]))):
                     if isinstance(it, SequenceReduction):
@@ -180,7 +184,7 @@ class Optimizer(Backend):
         for field in self._get_fields(expr):
             if not isinstance(field, SequenceExpr):
                 continue
-            broadcast_field = self._broadcast_field(field, to_compact[-1])
+            broadcast_field = self._broadcast_field(field, *to_compact[1:][::-1])
             if broadcast_field is not None:
                 changed = True
                 expr.substitute(field, broadcast_field)
@@ -189,50 +193,59 @@ class Optimizer(Backend):
             expr.substitute(expr.input, to_compact[-1].input)
             return expr
 
-    def _broadcast_field(self, expr, collection):
+    def _broadcast_field(self, expr, *collects):
         changed = False
+        retval = expr
+
+        collection = collects[-1]
         for path in expr.all_path(collection, strict=True):
-            col = None
-            for i, node in enumerate(path):
-                if isinstance(node, Column):
-                    col = node
-                    continue
-                elif isinstance(node, SequenceExpr):
-                    continue
-                elif isinstance(node, Scalar):
-                    break
+            cols = [it for it in path if isinstance(it, Column)]
+            assert len(cols) <= 1
+            assert len([it for it in path if isinstance(it, CollectionExpr)]) == 1
+            if len(cols) == 1:
+                col = cols[0]
 
-                # find a collection
-                if col is not None:
-                    parents = col.parents
-                    field = self._get_field(node, col.source_name or col.name)
-                    if col.is_renamed():
-                        field = field.rename(col.name)
-                    self._sub(col, field, parents)
-
-                    col = next(n for n in field.traverse(top_down=True, unique=True)
-                               if isinstance(n, Column))
+                col_name = col.source_name or col.name
+                field = self._get_field(collection, col_name)
+                if col.is_renamed():
+                    field = field.rename(col.name)
                 else:
-                    if i > 0:
-                        parent = path[i - 1]
-                        parent.substitute(node, collection.input)
+                    field = field.copy()
 
+                parents = col.parents
+                self._sub(col, field, parents)
                 changed = True
+                if col is retval:
+                    retval = field
+
+                if isinstance(field, Scalar) and field._value is not None:
+                    continue
+                if len(collects) > 1:
+                    self._broadcast_field(field, *collects[:-1]) or field
+            else:
+                path[-2].substitute(collection, collection.input)
 
         if changed:
-            return expr
+            return retval
 
     def _get_fields(self, collection):
         if isinstance(collection, (ProjectCollectionExpr, Summary)):
             return collection.fields
         elif isinstance(collection, DistinctCollectionExpr):
             return collection.unique_fields
-        elif isinstance(collection, GroupByCollectionExpr):
+        elif isinstance(collection, (GroupByCollectionExpr, MutateCollectionExpr)):
             return collection.fields
         elif isinstance(collection, (RowAppliedCollectionExpr, GroupbyAppliedCollectionExpr)):
             return collection.fields
 
     def _get_field(self, collection, name):
         # FIXME: consider name with upper letters
-        idx = collection.schema._name_indexes[name.lower()]
+        if isinstance(collection, GroupByCollectionExpr):
+            return collection._name_to_exprs()[name]
+
+        name_idxes = collection.schema._name_indexes
+        if name.lower() in name_idxes:
+            idx = name_idxes[name.lower()]
+        else:
+            idx = name_idxes[name]
         return self._get_fields(collection)[idx]

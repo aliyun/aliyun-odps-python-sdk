@@ -19,16 +19,14 @@
 
 import itertools
 
-import six
-from six.moves.builtins import zip
-from six import StringIO
 try:
     import pandas as pd
     has_pandas = True
 except ImportError:
     has_pandas = False
 
-from ...compat import u
+from ...compat.six import StringIO
+from ...compat import u, six, izip as zip
 from ...config import options
 from ...console import get_console_size, in_interactive_session, \
     in_ipython_frontend, in_qtconsole
@@ -220,9 +218,6 @@ class ResultFrame(six.Iterator):
     def __unicode__(self):
         """
         Return a string representation for a particular DataFrame
-
-        Invoked by unicode(df) in py2 only. Yields a Unicode String in both
-        py2/py3.
         """
         if self._pandas:
             return repr(self._values)
@@ -239,7 +234,7 @@ class ResultFrame(six.Iterator):
         self.to_string(buf=buf, max_rows=max_rows, max_cols=max_cols,
                        line_width=width, show_dimensions=show_dimensions)
 
-        return buf.getvalue()
+        return to_str(buf.getvalue())
 
     def _repr_html_(self):
         """

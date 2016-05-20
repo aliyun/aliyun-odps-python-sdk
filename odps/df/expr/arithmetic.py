@@ -28,15 +28,6 @@ from .. import types
 class BinOp(AnyOp):
     __slots__ = ()
     _args = '_lhs', '_rhs'
-    _add_args_slots = False
-
-    @classmethod
-    def _new_cls(cls, *args, **kwargs):
-        base = AnyOp._new_cls(*args, **kwargs)
-
-        dic = dict(cls.__dict__)
-        dic['_args'] = cls._args
-        return type(cls.__name__, (cls, base), dic)
 
     @property
     def node_name(self):

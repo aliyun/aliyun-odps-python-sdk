@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, pandas_case
 from odps.compat import unittest
 from odps.models import Schema
 from odps.df.expr.expressions import *
@@ -25,6 +25,7 @@ from odps.df import types
 from odps.df.backends.pd.compiler import PandasCompiler
 
 
+@pandas_case
 class Test(TestBase):
     def testPandasCompilation(self):
         import pandas as pd

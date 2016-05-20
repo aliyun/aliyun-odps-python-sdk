@@ -18,16 +18,22 @@
 # under the License.
 
 from distutils.version import LooseVersion
+import itertools
+from collections import Iterable
+import cgi
 
 from ...config import options
 from ... import compat
-from ...compat import u, OrderedDict
+from ...compat import u, izip, six
 from ...console import get_terminal_size
+from ...utils import to_text, to_str, indent, require_package
+from ...models import Table, Schema
 from ..types import *
+from ..expr.expressions import CollectionExpr, Scalar
 
 
 def is_integer(val):
-        return isinstance(val, six.integer_types)
+    return isinstance(val, six.integer_types)
 
 
 def is_sequence(x):
@@ -1266,3 +1272,167 @@ def _trim_zeros(str_floats, na_rep='NaN'):
 
     # trim decimal points
     return [x[:-1] if x.endswith('.') and x != na_rep else x for x in trimmed]
+
+
+
+class ExprExecutionGraphFormatter(object):
+    def __init__(self, expr, dag):
+        self._expr = expr
+        self._dag = dag
+
+    @require_package('graphviz')
+    def _repr_svg_(self):
+        from graphviz import Source
+        return Source(self._to_dot())._repr_svg_()
+
+    def _format_expr(self, expr):
+        if isinstance(expr, CollectionExpr) and expr._source_data is not None:
+            if isinstance(expr._source_data, Table):
+                return 'Collection: %s' % expr._source_data.name
+            else:
+                return 'Collection: pandas.DataFrame'
+        elif isinstance(expr, Scalar) and expr._value is not None:
+            return 'Scalar: %r' % expr._value
+        else:
+            node_name = getattr(expr, 'node_name', expr.__class__.__name__)
+            if isinstance(expr, CollectionExpr):
+                return '%s[Collection]' % node_name
+            else:
+                t = 'Scalar' if isinstance(expr, Scalar) else 'Sequence'
+                return '{%s[%s]|name: %s|type: %s}' % (
+                    node_name.capitalize(), t, expr.name, expr.dtype)
+
+    def _compile(self, expr):
+        from .odpssql.engine import ODPSEngine
+        from .engine import _build_odps_from_table
+
+        source = next(expr.data_source())
+        if isinstance(source, Table):
+            o = _build_odps_from_table(source)
+            return ODPSEngine(o).compile(expr)
+
+    def _to_str(self):
+        buffer = six.StringIO()
+
+        nodes = self._dag.topological_sort()
+        for i, node in enumerate(nodes):
+            sid = i + 1
+            _, _, expr_node = node
+
+            buffer.write('Stage {0}: \n\n'.format(sid))
+            compiled = self._compile(expr_node)
+            if compiled:
+                buffer.write('SQL compiled: \n\n')
+                buffer.write(compiled)
+            else:
+                buffer.write('Local execution')
+            if i < len(nodes) - 1:
+                buffer.write('\n\n')
+
+        return to_str(buffer.getvalue())
+
+    def _to_html(self):
+        buffer = six.StringIO()
+
+        for i, node in enumerate(self._dag.topological_sort()):
+            sid = i + 1
+            _, _, expr_node = node
+
+            buffer.write('<h3>Stage {0}</h3>'.format(sid))
+            compiled = self._compile(expr_node)
+            if compiled:
+                buffer.write('<h4>SQL compiled</h4>')
+                buffer.write('<code>{}</code>'.format(compiled))
+            else:
+                buffer.write('<p>Local execution</p>')
+
+        return to_str(buffer.getvalue())
+
+    def _to_dot(self):
+        buffer = six.StringIO()
+        write = lambda x: buffer.write(to_text(x))
+        write_newline = lambda x: write(x if x.endswith('\n') else x + '\n')
+        write_indent_newline = lambda x, ind=1: write_newline(indent(x, 2 * ind))
+
+        nid = itertools.count(1)
+
+        write_newline('digraph DataFrameDAG {')
+        write_indent_newline('START [shape=ellipse, label="start", style=filled, fillcolor=Pink];')
+
+        nodes = self._dag.topological_sort()
+        traversed = dict()
+        for sid, node in izip(itertools.count(1), nodes):
+            _, _, expr_node = node
+            traversed[id(node)] = sid
+
+            pres = self._dag.predecessors(node)
+            write_indent_newline('subgraph clusterSTAGE{0} {{'.format(sid))
+            write_indent_newline('label = "Stage {0}"'.format(sid), ind=2)
+
+            compiled = self._compile(expr_node)
+
+            for expr in expr_node.traverse(unique=True):
+                if id(expr) not in traversed:
+                    eid = next(nid)
+                    traversed[id(expr)] = eid
+                else:
+                    eid = traversed[id(expr)]
+
+                name_args = list(expr.iter_args())
+                labels = [self._format_expr(expr), ]
+                for i, name_arg in enumerate(name_args):
+                    if name_arg[1] is None:
+                        continue
+                    labels.append('<f{0}>{1}'.format(i, name_arg[0].strip('_')))
+
+                attr = ', style=filled, fillcolor=LightGrey' if isinstance(expr, CollectionExpr) else ''
+                write_indent_newline(
+                    'EXPR{0} [shape=record, label="{1}"{2}];'.format(eid, '|'.join(labels), attr), ind=2)
+
+                no_child = True
+                for i, name_arg in enumerate(name_args):
+                    name, args = name_arg
+                    if args is None:
+                        continue
+
+                    def get_arg(arg):
+                        if id(arg) not in traversed:
+                            arg_id = next(nid)
+                            traversed[id(arg)] = arg_id
+                        return 'EXPR{0} -> EXPR{1}:f{2};'.format(traversed[id(arg)], eid, i)
+                    if isinstance(args, Iterable):
+                        for arg in args:
+                            write_indent_newline(get_arg(arg), ind=2)
+                    else:
+                        write_indent_newline(get_arg(args), ind=2)
+                    no_child = False
+
+                if no_child:
+                    if len(pres) == 0:
+                        if isinstance(expr, CollectionExpr):
+                            write_indent_newline('START -> EXPR{0};'.format(eid), ind=2)
+                    else:
+                        for pre in pres:
+                            pre_expr, _, pre_src_expr = pre
+                            pid = traversed[id(pre_src_expr)]
+                            if pre_expr is expr:
+                                write_indent_newline('EXPR{0} -> EXPR{1};'.format(pid, eid), ind=2)
+
+            if compiled:
+                eid = traversed[id(expr_node)]
+                compiled = '<TABLE ALIGN="LEFT" BORDER="0">%s</TABLE>' % ''.join(
+                    '<TR><TD ALIGN="LEFT">%s</TD></TR>' % cgi.escape(l) for l in compiled.split('\n'))
+
+                write_indent_newline(
+                    'COMPILED{0} [shape=record, style="filled", fillcolor="SkyBlue", label=<\n'
+                        .format(eid), ind=2)
+                write_indent_newline(compiled, ind=3)
+                write_indent_newline('>];', ind=2)
+                write_indent_newline(
+                    'EXPR{0} -> COMPILED{0} [arrowhead = none, style = dashed];'.format(eid), ind=2)
+
+            write_indent_newline('}')
+
+        write('}')
+
+        return buffer.getvalue()

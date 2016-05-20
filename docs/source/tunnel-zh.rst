@@ -5,7 +5,9 @@
 *******************
 
 
-ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据
+ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据。
+
+**注意**，如果安装了 **cython**，在安装pyodps时会编译C代码，加速Tunnel的上传。
 
 上传
 =====

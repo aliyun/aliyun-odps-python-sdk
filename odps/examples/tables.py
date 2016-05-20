@@ -24,10 +24,10 @@ import tarfile
 import gzip
 import warnings
 
-from six import text_type
 from itertools import groupby, product
 
 from ..compat import pickle, urlretrieve
+from ..compat.six import text_type
 from ..tunnel import TableTunnel
 from ..utils import load_static_text_file, build_pyodps_dir
 

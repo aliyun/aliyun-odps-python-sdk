@@ -17,10 +17,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import math
+import itertools
 from datetime import datetime, timedelta
+from functools import partial
+from random import randint
+import uuid
+from decimal import Decimal
 
-from odps.df.backends.tests.core import TestBase, to_str
-from odps.compat import unittest
+from odps.df.backends.tests.core import TestBase, to_str, tn
+from odps.compat import unittest, irange as xrange, six, DECIMAL_TYPES
 from odps.models import Schema, Instance
 from odps import types
 from odps.df.types import validate_data_type
@@ -37,16 +43,19 @@ class Test(TestBase):
         schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
         self.schema = df_schema_to_odps_schema(schema)
-        table_name = 'pyodps_test_engine_table'
+        table_name = tn('pyodps_test_engine_table_%s' % str(uuid.uuid4()).replace('-', '_'))
         self.odps.delete_table(table_name, if_exists=True)
         self.table = self.odps.create_table(
-                name='pyodps_test_engine_table', schema=self.schema)
+                name=table_name, schema=self.schema)
         self.expr = CollectionExpr(_source_data=self.table, _schema=schema)
 
         self.engine = ODPSEngine(self.odps)
 
         class FakeBar(object):
             def update(self, *args, **kwargs):
+                pass
+
+            def status(self, *args, **kwargs):
                 pass
         self.faked_bar = FakeBar()
 
@@ -94,7 +103,7 @@ class Test(TestBase):
         result = self._get_result(res)
         self.assertEqual([it[:2] for it in data], result)
 
-        table_name = 'pyodps_test_engine_partitioned'
+        table_name = tn('pyodps_test_engine_partitioned')
         self.odps.delete_table(table_name, if_exists=True)
 
         df = self.engine.persist(self.expr, table_name, partitions=['name'])
@@ -112,6 +121,10 @@ class Test(TestBase):
             expr = df[df.name == data[0][0]]['fid', 'id']
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertGreater(len(res), 0)
+
+            expr = df[df.name == data[0][0]]
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertTrue(all(r is not None for r in res[:, -1]))
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 
@@ -171,6 +184,24 @@ class Test(TestBase):
         res = self.engine.execute(expr, use_tunnel=False)
         result = self._get_result(res.values)
         self.assertEqual(sorted(data, key=lambda it: it[1])[:5], result)
+
+        expr = self.expr.scale.map(lambda x: x + 1)
+        res = self.engine.execute(expr)
+        result = self._get_result(res.values)
+        self.assertEqual([[r[4]+1, ] for r in data], result)
+
+        expr = self.expr.name.hash()
+        res = self.engine.execute(expr)
+        result = self._get_result(res.values)
+        self.assertEqual([[hash(r[0])] for r in data], result),
+
+        expr = self.expr.sample(parts=10)
+        res = self.engine.execute(expr)
+        self.assertGreaterEqual(len(res), 1)
+
+        expr = self.expr.sample(parts=10, columns=self.expr.id)
+        res = self.engine.execute(expr)
+        self.assertGreaterEqual(len(res), 0)
 
     def testElement(self):
         data = self._gen_data(5, nullable_field='name')
@@ -247,7 +278,7 @@ class Test(TestBase):
             (self.expr.scale * 2).rename('scale1'),
             (self.expr.scale + self.expr.id).rename('scale2'),
             (self.expr.id / 2).rename('id2'),
-            (self.expr.id ** -2).rename('id3'),
+            (self.expr.id ** 2).rename('id3'),
             abs(self.expr.id).rename('id4'),
             (~self.expr.id).rename('id5'),
             (-self.expr.fid).rename('fid2'),
@@ -280,7 +311,7 @@ class Test(TestBase):
         self.assertAlmostEqual([float(it[1]) / 2 for it in data],
                                [it[4] for it in result])
 
-        self.assertEqual([int(it[1] ** -2) for it in data],
+        self.assertEqual([int(it[1] ** 2) for it in data],
                          [it[5] for it in result])
 
         self.assertEqual([abs(it[1]) for it in data],
@@ -306,30 +337,28 @@ class Test(TestBase):
     def testMath(self):
         data = self._gen_data(5, value_range=(1, 90))
 
-        import numpy as np
-
         methods_to_fields = [
-            (np.sin, self.expr.id.sin()),
-            (np.cos, self.expr.id.cos()),
-            (np.tan, self.expr.id.tan()),
-            (np.sinh, self.expr.id.sinh()),
-            (np.cosh, self.expr.id.cosh()),
-            (np.tanh, self.expr.id.tanh()),
-            (np.log, self.expr.id.log()),
-            (np.log2, self.expr.id.log2()),
-            (np.log10, self.expr.id.log10()),
-            (np.log1p, self.expr.id.log1p()),
-            (np.exp, self.expr.id.exp()),
-            (np.expm1, self.expr.id.expm1()),
-            (np.arccosh, self.expr.id.arccosh()),
-            (np.arcsinh, self.expr.id.arcsinh()),
-            (np.arctanh, self.expr.id.arctanh()),
-            (np.arctan, self.expr.id.arctan()),
-            (np.sqrt, self.expr.id.sqrt()),
-            (np.abs, self.expr.id.abs()),
-            (np.ceil, self.expr.id.ceil()),
-            (np.floor, self.expr.id.floor()),
-            (np.trunc, self.expr.id.trunc()),
+            (math.sin, self.expr.id.sin()),
+            (math.cos, self.expr.id.cos()),
+            (math.tan, self.expr.id.tan()),
+            (math.sinh, self.expr.id.sinh()),
+            (math.cosh, self.expr.id.cosh()),
+            (math.tanh, self.expr.id.tanh()),
+            (math.log, self.expr.id.log()),
+            (lambda v: math.log(v, 2), self.expr.id.log2()),
+            (math.log10, self.expr.id.log10()),
+            (math.log1p, self.expr.id.log1p()),
+            (math.exp, self.expr.id.exp()),
+            (math.expm1, self.expr.id.expm1()),
+            (math.acosh, self.expr.id.arccosh()),
+            (math.asinh, self.expr.id.arcsinh()),
+            (math.atanh, self.expr.id.arctanh()),
+            (math.atan, self.expr.id.arctan()),
+            (math.sqrt, self.expr.id.sqrt()),
+            (abs, self.expr.id.abs()),
+            (math.ceil, self.expr.id.ceil()),
+            (math.floor, self.expr.id.floor()),
+            (math.trunc, self.expr.id.trunc()),
         ]
 
         fields = [it[1].rename('id'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -340,15 +369,27 @@ class Test(TestBase):
         result = self._get_result(res)
 
         for i, it in enumerate(methods_to_fields):
-            method = it[0]
+            mt = it[0]
+
+            def method(v):
+                try:
+                    return mt(v)
+                except ValueError:
+                    return float('nan')
 
             first = [method(it[1]) for it in data]
             second = [it[i] for it in result]
             self.assertEqual(len(first), len(second))
             for it1, it2 in zip(first, second):
-                if np.isnan(it1) and np.isnan(it2):
+                not_valid = lambda x: \
+                    x is None or (isinstance(x, float) and (math.isnan(x) or math.isinf(x)))
+                if not_valid(it1) and not_valid(it2):
                     continue
-                self.assertAlmostEqual(it1, it2, delta=2)
+                if isinstance(it1, float) and it1 > 1.0e15:
+                    scale = 0.1 ** (int(math.log10(it1)) - 15)
+                    self.assertAlmostEqual(it1 * scale, it2 * scale, delta=2)
+                else:
+                    self.assertAlmostEqual(it1, it2, delta=2)
 
     def testString(self):
         data = self._gen_data(5)
@@ -370,6 +411,7 @@ class Test(TestBase):
             (lambda s: s.rjust(20, '*'), self.expr.name.rjust(20, fillchar='*')),
             (lambda s: s * 4, self.expr.name.repeat(4)),
             (lambda s: s[2: 10: 2], self.expr.name.slice(2, 10, 2)),
+            (lambda s: s[1: s.find('a')], self.expr.name[1: self.expr.name.find('a')]),
             (lambda s: s[-5: -1], self.expr.name.slice(-5, -1)),
             (lambda s: s.title(), self.expr.name.title()),
             (lambda s: s.rjust(20, '0'), self.expr.name.zfill(20)),
@@ -397,18 +439,114 @@ class Test(TestBase):
             second = [it[i] for it in result]
             self.assertEqual(first, second)
 
+    def testFunctionResources(self):
+        data = self._gen_data(5)
+
+        class my_func(object):
+            def __init__(self, resources):
+                self.file_resource = resources[0]
+                self.table_resource = resources[1]
+
+                self.valid_ids = [int(l) for l in self.file_resource]
+                self.valid_ids.extend([int(l[0]) for l in self.table_resource])
+
+            def __call__(self, arg):
+                if isinstance(arg, tuple):
+                    if arg[1] in self.valid_ids:
+                        return arg
+                else:
+                    if arg in self.valid_ids:
+                        return arg
+
+        def my_func2(resources):
+            file_resource = resources[0]
+            table_resource = resources[1]
+
+            valid_ids = [int(l) for l in file_resource]
+            valid_ids.extend([int(l[0]) for l in table_resource])
+
+            def h(arg):
+                if isinstance(arg, tuple):
+                    if arg[1] in valid_ids:
+                        return arg
+                else:
+                    if arg in valid_ids:
+                        return arg
+            return h
+
+        file_resource_name = tn('pyodps_tmp_file_resource')
+        table_resource_name = tn('pyodps_tmp_table_resource')
+        table_name = tn('pyodps_tmp_function_resource_table')
+        try:
+            self.odps.delete_resource(file_resource_name)
+        except:
+            pass
+        file_resource = self.odps.create_resource(file_resource_name, 'file',
+                                                  file_obj='\n'.join(str(r[1]) for r in data[:3]))
+        self.odps.delete_table(table_name, if_exists=True)
+        t = self.odps.create_table(table_name, Schema.from_lists(['id'], ['bigint']))
+        with t.open_writer() as writer:
+            writer.write([r[1: 2] for r in data[3: 4]])
+        try:
+            self.odps.delete_resource(table_resource_name)
+        except:
+            pass
+        table_resource = self.odps.create_resource(table_resource_name, 'table',
+                                                   table_name=t.name)
+
+        try:
+            expr = self.expr.id.map(my_func, resources=[file_resource, table_resource])
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            result = [r for r in result if r[0] is not None]
+
+            self.assertEqual(sorted([[r[1]] for r in data[:4]]), sorted(result))
+
+            expr = self.expr['name', 'id', 'fid']
+            expr = expr.apply(my_func, axis=1, resources=[file_resource, table_resource],
+                              names=expr.schema.names, types=expr.schema.types)
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertEqual(sorted([r[:3] for r in data[:4]]), sorted(result))
+
+            expr = self.expr['name', 'id', 'fid']
+            expr = expr.apply(my_func2, axis=1, resources=[file_resource, table_resource],
+                              names=expr.schema.names, types=expr.schema.types)
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertEqual(sorted([r[:3] for r in data[:4]]), sorted(result))
+        finally:
+            try:
+                file_resource.drop()
+            except:
+                pass
+            try:
+                t.drop()
+            except:
+                pass
+            try:
+                table_resource.drop()
+            except:
+                pass
+
     def testApply(self):
         data = self._gen_data(5)
 
         def my_func(row):
-            return row.name,
+            return row.name, row.scale + 1
 
-        expr = self.expr['name', 'id'].apply(my_func, axis=1, names='name')
+        expr = self.expr['name', 'id', 'scale'].apply(my_func, axis=1, names=['name', 'scale'],
+                                                      types=['string', 'decimal'])
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
-        self.assertEqual([r[0] for r in result], [r[0] for r in data])
+        self.assertEqual([[r[0], r[1]] for r in result], [[r[0], r[4] + 1] for r in data])
 
         def my_func2(row):
             yield len(row.name)
@@ -429,20 +567,27 @@ class Test(TestBase):
     def testDatetime(self):
         data = self._gen_data(5)
 
-        import pandas as pd
+        def date_value(sel):
+            if isinstance(sel, six.string_types):
+                fun = lambda v: getattr(v, sel)
+            else:
+                fun = sel
+            col_id = [idx for idx, col in enumerate(self.schema.names) if col == 'birth'][0]
+            return [fun(row[col_id]) for row in data]
 
         methods_to_fields = [
-            (lambda s: list(s.birth.dt.year.values), self.expr.birth.year),
-            (lambda s: list(s.birth.dt.month.values), self.expr.birth.month),
-            (lambda s: list(s.birth.dt.day.values), self.expr.birth.day),
-            (lambda s: list(s.birth.dt.hour.values), self.expr.birth.hour),
-            (lambda s: list(s.birth.dt.minute.values), self.expr.birth.minute),
-            (lambda s: list(s.birth.dt.second.values), self.expr.birth.second),
-            (lambda s: list(s.birth.dt.weekofyear.values), self.expr.birth.weekofyear),
-            (lambda s: list(s.birth.dt.dayofweek.values), self.expr.birth.dayofweek),
-            (lambda s: list(s.birth.dt.weekday.values), self.expr.birth.weekday),
-            (lambda s: list(s.birth.dt.date.values), self.expr.birth.date),
-            (lambda s: list(s.birth.dt.strftime('%Y%d')), self.expr.birth.strftime('%Y%d'))
+            (partial(date_value, 'year'), self.expr.birth.year),
+            (partial(date_value, 'month'), self.expr.birth.month),
+            (partial(date_value, 'day'), self.expr.birth.day),
+            (partial(date_value, 'hour'), self.expr.birth.hour),
+            (partial(date_value, 'minute'), self.expr.birth.minute),
+            (partial(date_value, 'second'), self.expr.birth.second),
+            (partial(date_value, lambda d: d.isocalendar()[1]), self.expr.birth.weekofyear),
+            (partial(date_value, lambda d: d.weekday()), self.expr.birth.dayofweek),
+            (partial(date_value, lambda d: d.weekday()), self.expr.birth.weekday),
+            (partial(date_value, lambda d: datetime.combine(d.date(), datetime.min.time())), self.expr.birth.date),
+            (partial(date_value, lambda d: d.strftime('%Y%d')), self.expr.birth.strftime('%Y%d')),
+            (partial(date_value, lambda d: datetime.strptime(d.strftime('%Y%d'), '%Y%d')), self.expr.birth.strftime('%Y%d').strptime('%Y%d')),
         ]
 
         fields = [it[1].rename('birth'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -452,18 +597,21 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
-        df = pd.DataFrame(data, columns=self.schema.names)
-
         for i, it in enumerate(methods_to_fields):
             method = it[0]
 
-            first = method(df)
+            first = method()
 
-            def conv(v):
-                if isinstance(v, pd.Timestamp):
-                    return v.to_datetime().date()
-                else:
-                    return v
+            try:
+                import pandas as pd
+
+                def conv(v):
+                    if isinstance(v, pd.Timestamp):
+                        return v.to_datetime()
+                    else:
+                        return v
+            except ImportError:
+                conv = lambda v: v
 
             second = [conv(it[i]) for it in result]
             self.assertEqual(first, second)
@@ -501,15 +649,29 @@ class Test(TestBase):
         ]
         self._gen_data(data=data)
 
+        class Agg(object):
+            def buffer(self):
+                return [0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+
+            def getvalue(self, buffer):
+                return buffer[0]
+
         expr = self.expr.groupby(['name', 'id'])[lambda x: x.fid.min() * 2 < 8] \
-            .agg(self.expr.fid.max() + 1, new_id=self.expr.id.sum())
+            .agg(self.expr.fid.max() + 1, new_id=self.expr.id.sum(),
+                 new_id2=self.expr.id.agg(Agg))
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
         expected = [
-            ['name1', 3, 5.1, 6],
-            ['name2', 2, 4.5, 2]
+            ['name1', 3, 5.1, 6, 6],
+            ['name2', 2, 4.5, 2, 2]
         ]
 
         result = sorted(result, key=lambda k: k[0])
@@ -595,7 +757,7 @@ class Test(TestBase):
         schema2 = Schema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.bigint, types.bigint])
 
-        table_name = 'pyodps_test_engine_table2'
+        table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
         table2 = self.odps.create_table(name=table_name, schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
@@ -615,9 +777,10 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
-        import pandas as pd
-        expected = pd.DataFrame(data, columns=self.expr.schema.names).groupby('id').agg({'fid': 'sum'})\
-            .reset_index().values.tolist()
+        id_idx = [idx for idx, col in enumerate(self.expr.schema.names) if col == 'id'][0]
+        fid_idx = [idx for idx, col in enumerate(self.expr.schema.names) if col == 'fid'][0]
+        expected = [[k, sum(v[fid_idx] for v in row)]
+                    for k, row in itertools.groupby(sorted(data, key=lambda r: r[id_idx]), lambda r: r[id_idx])]
         for it in zip(sorted(expected, key=lambda it: it[0]), sorted(result, key=lambda it: it[0])):
             self.assertAlmostEqual(it[0][0], it[1][0])
             self.assertAlmostEqual(it[0][1], it[1][1])
@@ -645,6 +808,99 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
+    def testWindowFunction(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 6.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.groupby('name').id.cumsum()
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [[14]] * 4 + [[2]]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr.groupby('name').sort('fid').id.cummax()
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [[3], [4], [4], [4], [2]]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr[
+            self.expr.groupby('name', 'id').sort('fid').id.cummean(),
+            self.expr.groupby('name').id.cummedian()
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [3, 3.5], [3, 3.5], [4, 3.5], [4, 3.5], [2, 2]
+        ]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr.groupby('name').mutate(id2=lambda x: x.id.cumcount(unique=True),
+                                                fid2=lambda x: x.fid.cummin(sort='id'))
+
+        res = self.engine.execute(expr['name', 'id2', 'fid2'])
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 2, 2.2],
+            ['name1', 2, 2.2],
+            ['name1', 2, 2.2],
+            ['name1', 2, 2.2],
+            ['name2', 1, 3.5],
+        ]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr[
+            self.expr.id,
+            self.expr.groupby('name').rank('id'),
+            self.expr.groupby('name').dense_rank('fid', ascending=False),
+            self.expr.groupby('name').row_number(sort=['id', 'fid'], ascending=[True, False]),
+            self.expr.groupby('name').percent_rank('id'),
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [4, 3, 2, 3, float(2) / 3],
+            [2, 1, 1, 1, 0.0],
+            [4, 3, 3, 4, float(2) / 3],
+            [3, 1, 4, 2, float(0) / 3],
+            [3, 1, 1, 1, float(0) / 3]
+        ]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr[
+            self.expr.id,
+            self.expr.groupby('name').id.lag(offset=3, default=0, sort=['id', 'fid']).rename('id2'),
+            self.expr.groupby('name').id.lead(offset=1, default=-1,
+                                              sort=['id', 'fid'], ascending=[False, False]).rename('id3'),
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [4, 3, 4],
+            [2, 0, -1],
+            [4, 0, 3],
+            [3, 0, -1],
+            [3, 0, 3]
+        ]
+        self.assertEqual(sorted(expected), sorted(result))
+
     def testWindowRewrite(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -661,36 +917,79 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
-        import pandas as pd
-        df = pd.DataFrame(data, columns=self.schema.names)
-        expected = df.id - df.id.max()
-        expected = expected - expected.min()
-        expected = list(expected[expected - expected.std() > 0])
+        id_idx = [idx for idx, col in enumerate(self.expr.schema.names) if col == 'id'][0]
+        expected = [r[id_idx] for r in data]
+        maxv = max(expected)
+        expected = [v - maxv for v in expected]
+        minv = min(expected)
+        expected = [v - minv for v in expected]
+
+        meanv = sum(expected) * 1.0 / len(expected)
+        meanv2 = sum([v ** 2 for v in expected]) * 1.0 / len(expected)
+        std = math.sqrt(meanv2 - meanv ** 2)
+        expected = [v for v in expected if v > std]
 
         self.assertEqual(expected, [it[0] for it in result])
 
     def testReduction(self):
         data = self._gen_data(rows=5, value_range=(-100, 100))
 
-        import pandas as pd
-        df = pd.DataFrame(data, columns=self.schema.names)
+        def stats(col, func):
+            col_idx = [idx for idx, cn in enumerate(self.expr.schema.names) if cn == col][0]
+            return func([r[col_idx] for r in data])
+
+        def median(vct):
+            sorted_lst = sorted(vct)
+            lst_len = len(vct)
+            index = (lst_len - 1) // 2
+            if lst_len % 2:
+                return sorted_lst[index]
+            else:
+                return (sorted_lst[index] + sorted_lst[index + 1]) / 2.0
+
+        def var(vct, ddof=0):
+            meanv = sum(vct) * 1.0 / (len(vct) - ddof)
+            meanv2 = sum([v ** 2 for v in vct]) * 1.0 / (len(vct) - ddof)
+            return meanv2 - meanv ** 2
+
+        mean = lambda v: sum(v) * 1.0 / len(v)
+        std = lambda v, ddof=0: math.sqrt(var(v, ddof))
+        nunique = lambda v: len(set(v))
+
+        class Agg(object):
+            def buffer(self):
+                return [0.0, 0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+                buffer[1] += 1
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+                buffer[1] += pbuffer[1]
+
+            def getvalue(self, buffer):
+                if buffer[1] == 0:
+                    return 0.0
+                return buffer[0] / buffer[1]
 
         methods_to_fields = [
-            (lambda s: df.id.mean(), self.expr.id.mean()),
-            (lambda s: len(df), self.expr.count()),
-            (lambda s: df.id.var(ddof=0), self.expr.id.var(ddof=0)),
-            (lambda s: df.id.std(ddof=0), self.expr.id.std(ddof=0)),
-            (lambda s: df.id.median(), self.expr.id.median()),
-            (lambda s: df.id.sum(), self.expr.id.sum()),
-            (lambda s: df.id.min(), self.expr.id.min()),
-            (lambda s: df.id.max(), self.expr.id.max()),
-            (lambda s: df.isMale.min(), self.expr.isMale.min()),
-            (lambda s: df.name.max(), self.expr.name.max()),
-            (lambda s: df.birth.max(), self.expr.birth.max()),
-            (lambda s: df.isMale.sum(), self.expr.isMale.sum()),
-            (lambda s: df.isMale.any(), self.expr.isMale.any()),
-            (lambda s: df.isMale.all(), self.expr.isMale.all()),
-            (lambda s: df.name.nunique(), self.expr.name.nunique()),
+            (partial(stats, 'id', mean), self.expr.id.mean()),
+            (partial(len, data), self.expr.count()),
+            (partial(stats, 'id', var), self.expr.id.var(ddof=0)),
+            (partial(stats, 'id', std), self.expr.id.std(ddof=0)),
+            (partial(stats, 'id', median), self.expr.id.median()),
+            (partial(stats, 'id', sum), self.expr.id.sum()),
+            (partial(stats, 'id', min), self.expr.id.min()),
+            (partial(stats, 'id', max), self.expr.id.max()),
+            (partial(stats, 'isMale', min), self.expr.isMale.min()),
+            (partial(stats, 'name', max), self.expr.name.max()),
+            (partial(stats, 'birth', max), self.expr.birth.max()),
+            (partial(stats, 'isMale', sum), self.expr.isMale.sum()),
+            (partial(stats, 'isMale', any), self.expr.isMale.any()),
+            (partial(stats, 'isMale', all), self.expr.isMale.all()),
+            (partial(stats, 'name', nunique), self.expr.name.nunique()),
+            (partial(stats, 'id', mean), self.expr.id.agg(Agg, rtype='float')),
         ]
 
         fields = [it[1].rename('f'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -700,17 +999,88 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
-        df = pd.DataFrame(data, columns=self.schema.names)
-
         for i, it in enumerate(methods_to_fields):
             method = it[0]
 
-            first = method(df)
+            first = method()
             second = [it[i] for it in result][0]
             if isinstance(first, float):
                 self.assertAlmostEqual(first, second)
             else:
                 self.assertEqual(first, second)
+
+        expr = self.expr['id', 'fid'].apply(Agg, types=['float'] * 2)
+
+        expected = [[mean([l[1] for l in data])], [mean([l[2] for l in data])]]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        for first, second in zip(expected, result):
+            first = first[0]
+            second = second[0]
+
+            if isinstance(first, float):
+                self.assertAlmostEqual(first, second)
+            else:
+                self.assertEqual(first, second)
+
+    def testUserDefinedAggregators(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        @output_types('float')
+        class Aggregator(object):
+            def buffer(self):
+                return [0.0, 0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+                buffer[1] += 1
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+                buffer[1] += pbuffer[1]
+
+            def getvalue(self, buffer):
+                if buffer[1] == 0:
+                    return 0.0
+                return buffer[0] / buffer[1]
+
+        expr = self.expr.id.agg(Aggregator)
+
+        expected = float(16) / 5
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertAlmostEqual(expected, result)
+
+        expr = self.expr.groupby(Scalar('const').rename('s')).id.agg(Aggregator)
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertAlmostEqual(expected, result[0][0])
+
+        expr = self.expr.groupby('name').agg(self.expr.id.agg(Aggregator))
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', float(14) / 4],
+            ['name2', 2]
+        ]
+        for expect_r, actual_r in zip(expected, result):
+            self.assertEqual(expect_r[0], actual_r[0])
+            self.assertAlmostEqual(expect_r[1], actual_r[1])
 
     def testMapReduceByApplyDistributeSort(self):
         data = [
@@ -856,7 +1226,7 @@ class Test(TestBase):
 
         schema2 = Schema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.bigint, types.bigint])
-        table_name = 'pyodps_test_engine_table2'
+        table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
         table2 = self.odps.create_table(name=table_name, schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
@@ -904,7 +1274,7 @@ class Test(TestBase):
 
         schema2 = Schema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.bigint, types.bigint])
-        table_name = 'pyodps_test_engine_table2'
+        table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
         table2 = self.odps.create_table(name=table_name, schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
@@ -943,6 +1313,55 @@ class Test(TestBase):
         finally:
             table2.drop()
 
+    def testHllc(self):
+        names = [randint(0, 100000) for _ in xrange(100000)]
+        data = [[n] + [None] * 5 for n in names]
+
+        self._gen_data(data=data)
+
+        expr = self.expr.name.hll_count()
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expect = len(set(names))
+        self.assertAlmostEqual(expect, result, delta=result * 0.1)
+
+    def testBloomFilter(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+
+        data2 = [
+            ['name1'],
+            ['name3']
+        ]
+
+        self._gen_data(data=data)
+
+        schema2 = Schema.from_lists(['name', ], [types.string])
+
+        table_name = tn('pyodps_test_engine_bf_table2')
+        self.odps.delete_table(table_name, if_exists=True)
+        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
+
+        self.odps.write_table(table2, 0, [table2.new_record(values=d) for d in data2])
+
+        try:
+            expr = self.expr.bloom_filter('name', expr2.name, capacity=10)
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertTrue(all(r[0] != 'name2' for r in result))
+        finally:
+            table2.drop()
+
     def testPersist(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -953,7 +1372,7 @@ class Test(TestBase):
         ]
         self._gen_data(data=data)
 
-        table_name = 'pyodps_test_engine_persist_table'
+        table_name = tn('pyodps_test_engine_persist_table')
 
         try:
             df = self.engine.persist(self.expr, table_name)

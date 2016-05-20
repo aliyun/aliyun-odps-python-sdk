@@ -17,10 +17,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from datetime import timedelta
+from datetime import timedelta, datetime
+from random import randint
 
-from odps.df.backends.tests.core import TestBase, to_str
-from odps.compat import unittest
+from odps.df.backends.tests.core import TestBase, to_str, tn, pandas_case
+from odps.compat import unittest, irange as xrange
 from odps.models import Schema
 from odps.df.types import validate_data_type
 from odps.df.expr.expressions import *
@@ -30,6 +31,7 @@ from odps.df.backends.odpssql.types import df_schema_to_odps_schema
 from odps.df import output_types, output_names, output, day, millisecond
 
 
+@pandas_case
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
@@ -101,6 +103,15 @@ class Test(TestBase):
         res = self.expr.head(10)
         result = self._get_result(res.values)
         self.assertEqual(data[:10], result)
+
+        expr = self.expr.name.hash()
+        res = self.engine.execute(expr)
+        result = self._get_result(res.values)
+        self.assertEqual([[hash(r[0])] for r in data], result),
+
+        expr = self.expr.sample(parts=10)
+        res = self.engine.execute(expr)
+        self.assertGreaterEqual(len(res), 1)
 
     def testElement(self):
         data = self._gen_data(5, nullable_field='name')
@@ -276,7 +287,7 @@ class Test(TestBase):
             second = [it[i] for it in result]
             self.assertEqual(len(first), len(second))
             for it1, it2 in zip(first, second):
-                if np.isnan(it1) and np.isnan(it2):
+                if isinstance(it1, float) and np.isnan(it1) and it2 is None:
                     continue
                 self.assertAlmostEqual(it1, it2)
 
@@ -344,6 +355,8 @@ class Test(TestBase):
             (lambda s: list(s.birth.dt.weekday.values), self.expr.birth.weekday),
             (lambda s: list(s.birth.dt.date.values), self.expr.birth.date),
             (lambda s: list(s.birth.dt.strftime('%Y%d')), self.expr.birth.strftime('%Y%d')),
+            (lambda s: list(s.birth.dt.strftime('%Y%d').map(lambda x: datetime.strptime(x, '%Y%d'))),
+             self.expr.birth.strftime('%Y%d').strptime('%Y%d')),
         ]
 
         fields = [it[1].rename('birth'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -360,13 +373,7 @@ class Test(TestBase):
 
             first = method(df)
 
-            def conv(v):
-                if isinstance(v, pd.Timestamp):
-                    return v.to_datetime().date()
-                else:
-                    return v
-
-            second = [conv(it[i]) for it in result]
+            second = [it[i] for it in result]
             self.assertEqual(first, second)
 
     def testFuncion(self):
@@ -396,6 +403,99 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         result = self._get_result(res)
         self.assertEqual(result, [[r[0] + str(r[1])] for r in data])
+
+    def testFunctionResources(self):
+        data = self._gen_data(5)
+
+        class my_func(object):
+            def __init__(self, resources):
+                self.file_resource = resources[0]
+                self.table_resource = resources[1]
+
+                self.valid_ids = [int(l) for l in self.file_resource]
+                self.valid_ids.extend([int(l[0]) for l in self.table_resource])
+
+            def __call__(self, arg):
+                if isinstance(arg, tuple):
+                    if arg[1] in self.valid_ids:
+                        return arg
+                else:
+                    if arg in self.valid_ids:
+                        return arg
+
+        def my_func2(resources):
+            file_resource = resources[0]
+            table_resource = resources[1]
+
+            valid_ids = [int(l) for l in file_resource]
+            valid_ids.extend([int(l[0]) for l in table_resource])
+
+            def h(arg):
+                if isinstance(arg, tuple):
+                    if arg[1] in valid_ids:
+                        return arg
+                else:
+                    if arg in valid_ids:
+                        return arg
+
+            return h
+
+        try:
+            self.odps.delete_resource('pyodps_tmp_file_resource')
+        except:
+            pass
+        file_resource = self.odps.create_resource('pyodps_tmp_file_resource', 'file',
+                                                  file_obj='\n'.join(str(r[1]) for r in data[:3]))
+        self.odps.delete_table('pyodps_tmp_table', if_exists=True)
+        t = self.odps.create_table('pyodps_tmp_table', Schema.from_lists(['id'], ['bigint']))
+        with t.open_writer() as writer:
+            writer.write([r[1: 2] for r in data[3: 4]])
+        try:
+            self.odps.delete_resource('pyodps_tmp_table_resource')
+        except:
+            pass
+        table_resource = self.odps.create_resource('pyodps_tmp_table_resource', 'table',
+                                                   table_name=t.name)
+
+        try:
+            expr = self.expr.id.map(my_func, resources=[file_resource, table_resource])
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            result = [r for r in result if r[0] is not None]
+
+            self.assertEqual(sorted([[r[1]] for r in data[:4]]), sorted(result))
+
+            expr = self.expr['name', 'id', 'fid']
+            expr = expr.apply(my_func, axis=1, resources=[file_resource, table_resource],
+                              names=expr.schema.names, types=expr.schema.types)
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertEqual(sorted([r[:3] for r in data[:4]]), sorted(result))
+
+            expr = self.expr['name', 'id', 'fid']
+            expr = expr.apply(my_func2, axis=1, resources=[file_resource, table_resource],
+                              names=expr.schema.names, types=expr.schema.types)
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertEqual(sorted([r[:3] for r in data[:4]]), sorted(result))
+        finally:
+            try:
+                file_resource.drop()
+            except:
+                pass
+            try:
+                t.drop()
+            except:
+                pass
+            try:
+                table_resource.drop()
+            except:
+                pass
 
     def testApply(self):
         data = [
@@ -598,15 +698,29 @@ class Test(TestBase):
         ]
         self._gen_data(data=data)
 
+        class Agg(object):
+            def buffer(self):
+                return [0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+
+            def getvalue(self, buffer):
+                return buffer[0]
+
         expr = self.expr.groupby(['name', 'id'])[lambda x: x.fid.min() * 2 < 8] \
-            .agg(self.expr.fid.max() + 1, new_id=self.expr.id.sum())
+            .agg(self.expr.fid.max() + 1, new_id=self.expr.id.sum(),
+                 new_id2=self.expr.id.agg(Agg))
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
         expected = [
-            ['name1', 3, 5.1, 6],
-            ['name2', 2, 4.5, 2]
+            ['name1', 3, 5.1, 6, 6],
+            ['name2', 2, 4.5, 2, 2]
         ]
 
         result = sorted(result, key=lambda k: k[0])
@@ -620,10 +734,29 @@ class Test(TestBase):
 
         self.assertEqual([5], result[0])
 
+        expr = self.expr.groupby(Scalar('const').rename('s')).id.sum()
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual([16], result[0])
+
         field = self.expr.groupby('name').sort(['id', -self.expr.fid]).row_number()
         expr = self.expr['name', 'id', 'fid', field]
 
-        self.assertRaises(NotImplementedError, lambda: self.engine.execute(expr))
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 3, 4.1, 1],
+            ['name1', 3, 2.2, 2],
+            ['name1', 4, 5.3, 3],
+            ['name1', 4, 4.2, 4],
+            ['name2', 2, 3.5, 1],
+        ]
+
+        result = sorted(result, key=lambda k: (k[0], k[1], -k[2]))
+
+        self.assertEqual(expected, result)
 
         expr = self.expr.name.value_counts()[:25]
 
@@ -729,6 +862,122 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
+    def testGroupbyProjection(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.groupby('name').agg(id=self.expr.id.max())[
+            lambda x: 't'+x.name, lambda x: x.id + 1]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['tname1', 5],
+            ['tname2', 3]
+        ]
+
+        self.assertEqual(expected, result)
+
+    def testWindowFunction(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 6.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.groupby('name').id.cumsum()
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [[14]] * 4 + [[2]]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr.groupby('name').sort('fid').id.cummax()
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [[3], [4], [4], [4], [2]]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr[
+            self.expr.groupby('name', 'id').sort('fid').id.cummean(),
+            self.expr.groupby('name').id.cummedian()
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [3, 3.5], [3, 3.5], [4, 3.5], [4, 3.5], [2, 2]
+        ]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr.groupby('name').mutate(id2=lambda x: x.id.cumcount(unique=True),
+                                                fid=lambda x: x.fid.cummin(sort='id'))
+
+        res = self.engine.execute(expr['name', 'id2', 'fid'])
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 2, 2.2],
+            ['name1', 2, 2.2],
+            ['name1', 2, 2.2],
+            ['name1', 2, 2.2],
+            ['name2', 1, 3.5],
+        ]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr[
+            self.expr.id,
+            self.expr.groupby('name').rank('id'),
+            self.expr.groupby('name').dense_rank('fid', ascending=False),
+            self.expr.groupby('name').row_number(sort=['id', 'fid'], ascending=[True, False]),
+            self.expr.groupby('name').percent_rank('id'),
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [4, 3, 2, 3, float(2) / 3],
+            [2, 1, 1, 1, 0.0],
+            [4, 3, 3, 4, float(2) / 3],
+            [3, 1, 4, 2, float(0) / 3],
+            [3, 1, 1, 1, float(0) / 3]
+        ]
+        self.assertEqual(sorted(expected), sorted(result))
+
+        expr = self.expr[
+            self.expr.id,
+            self.expr.groupby('name').id.lag(offset=3, default=0, sort=['id', 'fid']).rename('id2'),
+            self.expr.groupby('name').id.lead(offset=1, default=-1,
+                                              sort=['id', 'fid'], ascending=[False, False]).rename('id3'),
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [4, 3, 4],
+            [2, 0, -1],
+            [4, 0, 3],
+            [3, 0, -1],
+            [3, 0, 3]
+        ]
+        self.assertEqual(sorted(expected), sorted(result))
+
     def testWindowRewrite(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -759,6 +1008,23 @@ class Test(TestBase):
         import pandas as pd
         df = pd.DataFrame(data, columns=self.schema.names)
 
+        class Agg(object):
+            def buffer(self):
+                return [0.0, 0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+                buffer[1] += 1
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+                buffer[1] += pbuffer[1]
+
+            def getvalue(self, buffer):
+                if buffer[1] == 0:
+                    return 0.0
+                return buffer[0] / buffer[1]
+
         methods_to_fields = [
             (lambda s: df.id.mean(), self.expr.id.mean()),
             (lambda s: len(df), self.expr.count()),
@@ -776,6 +1042,7 @@ class Test(TestBase):
             (lambda s: df.isMale.any(), self.expr.isMale.any()),
             (lambda s: df.isMale.all(), self.expr.isMale.all()),
             (lambda s: df.name.nunique(), self.expr.name.nunique()),
+            (lambda s: df.id.mean(), self.expr.id.agg(Agg, rtype='float')),
         ]
 
         fields = [it[1].rename('f'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -799,6 +1066,79 @@ class Test(TestBase):
 
         self.assertEqual(self.engine.execute(self.expr.id.sum() + 1),
                          sum(it[1] for it in data) + 1)
+
+        expr = self.expr['id', 'fid'].apply(Agg, types=['float'] * 2)
+
+        expected = [[df.id.mean()], [df.fid.mean()]]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        for first, second in zip(expected, result):
+            first = first[0]
+            second = second[0]
+
+            if isinstance(first, float):
+                self.assertAlmostEqual(first, second)
+            else:
+                self.assertEqual(first, second)
+
+    def testUserDefinedAggregators(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        @output_types('float')
+        class Aggregator(object):
+            def buffer(self):
+                return [0.0, 0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+                buffer[1] += 1
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+                buffer[1] += pbuffer[1]
+
+            def getvalue(self, buffer):
+                if buffer[1] == 0:
+                    return 0.0
+                return buffer[0] / buffer[1]
+
+        expr = self.expr.id.agg(Aggregator)
+
+        expected = float(16) / 5
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertAlmostEqual(expected, result)
+
+        expr = self.expr.groupby(Scalar('const').rename('s')).id.agg(Aggregator)
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertAlmostEqual(expected, result[0][0])
+
+        expr = self.expr.groupby('name').agg(self.expr.id.agg(Aggregator))
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', float(14)/4],
+            ['name2', 2]
+        ]
+        for expect_r, actual_r in zip(expected, result):
+            self.assertEqual(expect_r[0], actual_r[0])
+            self.assertAlmostEqual(expect_r[1], actual_r[1])
 
     def testJoin(self):
         data = [
@@ -886,6 +1226,49 @@ class Test(TestBase):
             self.assertEqual([to_str(t) for t in e],
                              [to_str(t) for t in r])
 
+    def testHllc(self):
+        names = [randint(0, 100000) for _ in xrange(100000)]
+        data = [[n] + [None] * 5 for n in names]
+
+        self._gen_data(data=data)
+
+        expr = self.expr.name.hll_count()
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expect = len(set(names))
+        self.assertAlmostEqual(expect, result, delta=result*0.1)
+
+    def testBloomFilter(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+
+        data2 = [
+            ['name1'],
+            ['name3']
+        ]
+
+        self._gen_data(data=data)
+
+        schema2 = Schema.from_lists(['name', ], [types.string])
+
+        import pandas as pd
+        expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
+                               _schema=schema2)
+
+        expr = self.expr.bloom_filter('name', expr2[:1].name, capacity=10)
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertTrue(all(r[0] != 'name2' for r in result))
+
     def testPersist(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -896,7 +1279,7 @@ class Test(TestBase):
         ]
         self._gen_data(data=data)
 
-        table_name = 'pyodps_test_engine_persist_table'
+        table_name = tn('pyodps_test_engine_persist_table')
 
         try:
             df = self.engine.persist(self.expr, table_name)

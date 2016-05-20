@@ -27,7 +27,7 @@ from ... import DataFrame
 from ...expr.expressions import *
 from ...backends.odpssql.types import df_schema_to_odps_schema, df_type_to_odps_type
 from ..errors import CompileError
-from ....utils import init_progress_bar
+from ....utils import init_progress_ui
 from ....models import Schema, Partition
 from ....errors import ODPSError
 from ....types import PartitionSpec
@@ -40,22 +40,23 @@ class PandasEngine(Engine):
 
         self._global_optimize = global_optimize
 
-    def _run(self, expr, dag, bar, start_progress=0, max_progress=1,
-             close_bar=True):
+    def _run(self, expr, dag, ui, start_progress=0, max_progress=1,
+             close_ui=True):
         topos = dag.topological_sort()
 
+        ui.status('Try to execute by local pandas...')
         try:
             results = dict()
             for node in topos:
                 expr, func = node
                 results[expr] = func(results)
 
-            bar.update(start_progress+max_progress)
+            ui.update(start_progress+max_progress)
 
             return results[expr]
         finally:
-            if close_bar:
-                bar.close()
+            if close_ui:
+                ui.close()
 
     def _optimize(self, expr):
         if self._global_optimize:
@@ -79,14 +80,14 @@ class PandasEngine(Engine):
         expr = self._pre_process(expr)
         return self._compile(expr)
 
-    def _execute(self, expr, bar, src_expr=None, close_bar=True,
+    def _execute(self, expr, ui, src_expr=None, close_ui=True,
                  start_progress=0, max_progress=1, head=None, tail=None):
         src_expr = src_expr or expr
 
         dag = self._compile(expr)
 
-        df = self._run(expr, dag, bar, start_progress=start_progress,
-                       max_progress=max_progress, close_bar=close_bar)
+        df = self._run(expr, dag, ui, start_progress=start_progress,
+                       max_progress=max_progress, close_ui=close_ui)
 
         if not isinstance(src_expr, Scalar):
             src_expr._cache_data = df
@@ -102,18 +103,18 @@ class PandasEngine(Engine):
             src_expr._cache_data = res
             return res
 
-    def execute(self, expr, bar=None, start_progress=0, max_progress=1,
+    def execute(self, expr, ui=None, start_progress=0, max_progress=1,
                 head=None, tail=None, **kw):
-        close_bar = bar is None
-        bar = bar or init_progress_bar()
+        close_ui = ui is None
+        ui = ui or init_progress_ui()
 
         if isinstance(expr, Scalar) and expr.value is not None:
             try:
-                bar.update(start_progress+max_progress)
+                ui.update(start_progress+max_progress)
                 return expr.value
             finally:
-                if close_bar:
-                    bar.close()
+                if close_ui:
+                    ui.close()
 
         if isinstance(expr, Scalar) and expr.name is None:
             expr = expr.rename('__rand_%s' % int(time.time()))
@@ -121,11 +122,11 @@ class PandasEngine(Engine):
         src_expr = expr
         expr = self._pre_process(expr)
 
-        return self._execute(expr, bar, src_expr=src_expr, close_bar=close_bar,
+        return self._execute(expr, ui, src_expr=src_expr, close_ui=close_ui,
                              start_progress=start_progress, max_progress=max_progress,
                              head=head, tail=tail)
 
-    def _write_table_no_partitions(self, frame, table, bar, partition=None,
+    def _write_table_no_partitions(self, frame, table, ui, partition=None,
                                    start_progress=0, max_progress=1):
         def gen():
             df = frame.values
@@ -134,16 +135,16 @@ class PandasEngine(Engine):
             for i, row in zip(itertools.count(), df.values):
                 if i % 50 == 0:
                     percent = start_progress + float(i) / size * max_progress
-                    bar.update(min(percent, 1))
+                    ui.update(min(percent, 1))
 
                 yield table.new_record(list(row))
 
-            bar.update(start_progress+max_progress)
+            ui.update(start_progress+max_progress)
 
         with table.open_writer(partition=partition) as writer:
             writer.write(gen())
 
-    def _write_table_with_partitions(self, frame, table, partitions, bar,
+    def _write_table_with_partitions(self, frame, table, partitions, ui,
                                      start_progress=0, max_progress=1):
         df = frame.values
         vals_to_partitions = dict()
@@ -163,26 +164,27 @@ class PandasEngine(Engine):
                     curr[0] += i
                     if curr[0] % 50 == 0:
                         percent = start_progress + float(curr[0]) / size * max_progress
-                        bar.update(min(percent, 1))
+                        ui.update(min(percent, 1))
 
                     yield table.new_record(list(row))
 
             with table.open_writer(partition=vals_to_partitions[name]) as writer:
                 writer.write(gen())
 
-    def _write_table(self, frame, table, bar, partitions=None, partition=None,
+    def _write_table(self, frame, table, ui, partitions=None, partition=None,
                      start_progress=0, max_progress=1):
+        ui.status('Try to upload to ODPS with tunnel...')
         if partitions is None:
-            self._write_table_no_partitions(frame, table, bar, partition=partition,
+            self._write_table_no_partitions(frame, table, ui, partition=partition,
                                             start_progress=start_progress,
                                             max_progress=max_progress)
         else:
-            self._write_table_with_partitions(frame, table, partitions, bar,
+            self._write_table_with_partitions(frame, table, partitions, ui,
                                               start_progress=start_progress,
                                               max_progress=max_progress)
 
-    def _persist(self, expr, name, bar, project=None, partitions=None, partition=None,
-                 odps=None, close_bar=True, start_progress=0, max_progress=1,
+    def _persist(self, expr, name, ui, project=None, partitions=None, partition=None,
+                 odps=None, close_ui=True, lifecycle=None, start_progress=0, max_progress=1,
                  execute_percent=0.5, create_table=True, drop_partition=False,
                  create_partition=False, **kwargs):
         odps = odps or self._odps
@@ -190,8 +192,8 @@ class PandasEngine(Engine):
             raise ODPSError('ODPS entrance should be provided')
 
         try:
-            df = self._execute(expr, bar=bar, start_progress=start_progress,
-                               max_progress=max_progress*execute_percent, close_bar=close_bar)
+            df = self._execute(expr, ui=ui, start_progress=start_progress,
+                               max_progress=max_progress*execute_percent, close_ui=close_ui)
             schema = Schema(columns=df.columns)
 
             if partitions is not None:
@@ -225,10 +227,10 @@ class PandasEngine(Engine):
 
             if partition is None and create_table:
                 schema = df_schema_to_odps_schema(schema)
-                table = odps.create_table(name, schema, project=project)
+                table = odps.create_table(name, schema, project=project, lifecycle=lifecycle)
             else:
                 table = odps.get_table(name, project=project)
-            self._write_table(df, table, bar=bar, partitions=partitions, partition=partition,
+            self._write_table(df, table, ui=ui, partitions=partitions, partition=partition,
                               start_progress=start_progress+max_progress*execute_percent,
                               max_progress=max_progress*(1-execute_percent))
 
@@ -241,19 +243,21 @@ class PandasEngine(Engine):
             return DataFrame(odps.get_table(name))
 
         finally:
-            if close_bar:
-                bar.close()
+            if close_ui:
+                ui.close()
 
     def persist(self, expr, name, project=None, partitions=None, partition=None,
-                odps=None, bar=None, start_progress=0, max_progress=1, execute_percent=0.5,
+                odps=None, ui=None, lifecycle=None,
+                start_progress=0, max_progress=1, execute_percent=0.5,
                 drop_partition=False, create_partition=False, **kwargs):
-        close_bar = bar is None
-        bar = bar or init_progress_bar()
+        close_ui = ui is None
+        ui = ui or init_progress_ui()
 
         expr = self._pre_process(expr)
 
-        return self._persist(expr, name, bar, project=project, partitions=partitions, partition=partition,
-                             odps=odps, close_bar=close_bar, execute_percent=execute_percent,
+        return self._persist(expr, name, ui, project=project, partitions=partitions, partition=partition,
+                             odps=odps, close_ui=close_ui, lifecycle=lifecycle,
+                             execute_percent=execute_percent,
                              start_progress=start_progress, max_progress=max_progress,
                              drop_partition=drop_partition, create_partition=create_partition, **kwargs)
 

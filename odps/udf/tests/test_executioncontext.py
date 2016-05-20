@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import unittest
-
+from odps.compat import unittest
 from odps.udf import get_execution_context
 from odps.udf import ExecutionContext
+from odps.tests.core import TestBase
 
 
-class TestExecutionContext(unittest.TestCase):
+class TestExecutionContext(TestBase):
     
     def test_get_counter(self):
         ctx = get_execution_context()

@@ -17,11 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
-
 from .core import Container
 from .project import Project
 from .. import serializers, errors
+from ..compat import six
 
 
 class Projects(Container):

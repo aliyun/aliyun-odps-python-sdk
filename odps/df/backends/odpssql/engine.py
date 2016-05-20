@@ -19,15 +19,17 @@
 
 import time
 import sys
+import uuid
 from contextlib import contextmanager
 
 from ....errors import ODPSError
 
-from ....utils import init_progress_bar
+from ....utils import init_progress_ui
 from ....models import Partition
 from ....tempobj import register_temp_table
 from ....types import PartitionSpec
 from ....tunnel.tabletunnel.downloadsession import TableDownloadSession
+from ....ui import reload_instance_status
 from ...core import DataFrame
 from ...expr.reduction import *
 from ...expr.arithmetic import And, Equal
@@ -71,18 +73,25 @@ class ODPSEngine(Engine):
         return isinstance(expr, CollectionExpr) and \
                expr._source_data is not None
 
-    def _run(self, sql, bar, start_progress=0, max_progress=1, async=False, hints=None):
+    def _reload_ui(self, group, instance, ui):
+        if group:
+            reload_instance_status(self._odps, group, instance.id)
+            ui.update_group()
+
+    def _run(self, sql, ui, start_progress=0, max_progress=1, async=False, hints=None, group=None):
         self._ctx.create_udfs()
         instance = self._odps.run_sql(sql, hints=hints)
 
         self._log('Instance ID: ' + instance.id)
         self._log('  Log view: ' + instance.get_logview_address())
+        ui.status('Start to execute sql...')
 
         if async:
             return instance
 
         try:
             percent = 0
+            times = itertools.count(0)
             while not instance.is_terminated():
                 task_names = instance.get_task_names()
                 last_percent = percent
@@ -92,12 +101,16 @@ class ODPSEngine(Engine):
                 else:
                     percent = 0
                 percent = min(1, max(percent, last_percent))
-                bar.update(start_progress + percent * max_progress)
+                ui.update(start_progress + percent * max_progress)
+
+                if next(times) % 5 == 0:  # update group ui every 5 secs
+                    self._reload_ui(group, instance, ui)
 
                 time.sleep(1)
 
             instance.wait_for_success()
-            bar.update(start_progress + max_progress)
+            self._reload_ui(group, instance, ui)
+            ui.update(start_progress + max_progress)
         except KeyboardInterrupt:
             instance.stop()
             self._ctx.close()
@@ -201,10 +214,10 @@ class ODPSEngine(Engine):
         with t.open_reader(reopen=True, **kwargs) as reader:
             yield reader
 
-    def _handle_cases(self, expr, bar=None, start_progress=0, max_progress=1,
+    def _handle_cases(self, expr, ui=None, start_progress=0, max_progress=1,
                       head=None, tail=None):
-        if bar is None:
-            bar = init_progress_bar()
+        if ui is None:
+            ui = init_progress_ui()
 
         if isinstance(expr, (ProjectCollectionExpr, Summary)) and \
                 len(expr.fields) == 1 and \
@@ -212,6 +225,7 @@ class ODPSEngine(Engine):
             expr = expr.fields[0]
 
         columns, partition, count = (None, ) * 3
+        pkv = None
         if isinstance(expr, Count):
             if isinstance(expr.input, Column):
                 input = expr.input.input
@@ -228,6 +242,7 @@ class ODPSEngine(Engine):
         while True:
             ret = self._filter_on_partition(input)
             if ret:
+                pkv = dict((k, v) for k, v in ret)
                 partition = ','.join(['='.join(str(i) for i in it) for it in ret])
                 input = input.input
                 continue
@@ -248,12 +263,13 @@ class ODPSEngine(Engine):
         if isinstance(expr, Count):
             try:
                 with self._open_reader(table, partition=partition) as reader:
-                    bar.update(start_progress + max_progress)
+                    ui.update(start_progress + max_progress)
                     return reader.count
             except ODPSError:
                 return
         else:
             self._log('Try to fetch data from tunnel')
+            ui.status('Try to download data with tunnel...')
             if isinstance(expr, SliceCollectionExpr):
                 count = expr.stop
             try:
@@ -271,38 +287,45 @@ class ODPSEngine(Engine):
                     for r in reader.read(start=start, count=count, columns=columns):
                         i = next(curr)
                         if i % 50 == 0:
-                            bar.update(start_progress + min(float(i) / size * max_progress, 1))
+                            ui.update(start_progress + min(float(i) / size * max_progress, 1))
+                        if pkv:
+                            for k, v in six.iteritems(pkv):
+                                if k in r and r[k] is None:
+                                    # fill back the partition data which is lost in the tunnel
+                                    r[k] = types.odps_types.validate_value(v, table.schema.get_type(k))
                         data.append(r.values)
-                    bar.update(start_progress + max_progress)
+                    ui.update(start_progress + max_progress)
 
                     schema = types.df_schema_to_odps_schema(expr._schema, ignorecase=True)
                     return ResultFrame(data, schema=schema)
             except ODPSError:
                 return
 
-    def execute(self, expr, bar=None, async=False, start_progress=0,
+    def execute(self, expr, ui=None, async=False, start_progress=0,
                 max_progress=1, lifecycle=None, head=None, tail=None, hints=None, **kw):
-        close_bar = bar is None
-        bar = bar or init_progress_bar()
+        close_ui = ui is None
+        ui = ui or init_progress_ui()
         lifecycle = lifecycle or options.temp_lifecycle
+        group = kw.get('group')
 
         if isinstance(expr, Scalar) and expr.value is not None:
-            bar.update(start_progress+max_progress)
+            ui.update(start_progress+max_progress)
             return expr.value
 
         src_expr = expr
         expr = self._pre_process(expr)
 
         try:
-            result = self._handle_cases(expr, bar, head=head, tail=tail)
+            result = self._handle_cases(expr, ui, head=head, tail=tail)
         except KeyboardInterrupt:
+            ui.status('Halt by interruption')
             sys.exit(1)
         if result is not None:
             try:
                 return result
             finally:
-                if close_bar:
-                    bar.close()
+                if close_ui:
+                    ui.close()
 
         sql = self._compile(expr)
 
@@ -318,8 +341,8 @@ class ODPSEngine(Engine):
         self._log('Sql compiled:')
         self._log(sql)
 
-        instance = self._run(sql, bar, start_progress=start_progress,
-                             max_progress=0.9*max_progress, async=async, hints=hints)
+        instance = self._run(sql, ui, start_progress=start_progress,
+                             max_progress=0.9*max_progress, async=async, hints=hints, group=group)
 
         use_tunnel = kw.get('use_tunnel', True)
         if async:
@@ -341,20 +364,21 @@ class ODPSEngine(Engine):
                 def fetch(self, head=None, tail=None):
                     head = head or global_head
                     tail = tail or global_tail
-                    return engine._fetch(expr, src_expr, instance, bar,
+                    return engine._fetch(expr, src_expr, instance, ui,
                                          finish_progress=start_progress+max_progress,
-                                         close_bar=close_bar, cache_data=cache_data,
-                                         head=head, tail=tail, use_tunnel=use_tunnel)
+                                         close_ui=close_ui, cache_data=cache_data,
+                                         head=head, tail=tail, use_tunnel=use_tunnel,
+                                         group=group)
 
             return AsyncResult()
         else:
             self._ctx.close()  # clear udfs and resources generated
-            return self._fetch(expr, src_expr, instance, bar, close_bar=close_bar,
+            return self._fetch(expr, src_expr, instance, ui, close_ui=close_ui,
                                cache_data=cache_data, head=head, tail=tail,
-                               use_tunnel=use_tunnel)
+                               use_tunnel=use_tunnel, group=group)
 
-    def _fetch(self, expr, src_expr, instance, bar, finish_progress=1,
-               close_bar=True, cache_data=None, head=None, tail=None, use_tunnel=True):
+    def _fetch(self, expr, src_expr, instance, ui, finish_progress=1,
+               close_ui=True, cache_data=None, head=None, tail=None, use_tunnel=True, group=None):
         if isinstance(expr, (CollectionExpr, Summary)):
             df_schema = expr._schema
             schema = types.df_schema_to_odps_schema(expr._schema, ignorecase=True)
@@ -366,8 +390,11 @@ class ODPSEngine(Engine):
             schema = None
         try:
             if cache_data is not None:
+                if group:
+                    ui.remove_keys(group)
                 if use_tunnel:
                     try:
+                        ui.status('Start to use tunnel to download results...')
                         with cache_data.open_reader(reopen=True) as reader:
                             if head:
                                 reader = reader[:head]
@@ -378,7 +405,7 @@ class ODPSEngine(Engine):
                                 return ResultFrame([r.values for r in reader], schema=df_schema)
                             finally:
                                 src_expr._cache_data = cache_data
-                                bar.update(finish_progress)
+                                ui.update(finish_progress)
                     except ODPSError:
                         # some project has closed the tunnel download
                         # we just ignore the error
@@ -388,12 +415,14 @@ class ODPSEngine(Engine):
                     raise NotImplementedError
 
                 try:
+                    ui.status('Start to use head to download results...')
                     return ResultFrame(cache_data.head(head or 10000), schema=df_schema)
                 finally:
                     src_expr._cache_data = cache_data
-                    bar.update(finish_progress)
+                    ui.update(finish_progress)
 
             with instance.open_reader(schema=schema) as reader:
+                ui.status('Start to read instance results...')
                 if not isinstance(src_expr, Scalar):
                     if head:
                         reader = reader[:head]
@@ -404,16 +433,16 @@ class ODPSEngine(Engine):
                         return ResultFrame([r.values for r in reader], schema=df_schema)
                     finally:
                         src_expr._cache_data = cache_data
-                        bar.update(finish_progress)
+                        ui.update(finish_progress)
                 else:
-                    bar.update(finish_progress)
+                    ui.update(finish_progress)
                     odps_type = types.df_type_to_odps_type(src_expr._value_type)
                     res = types.odps_types.validate_value(reader[0][0], odps_type)
                     src_expr._cache_data = res
                     return res
         finally:
-            if close_bar:
-                bar.close()
+            if close_ui:
+                ui.close()
 
     def _optimize(self, expr):
         if self._global_optimize:
@@ -448,15 +477,16 @@ class ODPSEngine(Engine):
     def _compile(self, expr, prettify=False):
         backend = OdpsSQLCompiler(self._ctx, beautify=prettify)
 
-        self._ctx.register_udfs(gen_udf(expr, UDF_CLASS_NAME))
+        self._ctx.register_udfs(*gen_udf(expr, UDF_CLASS_NAME))
 
         return backend.compile(expr)
 
-    def persist(self, expr, name, partitions=None, partition=None, project=None, bar=None,
+    def persist(self, expr, name, partitions=None, partition=None, project=None, ui=None,
                 start_progress=0, max_progress=1, lifecycle=None, hints=None,
                 create_table=True, drop_partition=False, create_partition=False, **kw):
-        close_bar = bar is None
-        bar = bar or init_progress_bar()
+        close_ui = ui is None
+        ui = ui or init_progress_ui()
+        group = kw.get('group')
 
         should_cache = False
 
@@ -522,7 +552,8 @@ class ODPSEngine(Engine):
         self._log(sql)
 
         try:
-            self._run(sql, bar, start_progress=start_progress, max_progress=max_progress, hints=hints)
+            self._run(sql, ui, start_progress=start_progress, max_progress=max_progress,
+                      hints=hints, group=group)
             t = self._odps.get_table(name, project=project)
             if should_cache:
                 expr._cache_data = t
@@ -533,6 +564,6 @@ class ODPSEngine(Engine):
                 return DataFrame(t).filter(*filters)
             return DataFrame(t)
         finally:
-            if close_bar:
-                bar.close()
+            if close_ui:
+                ui.close()
 

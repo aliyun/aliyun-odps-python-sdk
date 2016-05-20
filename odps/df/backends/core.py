@@ -19,7 +19,7 @@
 
 from ..expr.expressions import *
 from ..expr.groupby import GroupBy, SequenceGroupBy
-from ..expr.reduction import Count
+from ..expr.reduction import Count, GroupedSequenceReduction
 
 
 class Backend(object):
@@ -75,13 +75,22 @@ class Backend(object):
     def visit_distinct(self, expr):
         raise NotImplementedError
 
+    def visit_sample(self, expr):
+        raise NotImplementedError
+
     def visit_reduction(self, expr):
+        raise NotImplementedError
+
+    def visit_user_defined_aggregator(self, expr):
         raise NotImplementedError
 
     def visit_column(self, expr):
         raise NotImplementedError
 
     def visit_function(self, expr):
+        raise NotImplementedError
+
+    def visit_builtin_function(self, expr):
         raise NotImplementedError
 
     def visit_sequence(self, expr):
@@ -112,13 +121,8 @@ class Backend(object):
 class Engine(object):
     def _convert_table(self, expr):
         for node in expr.traverse(top_down=True, unique=True):
-            if hasattr(node, 'raw_input') and \
-                    isinstance(node.raw_input, (SequenceGroupBy, GroupBy)):
-                if isinstance(node.raw_input, SequenceGroupBy):
-                    grouped = node.raw_input.input
-                else:
-                    grouped = node.raw_input
-                return grouped.agg(expr)[[expr.name, ]]
+            if isinstance(node, GroupedSequenceReduction):
+                return node._grouped.agg(expr)[[expr.name, ]]
             elif isinstance(node, Column):
                 return node.input[[expr, ]]
             elif isinstance(node, Count) and isinstance(node.input, CollectionExpr):

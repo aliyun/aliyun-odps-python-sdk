@@ -17,7 +17,7 @@
 
 import itertools
 
-from odps.tests.core import TestBase, to_str
+from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest
 from odps.models import Resource
 from odps import errors
@@ -72,8 +72,8 @@ class Test(TestBase):
         self.assertIsNotNone(function._getattr('_resources'))
 
     def testCreateDeleteFunction(self):
-        test_resource_name = 'pyodps_t_tmp_test_function_resource.py'
-        test_function_name = 'pyodps_t_tmp_test_function'
+        test_resource_name = tn('pyodps_t_tmp_test_function_resource') + '.py'
+        test_function_name = tn('pyodps_t_tmp_test_function')
 
         try:
             self.odps.delete_resource(test_resource_name)

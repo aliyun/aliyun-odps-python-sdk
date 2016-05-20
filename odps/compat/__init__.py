@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import struct
 import sys
 import logging.config
 import itertools
@@ -25,11 +24,13 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 from unicodedata import east_asian_width
 
-import six
+from . import six
 
 PY26 = six.PY2 and sys.version_info[1] == 6
 LESS_PY26 = six.PY2 and sys.version_info[1] < 6
 LESS_PY32 = six.PY3 and sys.version_info[1] < 2
+LESS_PY33 = six.PY3 and sys.version_info[1] < 3
+LESS_PY34 = six.PY3 and sys.version_info[1] < 4
 
 SEEK_SET = 0
 SEEK_CUR = 1
@@ -39,6 +40,9 @@ SEEK_END = 2
 # http://unicode.org/reports/tr11/
 # Ambiguous width can be changed by option
 _EAW_MAP = {'Na': 1, 'N': 1, 'W': 2, 'F': 2, 'H': 1}
+
+import decimal
+DECIMAL_TYPES = [decimal.Decimal, ]
 
 if six.PY3:
     lrange = lambda *x: list(range(*x))
@@ -53,6 +57,21 @@ if six.PY3:
     import io
     StringIO = io.StringIO
     BytesIO = io.BytesIO
+
+    if LESS_PY34:
+        from ..lib import enum
+    else:
+        import enum
+
+    if LESS_PY33:
+        try:
+            import cdecimal as decimal
+
+            DECIMAL_TYPES.append(decimal.Decimal)
+        except:
+            import decimal
+    else:
+        import decimal
 
     import unittest
     from collections import OrderedDict
@@ -74,6 +93,8 @@ if six.PY3:
             return len(data)
 
     dictconfig = lambda config: logging.config.dictConfig(config)
+
+    import builtins
 else:
     lrange = range
     lzip = zip
@@ -83,6 +104,14 @@ else:
 
     irange = xrange
     izip = itertools.izip
+
+    from ..lib import enum
+
+    try:
+        import cdecimal as decimal
+        DECIMAL_TYPES.append(decimal.Decimal)
+    except ImportError:
+        import decimal
 
     try:
         import cStringIO as StringIO
@@ -134,9 +163,10 @@ else:
 
         dictconfig = lambda config: logging.config.dictConfig(config)
 
+    import __builtin__ as builtins
 if PY26 or LESS_PY32:
     try:
-        from .tests.dictconfig import dictConfig
+        from ..tests.dictconfig import dictConfig
         dictconfig = lambda config: dictConfig(config)
     except ImportError:
         pass
@@ -153,11 +183,19 @@ else:
         except exceptions:
             pass
 
-from six.moves import reduce
-from six.moves.queue import Queue
-from six.moves.urllib.request import urlretrieve
-from six.moves import cPickle as pickle
-from six.moves.urllib.parse import urlparse
+Enum = enum.Enum
+DECIMAL_TYPES = tuple(DECIMAL_TYPES)
+Decimal = decimal.Decimal
 
-__all__ = ['sys', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress', 'reduce', 'Queue',
-           'urlretrieve', 'pickle', 'urlparse']
+from .six.moves import reduce
+from .six.moves import reload_module
+from .six.moves.queue import Queue, Empty
+from .six.moves.urllib.request import urlretrieve
+from .six.moves import cPickle as pickle
+from .six.moves.urllib.parse import urlparse, unquote, quote, quote_plus, parse_qsl
+from .six.moves import configparser as ConfigParser
+
+__all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress',
+           'reduce', 'reload_module', 'Queue', 'Empty',
+           'urlretrieve', 'pickle', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
+           'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES']

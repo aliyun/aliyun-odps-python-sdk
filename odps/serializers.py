@@ -23,10 +23,9 @@ from xml.dom import minidom
 import inspect
 
 import requests
-import six
 
 from . import compat, utils
-from .compat import ElementTree
+from .compat import ElementTree, six
 
 
 def _route_xml_path(root, *keys, **kw):

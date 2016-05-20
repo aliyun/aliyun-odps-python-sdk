@@ -18,12 +18,11 @@
 # under the License.
 
 
-import six
-
 from .element import ElementWise
-from .expressions import Expr, StringSequenceExpr, Scalar, StringScalar
+from .expressions import Expr, StringSequenceExpr, Scalar, StringScalar, SequenceExpr
 from . import utils
 from .. import types
+from ...compat import six
 
 
 class StringOp(ElementWise):
@@ -31,7 +30,7 @@ class StringOp(ElementWise):
 
     def _init(self, *args, **kwargs):
         for arg in self._args[1:]:
-            setattr(self, arg, None)
+            self._init_attr(arg, None)
 
         super(StringOp, self)._init(*args, **kwargs)
 
@@ -199,6 +198,11 @@ class Title(StringOp):
 
 class Zfill(StringOp):
     _args = '_input', '_width'
+    _add_args_slots = False
+
+
+class Strptime(StringOp):
+    _args = '_input', '_date_format'
     _add_args_slots = False
 
 
@@ -594,6 +598,16 @@ def _slice(expr, start=None, stop=None, step=None):
     return _string_op(expr, Slice, _start=start, _end=stop, _step=step)
 
 
+def _getitem(expr, item):
+    if isinstance(item, six.integer_types) or \
+            (isinstance(item, (SequenceExpr, Scalar)) and isinstance(item.dtype, types.Integer)):
+        return _get(expr, item)
+    elif isinstance(item, slice):
+        return _slice(expr, start=item.start, stop=item.stop, step=item.step)
+    else:
+        raise TypeError('Unknown argument: %r' % item)
+
+
 def _swapcase(expr):
     """
     Convert strings in the sequence or scalar to be swapcased. Equivalent to str.swapcase().
@@ -627,6 +641,22 @@ def _zfill(expr, width):
     """
 
     return _string_op(expr, Zfill, _width=width)
+
+
+def _strptime(expr, date_format):
+    """
+    Return datetimes specified by date_format,
+    which supports the same string format as the python standard library.
+    Details of the string format can be found in python string format doc
+
+    :param expr:
+    :param date_format: date format string (e.g. “%Y-%m-%d”)
+    :type date_format: str
+    :return:
+    """
+
+    return _string_op(expr, Strptime, _date_format=date_format,
+                      output_type=types.datetime)
 
 
 def _isalnum(expr):
@@ -760,9 +790,11 @@ _string_methods = dict(
     pad=_pad,
     repeat=_repeat,
     slice=_slice,
+    __getitem__=_getitem,
     swapcase=_swapcase,
     title=_title,
     zfill=_zfill,
+    strptime=_strptime,
     isalnum=_isalnum,
     isalpha=_isalpha,
     isdigit=_isdigit,

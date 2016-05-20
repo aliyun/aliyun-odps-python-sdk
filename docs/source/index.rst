@@ -20,6 +20,8 @@ PyOdps支持Python 2.6以上包括Python 3。系统安装了pip后，只需运�
 
 PyOdps的相关依赖会自动安装。
 
+**注意**，对于Linux和Mac用户，先安装cython，再运行安装pyodps命令，能加速Tunnel上传。
+
 快速开始
 ----------
 
@@ -44,6 +46,7 @@ PyOdps的相关依赖会自动安装。
    projects-zh
    tables-zh
    sql-zh
+   instances-zh
    resources-zh
    functions-zh
    volume-int-zh

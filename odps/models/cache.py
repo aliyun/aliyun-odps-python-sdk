@@ -22,7 +22,7 @@
 import weakref
 import inspect
 
-import six
+from ..compat import six
 
 
 class ObjectCache(object):

@@ -20,33 +20,18 @@ import json
 import os
 import time
 import codecs
-from six import iterkeys, itervalues
-from six.moves.urllib.parse import quote
 
 from odps.utils import load_static_file_paths, load_static_text_files
+from odps.compat import six, quote
 
 
 MAX_SCRIPT_LOAD_SEC = 5
 SCRIPT_LOAD_CHECK_INTERVAL = 0.01
 
-INTERRUPTER_JS = """
-if ('undefined' === typeof pyodps) pyodps = {};
-pyodps.load_counter = 0; pyodps.last_load_time = new Date();
-pyodps.loaded = function() {
-    pyodps.load_counter++;
-    if (pyodps.load_counter == ##SCRIPT_NUM## && (new Date() - pyodps.last_load_time) / 1000.0 <= ##MAX_SCRIPT_LOAD_SEC## - 0.5)
-        IPython.notebook.kernel.interrupt();
-}
-"""
-
-
+COMMON_JS = 'common'
 CSS_REGISTER_JS = """
-require(["jquery"], function($) {
-    if ($('style[data-pyodps-styles="_"]').length > 0) return;
-    css_str = decodeURIComponent('##CSS_STR##');
-    $('head').append('<style type="text/css" data-pyodps-styles="_">' + css_str + '</style>');
-});
-"""
+require(['pyodps'], function(p) { p.register_css('##CSS_STR##'); });
+""".strip()
 
 
 try:
@@ -60,6 +45,7 @@ except Exception:
     InstancesProgress = None
     init_frontend_scripts = None
     build_unicode_control = None
+    in_ipython_frontend = None
 else:
     def minify_scripts():
         try:
@@ -95,62 +81,73 @@ else:
         except ImportError:
             pass
 
-    # load static resources, .min.* come first.
-    def load_static_resources(ext):
-        file_dict = load_static_text_files('ui/*.min.' + ext)
-        file_names = set([fn.replace('.min.' + ext, '') for fn in iterkeys(file_dict)])
-        file_dict.update(load_static_text_files('ui/*.' + ext, lambda fn: '.min.' not in fn and
-                                                                          not fn.replace('.' + ext, '') in file_names))
-        return file_dict
+    _script_content = None
 
-    minify_scripts()
+    def load_script():
+        global _script_content
+        if _script_content is None:
+            # load static resources, .min.* come first.
+            def load_static_resources(ext):
+                file_dict = load_static_text_files('ui/*.min.' + ext)
+                file_names = set([fn.replace('.min.' + ext, '') for fn in six.iterkeys(file_dict)])
+                file_dict.update(load_static_text_files('ui/*.' + ext, lambda fn: '.min.' not in fn and
+                                                                                  not fn.replace('.' + ext, '') in file_names))
+                return file_dict
 
-    js_dict = load_static_resources('js') if in_ipython_frontend() else None
+            minify_scripts()
 
-    if js_dict:
-        css_dict = load_static_resources('css') if in_ipython_frontend() else None
+            js_dict = load_static_resources('js') if in_ipython_frontend() else None
 
-        css_contents = ''
-        if css_dict:
-            css_contents = '\n'.join(itervalues(css_dict))
+            if js_dict:
+                css_dict = load_static_resources('css') if in_ipython_frontend() else None
 
-        js_contents = INTERRUPTER_JS.replace('##SCRIPT_NUM##', str(len(js_dict)))\
-            .replace('##MAX_SCRIPT_LOAD_SEC##', str(MAX_SCRIPT_LOAD_SEC))
-        if css_contents:
-            js_contents += '\n' + CSS_REGISTER_JS.replace('##CSS_STR##', quote(css_contents))
-        js_contents += '\n'.join(itervalues(js_dict))
+                css_contents = ''
+                if css_dict:
+                    css_contents = '\n'.join(six.itervalues(css_dict))
 
-    _script_loaded = False
+                common_js_file = None
+                if COMMON_JS + '.min.js' in js_dict:
+                    common_js_file = COMMON_JS + '.min.js'
+                elif COMMON_JS + '.js' in js_dict:
+                    common_js_file = COMMON_JS + '.js'
 
-    class init_frontend_scripts(object):
-        def __init__(self):
-            self.run()
+                js_contents = ''
 
-        def __enter__(self):
-            global _script_loaded
-            if _script_loaded:
-                return self
-            return self.run()
+                if common_js_file:
+                    js_common = js_dict.pop(common_js_file)
+                    js_contents += '\n' + js_common.replace('##WIDGET_NUM##', str(len(js_dict))) \
+                        .replace('##MAX_SCRIPT_LOAD_SEC##', str(MAX_SCRIPT_LOAD_SEC)) + '\n'
 
-        def __exit__(self, *_):
-            global _script_loaded
-            _script_loaded = False
-
-        def run(self):
-            if in_ipython_frontend():
-                js = widgets.HTML()
-                js.value = '<script type="type/javascript">\n%s\n</script>' % js_contents
-                display(js)
-                # Wait for interrupt signal from the front end
-                try:
-                    for _ in range(int(round(MAX_SCRIPT_LOAD_SEC / SCRIPT_LOAD_CHECK_INTERVAL))):
-                        time.sleep(SCRIPT_LOAD_CHECK_INTERVAL)
-                except KeyboardInterrupt:
-                    pass
-                js.close()
-                return self
+                if css_contents:
+                    js_contents += '\n' + CSS_REGISTER_JS.replace('##CSS_STR##', quote(css_contents)) + '\n'
+                js_contents += '\n'.join(six.itervalues(js_dict))
+                _script_content = js_contents
             else:
-                return self
+                _script_content = None
+        return _script_content
+
+    last_ipython_msg_id = None
+
+    def init_frontend_scripts():
+        global last_ipython_msg_id
+        if in_ipython_frontend():
+            from IPython import get_ipython
+            pheader = get_ipython().parent_header
+            ipython_msg_id = pheader['msg_id'] if 'msg_id' in pheader else None
+            if ipython_msg_id is not None and ipython_msg_id == last_ipython_msg_id:
+                return
+            last_ipython_msg_id = ipython_msg_id
+
+            js = widgets.HTML()
+            js.value = '<script type="type/javascript">\n%s\n</script>' % load_script()
+            display(js)
+            # Wait for interrupt signal from the front end
+            try:
+                for _ in range(int(round(MAX_SCRIPT_LOAD_SEC / SCRIPT_LOAD_CHECK_INTERVAL))):
+                    time.sleep(SCRIPT_LOAD_CHECK_INTERVAL)
+            except KeyboardInterrupt:
+                pass
+            js.close()
 
     def build_unicode_control(default_value=None, **metadata):
         from traitlets import version_info as traitlets_version, Unicode
@@ -165,17 +162,18 @@ else:
             else:
                 return Unicode().tag(**metadata)
 
-    class HTMLNotifier(widgets.DOMWidget):
+    class HTMLNotifier(widgets.Widget):
         _view_name = build_unicode_control('HTMLNotifier', sync=True)
+        _view_module = build_unicode_control('pyodps/html-notify', sync=True)
+        msg = build_unicode_control('msg', sync=True)
 
         def __init__(self, **kwargs):
             init_frontend_scripts()
 
-            widgets.DOMWidget.__init__(self, **kwargs)  # Call the base.
-            self.errors = widgets.CallbackDispatcher(accepted_nargs=[0, 1])
+            widgets.Widget.__init__(self, **kwargs)  # Call the base.
 
         def notify(self, msg):
-            self.send(json.dumps(dict(body=msg)))
+            self.msg = json.dumps(dict(body=msg))
 
 
 def html_notify(msg):
@@ -183,4 +181,3 @@ def html_notify(msg):
         notifier = HTMLNotifier()
         display(notifier)
         notifier.notify(msg)
-        notifier.close()

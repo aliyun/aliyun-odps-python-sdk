@@ -18,12 +18,14 @@
 # under the License.
 
 from collections import namedtuple
+import uuid
+import itertools
+from datetime import datetime
 
 from ..core import Backend
 from ...expr.expressions import *
 from ...expr.reduction import GroupedSequenceReduction, GroupedCount, Count
 from ...expr.merge import JoinCollectionExpr
-from ...expr.groupby import GroupBy
 from ...expr.datetimes import DTScalar
 from ...expr import element
 from ...expr import arithmetic
@@ -31,12 +33,15 @@ from ....dag import DAG
 from ..errors import CompileError
 from . import types
 from ... import types as df_types
+from ....models import FileResource, TableResource
+from .... import compat
 
 try:
     import numpy as np
     import pandas as pd
 except ImportError:
-    pass
+    pd = None
+    np = None
 
 
 BINARY_OP_TO_PANDAS = {
@@ -62,6 +67,28 @@ UNARY_OP_TO_PANDAS = {
     'Invert': operator.inv,
     'Abs': operator.abs
 }
+
+if pd:
+    SORT_CUM_WINDOW_OP_TO_PANDAS = {
+        'CumSum': pd.expanding_sum,
+        'CumMean': pd.expanding_mean,
+        'CumMedian': pd.expanding_median,
+        'CumStd': pd.expanding_std,
+        'CumMin': pd.expanding_min,
+        'CumMax': pd.expanding_max,
+        'CumCount': pd.expanding_count,
+    }
+
+if np:
+    CUM_WINDOW_OP_TO_PANDAS = {
+        'CumSum': np.sum,
+        'CumMean': np.mean,
+        'CumMedian': np.median,
+        'CumStd': np.std,
+        'CumMin': np.min,
+        'CumMax': np.max,
+        'CumCount': lambda x: len(x)
+    }
 
 
 class PandasCompiler(Backend):
@@ -151,7 +178,8 @@ class PandasCompiler(Backend):
         if not isinstance(df, pd.DataFrame):
             raise ValueError('Expr data must be a pandas DataFrame.')
 
-        handle = lambda _: df.copy()  # make a copy to avoid modify
+        # make a copy to avoid modify
+        handle = lambda _: df.rename(columns=dict(zip(df.columns, expr.schema.names)))
         self._add_node(expr, handle)
 
     @classmethod
@@ -308,6 +336,8 @@ class PandasCompiler(Backend):
 
             if op == 'get':
                 res = getattr(getattr(input, 'str'), op)(children_vals[1])
+            elif op == 'strptime':
+                res = input.map(lambda x: datetime.strptime(x, children_vals[1]))
             else:
                 if op == 'slice':
                     kv['stop'] = kv.pop('end', None)
@@ -346,38 +376,44 @@ class PandasCompiler(Backend):
     def visit_groupby(self, expr):
         def handle(kw):
             fields_exprs = expr._fields or expr._by + expr._aggregations
-            names = [fields_expr.name for fields_expr in fields_exprs]
 
-            agg_ids = set(id(agg) for agg in expr._aggregations)
-            agg_field_exprs = [field for field in fields_exprs
-                               if id(field) in agg_ids]
-            agg_fields = [kw.get(field) for field in agg_field_exprs]
+            fields = [[kw.get(field), ] if isinstance(field, Scalar) else kw.get(field)
+                      for field in fields_exprs]
+            length = max(len(it) for it in fields)
+            for i in range(len(fields)):
+                bys = None
+                if isinstance(fields_exprs[i], SequenceExpr):
+                    is_reduction = False
+                    for n in itertools.chain(*(fields_exprs[i].all_path(expr.input))):
+                        if isinstance(n, GroupedSequenceReduction):
+                            is_reduction = True
+                            break
+                    if not is_reduction:
+                        if not bys:
+                            bys = self._get_compiled_bys(kw, expr._by, length)
+                        fields[i] = fields[i].groupby(bys).first()
+                if len(fields[i]) == 1:
+                    fields[i] = fields[i] * length
 
-            length = max(len(it) for it in agg_fields)
-            for i in range(len(agg_fields)):
-                if len(agg_fields[i]) == 1:
-                    agg_fields[i] = agg_fields[i] * length
-
-            df = pd.concat(agg_fields, axis=1)
+            df = pd.concat(fields, axis=1)
             if expr._having is not None:
                 df = df[kw.get(expr._having)]
-
-            if len(expr._by) == 1:
-                index_name = str(uuid.uuid4())
-            else:
-                index_name = [str(uuid.uuid4()) for _ in range(len(expr._by))]
-            df.index.rename(index_name, inplace=True)
-            df.reset_index(inplace=True)
-
-            by_names = [by.name for by in expr._by]
-            agg_names = [f.name for f in agg_field_exprs]
-
-            return pd.DataFrame(df.values, columns=by_names+agg_names)[names]
+            return pd.DataFrame(
+                df.values, columns=[f.name for f in fields_exprs])[expr.schema.names]
 
         self._add_node(expr, handle)
 
     def visit_mutate(self, expr):
-        raise NotImplementedError
+        def handle(kw):
+            bys = self._get_compiled_bys(kw, expr._by, len(kw.get(expr.input)))
+            bys = pd.concat(bys)
+            bys.sort_values(inplace=True)
+
+            wins = [kw.get(f) for f in expr._window_fields]
+            return pd.DataFrame(pd.concat([bys] + wins, axis=1).values,
+                                columns=expr.schema.names)
+
+        self._add_node(expr, handle)
 
     def visit_value_counts(self, expr):
         def handle(kw):
@@ -423,11 +459,46 @@ class PandasCompiler(Backend):
 
         self._add_node(expr, handle)
 
+    def visit_sample(self, expr):
+        def handle(kw):
+            input = kw.get(expr.input)
+            parts = kw.get(expr._parts)
+            i = kw.get(expr._i)
+            n = kw.get(expr._n)
+            frac = kw.get(expr._frac)
+            if expr._sampled_fields:
+                collection = pd.DataFrame(
+                    pd.concat([kw.get(e) for e in expr._sampled_fields], axis=1).values,
+                    columns=[str(uuid.uuid4()) for _ in expr._sampled_fields])
+            else:
+                collection = input
+
+            if parts is not None and frac is None:
+                frac = 1 / float(parts)
+            if i is not None and (len(i) != 1 or i[0] > 0):
+                raise NotImplementedError
+            sampled = collection.sample(n=n, frac=frac)
+            if expr._sampled_fields:
+                return pd.concat([input, sampled], axis=1, join='inner')[
+                    [n for n in input.columns.tolist()]]
+            return sampled
+
+        self._add_node(expr, handle)
+
+    def _get_compiled_bys(self, kw, by_exprs, length):
+        bys = [[kw.get(by), ] if isinstance(by, Scalar) else kw.get(by)
+               for by in by_exprs]
+        if any(isinstance(e, SequenceExpr) for e in by_exprs):
+            size = max(len(by) for by, e in zip(bys, by_exprs)
+                       if isinstance(e, SequenceExpr))
+        else:
+            size = length
+        return [(by * size if len(by) == 1 else by) for by in bys]
+
     def _compile_grouped_reduction(self, kw, expr):
-        if isinstance(expr.raw_input, GroupBy) and \
-                isinstance(expr, GroupedCount):
+        if isinstance(expr, GroupedCount) and isinstance(expr._input, CollectionExpr):
             df = kw.get(expr.input)
-            grouped = expr.raw_input
+            grouped = expr._grouped
 
             bys = [[kw.get(by), ] if isinstance(by, Scalar) else kw.get(by)
                    for by in grouped._by]
@@ -439,18 +510,9 @@ class PandasCompiler(Backend):
             bys = [(by * size if len(by) == 1 else by) for by in bys]
             return df.groupby(bys).size()
 
-        df = kw.get(expr.input.input)
-        field = expr.raw_input
-
-        grouped = field.input
-        bys = [[kw.get(by), ] if isinstance(by, Scalar) else kw.get(by)
-               for by in grouped._by]
-        if any(isinstance(e, SequenceExpr) for e in grouped._by):
-            size = max(len(by) for by, e in zip(bys, grouped._by)
-                       if isinstance(e, SequenceExpr))
-        else:
-            size = len(grouped)
-        bys = [(by * size if len(by) == 1 else by) for by in bys]
+        grouped = expr._grouped
+        series = kw.get(expr.input)
+        bys = self._get_compiled_bys(kw, grouped._by, len(series))
 
         kv = dict()
         if hasattr(expr, '_ddof'):
@@ -458,7 +520,7 @@ class PandasCompiler(Backend):
         op = expr.node_name.lower()
         op = 'size' if op == 'count' else op
 
-        return getattr(getattr(df.groupby(bys), field.name), op)(**kv)
+        return getattr(series.groupby(bys), op)(**kv)
 
     def visit_reduction(self, expr):
         def handle(kw):
@@ -480,15 +542,97 @@ class PandasCompiler(Backend):
 
         self._add_node(expr, handle)
 
+    def visit_user_defined_aggregator(self, expr):
+        def handle(kw):
+            resources = self._get_resources(expr, kw)
+
+            input = kw.get(expr.input)
+
+            func = expr._aggregator
+            args = expr._func_args
+            kwargs = expr._func_kwargs or dict()
+
+            if resources:
+                if not args and not kwargs:
+                    agg = func(resources)
+                else:
+                    kwargs['resources'] = resources
+                    agg = func(*args, **kwargs)
+            else:
+                agg = func(*args, **kwargs)
+
+            if isinstance(expr, GroupedSequenceReduction):
+                bys = [[kw.get(by), ] if isinstance(by, Scalar) else kw.get(by)
+                       for by in expr._grouped._by]
+                grouped = expr._grouped
+            else:
+                bys = [[1, ]]
+                grouped = None
+            if grouped and any(isinstance(e, SequenceExpr) for e in grouped._by):
+                size = max(len(by) for by, e in zip(bys, grouped._by)
+                           if isinstance(e, SequenceExpr))
+            else:
+                size = len(input)
+            bys = [(by * size if len(by) == 1 else by) for by in bys]
+
+            def f(x):
+                buffer = agg.buffer()
+                for it in x:
+                    agg(buffer, it)
+                ret = agg.getvalue(buffer)
+                np_type = types.df_type_to_np_type(expr.dtype)
+                return np.array([ret,], dtype=np_type)[0]
+
+            res = input.groupby(bys).agg(f)
+            if isinstance(expr, Scalar):
+                return res.iloc[0]
+            return res
+
+        self._add_node(expr, handle)
+
     def visit_column(self, expr):
         def handle(kw):
             chidren_vals = self._get_children_vals(kw, expr)
+            # FIXME: consider the name which is unicode
             return chidren_vals[0][expr._source_name]
 
         self._add_node(expr, handle)
 
+    def _get_resources(self, expr, kw):
+        if not expr._resources:
+            return
+
+        res = []
+        collection_idx = 0
+        for resource in expr._resources:
+            if isinstance(resource, FileResource):
+                res.append(resource.open())
+            elif isinstance(resource, TableResource):
+                def gen():
+                    table = resource.get_source_table()
+                    named_args = namedtuple('NamedArgs', table.schema.names)
+                    partition = resource.get_source_table_partition()
+                    with table.open_reader(partition=partition) as reader:
+                        for r in reader:
+                            yield named_args(*r.values)
+                res.append(gen())
+            else:
+                resource = expr._collection_resources[collection_idx]
+                collection_idx += 1
+
+                df = kw.get(resource)
+
+                def gen():
+                    named_args = namedtuple('NamedArgs', resource.schema.names)
+                    for r in df.iterrows():
+                        yield named_args(*r[1])
+                res.append(gen())
+
+        return res
+
     def visit_function(self, expr):
         def handle(kw):
+            resources = self._get_resources(expr, kw)
             if not expr._multiple:
                 input = self._get_children_vals(kw, expr)[0]
 
@@ -503,6 +647,15 @@ class PandasCompiler(Backend):
                 if kwargs is not None and len(kwargs) > 0:
                     raise NotImplementedError
 
+                if not inspect.isfunction(func):
+                    if resources:
+                        func = func(resources)
+                    else:
+                        func = func()
+                else:
+                    if resources:
+                        func = func(resources)
+
                 res = input.map(func)
                 if isinstance(expr.inputs[0], Scalar):
                     return res[0]
@@ -516,7 +669,16 @@ class PandasCompiler(Backend):
                     names = [f.name for f in expr.inputs]
                     t = namedtuple('NamedArgs', names)
                     row = t(*s.tolist())
-                    return expr._func(row, *expr._func_args, **expr._func_kwargs)
+                    if not inspect.isfunction(expr._func):
+                        if resources:
+                            f = expr._func(resources)
+                        else:
+                            f = expr._func()
+                    else:
+                        if resources:
+                            f = expr._func(resources)
+                        f = expr._func
+                    return f(row, *expr._func_args, **expr._func_kwargs)
 
                 return input.apply(func, axis=1, reduce=True,
                                    args=expr._func_args, **expr._func_kwargs)
@@ -532,6 +694,8 @@ class PandasCompiler(Backend):
             return l
 
         def handle(kw):
+            resources = self._get_resources(expr, kw)
+
             input = pd.concat([kw.get(field) for field in expr.fields],
                               axis=1, keys=[f.name for f in expr.fields])
 
@@ -540,13 +704,19 @@ class PandasCompiler(Backend):
 
             func = expr._func
             if inspect.isfunction(func):
+                if resources:
+                    func = func(resources)
+
                 is_generator_function = inspect.isgeneratorfunction(func)
                 close_func = None
                 is_close_generator_function = False
-            elif callable(func):
-                func = func()
+            elif hasattr(func, '__call__'):
+                if resources:
+                    func = func(resources)
+                else:
+                    func = func()
                 is_generator_function = inspect.isgeneratorfunction(func.__call__)
-                close_func = func.close
+                close_func = getattr(func, 'close', None)
                 is_close_generator_function = inspect.isgeneratorfunction(close_func)
             else:
                 raise NotImplementedError
@@ -562,7 +732,8 @@ class PandasCompiler(Backend):
                     for l in res:
                         rows.append(conv(l))
                 else:
-                    rows.append(conv(res))
+                    if res:
+                        rows.append(conv(res))
             if close_func:
                 if is_close_generator_function:
                     for l in close_func(*expr._func_args, **expr._func_kwargs):
@@ -577,13 +748,127 @@ class PandasCompiler(Backend):
         raise NotImplementedError
 
     def visit_cum_window(self, expr):
-        raise NotImplementedError
+        if expr.preceding is not None or expr.following is not None:
+            raise NotImplementedError
+
+        def handle(kw):
+            input = kw.get(expr.input)
+            bys = self._get_compiled_bys(kw, expr.partition_by, len(input))
+            grouped = input.groupby(bys)
+            if expr.order_by:
+                sort = [kw.get(e) for e in expr.order_by]
+                ascendings = [e._ascending for e in expr.order_by]
+                for s in sort:
+                    sort_name = str(uuid.uuid4())
+                    s.name = sort_name
+            else:
+                sort = None
+                ascendings = None
+
+            def f(x):
+                if sort:
+                    df = pd.concat([x] + sort, join='inner', axis=1)
+                    df.sort_values([s.name for s in sort], ascending=ascendings, inplace=True)
+                    series = df[x.name]
+
+                    return SORT_CUM_WINDOW_OP_TO_PANDAS[expr.node_name](series)
+                else:
+                    if expr.distinct:
+                        new_x = x.drop_duplicates()
+                    else:
+                        new_x = x
+                    val = CUM_WINDOW_OP_TO_PANDAS[expr.node_name](new_x)
+                    return pd.Series([val] * len(x), index=x.index)
+
+            res = grouped.apply(f)
+            if sort:
+                for _ in bys:
+                    res = res.reset_index(level=0, drop=True)
+            return res
+
+        self._add_node(expr, handle)
 
     def visit_rank_window(self, expr):
-        raise NotImplementedError
+        def handle(kw):
+            input = kw.get(expr.input)
+            sort = [kw.get(e) * (1 if e._ascending else -1)
+                    for e in expr.order_by]
+            bys = self._get_compiled_bys(kw, expr.partition_by, len(input))
+
+            sort_names = [str(uuid.uuid4()) for _ in sort]
+            by_names = [str(uuid.uuid4()) for _ in bys]
+            input_names = [input.name] if isinstance(input, pd.Series) else input.columns.tolist()
+            df = pd.DataFrame(pd.concat([input] + sort + bys, axis=1).values,
+                              columns=input_names + sort_names + by_names,
+                              index=input.index)
+            df.sort_values(sort_names, inplace=True)
+            grouped = df.groupby(by_names)
+
+            def f(x):
+                s_df = pd.Series(pd.lib.fast_zip([x[s].values for s in sort_names]), index=x.index)
+                if expr.node_name == 'Rank':
+                    return s_df.rank(method='min')
+                elif expr.node_name == 'DenseRank':
+                    return s_df.rank(method='dense')
+                elif expr.node_name == 'RowNumber':
+                    return pd.Series(compat.lrange(1, len(s_df)+1), index=s_df.index)
+                elif expr.node_name == 'PercentRank':
+                    if len(s_df) == 1:
+                        return pd.Series([0.0, ], index=s_df.index)
+                    return (s_df.rank(method='min') - 1) / (len(s_df) - 1)
+                else:
+                    raise NotImplementedError
+
+            res = grouped.apply(f)
+            for _ in bys:
+                res = res.reset_index(level=0, drop=True)
+            return res
+
+        self._add_node(expr, handle)
 
     def visit_shift_window(self, expr):
-        raise NotImplementedError
+        def handle(kw):
+            input = kw.get(expr.input)
+
+            bys = self._get_compiled_bys(kw, expr.partition_by, len(input))
+            grouped = input.groupby(bys)
+            if expr.order_by:
+                sort = [kw.get(e) for e in expr.order_by]
+                ascendings = [e._ascending for e in expr.order_by]
+                for s in sort:
+                    sort_name = str(uuid.uuid4())
+                    s.name = sort_name
+            else:
+                sort = None
+                ascendings = None
+
+            if expr.node_name == 'Lag':
+                shift = kw.get(expr.offset)
+            else:
+                assert expr.node_name == 'Lead'
+                shift = -kw.get(expr.offset)
+            default = kw.get(expr.default)
+
+            def f(x):
+                if sort:
+                    df = pd.concat([x] + sort, join='inner', axis=1)
+                    df.sort_values([s.name for s in sort], ascending=ascendings, inplace=True)
+                    series = df[x.name]
+                else:
+                    series = x
+
+                res = series.shift(shift)
+                if default is not None:
+                    return res.fillna(default)
+                return res
+
+            res = grouped.apply(f)
+            if sort:
+                for _ in bys:
+                    res = res.reset_index(level=0, drop=True)
+            return res
+
+        self._add_node(expr, handle)
 
     def visit_scalar(self, expr):
         def handle(_):
@@ -621,6 +906,11 @@ class PandasCompiler(Backend):
             left_ons = []
             right_ons = []
             for eq in eqs:
+                if eq._lhs.name == eq._rhs.name:
+                    left_ons.append(eq._lhs.name)
+                    right_ons.append(eq._rhs.name)
+                    continue
+
                 left_name = str(uuid.uuid4())
                 left[left_name] = kw.get(eq._lhs)
                 left_ons.append(left_name)

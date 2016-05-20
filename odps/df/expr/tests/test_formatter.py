@@ -189,7 +189,7 @@ Collection: ref_0
 
 GroupBy[collection]
   collection: ref_0
-  by:
+  bys:
     name = Column[sequence(string)] 'name' from collection ref_0
     id = Column[sequence(int64)] 'id' from collection ref_0
   aggregations:
@@ -209,7 +209,7 @@ Collection: ref_0
 Collection: ref_1
   GroupBy[collection]
     collection: ref_0
-    by:
+    bys:
       name = Column[sequence(string)] 'name' from collection ref_0
       id = Column[sequence(int64)] 'id' from collection ref_0
     aggregations:
@@ -230,12 +230,18 @@ Collection: ref_0
 
 Mutate[collection]
   collection: ref_0
-  by:
+  bys:
     name = Column[sequence(string)] 'name' from collection ref_0
   mutates:
     RowNumber[sequence(int64)]
       PartitionBy:
         name = Column[sequence(string)] 'name' from collection ref_0
+      OrderBy:
+        SortKey
+          by
+            id = Column[sequence(int64)] 'id' from collection ref_0
+          ascending
+            True
 '''
 
 
@@ -250,7 +256,7 @@ Collection: ref_0
 Collection: ref_1
   GroupBy[collection]
     collection: ref_0
-    by:
+    bys:
       id = Column[sequence(int64)] 'id' from collection ref_0
     aggregations:
       id_std = std[sequence(float64)]
@@ -526,7 +532,7 @@ class Test(TestBase):
         self._lines_eq(EXPECTED_GROUPBY_FORMAT, repr(expr))
 
         grouped = self.expr.groupby(['name'])
-        expr = grouped.mutate(grouped.row_number())
+        expr = grouped.mutate(grouped.row_number(sort='id'))
 
         self._lines_eq(EXPECTED_MUTATE_FORMAT, repr(expr))
 

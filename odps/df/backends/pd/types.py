@@ -25,10 +25,10 @@ try:
     has_np = True
 except ImportError:
     has_np = False
-import six
 
 from ... import types
 from ....models import Schema
+from ....compat import six
 
 _np_to_df_types = dict()
 _df_to_np_types = dict()

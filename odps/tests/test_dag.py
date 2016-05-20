@@ -62,8 +62,7 @@ class Test(TestBase):
         self.assertEqual(dag.predecessors(node4), list('bc'))
 
         dag.remove_node(node4)
-        top_sorted = dag.topological_sort()
-        assert top_sorted == list('beac') or top_sorted == list('ebac')
+        self.assertIn(''.join(dag.topological_sort()), set(['beac', 'ebac']))
         self.assertFalse(dag.contains_node(node4))
         self.assertRaises(KeyError, lambda: dag.remove_node(node4))
         self.assertFalse(dag.contains_edge(node4, node5))
@@ -78,10 +77,9 @@ class Test(TestBase):
 
         dag.remove_edge(node2, node1)
         self.assertFalse(dag.contains_edge(node2, node1))
-        self.assertEqual(list('abec'), dag.topological_sort())
         self.assertEqual(list('a'), dag.ancestors(node3))
         self.assertEqual(list('c'), dag.descendants(node1))
-        self.assertEqual(list('abe'), dag.indep_nodes())
+        self.assertSetEqual(set('abe'), set(dag.indep_nodes()))
 
         dag.reset_graph()
         self.assertEqual(len(dag.nodes()), 0)

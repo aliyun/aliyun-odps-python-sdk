@@ -73,6 +73,7 @@ class Analyzer(Backend):
             child = (lhs, rhs)[idx]
 
             for path in field.all_path(child, strict=True):
+                # TODO modification may not be applied to the paths
                 if not isinstance(path[-2], Column):
                     continue
 

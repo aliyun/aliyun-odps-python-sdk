@@ -19,16 +19,15 @@
 
 from __future__ import print_function
 
-import six
-
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, tn
+from odps.compat import six
 
 FILE_CONTENT = '''This is a pyodps test file!
 Enjoy it'''
 OVERWRITE_FILE_CONTENT = '''This is an overwritten pyodps test file!
 Enjoy it'''
-TEST_VOLUME_NAME = 'pyodps_test_volume'
-TEST_PARTITION_NAME = 'pyodps_test_partition'
+TEST_VOLUME_NAME = tn('pyodps_test_volume')
+TEST_PARTITION_NAME = tn('pyodps_test_partition')
 TEST_FILE_NAME = 'test_output_file'
 TEST_FILE_CONTENT = 'Life is short.\r\nI use PyODPS.'
 

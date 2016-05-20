@@ -20,12 +20,11 @@
 from datetime import datetime
 import contextlib
 
-import six
-
 from .core import LazyLoad, JSONRemoteModel
 from .partitions import Partitions
 from ..config import options
 from .. import types, serializers, utils, readers
+from ..compat import six
 
 
 class TableSchema(types.OdpsSchema, JSONRemoteModel):

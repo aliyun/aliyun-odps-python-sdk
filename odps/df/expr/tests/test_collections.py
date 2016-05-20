@@ -22,6 +22,7 @@ from odps.tests.core import TestBase
 from odps.compat import unittest
 from odps.models import Schema
 from odps.df.expr.expressions import *
+from odps.df.expr.collections import SampledCollectionExpr
 from odps.df import output
 
 
@@ -117,6 +118,19 @@ class Test(TestBase):
         self.assertFalse(expr._sort_fields[1]._ascending)
         self.assertFalse(expr._sort_fields[2]._ascending)
 
+    def testSample(self):
+        self.assertIsInstance(self.expr.sample(100), SampledCollectionExpr)
+        self.assertIsInstance(self.expr.sample(frac=0.5), SampledCollectionExpr)
+        self.assertIsInstance(self.expr.sample(parts=10), SampledCollectionExpr)
+
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(n=100, frac=0.5))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(n=100, parts=10))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(frac=0.5, parts=10))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(n=100, frac=0.5, parts=10))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(frac=-1))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(frac=1.5))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(parts=10, i=-1))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(parts=10, i=10))
 
 if __name__ == '__main__':
     unittest.main()

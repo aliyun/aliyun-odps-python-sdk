@@ -16,13 +16,12 @@
 # under the License.
 
 import os
-
-import six
-from six.moves import configparser as ConfigParser
+import sys
 
 from .. import compat
 from .. import ODPS
 from ..tunnel import TableTunnel
+from ..compat import six, ConfigParser
 
 LOGGING_CONFIG = {
     'version': 1,
@@ -103,7 +102,85 @@ def to_str(s):
     return s
 
 
-class TestBase(compat.unittest.TestCase):
+def tn(s):
+    if os.environ.get('TEST_NAME_SUFFIX') is not None:
+        return s + '_' + os.environ.get('TEST_NAME_SUFFIX').lower()
+    return s
+
+
+def in_coverage_mode():
+    return 'COVERAGE_FILE' in os.environ or 'unittest' in sys.argv[0]
+
+
+def start_coverage():
+    if not in_coverage_mode():
+        return
+    os.environ['COVERAGE_PROCESS_START'] = ''
+    try:
+        import coverage
+        coverage.process_startup()
+    except ImportError:
+        pass
+
+
+def ignore_case(_):
+    return None
+
+
+def ci_skip_case(obj):
+    if 'CI_MODE' in os.environ:
+        return ignore_case(obj)
+    else:
+        return obj
+
+
+def numpy_case(obj):
+    try:
+        import numpy
+        return obj
+    except ImportError:
+        return ignore_case(obj)
+
+
+def pandas_case(obj):
+    try:
+        import pandas
+        return obj
+    except ImportError:
+        return ignore_case(obj)
+
+
+class TestMeta(type):
+    def __init__(cls, what, bases=None, d=None):
+        # switch cases given switches defined in tests/__init__.py
+        cls_path = cls.__module__
+        if '.tests' in cls_path:
+            main_pack_name, _ = cls_path.split('.tests', 1)
+            test_pack_name = main_pack_name + '.tests'
+            test_pack = __import__(test_pack_name, fromlist=[''])
+
+            check_symbol = lambda s: hasattr(test_pack, s) and getattr(test_pack, s)
+
+            # disable cases on PY26 unless tests.PY26_COMPAT = True
+            if compat.PY26 and not check_symbol('PY26_COMPAT'):
+                for k, v in six.iteritems(d):
+                    if k.startswith('test') and hasattr(v, '__call__'):
+                        d[k] = None
+
+            # disable cases in CI_MODE when tests.SKIP_IN_CI = True
+            if 'CI_MODE' in os.environ and check_symbol('SKIP_IN_CI'):
+                for k, v in six.iteritems(d):
+                    if k.startswith('test') and hasattr(v, '__call__'):
+                        d[k] = None
+
+        for k, v in six.iteritems(d):
+            if k.startswith('test') and v is None:
+                delattr(cls, k)
+
+        super(TestMeta, cls).__init__(what, bases, d)
+
+
+class TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
 
     def setUp(self):
         self.config = get_config()

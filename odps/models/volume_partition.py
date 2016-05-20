@@ -19,12 +19,10 @@
 
 import contextlib
 
-import six
-from enum import Enum
-
 from .core import LazyLoad
 from .. import serializers, utils
 from ..config import options
+from ..compat import Enum, six
 
 
 class VolumeFile(serializers.XMLSerializableModel):

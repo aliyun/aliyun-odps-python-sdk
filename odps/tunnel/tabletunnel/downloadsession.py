@@ -16,16 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
 import math
 
-from enum import Enum
-
 from .. import io
+from ..pb import decoder
+from ..io import CompressOption, SnappyInputStream
 from ..checksum import Checksum
 from ..errors import TunnelError
 from ..wireconstants import ProtoWireConstants
 from ... import serializers, utils, types, compat
+from ...compat import Enum, six
 from ...models import Schema, Record
 from ...readers import AbstractRecordReader
 
@@ -96,19 +96,19 @@ class TableDownloadSession(serializers.JSONSerializableModel):
             raise e
             
     def open_record_reader(self, start, count, compress=False, columns=None):
-        compress_option = self._compress_option or io.CompressOption()
+        compress_option = self._compress_option or CompressOption()
 
         params = {}
         headers = {'Content-Length': 0, 'x-odps-tunnel-version': 4}
         if compress:
             if compress_option.algorithm == \
-                    io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
+                    CompressOption.CompressAlgorithm.ODPS_ZLIB:
                 headers['Accept-Encoding'] = 'deflate'
             elif compress_option.algorithm == \
-                    io.CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-                headers['Content-Encoding'] = 'x-snappy-framed'
+                    CompressOption.CompressAlgorithm.ODPS_SNAPPY:
+                headers['Accept-Encoding'] = 'x-snappy-framed'
             elif compress_option.algorithm != \
-                    io.CompressOption.CompressAlgorithm.ODPS_RAW:
+                    CompressOption.CompressAlgorithm.ODPS_RAW:
                 raise TunnelError('invalid compression option')
         params['downloadid'] = self.id
         params['data'] = ''
@@ -120,46 +120,51 @@ class TableDownloadSession(serializers.JSONSerializableModel):
             params['columns'] = ','.join(col_name(col) for col in columns)
 
         url = self._table.resource()
-        resp = self._client.get(url, params=params, headers=headers)
+        resp = self._client.get(url, stream=True, params=params, headers=headers)
         if not self._client.is_ok(resp):
             e = TunnelError.parse(resp)
             raise e
-        
+
         content_encoding = resp.headers.get('Content-Encoding')
         if content_encoding is not None:
             if content_encoding == 'deflate':
-                self._compress_option = io.CompressOption(
-                    io.CompressOption.CompressAlgorithm.ODPS_ZLIB, -1, 0)
+                self._compress_option = CompressOption(
+                    CompressOption.CompressAlgorithm.ODPS_ZLIB, -1, 0)
             elif content_encoding == 'x-snappy-framed':
-                self._compress_option = io.CompressOption(
-                    io.CompressOption.CompressAlgorithm.ODPS_SNAPPY, -1, 0)
+                self._compress_option = CompressOption(
+                    CompressOption.CompressAlgorithm.ODPS_SNAPPY, -1, 0)
             else:
                 raise TunnelError('invalid content encoding')
             compress = True
         else:
             compress = False
-        
+
         option = compress_option if compress else None
-        return TableTunnelReader(self.schema, resp.content, option, columns=columns)
+        if option is None:
+            input_stream = compat.BytesIO(resp.content)  # create a file-like object from body
+        elif compress_option.algorithm == \
+                CompressOption.CompressAlgorithm.ODPS_RAW:
+            input_stream = compat.BytesIO(resp.content)  # create a file-like object from body
+        elif compress_option.algorithm == \
+                CompressOption.CompressAlgorithm.ODPS_ZLIB:
+            input_stream = compat.BytesIO(resp.content)  # Requests automatically decompress gzip data!
+        elif compress_option.algorithm == \
+                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
+            input_stream = SnappyInputStream(compat.BytesIO(resp.content))
+        else:
+            raise errors.InvalidArgument('Invalid compression algorithm.')
+
+        return TableTunnelReader(self.schema, input_stream, columns=columns)
 
 
 class TableTunnelReader(AbstractRecordReader):
-    def __init__(self, schema, data, compress_option=None,
-                 compress_algo=None, compres_level=None, compress_strategy=None, columns=None):
-        self._compress_option = compress_option
-        if self._compress_option is None and compress_algo is not None:
-            self._compress_option = io.CompressOption(
-                compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
-
+    def __init__(self, schema, input_stream, columns=None):
         self._schema = schema
         if columns is None:
             self._columns = self._schema.columns
         else:
             self._columns = [self._schema[c] for c in columns]
-
-        self._stream = data
-        self._reader = io.ProtobufReader(data, compress_option=self._compress_option)
-
+        self._reader = decoder.Decoder(input_stream)
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._curr_cusor = 0
@@ -180,7 +185,7 @@ class TableTunnelReader(AbstractRecordReader):
                     val = utils.to_text(self._reader.read_string())
                     self._crc.update(val)
                 elif value_type == types.bigint:
-                    val = self._reader.read_long()
+                    val = self._reader.read_sint64()
                     self._crc.update_long(val)
                 elif value_type == types.double:
                     val = self._reader.read_double()
@@ -198,7 +203,7 @@ class TableTunnelReader(AbstractRecordReader):
         record = Record(self._columns)
 
         while True:
-            index = self._reader.read_field_num()
+            index, _ = self._reader.read_field_number_and_wire_type()
 
             if index == 0:
                 continue
@@ -211,15 +216,15 @@ class TableTunnelReader(AbstractRecordReader):
                 break
 
             if index == ProtoWireConstants.TUNNEL_META_COUNT:
-                if self.count != self._reader.read_long():
+                if self.count != self._reader.read_sint64():
                     raise IOError('count does not match')
-                if ProtoWireConstants.TUNNEL_META_CHECKSUM != \
-                        self._reader.read_field_num():
+                idx_of_checksum, _ = self._reader.read_field_number_and_wire_type()
+                if ProtoWireConstants.TUNNEL_META_CHECKSUM != idx_of_checksum:
                     raise IOError('Invalid stream data.')
                 if int(self._crccrc.getvalue()) != self._reader.read_uint32():
                     raise IOError('Checksum invalid.')
-                if not self._reader.at_end():
-                    raise IOError('Expect at the end of stream, but not.')
+                # if not self._reader.at_end():
+                #     raise IOError('Expect at the end of stream, but not.')
 
                 return
 
@@ -240,7 +245,7 @@ class TableTunnelReader(AbstractRecordReader):
                 self._crc.update_bool(val)
                 record[i] = val
             elif data_type == types.bigint:
-                val = self._reader.read_long()
+                val = self._reader.read_sint64()
                 self._crc.update_long(val)
                 record[i] = val
             elif data_type == types.string:
@@ -248,7 +253,7 @@ class TableTunnelReader(AbstractRecordReader):
                 self._crc.update(val)
                 record[i] = val
             elif data_type == types.datetime:
-                val = self._reader.read_long()
+                val = self._reader.read_sint64()
                 self._crc.update_long(val)
                 record[i] = utils.to_datetime(val)
             elif data_type == types.decimal:
@@ -282,7 +287,7 @@ class TableTunnelReader(AbstractRecordReader):
 
     @property
     def n_bytes(self):
-        return self._reader.n_bytes
+        return self._reader.position()
 
     def get_total_bytes(self):
         return self.n_bytes

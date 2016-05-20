@@ -17,15 +17,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
-
 from .uploadsession import TableUploadSession
 from .downloadsession import TableDownloadSession
 from ..io import CompressOption
 from ..router import TunnelServerRouter
 from ...rest import RestClient
 from ... import options
-from ...compat import urlparse
+from ...compat import urlparse, six
 from ...models import Projects
 
 

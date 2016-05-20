@@ -16,8 +16,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Created on 2015-10-26
 
-@author: xuye.qin
-"""
+PY26_COMPAT = True

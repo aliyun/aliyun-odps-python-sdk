@@ -18,22 +18,20 @@
 # under the License.
 
 import copy
+import glob
+import hashlib
+import json
 import os
 import platform
-import sys
 import subprocess
-import glob
+import sys
 import tempfile
-import json
+import stat
+import threading
 import time
 import uuid
-import hashlib
-import threading
-import traceback
 
-import six
-
-from .compat import PY26, pickle
+from .compat import PY26, pickle, six, builtins
 from .config import options
 from .errors import NoSuchObject
 from .utils import is_main_process, build_pyodps_dir
@@ -57,6 +55,7 @@ else:
 TEMP_ROOT = build_pyodps_dir('tempobjs')
 SESSION_KEY = '%d_%s' % (int(time.time()), uuid.uuid4())
 CLEANER_THREADS = 100
+USER_FILE_RIGHTS = stat.S_IREAD | stat.S_IWRITE | stat.S_IEXEC
 
 CLEANUP_SCRIPT_TMPL = """
 import os
@@ -87,7 +86,7 @@ else:
     tempobj.cleanup_timeout = 5
 tempobj.cleanup_mode = True
 tempobj.host_pid = {host_pid}
-tempobj.biz_ids = set(biz_ids)
+tempobj.ObjectRepositoryLib.biz_ids = set(biz_ids)
 
 for o_desc in temp_codes:
     ODPS(**tempobj.compat_kwargs(o_desc))
@@ -98,28 +97,31 @@ os._exit(0)
 cleanup_mode = False
 cleanup_timeout = 0
 host_pid = os.getpid()
-biz_ids = set([options.biz_id, ]) if options.biz_id else set(['default', ])
 
 
 class ExecutionEnv(object):
     def __init__(self, **kwargs):
-        global biz_ids
-
         self.os = os
+        self._g_env = copy.copy(globals())
+        self.is_windows = 'windows' in platform.platform().lower()
+        self.pid = os.getpid()
+        self.os_sep = os.sep
         self.executable = sys.executable
-        self.biz_ids = biz_ids
-        self.json = json
+        self.six = six
 
-        self.import_paths = copy.deepcopy(sys.path)
+        import_paths = copy.deepcopy(sys.path)
         package_root = os.path.dirname(__file__)
-        if package_root not in self.import_paths:
-            self.import_paths.append(package_root)
+        if package_root not in import_paths:
+            import_paths.append(package_root)
+        self.import_path_json = json.dumps(import_paths)
 
-        self.open = open
+        self.builtins = builtins
+        self.io = __import__('io', fromlist=[''])
+        self.conv_bytes = (lambda s: s.encode()) if six.PY3 else (lambda s: s)
         self.subprocess = subprocess
         self.temp_dir = tempfile.gettempdir()
         self.template = CLEANUP_SCRIPT_TMPL
-        self.traceback = traceback
+        self.file_right = USER_FILE_RIGHTS
         self.is_main_process = is_main_process()
         for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
@@ -148,6 +150,9 @@ class TempObject(object):
         if self._type != other._type:
             return False
         return all(getattr(self, k) == getattr(other, k) for k in self.__slots__)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __getstate__(self):
         return dict((slot, getattr(self, slot)) for slot in self.__slots__ if hasattr(self, slot))
@@ -218,7 +223,10 @@ class ObjectRepository(object):
             if obj in self._container:
                 self._container.remove(obj)
         if not self._container:
-            os.unlink(self._file_name)
+            try:
+                os.unlink(self._file_name)
+            except OSError:
+                pass
         else:
             self.dump()
 
@@ -226,20 +234,27 @@ class ObjectRepository(object):
         with open(self._file_name, 'wb') as outf:
             pickle.dump(list(self._container), outf, protocol=0)
             outf.close()
+        os.chmod(self._file_name, USER_FILE_RIGHTS)
 
     def load(self):
         try:
             with open(self._file_name, 'rb') as inpf:
                 contents = pickle.load(inpf)
             self._container.update(contents)
-        except EOFError:
+        except (EOFError, OSError):
             pass
 
 
 class ObjectRepositoryLib(dict):
+    biz_ids = set([options.biz_id, ]) if options.biz_id else set(['default', ])
+    odps_info = dict()
+
+    biz_ids_json = json.dumps(list(biz_ids))
+    odps_info_json = json.dumps([v for v in six.itervalues(odps_info)])
+
     def __init__(self, *args, **kwargs):
         super(ObjectRepositoryLib, self).__init__(*args, **kwargs)
-        self._env = ExecutionEnv(odps_info=_odps_info)
+        self._env = ExecutionEnv()
 
     def __del__(self):
         global cleanup_mode
@@ -247,25 +262,46 @@ class ObjectRepositoryLib(dict):
             return
         self._exec_cleanup_script()
 
+    @classmethod
+    def add_biz_id(cls, biz_id):
+        cls.biz_ids.add(biz_id)
+        cls.biz_ids_json = json.dumps(list(cls.biz_ids))
+
+    @classmethod
+    def add_odps_info(cls, odps):
+        odps_key = _gen_repository_key(odps)
+        cls.odps_info[odps_key] = dict(access_id=odps.account.access_id, secret_access_key=odps.account.secret_access_key,
+                                       project=odps.project, endpoint=odps.endpoint)
+        cls.odps_info_json = json.dumps([v for v in six.itervalues(cls.odps_info)])
+
     def _exec_cleanup_script(self):
         if not self:
             return
 
         env = self._env
-        import_paths = env.json.dumps(env.import_paths)
-        odps_info_json = env.json.dumps(list(six.itervalues(env.odps_info)))
-        biz_ids_json = env.json.dumps(list(self._env.biz_ids))
-        script = env.template.format(import_paths=import_paths, odps_info=odps_info_json, host_pid=env.os.getpid(),
-                                     biz_ids=biz_ids_json)
+        script = env.template.format(import_paths=env.import_path_json, odps_info=self.odps_info_json,
+                                     host_pid=env.pid, biz_ids=self.biz_ids_json)
 
-        script_name = env.temp_dir + env.os.sep + 'tmp_' + str(env.os.getpid()) + '_cleanup_script.py'
-        with env.open(script_name, 'w') as script_file:
-            script_file.write(script)
-            script_file.close()
-        env.subprocess.call([env.executable, script_name], close_fds=True)
+        script_name = env.temp_dir + env.os_sep + 'tmp_' + str(env.pid) + '_cleanup_script.py'
+        script_file = env.io.FileIO(script_name, 'w')
+        script_file.write(env.conv_bytes(script))
+        script_file.close()
+        try:
+            if env.is_windows:
+                env.os.chmod(script_name, env.file_right)
+            else:
+                env.subprocess.call(['chmod', str(env.file_right), script_name])
+        except:
+            pass
+
+        kwargs = dict(close_fds=True)
+        if env.is_windows:
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            kwargs['startupinfo'] = si
+        env.subprocess.call([env.executable, script_name], **kwargs)
 
 
-_odps_info = dict()
 _cleaned_keys = set()
 _obj_repos = ObjectRepositoryLib()  # this line should be put last due to initialization dependency
 
@@ -296,7 +332,7 @@ def clean_objects(odps):
     _cleaned_keys.add(odps_key)
 
     files = []
-    for biz_id in biz_ids:
+    for biz_id in _obj_repos.biz_ids:
         files.extend(glob.glob(os.path.join(TEMP_ROOT, biz_id, odps_key, '*.his')))
 
     def clean_thread():
@@ -315,7 +351,7 @@ def clean_objects(odps):
     if cleanup_timeout == 0:
         return
     else:
-        if cleanup_timeout < 0:
+        if cleanup_timeout is not None and cleanup_timeout < 0:
             cleanup_timeout = None
         thread_obj.join(cleanup_timeout)
 
@@ -326,14 +362,12 @@ def _gen_repository_key(odps):
 
 
 def _put_objects(odps, objs):
-    global biz_ids
     odps_key = _gen_repository_key(odps)
 
     biz_id = options.biz_id if options.biz_id else 'default'
-    biz_ids.add(biz_id)
-    if odps not in _obj_repos:
-        _odps_info[odps_key] = dict(access_id=odps.account.access_id, secret_access_key=odps.account.secret_access_key,
-                                    project=odps.project, endpoint=odps.endpoint)
+    ObjectRepositoryLib.add_biz_id(biz_id)
+    if odps_key not in _obj_repos:
+        ObjectRepositoryLib.add_odps_info(odps)
         file_dir = os.path.join(TEMP_ROOT, biz_id, odps_key)
         if not os.path.exists(file_dir):
             os.makedirs(file_dir)
@@ -366,7 +400,7 @@ def compat_kwargs(kwargs):
     if PY26:
         new_desc = dict()
         for k, v in six.iteritems(kwargs):
-            new_desc[k.encode('utf-8')] = v.encode('utf-8')
+            new_desc[k.encode('utf-8') if isinstance(k, unicode) else k] = v.encode('utf-8')
         return new_desc
     else:
         return kwargs

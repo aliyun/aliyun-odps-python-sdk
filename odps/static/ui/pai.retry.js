@@ -20,46 +20,45 @@
  * Cell customization for PAI
  */
 
-require(["nbextensions/widgets/widgets/js/widget", "nbextensions/widgets/widgets/js/manager", "jquery"], function(widget, manager, $) {
-    var retry_html = '<a class="retry-btn" title="Retry"><i class="fa fa-repeat" /></a>';
+require(['pyodps'], function(pyodps) {
+    pyodps.define_widget('pyodps/pai/retry', ["jquery", "widgets"], function ($, widget) {
+        var retry_html = '<a class="retry-btn" title="Retry"><i class="fa fa-repeat" /></a>';
 
-    var PAIRetryButton = widget.DOMWidgetView.extend({
-        initialize: function(parameters) {
-            var that = this;
-            that.listenTo(that.model, 'msg:custom', that._handle_route_msg, that);
-        },
-        render: function() {
-            var that = this;
-            that.setElement($('<div></div>'))
-        },
-        _handle_route_msg: function(msg) {
-            var that = this;
-            var cell_element = that.$el.closest('.cell');
-            var cell = cell_element.data('cell');
-            var btn_element = $(retry_html);
-            btn_element.click(function (e) {
-                var old_text = cell.get_text();
-                cell.set_text('%retry\n\n' + old_text);
-                cell.execute();
-                cell.set_text(old_text);
-                e.stopPropagation();
-            });
-            var setter = function() {
-                var prompt = cell_element.find('.input_prompt');
-                if (cell_element.find('.retry-btn').length == 0) {
-                    // only display notifications when the cell stops running.
-                    if (cell_element.hasClass('running'))
-                        window.setTimeout(setter, 100);
-                    else
-                        prompt.append(btn_element);
-                }
-            };
-            window.setTimeout(setter, 100);
-        }
+        var PAIRetryButton = widget.DOMWidgetView.extend({
+            initialize: function (parameters) {
+                var that = this;
+                that.listenTo(that.model, 'msg:custom', that._handle_route_msg, that);
+                that.model.on('change:msg', that._msg_changed, that);
+            },
+            render: function() {
+                $(this.$el).closest('.widget-area').find('div').hide();
+            },
+            update: function () {
+                $(this.$el).closest('.widget-area').find('div').hide();
+            },
+            _msg_changed: function () {
+                var that = this;
+                var cell_element = $(that.$el.closest('.cell'));
+                var cell = cell_element.data('cell');
+                var btn_element = $(retry_html);
+                btn_element.click(function (e) {
+                    var old_text = cell.get_text();
+                    cell.set_text('%retry\n\n' + old_text);
+                    cell.execute();
+                    cell.set_text(old_text);
+                    e.stopPropagation();
+                });
+                pyodps.call_on_executed(that, function () {
+                    var prompt = cell_element.find('.input_prompt');
+                    prompt.append(btn_element);
+                });
+                that.remove();
+            }
+        });
+
+
+        return {
+            PAIRetryButton: PAIRetryButton
+        };
     });
-
-    manager.WidgetManager.register_widget_view('PAIRetryButton', PAIRetryButton);
-    if ('undefined' !== typeof pyodps && pyodps.loaded) {
-        pyodps.loaded();
-    }
 });

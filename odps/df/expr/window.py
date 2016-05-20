@@ -226,7 +226,17 @@ class RowNumber(RankOp):
 
 
 class ShiftOp(Window):
-    __slots__ = '_offset', '_default'
+    _args = '_input', '_partition_by', '_order_by', '_offset', '_default'
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_offset', None)
+        self._init_attr('_default', None)
+        super(ShiftOp, self)._init(*args, **kwargs)
+
+        if self._offset is not None and not isinstance(self._offset, Expr):
+            self._offset = self._scalar(self._offset)
+        if self._default is not None and not isinstance(self._default, Expr):
+            self._default = self._scalar(self._default)
 
     def accept(self, visitor):
         return visitor.visit_shift_window(self)
@@ -317,15 +327,22 @@ def cumstd(expr, sort=None, ascending=True, unique=False,
 
 def _rank_op(expr, op_cls, data_type, sort=None, ascending=True):
     if isinstance(expr, SequenceGroupBy):
-        expr = expr._input
+        grouped = expr._input
+        sort = sort or getattr(grouped, '_sorted_fields', None) or expr.name
     elif not isinstance(expr, BaseGroupBy):
         raise NotImplementedError
+    else:
+        grouped = expr
 
-    if sort is not None:
-        expr = expr.sort(sort, ascending=ascending)
+    if not isinstance(grouped, SortedGroupBy) and sort is not None:
+        grouped = grouped.sort(sort, ascending=ascending)
+        if isinstance(expr, SequenceGroupBy):
+            expr = grouped[expr.name]
+    if not isinstance(grouped, SortedGroupBy):
+        raise ExpressionError('`sort` arg is required for the rank operation')
 
-    return op_cls(_input=expr._input, _partition_by=expr._by,
-                  _order_by=getattr(expr, '_sorted_fields', None),
+    return op_cls(_input=grouped._input, _partition_by=grouped._by,
+                  _order_by=getattr(grouped, '_sorted_fields', None),
                   _data_type=data_type)
 
 
@@ -347,9 +364,10 @@ def row_number(expr, sort=None, ascending=True):
 
 def _shift_op(expr, op_cls, offset, default=None, sort=None, ascending=True):
     if isinstance(expr, SequenceGroupBy):
-        if sort is not None:
-            groupby = expr._input.sort(sort, ascending=ascending)
-            expr = groupby[expr._name]
+        if sort is None:
+            sort = expr.name
+        groupby = expr._input.sort(sort, ascending=ascending)
+        expr = groupby[expr._name]
 
         collection = expr._input._input
         column = collection[expr._name]

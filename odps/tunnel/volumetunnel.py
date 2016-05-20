@@ -20,8 +20,6 @@
 import sys
 import struct
 
-from enum import Enum
-import six
 from requests.exceptions import StreamConsumedError
 
 from . import io
@@ -30,8 +28,8 @@ from .checksum import Checksum
 from .errors import TunnelError
 from .. import serializers, options
 from ..rest import RestClient
-from ..models import Projects
-from ..compat import irange, urlparse
+from ..models import Projects, errors
+from ..compat import irange, urlparse, Enum, six
 from ..utils import to_binary, to_text
 
 MAX_CHUNK_SIZE = 256 * 1024 * 1024
@@ -258,7 +256,7 @@ class VolumeReader(object):
 
         if len(buf) >= CHECKSUM_SIZE:
             self._data_size = len(buf) - CHECKSUM_SIZE
-            self._crc.update(buf, 0, self._data_size)
+            self._crc.update(buf[:self._data_size])
             checksum = struct.unpack_from(CHECKSUM_PACKER, buf, self._data_size)[0]
             if checksum != self._crc.getvalue():
                 raise IOError('CRC check error in VolumeReader.')
@@ -496,15 +494,26 @@ class VolumeWriter(object):
     def __init__(self, client, uploader, compress_option):
         self._client = client
         self._compress_option = compress_option
-        self._req_io = io.RequestsIO(uploader)
-        self._compressor = io.StreamCompressor(compress_option, lambda data: self._req_io.put(data))
+        self._req_io = io.RequestsIO(uploader, chunk_size=options.chunk_size)
+
+        if compress_option is None:
+            self._writer = self._req_io
+        elif compress_option.algorithm == \
+                io.CompressOption.CompressAlgorithm.ODPS_RAW:
+            self._writer = self._req_io
+        elif compress_option.algorithm == \
+                io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
+            self._writer = io.DeflateOutputStream(self._req_io)
+        else:
+            raise errors.InvalidArgument('Invalid compression algorithm.')
+
         self._crc = Checksum(method='crc32')
         self._initialized = False
         self._chunk_offset = 0
 
     def _init_writer(self):
         chunk_bytes = struct.pack('>I', self.CHUNK_SIZE)
-        self._compressor.compress(chunk_bytes)
+        self._writer.write(chunk_bytes)
         self._crc.update(chunk_bytes)
         self._chunk_offset = 0
 
@@ -525,13 +534,14 @@ class VolumeWriter(object):
         while processed < len(buf):
             if self._chunk_offset == self.CHUNK_SIZE:
                 checksum = self._crc.getvalue()
-                self._compressor.compress(struct.pack(CHECKSUM_PACKER, checksum))
+                self._writer.write(struct.pack(CHECKSUM_PACKER, checksum))
                 self._chunk_offset = 0
             else:
                 size = self.CHUNK_SIZE - self._chunk_offset if len(buf) - processed > self.CHUNK_SIZE - self._chunk_offset\
                     else len(buf) - processed
-                self._compressor.compress(buf[processed:processed + size])
-                self._crc.update(buf, processed, size)
+                write_chunk = buf[processed:processed + size]
+                self._writer.write(write_chunk)
+                self._crc.update(write_chunk)
                 processed += size
                 self._chunk_offset += size
 
@@ -542,8 +552,8 @@ class VolumeWriter(object):
 
         if self._chunk_offset != 0:
             checksum = self._crc.getvalue()
-            self._compressor.compress(struct.pack(CHECKSUM_PACKER, checksum))
-        self._compressor.close()
+            self._writer.write(struct.pack(CHECKSUM_PACKER, checksum))
+        self._writer.flush()
         result = self._req_io.finish()
         if result is None:
             raise TunnelError('No results returned in VolumeWriter.')

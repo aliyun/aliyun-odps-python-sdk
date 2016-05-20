@@ -17,13 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
-
 from .core import Iterable, XMLRemoteModel
 from .xflow import XFlow
 from .instances import Instances
 from .instance import Instance
 from .. import serializers, errors, compat
+from ..compat import six
 
 
 class XFlows(Iterable):

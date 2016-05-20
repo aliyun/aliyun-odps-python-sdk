@@ -20,12 +20,11 @@
 import uuid
 from datetime import datetime
 
-import six
-
 from .core import Iterable
 from .instance import Instance
 from .job import Job
 from .. import serializers, errors, utils
+from ..compat import six
 
 
 class Instances(Iterable):

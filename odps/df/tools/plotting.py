@@ -17,12 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from enum import Enum
-import six
-
 from odps.errors import DependencyNotInstalledError
 from odps.df.expr.expressions import CollectionExpr, SequenceExpr, run_at_once, Expr
 from odps.df.types import is_number
+from odps.compat import Enum, six
 
 
 class PlottingCore(Enum):

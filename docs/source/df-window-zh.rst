@@ -11,7 +11,7 @@
 窗口函数
 ========
 
-DataFrame API也支持使用窗口函数（注意，pandas计算后端尚未支持）：
+DataFrame API也支持使用窗口函数：
 
 .. code:: python
 

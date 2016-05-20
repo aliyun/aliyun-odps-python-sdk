@@ -51,7 +51,7 @@ DataFrame中包括三个基本对象：\ ``Collection``\ ，\ ``Sequence``\ ，\
 
 PyOdps
 DataFrame包括自己的类型系统，在使用Table初始化的时候，ODPS的类型会被进行转换。这样做的好处是，能支持更多的计算后端。目前，DataFrame的执行后端支持ODPS
-SQL和pandas。目前，pandas计算后端尚未支持窗口函数。
+SQL和pandas。
 
 PyOdps DataFrame包括以下类型：
 
@@ -411,7 +411,7 @@ DataFrame会在打印或者repr的时候，调用\ ``execute``\ 方法，这样�
     print(my_logs)
 
 
-.. parsed-literal::
+.. code:: python
 
     ['Sql compiled:', 'SELECT t1.`sepalwidth`, t1.`petallength`, t1.`petalwidth`, t1.`name` \nFROM odps_test_sqltask_finance.`pyodps_iris` t1 \nWHERE t1.`sepallength` < 5 \nLIMIT 5', 'logview:', u'http://logview']
 

@@ -20,10 +20,10 @@
 
 import struct
 
-import six
-
 from ..crc import Crc32c, Crc32
 from .. import utils
+from ..compat import six
+from ..types import integer_builtins, float_builtins
 
 
 class Checksum(object):
@@ -33,6 +33,15 @@ class Checksum(object):
     def __init__(self, method='crc32c'):
         self.crc = Crc32c() if method.lower() == 'crc32c' else Crc32()
 
+    def _mode(self):
+        # use for UT to check if use c extension
+        try:
+            from ..crc32c_c import Crc32c
+
+            return 'c' if isinstance(self.crc, Crc32c) else 'py'
+        except ImportError:
+            return 'py'
+
     def update_bool(self, val):
         assert isinstance(val, bool)
 
@@ -40,29 +49,26 @@ class Checksum(object):
         self.update(val)
 
     def update_int(self, val):
-        assert isinstance(val, six.integer_types)
+        assert isinstance(val, integer_builtins)
 
         val = struct.pack('<i', val)
         self.update(val)
 
     def update_long(self, val):
-        assert isinstance(val, six.integer_types)
+        assert isinstance(val, integer_builtins)
 
         val = struct.pack('<q', val)
         self.update(val)
 
     def update_float(self, val):
-        assert isinstance(val, float)
+        assert isinstance(val, float_builtins)
 
         val = struct.pack('<d', val)
         self.update(val)
             
-    def update(self, b, off=None, length=None):
+    def update(self, b):
         b = bytearray(utils.to_binary(b))
-
-        off = off or 0
-        length = length or len(b)
-        self.crc.update(b, off, length)
+        self.crc.update(b)
         
     def getvalue(self):
         return self.crc.getvalue()

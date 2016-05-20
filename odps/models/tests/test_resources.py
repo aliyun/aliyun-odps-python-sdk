@@ -15,10 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
-
-from odps.tests.core import TestBase, to_str
-from odps.compat import unittest
+from odps.tests.core import TestBase, to_str, tn
+from odps.compat import unittest, six
 from odps import compat
 from odps.models import Resource, FileResource, TableResource, Schema
 from odps import errors, types
@@ -44,12 +42,12 @@ class Test(TestBase):
         self.assertFalse(self.odps.exist_resource(non_exists_resource))
 
     def testTableResource(self):
-        test_table_name = 'pyodps_t_tmp_resource_table'
+        test_table_name = tn('pyodps_t_tmp_resource_table')
         schema = Schema.from_lists(['id', 'name'], ['string', 'string'])
         self.odps.delete_table(test_table_name, if_exists=True)
         self.odps.create_table(test_table_name, schema)
 
-        resource_name = 'pyodps_t_tmp_table_resource'
+        resource_name = tn('pyodps_t_tmp_table_resource')
         try:
             self.odps.delete_resource(resource_name)
         except errors.NoSuchObject:
@@ -68,14 +66,14 @@ class Test(TestBase):
         self.assertEqual(res.get_source_table().name, test_table_name)
         self.assertIsNone(res.get_source_table_partition())
 
-        test_table_name = 'pyodps_t_tmp_resource_table'
+        test_table_name = tn('pyodps_t_tmp_resource_table')
         test_table_partition = 'pt=test,sec=1'
         schema = Schema.from_lists(['id', 'name'], ['string', 'string'], ['pt', 'sec'], ['string', 'bigint'])
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(test_table_name, schema)
         table.create_partition(test_table_partition)
 
-        resource_name = 'pyodps_t_tmp_table_resource'
+        resource_name = tn('pyodps_t_tmp_table_resource')
         res = res.update(partition=test_table_partition)
         self.assertIsInstance(res, TableResource)
         self.assertEqual(res.get_source_table().name, test_table_name)
@@ -96,7 +94,7 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name)
 
     def testFileResource(self):
-        resource_name = 'pyodps_t_tmp_file_resource'
+        resource_name = tn('pyodps_t_tmp_file_resource')
 
         try:
             self.odps.delete_resource(resource_name)

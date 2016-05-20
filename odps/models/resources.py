@@ -17,11 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
-
 from .core import Iterable
 from .resource import Resource, FileResource, TableResource
 from .. import serializers, errors
+from ..compat import six
 
 
 class Resources(Iterable):

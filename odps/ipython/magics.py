@@ -26,6 +26,7 @@ from odps import options, ODPS
 from odps.utils import init_progress_bar, replace_sql_parameters
 from odps.df import DataFrame, Scalar
 from odps.df.backends.frame import ResultFrame
+from odps.ui.common import html_notify
 
 from IPython.core.magic import Magics, magics_class, line_cell_magic, line_magic
 from IPython.core.display import display_javascript
@@ -80,11 +81,13 @@ class ODPSSql(Magics):
         args = line.strip().split()
         name, args = args[0], args[1:]
         setup(*args, room=name)
+        html_notify('setup succeeded')
 
     @line_magic('teardown')
     def teardown(self, line):
         name = line.strip()
         teardown(name)
+        html_notify('teardown succeeded')
 
     @line_magic('list_rooms')
     def list_rooms(self, line):
@@ -190,14 +193,17 @@ class ODPSSql(Magics):
                         from pandas.parser import CParserError
 
                         try:
-                            return pd.read_csv(StringIO(reader.raw))
+                            res = pd.read_csv(StringIO(reader.raw))
                         except (ValueError, CParserError):
-                            return reader.raw
+                            res = reader.raw
                     except ImportError:
                         try:
-                            return ResultFrame(list(reader), columns=reader._columns)
+                            res = ResultFrame(list(reader), columns=reader._columns)
                         except TypeError:
-                            return reader.raw
+                            res = reader.raw
+
+                html_notify('SQL execution succeeded')
+                return res
             finally:
                 bar.close()
 
@@ -225,10 +231,11 @@ class ODPSSql(Magics):
             raise TypeError('%s already exists' % table_name)
 
         if isinstance(frame, DataFrame):
-            frame.persist(name=table_name, project=project_name)
+            frame.persist(name=table_name, project=project_name, notify=False)
         elif has_pandas and isinstance(frame, pd.DataFrame):
             frame = DataFrame(frame)
-            frame.persist(name=table_name, project=project_name)
+            frame.persist(name=table_name, project=project_name, notify=False)
+        html_notify('Persist succeeded')
 
 
 def load_ipython_extension(ipython):

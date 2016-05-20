@@ -18,10 +18,8 @@
 # under the License.
 
 import time
-import random
 import uuid
 
-from enum import Enum
 try:
     import pandas as pd
     has_pandas = True
@@ -33,6 +31,7 @@ from .odpssql.engine import ODPSEngine
 from .pd.engine import PandasEngine
 from .errors import NoBackendFound
 from .optimize import Optimizer
+from .formatter import ExprExecutionGraphFormatter
 from .. import Scalar
 from ..expr.expressions import CollectionExpr, SequenceExpr
 from ..expr.merge import JoinCollectionExpr, UnionCollectionExpr
@@ -41,8 +40,10 @@ from ...models import Table, Schema
 from ... import ODPS
 from ... import options
 from ...dag import DAG
-from ...utils import init_progress_bar, TEMP_TABLE_PREFIX
+from ...utils import init_progress_ui, TEMP_TABLE_PREFIX, gen_repr_object
 from ...tempobj import register_temp_table
+from ...ui.progress import create_instance_group
+from ...compat import Enum
 
 
 class Engines(Enum):
@@ -138,7 +139,7 @@ class MixedEngine(Engine):
         src_expr = src_expr or expr
         nodes = dag.nodes()
 
-        curr = (expr, func)
+        curr = (expr, func, src_expr)
         dag.add_node(curr)
 
         for node in nodes:
@@ -160,6 +161,8 @@ class MixedEngine(Engine):
         cb = lambda: self._sub(sub, to_sub)
 
         def func(**kwargs):
+            if 'lifecycle' not in kwargs:
+                kwargs['lifecycle'] = options.temp_lifecycle
             self._pandas_engine.persist(to_sub, table_name, **kwargs)
             callbacks.remove(cb)
 
@@ -263,13 +266,75 @@ class MixedEngine(Engine):
         return False
 
     def _need_cache(self, node, use_cache):
-        if not use_cache:
-            return False
         if not isinstance(node, (CollectionExpr, SequenceExpr, Scalar)):
             return False
         if hasattr(node, '_source_data') and node._source_data is not None:
             return False
+        if node._need_cache and not use_cache:
+            # we ignore the cached data, and recompute.
+            return True
         return node._need_cache and node._cache_data is None
+
+    def _compile_function(self, node, dag, callbacks):
+        if not self._need_handle_sources(node):
+            return
+
+        # if node input comes from an ODPS table
+        is_node_input_from_table = \
+            isinstance(next(node.children()[0].data_source()), Table)
+        for collection in node._collection_resources:
+            # if the collection resource comes from an ODPS table
+            is_source_from_table = \
+                isinstance(next(collection.data_source()), Table)
+
+            if is_node_input_from_table and not is_source_from_table:
+                table_name = self._gen_table_name()
+
+                sub = CollectionExpr(_source_data=self._odps.get_table(table_name),
+                                     _schema=collection.schema)
+
+                cb = lambda: self._sub(sub, collection)
+
+                def func(**kwargs):
+                    self._pandas_engine.persist(collection, table_name, **kwargs)
+                    callbacks.remove(cb)
+
+            elif not is_node_input_from_table and is_source_from_table:
+                sub = CollectionExpr(_source_data=pd.DataFrame(),
+                                     _schema=collection.schema)
+
+                cb = lambda: self._sub(sub, collection)
+
+                def func(**kwargs):
+                    data = collection.to_pandas(**kwargs)
+                    sub._source_data = data
+            else:
+                continue
+
+            self._sub(collection, sub)
+            self._add_node(dag, node, func, src_expr=collection)
+            callbacks.append(cb)
+
+    def _handle_cache(self, expr, use_cache, callbacks):
+        if not use_cache:
+            return
+
+        if expr._cache_data is not None:
+            if hasattr(expr, '_source_data') and expr._source_data is not None:
+                return
+
+            sub = None
+            if isinstance(expr, CollectionExpr):
+                sub = CollectionExpr(_source_data=expr._cache_data,
+                                     _schema=expr._schema)
+            elif isinstance(expr, Scalar):
+                sub = Scalar(_value=expr._cache_data, _value_type=expr.dtype)
+
+            if sub:
+                self._sub(expr, sub)
+                cb = lambda: self._sub(sub, expr)
+                callbacks.append(cb)
+                return sub
 
     def _compile(self, expr, use_cache=None):
         use_cache = use_cache if use_cache is not None else options.df.use_cache
@@ -283,9 +348,16 @@ class MixedEngine(Engine):
                 self._compile_join_or_union_node(node, dag, callbacks)
             elif isinstance(node, IsIn):
                 self._compile_isin_node(node, dag, callbacks)
+            elif hasattr(node, '_func') and node._collection_resources:
+                self._compile_function(node, dag, callbacks)
             if self._need_cache(node, use_cache):
                 sub = self._compile_cache_node(node, dag, callbacks)
                 if node is expr:
+                    expr = sub
+                    break
+            elif hasattr(node, '_cache_data') and node._cache_data is not None:
+                sub = self._handle_cache(node, use_cache, callbacks)
+                if sub is not None and node is expr:
                     expr = sub
                     break
 
@@ -304,7 +376,7 @@ class MixedEngine(Engine):
     def _pre_process(self, expr, use_cache=None):
         return Optimizer(expr, use_cache=use_cache).optimize()
 
-    def compile(self, expr, use_cache=None):
+    def _compile_dag(self, expr, use_cache=None):
         expr = self._pre_process(expr, use_cache=use_cache)
 
         dag, expr, callbacks = self._compile(expr)
@@ -313,15 +385,31 @@ class MixedEngine(Engine):
         self._generated_table_names = []
         return dag
 
+    def compile(self, expr, use_cache=None):
+        expr = self._pre_process(expr, use_cache=use_cache)
+
+        dag, expr, callbacks = self._compile(expr)
+        try:
+            formatter = ExprExecutionGraphFormatter(expr, dag)
+            return gen_repr_object(html=formatter._to_html(),
+                                   text=formatter._to_str())
+        finally:
+            self._generated_table_names = []
+            [cb() for cb in callbacks]
+
     def _run(self, expr, method, *args, **kwargs):
-        bar = kwargs.get('bar', init_progress_bar())
+        ui = kwargs.get('ui', init_progress_ui())
         use_cache = kwargs.pop('use_cache', None)
         src_expr = expr
 
         if isinstance(expr, Scalar) and expr.value is not None:
-            bar.update(1)
-            bar.close()
+            ui.update(1)
+            ui.close()
             return expr.value
+
+        node_name = getattr(expr, 'node_name', expr.__class__.__name__)
+        group = create_instance_group('DataFrame Operation[%s] execution details' % node_name)
+        ui.add_keys(group)
 
         expr = self._pre_process(expr, use_cache=use_cache)
         dag, expr, callbacks = self._compile(expr, use_cache=use_cache)
@@ -331,20 +419,32 @@ class MixedEngine(Engine):
             stages_size = len(nodes)
             stage_progress = 1 / float(stages_size)
 
+            succeeded = False
             try:
+                kwargs['group'] = group
+
                 curr = 0.0
-                for _, func in nodes[:-1]:
-                    func(start_progress=curr, max_progress=stage_progress, bar=bar, **kwargs)
+                for _, func, _ in nodes[:-1]:
+                    func(start_progress=curr, max_progress=stage_progress, ui=ui, **kwargs)
                     curr += stage_progress
 
                 func = nodes[-1][1]
                 kwargs['start_progress'] = curr
                 kwargs['max_progress'] = stage_progress
-                kwargs['bar'] = bar
+                kwargs['ui'] = ui
                 res = func(method, expr, *args, **kwargs)
+
+                succeeded = True
             finally:
-                bar.update(1)
-                bar.close()
+                ui.update(1)
+                ui.close()
+
+                notify = kwargs.get('notify', True)
+                if notify:
+                    if succeeded:
+                        ui.notify('DataFrame execution succeeded')
+                    else:
+                        ui.notify('DataFrame execution failed')
 
             if isinstance(src_expr, Scalar):
                 return res
@@ -357,6 +457,17 @@ class MixedEngine(Engine):
 
     def persist(self, expr, name, **kwargs):
         return self._run(expr, 'persist', name, **kwargs)
+
+    def visualize(self, expr):
+        expr = self._pre_process(expr)
+
+        dag, expr, callbacks = self._compile(expr)
+        try:
+            formatter = ExprExecutionGraphFormatter(expr, dag)
+            return gen_repr_object(svg=formatter._repr_svg_())
+        finally:
+            self._generated_table_names = []
+            [cb() for cb in callbacks]
 
     def cleanup_tmp(self):
         for t in self._generated_table_names:

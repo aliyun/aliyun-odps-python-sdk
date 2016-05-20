@@ -17,14 +17,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import six
 import inspect
 
 from .core import DataFrame
-from .expr.expressions import Scalar
+from .expr.expressions import Scalar, BuiltinFunction
 from .expr.element import switch
 from .expr.datetimes import year, month, day, hour, minute, second, millisecond
 from .utils import output_types, output_names, output
+from ..compat import six
 
 try:
     import pandas as pd

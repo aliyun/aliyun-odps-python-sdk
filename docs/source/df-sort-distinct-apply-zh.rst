@@ -592,9 +592,26 @@
     iris[iris.name, iris.name.unique()]  # 错误的
 
 
+采样
+=======
+
+
+要对一个collection的数据采样，可以调用 ``sample`` 方法。
+
+.. code:: python
+
+    iris.sample(parts=10)  # 分成10份，默认取第0份
+    iris.sample(parts=10, i=0)  # 手动指定取第0份
+    iris.sample(parts=10, i=[2, 5])   # 分成10份，取第2和第5份
+    iris.sample(parts=10, columns=['name', 'sepalwidth'])  # 根据name和sepalwidth的值做采样
+
+
+用Apply对所有行或者所有列调用自定义函数
+=============================================
+
 
 对一行数据使用自定义函数
-========================
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 要对一行数据使用自定义函数，可以使用apply方法，axis参数必须为1，表示在行上操作。
@@ -695,11 +712,69 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
     300
 
 
-MapReduce API
-==============
+对所有列调用自定义聚合
+~~~~~~~~~~~~~~~~~~~~~~~
+
+调用apply方法，当我们不指定axis，或者axis为0的时候，我们可以通过传入一个自定义聚合类来对所有sequence进行聚合操作。
+
+.. code:: python
+
+    class Agg(object):
+
+        def buffer(self):
+            return [0.0, 0]
+
+        def __call__(self, buffer, val):
+            buffer[0] += val
+            buffer[1] += 1
+
+        def merge(self, buffer, pbuffer):
+            buffer[0] += pbuffer[0]
+            buffer[1] += pbuffer[1]
+
+        def getvalue(self, buffer):
+            if buffer[1] == 0:
+                return 0.0
+            return buffer[0] / buffer[1]
+
+    iris.exclude('name').apply(Agg)
 
 
-PyOdps DataFrame也支持MapReduce API，用户可以分别编写map和reduce函数。我们来看个简单的wordcount的例子。
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>sepallength_aggregation</th>
+          <th>sepalwidth_aggregation</th>
+          <th>petallength_aggregation</th>
+          <th>petalwidth_aggregation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>5.843333</td>
+          <td>3.054</td>
+          <td>3.758667</td>
+          <td>1.198667</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+引用资源
+~~~~~~~~~~~~~
+
+
+类似于对 ``map`` 方法的resources参数，每个resource可以是ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。
+
+对于axis为1，也就是在行上操作，我们需要写一个函数闭包或者callable的类。
+而对于列上的聚合操作，我们只需在 \_\_init\_\_ 函数里读取资源即可。
+
 
 .. code:: python
 
@@ -735,6 +810,65 @@ PyOdps DataFrame也支持MapReduce API，用户可以分别编写map和reduce函
     </table>
     </div>
 
+
+.. code:: python
+
+    import pandas as pd
+
+    stop_words = DataFrame(pd.DataFrame({'stops': ['is', 'a', 'I']}))
+
+
+.. code:: python
+
+    @output(['sentence'], ['string'])
+    def filter_stops(resources):
+        stop_words = set([r[0] for r in resources[0]])
+
+        def h(row):
+            return ' '.join(w for w in row[0].split() if w not in stop_words),
+        return h
+
+    words_df.apply(filter_stops, axis=1, resources=[stop_words])
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>sentence</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>Hello World</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>Hello Python</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>Life short use Python</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+可以看到这里的stop_words是存放于本地，但在真正执行时会被上传到ODPS作为资源引用。
+
+
+
+
+MapReduce API
+==============
+
+
+PyOdps DataFrame也支持MapReduce API，用户可以分别编写map和reduce函数。我们来看个简单的wordcount的例子。
 
 
 .. code:: python
@@ -921,3 +1055,149 @@ group参数用来指定reduce按哪些字段做分组，如果不指定，会按
 
 
 有时候我们在迭代的时候需要按某些列排序，则可以使用 ``sort``\ 参数，来指定按哪些列排序。
+
+
+引用资源
+~~~~~~~~~~~~~
+
+在MapReduce API里，我们能分别指定mapper和reducer所要引用的资源。
+
+如下面的例子，我们对mapper里的单词做停词过滤，在reducer里对白名单的单词数量加5。
+
+.. code:: python
+
+    white_list_file = o.create_resource('pyodps_white_list_words', 'file', file_obj='Python\nWorld')
+
+.. code:: python
+
+    @output(['word', 'cnt'], ['string', 'int'])
+    def mapper(resources):
+        stop_words = set(r[0].strip() for r in resources[0])
+
+        def h(row):
+            for word in row[0].split():
+                if word not in stop_words:
+                    yield word, 1
+        return h
+
+    @output(['word', 'cnt'], ['string', 'int'])
+    def reducer(resources):
+        d = dict()
+        d['white_list'] = set(word.strip() for word in resources[0])
+        d['cnt'] = 0
+
+        def inner(keys):
+            d['cnt'] = 0
+            def h(row, done):
+                d['cnt'] += row.cnt
+                if done:
+                    if row.word in d['white_list']:
+                        d['cnt'] += 5
+                    yield keys.word, d['cnt']
+            return h
+        return inner
+
+    words_df.map_reduce(mapper, reducer, group='word',
+                        mapper_resources=[stop_words], reducer_resources=[white_list_file])
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>word</th>
+          <th>cnt</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>hello</td>
+          <td>2</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>life</td>
+          <td>1</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>python</td>
+          <td>7</td>
+        </tr>
+        <tr>
+          <th>3</th>
+          <td>world</td>
+          <td>6</td>
+        </tr>
+        <tr>
+          <th>4</th>
+          <td>short</td>
+          <td>1</td>
+        </tr>
+        <tr>
+          <th>5</th>
+          <td>use</td>
+          <td>1</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+布隆过滤器
+==============
+
+
+PyOdps DataFrame提供了 ``bloom_filter`` 接口来进行布隆过滤器的计算。
+
+给定某个collection，和它的某个列计算的sequence1，我们能对另外一个sequence2进行布隆过滤，sequence1不在sequence2中的一定会过滤，
+但可能不能完全过滤掉不存在于sequence2中的数据，这也是一种近似的方法。
+
+这样的好处是能快速对collection进行快速过滤一些无用数据。
+
+这在大规模join的时候，一边数据量远大过另一边数据，而大部分并不会join上的场景很有用。
+比如，我们在join用户的浏览数据和交易数据时，成交数据大部分不会带来交易数据，我们可以利用交易数据先对浏览数据进行布隆过滤，
+然后再join能很好提升性能。
+
+.. code:: python
+
+    df1 = DataFrame(pd.DataFrame({'a': ['name1', 'name2', 'name3', 'name1'], 'b': [1, 2, 3, 4]}))
+    df1
+
+.. code:: python
+
+           a  b
+    0  name1  1
+    1  name2  2
+    2  name3  3
+    3  name1  4
+
+.. code:: python
+
+    df2 = DataFrame(pd.DataFrame({'a': ['name1']}))
+    df2
+
+.. code:: python
+
+           a
+    0  name1
+
+.. code:: python
+
+    df1.bloom_filter('a', df2.a) # 这里第0个参数可以是个计算表达式如: df1.a + '1'
+
+.. code:: python
+
+           a  b
+    0  name1  1
+    1  name1  4
+
+这里由于数据量很小，df1中的a为name2和name3的行都被正确过滤掉了，当数据量很大的时候，可能会有一定的数据不能被过滤。
+
+如之前提的join场景中，少量不能过滤并不能并不会影响正确性，但能较大提升join的性能。
+
+我们可以传入 ``capacity`` 和 ``error_rate`` 来设置数据的量以及错误率，默认值是 ``3000`` 和 ``0.01``。
+要注意，调大 ``capacity`` 或者减小 ``error_rate`` 会增加内存的使用，所以应当根据实际情况选择一个合理的值。

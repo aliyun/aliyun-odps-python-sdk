@@ -16,21 +16,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from copy import deepcopy
 
-
-from odps.config import options, option_context, is_integer, is_null, any_validator
-from odps.tests.core import TestBase
+from odps.config import Config, options, option_context, is_integer, is_null, any_validator, OptionError
+from odps.tests.core import TestBase, pandas_case
 from odps.compat import unittest
 
 
 class Test(TestBase):
 
     def testOptions(self):
+        old_config = Config(deepcopy(options._config))
+
         with option_context() as local_options:
-            self.assertIsNone(local_options.access_id)
-            self.assertIsNone(local_options.access_key)
-            self.assertIsNone(local_options.end_point)
-            self.assertIsNone(local_options.default_project)
+            self.assertEqual(options.access_id, old_config.access_id)
+            self.assertEqual(options.access_key, old_config.access_key)
+            self.assertEqual(options.end_point, old_config.end_point)
+            self.assertEqual(options.default_project, old_config.default_project)
             self.assertIsNotNone(local_options.log_view_host)
             self.assertIsNone(local_options.tunnel_endpoint)
             self.assertGreater(local_options.chunk_size, 0)
@@ -58,10 +60,10 @@ class Test(TestBase):
             local_options.console.max_lines = 30
             self.assertEqual(local_options.console.max_lines, 30)
 
-        self.assertIsNone(options.access_id)
-        self.assertIsNone(options.access_key)
-        self.assertIsNone(options.end_point)
-        self.assertIsNone(options.default_project)
+        self.assertEqual(options.access_id, old_config.access_id)
+        self.assertEqual(options.access_key, old_config.access_key)
+        self.assertEqual(options.end_point, old_config.end_point)
+        self.assertEqual(options.default_project, old_config.default_project)
         self.assertIsNotNone(options.log_view_host)
         self.assertIsNone(options.tunnel_endpoint)
         self.assertGreater(options.chunk_size, 0)
@@ -72,6 +74,20 @@ class Test(TestBase):
         self.assertRaises(AttributeError, lambda: options.nest.inner.value)
         self.assertFalse(options.interactive)
 
+        def set_notexist():
+            options.display.val = 3
+        self.assertRaises(OptionError, set_notexist)
+
+    @pandas_case
+    def testSetDisplayOption(self):
+        options.display.max_rows = 10
+        options.display.unicode.ambiguous_as_wide = True
+        self.assertEqual(options.display.max_rows, 10)
+        self.assertTrue(options.display.unicode.ambiguous_as_wide)
+
+        import pandas as pd
+        self.assertEqual(pd.options.display.max_rows, 10)
+        self.assertTrue(pd.options.display.unicode.ambiguous_as_wide)
 
 if __name__ == '__main__':
     unittest.main()

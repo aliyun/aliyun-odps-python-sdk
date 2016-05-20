@@ -20,7 +20,7 @@
 from copy import deepcopy
 import contextlib
 
-import six
+from .compat import six
 
 
 DEFAULT_CHUNK_SIZE = 1496
@@ -29,7 +29,16 @@ DEFAULT_CONNECT_TIMEOUT = 5
 DEFAULT_READ_TIMEOUT = 120
 
 
+class OptionError(Exception):
+    pass
+
+
 class AttributeDict(dict):
+    def __init__(self, *args, **kwargs):
+        self._inited = False
+        super(AttributeDict, self).__init__(*args, **kwargs)
+        self._inited = True
+
     def __getattr__(self, item):
         if item in self:
             val = self[item]
@@ -42,7 +51,10 @@ class AttributeDict(dict):
     def register(self, key, value, validator=None):
         self[key] = value, validator
 
-    def __setattr__(self, key, value):
+    def _setattr(self, key, value, silent=False):
+        if not silent and key not in self:
+            raise OptionError('You can only set the value of existing options')
+
         if not isinstance(value, AttributeDict):
             validate = None
             if key in self:
@@ -54,30 +66,91 @@ class AttributeDict(dict):
         else:
             self[key] = value
 
+    def __setattr__(self, key, value):
+        if key == '_inited':
+            super(AttributeDict, self).__setattr__(key, value)
+            return
+        try:
+            object.__getattribute__(self, key)
+            super(AttributeDict, self).__setattr__(key, value)
+            return
+        except AttributeError:
+            pass
+
+        if not self._inited:
+            super(AttributeDict, self).__setattr__(key, value)
+        else:
+            self._setattr(key, value)
+
+
+class DisplayAttributeDict(AttributeDict):
+    def __init__(self, *args, **kwargs):
+        self._inited = False
+        self._prefix = None
+        super(DisplayAttributeDict, self).__init__(*args, **kwargs)
+
+    def register(self, key, value, validator=None):
+        self[key] = value, validator
+
+    def _setattr(self, key, value, silent=False):
+        if not silent and key not in self:
+            raise OptionError('You can only set the value of existing options')
+
+        assert not isinstance(value, AttributeDict)
+
+        validate = None
+        if key in self:
+            validate = self[key][1]
+            if validate is not None:
+                if not validate(value):
+                    raise ValueError('Cannot set value %s' % value)
+        self[key] = value, validate
+
+        try:
+            import pandas as pd
+
+            try:
+                pd.set_option('%s.%s' % (self._prefix, key), value)
+            except:
+                pass
+        except ImportError:
+            pass
+
 
 class Config(object):
     def __init__(self, config=None):
         self._config = config or AttributeDict()
-        self._validators = dict()
 
     def __getattr__(self, item):
-        if item == '_config':
-            return object.__getattribute__(self, '_config')
         return getattr(self._config, item)
 
     def __setattr__(self, key, value):
         if key == '_config':
             object.__setattr__(self, key, value)
+            return
         setattr(self._config, key, value)
 
     def register_option(self, option, value, validator=None):
         splits = option.split('.')
         conf = self._config
-        for name in splits[:-1]:
+
+        if splits[0] == 'display':
+            dict_cls = DisplayAttributeDict
+        else:
+            dict_cls = AttributeDict
+
+        for i, name in enumerate(splits[:-1]):
             config = conf.get(name)
             if config is None:
-                conf[name] = AttributeDict()
-                conf = conf[name]
+                val = dict_cls()
+                conf[name] = val
+                if isinstance(val, DisplayAttributeDict):
+                    # set the prefix used in the pandas option
+                    if i == 0:
+                        val._prefix = 'display'
+                    else:
+                        val._prefix = '%s.%s' % (conf._prefix, name)
+                conf = val
             elif not isinstance(config, dict):
                 raise AttributeError(
                     'Fail to set option: %s, conflict has encountered' % option)
@@ -149,6 +222,10 @@ options.register_option('biz_id', None)
 options.register_option('temp_lifecycle', 1, validator=is_integer)
 options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
 
+# c or python mode, use for UT, in other cases, please do not modify the value
+options.register_option('force_c', False, validator=is_integer)
+options.register_option('force_py', False, validator=is_integer)
+
 # network connections
 options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
 options.register_option('retry_times', DEFAULT_CONNECT_RETRY_TIMES, validator=is_integer)
@@ -170,6 +247,7 @@ options.register_option('verbose_log', None)
 options.register_option('df.optimize', True, validator=is_bool)
 options.register_option('df.analyze', True, validator=is_bool)
 options.register_option('df.use_cache', True, validator=is_bool)
+options.register_option('df.quote', True, validator=is_bool)
 
 # PAI
 options.register_option('pai.xflow_project', 'algo_public', validator=is_string)

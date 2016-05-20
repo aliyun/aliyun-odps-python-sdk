@@ -35,6 +35,10 @@ class Test(TestBase):
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
+    # def testCacheNode(self):
+    #     self.assertIs(self.expr.fid.abs(), self.expr.fid.abs())
+    #     self.assertIs(self.expr.id.log(2), self.expr.id.log(2))
+
     def testMath(self):
         self.assertRaises(AttributeError, lambda: self.expr.name.sin())
         self.assertRaises(AttributeError, lambda: self.expr.isMale.cos())

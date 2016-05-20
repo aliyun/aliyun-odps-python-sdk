@@ -20,7 +20,7 @@
 import tempfile
 import shutil
 
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, tn
 from odps.compat import unittest
 from odps.inter import *
 from odps.config import options
@@ -70,7 +70,7 @@ class Test(TestBase):
 
         try:
             s = Schema.from_lists(['name', 'id'], ['string', 'bigint'])
-            table_name = 'pyodps_test_room_stores'
+            table_name = tn('pyodps_test_room_stores')
             self.odps.delete_table(table_name, if_exists=True)
             t = self.odps.create_table(table_name, s)
             data = [['name1', 1], ['name2', 2]]

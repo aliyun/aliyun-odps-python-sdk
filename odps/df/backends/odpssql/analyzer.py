@@ -31,7 +31,9 @@ from ...expr.reduction import *
 from ...expr.window import *
 from ...expr.collections import *
 from ...expr.merge import *
+from ..errors import CompileError
 from ... import types
+from ....models import Schema
 
 
 class Analyzer(Backend):
@@ -69,6 +71,7 @@ class Analyzer(Backend):
             self._expr = to_sub
         else:
             [p.substitute(expr, to_sub) for p in parents]
+        self._iters.append(to_sub)
 
     def visit_project_collection(self, expr):
         # FIXME how to handle nested reduction?
@@ -187,7 +190,6 @@ class Analyzer(Backend):
         parents = expr.parents
         to_sub = expr[expr.schema.names]
         self._sub(expr, to_sub, parents)
-        self._iters.append(to_sub)
 
     def _reduction_to_window(self, expr):
         clazz = 'Cum' + expr.node_name
@@ -199,7 +201,7 @@ class Analyzer(Backend):
             if isinstance(node, JoinCollectionExpr):
                 projection = JoinProjectCollectionExpr(
                     _input=node, _schema=node.schema,
-                    _fields=node.schema.names)
+                    _fields=node._fetch_fields())
                 self._sub(node, projection, parents)
             elif isinstance(node, JoinProjectCollectionExpr):
                 self._sub(node.input, node, parents)
@@ -222,31 +224,84 @@ class Analyzer(Backend):
             if not parents or \
                     not any(isinstance(parent, (ProjectCollectionExpr, JoinCollectionExpr))
                             for parent in parents):
-                to_sub = expr[expr.lhs, expr.rhs]
+                to_sub = expr[expr]
                 self._sub(expr, to_sub, parents)
-                self._iters.append(to_sub)
 
-    def visit_column(self, expr):
-        # column lift
-        column_name = expr.source_name
-
-        collection = expr.input
-        while True:
-            if isinstance(collection,
-                          (SliceCollectionExpr, FilterCollectionExpr,
-                           SortedCollectionExpr)):
-                collection = collection.input
-            elif isinstance(collection, JoinCollectionExpr):
-                collection, column_name = collection.origin_collection(column_name)
+    def _handle_function(self, expr, raw_inputs):
+        # Since Python UDF cannot support decimal field,
+        # We will try to replace the decimal input with string.
+        # If the output is decimal, we will also try to replace it with string,
+        # and then cast back to decimal
+        def no_output_decimal():
+            if isinstance(expr, (SequenceExpr, Scalar)):
+                return expr.dtype != types.decimal
             else:
-                break
+                return all(t != types.decimal for t in expr.schema.types)
 
-        if column_name != expr.name or expr.is_renamed():
-            parents = expr.parents
-            new_col = collection[column_name].rename(expr.name)
-            self._sub(expr, new_col, parents)
-        elif collection is not expr.input:
-            expr.substitute(expr.input, collection)
+        if all(input.dtype != types.decimal for input in raw_inputs) and \
+                no_output_decimal():
+            return
+
+        inputs = []
+        for input in raw_inputs:
+            if input.dtype != types.decimal:
+                inputs.append(input)
+            else:
+                inputs.append(input.astype('string'))
+
+        attrs = get_attrs(expr)
+        attr_values = dict((attr, getattr(expr, attr, None)) for attr in attrs)
+        if isinstance(expr, (SequenceExpr, Scalar)):
+            if expr.dtype == types.decimal:
+                if isinstance(expr, SequenceExpr):
+                    attr_values['_data_type'] = types.string
+                    attr_values['_source_data_type'] = types.string
+                else:
+                    attr_values['_value_type'] = types.string
+                    attr_values['_source_value_type'] = types.string
+            sub = type(expr)._new(**attr_values)
+
+            if expr.dtype == types.decimal:
+                sub = sub.astype('decimal')
+        else:
+            names = expr.schema.names
+            tps = expr.schema.types
+            cast_names = set()
+            if any(tp == types.decimal for tp in tps):
+                new_tps = []
+                for name, tp in zip(names, tps):
+                    if tp != types.decimal:
+                        new_tps.append(tp)
+                        continue
+                    new_tps.append(types.string)
+                    cast_names.add(name)
+                if len(cast_names) > 0:
+                    attr_values['_schema'] = Schema.from_lists(names, new_tps)
+            sub = type(expr)(**attr_values)
+
+            if len(cast_names) > 0:
+                fields = []
+                for name in names:
+                    if name in cast_names:
+                        fields.append(sub[name].astype('decimal'))
+                    else:
+                        fields.append(name)
+                sub = sub[fields]
+
+        for src_input, input in zip(raw_inputs, inputs):
+            sub.substitute(src_input, input)
+
+        parents = expr.parents
+        self._sub(expr, sub, parents=parents)
+
+    def visit_function(self, expr):
+        self._handle_function(expr, expr._inputs)
+
+    def visit_apply_collection(self, expr):
+        self._handle_function(expr, expr._fields)
+
+    def visit_user_defined_aggregator(self, expr):
+        self._handle_function(expr, [expr.input, ])
 
     def _visit_cut(self, expr):
         is_seq = isinstance(expr, SequenceExpr)
@@ -323,6 +378,32 @@ class Analyzer(Backend):
         else:
             raise NotImplementedError
 
+    def visit_sample(self, expr):
+        if expr._parts is None:
+            raise CompileError('ODPS SQL only support sampling by specifying `parts` arg')
+
+        idxes = [None, ] if expr._i is None else expr._i
+
+        condition = None
+        for idx in idxes:
+            inputs = [expr._parts]
+            if idx is not None:
+                new_val = idx.value + 1
+                inputs.append(Scalar(_value=new_val, _value_type=idx.value_type))
+            if expr._sampled_fields:
+                inputs.extend(expr._sampled_fields)
+            cond = MappedExpr(_inputs=inputs, _func='SAMPLE', _data_type=types.boolean)
+            if condition is None:
+                condition = cond
+            else:
+                condition |= cond
+        to_sub = FilterCollectionExpr(_input=expr.input, _predicate=condition,
+                                      _schema=expr.schema)
+        expr.input.optimize_banned = True
+
+        parents = expr.parents
+        self._sub(expr, to_sub, parents)
+
     def visit_value_counts(self, expr):
         collection = expr.input
         by = expr._by
@@ -333,24 +414,27 @@ class Analyzer(Backend):
         if sort:
             to_sub = to_sub.sort('count', ascending=False)
         self._sub(expr, to_sub, parents)
-        self._iters.append(to_sub)
+
+    def _gen_mapped_expr(self, expr, inputs, func, name,
+                         args=None, kwargs=None, multiple=False):
+        kwargs = dict(_inputs=inputs, _func=func, _name=name,
+                      _func_args=args, _func_kwargs=kwargs,
+                      _multiple=multiple)
+        if isinstance(expr, SequenceExpr):
+            kwargs['_data_type'] = expr.dtype
+        else:
+            kwargs['_value_type'] = expr.dtype
+        return MappedExpr(**kwargs)
 
     def visit_binary_op(self, expr):
         if not options.df.analyze:
             raise NotImplementedError
 
         if isinstance(expr, FloorDivide):
-            kwargs = dict(
-                _inputs=(expr.lhs, expr.rhs),
-                _func=lambda l, r: l // r,
-                _name=expr.name, _func_args=None, _func_kwargs=None,
-                _multiple=True
-            )
-            if isinstance(expr, SequenceExpr):
-                kwargs['_data_type'] = expr.dtype
-            else:
-                kwargs['_value_type'] = expr.dtype
-            to_sub = MappedExpr(**kwargs)
+            func = lambda l, r: l // r
+            # multiple False will pass *args instead of namedtuple
+            to_sub = self._gen_mapped_expr(expr, (expr.lhs, expr.rhs),
+                                           func, expr.name, multiple=False)
             parents = expr.parents
             self._sub(expr, to_sub, parents)
             return
@@ -381,16 +465,7 @@ class Analyzer(Backend):
                 return res
 
             inputs = expr.lhs, expr.rhs, Scalar('+') if isinstance(expr, Add) else Scalar('-')
-            kwargs = dict(
-                _inputs=inputs, _func=func, _name=expr.name,
-                _func_args=None, _func_kwargs=None,
-                _multiple=True
-            )
-            if isinstance(expr, SequenceExpr):
-                kwargs['_data_type'] = expr.dtype
-            else:
-                kwargs['_value_type'] = expr.dtype
-            to_sub = MappedExpr(**kwargs)
+            to_sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
             parents = expr.parents
             self._sub(expr, to_sub, parents)
 
@@ -511,6 +586,7 @@ class Analyzer(Backend):
                     if match:
                         return match.group(group)
         elif isinstance(expr, Find) and expr.end is not None:
+            start = expr.start
             end = expr.end
             sub = expr.sub
 
@@ -551,11 +627,47 @@ class Analyzer(Backend):
         elif isinstance(expr, Slice):
             start, end, step = expr.start, expr.end, expr.step
 
-            func = lambda x: x[start: end: step]
+            if end is None and step is None:
+                raise NotImplementedError
+            if isinstance(start, six.integer_types) and \
+                    isinstance(end, six.integer_types) and step is None:
+                if start >= 0 and end >= 0:
+                    raise NotImplementedError
+
+            has_start = start is not None
+            has_end = end is not None
+            has_step = step is not None
+
+            def func(x, *args):
+                idx = 0
+                s, e, t = None, None, None
+                for i in range(3):
+                    if i == 0 and has_start:
+                        s = args[idx]
+                        idx += 1
+                    if i == 1 and has_end:
+                        e = args[idx]
+                        idx += 1
+                    if i == 2 and has_step:
+                        t = args[idx]
+                        idx += 1
+                return x[s: e: t]
+
+            inputs = expr.input, expr._start, expr._end, expr._step
+            to_sub = self._gen_mapped_expr(expr, tuple(i for i in inputs if i is not None),
+                                           func, expr.name, multiple=False)
+            self._sub(expr, to_sub, parents)
+            return
         elif isinstance(expr, Swapcase):
             func = lambda x: x.swapcase()
         elif isinstance(expr, Title):
             func = lambda x: x.title()
+        elif isinstance(expr, Strptime):
+            date_format = expr.date_format
+
+            def func(x):
+                from datetime import datetime
+                return datetime.strptime(x, date_format)
         else:
             if isinstance(expr, Isalnum):
                 func = lambda x: x.isalnum()

@@ -17,12 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from enum import Enum
-import six
-
 from .core import LazyLoad
 from .cache import cache
 from .. import serializers, utils, types, errors, compat
+from ..compat import Enum, six
 
 
 RESOURCE_SIZE_MAX = 512 * 1024 * 1024  # a single resource's size must be at most 512M

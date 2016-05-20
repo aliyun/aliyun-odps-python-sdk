@@ -431,6 +431,22 @@ PyOdps还提供了SQL插件，来执行ODPS SQL。下面是单行SQL：
       c_bool_b         c_datetime_a         c_datetime_b
     0    False  2012-03-30 23:59:58  2012-03-30 23:59:59
 
+设置SQL运行时参数，可以通过 ``%set`` 设置到全局，或者在sql的cell里用SET进行局部设置。
+
+.. code:: python
+
+    In [17]: %%sql
+             set odps.sql.mapper.split.size = 16;
+             select * from pyodps_iris;
+
+这个会局部设置，不会影响全局的配置。
+
+.. code:: python
+
+   In [18]: %set odps.sql.mapper.split.size = 16
+
+这样设置后，后续运行的SQL都会使用这个设置。
+
 
 持久化pandas DataFrame到ODPS表
 ----------------------------------

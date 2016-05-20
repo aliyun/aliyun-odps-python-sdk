@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import unittest
-
+from odps.compat import unittest
 from odps.udf.tests.udf_examples import *
 from odps.udf.tools import runners
+from odps.tests.core import TestBase
 
 
-class TestSimpleRun(unittest.TestCase):
+class TestSimpleRun(TestBase):
     
     def test_udf(self):
         self.assertEqual([2,3], runners.simple_run(Plus, [(1,1), (2,1)]))
@@ -34,7 +34,7 @@ class TestSimpleRun(unittest.TestCase):
         self.assertEqual(['a', 'b', 'ok'], runners.simple_run(Explode, [('a|b',),]))
 
 
-class TestDistributedCache(unittest.TestCase):
+class TestDistributedCache(TestBase):
 
     @unittest.skip("Not implemented yet")
     def test_get_cache_table(self):

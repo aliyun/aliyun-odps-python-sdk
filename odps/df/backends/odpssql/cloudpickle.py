@@ -531,7 +531,8 @@ class CloudPickler(Pickler):
             save(args)
             write(pickle.REDUCE)
 
-        if obj is not None:
+        # modify here to avoid assert error
+        if obj is not None and id(obj) not in self.memo:
             self.memoize(obj)
 
         # More new special cases (that work with older protocols as
@@ -657,7 +658,7 @@ class CloudUnpickler(Unpickler):
             try:
                 return globals()[name]
             except KeyError:
-                raise e
+                raise ImportError(str(e) + ', name: ' + name)
 
     def load_binint(self):
         # Replace the internal implementation of pickle

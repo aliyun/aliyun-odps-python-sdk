@@ -16,10 +16,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from odps.df.expr.groupby import SequenceGroupBy
+
 from odps.tests.core import TestBase
 from odps.compat import unittest
-from odps.models import Schema
 from odps.df.expr.reduction import *
 
 
@@ -50,7 +49,6 @@ class Test(TestBase):
 
         selected = grouped[[grouped.float32.rename('new_col')]]
         self.assertEqual(selected.schema.names, ['new_col'])
-
 
     def testGroupbyReductions(self):
         expr = self.expr.groupby('string').min()
@@ -102,7 +100,7 @@ class Test(TestBase):
         grouped = self.expr.groupby(['int32', 'boolean']).string.sum()
         self.assertIsInstance(grouped, StringSequenceExpr)
         self.assertIsInstance(grouped, GroupedSum)
-        self.assertIsInstance(grouped._input, SequenceGroupBy)
+        self.assertIsInstance(grouped._input, Column)
 
     def testMutate(self):
         grouped = self.expr.groupby(['int16', self.expr.datetime]).sort(-self.expr.boolean)
@@ -113,6 +111,16 @@ class Test(TestBase):
                                  ['int16', 'datetime', 'float64_sum', 'count'])
         self.assertSequenceEqual(expr._schema.types,
                                  [types.int16, types.datetime, types.float64, types.int64])
+
+    def testIllegalGroupby(self):
+        self.assertRaises(ExpressionError, lambda: self.expr.groupby('int16').agg(self.expr['string']))
+        self.assertRaises(ExpressionError,
+                          lambda: self.expr.groupby('int16').agg(self.expr['string'] + self.expr['string'].sum()))
+        self.assertRaises(ExpressionError,
+                          lambda: self.expr.groupby('int8').agg(self.expr['boolean', ]['boolean'].sum()))
+
+        grouped = self.expr.groupby('string')
+        self.assertRaises(ExpressionError, lambda: self.expr.groupby('boolean').agg(grouped.int32.sum()))
 
 if __name__ == '__main__':
     unittest.main()

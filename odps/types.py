@@ -18,18 +18,18 @@
 # under the License.
 
 import re
-import decimal as _decimal
 from datetime import datetime as _datetime
-
-import six
+import decimal as _builtin_decimal
 
 from . import utils
 from . import compat
+from .compat import six
+from .compat import DECIMAL_TYPES, decimal as _decimal
 
 
 class Column(object):
     def __init__(self, name=None, typo=None, comment=None, label=None):
-        self.name = name
+        self.name = utils.to_str(name)
         self.type = validate_data_type(typo)
         self.comment = comment
         self.label = label
@@ -111,7 +111,7 @@ class Schema(object):
         return len(self.names)
 
     def __contains__(self, name):
-        return name in self._name_indexes
+        return utils.to_str(name) in self._name_indexes
 
     def _repr(self):
         buf = six.StringIO()
@@ -130,7 +130,7 @@ class Schema(object):
         return self.names == other.names and self.types == self.types
 
     def get_type(self, name):
-        return self.types[self._name_indexes[name]]
+        return self.types[self._name_indexes[utils.to_str(name)]]
 
     def append(self, name, typo):
         names = self.names + [name, ]
@@ -176,7 +176,7 @@ class OdpsSchema(Schema):
 
     def __contains__(self, name):
         return super(OdpsSchema, self).__contains__(name) or \
-               name in self._partition_schema
+               utils.to_str(name) in self._partition_schema
 
     def __eq__(self, other):
         if not isinstance(other, OdpsSchema):
@@ -199,6 +199,7 @@ class OdpsSchema(Schema):
             else:
                 raise IndexError('Index out of range')
         elif isinstance(item, six.string_types):
+            item = utils.to_str(item)
             if item in self._name_indexes:
                 idx = self._name_indexes[item]
                 return self[idx]
@@ -261,13 +262,13 @@ class OdpsSchema(Schema):
         return self._partitions
 
     def get_column(self, name):
-        index = self._name_indexes.get(name)
+        index = self._name_indexes.get(utils.to_str(name))
         if index is None:
             raise ValueError('Column %s does not exists' % name)
         return self._columns[index]
 
     def get_partition(self, name):
-        index = self._partition_schema._name_indexes.get(name)
+        index = self._partition_schema._name_indexes.get(utils.to_str(name))
         if index is None:
             raise ValueError('Partition %s does not exists' % name)
         return self._partitions[index]
@@ -674,6 +675,8 @@ class Decimal(OdpsPrimitive):
         if val is None and self.nullable:
             return True
 
+        if not isinstance(val, _decimal.Decimal) and isinstance(val, DECIMAL_TYPES):
+            val = _decimal.Decimal(str(val))
         to_scale = _decimal.Decimal(str(10 ** -self._max_scale))
         scaled_val = val.quantize(to_scale, _decimal.ROUND_HALF_UP)
         int_len = len(str(scaled_val)) - self._max_scale - 1
@@ -686,7 +689,9 @@ class Decimal(OdpsPrimitive):
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
 
-        return _decimal.Decimal(value)
+        if six.PY3 and isinstance(value, six.binary_type):
+            value = value.decode('utf-8')
+        return _builtin_decimal.Decimal(value)
 
 
 class Array(DataType):
@@ -814,13 +819,22 @@ def validate_data_type(data_type):
     raise ValueError('Invalid data type: %s' % repr(data_type))
 
 
+integer_builtins = six.integer_types
+float_builtins = (float,)
+try:
+    import numpy as np
+    integer_builtins += (np.integer,)
+    float_builtins += (np.float,)
+except ImportError:
+    pass
+
 _odps_primitive_to_builtin_types = {
-    bigint: six.integer_types,
-    double: float,
+    bigint: integer_builtins,
+    double: float_builtins,
     string: six.string_types,
     datetime: _datetime,
     boolean: bool,
-    decimal: _decimal.Decimal
+    decimal: DECIMAL_TYPES
 }
 
 
@@ -831,14 +845,14 @@ def _infer_primitive_data_type(value):
 
 
 def _validate_primitive_value(value, data_type):
-    if isinstance(value, bytearray):
+    if isinstance(value, (bytearray, six.binary_type)):
         value = value.decode('utf-8')
     if value is None:
         return None
 
     builtin_types = _odps_primitive_to_builtin_types[data_type]
     if isinstance(value, builtin_types):
-        return data_type.cast_value(value, data_type)
+        return value
 
     inferred_data_type = _infer_primitive_data_type(value)
     if inferred_data_type is None:
