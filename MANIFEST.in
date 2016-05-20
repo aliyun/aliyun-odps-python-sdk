@@ -1,3 +1,5 @@
 recursive-include odps/static *.*
 recursive-include odps/internal/static *.*
 include requirements.txt
+global-include *.pyx
+global-include *.pxd
