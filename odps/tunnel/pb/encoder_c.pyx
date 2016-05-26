@@ -1,7 +1,7 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-from internal_c cimport *
+from util_c cimport *
 
 cdef class Encoder:
     def __cinit__(self):
@@ -17,29 +17,37 @@ cdef class Encoder:
         return bytes(self._buffer)
 
     cpdef int append_tag(self, int field_num, int wire_type):
-        return append_tag(self._buffer, field_num, wire_type)
+        cdef int key
+        key = (field_num << 3) | wire_type
+        cdef int size = set_varint64(key, self._buffer)
+        return size
 
     cpdef int append_sint32(self, int32_t value):
-        return append_sint32(self._buffer, value)
+        return set_signed_varint32(value, self._buffer)
 
     cpdef int append_uint32(self, uint32_t value):
-        return append_uint32(self._buffer, value)
+        return set_varint32(value, self._buffer)
 
     cpdef int append_sint64(self, int64_t value):
-        return append_sint64(self._buffer, value)
+        return set_signed_varint64(value, self._buffer)
 
     cpdef int append_uint64(self, uint64_t value):
-        return append_uint64(self._buffer, value)
+        return set_varint64(value, self._buffer)
 
     cpdef int append_bool(self, bint value):
-        return append_bool(self._buffer, value)
+        return set_varint32(value, self._buffer)
 
     cpdef int append_float(self, float value):
-        return append_float(self._buffer, value)
+        self._buffer += (<unsigned char *>&value)[:sizeof(float)]
+        return sizeof(float)
 
     cpdef int append_double(self, double value):
-        return append_double(self._buffer, value)
+        self._buffer += (<unsigned char *>&value)[:sizeof(double)]
+        return sizeof(double)
 
     cpdef int append_string(self, const unsigned char *value):
-        return append_string(self._buffer, value)
+        cdef int size
+        size = set_varint32(len(value), self._buffer)
+        self._buffer += value
+        return size + len(value)
 

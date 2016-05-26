@@ -18,13 +18,9 @@
 # under the License.
 
 import zlib
-import math
 
 import threading
-from odps import errors, compat, options
-from odps import errors
-from odps import compat
-from odps.compat import six
+from odps import errors, compat
 from odps.compat import Enum
 
 

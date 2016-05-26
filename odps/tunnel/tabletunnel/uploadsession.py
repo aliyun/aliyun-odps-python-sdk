@@ -182,7 +182,6 @@ class BaseRecordWriter(object):
         self._writer = None
 
     def write(self, record):
-
         n_record_fields = len(record)
         n_columns = len(self._columns)
 

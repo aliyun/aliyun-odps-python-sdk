@@ -26,7 +26,7 @@ import contextlib
 from .core import LazyLoad, XMLRemoteModel
 from .job import Job
 from .. import serializers, utils, errors, compat, readers, options
-from ..compat import ElementTree, Enum, six
+from ..compat import ElementTree, Enum, six, OrderedDict
 
 
 class Instance(LazyLoad):
@@ -376,6 +376,42 @@ class Instance(LazyLoad):
 
         resp = self._client.get(self.resource(), params=params)
         return Instance.Task.TaskProgress.parse(self._client, resp)
+
+    def get_task_detail(self, task_name):
+        """
+        Get task's detail
+
+        :param task_name: task name
+        :return: the task's detail
+        :rtype: list or dict according to the JSON
+        """
+
+        from odps.compat import json  # fix object_pairs_hook parameter for Py2.6
+
+        params = {'instancedetail': '',
+                  'taskname': task_name}
+
+        resp = self._client.get(self.resource(), params=params)
+        return json.loads(resp.text if six.PY3 else resp.content,
+                          object_pairs_hook=OrderedDict)
+
+    def get_task_detail2(self, task_name):
+        """
+        Get task's detail v2
+
+        :param task_name: task name
+        :return: the task's detail
+        :rtype: list or dict according to the JSON
+        """
+
+        from odps.compat import json  # fix object_pairs_hook parameter for Py2.6
+
+        params = {'detail': '',
+                  'taskname': task_name}
+
+        resp = self._client.get(self.resource(), params=params)
+        return json.loads(resp.text if six.PY3 else resp.content,
+                          object_pairs_hook=OrderedDict)
 
     def get_logview_address(self, hours=None):
         """

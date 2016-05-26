@@ -274,15 +274,9 @@ class OdpsSchema(Schema):
         return self._partitions[index]
 
     def is_partition(self, name):
-        if isinstance(name, Partition):
-            return True
         if isinstance(name, Column):
             name = name.name
-        try:
-            self.get_partition(name)
-            return True
-        except ValueError:
-            return False
+        return name in self._partition_schema._name_indexes
 
     def get_type(self, name):
         if name in self._name_indexes:
@@ -475,8 +469,17 @@ class DataType(object):
     """
     Abstract data type
     """
-
+    _singleton = True
     __slots__ = 'nullable',
+
+    def __new__(cls, *args, **kwargs):
+        if cls._singleton:
+            if not hasattr(cls, '_instance'):
+                cls._instance = object.__new__(cls)
+                cls._hash = hash(cls)
+            return cls._instance
+        else:
+            return object.__new__(cls)
 
     def __init__(self, nullable=True):
         self.nullable = nullable
@@ -494,14 +497,16 @@ class DataType(object):
         return self._equals(other)
 
     def _equals(self, other):
-        if isinstance(other, six.string_types):
-            other = validate_data_type(other)
+        other = validate_data_type(other)
 
-        return isinstance(other, type(self)) and \
-            (self.nullable == other.nullable)
+        if self.nullable != other.nullable:
+            return False
+        if type(self) == type(other):
+            return True
+        return isinstance(other, type(self))
 
     def __hash__(self):
-        return hash(type(self))
+        return self._hash
 
     @property
     def name(self):
@@ -695,7 +700,8 @@ class Decimal(OdpsPrimitive):
 
 
 class Array(DataType):
-    __slots__ = 'nullable', 'value_type'
+    _singleton = False
+    __slots__ = 'nullable', 'value_type', '_hash'
 
     def __init__(self, value_type, nullable=True):
         super(Array, self).__init__(nullable=nullable)
@@ -709,15 +715,17 @@ class Array(DataType):
         return '{0}<{1}>'.format(type(self).__name__.lower(),
                                  self.value_type.name)
 
-    def __hash__(self):
-        return hash(type(self)) * hash(type(self.value_type))
-
     def _equals(self, other):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
         return DataType._equals(self, other) and \
             self.value_type == other.value_type
+
+    def __hash__(self):
+        if not hasattr(self, '_hash'):
+            self._hash = hash(hash(type(self)) * hash(type(self.value_type)))
+        return self._hash
 
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
@@ -733,7 +741,8 @@ class Array(DataType):
 
 
 class Map(DataType):
-    __slots__ = 'nullable', 'key_type', 'value_type'
+    _singleton = False
+    __slots__ = 'nullable', 'key_type', 'value_type', '_hash'
 
     def __init__(self, key_type, value_type, nullable=True):
         super(Map, self).__init__(nullable=nullable)
@@ -752,11 +761,6 @@ class Map(DataType):
                                      self.key_type.name,
                                      self.value_type.name)
 
-    def __hash__(self):
-        return hash(type(self)) * \
-               hash(type(self.key_type)) * \
-               hash(type(self.value_type))
-
     def _equals(self, other):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
@@ -764,6 +768,15 @@ class Map(DataType):
         return DataType._equals(self, other) and \
             self.key_type == other.key_type and \
             self.value_type == other.value_type
+
+    def __hash__(self):
+        if not hasattr(self, '_hash'):
+            self._hash = hash(
+                hash(type(self)) *
+                hash(type(self.key_type)) *
+                hash(type(self.value_type))
+            )
+        return self._hash
 
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
@@ -845,10 +858,10 @@ def _infer_primitive_data_type(value):
 
 
 def _validate_primitive_value(value, data_type):
-    if isinstance(value, (bytearray, six.binary_type)):
-        value = value.decode('utf-8')
     if value is None:
         return None
+    if isinstance(value, (bytearray, six.binary_type)):
+        value = value.decode('utf-8')
 
     builtin_types = _odps_primitive_to_builtin_types[data_type]
     if isinstance(value, builtin_types):

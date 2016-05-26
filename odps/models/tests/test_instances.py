@@ -105,7 +105,7 @@ class Test(TestBase):
                                                Instance.Task.TaskStatus.SUCCESS))
         for task_status in instance._tasks:
             self.assertIn(task_status.name, task_names)
-            self.assertGreater(len(task_status.type), 0)
+            self.assertGreaterEqual(len(task_status.type), 0)
             self.assertGreaterEqual(task_status.start_time, instance.start_time)
             self.assertLessEqual(task_status.end_time, instance.end_time)
 
@@ -115,17 +115,6 @@ class Test(TestBase):
             self.assertIsInstance(result, str)
 
         self.assertGreaterEqual(instance.priority, 0)
-
-        while True:
-            if any(task.type == 'SQL' for task in instance._tasks):
-                break
-            try:
-                instance = next(instances)
-            except StopIteration:
-                return
-
-        tasks = instance.get_tasks()
-        self.assertTrue(any(map(lambda task: isinstance(task, SQLTask), tasks)))
 
     def testCreateInstanceXML(self):
         instances = self.odps._project.instances
@@ -163,6 +152,13 @@ class Test(TestBase):
         instance = self.odps.execute_sql('drop table %s' % test_table)
         self.assertTrue(instance.is_successful())
         self.assertFalse(self.odps.exist_table(test_table))
+
+        tasks = instance.get_tasks()
+        self.assertTrue(any(map(lambda task: isinstance(task, SQLTask), tasks)))
+
+        for name in instance.get_task_names():
+            self.assertIsNotNone(instance.get_task_detail(name))
+            self.assertIsNotNone(instance.get_task_detail2(name))
 
         # test stop
         self.assertRaises(errors.InvalidStateSetting, instance.stop)

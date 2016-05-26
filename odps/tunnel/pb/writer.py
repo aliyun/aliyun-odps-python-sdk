@@ -21,7 +21,7 @@ from . import Encoder
 
 
 class ProtobufWriter(object):
-    """ProtobufWriter is a stream-interface wrapper around pywirebuf_encoder.Encoder(cpp)
+    """ProtobufWriter is a stream-interface wrapper around encoder_c.Encoder(c)
     and encoder.Encoder(py)
     """
 

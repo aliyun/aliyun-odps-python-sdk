@@ -1,7 +1,7 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-from internal_c cimport *
+from util_c cimport *
 
 cdef class Encoder:
     cdef bytearray _buffer

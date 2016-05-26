@@ -23,12 +23,17 @@ from ...config import options
 try:
     if not options.force_py:
         from .encoder_c import Encoder
+        from .decoder_c import Decoder
     else:
         Encoder = None
+        Decoder = None
 except ImportError as e:
     if options.force_c:
         raise e
     Encoder = None
+    Decoder = None
 
 if Encoder is None:
     from .encoder import Encoder
+if Decoder is None:
+    from .decoder import Decoder

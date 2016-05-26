@@ -1129,6 +1129,8 @@ class OdpsSQLCompiler(Backend):
                 compiled= 'FROM_UNIXTIME({0})'.format(utils.to_timestamp(expr._value))
             elif isinstance(expr._value, Decimal):
                 compiled = 'CAST({0} AS DECIMAL)'.format(repr(str(expr._value)))
+        else:
+            compiled = 'CAST(NULL AS {0})'.format(types.df_type_to_odps_type(expr._value_type))
 
         if compiled is None:
             compiled = repr(expr._value)

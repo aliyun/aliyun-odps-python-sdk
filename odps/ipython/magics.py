@@ -24,7 +24,7 @@ from odps.compat import StringIO
 from odps import types as odps_types
 from odps import options, ODPS
 from odps.utils import init_progress_bar, replace_sql_parameters
-from odps.df import DataFrame, Scalar
+from odps.df import DataFrame, Scalar, NullScalar
 from odps.df.backends.frame import ResultFrame
 from odps.ui.common import html_notify
 
@@ -246,4 +246,5 @@ def load_ipython_extension(ipython):
     # Do global import when load extension
     ipython.user_ns['DataFrame'] = DataFrame
     ipython.user_ns['Scalar'] = Scalar
+    ipython.user_ns['NullScalar'] = NullScalar
     ipython.user_ns['options'] = options

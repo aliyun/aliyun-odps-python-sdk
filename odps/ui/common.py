@@ -36,6 +36,9 @@ require(['pyodps'], function(p) { p.register_css('##CSS_STR##'); });
 
 try:
     from ..console import widgets, ipython_major_version, in_ipython_frontend
+    if any(v is None for v in (widgets, ipython_major_version, in_ipython_frontend)):
+        raise ImportError
+
     if ipython_major_version < 4:
         from IPython.utils.traitlets import Unicode, List
     else:

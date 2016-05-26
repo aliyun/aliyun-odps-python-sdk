@@ -46,29 +46,27 @@ class Checksum(object):
         assert isinstance(val, bool)
 
         val = self.TRUE if val else self.FALSE
-        self.update(val)
+        self._update(val)
 
     def update_int(self, val):
-        assert isinstance(val, integer_builtins)
-
         val = struct.pack('<i', val)
-        self.update(val)
+        self._update(val)
 
     def update_long(self, val):
-        assert isinstance(val, integer_builtins)
-
         val = struct.pack('<q', val)
-        self.update(val)
+        self._update(val)
 
     def update_float(self, val):
-        assert isinstance(val, float_builtins)
-
         val = struct.pack('<d', val)
-        self.update(val)
+        self._update(val)
+
+    def _update(self, b):
+        # update crc without type checking
+        self.crc.update(bytearray(b))
             
     def update(self, b):
-        b = bytearray(utils.to_binary(b))
-        self.crc.update(b)
+        b = utils.to_binary(b)
+        self._update(b)
         
     def getvalue(self):
         return self.crc.getvalue()

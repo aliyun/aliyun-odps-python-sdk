@@ -31,8 +31,9 @@ from odps.tests.core import TestBase
 from odps.models import Schema
 from datetime import datetime
 
-
+# remember to reset False before committing
 ENABLE_PROFILE = False
+DUMP_PROFILE = False
 
 
 class Test(TestBase):
@@ -52,9 +53,11 @@ class Test(TestBase):
 
     def tearDown(self):
         if ENABLE_PROFILE:
+            if DUMP_PROFILE:
+                self.pr.dump_stats('profile.out')
             p = Stats(self.pr)
             p.strip_dirs()
-            p.sort_stats('cumtime')
+            p.sort_stats('time')
             p.print_stats(40)
             p.print_callees('types.py:846\(validate_value', 20)
             p.print_callees('types.py:828\(_validate_primitive_value', 20)
@@ -62,7 +65,7 @@ class Test(TestBase):
         TestBase.teardown(self)
 
     def testWrite(self):
-        table_name = 'test_tunnel_write'
+        table_name = 'pyodps_test_tunnel_write_performance'
         self.odps.create_table(table_name, schema=self.SCHEMA, if_not_exists=True)
         ss = self.tunnel.create_upload_session(table_name)
         r = ss.new_record()
@@ -80,6 +83,36 @@ class Test(TestBase):
             n_bytes = writer.n_bytes
         print(n_bytes, 'bytes', float(n_bytes) / 1024 / 1024 / (time.time() - start), 'MiB/s')
         ss.commit([0])
+        self.odps.delete_table(table_name, if_exists=True)
+
+    def testRead(self):
+        table_name = 'pyodps_test_tunnel_read_performance'
+        self.odps.delete_table(table_name, if_exists=True)
+        t = self.odps.create_table(table_name, schema=self.SCHEMA)
+
+        def gen_data():
+            for i in range(self.DATA_AMOUNT):
+                r = t.new_record()
+                r[0] = 2 ** 63 - 1
+                r[1] = 0.0001
+                r[2] = datetime(2015, 11, 11)
+                r[3] = True
+                r[4] = self.STRING_LITERAL
+                r[5] = Decimal('3.15')
+                yield r
+
+        self.odps.write_table(t, gen_data())
+
+        ds = self.tunnel.create_download_session(table_name)
+
+        start = time.time()
+        cnt = 0
+        with ds.open_record_reader(0, ds.count) as reader:
+            for _ in reader:
+                cnt += 1
+            n_bytes = reader.n_bytes
+        print(n_bytes, 'bytes', float(n_bytes) / 1024 / 1024 / (time.time() - start), 'MiB/s')
+        self.assertEqual(self.DATA_AMOUNT, cnt)
         self.odps.delete_table(table_name, if_exists=True)
 
     def testBufferedWrite(self):

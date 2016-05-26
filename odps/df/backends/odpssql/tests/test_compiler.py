@@ -37,7 +37,7 @@ from odps.df.backends.odpssql.compiler import BINARY_OP_COMPILE_DIC, \
 from odps.df.backends.errors import CompileError
 from odps.df.expr.tests.core import MockTable
 from odps.df.backends.odpssql.cloudpickle import *  # noqa
-from odps.df import Scalar, switch, year, month, day, hour, minute, second, millisecond
+from odps.df import Scalar, NullScalar, switch, year, month, day, hour, minute, second, millisecond
 from odps.config import option_context
 
 
@@ -77,8 +77,10 @@ class Test(TestBase):
                    'WHERE t1.`id` < 10'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
-        expr = self.expr[Scalar(3).rename('const'), self.expr.id]
-        expected = 'SELECT 3 AS `const`, t1.`id` \n' \
+        expr = self.expr[Scalar(3).rename('const'),
+                         NullScalar('string').rename('string_const'),
+                         self.expr.id]
+        expected = 'SELECT 3 AS `const`, CAST(NULL AS STRING) AS `string_const`, t1.`id` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 

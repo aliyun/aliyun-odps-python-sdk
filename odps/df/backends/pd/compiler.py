@@ -536,7 +536,7 @@ class PandasCompiler(Backend):
             op = 'size' if op == 'count' else op
 
             input = children_vals[0]
-            if isinstance(expr, Count) and isinstance(expr.input, CollectionExpr):
+            if isinstance(expr, Count) and isinstance(expr.input, (CollectionExpr, SequenceExpr)):
                 return len(input)
             return getattr(input, op)(**kv)
 

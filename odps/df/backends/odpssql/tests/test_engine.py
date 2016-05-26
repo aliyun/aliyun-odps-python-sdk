@@ -990,6 +990,7 @@ class Test(TestBase):
             (partial(stats, 'isMale', all), self.expr.isMale.all()),
             (partial(stats, 'name', nunique), self.expr.name.nunique()),
             (partial(stats, 'id', mean), self.expr.id.agg(Agg, rtype='float')),
+            (partial(stats, 'id', lambda x: len(x)), self.expr.id.count()),
         ]
 
         fields = [it[1].rename('f'+str(i)) for i, it in enumerate(methods_to_fields)]

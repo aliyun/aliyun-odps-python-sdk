@@ -1,12 +1,14 @@
 from libc.stdint cimport *
 
-cdef int32_t get_varint32(const unsigned char *memory, int *offset)
+cdef char * read_stream(object input, int size)
 
-cdef int64_t get_varint64(const unsigned char *memory, int *offset)
+cdef int32_t get_varint32(object input)
 
-cdef int32_t get_signed_varint32(const unsigned char *memory, int *offset)
+cdef int64_t get_varint64(object input)
 
-cdef int64_t get_signed_varint64(const unsigned char *memory, int *offset)
+cdef int32_t get_signed_varint32(object input)
+
+cdef int64_t get_signed_varint64(object input)
 
 cdef int set_varint32(int32_t varint, bytearray buf)
 

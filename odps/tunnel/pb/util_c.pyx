@@ -1,9 +1,12 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-cdef int32_t get_varint32(const unsigned char *varint, int *offset):
+cdef char * read_stream(object input, int size):
+    return input.read(size)
+
+cdef int32_t get_varint32(object input):
     """
-    Deserialize a protobuf varint starting from give offset in memory; update
+    Deserialize a protobuf varint read from input stream; update
     offset based on number of bytes consumed.
     """
     cdef int32_t value = 0
@@ -12,19 +15,19 @@ cdef int32_t get_varint32(const unsigned char *varint, int *offset):
     cdef int val_byte
 
     while True:
-        val_byte = varint[offset[0] + index]
+        val_byte = read_stream(input, 1)[0]
         value += (val_byte & 0x7F) * base
         if (val_byte & 0x80):
             base *= 128
             index += 1
         else:
-            offset[0] += (index + 1)
+            input.add_offset(index + 1)
             return value
 
 
-cdef int64_t get_varint64(const unsigned char *varint, int *offset):
+cdef int64_t get_varint64(object input):
     """
-    Deserialize a protobuf varint starting from give offset in memory; update
+    Deserialize a protobuf varint read from input stream; update
     offset based on number of bytes consumed.
     """
     cdef int64_t value = 0
@@ -33,23 +36,19 @@ cdef int64_t get_varint64(const unsigned char *varint, int *offset):
     cdef int val_byte
 
     while True:
-        val_byte = varint[offset[0] + index]
+        val_byte = read_stream(input, 1)[0]
         value += (val_byte & 0x7F) * base
         if (val_byte & 0x80):
             base *= 128
             index += 1
         else:
-            offset[0] += (index + 1)
+            input.add_offset(index + 1)
             return value
 
-def get_varint(data, offset=0):
-    cdef int _offset = offset
-    return get_varint64(data, &_offset)
 
-
-cdef int32_t get_signed_varint32(const unsigned char *varint, int *offset):
+cdef int32_t get_signed_varint32(object input):
     """
-    Deserialize a signed protobuf varint starting from give offset in memory;
+    Deserialize a signed protobuf varint read from input stream;
     update offset based on number of bytes consumed.
     """
     cdef uint32_t value = 0
@@ -58,19 +57,19 @@ cdef int32_t get_signed_varint32(const unsigned char *varint, int *offset):
     cdef int val_byte
 
     while True:
-        val_byte = varint[offset[0] + index]
+        val_byte = read_stream(input, 1)[0]
         value += (val_byte & 0x7F) * base
         if (val_byte & 0x80):
             base *= 128
             index += 1
         else:
-            offset[0] += (index + 1)
+            input.add_offset(index + 1)
             return <int32_t>((value >> 1) ^ (-(value & 1))) # zigzag decoding
 
 
-cdef int64_t get_signed_varint64(const unsigned char *varint, int *offset):
+cdef int64_t get_signed_varint64(object input):
     """
-    Deserialize a signed protobuf varint starting from give offset in memory;
+    Deserialize a signed protobuf varint read from input stream;
     update offset based on number of bytes consumed.
     """
     cdef uint64_t value = 0
@@ -79,18 +78,14 @@ cdef int64_t get_signed_varint64(const unsigned char *varint, int *offset):
     cdef int val_byte
 
     while True:
-        val_byte = varint[offset[0] + index]
+        val_byte = read_stream(input, 1)[0]
         value += (val_byte & 0x7F) * base
         if (val_byte & 0x80):
             base *= 128
             index += 1
         else:
-            offset[0] += (index + 1)
+            input.add_offset(index + 1)
             return <int64_t>((value >> 1) ^ (-(value & 1))) # zigzag decoding
-
-def get_signed_varint(data, offset=0):
-    cdef int _offset = offset
-    return get_varint64(data, &_offset)
 
 
 cdef int set_varint32(int32_t varint, bytearray buf):

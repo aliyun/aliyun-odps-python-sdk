@@ -1043,6 +1043,7 @@ class Test(TestBase):
             (lambda s: df.isMale.all(), self.expr.isMale.all()),
             (lambda s: df.name.nunique(), self.expr.name.nunique()),
             (lambda s: df.id.mean(), self.expr.id.agg(Agg, rtype='float')),
+            (lambda s: df.id.count(), self.expr.id.count()),
         ]
 
         fields = [it[1].rename('f'+str(i)) for i, it in enumerate(methods_to_fields)]

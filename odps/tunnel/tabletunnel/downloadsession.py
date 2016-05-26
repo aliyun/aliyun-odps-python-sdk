@@ -16,10 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import math
-
-from .. import io
-from ..pb import decoder
+from ..pb import Decoder
 from ..io import CompressOption, SnappyInputStream
 from ..checksum import Checksum
 from ..errors import TunnelError
@@ -28,6 +25,7 @@ from ... import serializers, utils, types, compat
 from ...compat import Enum, six
 from ...models import Schema, Record
 from ...readers import AbstractRecordReader
+from ... import errors
 
 
 class TableDownloadSession(serializers.JSONSerializableModel):
@@ -164,7 +162,7 @@ class TableTunnelReader(AbstractRecordReader):
             self._columns = self._schema.columns
         else:
             self._columns = [self._schema[c] for c in columns]
-        self._reader = decoder.Decoder(input_stream)
+        self._reader = Decoder(input_stream)
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._curr_cusor = 0
@@ -172,6 +170,17 @@ class TableTunnelReader(AbstractRecordReader):
     @property
     def count(self):
         return self._curr_cusor
+
+    def _mode(self):
+        try:
+            from ..pb.decoder_c import Decoder
+
+            if isinstance(self._reader, Decoder):
+                return 'c'
+            else:
+                return 'py'
+        except ImportError:
+            return 'py'
 
     def _read_array(self, value_type):
         res = []

@@ -1033,10 +1033,10 @@ class Scalar(TypedExpr):
         if val is None and value_type is None:
             raise ValueError('Either value or value_type should be provided')
 
-        if not isinstance(val, NodeMetaclass):
+        if val is not None and not isinstance(val, NodeMetaclass):
             return types.validate_value_type(val, value_type)
         else:
-            return value_type
+            return types.validate_data_type(value_type)
 
     @classmethod
     def _typed_classes(cls, *args, **kwargs):
@@ -1058,8 +1058,9 @@ class Scalar(TypedExpr):
                 value_type is not None:
             kwargs['_value_type'] = types.validate_data_type(value_type)
 
-        kwargs['_value_type'] = types.validate_value_type(kwargs.get('_value'),
-                                                          kwargs.get('_value_type'))
+        if kwargs.get('_value') is not None:
+            kwargs['_value_type'] = types.validate_value_type(kwargs.get('_value'),
+                                                              kwargs.get('_value_type'))
 
         if '_source_name' not in kwargs:
             kwargs['_source_name'] = kwargs.get('_name')
@@ -1132,10 +1133,7 @@ class Scalar(TypedExpr):
         raise ExpressionError('Cannot convert valued scalar to sequence')
 
     def accept(self, visitor):
-        if self._value is not None:
-            visitor.visit_scalar(self)
-        else:
-            raise NotImplementedError
+        visitor.visit_scalar(self)
 
 
 class AsTypedScalar(Scalar):

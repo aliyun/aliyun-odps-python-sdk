@@ -44,6 +44,8 @@ _EAW_MAP = {'Na': 1, 'N': 1, 'W': 2, 'F': 2, 'H': 1}
 import decimal
 DECIMAL_TYPES = [decimal.Decimal, ]
 
+import json
+
 if six.PY3:
     lrange = lambda *x: list(range(*x))
     lzip = lambda *x: list(zip(*x))
@@ -164,6 +166,12 @@ else:
         dictconfig = lambda config: logging.config.dictConfig(config)
 
     import __builtin__ as builtins
+
+if PY26:
+    try:
+        import simplejson as json
+    except ImportError:
+        pass
 if PY26 or LESS_PY32:
     try:
         from ..tests.dictconfig import dictConfig

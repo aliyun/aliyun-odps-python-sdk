@@ -22,6 +22,7 @@ from datetime import datetime
 import random
 import time
 from multiprocessing.pool import ThreadPool
+from decimal import Decimal
 
 try:
     from string import letters
@@ -31,7 +32,6 @@ except ImportError:
 from odps.compat import reload_module
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, OrderedDict
-from odps.compat import Decimal
 from odps.models import Schema
 from odps import types, options
 from odps.tunnel import TableTunnel
@@ -62,6 +62,12 @@ def bothPyAndC(func):
 
                 from odps.tunnel.pb import writer
                 reload_module(writer)
+
+                from odps.tunnel.tabletunnel import downloadsession
+                reload_module(downloadsession)
+
+                from odps.tunnel.tabletunnel import tabletunnel
+                reload_module(tabletunnel)
 
                 self.tunnel = TableTunnel(self.odps, endpoint=self.odps._tunnel_endpoint)
                 self.mode = t
@@ -102,6 +108,9 @@ class Test(TestBase):
     def _download_data(self, test_table, compress=False, columns=None, **kw):
         download_ss = self.tunnel.create_download_session(test_table, **kw)
         with download_ss.open_record_reader(0, 3, compress=compress, columns=columns) as reader:
+            # test use right py or c writer
+            self.assertEqual(self.mode, reader._mode())
+
             records = [tuple(record.values) for record in reader]
 
             return records

@@ -36,6 +36,7 @@ with open('requirements.txt') as f:
 
 if PY26:
     requirements.append('ordereddict>=1.1')
+    requirements.append('simplejson>=2.1.0')
     requirements.append('threadpool>=1.3')
 
 
@@ -47,7 +48,7 @@ if os.path.exists('README.rst'):
 
 setup_options = dict(
     name='pyodps',
-    version='0.5.1',
+    version='0.5.2',
     description='ODPS Python SDK',
     long_description=long_description,
     author='Wu Wei',
@@ -79,7 +80,7 @@ try:
 
     ext_modules = cythonize([
         Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx']),
-        Extension('odps.tunnel.pb.internal_c', ['odps/tunnel/pb/internal_c.pyx']),
+        Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx']),
         Extension('odps.tunnel.pb.util_c', ['odps/tunnel/pb/util_c.pyx']),
         Extension('odps.crc32c_c', ['odps/src/crc32c/*.pyx'])
     ])
