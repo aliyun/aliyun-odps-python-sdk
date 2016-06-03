@@ -90,6 +90,13 @@ if np:
         'CumCount': lambda x: len(x)
     }
 
+JOIN_DICT = {
+    'INNER': 'inner',
+    'LEFT OUTER': 'left',
+    'RIGHT OUTER': 'right',
+    'FULL OUTER': 'outer'
+}
+
 
 class PandasCompiler(Backend):
     """
@@ -381,7 +388,7 @@ class PandasCompiler(Backend):
                       for field in fields_exprs]
             length = max(len(it) for it in fields)
             for i in range(len(fields)):
-                bys = None
+                bys = self._get_compiled_bys(kw, expr._by, length)
                 if isinstance(fields_exprs[i], SequenceExpr):
                     is_reduction = False
                     for n in itertools.chain(*(fields_exprs[i].all_path(expr.input))):
@@ -389,11 +396,10 @@ class PandasCompiler(Backend):
                             is_reduction = True
                             break
                     if not is_reduction:
-                        if not bys:
-                            bys = self._get_compiled_bys(kw, expr._by, length)
                         fields[i] = fields[i].groupby(bys).first()
                 if len(fields[i]) == 1:
-                    fields[i] = fields[i] * length
+                    fields[i] = pd.Series(fields[i] * length,
+                                          name=fields_exprs[i].name).groupby(bys).first()
 
             df = pd.concat(fields, axis=1)
             if expr._having is not None:
@@ -905,10 +911,13 @@ class PandasCompiler(Backend):
 
             left_ons = []
             right_ons = []
+            on_same_names = set()
             for eq in eqs:
-                if eq._lhs.name == eq._rhs.name:
-                    left_ons.append(eq._lhs.name)
-                    right_ons.append(eq._rhs.name)
+                if isinstance(eq._lhs, Column) and isinstance(eq._rhs, Column) and \
+                        eq._lhs.source_name == eq._rhs.source_name:
+                    left_ons.append(eq._lhs.source_name)
+                    right_ons.append(eq._rhs.source_name)
+                    on_same_names.add(eq._lhs.source_name)
                     continue
 
                 left_name = str(uuid.uuid4())
@@ -919,7 +928,14 @@ class PandasCompiler(Backend):
                 right[right_name] = kw.get(eq._rhs)
                 right_ons.append(right_name)
 
-            merged = left.merge(right, how=expr._how.lower(), left_on=left_ons,
+            for idx, collection in enumerate([left, right]):
+                collection_expr = (expr._lhs, expr._rhs)[idx]
+                for field_name in collection_expr.schema.names:
+                    if field_name in expr._renamed_columns and field_name in on_same_names:
+                        new_name = expr._renamed_columns[field_name][idx]
+                        collection[new_name] = collection[field_name]
+
+            merged = left.merge(right, how=JOIN_DICT[expr._how], left_on=left_ons,
                                 right_on=right_ons,
                                 suffixes=(expr._left_suffix, expr._right_suffix))
             return merged[expr.schema.names]

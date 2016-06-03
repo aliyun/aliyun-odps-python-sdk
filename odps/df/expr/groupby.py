@@ -249,9 +249,11 @@ class GroupBy(BaseGroupBy):
             raise ValueError('Cannot aggregate on grouped data')
         [self._validate_agg(agg) for agg in aggregations]
 
-        names = [by.name for by in self._by if isinstance(by, SequenceExpr)] + \
+        names = [by.name for by in self._by
+                 if isinstance(by, (Scalar, SequenceExpr)) and by.name is not None] + \
                 [agg.name for agg in aggregations]
-        types = [by._data_type for by in self._by if isinstance(by, SequenceExpr)] + \
+        types = [by.dtype for by in self._by
+                 if isinstance(by, (Scalar, SequenceExpr)) and by.name is not None] + \
                 [agg._data_type for agg in aggregations]
 
         return GroupByCollectionExpr(_input=self, _aggregations=aggregations,

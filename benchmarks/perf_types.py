@@ -19,9 +19,10 @@
 
 import cProfile
 from datetime import datetime
+from decimal import Decimal
 from pstats import Stats
 
-from odps.compat import unittest, Decimal
+from odps.compat import unittest
 from odps.tests.core import TestBase
 from odps.models import Schema
 from odps.types import Record

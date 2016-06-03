@@ -19,30 +19,30 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-from util_c cimport *
+from ..pb.decoder_c cimport Decoder
+from ..checksum_c cimport Checksum
 
-cdef class Decoder:
-    cdef int _pos
-    cdef object _stream
 
-    cpdef int position(self)
+cdef class BaseTableTunnelReader:
 
-    cpdef add_offset(self, int n)
+    cdef object _schema
+    cdef object _columns
+    cdef Decoder _reader
+    cdef Checksum _crc
+    cdef Checksum _crccrc
+    cdef int _curr_cusor
 
-    cpdef read_field_number_and_wire_type(self)
-
-    cpdef int32_t read_sint32(self)
-
-    cpdef uint32_t read_uint32(self)
-
-    cpdef int64_t read_sint64(self)
-
-    cpdef uint64_t read_uint64(self)
-
-    cpdef bint read_bool(self)
-
-    cpdef double read_double(self)
-
-    cpdef float read_float(self)
-
-    cpdef bytes read_string(self)
+    cdef list _read_array(self, object value_type)
+    cdef bytes _read_string(self)
+    cdef double _read_double(self)
+    cdef bint _read_bool(self)
+    cdef int64_t _read_bigint(self)
+    cdef object _read_datetime(self)
+    cdef _set_string(self, object record, int i)
+    cdef _set_double(self, object record, int i)
+    cdef _set_bool(self, object record, int i)
+    cdef _set_bigint(self, object record, int i)
+    cdef _set_datetime(self, object record, int i)
+    cdef _set_decimal(self, object record, int i)
+    cdef dict _get_read_functions(self)
+    cpdef read(self)

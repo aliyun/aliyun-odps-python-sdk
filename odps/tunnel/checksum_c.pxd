@@ -15,3 +15,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+from libc.stdint cimport *
+from libc.string cimport *
+
+from ..crc32c_c import Crc32c
+
+cdef class Checksum:
+
+    cdef object crc
+
+    cpdef update_bool(self, bint val)
+
+    cpdef update_int(self, int32_t val)
+
+    cpdef update_long(self, int64_t val)
+
+    cpdef update_float(self, double val)
+
+    cpdef update(self, bytes b)
+
+    cpdef uint32_t getvalue(self)
+
+    cpdef reset(self)

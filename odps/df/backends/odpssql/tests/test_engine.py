@@ -125,6 +125,10 @@ class Test(TestBase):
             expr = df[df.name == data[0][0]]
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertTrue(all(r is not None for r in res[:, -1]))
+
+            expr = df[df.name == data[1][0]]
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertTrue(all(r is not None for r in res[:, -1]))
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 
@@ -745,6 +749,19 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
+        expr = self.expr.groupby('name', Scalar(1).rename('constant')) \
+            .agg(id=self.expr.id.sum())
+
+        expected = [
+            ['name1', 1, 14],
+            ['name2', 1, 2]
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(expected, result)
+
     def testJoinGroupby(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -1260,6 +1277,44 @@ class Test(TestBase):
             self.assertEqual(len(result), 2)
             expected = [to_str('name1'), 4]
             self.assertTrue(all(it == expected for it in result))
+
+            expr = self.expr.left_join(expr2, on=['name', ('id', 'id2')])[self.expr.name, expr2.id2]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            expected = [
+                ['name1', 4],
+                ['name2', None],
+                ['name1', 4],
+                ['name1', None],
+                ['name1', None]
+            ]
+            self.assertEqual(len(result), 5)
+            self.assertTrue(all(it in expected for it in result))
+
+            expr = self.expr.right_join(expr2, on=['name', ('id', 'id2')])[self.expr.name, expr2.id2]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            expected = [
+                ['name1', 4],
+                ['name1', 4],
+                [None, 1],
+            ]
+            self.assertEqual(len(result), 3)
+            self.assertTrue(all(it in expected for it in result))
+
+            expr = self.expr.outer_join(expr2, on=['name', ('id', 'id2')])[self.expr.name, expr2.id2]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            expected = [
+                ['name1', 4],
+                ['name1', 4],
+                ['name2', None],
+                ['name1', None],
+                ['name1', None],
+                [None, 1],
+            ]
+            self.assertEqual(len(result), 6)
+            self.assertTrue(all(it in expected for it in result))
 
         finally:
             table2.drop()

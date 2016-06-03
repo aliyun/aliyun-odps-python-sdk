@@ -22,8 +22,6 @@ import struct
 
 from ..crc import Crc32c, Crc32
 from .. import utils
-from ..compat import six
-from ..types import integer_builtins, float_builtins
 
 
 class Checksum(object):

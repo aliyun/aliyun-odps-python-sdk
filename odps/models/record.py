@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -15,3 +16,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+from .. import types as _types
+from ..config import options
+try:
+    if not options.force_py:
+        from ..types_c import Record
+    else:
+        Record = _types.Record
+except ImportError as e:
+    if options.force_c:
+        raise e
+    Record = _types.Record
+

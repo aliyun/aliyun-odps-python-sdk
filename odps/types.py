@@ -23,8 +23,11 @@ import decimal as _builtin_decimal
 
 from . import utils
 from . import compat
-from .compat import six
-from .compat import DECIMAL_TYPES, decimal as _decimal
+from .compat import six, DECIMAL_TYPES, decimal as _decimal
+from .config import options
+
+force_py = options.force_py
+force_c = options.force_c
 
 
 class Column(object):
@@ -102,7 +105,8 @@ class Schema(object):
         self._name_indexes = dict((n, i) for i, n in enumerate(self.names))
 
         if len(self._name_indexes) < len(self.names):
-            raise ValueError('Duplicate column names')
+            duplicates = [n for n in self._name_indexes if self.names.count(n) > 1]
+            raise ValueError('Duplicate column names: %s' % ', '.join(duplicates))
 
     def __repr__(self):
         return self._repr()
@@ -274,8 +278,10 @@ class OdpsSchema(Schema):
         return self._partitions[index]
 
     def is_partition(self, name):
-        if isinstance(name, Column):
+        try:
             name = name.name
+        except AttributeError:
+            pass
         return name in self._partition_schema._name_indexes
 
     def get_type(self, name):
@@ -363,6 +369,9 @@ class Record(object):
         if values is not None:
             self._sets(values)
         self._name_indexes = dict((col.name, i) for i, col in enumerate(self._columns))
+
+    def _mode(self):
+        return 'py'
 
     def _exclude_partition_columns(self):
         return [col for col in self._columns if not isinstance(col, Partition)]
@@ -497,6 +506,9 @@ class DataType(object):
         return self._equals(other)
 
     def _equals(self, other):
+        if self is other:
+            return True
+
         other = validate_data_type(other)
 
         if self.nullable != other.nullable:

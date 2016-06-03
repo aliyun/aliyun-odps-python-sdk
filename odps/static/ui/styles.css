@@ -46,6 +46,23 @@
     width: 0;
 }
 
+#pyodps-progress-viewer .progress-legend-panel {
+    font-size: smaller;
+    margin-top: 8px;
+}
+
+#pyodps-progress-viewer .progress-legend-panel span {
+    float: left !important;
+}
+
+#pyodps-progress-viewer .progress-legend {
+    height: 10px;
+    width: 30px !important;
+    margin-left: 5px;
+    margin-right: 5px;
+    margin-top: 3px;
+}
+
 #pyodps-progress-viewer .task-name {
     border-bottom: 1px solid #ccc;
 }

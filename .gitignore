@@ -49,12 +49,16 @@ test.conf
 .ipynb_checkpoints
 test*.ipynb
 
-
 # cython generated
 odps/src/*/*_c.c
+odps/src/*_c.c
 odps/tunnel/pb/*_c.c
-
+odps/tunnel/*_c.c
+odps/tunnel/tabletunnel/*_c.c
 
 # benchmark
 benchmarks/*.out
 benchmarks/*.png
+
+# generated reports
+misc/algo_diff.txt

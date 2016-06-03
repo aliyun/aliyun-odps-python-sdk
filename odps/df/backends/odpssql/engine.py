@@ -84,7 +84,7 @@ class ODPSEngine(Engine):
 
         self._log('Instance ID: ' + instance.id)
         self._log('  Log view: ' + instance.get_logview_address())
-        ui.status('Start to execute sql...')
+        ui.status('Executing', 'execution details')
 
         if async:
             return instance
@@ -206,11 +206,16 @@ class ODPSEngine(Engine):
 
     @contextmanager
     def _open_reader(self, t, **kwargs):
-        with t.open_reader(**kwargs) as reader:
-            if reader.status == TableDownloadSession.Status.Normal:
-                yield reader
-                return
+        try:
+            with t.open_reader(**kwargs) as reader:
+                if reader.status == TableDownloadSession.Status.Normal:
+                    yield reader
+                    return
+        except ODPSError:
+            # ignore the error when reusing the tunnel before
+            pass
 
+        # reopen
         with t.open_reader(reopen=True, **kwargs) as reader:
             yield reader
 

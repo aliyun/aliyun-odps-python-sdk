@@ -19,30 +19,33 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-from util_c cimport *
+from ..crc32c_c import Crc32c
+from ..crc import Crc32
 
-cdef class Decoder:
-    cdef int _pos
-    cdef object _stream
+cdef class Checksum:
 
-    cpdef int position(self)
+    def __cinit__(self, method='crc32c'):
+        self.crc = Crc32c() if method == 'crc32c' else Crc32()
 
-    cpdef add_offset(self, int n)
+    cpdef update_bool(self, bint val):
+        cdef char retval
+        retval = 1 if val else 0
+        self.update((<char *>&retval)[:1])
 
-    cpdef read_field_number_and_wire_type(self)
+    cpdef update_int(self, int32_t val):
+        self.update((<char *>&val)[:sizeof(int32_t)])
 
-    cpdef int32_t read_sint32(self)
+    cpdef update_long(self, int64_t val):
+        self.update((<char *>&val)[:sizeof(int64_t)])
 
-    cpdef uint32_t read_uint32(self)
+    cpdef update_float(self, double val):
+        self.update((<char *>&val)[:sizeof(double)])
 
-    cpdef int64_t read_sint64(self)
+    cpdef update(self, bytes b):
+        self.crc.update(bytearray(b))
 
-    cpdef uint64_t read_uint64(self)
+    cpdef uint32_t getvalue(self):
+        return self.crc.getvalue()
 
-    cpdef bint read_bool(self)
-
-    cpdef double read_double(self)
-
-    cpdef float read_float(self)
-
-    cpdef bytes read_string(self)
+    cpdef reset(self):
+        return self.crc.reset()

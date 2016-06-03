@@ -103,6 +103,10 @@ class Test(TestBase):
 
         self.odps.write_table(t, gen_data())
 
+        if ENABLE_PROFILE:
+            self.pr = cProfile.Profile()
+            self.pr.enable()
+
         ds = self.tunnel.create_download_session(table_name)
 
         start = time.time()

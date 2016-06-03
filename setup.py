@@ -30,6 +30,11 @@ PY26 = PY2 and version[1] == 6
 if PY2 and version[:2] < (2, 6):
     raise Exception('pyodps supports python 2.6+ (including python 3+).')
 
+if len(sys.argv) > 1 and sys.argv[1] == 'clean':
+    build_cmd = sys.argv[1]
+else:
+    build_cmd = None
+
 requirements = []
 with open('requirements.txt') as f:
     requirements.extend(f.read().splitlines())
@@ -48,7 +53,7 @@ if os.path.exists('README.rst'):
 
 setup_options = dict(
     name='pyodps',
-    version='0.5.2',
+    version='0.5.3',
     description='ODPS Python SDK',
     long_description=long_description,
     author='Wu Wei',
@@ -74,21 +79,52 @@ setup_options = dict(
     install_requires=requirements,
 )
 
-try:
-    from Cython.Build import cythonize
-    from Cython.Distutils import build_ext
+if build_cmd != 'clean':
+    try:
+        from Cython.Build import cythonize
+        from Cython.Distutils import build_ext
+        import cython
 
-    ext_modules = cythonize([
-        Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx']),
-        Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx']),
-        Extension('odps.tunnel.pb.util_c', ['odps/tunnel/pb/util_c.pyx']),
-        Extension('odps.crc32c_c', ['odps/src/crc32c/*.pyx'])
-    ])
+        # detect if cython works
+        cython.inline('return a + b', a=1, b=1)
 
-    setup_options['cmdclass'] = {'build_ext': build_ext}
-    setup_options['ext_modules'] = ext_modules
-except ImportError:
-    pass
+        extensions = [
+            Extension('odps.types_c', ['odps/src/types_c.pyx']),
+            Extension('odps.crc32c_c', ['odps/src/crc32c/*.pyx']),
+            Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx']),
+            Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx']),
+            Extension('odps.tunnel.pb.util_c', ['odps/tunnel/pb/util_c.pyx']),
+            Extension('odps.tunnel.checksum_c', ['odps/tunnel/checksum_c.pyx']),
+            Extension('odps.tunnel.tabletunnel.writer_c', ['odps/tunnel/tabletunnel/writer_c.pyx']),
+            Extension('odps.tunnel.tabletunnel.reader_c', ['odps/tunnel/tabletunnel/reader_c.pyx']),
+        ]
 
+        setup_options['cmdclass'] = {'build_ext': build_ext}
+        setup_options['ext_modules'] = cythonize(extensions)
+    except:
+        pass
 
 setup(**setup_options)
+
+if build_cmd == 'clean':
+    for root, dirs, files in os.walk(os.path.normpath('odps/')):
+        pyx_files = set()
+        c_file_pairs = []
+        for f in files:
+            fn, ext = os.path.splitext(f)
+            # delete compiled binaries
+            if ext.lower() in ('.pyd', '.so'):
+                full_path = os.path.join(root, f)
+                print("removing '%s'" % full_path)
+                os.unlink(full_path)
+            elif ext.lower() == '.pyx':
+                pyx_files.add(fn)
+            elif ext.lower() == '.c':
+                c_file_pairs.append((fn, f))
+
+        # remove cython-generated files
+        for cfn, cf in c_file_pairs:
+            if cfn in pyx_files:
+                full_path = os.path.join(root, cf)
+                print("removing '%s'" % full_path)
+                os.unlink(full_path)

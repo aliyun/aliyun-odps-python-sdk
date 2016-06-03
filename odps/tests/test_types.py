@@ -17,11 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import decimal as _decimal
 
 from odps.types import *
-from odps.models import Schema
+from odps.models import Schema, Record
 from odps.tests.core import TestBase
-from odps.compat import unittest, OrderedDict, decimal
+from odps.compat import unittest, OrderedDict
 from datetime import datetime
 
 
@@ -46,17 +47,17 @@ class Test(TestBase):
         r[2] = 'abc'
         r[3] = datetime(2016, 1, 1)
         r[4] = True
-        r[5] = decimal.Decimal('1.111')
+        r[5] = _decimal.Decimal('1.111')
         r[6] = ['a', 'b']
         r[7] = OrderedDict({'a': 1})
         self.assertSequenceEqual(r.values, [1, 1.2, 'abc', datetime(2016, 1, 1), True,
-                                            decimal.Decimal('1.111'), ['a', 'b'], OrderedDict({'a': 1})])
+                                            _decimal.Decimal('1.111'), ['a', 'b'], OrderedDict({'a': 1})])
         self.assertEquals(1, r[0])
         self.assertEquals(1.2, r[1])
         self.assertEquals('abc', r[2])
         self.assertEquals(datetime(2016, 1, 1), r[3])
         self.assertEquals(True, r[4])
-        self.assertEquals(decimal.Decimal('1.111'), r[5])
+        self.assertEquals(_decimal.Decimal('1.111'), r[5])
         self.assertEquals(['a', 'b'], r[6])
         self.assertEquals( OrderedDict({'a': 1}), r[7])
 
@@ -71,17 +72,17 @@ class Test(TestBase):
         r['col2'] = 'abc'
         r['col3'] = datetime(2016, 1, 1)
         r['col4'] = True
-        r['col5'] = decimal.Decimal('1.111')
+        r['col5'] = _decimal.Decimal('1.111')
         r['col6'] = ['a', 'b']
         r['col7'] = OrderedDict({'a': 1})
         self.assertSequenceEqual(r.values, [1, 1.2, 'abc', datetime(2016, 1, 1), True,
-                                            decimal.Decimal('1.111'), ['a', 'b'], OrderedDict({'a': 1})])
+                                            _decimal.Decimal('1.111'), ['a', 'b'], OrderedDict({'a': 1})])
         self.assertEquals(1, r['col0'])
         self.assertEquals(1.2, r['col1'])
         self.assertEquals('abc', r['col2'])
         self.assertEquals(datetime(2016, 1, 1), r['col3'])
         self.assertEquals(True, r['col4'])
-        self.assertEquals(decimal.Decimal('1.111'), r['col5'])
+        self.assertEquals(_decimal.Decimal('1.111'), r['col5'])
         self.assertEquals(['a', 'b'], r['col6'])
         self.assertEquals( OrderedDict({'a': 1}), r['col7'])
 
@@ -132,6 +133,13 @@ class Test(TestBase):
         self.assertEqual(r[0], 'c')
         self.assertEqual(r['col1'], 'c')
 
+    def testDuplicateNames(self):
+        self.assertRaises(ValueError, lambda: Schema.from_lists(['col1', 'col1'], ['string', 'string']))
+        try:
+            Schema.from_lists(['col1', 'col1'], ['string', 'string'])
+        except ValueError as e:
+            self.assertTrue('col1' in str(e))
+
     def testChineseSchema(self):
         s = Schema.from_lists([u'用户'], ['string'], ['分区'], ['bigint'])
         self.assertIn('用户', s)
@@ -142,6 +150,15 @@ class Test(TestBase):
 
         s2 = Schema.from_lists(['用户'], ['string'], [u'分区'], ['bigint'])
         self.assertEqual(s, s2)
+
+    def testRecordMultiFields(self):
+        s = Schema.from_lists(['col1', 'col2'], ['string', 'bigint'])
+        r = Record(values=[1, 2], schema=s)
+
+        self.assertEqual(r['col1', 'col2'], ['1', 2])
+
+        self.assertRaises(AttributeError, lambda: r['col3'])
+        self.assertRaises(AttributeError, lambda: r['col3', ])
 
 if __name__ == '__main__':
     unittest.main()

@@ -20,7 +20,11 @@ PyOdps支持Python 2.6以上包括Python 3。系统安装了pip后，只需运�
 
 PyOdps的相关依赖会自动安装。
 
-**注意**，对于Linux和Mac用户，先安装cython，再运行安装pyodps命令，能加速Tunnel的上传和下载。
+**注意**，对于Linux和Mac用户，先安装Cython，再运行安装pyodps命令，能加速Tunnel的上传和下载。
+
+安装有`合适版本 <https://wiki.python.org/moin/WindowsCompilers>`_ Visual C++和Cython的Windows用户也可使用Tunnel加速功能，
+但Visual C++ 2008及以下用户需要在编译器include目录中加入stdint.h头文件，否则会导致编译错误。该文件可在
+`这里 <https://raw.githubusercontent.com/miloyip/rapidjson/master/include/rapidjson/msinttypes/stdint.h>`_ 获得。
 
 快速开始
 ----------

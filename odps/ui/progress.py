@@ -165,7 +165,8 @@ else:
         class InstancesProgress(widgets.DOMWidget):
             _view_name = build_unicode_control('InstancesProgress', sync=True)
             _view_module = build_unicode_control('pyodps/progress', sync=True)
-            text = build_unicode_control(sync=True)
+            prefix = build_unicode_control('prefix', sync=True)
+            suffix = build_unicode_control('suffix', sync=True)
 
             def __init__(self, **kwargs):
                 """Constructor"""
@@ -201,15 +202,25 @@ class ProgressGroupUI(object):
         self._ipython_widget = ipython_widget and InstancesProgress
         self._widget = None
         self._group_keys = set()
-        self._text = ''
+        self._prefix = ''
+        self._suffix = ''
 
     @property
-    def text(self):
-        return self._text
+    def prefix(self):
+        return self._prefix
 
-    @text.setter
-    def text(self, value):
-        self._text = value
+    @prefix.setter
+    def prefix(self, value):
+        self._prefix = value
+        self._update_text()
+
+    @property
+    def suffix(self):
+        return self._suffix
+
+    @suffix.setter
+    def suffix(self, value):
+        self._suffix = value
         self._update_text()
 
     def add_keys(self, keys):
@@ -233,7 +244,8 @@ class ProgressGroupUI(object):
             if not self._widget:
                 self._widget = InstancesProgress()
                 display(self._widget)
-            self._widget.text = self._text
+            self._widget.prefix = self._prefix
+            self._widget.suffix = self._suffix
         self._widget.update()
 
     def _update_group(self, keys):

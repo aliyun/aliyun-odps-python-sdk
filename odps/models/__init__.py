@@ -33,8 +33,7 @@ from .volume import Volume
 from .xflows import XFlows
 from .xflow import XFlow
 from .tasks import *
-
-from ..types import Record  # compatible
+from .record import Record
 
 Column = Schema.TableColumn
 Partition = Schema.TablePartition

@@ -21,6 +21,7 @@ from datetime import datetime
 import contextlib
 
 from .core import LazyLoad, JSONRemoteModel
+from .record import Record
 from .partitions import Partitions
 from ..config import options
 from .. import types, serializers, utils, readers
@@ -483,4 +484,4 @@ class Table(LazyLoad):
 
         .. seealso:: :class:`odps.models.Record`
         """
-        return types.Record(schema=self.schema, values=values)
+        return Record(schema=self.schema, values=values)

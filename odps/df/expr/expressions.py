@@ -66,11 +66,14 @@ class Expr(Node):
         if not options.interactive or is_called_by_inspector():
             return self._repr()
         else:
+            if isinstance(self.__execution, Exception):
+                self.__execution = None
             if self.__execution is None:
                 try:
                     self.__execution = self.execute()
                 except Exception as e:
                     self.__execution = e
+                    raise e
             return self.__execution.__repr__()
 
     def _repr_html_(self):
@@ -82,7 +85,7 @@ class Expr(Node):
             else:
                 if isinstance(self.__execution, Exception):
                     try:
-                        raise self.__execution
+                        return
                     finally:
                         self.__execution = None
             if hasattr(self.__execution, '_repr_html_'):

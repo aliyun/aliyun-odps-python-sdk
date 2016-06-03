@@ -51,17 +51,20 @@ def bothPyAndC(func):
             with option_context() as options:
                 setattr(options, 'force_{0}'.format(t), True)
 
-                from odps import crc as _crc
-                reload_module(_crc)
+                from odps.models import record
+                reload_module(record)
 
-                from odps.tunnel import checksum
-                reload_module(checksum)
+                from odps import models
+                reload_module(models)
 
-                from odps.tunnel import pb
-                reload_module(pb)
-
-                from odps.tunnel.pb import writer
+                from odps.tunnel.tabletunnel import writer
                 reload_module(writer)
+
+                from odps.tunnel.tabletunnel import reader
+                reload_module(reader)
+
+                from odps.tunnel.tabletunnel import uploadsession
+                reload_module(uploadsession)
 
                 from odps.tunnel.tabletunnel import downloadsession
                 reload_module(downloadsession)
@@ -83,11 +86,12 @@ class Test(TestBase):
         writer = upload_ss.open_record_writer(0, compress=compress)
 
         # test use right py or c writer
-        self.assertEqual(self.mode, writer._crc._mode())
-        self.assertEqual(self.mode, writer._writer._mode())
+        self.assertEqual(self.mode, writer._mode())
 
         for r in records:
             record = upload_ss.new_record()
+            # test record
+            self.assertEqual(self.mode, record._mode())
             for i, it in enumerate(r):
                 record[i] = it
             writer.write(record)
@@ -111,7 +115,11 @@ class Test(TestBase):
             # test use right py or c writer
             self.assertEqual(self.mode, reader._mode())
 
-            records = [tuple(record.values) for record in reader]
+            records = []
+
+            for record in reader:
+                records.append(tuple(record.values))
+                self.assertEqual(self.mode, record._mode())
 
             return records
 

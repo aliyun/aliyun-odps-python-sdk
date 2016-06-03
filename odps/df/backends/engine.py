@@ -408,7 +408,7 @@ class MixedEngine(Engine):
             return expr.value
 
         node_name = getattr(expr, 'node_name', expr.__class__.__name__)
-        group = create_instance_group('DataFrame Operation[%s] execution details' % node_name)
+        group = create_instance_group('DataFrame Operation[%s]' % node_name)
         ui.add_keys(group)
 
         expr = self._pre_process(expr, use_cache=use_cache)

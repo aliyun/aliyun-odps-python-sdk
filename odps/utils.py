@@ -360,9 +360,10 @@ def init_progress_ui(val=1):
         def update(self, value=None):
             bar.update(value=value)
 
-        def status(self, text):
+        def status(self, prefix, suffix=''):
             if progress_group:
-                progress_group.text = text
+                progress_group.prefix = prefix
+                progress_group.suffix = suffix
 
         def add_keys(self, keys):
             if progress_group:

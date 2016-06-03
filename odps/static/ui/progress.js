@@ -49,7 +49,12 @@ require(['pyodps'], function(pyodps) {
             '        <div class="instances-holder"></div>' +
             '      </div>' +
             '      <div class="modal-footer">' +
-            '        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>' +
+            '        <span class="pull-left progress-legend-panel">' +
+            '          <span class="progress progress-bar progress-legend" role="progressbar"></span><span>Finished</span>' +
+            '          <span class="progress progress-bar progress-bar-success progress-bar-striped progress-legend" role="progressbar"></span><span>Submitted</span>' +
+            '          <span class="progress progress-legend"></span><span>Waiting</span>' +
+            '        </span>' +
+            '        <button type="button" class="btn btn-default pull-right" data-dismiss="modal">Close</button>' +
             '      </div>' +
             '    </div>' +
             '  </div>' +
@@ -79,8 +84,8 @@ require(['pyodps'], function(pyodps) {
             '  <div class="stage-name"></div>' +
             '  <div class="stage-progress">' +
             '    <div class="progress">' +
-            '      <div class="terminated progress-bar progress-bar-success" role="progressbar"></div>' +
-            '      <div class="running progress-bar progress-bar-success" role="progressbar"></div>' +
+            '      <div class="terminated progress-bar" role="progressbar"></div>' +
+            '      <div class="running progress-bar progress-bar-success progress-bar-striped active" role="progressbar"></div>' +
             '    </div>' +
             '  </div>' +
             '</div>';
@@ -100,24 +105,41 @@ require(['pyodps'], function(pyodps) {
                 that.groupMsgs = {};
                 that.groupOrder = []; // Order of groups by time of insertion
                 that.listenTo(that.model, 'msg:custom', that._handle_route_msg, that);
+                that.model.on('change:prefix', that._prefix_changed, that);
+                that.model.on('change:suffix', that._suffix_changed, that);
             },
 
             render: function () {
                 // Render the view.
                 var that = this;
-                that.textElement = $('<span style="padding-right: 5px"></span>');
+                that.prefixElement = $('<span style="padding-right: 5px"></span>');
                 that.groupsElement = $('<span></span>');
-                var rootElement = $('<div></div>').append(that.textElement).append(that.groupsElement);
+                that.suffixElement = $('<span style="padding-left: 5px"></span>');
+                var rootElement = $('<div></div>')
+                    .append(that.prefixElement)
+                    .append(that.groupsElement)
+                    .append(that.suffixElement);
                 that.setElement(rootElement);
             },
 
             update: function (options) {
                 var that = this;
                 if (options === undefined || options.updated_view != that) {
-                    that.textElement.text(that.model.get('text'));
+                    that.prefixElement.text(that.model.get('prefix'));
+                    that.suffixElement.text(that.model.get('suffix'));
                     that._build_link();
                 }
                 return InstancesProgress.__super__.update.apply(that);
+            },
+
+            _prefix_changed: function() {
+                var that = this;
+                that.prefixElement.text(that.model.get('prefix'));
+            },
+
+            _suffix_changed: function() {
+                var that = this;
+                that.suffixElement.text(that.model.get('suffix'));
             },
 
             _build_link: function () {
