@@ -46,7 +46,7 @@ if has_np:
     _df_to_np_types = dict((v, k) for k, v in six.iteritems(_np_to_df_types))
 
 
-def np_type_to_df_type(dtype, arr=None):
+def np_type_to_df_type(dtype, arr=None, unknown_as_string=False):
     if dtype in _np_to_df_types:
         return _np_to_df_types[dtype]
 
@@ -65,10 +65,12 @@ def np_type_to_df_type(dtype, arr=None):
         else:
             raise TypeError('Unknown dtype: %s' % dtype)
 
+    if unknown_as_string:
+        return types.string
     raise TypeError('Unknown dtype: %s' % dtype)
 
 
-def pd_to_df_schema(pd_df):
+def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None):
     if pd_df.index.name is not None:
         pd_df.reset_index(inplace=True)
 
@@ -78,7 +80,11 @@ def pd_to_df_schema(pd_df):
     df_types = []
     for i in range(len(dtypes)):
         arr = pd_df.ix[:, i]
-        df_types.append(np_type_to_df_type(dtypes[i], arr))
+        if as_type and names[i] in as_type:
+            df_types.append(as_type[names[i]])
+            continue
+        df_types.append(np_type_to_df_type(dtypes[i], arr,
+                                           unknown_as_string=unknown_as_string))
 
     return Schema.from_lists(names, df_types)
 

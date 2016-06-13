@@ -91,6 +91,15 @@ class PartitionSpec(object):
     def __str__(self):
         return ','.join("%s='%s'" % (k, v) for k, v in six.iteritems(self.kv))
 
+    def __hash__(self):
+        return hash(str(self))
+
+    def __eq__(self, other):
+        if not isinstance(other, PartitionSpec):
+            other = PartitionSpec(other)
+
+        return str(self) == str(other)
+
 
 class Schema(object):
     def __init__(self, names, types):

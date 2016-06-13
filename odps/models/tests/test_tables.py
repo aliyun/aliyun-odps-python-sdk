@@ -154,6 +154,55 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name)
         self.assertFalse(self.odps.exist_table(test_table_name))
 
+    def testReadWritePartitionTable(self):
+        test_table_name = tn('pyodps_t_tmp_read_write_partition_table')
+        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['pt'], ['string'])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+        self.assertFalse(self.odps.exist_table(test_table_name))
+
+        table = self.odps.create_table(test_table_name, schema)
+
+        pt1 = 'pt=20151122'
+        pt2 = 'pt=20151123'
+        table.create_partition(pt1)
+        table.create_partition(pt2)
+
+        with table.open_writer(pt1, commit=False) as writer:
+            record = table.new_record()
+            record[0] = 1
+            record[1] = 'name1'
+            writer.write(record)
+
+            record = table.new_record()
+            record[0] = 3
+            record[1] = 'name3'
+            writer.write(record)
+
+        self.assertEqual(len(table._upload_ids), 1)
+        upload_id = list(table._upload_ids.values())[0]
+        with table.open_writer(pt1):
+            self.assertEqual(len(table._upload_ids), 1)
+            self.assertEqual(upload_id, list(table._upload_ids.values())[0])
+
+        with table.open_writer(pt2) as writer:
+            record = table.new_record()
+            record[0] = 2
+            record[1] = 'name2'
+            writer.write(record)
+
+        with table.open_reader(pt1) as reader:
+            records = list(reader)
+            self.assertEqual(len(records), 2)
+            self.assertEqual(sum(r[0] for r in records), 4)
+
+        with table.open_reader(pt2) as reader:
+            records = list(reader)
+            self.assertEqual(len(records), 1)
+            self.assertEqual(sum(r[0] for r in records), 2)
+
+        table.drop()
+
     def testSimpleReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_simpe_read_write_table')
         schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])

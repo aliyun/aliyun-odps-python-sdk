@@ -154,7 +154,7 @@ class Table(LazyLoad):
     __slots__ = '_is_extend_info_loaded', 'last_meta_modified_time', 'is_virtual_view', \
                 'lifecycle', 'view_text', 'size', \
                 'is_archived', 'physical_size', 'file_num', 'shard', \
-                '_table_tunnel', '_download_id', '_upload_id'
+                '_table_tunnel', '_download_ids', '_upload_ids'
 
     name = serializers.XMLNodeField('Name')
     table_id = serializers.XMLNodeField('TableId')
@@ -172,6 +172,8 @@ class Table(LazyLoad):
         self._is_extend_info_loaded = False
 
         super(Table, self).__init__(**kwargs)
+        self._download_ids = dict()
+        self._upload_ids = dict()
 
     def reload(self):
         url = self.resource()
@@ -307,14 +309,19 @@ class Table(LazyLoad):
         >>>         # read all data, actually better to split into reading for many times
         """
 
+        from ..tunnel.tabletunnel import TableDownloadSession
+
         reopen = kw.pop('reopen', False)
         endpoint = kw.pop('endpoint', None)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint)
-        download_id = self._download_id if not reopen else None
+        download_id = self._download_ids.get(partition) if not reopen else None
         download_session = tunnel.create_download_session(table=self, partition_spec=partition,
                                                           download_id=download_id, **kw)
-        self._download_id = download_session.id
+
+        if download_id and download_session.status != TableDownloadSession.Status.Normal:
+            download_session = tunnel.create_download_session(table=self, partition_spec=partition, **kw)
+        self._download_ids[partition] = download_session.id
 
         class RecordReader(readers.AbstractRecordReader):
             def __init__(self):
@@ -381,18 +388,33 @@ class Table(LazyLoad):
         >>>     writer.write(1, gen_records(block=1))  # we can do this parallel
         """
 
+        from ..tunnel.tabletunnel import TableUploadSession
+
         reopen = kw.pop('reopen', False)
         commit = kw.pop('commit', True)
         endpoint = kw.pop('endpoint', None)
 
+        if partition and not isinstance(partition, types.PartitionSpec):
+            partition = types.PartitionSpec(partition)
+
         tunnel = self._create_table_tunnel(endpoint=endpoint)
-        upload_id = self._upload_id if not reopen else None
+        upload_id = self._upload_ids.get(partition) if not reopen else None
         upload_session = tunnel.create_upload_session(table=self, partition_spec=partition,
                                                       upload_id=upload_id, **kw)
-        self._upload_id = upload_session.id
 
-        blocks = blocks or [0, ]
+        if upload_id and upload_session.status != TableUploadSession.Status.Normal:
+            # check upload session status
+            upload_session = tunnel.create_upload_session(table=self, partition_spec=partition, **kw)
+            upload_id = None
+        self._upload_ids[partition] = upload_session.id
+
+        blocks = blocks or upload_session.blocks or [0, ]
         blocks_writes = [False] * len(blocks)
+        blocks_writers = [None] * len(blocks)
+
+        if upload_id:
+            for block in upload_session.blocks:
+                blocks_writes[blocks.index(block)] = True
 
         class RecordWriter(object):
             @property
@@ -421,17 +443,24 @@ class Table(LazyLoad):
                     raise ValueError('Cannot write no records to table.')
 
                 compress = kwargs.get('compress', False)
-                with upload_session.open_record_writer(block_id, compress=compress) as w:
-                    for record in records:
-                        w.write(record)
-                    blocks_writes[blocks.index(block_id)] = True
+                idx = blocks.index(block_id)
+                writer = blocks_writers[idx]
+                if writer is None:
+                    writer = blocks_writers[idx] = \
+                        upload_session.open_record_writer(block_id, compress=compress)
+
+                for record in records:
+                    writer.write(record)
+                blocks_writes[idx] = True
 
         yield RecordWriter()
+
+        [writer.close() for writer in blocks_writers if writer is not None]
 
         if commit:
             blocks = [block for block, block_write in zip(blocks, blocks_writes) if block_write]
             upload_session.commit(blocks)
-            self._upload_id = None
+            self._upload_ids[partition] = None
 
     @property
     def project(self):

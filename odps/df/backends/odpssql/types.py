@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from ....models import Schema, Column
+from ....models import Schema
 from .... import types as odps_types
 from ... import types as df_types
 from ....compat import six

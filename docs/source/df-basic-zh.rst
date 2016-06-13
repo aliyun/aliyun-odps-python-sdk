@@ -38,6 +38,85 @@
       name                  string        
     }
 
+在用pandas DataFrame初始化时，对于numpy object类型（string也是），PyOdps DataFrame会尝试推断类型，
+如果一整列都为空，则会报错。
+这时，用户可以指定 `unknown_as_string` 为True，会将这些列指定为string类型。
+
+用户也可以指定as_type参数，此时会在创建PyOdps DataFrame时进行强制类型转换，as_type参数类型必须是dict。
+
+
+.. code:: python
+
+    df.head(3)
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>sepallength</th>
+          <th>sepalwidth</th>
+          <th>petallength</th>
+          <th>petalwidth</th>
+          <th>name</th>
+          <th>null_col1</th>
+          <th>null_col2</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>5.1</td>
+          <td>3.5</td>
+          <td>1.4</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+          <td>None</td>
+          <td>None</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>4.9</td>
+          <td>3.0</td>
+          <td>1.4</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+          <td>None</td>
+          <td>None</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>4.7</td>
+          <td>3.2</td>
+          <td>1.3</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+          <td>None</td>
+          <td>None</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+.. code:: python
+
+    df2 = DataFrame(df, unknown_as_string=True, as_type={'null_col2': 'float'})
+    df2.dtypes
+
+.. parsed-literal::
+
+    odps.Schema {
+      sepallength           float64
+      sepalwidth            float64
+      petallength           float64
+      petalwidth            float64
+      name                  string
+      null_col1             string   # 无法识别，通过unknown_as_string设置成string类型
+      null_col2             float64  # 强制转换成float类型
+    }
+
 
 
 基本概念

@@ -1061,7 +1061,7 @@
 
 
 
-值得注意的是，目前切片仅支持不支持start和step。我们也可以使用limit方法
+值得注意的是，目前切片对于ODPS SQL后端不支持start和step。我们也可以使用limit方法
 
 .. code:: python
 

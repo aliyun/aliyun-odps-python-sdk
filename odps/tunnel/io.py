@@ -23,10 +23,23 @@ import threading
 from odps import errors, compat
 from odps.compat import Enum
 
+# used for test case to force thread io
+_FORCE_THREAD = False
 
-class BaseRequestsIO(object):
+
+class RequestsIO(object):
     ASYNC_ERR = None
     CHUNK_SIZE = 1024
+
+    def __new__(cls, *args, **kwargs):
+        if not isinstance(threading.current_thread(), threading._MainThread) or _FORCE_THREAD:
+            return object.__new__(ThreadRequestsIO)
+        else:
+            try:
+                import gevent
+                return object.__new__(GreenletRequestsIO)
+            except ImportError:
+                return object.__new__(ThreadRequestsIO)
 
     def __init__(self, post_call, chunk_size=None):
         self._queue = None
@@ -76,7 +89,7 @@ class BaseRequestsIO(object):
         return self._resp
 
 
-class ThreadRequestsIO(BaseRequestsIO):
+class ThreadRequestsIO(RequestsIO):
     def __init__(self, post_call, chunk_size=None):
         super(ThreadRequestsIO, self).__init__(post_call, chunk_size)
         from odps.compat import Queue
@@ -87,7 +100,7 @@ class ThreadRequestsIO(BaseRequestsIO):
         self._wait_obj.start()
 
 
-class GreenletRequestsIO(BaseRequestsIO):
+class GreenletRequestsIO(RequestsIO):
     def __init__(self, post_call, chunk_size=None):
         super(GreenletRequestsIO, self).__init__(post_call, chunk_size)
         import gevent
@@ -100,19 +113,6 @@ class GreenletRequestsIO(BaseRequestsIO):
         super(GreenletRequestsIO, self).put(data)
         # handover control
         self._gevent_mod.sleep(0)
-
-RequestIO = ThreadRequestsIO
-
-
-def reload_default_io():
-    global RequestsIO
-    try:
-        import gevent
-        RequestsIO = GreenletRequestsIO
-    except ImportError:
-        RequestsIO = ThreadRequestsIO
-
-reload_default_io()
 
 
 class CompressOption(object):

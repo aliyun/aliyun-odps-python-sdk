@@ -53,8 +53,8 @@ if os.path.exists('README.rst'):
 
 setup_options = dict(
     name='pyodps',
-    version='0.5.3',
-    description='ODPS Python SDK',
+    version='0.5.4',
+    description='ODPS Python SDK and data analysis framework',
     long_description=long_description,
     author='Wu Wei',
     author_email='weiwu@cacheme.net',
@@ -86,7 +86,8 @@ if build_cmd != 'clean':
         import cython
 
         # detect if cython works
-        cython.inline('return a + b', a=1, b=1)
+        if sys.platform == 'win32':
+            cython.inline('return a + b', a=1, b=1)
 
         extensions = [
             Extension('odps.types_c', ['odps/src/types_c.pyx']),

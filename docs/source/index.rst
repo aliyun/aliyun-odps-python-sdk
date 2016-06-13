@@ -47,6 +47,8 @@ PyOdps的相关依赖会自动安装。
 .. toctree::
    :maxdepth: 1
 
+   installation-int-zh.rst
+   installation-pub-zh.rst
    projects-zh
    tables-zh
    sql-zh

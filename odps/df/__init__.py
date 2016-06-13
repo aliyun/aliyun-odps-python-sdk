@@ -35,9 +35,13 @@ try:
 
     def wrap(func):
         def inner(*args, **kwargs):
+            as_type = kwargs.pop('as_type', None)
+            unknown_as_string = kwargs.pop('unknown_as_string', False)
+
             res = func(*args, **kwargs)
             if isinstance(res, pd.DataFrame):
-                return DataFrame(res)
+                return DataFrame(res, as_type=as_type,
+                                 unknown_as_string=unknown_as_string)
             return res
         return inner
 

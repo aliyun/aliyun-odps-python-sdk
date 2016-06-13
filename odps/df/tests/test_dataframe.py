@@ -44,6 +44,23 @@ class Test(TestBase):
         self.assertEqual(3, df.count().execute())
         self.assertEqual(1, df[df.name == 'name1'].count())
 
+    @pandas_case
+    def testDataFrameFromPandas(self):
+        import pandas as pd
+
+        pd_df = pd.DataFrame({'a': [1, 2, 3], 'b': [None, None, None]})
+
+        self.assertRaises(TypeError, lambda: DataFrame(pd_df))
+
+        df = DataFrame(pd_df, unknown_as_string=True)
+        self.assertEqual(df.schema.get_type('b').name, 'string')
+
+        df = DataFrame(pd_df[['a']], as_type={'a': 'string'})
+        self.assertEqual(df.schema.get_type('a').name, 'string')
+
+        df = DataFrame(pd_df, as_type={'b': 'int'})
+        self.assertEqual(df.schema.get_type('b').name, 'int64')
+
     def testHeadAndTail(self):
         df = DataFrame(self.table)
 
