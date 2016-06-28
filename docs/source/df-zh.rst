@@ -1,11 +1,11 @@
 .. _df:
 
 *****************
-PyOdps DataFrame
+PyODPS DataFrame
 *****************
 
 
-PyOdps提供了DataFrame API，它提供了类似pandas的接口，但是能充分利用ODPS的计算能力；
+PyODPS提供了DataFrame API，它提供了类似pandas的接口，但是能充分利用ODPS的计算能力；
 同时能在本地使用同样的接口，用pandas进行计算。
 
 .. toctree::

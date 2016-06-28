@@ -1,6 +1,6 @@
 # ODPS Python SDK and data analysis framework
 
-[![License](https://img.shields.io/pypi/l/pyodps.svg)](https://github.com/aliyun/aliyun-odps-python-sdk/blob/master/License) [![PyPI version](https://img.shields.io/pypi/v/pyodps.svg)](https://pypi.python.org/pypi/pyodps) [![Docs](https://img.shields.io/badge/docs-latest-brightgreen.svg)](http://pyodps.readthedocs.org/)
+[![PyPI version](https://img.shields.io/pypi/v/pyodps.svg?style=flat-square)](https://pypi.python.org/pypi/pyodps) [![Docs](https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat-square)](http://pyodps.readthedocs.org/) [![License](https://img.shields.io/pypi/l/pyodps.svg?style=flat-square)](https://github.com/aliyun/aliyun-odps-python-sdk/blob/master/License) ![Implementation](https://img.shields.io/pypi/implementation/pyodps.svg?style=flat-square)
 
 <div align="center">
   <img src="http://pyodps.readthedocs.org/zh_CN/latest/_static/PyODPS.png"><br><br>

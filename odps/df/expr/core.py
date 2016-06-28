@@ -19,13 +19,23 @@
 
 from __future__ import absolute_import
 
+import copy
 import itertools
 import weakref
 from collections import deque, defaultdict
 
 from ... import compat
 from ...compat import six
+from ...dag import WeakNodeDAG
 from . import utils
+
+_node_dependency_dag = WeakNodeDAG()
+DF_SYSTEM_METHODS = set("""
+__class__ __name__ __init__ __new__ __del__ __hash__ __init__ __getattribute__ __members__ __methods__ __repr__
+__getstate__ __setstate__
+accept ast all_path children compile data_source equals execute is_ancestor iter_args leaves output_type path
+substitute traverse verify visualize
+""".strip().split())
 
 
 class NodeMetaclass(type):
@@ -42,14 +52,21 @@ class NodeMetaclass(type):
             kv['__slots__'] = ()
         return type.__new__(mcs, name, bases, kv)
 
+    def __call__(cls, *args, **kwargs):
+        inst = super(NodeMetaclass, cls).__call__(*args, **kwargs)
+        inst._wrap_methods()
+        _node_dependency_dag.add_node(inst)
+        return inst
+
 
 class Node(six.with_metaclass(NodeMetaclass)):
     __slots__ = '_cached_args', '_args_indexes', '__weakref__', '__parents', \
-                '__siblings', '__tmp_cached_args',
+                '__siblings', '__tmp_cached_args', '_source_call'
     _args = ()
 
     def __init__(self, *args, **kwargs):
         self._args_indexes = dict((name, i) for i, name in enumerate(self._args))
+        self._source_call = None
         self._init(*args, **kwargs)
         self._fill_parents()
         self.__tmp_cached_args = None
@@ -334,5 +351,79 @@ class Node(six.with_metaclass(NodeMetaclass)):
         return tuple((slot, object.__getattribute__(self, slot)) for slot in slots
                      if not slot.startswith('__'))
 
+    def _copy_to(self, target):
+        for cls, slots in ((cls, getattr(cls, '__slots__', [])) for cls in type(self).__mro__):
+            for attr in slots:
+                if attr.startswith('__'):
+                    attr = '_' + cls.__name__ + attr
+                if hasattr(target, attr):
+                    setattr(target, attr, getattr(self, attr))
+
+    def _direct_copy(self):
+        new_node = copy.copy(self)
+        _node_dependency_dag.add_node(new_node)
+        return new_node
+
+    def _closest(self, cond):
+        collected = set()
+        stop_cond = lambda n: not collected.intersection(_node_dependency_dag.successors(n))
+        for n in _node_dependency_dag.bfs(self, _node_dependency_dag.predecessors, stop_cond):
+            if cond(n):
+                yield n
+
+    def _replay_descendants(self):
+        for d in _node_dependency_dag.descendants(self):
+            par, method_name, args, kwargs = d._source_call
+            new_df = getattr(par, method_name)(*args, **kwargs)
+            new_df._copy_to(d)
+
+    def _wrap_methods(self):
+        cls = type(self)
+        if hasattr(cls, '_methods_wrapped'):
+            return
+
+        def _gen_wrapped_method(member_name):
+            mt = getattr(cls, member_name)
+            # if method is attached outside odps.ml, we do not wrap
+            if not hasattr(mt, '__module__') or mt.__module__ is None or not mt.__module__.startswith('odps.df'):
+                return mt
+            if hasattr(mt, '_source_recorder_wrapped'):
+                return mt
+
+            def _decorated(self, *args, **kwargs):
+                ret = mt(self, *args, **kwargs)
+                if isinstance(ret, Node):
+                    ret._source_call = (self, member_name, args, kwargs)
+                    _node_dependency_dag.add_edge(self, ret, validate=False)
+                    for d in itertools.chain((self, ), _extract_df_inputs(args), _extract_df_inputs(kwargs)):
+                        _node_dependency_dag.add_edge(d, ret, validate=False)
+                return ret
+
+            _decorated._source_recorder_wrapped = True
+            _decorated.__name__ = mt.__name__
+            return _decorated
+
+        for member_name in dir(cls):
+            if member_name in DF_SYSTEM_METHODS:
+                continue
+            if (member_name.startswith('__') or not member_name.startswith('_')) and callable(getattr(cls, member_name)):
+                setattr(cls, member_name, _gen_wrapped_method(member_name))
+        cls._methods_wrapped = True
+
     def __setstate__(self, state):
         self.__init__(**dict(state))
+
+
+def _extract_df_inputs(o):
+    if isinstance(o, Node):
+        yield o
+    elif isinstance(o, dict):
+        for v in itertools.chain(*(_extract_df_inputs(dv) for dv in six.itervalues(o))):
+            if v is not None:
+                yield v
+    elif isinstance(o, (list, set, tuple)):
+        for v in itertools.chain(*(_extract_df_inputs(dv) for dv in o)):
+            if v is not None:
+                yield v
+    else:
+        yield None

@@ -23,8 +23,8 @@ import hmac
 import hashlib
 import logging
 
-from odps.compat import six
-from odps.compat import urlparse, unquote, parse_qsl
+from .compat import six
+from .compat import urlparse, unquote, parse_qsl
 
 from . import compat, utils
 

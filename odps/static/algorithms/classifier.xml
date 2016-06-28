@@ -285,11 +285,10 @@ Example:
                 <exporter>$package_root.classifiers.customize.random_forest_algo_types</exporter>
             </param>
             <param name="randomColNum">
-                <exporter>$package_root.classifiers.customize.random_forest_random_column_number</exporter>
                 <inputName>input</inputName>
-                <docs>num. of features: the feature number selected randomly when a single tree is generated. The types
-                    to be selected include logN, N/3, sqrtN and N. -1 indicates log2N(N refers to the total number of
-                    features) and effective value is [1,N]
+                <value>-1</value>
+                <docs>num. of features: the feature number selected randomly when a single tree is generated. -1
+                    indicates log2N(N refers to the total number of features) and effective value is [1,N]
                 </docs>
             </param>
             <param name="minNumObj">
@@ -356,96 +355,6 @@ Example:
             <meta name="xflowProjectName" value="algo_public"/>
         </metas>
     </algorithm>
-    <algorithm codeName="RFFeatureImportance">
-        <baseClass>BaseMetricsAlgorithm</baseClass>
-        <exportFunction>true</exportFunction>
-        <docs>计算随机森林模型中特征重要性。</docs>
-        <params>
-            <param name="inputTableName" required="true">
-                <exporter>get_input_table_name</exporter>
-                <inputName>input</inputName>
-            </param>
-            <param name="labelColName" required="true">
-                <exporter>get_label_column</exporter>
-                <inputName>input</inputName>
-                <docs>name of label column in input table</docs>
-            </param>
-            <param name="modelName" required="true">
-                <exporter>get_input_model_name</exporter>
-                <inputName>model</inputName>
-            </param>
-        </params>
-        <ports>
-            <port name="input">
-                <ioType>INPUT</ioType>
-                <sequence>1</sequence>
-                <type>DATA</type>
-                <docs>train set with defined label</docs>
-            </port>
-            <port name="model">
-                <ioType>INPUT</ioType>
-                <sequence>2</sequence>
-                <type>MODEL</type>
-                <docs>random forests model</docs>
-            </port>
-            <port name="output">
-                <ioType>OUTPUT</ioType>
-                <sequence>1</sequence>
-                <type>MODEL</type>
-                <docs>trained model which can be used in prediction</docs>
-            </port>
-        </ports>
-        <metas>
-            <meta name="xflowName" value="feature_importance"/>
-            <meta name="xflowProjectName" value="algo_public"/>
-            <meta name="calculator" value="$package_root.classifiers.customize.get_rf_feature_importance"/>
-        </metas>
-    </algorithm>
-    <algorithm codeName="GBDTFeatureImportance">
-        <baseClass>BaseMetricsAlgorithm</baseClass>
-        <exportFunction>true</exportFunction>
-        <docs>计算 GBDT 模型中特征重要性。</docs>
-        <params>
-            <param name="inputTableName" required="true">
-                <exporter>get_input_table_name</exporter>
-                <inputName>input</inputName>
-            </param>
-            <param name="labelColName" required="true">
-                <exporter>get_label_column</exporter>
-                <inputName>input</inputName>
-                <docs>name of label column in input table</docs>
-            </param>
-            <param name="modelName" required="true">
-                <exporter>get_input_model_name</exporter>
-                <inputName>model</inputName>
-            </param>
-        </params>
-        <ports>
-            <port name="input">
-                <ioType>INPUT</ioType>
-                <sequence>1</sequence>
-                <type>DATA</type>
-                <docs>train set with defined label</docs>
-            </port>
-            <port name="model">
-                <ioType>INPUT</ioType>
-                <sequence>2</sequence>
-                <type>MODEL</type>
-                <docs>random forests model</docs>
-            </port>
-            <port name="output">
-                <ioType>OUTPUT</ioType>
-                <sequence>1</sequence>
-                <type>MODEL</type>
-                <docs>trained model which can be used in prediction</docs>
-            </port>
-        </ports>
-        <metas>
-            <meta name="xflowName" value="gbdt_importance"/>
-            <meta name="xflowProjectName" value="algo_public"/>
-            <meta name="calculator" value="$package_root.classifiers.customize.get_gbdt_feature_importance"/>
-        </metas>
-    </algorithm>
     <algorithm codeName="LogisticRegression">
         <reloadFields>false</reloadFields>
         <docs><![CDATA[
@@ -453,7 +362,7 @@ Logistic regression is a classification method utilizing logistic functions. Det
 `here <https://en.wikipedia.org/wiki/Logistic_regression>`_.
 
 Note that although the original logistic regression algorithm only support binary classification, algorithm implemented
-in PAI extends it using one-vs-rest strategy. It also use L-BFGS to improve performance.
+in ODPS ML extends it using one-vs-rest strategy. It also use L-BFGS to improve performance.
 
 %params%
 %inputs%

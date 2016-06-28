@@ -95,6 +95,6 @@ class SQLTask(Task):
         return super(SQLTask, self).serial()
 
 try:
-    from odps.internal.models.tasks import *
+    from ..internal.models.tasks import *
 except ImportError:
     pass

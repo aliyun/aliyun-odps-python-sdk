@@ -12,4 +12,4 @@ Here we give automatically generated API documentation of PyODPS.
 
     api-def
     api-df
-    api-pai-int
+    api-ml-int

@@ -518,6 +518,24 @@ class OdpsSQLCompiler(Backend):
         self._ctx.add_expr_compiled(expr, compiled)
         self.add_where_clause(expr, compiled)
 
+    def visit_filter_partition_collection(self, expr):
+        compiled = self._ctx.get_expr_compiled(expr._predicate)
+
+        if self._group_by_clause is not None or \
+                isinstance(expr.input, ProjectCollectionExpr):
+            self.sub_sql_to_from_clause(expr.input)
+
+        self._ctx.add_expr_compiled(expr, compiled)
+        self.add_where_clause(expr, compiled)
+
+        compiled_fields = [self._compile_select_field(field)
+                           for field in expr.fields]
+
+        compiled = self._join_select_fields(compiled_fields)
+
+        self._ctx.add_expr_compiled(expr, compiled)
+        self.add_select_clause(expr, compiled)
+
     def visit_slice_collection(self, expr):
         sliced = expr._indexes
         if sliced[0] is not None:

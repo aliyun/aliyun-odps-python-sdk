@@ -65,17 +65,6 @@ def available_engines(sources):
     return engines
 
 
-def _build_odps_from_table(table):
-    client = table._client
-
-    account = client.account
-    endpoint = client.endpoint
-    project = client.project
-
-    return ODPS(account.access_id, account.secret_access_key,
-                project, endpoint=endpoint)
-
-
 def get_default_engine(expr):
     if expr._engine:
         return expr._engine
@@ -87,7 +76,7 @@ def get_default_engine(expr):
         engine = engines[0]
         src = srcs[0]
         if engine == Engines.ODPS:
-            odps = _build_odps_from_table(src)
+            odps = src.odps
         elif engine == Engines.PANDAS:
             if options.access_id is not None and options.access_key is not None and \
                     options.end_point is not None and options.default_project is not None:
@@ -99,7 +88,7 @@ def get_default_engine(expr):
             raise NotImplementedError
     else:
         table_src = next(it for it in srcs if isinstance(it, Table))
-        odps = _build_odps_from_table(table_src)
+        odps = table_src.odps
 
     return MixedEngine(odps)
 

@@ -26,7 +26,7 @@ import warnings
 
 from itertools import groupby, product
 
-from ..compat import pickle, urlretrieve
+from ..compat import pickle, urlretrieve, reduce
 from ..compat.six import text_type
 from ..tunnel import TableTunnel
 from ..utils import load_static_text_file, build_pyodps_dir
@@ -267,6 +267,28 @@ def create_weighted_graph_edges(odps, table_name, tunnel=None, project=None):
 
 
 @table_creator
+def create_tree_graph(odps, table_name, tunnel=None, project=None):
+    if tunnel is None:
+        tunnel = TableTunnel(odps, project=project)
+    data_rows = [
+        ['0', '1'], ['0', '2'], ['1', '3'], ['1', '4'], ['2', '4'], ['2', '5'], ['4', '6'], ['a', 'b'], ['a', 'c'],
+        ['c', 'd'], ['c', 'e']
+    ]
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (flow_out_id string, flow_in_id string)' % table_name, project=project)
+
+    upload_ss = tunnel.create_upload_session(table_name)
+    writer = upload_ss.open_record_writer(0)
+
+    for rd in data_rows:
+        rec = upload_ss.new_record()
+        [rec.set(i, val) for i, val in enumerate(rd)]
+        writer.write(rec)
+    writer.close()
+    upload_ss.commit([0, ])
+
+
+@table_creator
 def create_weighted_graph_vertices(odps, table_name, tunnel=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
@@ -290,7 +312,7 @@ def create_weighted_graph_vertices(odps, table_name, tunnel=None, project=None):
 
 
 @table_creator
-def create_user_item_table(odps, table_name, tunnel=None, agg=False, project=None):
+def create_user_item_table(odps, table_name, tunnel=None, mode=None, project=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
     data_rows = [
@@ -312,9 +334,14 @@ def create_user_item_table(odps, table_name, tunnel=None, agg=False, project=Non
         ['CST0002', 'b', 1], ['CST0002', 'a', 2], ['CST0002', 'b', 2], ['CST0002', 'c', 2], ['CST0002', 'a', 3]
     ]
     odps.execute_sql('drop table if exists ' + table_name, project=project)
-    if agg:
+    if mode == 'agg':
         data_rows = [k + (len(list(p)), ) for k, p in groupby(sorted(data_rows, key=lambda item: (item[0], item[1])), lambda item: (item[0], item[1]))]
         odps.execute_sql('create table %s (user string, item string, payload bigint)' % table_name, project=project)
+    elif mode == 'kv':
+        data_rows = [(k[0], '{}:{}'.format(k[1], len(list(p))))
+                     for k, p in groupby(sorted(data_rows, key=lambda item: (item[0], item[1])), lambda item: (item[0], item[1]))]
+        data_rows = [(k, ','.join((v[1] for v in p))) for k, p in groupby(data_rows, key=lambda item: item[0])]
+        odps.execute_sql('create table %s (user string, item_list string)' % table_name, project=project)
     else:
         odps.execute_sql('create table %s (user string, item string, time bigint)' % table_name, project=project)
 
@@ -334,7 +361,7 @@ def create_user_item_table(odps, table_name, tunnel=None, agg=False, project=Non
 """
 
 NEWSGROUP_URL = 'http://people.csail.mit.edu/jrennie/20Newsgroups/20news-bydate.tar.gz'
-NEWSGROUP_DATASET_NAME = '20news-bydate'
+NEWSGROUP_DATA_NAME = '20news-bydate'
 NEWSGROUP_ARCHIVE_NAME = '20news-bydate.tar.gz'
 NEWSGROUP_CACHE_NAME = '20news-bydate.pkz'
 NEWSGROUP_TRAIN_DIR = "20news-bydate-train"
@@ -391,7 +418,7 @@ def create_newsgroup_table(odps, table_name, tunnel=None, data_part='train', pro
         os.makedirs(USER_DATA_REPO)
     if not os.path.exists(cache_file):
         warnings.warn('We need to download data set from ' + NEWSGROUP_URL + '.')
-        download_newsgroup(os.path.join(USER_DATA_REPO, NEWSGROUP_DATASET_NAME), USER_DATA_REPO)
+        download_newsgroup(os.path.join(USER_DATA_REPO, NEWSGROUP_DATA_NAME), USER_DATA_REPO)
 
     with open(cache_file, 'rb') as f:
         cache = pickle.loads(codecs.decode(f.read(), 'zlib_codec'))

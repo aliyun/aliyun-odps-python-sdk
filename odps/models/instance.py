@@ -386,7 +386,7 @@ class Instance(LazyLoad):
         :rtype: list or dict according to the JSON
         """
 
-        from odps.compat import json  # fix object_pairs_hook parameter for Py2.6
+        from ..compat import json  # fix object_pairs_hook parameter for Py2.6
 
         params = {'instancedetail': '',
                   'taskname': task_name}
@@ -404,7 +404,7 @@ class Instance(LazyLoad):
         :rtype: list or dict according to the JSON
         """
 
-        from odps.compat import json  # fix object_pairs_hook parameter for Py2.6
+        from ..compat import json  # fix object_pairs_hook parameter for Py2.6
 
         params = {'detail': '',
                   'taskname': task_name}

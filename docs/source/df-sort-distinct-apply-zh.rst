@@ -868,7 +868,7 @@ MapReduce API
 ==============
 
 
-PyOdps DataFrame也支持MapReduce API，用户可以分别编写map和reduce函数。我们来看个简单的wordcount的例子。
+PyODPS DataFrame也支持MapReduce API，用户可以分别编写map和reduce函数。我们来看个简单的wordcount的例子。
 
 
 .. code:: python
@@ -1151,7 +1151,7 @@ group参数用来指定reduce按哪些字段做分组，如果不指定，会按
 ==============
 
 
-PyOdps DataFrame提供了 ``bloom_filter`` 接口来进行布隆过滤器的计算。
+PyODPS DataFrame提供了 ``bloom_filter`` 接口来进行布隆过滤器的计算。
 
 给定某个collection，和它的某个列计算的sequence1，我们能对另外一个sequence2进行布隆过滤，sequence1不在sequence2中的一定会过滤，
 但可能不能完全过滤掉不存在于sequence2中的数据，这也是一种近似的方法。

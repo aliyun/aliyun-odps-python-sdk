@@ -21,8 +21,8 @@ import os
 import time
 import codecs
 
-from odps.utils import load_static_file_paths, load_static_text_files
-from odps.compat import six, quote
+from ..utils import load_static_file_paths, load_static_text_files
+from ..compat import six, quote
 
 
 MAX_SCRIPT_LOAD_SEC = 5

@@ -31,10 +31,26 @@ from ...config import options
 from ...errors import DependencyNotInstalledError
 from ...utils import TEMP_TABLE_PREFIX
 
+_df_exec_hook = None
+
+
+def register_exec_hook(hook):
+    global _df_exec_hook
+    _df_exec_hook = hook
+
 
 def run_at_once(func):
-    func.run_at_once = True
-    return func
+    global _df_exec_hook
+
+    def _decorator(*args, **kwargs):
+        if callable(_df_exec_hook):
+            return _df_exec_hook(*args, _df_call=func, **kwargs)
+        else:
+            return func(*args, **kwargs)
+
+    _decorator.__name__ = func.__name__
+    _decorator.run_at_once = True
+    return _decorator
 
 
 def repr_obj(obj):
@@ -370,8 +386,9 @@ class CollectionExpr(Expr):
 
     def _init(self, *args, **kwargs):
         super(CollectionExpr, self)._init(*args, **kwargs)
+
         if hasattr(self, '_schema') and any(it is None for it in self._schema.names):
-            raise TypeError('Schema cannot has field which name is None')
+            raise TypeError('Schema cannot has field whose name is None')
         self._source_data = getattr(self, '_source_data', None)
 
     def __getitem__(self, item):
@@ -413,6 +430,56 @@ class CollectionExpr(Expr):
 
         predicate = reduce(operator.and_, predicates)
         return FilterCollectionExpr(self, predicate, _schema=self._schema)
+
+    def filter_partition(self, predicate='', exclude=True):
+        """
+        Filter the data by partition string. A partition string looks like `pt1=1/pt2=2,pt1=2/pt2=1`, where
+        comma (,) denotes 'or', while '/' denotes 'and'.
+
+        :param str predicate: predicate string of partition filter
+        :param bool exclude: True if you want to exclude partition fields, otherwise False. True for default.
+        :return: new collection
+        :rtype: :class:`odps.df.expr.expressions.CollectionExpr`
+        """
+        source = self._source_data
+        if source is None:
+            raise ExpressionError('Can only filter on data sources.')
+
+        def _parse_partition_predicate(p):
+            if '=' not in p:
+                raise ExpressionError('Illegal partition predicate.')
+            field_name, field_value = [s.strip() for s in p.split('=', 1)]
+            if not hasattr(source, 'schema'):
+                raise ExpressionError('filter_partition can only be applied on ODPS DataFrames.')
+            if field_name not in source.schema._partition_schema:
+                raise ExpressionError('Partition specifications should not be applied on common columns.')
+            part_col = self[field_name]
+            if field_value.startswith('\'') or field_value.startswith('\"'):
+                field_value = field_value.strip('"\'').decode('string-escape')
+
+            if isinstance(part_col.data_type, types.Integer):
+                field_value = int(field_value)
+            elif isinstance(part_col.data_type, types.Float):
+                field_value = float(field_value)
+            return part_col == field_value
+
+        if not isinstance(predicate, six.string_types):
+            raise ExpressionError('Only accept string predicates.')
+
+        if not predicate:
+            predicate_obj = None
+        else:
+            part_formatter = lambda p: reduce(operator.and_, map(_parse_partition_predicate, p.split('/')))
+            predicate_obj = reduce(operator.or_, map(part_formatter, predicate.split(',')))
+
+        if not source.schema._partitions:
+            raise ExpressionError('No partition columns in the collection.')
+        if exclude:
+            columns = [c for c in self.schema if c.name not in source.schema._partition_schema]
+            new_schema = types.Schema.from_lists([c.name for c in columns], [c.type for c in columns])
+            return FilterPartitionCollectionExpr(self, predicate_obj, _schema=new_schema, _predicate_string=predicate)
+        else:
+            return self.filter(predicate_obj)
 
     def _validate_field(self, field):
         if not isinstance(field, SequenceExpr):
@@ -615,7 +682,7 @@ class CollectionExpr(Expr):
         """
         Convert to pandas DataFrame. Execute at once.
 
-        :param wrap: if True, wrap the pandas DataFrame into a PyOdps DataFrame
+        :param wrap: if True, wrap the pandas DataFrame into a PyODPS DataFrame
         :return: pandas DataFrame
         """
 
@@ -845,7 +912,7 @@ class SequenceExpr(TypedExpr):
         """
         Convert to pandas Series. Execute at once.
 
-        :param wrap: if True, wrap the pandas DataFrame into a PyOdps DataFrame
+        :param wrap: if True, wrap the pandas DataFrame into a PyODPS DataFrame
         :return: pandas Series
         """
 
@@ -1309,6 +1376,41 @@ class ProjectCollectionExpr(CollectionExpr):
         visitor.visit_project_collection(self)
 
 
+class FilterPartitionCollectionExpr(CollectionExpr):
+    __slots__ = '_predicate_string',
+
+    _args = '_input', '_predicate', '_fields'
+    node_name = 'FilterPartition'
+
+    def _init(self, *args, **kwargs):
+        super(FilterPartitionCollectionExpr, self)._init(*args, **kwargs)
+        self._fields = [self._input[col.name] for col in self._schema.columns]
+        self._predicate_string = kwargs.get('_predicate_string')
+
+    @property
+    def _project_fields(self):
+        return self._fields
+
+    def iter_args(self):
+        for it in zip(['collection', 'predicate', 'selections'], self.args):
+            yield it
+
+    @property
+    def input(self):
+        return self._input
+
+    @property
+    def fields(self):
+        return self._fields
+
+    @property
+    def predicate_string(self):
+        return self._predicate_string
+
+    def accept(self, visitor):
+        visitor.visit_filter_partition_collection(self)
+
+
 class SliceCollectionExpr(CollectionExpr):
 
     _args = '_input', '_indexes'
@@ -1400,6 +1502,5 @@ def _count(expr, *args, **kwargs):
     else:
         from .reduction import count
         return count(expr)
-
 
 StringSequenceExpr.count = _count

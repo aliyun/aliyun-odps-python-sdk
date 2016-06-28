@@ -36,6 +36,9 @@ class Backend(object):
     def visit_filter_collection(self, expr):
         raise NotImplementedError
 
+    def visit_filter_partition_collection(self, expr):
+        raise NotImplementedError
+
     def visit_slice_collection(self, expr):
         raise NotImplementedError
 

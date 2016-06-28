@@ -123,13 +123,15 @@ def start_coverage():
         pass
 
 
-def ignore_case(_):
-    return None
+def ignore_case(case, reason):
+    from odps.compat import unittest
+    decorator = unittest.skip(reason)
+    return decorator(case)
 
 
 def ci_skip_case(obj):
     if 'CI_MODE' in os.environ:
-        return ignore_case(obj)
+        return ignore_case(obj, 'Intentionally skipped in CI mode.')
     else:
         return obj
 
@@ -139,7 +141,7 @@ def numpy_case(obj):
         import numpy
         return obj
     except ImportError:
-        return ignore_case(obj)
+        return ignore_case(obj, 'Skipped due to absence of numpy.')
 
 
 def pandas_case(obj):
@@ -147,7 +149,15 @@ def pandas_case(obj):
         import pandas
         return obj
     except ImportError:
-        return ignore_case(obj)
+        return ignore_case(obj, 'Skipped due to absence of pandas.')
+
+
+def snappy_case(obj):
+    try:
+        import snappy
+        return obj
+    except ImportError:
+        return ignore_case(obj, 'Skipped due to absence of snappy.')
 
 
 class TestMeta(type):

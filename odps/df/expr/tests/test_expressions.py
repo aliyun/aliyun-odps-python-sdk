@@ -35,6 +35,12 @@ class Test(TestBase):
         table._client = self.config.odps.rest
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
+        schema2 = Schema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64],
+                                    ['part1', 'part2'], [types.string, types.int64])
+        table2 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
+        table2._client = self.config.odps.rest
+        self.expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
+
     def testProjection(self):
         projected = self.expr['name', self.expr.id.rename('new_id')]
 
@@ -209,6 +215,45 @@ class Test(TestBase):
 
         df2 = self.expr[['id']]
         self.assertRaises(errors.ExpressionError, lambda: df[df2.id])
+
+    def testFilterPartition(self):
+        self.assertRaises(ExpressionError, lambda: self.expr.filter_partition(None))
+        self.assertRaises(ExpressionError, lambda: self.expr.filter_partition('part1=a/part2=1,part1=b/part2=2'))
+        self.assertRaises(ExpressionError, lambda: self.expr2.filter_partition('part1/part2=1,part1=b/part2=2'))
+
+        filtered1 = self.expr2.filter_partition('part1=a/part2=1,part1=b/part2=2')
+        self.assertIsInstance(filtered1, FilterPartitionCollectionExpr)
+        self.assertEqual(filtered1.schema, self.expr.schema)
+        self.assertEqual(filtered1.predicate_string, 'part1=a/part2=1,part1=b/part2=2')
+
+        filtered2 = self.expr2.filter_partition('part1=a/part2=1,part1=b/part2=2', exclude=False)
+        self.assertIsInstance(filtered2, FilterCollectionExpr)
+
+        try:
+            import pandas as pd
+            from odps.df import DataFrame
+            pd_df = pd.DataFrame([['Col1', 1], ['Col2', 2]], columns=['Field1', 'Field2'])
+            df = DataFrame(pd_df)
+            self.assertRaises(ExpressionError, lambda: df.filter_partition('Fieldd2=2'))
+        except ImportError:
+            pass
+
+    def testReplayDescendants(self):
+        schema = Schema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
+        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table._client = self.config.odps.rest
+        expr = CollectionExpr(_source_data=table, _schema=schema)
+
+        df = expr[expr.fid > 10]
+
+        new_schema = Schema.from_lists(['name', 'id', 'fid', 'ffid'],
+                                       [types.string, types.int64, types.float64, types.float64])
+        new_table = MockTable(name='pyodps_test_expr_table', schema=new_schema)
+        new_table._client = self.config.odps.rest
+        CollectionExpr(_source_data=new_table, _schema=new_schema)._copy_to(expr)
+        expr._replay_descendants()
+
+        self.assertListEqual(['name', 'id', 'fid', 'ffid'], [c.name for c in df.columns])
 
 if __name__ == '__main__':
     unittest.main()

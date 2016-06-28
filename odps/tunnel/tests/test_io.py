@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, snappy_case
 from odps.compat import unittest, BytesIO
 from odps.tunnel.io import *
 
@@ -68,6 +68,7 @@ class Test(TestBase):
 
         self.assertEquals(self.TEXT.encode('utf8'), b)
 
+    @snappy_case
     def testCompressAndDecompressSnappy(self):
         tube = io.BytesIO()
 

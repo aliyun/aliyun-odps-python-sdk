@@ -38,11 +38,11 @@
       name                  string        
     }
 
-在用pandas DataFrame初始化时，对于numpy object类型（string也是），PyOdps DataFrame会尝试推断类型，
+在用pandas DataFrame初始化时，对于numpy object类型（string也是），PyODPS DataFrame会尝试推断类型，
 如果一整列都为空，则会报错。
 这时，用户可以指定 `unknown_as_string` 为True，会将这些列指定为string类型。
 
-用户也可以指定as_type参数，此时会在创建PyOdps DataFrame时进行强制类型转换，as_type参数类型必须是dict。
+用户也可以指定as_type参数，此时会在创建PyODPS DataFrame时进行强制类型转换，as_type参数类型必须是dict。
 
 
 .. code:: python
@@ -122,17 +122,17 @@
 基本概念
 ========
 
-PyOdps
+PyODPS
 DataFrame中包括三个基本对象：\ ``Collection``\ ，\ ``Sequence``\ ，\ ``Scalar``\ ，分别表示表结构（或者二维结构）、列（一维结构）、标量。
 
 类型系统
 ========
 
-PyOdps
+PyODPS
 DataFrame包括自己的类型系统，在使用Table初始化的时候，ODPS的类型会被进行转换。这样做的好处是，能支持更多的计算后端。目前，DataFrame的执行后端支持ODPS
 SQL和pandas。
 
-PyOdps DataFrame包括以下类型：
+PyODPS DataFrame包括以下类型：
 
 ``int8``\ ，\ ``int16``\ ，\ ``int32``\ ，\ ``int64``\ ，\ ``float32``\ ，\ ``float64``\ ，\ ``boolean``\ ，\ ``string``\ ，\ ``decimal``\ ，\ ``datetime``
 
@@ -204,7 +204,7 @@ DataFrame上的所有操作并不会立即执行，只有当用户显式调用\ 
       </tr>
       <tr>
         <td>to_pandas</td>
-        <td>转化为pandas DataFrame或者Series，wrap参数为True的时候，返回PyOdps DataFrame对象</td>
+        <td>转化为pandas DataFrame或者Series，wrap参数为True的时候，返回PyODPS DataFrame对象</td>
       </tr>
       <tr>
         <td>plot，hist，boxplot</td>
@@ -213,7 +213,7 @@ DataFrame上的所有操作并不会立即执行，只有当用户显式调用\ 
     </table>
     </div>
 
-**注意**\ ：在交互式环境下，PyOdps
+**注意**\ ：在交互式环境下，PyODPS
 DataFrame会在打印或者repr的时候，调用\ ``execute``\ 方法，这样省去了用户手动去调用execute。
 
 .. code:: python

@@ -4,3 +4,4 @@ include requirements.txt
 global-include *.pyx
 global-include *.pxd
 include odps/src/crc32c/crc32c.c
+global-exclude *_c.c

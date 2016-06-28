@@ -1061,8 +1061,21 @@ class ODPS(object):
         options.default_project = self.project
         options.end_point = self.endpoint
 
+
+def _get_odps_from_model(self):
+    client = self._client
+    account = client.account
+    endpoint = client.endpoint
+    project = client.project
+
+    return ODPS(account.access_id, account.secret_access_key,
+                project, endpoint=endpoint)
+
+models.RestModel.odps = property(fget=_get_odps_from_model)
+del _get_odps_from_model
+
 try:
-    from odps.internal.core import *
+    from .internal.core import *
 except ImportError:
     pass
 

@@ -101,6 +101,10 @@ class Test(TestBase):
         self.assertFalse(self.odps.exist_table(test_table_name))
 
         table = tables.create(test_table_name, schema, lifecycle=10)
+
+        self.assertIsNone(table._getattr('owner'))
+        self.assertIsNotNone(table.owner)
+
         self.assertEqual(table.name, test_table_name)
         self.assertEqual(table.schema, schema)
         self.assertEqual(table.lifecycle, 10)
@@ -127,7 +131,7 @@ class Test(TestBase):
         self.assertSequenceEqual([col.name for col in table.schema.columns],
                                  [col.name for col in schema.columns])
 
-    def testReadWriteTable(self):
+    def testRecordReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_read_write_table')
         schema = Schema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
 
@@ -154,6 +158,32 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name)
         self.assertFalse(self.odps.exist_table(test_table_name))
 
+    def testArrayReadWriteTable(self):
+        test_table_name = tn('pyodps_t_tmp_read_write_table')
+        schema = Schema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+        self.assertFalse(self.odps.exist_table(test_table_name))
+
+        table = self.odps.create_table(test_table_name, schema)
+        data = [[111, 'aaa', True],
+                [222, 'bbb', False],
+                [333, 'ccc', True],
+                [444, '中文', False]]
+        length = len(data)
+
+        texted_data = [[it[0], to_str(it[1]), it[2]] for it in data]
+
+        self.odps.write_table(table, 0, data)
+        self.assertSequenceEqual(texted_data, [record.values for record in self.odps.read_table(table, length)])
+        self.assertSequenceEqual(texted_data[::2],
+                                 [record.values for record in self.odps.read_table(table, length, step=2)])
+
+        self.assertSequenceEqual(texted_data, [record.values for record in table.head(length)])
+
+        self.odps.delete_table(test_table_name)
+        self.assertFalse(self.odps.exist_table(test_table_name))
+
     def testReadWritePartitionTable(self):
         test_table_name = tn('pyodps_t_tmp_read_write_partition_table')
         schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['pt'], ['string'])
@@ -168,10 +198,11 @@ class Test(TestBase):
         table.create_partition(pt1)
         table.create_partition(pt2)
 
+        with table.open_reader(pt1) as reader:
+            self.assertEqual(len(list(reader)), 0)
+
         with table.open_writer(pt1, commit=False) as writer:
-            record = table.new_record()
-            record[0] = 1
-            record[1] = 'name1'
+            record = table.new_record([1, 'name1'])
             writer.write(record)
 
             record = table.new_record()
@@ -186,24 +217,21 @@ class Test(TestBase):
             self.assertEqual(upload_id, list(table._upload_ids.values())[0])
 
         with table.open_writer(pt2) as writer:
-            record = table.new_record()
-            record[0] = 2
-            record[1] = 'name2'
-            writer.write(record)
+            writer.write([2, 'name2'])
 
-        with table.open_reader(pt1) as reader:
+        with table.open_reader(pt1, reopen=True) as reader:
             records = list(reader)
             self.assertEqual(len(records), 2)
             self.assertEqual(sum(r[0] for r in records), 4)
 
-        with table.open_reader(pt2) as reader:
+        with table.open_reader(pt2, reopen=True) as reader:
             records = list(reader)
             self.assertEqual(len(records), 1)
             self.assertEqual(sum(r[0] for r in records), 2)
 
         table.drop()
 
-    def testSimpleReadWriteTable(self):
+    def testSimpleRecordReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_simpe_read_write_table')
         schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])
 
@@ -217,6 +245,27 @@ class Test(TestBase):
             record = table.new_record()
             record[0] = '1'
             writer.write(record)
+
+        with table.open_reader(partition) as reader:
+            self.assertEqual(reader.count, 1)
+            record = next(reader)
+            self.assertEqual(record[0], '1')
+            self.assertEqual(record.num, '1')
+
+        table.drop()
+
+    def testSimpleArrayReadWriteTable(self):
+        test_table_name = tn('pyodps_t_tmp_simpe_read_write_table')
+        schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self.odps.create_table(test_table_name, schema)
+        partition = 'pt=20151122'
+        table.create_partition(partition)
+
+        with table.open_writer(partition) as writer:
+            writer.write(['1', ])
 
         with table.open_reader(partition) as reader:
             self.assertEqual(reader.count, 1)

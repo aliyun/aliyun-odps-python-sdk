@@ -17,14 +17,14 @@
  * under the License.
  */
 /*
- * Cell customization for PAI
+ * Cell customization for PyODPS ML
  */
 
 require(['pyodps'], function(pyodps) {
-    pyodps.define_widget('pyodps/pai/retry', ["jquery", "widgets"], function ($, widget) {
+    pyodps.define_widget('pyodps/ml/retry', ["jquery", "widgets"], function ($, widget) {
         var retry_html = '<a class="retry-btn" title="Retry"><i class="fa fa-repeat" /></a>';
 
-        var PAIRetryButton = widget.DOMWidgetView.extend({
+        var MLRetryButton = widget.DOMWidgetView.extend({
             initialize: function (parameters) {
                 var that = this;
                 that.listenTo(that.model, 'msg:custom', that._handle_route_msg, that);
@@ -58,7 +58,7 @@ require(['pyodps'], function(pyodps) {
 
 
         return {
-            PAIRetryButton: PAIRetryButton
+            MLRetryButton: MLRetryButton
         };
     });
 });

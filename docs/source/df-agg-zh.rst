@@ -432,10 +432,10 @@ API提供了一个\ ``value_counts``\ 操作，能返回按某列分组后，每
     </div>
 
 
-HyperLogLog计数
+HyperLogLog 计数
 ==================
 
-PyOdps DataFrame提供了对列进行HyperLogLog计数的接口 ``hll_count``，这个接口是个近似的估计接口，
+PyODPS DataFrame提供了对列进行HyperLogLog计数的接口 ``hll_count``，这个接口是个近似的估计接口，
 当数据量很大时，能较快的对数据的唯一个数进行估计。
 
 这个接口在对比如海量用户UV进行计算时，能很快得出估计值。

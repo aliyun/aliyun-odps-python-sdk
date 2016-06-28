@@ -236,7 +236,7 @@ class Test(TestBase):
         )
 
         data = [[1, ], ]
-        self.odps.write_table(table, 0, [table.new_record(it) for it in data])
+        self.odps.write_table(table, 0, data)
 
         res_name1 = tn('pyodps_t_tmp_resource_1')
         res_name2 = tn('pyodps_t_tmp_resource_2')

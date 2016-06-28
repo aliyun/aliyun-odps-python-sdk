@@ -30,6 +30,17 @@
                 <value>500</value>
                 <docs>若节点度大于该值，则进行抽样</docs>
             </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
         </params>
         <ports>
             <port name="input">
@@ -77,6 +88,17 @@
             <param name="toVertexCol" required="true">
                 <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
+            </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
             </param>
         </params>
         <ports>
@@ -129,6 +151,17 @@
                 <value>500</value>
                 <docs>若节点度大于该值，则进行抽样</docs>
             </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
         </params>
         <ports>
             <port name="input">
@@ -175,6 +208,17 @@
             <param name="toVertexCol" required="true">
                 <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
+            </param>
+            <param name="workerNum">
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
             </param>
         </params>
         <ports>
@@ -891,6 +935,76 @@ Modularity是一种评估社区网络结构的指标，来评估网络结构中�
             <meta name="xflowName" value="Modularity"/>
             <meta name="xflowProjectName" value="algo_public"/>
             <meta name="calculator" value="$package_root.network.customize.get_modularity_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="TreeDepth">
+        <reloadFields>false</reloadFields>
+        <docs><![CDATA[
+对于众多树状网络，输出每个节点的所处深度和树ID。
+
+%params%
+%inputs%
+%outputs%
+        ]]></docs>
+        <params>
+            <param name="inputEdgeTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputEdgeTablePartitions" required="true">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="fromVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="toVertexCol" required="true">
+                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputTablePartitions" required="true">
+                <exporter>get_output_table_partition</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="workerNum">
+                <min>1</min>
+                <max>1000</max>
+                <docs>进程数量</docs>
+            </param>
+            <param name="workerMem">
+                <value>4096</value>
+                <min>2048</min>
+                <max>32768</max>
+                <docs>进程内存</docs>
+            </param>
+            <param name="splitSize">
+                <value>64</value>
+                <docs>数据切分大小</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>node:string, root:string, depth:bigint</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="TreeDepth"/>
+            <meta name="xflowProjectName" value="algo_public"/>
         </metas>
     </algorithm>
 </algorithms>

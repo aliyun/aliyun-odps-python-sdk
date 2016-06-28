@@ -73,6 +73,8 @@ from functools import partial
 import itertools
 import dis
 import traceback
+import platform
+import opcode
 
 if sys.version < '3':
     from pickle import Pickler, Unpickler
@@ -87,17 +89,41 @@ else:
     from io import BytesIO as StringIO
     PY3 = True
 
+PYPY = platform.python_implementation().lower() == 'pypy'
+
+
 #relevant opcodes
-STORE_GLOBAL = dis.opname.index('STORE_GLOBAL')
+BUILD_LIST_FROM_ARG = opcode.opmap.get('BUILD_LIST_FROM_ARG')
+BUILD_LIST = opcode.opmap['BUILD_LIST']
+CALL_FUNCTION = opcode.opmap['CALL_FUNCTION']
+CALL_METHOD = opcode.opmap.get('CALL_METHOD')
+CONTINUE_LOOP = opcode.opmap.get('CONTINUE_LOOP')
+DUP_TOPX = dis.opmap.get('DUP_TOPX')
+EXTENDED_ARG = dis.EXTENDED_ARG
+HAVE_ARGUMENT = dis.HAVE_ARGUMENT
+JUMP_ABSOLUTE = opcode.opmap['JUMP_ABSOLUTE']
+JUMP_FORWARD = opcode.opmap['JUMP_FORWARD']
+JUMP_IF_NOT_DEBUG = opcode.opmap.get('JUMP_IF_NOT_DEBUG')
+JUMP_IF_TRUE_OR_POP = opcode.opmap.get('JUMP_IF_TRUE_OR_POP')
+JUMP_IF_FALSE_OR_POP = opcode.opmap.get('JUMP_IF_FALSE_OR_POP')
+LOAD_ATTR = opcode.opmap['LOAD_ATTR']
+LOAD_CONST = opcode.opmap['LOAD_CONST']
+LOAD_FAST = opcode.opmap['LOAD_FAST']
+LOOKUP_METHOD = opcode.opmap.get('LOOKUP_METHOD')
+NOP = opcode.opmap['NOP']
+POP_JUMP_IF_TRUE = opcode.opmap.get('POP_JUMP_IF_TRUE')
+POP_JUMP_IF_FALSE = opcode.opmap.get('POP_JUMP_IF_FALSE')
+ROT_TWO = opcode.opmap['ROT_TWO']
+ROT_FOUR = opcode.opmap.get('ROT_FOUR')
+
 DELETE_GLOBAL = dis.opname.index('DELETE_GLOBAL')
 LOAD_GLOBAL = dis.opname.index('LOAD_GLOBAL')
+STORE_GLOBAL = dis.opname.index('STORE_GLOBAL')
 GLOBAL_OPS = [STORE_GLOBAL, DELETE_GLOBAL, LOAD_GLOBAL]
-HAVE_ARGUMENT = dis.HAVE_ARGUMENT
-EXTENDED_ARG = dis.EXTENDED_ARG
 
 
 def islambda(func):
-    return getattr(func,'__name__') == '<lambda>'
+    return getattr(func, '__name__') == '<lambda>'
 
 
 _BUILTIN_TYPE_NAMES = {}
@@ -108,6 +134,31 @@ for k, v in types.__dict__.items():
 
 def _builtin_type(name):
     return getattr(types, name)
+
+
+def pypy_to_cpython(code):
+    if not PYPY:
+        return code
+
+    code = [ord(c) for c in code]
+    i = 0
+    while i < len(code):
+        if code[i] == LOOKUP_METHOD:
+            code[i] = LOAD_ATTR
+        elif code[i] == CALL_METHOD:
+            code[i] = CALL_FUNCTION
+        elif code[i] == BUILD_LIST_FROM_ARG:
+            code[i: i+3] = [JUMP_ABSOLUTE, len(code) % 256, len(code) // 256]
+            code.extend([BUILD_LIST, 0, 0, ROT_TWO,
+                         JUMP_ABSOLUTE, (i + 3) % 256, (i + 3) // 256])
+        elif code[i] == JUMP_IF_NOT_DEBUG:
+            if __debug__:
+                code[i: i+3] = [NOP, NOP, NOP]
+            else:
+                code[i] = JUMP_FORWARD
+        i += (3 if code[i] >= HAVE_ARGUMENT else 1)
+
+    return ''.join(chr(c) for c in code)
 
 
 class CloudPickler(Pickler):
@@ -166,13 +217,13 @@ class CloudPickler(Pickler):
         if PY3:
             args = (
                 obj.co_argcount, obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
-                obj.co_flags, obj.co_code, obj.co_consts, obj.co_names, obj.co_varnames,
+                obj.co_flags, pypy_to_cpython(obj.co_code), obj.co_consts, obj.co_names, obj.co_varnames,
                 obj.co_filename, obj.co_name, obj.co_firstlineno, obj.co_lnotab, obj.co_freevars,
                 obj.co_cellvars
             )
         else:
             args = (
-                obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags, obj.co_code,
+                obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags, pypy_to_cpython(obj.co_code),
                 obj.co_consts, obj.co_names, obj.co_varnames, obj.co_filename, obj.co_name,
                 obj.co_firstlineno, obj.co_lnotab, obj.co_freevars, obj.co_cellvars
             )
@@ -269,7 +320,7 @@ class CloudPickler(Pickler):
         """
         Find all globals names read or written to by codeblock co
         """
-        code = co.co_code
+        code = pypy_to_cpython(co.co_code)
         if not PY3:
             code = [ord(c) for c in code]
         names = co.co_names
@@ -643,6 +694,7 @@ class CloudUnpickler(Unpickler):
         self.dispatch[pickle.EXT4] = lambda x: self.load_ext4()
         self.dispatch[pickle.LONG_BINGET] = lambda x: self.load_long_binget()
         self.dispatch[pickle.LONG_BINPUT] = lambda x: self.load_long_binput()
+        self.dispatch[pickle.REDUCE] = lambda x: self.load_reduce()
 
     def find_class(self, module, name):
         # Subclasses may override this
@@ -712,6 +764,107 @@ class CloudUnpickler(Unpickler):
         # cause `marshal.loads` has been blocked by the ODPS python sandbox.
         i = struct.unpack('<i', self.read(4))[0]
         self.memo[repr(i)] = self.stack[-1]
+
+    @staticmethod
+    def _conv_string_tuples(tp):
+        if not PY3:
+            return tuple(s.encode('utf-8') if isinstance(s, unicode) else s for s in tp)
+        else:
+            return tuple(str(s) if isinstance(s, bytes) else s for s in tp)
+
+    @staticmethod
+    def _code_compat_py2(code):
+        # only works under Python 2
+        from cStringIO import StringIO
+        # build line mappings, extra space for new_to_old mapping, as code could be longer
+        new_to_old = [0, ] * (2 * len(code))
+        old_to_new = [0, ] * len(code)
+        remapped = False
+        # replace LOAD_FAST / LOAD_CONST / ROT_FOUR group
+        i, ni = 0, 0
+        sio = StringIO()
+        while i < len(code):
+            if len(new_to_old) <= ni:
+                new_to_old.extend([0, ] * len(code))
+            new_to_old[ni] = i
+            old_to_new[i] = ni
+            # ROT_FOUR -> DUP_TOPX 2
+            if (len(code) - i >= 7 and ord(code[i]) == LOAD_FAST
+                and ord(code[i + 3]) == LOAD_CONST and ord(code[i + 6]) == ROT_FOUR):
+                sio.write(code[i:i + 6])
+                [sio.write(chr(c)) for c in (DUP_TOPX, 2, 0)]
+                remapped = True
+                i += 7
+                ni += 9
+            elif ord(code[i]) >= HAVE_ARGUMENT:
+                sio.write(code[i:i + 3])
+                i += 3
+                ni += 3
+            else:
+                sio.write(code[i])
+                i += 1
+                ni += 1
+        code = sio.getvalue()
+
+        if not remapped:
+            return code
+
+        # reassign labels
+        i = 0
+        sio = StringIO()
+        while i < len(code):
+            op = ord(code[i])
+            if op >= HAVE_ARGUMENT:
+                if op == JUMP_FORWARD:
+                    # relocate to new relative address
+                    old_abs = new_to_old[i] + ord(code[i + 1]) + (ord(code[i + 2]) << 8)
+                    new_rel = old_to_new[old_abs] - i
+                    sio.write(code[i])
+                    sio.write(chr(new_rel & 0xff))
+                    sio.write(chr(new_rel >> 8))
+                elif op in (CONTINUE_LOOP, JUMP_ABSOLUTE, JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP,
+                            POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE):
+                    # relocate to new absolute address
+                    new_abs = old_to_new[ord(code[i + 1]) + (ord(code[i + 2]) << 8)]
+                    sio.write(code[i])
+                    sio.write(chr(new_abs & 0xff))
+                    sio.write(chr(new_abs >> 8))
+                else:
+                    sio.write(code[i:i + 3])
+                i += 3
+            else:
+                sio.write(code[i])
+                i += 1
+        return sio.getvalue()
+
+    def load_reduce(self):
+        # Replace the internal implementation of pickle
+        # cause code representation in Python 3 differs from that in Python 2
+        stack = self.stack
+        args = stack.pop()
+        func = stack[-1]
+        if func.__name__ == 'code':
+            if not PY3 and len(args) == 15:  # src PY3, dest PY2
+                args = list(args)
+                # 5: co_code
+                args[5] = self._code_compat_py2(args[5])
+                # 7: co_names, 8: co_varnames, 13: co_freevars
+                for col in (6, 7, 8, 13, 14):
+                    args[col] = self._conv_string_tuples(args[col])
+                # 9: co_filename, 10: co_name
+                for col in (9, 10):
+                    args[col] = args[col].encode('utf-8') if isinstance(args[col], unicode) else args[col]
+
+                args = [args[0], ] + args[2:]
+        elif func.__name__ == 'type' or func.__name__ == 'classobj':
+            if not PY3:
+                args = list(args)
+                args[0] = args[0].encode('utf-8') if isinstance(args[0], unicode) else args[0]
+        try:
+            value = func(*args)
+        except Exception as exc:
+            raise Exception('Failed to unpickle reduce. func=%s args=%s msg="%s"' % (func.__name__, repr(args), str(exc)))
+        stack[-1] = value
 
 
 def load(file):

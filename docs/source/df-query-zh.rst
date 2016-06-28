@@ -1234,7 +1234,7 @@
 保存执行结果为pandas DataFrame
 ===============================
 
-我们可以使用 ``to_pandas``\ 方法，如果wrap参数为True，将返回PyOdps DataFrame对象。
+我们可以使用 ``to_pandas``\ 方法，如果wrap参数为True，将返回PyODPS DataFrame对象。
 
 .. code:: python
 

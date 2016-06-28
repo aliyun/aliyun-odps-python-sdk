@@ -8,7 +8,7 @@ DataFrame调试指南
 可视化DataFrame
 ~~~~~~~~~~~~~~~~~~~
 
-由于PyOdps DataFrame本身会对整个操作执行优化，为了能直观地反应整个过程，
+由于PyODPS DataFrame本身会对整个操作执行优化，为了能直观地反应整个过程，
 我们可以使用可视化的方式显示整个表达式的计算过程。
 
 值得注意的是，可视化需要依赖 **graphviz** 包。
@@ -26,7 +26,7 @@ DataFrame调试指南
 .. image:: _static/output_35_0.svg
 
 
-可以看到，这个计算过程中，PyOdps DataFrame将GroupBy和列筛选做了操作合并。
+可以看到，这个计算过程中，PyODPS DataFrame将GroupBy和列筛选做了操作合并。
 
 
 

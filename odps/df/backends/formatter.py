@@ -1304,12 +1304,10 @@ class ExprExecutionGraphFormatter(object):
 
     def _compile(self, expr):
         from .odpssql.engine import ODPSEngine
-        from .engine import _build_odps_from_table
 
         source = next(expr.data_source())
         if isinstance(source, Table):
-            o = _build_odps_from_table(source)
-            return ODPSEngine(o).compile(expr)
+            return ODPSEngine(source.odps).compile(expr)
 
     def _to_str(self):
         buffer = six.StringIO()

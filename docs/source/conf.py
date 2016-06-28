@@ -61,7 +61,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'PyOdps'
+project = u'PyODPS'
 copyright = u'2014-2016, The Alibaba Group Holding Ltd.'
 author = u'Qin Xuye'
 
@@ -244,7 +244,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  (master_doc, 'PyOdps.tex', u'PyOdps Documentation',
+  (master_doc, 'PyOdps.tex', u'PyODPS Documentation',
    u'The Alibaba Group Holding Ltd.', 'manual'),
 ]
 
@@ -274,7 +274,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'pyodps', u'PyOdps Documentation',
+    (master_doc, 'pyodps', u'PyODPS Documentation',
      [author], 1)
 ]
 
@@ -288,8 +288,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  (master_doc, 'PyOdps', u'PyOdps Documentation',
-   author, 'PyOdps', 'One line description of project.',
+  (master_doc, 'PyODPS', u'PyODPS Documentation',
+   author, 'PyODPS', 'One line description of project.',
    'Miscellaneous'),
 ]
 

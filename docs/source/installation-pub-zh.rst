@@ -16,7 +16,7 @@
     pip install cython>=0.19.0  # 可选
 
 
-接着就可以安装PyOdps：
+接着就可以安装PyODPS：
 
 .. code-block:: sh
 

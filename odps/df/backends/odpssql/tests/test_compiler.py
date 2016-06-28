@@ -55,6 +55,11 @@ class Test(TestBase):
         table2 = MockTable(name='pyodps_test_expr_table2', schema=schema)
         self.expr2 = CollectionExpr(_source_data=table2, _schema=schema)
 
+        schema2 = Schema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'),
+                                    ['part1', 'part2'], datatypes('string', 'int64'))
+        table3 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
+        self.expr3 = CollectionExpr(_source_data=table3, _schema=schema2)
+
         self.engine = ODPSEngine(self.odps)
         self.maxDiff = None
 
@@ -1047,7 +1052,7 @@ class Test(TestBase):
         fun_name = list(self.engine._ctx._registered_funcs.values())[0]
         self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
 
-        from odps import options
+        from odps.config import options
         options.df.quote = False
 
         res = self.engine.compile(expr)
@@ -1559,6 +1564,26 @@ class Test(TestBase):
                    "  ORDER BY id DESC \n" \
                    "  LIMIT 10000\n" \
                    ") t2"
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(df, prettify=False)))
+
+    def testFilterPartition(self):
+        df = self.expr3
+        df = df.filter_partition('part1=a/part2=1,part1=b')['id', 'name']
+
+        expected = "SELECT t2.`id`, t2.`name` \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`name`, t1.`id`, t1.`fid` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table2` t1 \n" \
+                   "  WHERE ((t1.`part1` == 'a') AND (t1.`part2` == 1)) OR (t1.`part1` == 'b') \n" \
+                   ") t2"
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(df, prettify=False)))
+
+        df = self.expr3
+        df = df.filter_partition('part1=a/part2=1,part1=b', False)['id', 'name']
+
+        expected = "SELECT t1.`id`, t1.`name` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table2` t1 \n" \
+                   "WHERE ((t1.`part1` == 'a') AND (t1.`part2` == 1)) OR (t1.`part1` == 'b')"
         self.assertEqual(to_str(expected), to_str(self.engine.compile(df, prettify=False)))
 
 if __name__ == '__main__':

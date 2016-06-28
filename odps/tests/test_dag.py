@@ -47,13 +47,13 @@ class Test(TestBase):
         self.assertFalse(dag.contains_edge(node2, node5))
 
         self.assertEqual(list(labels), dag.topological_sort())
-        self.assertEqual(list('bca'), dag.ancestors(node4))
-        self.assertEqual(list('de'), dag.descendants(node3))
+        self.assertEqual(list('bca'), dag.ancestors([node4, ]))
+        self.assertEqual(list('de'), dag.descendants([node3, ]))
 
         dag.add_edge(node2, node1)
         self.assertEqual(list('bacde'), dag.topological_sort())
-        self.assertEqual(list('ab'), dag.ancestors(node3))
-        self.assertEqual(list('daec'), dag.descendants(node2))
+        self.assertEqual(list('ab'), dag.ancestors([node3, ]))
+        self.assertEqual(list('daec'), dag.descendants([node2, ]))
 
         self.assertRaises(DAGValidationError, lambda: dag.add_edge(node4, node2))
         self.assertRaises(DAGValidationError, lambda: dag.add_edge(node4, node1))
@@ -70,15 +70,15 @@ class Test(TestBase):
         self.assertRaises(KeyError, lambda: dag.remove_edge(node4, node5))
         self.assertRaises(KeyError, lambda: dag.successors(node4))
 
-        self.assertEqual(list('ab'), dag.ancestors(node3))
-        self.assertEqual(list(''), dag.ancestors(node5))
-        self.assertEqual(list('ac'), dag.descendants(node2))
-        self.assertEqual(list(''), dag.descendants(node5))
+        self.assertEqual(list('ab'), dag.ancestors([node3, ]))
+        self.assertEqual(list(''), dag.ancestors([node5, ]))
+        self.assertEqual(list('ac'), dag.descendants([node2, ]))
+        self.assertEqual(list(''), dag.descendants([node5, ]))
 
         dag.remove_edge(node2, node1)
         self.assertFalse(dag.contains_edge(node2, node1))
-        self.assertEqual(list('a'), dag.ancestors(node3))
-        self.assertEqual(list('c'), dag.descendants(node1))
+        self.assertEqual(list('a'), dag.ancestors([node3, ]))
+        self.assertEqual(list('c'), dag.descendants([node1, ]))
         self.assertSetEqual(set('abe'), set(dag.indep_nodes()))
 
         dag.reset_graph()

@@ -4,7 +4,7 @@
 SQL
 ****
 
-PyOdps支持ODPS SQL的查询，并可以读取执行的结果。
+PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 ``execute_sql`` 或者 ``run_sql`` 方法的返回值是 `运行实例 <instances-zh.html>`_ 。
 
 执行SQL

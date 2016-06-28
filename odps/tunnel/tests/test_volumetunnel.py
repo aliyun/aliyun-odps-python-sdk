@@ -22,7 +22,7 @@ from odps.tests.core import TestBase, tn
 from odps.tunnel import CompressOption
 
 TEST_VOLUME_NAME = tn('pyodps_test_volume')
-TEST_PARTITION_NAME = tn('pyodps_test_partition')
+TEST_PARTITION_NAME = 'pyodps_test_partition'
 TEST_FILE_NAME = 'test_output_file'
 
 TEST_BLOCK_SIZE = 1048500

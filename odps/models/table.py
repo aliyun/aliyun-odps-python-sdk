@@ -79,8 +79,8 @@ class TableSchema(types.OdpsSchema, JSONRemoteModel):
     def load(self):
         self.update(self._columns, self._partitions)
 
-    comment = serializers.JSONNodeField('comment', set_to_parent=True),
-    owner = serializers.JSONNodeField('owner', set_to_parent=True),
+    comment = serializers.JSONNodeField('comment', set_to_parent=True)
+    owner = serializers.JSONNodeField('owner', set_to_parent=True)
     creation_time = serializers.JSONNodeField(
         'createTime', parse_callback=datetime.fromtimestamp,
         set_to_parent=True)
@@ -354,6 +354,9 @@ class Table(LazyLoad):
                 step = step or 1
                 count = count*step if count is not None else self.count-start
 
+                if count == 0:
+                    return
+
                 with download_session.open_record_reader(
                         start, count, compress=compress, columns=columns) as reader:
                     for record in reader[::step]:
@@ -389,6 +392,7 @@ class Table(LazyLoad):
         """
 
         from ..tunnel.tabletunnel import TableUploadSession
+        table_object = self
 
         reopen = kw.pop('reopen', False)
         commit = kw.pop('commit', True)
@@ -435,8 +439,15 @@ class Table(LazyLoad):
                     arg = args[0]
                     if isinstance(arg, types.Record):
                         records = [arg, ]
+                    elif isinstance(arg, (list, tuple)):
+                        if isinstance(arg[0], Record):
+                            records = arg
+                        elif isinstance(arg[0], (list, tuple)):
+                            records = (table_object.new_record(vals) for vals in arg)
+                        else:
+                            records = [table_object.new_record(arg), ]
                     else:
-                        records = arg
+                        raise ValueError('Unsupported record type.')
                 elif len(args) > 1:
                     records = args
                 else:

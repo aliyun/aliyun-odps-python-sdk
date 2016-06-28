@@ -1,24 +1,24 @@
-.. PyOdps documentation master file, created by
+.. PyODPS documentation master file, created by
    sphinx-quickstart on Wed Nov 18 09:47:14 2015.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-PyOdps: ODPS Python SDK and data analysis framework
+PyODPS: ODPS Python SDK and data analysis framework
 ===================================================
 
-`PyOdps <https://github.com/aliyun/aliyun-odps-python-sdk>`_ 是ODPS的Python版本的SDK，
+`PyODPS <https://github.com/aliyun/aliyun-odps-python-sdk>`_ 是ODPS的Python版本的SDK，
 它提供了对ODPS对象的基本操作；并提供了DataFrame框架，能轻松在ODPS上进行数据分析。
 
 安装
 -------
 
-PyOdps支持Python 2.6以上包括Python 3。系统安装了pip后，只需运行：
+PyODPS支持Python 2.6以上包括Python 3。系统安装了pip后，只需运行：
 
 ::
 
   pip install pyodps
 
-PyOdps的相关依赖会自动安装。
+PyODPS的相关依赖会自动安装。
 
 **注意**，对于Linux和Mac用户，先安装Cython，再运行安装pyodps命令，能加速Tunnel的上传和下载。
 
@@ -59,7 +59,7 @@ PyOdps的相关依赖会自动安装。
    tunnel-zh
    cl-zh
    df-zh
-   pai-int-zh
+   ml-int-zh
    options-zh
    api
 

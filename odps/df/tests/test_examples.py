@@ -16,11 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .io import CompressOption
-from .tabletunnel import TableTunnel, TableUploadSession, TableDownloadSession
-from .volumetunnel import VolumeTunnel, VolumeUploadSession, VolumeDownloadSession
+from odps.tests.core import TestBase
+from odps.df import examples
 
-TableUploadStatus = TableUploadSession.Status
-TableDownloadStatus = TableDownloadSession.Status
-VolumeUploadStatus = VolumeUploadSession.Status
-VolumeDownloadStatus = VolumeDownloadSession.Status
+
+class Test(TestBase):
+    def test_examples(self):
+        df = examples.create_iris(self.odps, tunnel=self.tunnel)
+        self.assertEqual(len(df.columns), 5)
+        
+        df = examples.create_ionosphere(self.odps, tunnel=self.tunnel)
+        self.assertEqual(len(df.columns), 35)

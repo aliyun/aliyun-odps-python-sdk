@@ -78,7 +78,7 @@ class Test(TestBase):
                     if i % 2 == 0:
                         data[i][j] = None
 
-        self.odps.write_table(self.table, 0, [self.table.new_record(values=d) for d in data])
+        self.odps.write_table(self.table, 0, data)
         return data
 
     def testTunnelCases(self):
@@ -194,10 +194,11 @@ class Test(TestBase):
         result = self._get_result(res.values)
         self.assertEqual([[r[4]+1, ] for r in data], result)
 
-        expr = self.expr.name.hash()
-        res = self.engine.execute(expr)
-        result = self._get_result(res.values)
-        self.assertEqual([[hash(r[0])] for r in data], result),
+        if six.PY2:  # Skip in Python 3, as hash() behaves randomly.
+            expr = self.expr.name.hash()
+            res = self.engine.execute(expr)
+            result = self._get_result(res.values)
+            self.assertEqual([[hash(r[0])] for r in data], result),
 
         expr = self.expr.sample(parts=10)
         res = self.engine.execute(expr)
@@ -786,7 +787,7 @@ class Test(TestBase):
             ['name2', 1, -2]
         ]
 
-        self.odps.write_table(table2, 0, [table2.new_record(values=d) for d in data2])
+        self.odps.write_table(table2, 0, data2)
 
         expr = self.expr.join(expr2, on='name')[self.expr]
         expr = expr.groupby('id').agg(expr.fid.sum())
@@ -979,7 +980,11 @@ class Test(TestBase):
 
             def __call__(self, buffer, val):
                 buffer[0] += val
-                buffer[1] += 1
+                # meaningless condition, just test if rewriting JUMP instructions works under Python 3
+                if val > 1000:
+                    buffer[1] += 2
+                else:
+                    buffer[1] += 1
 
             def merge(self, buffer, pbuffer):
                 buffer[0] += pbuffer[0]
@@ -1256,7 +1261,7 @@ class Test(TestBase):
             ['name2', 1, -2]
         ]
 
-        self.odps.write_table(table2, 0, [table2.new_record(values=d) for d in data2])
+        self.odps.write_table(table2, 0, data2)
 
         try:
             expr = self.expr.join(expr2)['name', 'id2']
@@ -1342,7 +1347,7 @@ class Test(TestBase):
             ['name4', 6, -2]
         ]
 
-        self.odps.write_table(table2, 0, [table2.new_record(values=d) for d in data2])
+        self.odps.write_table(table2, 0, data2)
 
         try:
             expr = self.expr['name', 'id'].distinct().union(expr2[expr2.id2.rename('id'), 'name'])
@@ -1406,7 +1411,7 @@ class Test(TestBase):
         table2 = self.odps.create_table(name=table_name, schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
-        self.odps.write_table(table2, 0, [table2.new_record(values=d) for d in data2])
+        self.odps.write_table(table2, 0, data2)
 
         try:
             expr = self.expr.bloom_filter('name', expr2.name, capacity=10)

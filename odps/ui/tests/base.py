@@ -49,7 +49,7 @@ def ui_case(func):
     if _has_jupyter:
         return func
     else:
-        return ignore_case(func)
+        return ignore_case(func, "UI case skipped, since no Jupyter installation found.")
 
 
 class UITestBase(TestBase):

@@ -18,6 +18,8 @@
 import sys
 import logging.config
 import itertools
+import platform
+import warnings
 try:
     import xml.etree.cElementTree as ElementTree
 except ImportError:
@@ -31,6 +33,7 @@ LESS_PY26 = six.PY2 and sys.version_info[1] < 6
 LESS_PY32 = six.PY3 and sys.version_info[1] < 2
 LESS_PY33 = six.PY3 and sys.version_info[1] < 3
 LESS_PY34 = six.PY3 and sys.version_info[1] < 4
+PYPY = platform.python_implementation().lower() == 'pypy'
 
 SEEK_SET = 0
 SEEK_CUR = 1
@@ -145,7 +148,6 @@ else:
             return len(data)
 
     if PY26:
-        import warnings
         warnings.warn('Python 2.6 is no longer supported by the Python core team. A future version of PyODPS ' +
                       'will drop support for this version.')
 
@@ -202,6 +204,7 @@ from .six.moves.urllib.request import urlretrieve
 from .six.moves import cPickle as pickle
 from .six.moves.urllib.parse import urlparse, unquote, quote, quote_plus, parse_qsl
 from .six.moves import configparser as ConfigParser
+
 
 __all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress',
            'reduce', 'reload_module', 'Queue', 'Empty',

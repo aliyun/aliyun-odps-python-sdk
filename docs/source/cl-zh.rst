@@ -1,13 +1,13 @@
 .. _cl:
 
 ********************
-命令行和IPython增强
+命令行和 IPython 增强
 ********************
 
 命令行增强
 ==========
 
-PyOdps提供了命令行下的增强工具。首先，用户可以在任何地方配置了帐号以后，下次就无需再次输入帐号信息。
+PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地方配置了帐号以后，下次就无需再次输入帐号信息。
 
 .. code:: python
 
@@ -176,7 +176,7 @@ PyOdps提供了命令行下的增强工具。首先，用户可以在任何地�
 IPython增强
 ===========
 
-PyOdps还提供了IPython的插件，来更方便得操作ODPS。
+PyODPS 还提供了 IPython 的插件，来更方便得操作 ODPS。
 
 首先，针对命令行增强，也有相应的命令。让我们先加载插件：
 
@@ -270,7 +270,7 @@ SQL命令
 ---------
 
 
-PyOdps还提供了SQL插件，来执行ODPS SQL。下面是单行SQL：
+PyODPS 还提供了 SQL 插件，来执行 ODPS SQL。下面是单行 SQL：
 
 .. code:: python
 
@@ -448,11 +448,11 @@ PyOdps还提供了SQL插件，来执行ODPS SQL。下面是单行SQL：
 这样设置后，后续运行的SQL都会使用这个设置。
 
 
-持久化pandas DataFrame到ODPS表
+持久化 pandas DataFrame 到 ODPS 表
 ----------------------------------
 
 
-PyOdps还提供把pandas DataFrame上传到ODPS表的命令:
+PyODPS 还提供把 pandas DataFrame 上传到 ODPS 表的命令:
 
 .. code:: python
 

@@ -357,7 +357,7 @@ def _map(expr, func, rtype=None, resources=None, args=(), **kwargs):
             rtype = rtype or func.output_types[0]
         func = func._func
 
-    from odps.models import Function
+    from ...models import Function
 
     rtype = rtype or expr.dtype
     output_type = types.validate_data_type(rtype)

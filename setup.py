@@ -21,11 +21,13 @@ from setuptools import setup, find_packages, Extension
 import sys
 import os
 import warnings
+import platform
 
 version = sys.version_info
 PY2 = version[0] == 2
 PY3 = version[0] == 3
 PY26 = PY2 and version[1] == 6
+PYPY = platform.python_implementation().lower() == 'pypy'
 
 if PY2 and version[:2] < (2, 6):
     raise Exception('pyodps supports python 2.6+ (including python 3+).')
@@ -50,7 +52,6 @@ if os.path.exists('README.rst'):
     with open('README.rst') as f:
         long_description = f.read()
 
-
 setup_options = dict(
     name='pyodps',
     version='0.5.4',
@@ -71,6 +72,7 @@ setup_options = dict(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: Implementation :: CPython',
         'Topic :: Software Development :: Libraries',
     ],
     packages=find_packages(exclude=('*.tests.*', '*.tests')),
@@ -79,7 +81,7 @@ setup_options = dict(
     install_requires=requirements,
 )
 
-if build_cmd != 'clean':
+if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
     try:
         from Cython.Build import cythonize
         from Cython.Distutils import build_ext

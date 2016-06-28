@@ -47,7 +47,7 @@ from .compat import six
 TEMP_TABLE_PREFIX = 'tmp_pyodps_'
 
 
-def deprecated(msg):
+def deprecated(msg, cond=None):
     def _decorator(func):
         """This is a decorator which can be used to mark functions
         as deprecated. It will result in a warning being emmitted
@@ -56,7 +56,8 @@ def deprecated(msg):
             warn_msg = "Call to deprecated function %s." % func.__name__
             if isinstance(msg, six.string_types):
                 warn_msg += ' ' + msg
-            warnings.warn(msg, category=DeprecationWarning)
+            if cond is None or cond():
+                warnings.warn(warn_msg, category=DeprecationWarning)
             return func(*args, **kwargs)
         _new_func.__name__ = func.__name__
         _new_func.__doc__ = func.__doc__
@@ -331,7 +332,7 @@ def init_progress_bar(val=1):
         except ImportError:
             ipython = False
 
-    from odps.console import ProgressBar
+    from .console import ProgressBar
 
     if not ipython:
         bar = ProgressBar(val)
@@ -345,7 +346,7 @@ def init_progress_bar(val=1):
 
 
 def init_progress_ui(val=1):
-    from odps.ui import ProgressGroupUI, html_notify
+    from .ui import ProgressGroupUI, html_notify
 
     bar = init_progress_bar(val=val)
     if bar._ipython_widget:

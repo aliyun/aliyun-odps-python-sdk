@@ -21,8 +21,9 @@
 import sys
 from datetime import datetime
 
-from odps import udf
-from odps import distcache
+from ... import udf
+from ... import distcache
+from ...compat import six
 from . import utils
 
 
@@ -265,10 +266,14 @@ _type_registry = {
 }
 
 
-def _gen_converter(tp):
+def _gen_converter(typestr, tp):
     def f(v):
         if v == "NULL" or v is None:
             return None
+        if typestr in ('bigint', 'datetime'):
+            return int(v)
+        elif typestr == 'string':
+            return str(v)
         return tp(v)
     return f
 
@@ -278,14 +283,14 @@ class TypeEntry(object):
     def __init__(self, typestr, tp):
         self.typestr = typestr
         self.type = tp
-        self.converter = _gen_converter(tp)
+        self.converter = _gen_converter(typestr, tp)
 
-register_type('TP_BIGINT',   'bigint',   int)
-register_type('TP_STRING',   'string',   str)
-register_type('TP_DATETIME', 'datetime', int)
+register_type('TP_BIGINT',   'bigint',   six.integer_types)
+register_type('TP_STRING',   'string',   six.string_types)
+register_type('TP_DATETIME', 'datetime', six.integer_types)
 register_type('TP_DOUBLE',   'double',   float)
 register_type('TP_BOOLEAN',  'boolean',  bool)
-register_type('TP_STAR',     '*',     lambda x: x)
+register_type('TP_STAR',     '*',        lambda x: x)
 
 _allowed_data_types = [k for k in _type_registry.keys() if k != '*']
 

@@ -34,7 +34,7 @@ from .backends.pd.types import pd_to_df_schema,  df_type_to_np_type
 
 class DataFrame(CollectionExpr):
     """
-    Main entrance of PyOdps DataFrame.
+    Main entrance of PyODPS DataFrame.
 
     Users can initial a DataFrame by :class:`odps.models.Table`.
 

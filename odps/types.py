@@ -314,6 +314,16 @@ class OdpsSchema(Schema):
         else:
             self._partition_schema = Schema([], [])
 
+    def to_ignorecase_schema(self):
+        cols = [Column(col.name.lower(), col.type, col.comment, col.label)
+                for col in self._columns]
+        parts = None
+        if self._partitions:
+            parts = [Partition(part.name.lower(), part.type, part.comment, part.label)
+                     for part in self._partitions]
+
+        return type(self)(columns=cols, partitions=parts)
+
     @classmethod
     def from_lists(cls, names, types, partition_names=None, partition_types=None):
         columns = [Column(name=name, typo=typo) for name, typo in zip(names, types)]

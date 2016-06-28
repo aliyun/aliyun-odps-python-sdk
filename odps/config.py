@@ -249,7 +249,14 @@ options.register_option('df.analyze', True, validator=is_bool)
 options.register_option('df.use_cache', True, validator=is_bool)
 options.register_option('df.quote', True, validator=is_bool)
 
-# PAI
+# PyODPS ML
+options.register_option('ml.xflow_project', 'algo_public', validator=is_string)
+options.register_option('ml.parallel_num', 5, validator=is_integer)
+options.register_option('ml.dry_run', False, validator=is_bool)
+options.register_option('ml.retry_times', 3, validator=is_integer)
+
+# PyODPS PAI
+# TODO remove in 0.7.0
 options.register_option('pai.xflow_project', 'algo_public', validator=is_string)
 options.register_option('pai.parallel_num', 5, validator=is_integer)
 options.register_option('pai.dry_run', False, validator=is_bool)

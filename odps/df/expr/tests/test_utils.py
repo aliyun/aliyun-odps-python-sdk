@@ -35,7 +35,7 @@ class Test(TestBase):
 
         expected = ('_lhs', '_rhs', '_data_type', '_source_data_type', '_name',
                     '_source_name', '_engine', '_cache_data', '_need_cache',
-                    '_cached_args', '_args_indexes')
+                    '_cached_args', '_args_indexes', '_source_call')
         self.assertSequenceEqual(expected, get_attrs(expr.id + 1))
 
 if __name__ == '__main__':

@@ -263,7 +263,7 @@ class Test(TestBase):
         result = expr.execute()
         self.assertEqual(result.values['id'].sum(), 17)
 
-        odps_df2 = self.pd_df.persist('pyodps_df_mixed2', odps=self.odps)
+        odps_df2 = self.pd_df.persist(tn('pyodps_df_mixed2'), odps=self.odps)
         try:
             expr = self.odps_df.map_reduce(reducer=reducer, reducer_resources=[odps_df2], group='name')
             result = expr.execute()
@@ -293,7 +293,7 @@ class Test(TestBase):
                                         schema=Schema.from_lists(['name'], ['string']))
         expr2 = DataFrame(table2)
 
-        self.odps.write_table(table2, 0, [table2.new_record(values=d) for d in data2])
+        self.odps.write_table(table2, 0, data2)
 
         try:
             expr = self.odps_df.bloom_filter('name', expr2[:1].name, capacity=10)

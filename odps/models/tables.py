@@ -137,7 +137,7 @@ class Tables(Iterable):
             instance.wait_for_success()
 
             table = Table(parent=self, client=self._client,
-                          name=table_name, schema=table_schema)
+                          name=table_name, schema=table_schema.to_ignorecase_schema())
             return table
         else:
             return instance

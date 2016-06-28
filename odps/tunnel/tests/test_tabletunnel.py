@@ -30,7 +30,7 @@ except ImportError:
     from string import ascii_letters as letters
 
 from odps.compat import reload_module
-from odps.tests.core import TestBase, to_str, tn
+from odps.tests.core import TestBase, to_str, tn, snappy_case
 from odps.compat import unittest, OrderedDict
 from odps.models import Schema
 from odps import types, options
@@ -253,6 +253,7 @@ class Test(TestBase):
         self._assert_reads_data_equal(records, data)
         self._delete_table(table)
 
+    @snappy_case
     @bothPyAndC
     def testUploadAndDownloadBySnappyTunnel(self):
         test_table_name = tn('pyodps_test_snappy_tunnel')
@@ -265,6 +266,7 @@ class Test(TestBase):
 
         self._delete_table(test_table_name)
 
+    @snappy_case
     @bothPyAndC
     def testBufferredUploadAndDownloadBySnappyTunnel(self):
         table, data = self._gen_table(size=10)

@@ -3,7 +3,7 @@
 绘图
 ====
 
-PyOdps
+PyODPS
 DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** 和 **matplotlib** 的安装。
 
 .. code:: python

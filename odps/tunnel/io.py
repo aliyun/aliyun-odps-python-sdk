@@ -20,8 +20,8 @@
 import zlib
 
 import threading
-from odps import errors, compat
-from odps.compat import Enum
+from .. import errors, compat
+from ..compat import Enum
 
 # used for test case to force thread io
 _FORCE_THREAD = False
@@ -92,7 +92,7 @@ class RequestsIO(object):
 class ThreadRequestsIO(RequestsIO):
     def __init__(self, post_call, chunk_size=None):
         super(ThreadRequestsIO, self).__init__(post_call, chunk_size)
-        from odps.compat import Queue
+        from ..compat import Queue
         self._queue = Queue()
         self._wait_obj = threading.Thread(target=self._async_func)
 

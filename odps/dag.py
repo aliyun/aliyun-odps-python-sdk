@@ -19,6 +19,7 @@
 
 import itertools
 import functools
+import weakref
 from collections import Iterable
 from copy import deepcopy
 
@@ -31,10 +32,11 @@ class DAGValidationError(Exception):
 
 class DAG(object):
     """Directed acyclic graph implementation."""
+    _dict_type = dict
 
     def __init__(self):
         self._graph = dict()
-        self._map = dict()
+        self._map = self._dict_type()
 
     def nodes(self):
         return [self._map[n] for n in self._graph]
@@ -68,17 +70,19 @@ class DAG(object):
 
         return id(successor_node) in self._graph[id(predecessor_node)]
 
-    def add_edge(self, predecessor_node, successor_node, graph=None):
+    def add_edge(self, predecessor_node, successor_node, graph=None, validate=True):
         graph = graph or self._graph
 
         if id(predecessor_node) not in self._graph or \
                 id(successor_node) not in self._graph:
             raise KeyError('Node does not exist')
 
-        test_graph = deepcopy(graph)
-        test_graph[id(predecessor_node)].add(id(successor_node))
-
-        valid, msg = self._validate(test_graph)
+        if validate:
+            test_graph = deepcopy(graph)
+            test_graph[id(predecessor_node)].add(id(successor_node))
+            valid, msg = self._validate(test_graph)
+        else:
+            valid, msg = True, ''
         if valid:
             graph[id(predecessor_node)].add(id(successor_node))
         else:
@@ -92,17 +96,22 @@ class DAG(object):
 
         graph[id(predecessor_node)].remove(id(successor_node))
 
-    def indep_nodes(self, graph=None):
+    def _indep_ids(self, graph=None):
         graph = graph or self._graph
 
         all_nodes = set(graph.keys())
-        ids = all_nodes - set(itertools.chain(*graph.values()))
-        return [self._map.get(i) for i in ids]
+        return list(all_nodes - set(itertools.chain(*graph.values())))
+
+    def indep_nodes(self, graph=None):
+        return [self._map.get(i) for i in self._indep_ids(graph=graph)]
+
+    def _predecessor_ids(self, node_id, graph=None):
+        graph = graph or self._graph
+        return [nid for nid, deps in six.iteritems(graph) if node_id in deps]
 
     def predecessors(self, node, graph=None):
         graph = graph or self._graph
-        return [self._map.get(node_id) for node_id, deps in six.iteritems(graph)
-                if id(node) in deps]
+        return [self._map.get(node_id) for node_id in self._predecessor_ids(id(node), graph=graph)]
 
     def successors(self, node, graph=None):
         graph = graph or self._graph
@@ -152,23 +161,66 @@ class DAG(object):
         graph = graph or self._graph
         graph = deepcopy(graph)
 
-        nodes = []
+        node_ids = []
 
-        indep_nodes = self.indep_nodes(graph)
-        while len(indep_nodes) != 0:
-            n = indep_nodes.pop(0)
-            nodes.append(n)
-            for dep_id in deepcopy(graph[id(n)]):
-                graph[id(n)].remove(dep_id)
-                dep = self._map.get(dep_id)
-                if len(self.predecessors(dep, graph)) == 0:
-                    indep_nodes.append(dep)
+        indep_ids = self._indep_ids(graph)
+        while len(indep_ids) != 0:
+            n = indep_ids.pop(0)
+            node_ids.append(n)
+            for dep_id in deepcopy(graph[n]):
+                graph[n].remove(dep_id)
+                if len(self._predecessor_ids(dep_id, graph)) == 0:
+                    indep_ids.append(dep_id)
 
-        if len(nodes) != len(graph):
+        if len(node_ids) != len(graph):
             raise ValueError('Graph is not acyclic')
 
-        return nodes
+        return [self._map.get(nid) for nid in node_ids]
 
     def reset_graph(self):
         self._graph = dict()
-        self._map = dict()
+        self._map = self._dict_type()
+
+
+class WeakNodeDAG(DAG):
+    _dict_type = weakref.WeakValueDictionary
+
+    def _sync_graph(self):
+        removal = set(n for n in self._graph if n not in self._map)
+        if not removal:
+            return
+        for n in removal:
+            del self._graph[n]
+        for n in self._graph:
+            self._graph[n] -= removal
+
+    def nodes(self):
+        self._sync_graph()
+        return [self._map[n] for n in self._graph if n in self._map]
+
+    def contains_node(self, node):
+        return node in self._map and id(node) in self._graph
+
+    def contains_edge(self, predecessor_node, successor_node):
+        if id(predecessor_node) not in self._map or \
+                        id(successor_node) not in self._map:
+            return False
+
+        return id(successor_node) in self._graph[id(predecessor_node)]
+
+    def indep_nodes(self, graph=None):
+        return [n for n in super(WeakNodeDAG, self).indep_nodes(graph=graph) if n is not None]
+
+    def predecessors(self, node, graph=None):
+        return [n for n in super(WeakNodeDAG, self).predecessors(node, graph=graph) if n is not None]
+
+    def successors(self, node, graph=None):
+        return [n for n in super(WeakNodeDAG, self).successors(node, graph=graph) if n is not None]
+
+    def topological_sort(self, graph=None):
+        self._sync_graph()
+        return [n for n in super(WeakNodeDAG, self).topological_sort(graph=graph) if n is not None]
+
+    def reset_graph(self):
+        self._graph = dict()
+        self._map = self._dict_type()

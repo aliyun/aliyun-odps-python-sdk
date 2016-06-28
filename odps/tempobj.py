@@ -55,7 +55,7 @@ else:
 TEMP_ROOT = build_pyodps_dir('tempobjs')
 SESSION_KEY = '%d_%s' % (int(time.time()), uuid.uuid4())
 CLEANER_THREADS = 100
-USER_FILE_RIGHTS = stat.S_IREAD | stat.S_IWRITE | stat.S_IEXEC
+USER_FILE_RIGHTS = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
 
 CLEANUP_SCRIPT_TMPL = """
 import os

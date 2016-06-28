@@ -17,8 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from odps.tunnel.errors import TunnelError
-from odps.compat import urlparse
+from .errors import TunnelError
+from ..compat import urlparse
 
 
 class TunnelServerRouter(object):

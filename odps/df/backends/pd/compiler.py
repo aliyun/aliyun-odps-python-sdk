@@ -215,6 +215,14 @@ class PandasCompiler(Backend):
 
         self._add_node(expr, handle)
 
+    def visit_filter_partition_collection(self, expr):
+        def handle(kw):
+            children_vals = self._get_children_vals(kw, expr)
+            df, predicate = children_vals[0:1]
+            return df[predicate][expr.schema.names]
+
+        self._add_node(expr, handle)
+
     def visit_filter_collection(self, expr):
         def handle(kw):
             df, predicate = tuple(self._get_children_vals(kw, expr))
