@@ -24,11 +24,11 @@ from .core import LazyLoad, JSONRemoteModel
 from .record import Record
 from .partitions import Partitions
 from ..config import options
-from .. import types, serializers, utils, readers
+from .. import types as odps_types, serializers, utils, readers
 from ..compat import six
 
 
-class TableSchema(types.OdpsSchema, JSONRemoteModel):
+class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
     """
     Schema includes the columns and partitions information of a :class:`odps.models.Table`.
 
@@ -55,18 +55,18 @@ class TableSchema(types.OdpsSchema, JSONRemoteModel):
         distribute_cols = serializers.JSONNodeField('DistributeCols')
         sort_cols = serializers.JSONNodeField('SortCols')
 
-    class TableColumn(types.Column, JSONRemoteModel):
+    class TableColumn(odps_types.Column, JSONRemoteModel):
         name = serializers.JSONNodeField('name')
-        type = serializers.JSONNodeField('type', parse_callback=types.validate_data_type)
+        type = serializers.JSONNodeField('type', parse_callback=odps_types.validate_data_type)
         comment = serializers.JSONNodeField('comment')
         label = serializers.JSONNodeField('label')
 
         def __init__(self, **kwargs):
             JSONRemoteModel.__init__(self, **kwargs)
             if self.type is not None:
-                self.type = types.validate_data_type(self.type)
+                self.type = odps_types.validate_data_type(self.type)
 
-    class TablePartition(types.Partition, TableColumn):
+    class TablePartition(odps_types.Partition, TableColumn):
         def __init__(self, **kwargs):
             TableSchema.TableColumn.__init__(self, **kwargs)
 
@@ -74,7 +74,7 @@ class TableSchema(types.OdpsSchema, JSONRemoteModel):
         kwargs['_columns'] = columns = kwargs.pop('columns', None)
         kwargs['_partitions'] = partitions = kwargs.pop('partitions', None)
         JSONRemoteModel.__init__(self, **kwargs)
-        types.OdpsSchema.__init__(self, columns=columns, partitions=partitions)
+        odps_types.OdpsSchema.__init__(self, columns=columns, partitions=partitions)
 
     def load(self):
         self.update(self._columns, self._partitions)
@@ -262,11 +262,11 @@ class Table(LazyLoad):
 
         params = {'data': '', 'linenum': limit}
         if partition is not None:
-            if not isinstance(partition, types.PartitionSpec):
-                partition = types.PartitionSpec(partition)
+            if not isinstance(partition, odps_types.PartitionSpec):
+                partition = odps_types.PartitionSpec(partition)
             params['partition'] = str(partition)
         if columns is not None and len(columns) > 0:
-            col_name = lambda col: col.name if isinstance(col, types.Column) else col
+            col_name = lambda col: col.name if isinstance(col, odps_types.Column) else col
             params['cols'] = ','.join(col_name(col) for col in columns)
 
         resp = self._client.get(self.resource(), params=params, stream=True)
@@ -398,8 +398,8 @@ class Table(LazyLoad):
         commit = kw.pop('commit', True)
         endpoint = kw.pop('endpoint', None)
 
-        if partition and not isinstance(partition, types.PartitionSpec):
-            partition = types.PartitionSpec(partition)
+        if partition and not isinstance(partition, odps_types.PartitionSpec):
+            partition = odps_types.PartitionSpec(partition)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint)
         upload_id = self._upload_ids.get(partition) if not reopen else None
@@ -427,6 +427,9 @@ class Table(LazyLoad):
 
             @classmethod
             def write(cls, *args, **kwargs):
+                from types import GeneratorType
+                from itertools import chain
+
                 block_id = kwargs.get('block_id')
                 if block_id is None:
                     if isinstance(args[0], six.integer_types):
@@ -437,7 +440,7 @@ class Table(LazyLoad):
 
                 if len(args) == 1:
                     arg = args[0]
-                    if isinstance(arg, types.Record):
+                    if isinstance(arg, Record):
                         records = [arg, ]
                     elif isinstance(arg, (list, tuple)):
                         if isinstance(arg[0], Record):
@@ -446,6 +449,17 @@ class Table(LazyLoad):
                             records = (table_object.new_record(vals) for vals in arg)
                         else:
                             records = [table_object.new_record(arg), ]
+                    elif isinstance(arg, GeneratorType):
+                        try:
+                            # peek the first element and then put back
+                            next_arg = six.next(arg)
+                            chained = chain((next_arg, ), arg)
+                            if isinstance(next_arg, Record):
+                                records = chained
+                            else:
+                                records = (table_object.new_record(vals) for vals in chained)
+                        except StopIteration:
+                            records = ()
                     else:
                         raise ValueError('Unsupported record type.')
                 elif len(args) > 1:

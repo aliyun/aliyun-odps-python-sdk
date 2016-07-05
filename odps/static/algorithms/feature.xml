@@ -1,0 +1,150 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseTrainingAlgorithm">
+    <algorithm codeName="RFImportance">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>计算随机森林模型中特征重要性。</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>get_input_model_name</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="model">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>MODEL</type>
+                <docs>random forests model</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="feature_importance"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.feature.customize.get_rf_importance"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="GBDTImportance">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>计算 GBDT 模型中特征重要性。</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>get_input_model_name</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="model">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>MODEL</type>
+                <docs>random forests model</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="gbdt_importance"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.feature.customize.get_gbdt_importance"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="RegressionImportance">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>计算线性和二分类回归模型中特征重要性。</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="modelName" required="true">
+                <exporter>get_input_model_name</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="model">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>MODEL</type>
+                <docs>random forests model</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="regression_feature_importance"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.feature.customize.get_regression_importance"/>
+        </metas>
+    </algorithm>
+</algorithms>

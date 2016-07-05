@@ -30,6 +30,10 @@ from odps.df.backends.odpssql.engine import ODPSEngine
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema
 from odps.df import output_types, output_names, output, day, millisecond
 
+TEMP_FILE_RESOURCE = tn('pyodps_tmp_file_resource')
+TEMP_TABLE = tn('pyodps_temp_table')
+TEMP_TABLE_RESOURCE = tn('pyodps_temp_table_resource')
+
 
 @pandas_case
 class Test(TestBase):
@@ -441,20 +445,20 @@ class Test(TestBase):
             return h
 
         try:
-            self.odps.delete_resource('pyodps_tmp_file_resource')
+            self.odps.delete_resource(TEMP_FILE_RESOURCE)
         except:
             pass
-        file_resource = self.odps.create_resource('pyodps_tmp_file_resource', 'file',
+        file_resource = self.odps.create_resource(TEMP_FILE_RESOURCE, 'file',
                                                   file_obj='\n'.join(str(r[1]) for r in data[:3]))
-        self.odps.delete_table('pyodps_tmp_table', if_exists=True)
-        t = self.odps.create_table('pyodps_tmp_table', Schema.from_lists(['id'], ['bigint']))
+        self.odps.delete_table(TEMP_TABLE, if_exists=True)
+        t = self.odps.create_table(TEMP_TABLE, Schema.from_lists(['id'], ['bigint']))
         with t.open_writer() as writer:
             writer.write([r[1: 2] for r in data[3: 4]])
         try:
-            self.odps.delete_resource('pyodps_tmp_table_resource')
+            self.odps.delete_resource(TEMP_TABLE_RESOURCE)
         except:
             pass
-        table_resource = self.odps.create_resource('pyodps_tmp_table_resource', 'table',
+        table_resource = self.odps.create_resource(TEMP_TABLE_RESOURCE, 'table',
                                                    table_name=t.name)
 
         try:
@@ -872,6 +876,25 @@ class Test(TestBase):
         expected = [
             ['name1', 4]
         ]
+
+        self.assertEqual(expected, result)
+
+        data = [
+            [None, 2001, 1, None, None, None],
+            [None, 2002, 2, None, None, None],
+            [None, 2003, 3, None, None, None]
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.groupby('id').agg(self.expr.fid.sum())
+        expr = expr[expr.id == 2003]
+
+        expected = [
+            [2003, 3]
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
 
         self.assertEqual(expected, result)
 

@@ -75,6 +75,7 @@ class Optimizer(Backend):
             attrs = get_attrs(expr.input)
             attrs_values = dict((attr, getattr(expr.input, attr)) for attr in attrs)
             attrs_values['_having'] = predicates
+            attrs_values['_cache_data'] = None
             del attrs_values['_cached_args']
             groupby_collection = type(expr.input)(**attrs_values)
 

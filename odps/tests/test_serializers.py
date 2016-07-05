@@ -51,6 +51,8 @@ expected_xml_template = '''<?xml version="1.0" ?>
     </Property>
   </Config>
   <json>{"label": "json", "tags": [{"tag": "t1"}, {"tag": "t2"}], "nest": {"name": "n"}, "nests": {"nest": [{"name": "n1"}, {"name": "n2"}]}}</json>
+  <Disabled>false</Disabled>
+  <Enabled>true</Enabled>
 </Example>
 '''
 
@@ -70,7 +72,7 @@ LIST_OBJ_LAST_TMPL = '''<?xml version="1.0" ?>
 
 class Example(XMLSerializableModel):
     __slots__ = 'name', 'type', 'date', 'lessons', 'teacher', \
-                'professors', 'properties', 'jsn'
+                'professors', 'properties', 'jsn', 'bool_false', 'bool_true'
 
     _root = 'Example'
 
@@ -101,8 +103,9 @@ class Example(XMLSerializableModel):
 
     name = XMLNodeField('Name')
     type = XMLNodeAttributeField('.', attr='type')
-    date = XMLNodeField('Created', serialize_callback=lambda t: utils.gen_rfc822(t, localtime=True),
-                        parse_callback=utils.parse_rfc822)
+    date = XMLNodeField('Created', type='rfc822l')
+    bool_true = XMLNodeField('Enabled', type='bool')
+    bool_false = XMLNodeField('Disabled', type='bool')
     lessons = XMLNodesField('Lessons', 'Lesson')
     teacher = XMLNodeReferenceField(Teacher, 'Teacher')
     professors = XMLNodesReferencesField(Teacher, 'Professors', 'Professor')
@@ -120,7 +123,7 @@ class Test(TestBase):
                            nests=[Example.Json.Nest(name='n1'), Example.Json.Nest(name='n2')])
 
         dt = datetime.fromtimestamp(time.mktime(datetime.now().timetuple()))
-        example = Example(name='example 1', type='ex', date=dt,
+        example = Example(name='example 1', type='ex', date=dt, bool_true=True, bool_false=False,
                           lessons=['less1', 'less2'], teacher=teacher, professors=professors,
                           properties={'test': 'true'}, jsn=jsn)
         sel = example.serialize()
@@ -133,6 +136,8 @@ class Test(TestBase):
         self.assertEqual(example.name, parsed_example.name)
         self.assertEqual(example.type, parsed_example.type)
         self.assertEqual(example.date, parsed_example.date)
+        self.assertEqual(example.bool_true, parsed_example.bool_true)
+        self.assertEqual(example.bool_false, parsed_example.bool_false)
         self.assertSequenceEqual(example.lessons, parsed_example.lessons)
         self.assertEqual(example.teacher, parsed_example.teacher)
         self.assertSequenceEqual(example.professors, parsed_example.professors)

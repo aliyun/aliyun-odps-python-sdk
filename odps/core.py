@@ -16,20 +16,23 @@
 # under the License.
 
 import json
+import re
 from collections import Iterable
 
 from .rest import RestClient
 from .config import options
 from .tempobj import clean_objects
 from .compat import six
-from . import models
-from . import accounts
+from . import models, accounts, errors, utils
 
 
 DEFAULT_ENDPOINT = 'http://service.odps.aliyun.com/api'
 LOG_VIEW_HOST_DEFAULT = 'http://logview.odps.aliyun.com'
 
+DROP_TABLE_REGEX = re.compile('^\s*drop\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
 
+
+@utils.attach_internal
 class ODPS(object):
     """
     Main entrance to ODPS.
@@ -57,9 +60,8 @@ class ODPS(object):
     >>>
     >>> odps.delete_table('test_table')
     """
-
     def __init__(self, access_id, secret_access_key, project,
-                 endpoint=DEFAULT_ENDPOINT, tunnel_endpoint=None):
+                 endpoint=DEFAULT_ENDPOINT, **kw):
         """
         Initial ODPS, access_id and access_key is required, and should ensure correctness,
         or ``SignatureNotMatch`` error will throw. If `tunnel_endpoint` is not set,
@@ -80,8 +82,11 @@ class ODPS(object):
         self._projects = models.Projects(client=self.rest)
         self._project = self.get_project()
 
-        self._tunnel_endpoint = tunnel_endpoint
+        self._tunnel_endpoint = kw.pop('tunnel_endpoint', None)
         options.tunnel_endpoint = self._tunnel_endpoint
+
+        self._predict_endpoint = kw.pop('predict_endpoint', None)
+        options.predict_endpoint = self._predict_endpoint
 
         clean_objects(self)
 
@@ -673,6 +678,11 @@ class ODPS(object):
                 else:
                     dest[k] = str(v)
 
+        drop_table_match = DROP_TABLE_REGEX.match(sql)
+        if drop_table_match:
+            drop_table_name = drop_table_match.group('table_name').strip('`')
+            del self.get_project(project).tables[drop_table_name]
+
         task = models.SQLTask(query=sql, **kwargs)
         if hints or options.sql.settings:
             if task.properties is None:
@@ -721,6 +731,8 @@ class ODPS(object):
         :param str project: project name, if not provided, will be the default project
         :return: volume
         :rtype: :class:`odps.models.Volume`
+
+        .. seealso:: :class:`odps.models.Volume`
         """
         project = self.get_project(name=project)
         return project.volumes.create(name=name, **kwargs)
@@ -793,7 +805,10 @@ class ODPS(object):
         :param str partition: partition name
         :param str project: project name, if not provided, will be the default project
         """
-        volume = self.get_volume(volume, project)
+        try:
+            volume = self.get_volume(volume, project)
+        except errors.NoSuchObject:
+            return False
         return partition in volume.partitions
 
     def delete_volume_partition(self, volume, partition, project=None):
@@ -1050,6 +1065,203 @@ class ODPS(object):
         hours = hours or options.log_view_hours
         inst = self.get_instance(instance_id, project=project)
         return inst.get_logview_address(hours=hours)
+
+    def get_project_policy(self, project=None):
+        """
+        Get policy of a project
+
+        :param project: project name, if not provided, will be the default project
+        :return: JSON object
+        """
+        project = self.get_project(name=project)
+        return project.policy
+
+    def set_project_policy(self, policy, project=None):
+        """
+        Set policy of a project
+
+        :param policy: name of policy.
+        :param project: project name, if not provided, will be the default project
+        :return: JSON object
+        """
+        project = self.get_project(name=project)
+        project.policy = policy
+
+    def create_role(self, name, project=None):
+        """
+        Create a role in a project
+
+        :param name: name of the role to create
+        :param project: project name, if not provided, will be the default project
+        :return: role object created
+        """
+        project = self.get_project(name=project)
+        return project.roles.create(name)
+
+    def list_roles(self, project=None):
+        """
+        List all roles in a project
+
+        :param project: project name, if not provided, will be the default project
+        :return: collection of role objects
+        """
+        project = self.get_project(name=project)
+        return project.roles
+
+    def exist_role(self, name, project=None):
+        """
+        Check if a role exists in a project
+
+        :param name: name of the role
+        :param project: project name, if not provided, will be the default project
+        """
+        project = self.get_project(name=project)
+        return name in project.roles
+
+    def delete_role(self, name, project=None):
+        """
+        Delete a role in a project
+
+        :param name: name of the role to delete
+        :param project: project name, if not provided, will be the default project
+        """
+        project = self.get_project(name=project)
+        project.roles.delete(name)
+
+    def get_role_policy(self, name, project=None):
+        """
+        Get policy object of a role
+
+        :param name: name of the role
+        :param project: project name, if not provided, will be the default project
+        :return: JSON object
+        """
+        project = self.get_project(name=project)
+        return project.roles[name].policy
+
+    def set_role_policy(self, name, policy, project=None):
+        """
+        Get policy object of project
+
+        :param name: name of the role
+        :param policy: policy string or JSON object
+        :param project: project name, if not provided, will be the default project
+        """
+        project = self.get_project(name=project)
+        project.roles[name].policy = policy
+
+    def list_role_users(self, name, project=None):
+        """
+        List users who have the specified role.
+
+        :param name: name of the role
+        :param project: project name, if not provided, will be the default project
+        :return: collection of User objects
+        """
+        project = self.get_project(name=project)
+        return project.roles[name].users
+
+    def create_user(self, name, project=None):
+        """
+        Add a user into the project
+
+        :param name: user name
+        :param project: project name, if not provided, will be the default project
+        :return: user created
+        """
+        project = self.get_project(name=project)
+        return project.users.create(name)
+
+    def list_users(self, project=None):
+        """
+        List users in the project
+
+        :param project: project name, if not provided, will be the default project
+        :return: collection of User objects
+        """
+        project = self.get_project(name=project)
+        return project.users
+
+    def exist_user(self, name, project=None):
+        """
+        Check if a user exists in the project
+
+        :param name: user name
+        :param project: project name, if not provided, will be the default project
+        """
+        project = self.get_project(name=project)
+        return name in project.users
+
+    def delete_user(self, name, project=None):
+        """
+        Delete a user from the project
+
+        :param name: user name
+        :param project: project name, if not provided, will be the default project
+        """
+        project = self.get_project(name=project)
+        project.users.delete(name)
+
+    def list_user_roles(self, name, project=None):
+        """
+        List roles of the specified user
+
+        :param name: user name
+        :param project: project name, if not provided, will be the default project
+        :return: collection of Role object
+        """
+        project = self.get_project(name=project)
+        return project.users[name].roles
+
+    def get_security_options(self, project=None):
+        """
+        Get all security options of a project
+
+        :param project: project name, if not provided, will be the default project
+        :return: SecurityConfiguration object
+        """
+        project = self.get_project(name=project)
+        return project.security_options
+
+    def get_security_option(self, option_name, project=None):
+        """
+        Get one security option of a project
+
+        :param option_name: name of the security option. Please refer to ODPS options for more details.
+        :param project: project name, if not provided, will be the default project
+        :return: option value
+        """
+        option_name = utils.camel_to_underline(option_name)
+        sec_options = self.get_security_options(project=project)
+        if not hasattr(sec_options, option_name):
+            raise ValueError('Option does not exists.')
+        return getattr(sec_options, option_name)
+
+    def set_security_option(self, option_name, value, project=None):
+        """
+        Set a security option of a project
+
+        :param option_name: name of the security option. Please refer to ODPS options for more details.
+        :param value: value of security option to be set.
+        :param project: project name, if not provided, will be the default project.
+        """
+        option_name = utils.camel_to_underline(option_name)
+        sec_options = self.get_security_options(project=project)
+        if not hasattr(sec_options, option_name):
+            raise ValueError('Option does not exists.')
+        setattr(sec_options, option_name, value)
+        sec_options.update()
+
+    def run_security_query(self, query, project=None, token=None):
+        """
+        Run a security query to grant / revoke / query privileges
+
+        :param query: query text
+        :param project: project name, if not provided, will be the default project
+        :return: a JSON object representing the result.
+        """
+        project = self.get_project(name=project)
+        return project.run_security_query(query, token=token)
 
     @classmethod
     def _build_account(cls, access_id, secret_access_key):

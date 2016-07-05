@@ -41,7 +41,7 @@ nosetests.xml
 env
 
 # FIXME: Find a better place for test.conf
-test.conf
+odps/tests/test.conf
 
 .DS_Store
 

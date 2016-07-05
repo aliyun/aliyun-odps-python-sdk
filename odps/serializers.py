@@ -65,6 +65,12 @@ def _route_json_path(root, *keys, **kw):
     return root
 
 
+_serialize_types = dict()
+_serialize_types['bool'] = (utils.str_to_bool, utils.bool_to_str)
+_serialize_types['rfc822'] = (utils.parse_rfc822, utils.gen_rfc822)
+_serialize_types['rfc822l'] = (utils.parse_rfc822, lambda s: utils.gen_rfc822(s, localtime=True))
+
+
 class SerializeField(object):
     def __init__(self, *keys, **kwargs):
         self._path_keys = keys
@@ -73,8 +79,11 @@ class SerializeField(object):
         self._blank_if_null = kwargs.get('blank_if_null',
                                          True if self._required else False)
         self._default = kwargs.get('default')
-        self._parse_callback = kwargs.get('parse_callback')
-        self._serialize_callback = kwargs.get('serialize_callback')
+        if 'type' in kwargs:
+            self._parse_callback, self._serialize_callback = _serialize_types[kwargs.pop('type')]
+        else:
+            self._parse_callback = kwargs.get('parse_callback')
+            self._serialize_callback = kwargs.get('serialize_callback')
 
         self.set_to_parent = kwargs.get('set_to_parent', False)
 
@@ -82,6 +91,10 @@ class SerializeField(object):
         if isinstance(val, six.string_types):
             return utils.to_str(val)
         return val
+
+    def _set_default_keys(self, *keys):
+        if not self._path_keys:
+            self._path_keys = keys
 
     def parse(self, root, **kwargs):
         raise NotImplementedError
@@ -133,6 +146,9 @@ class HasSubModelField(SerializeField):
         return res
 
 
+_default_name_maker = dict(capitalized=utils.underline_to_capitalized, raw=lambda v: v, camel=utils.underline_to_camel)
+
+
 class SerializableModelMetaClass(type):
     def __new__(mcs, name, bases, kv):
         slots = []
@@ -147,8 +163,12 @@ class SerializableModelMetaClass(type):
         fields.update(kv.get('__fields', dict()))
 
         attrs = []
-        for attr, field in six.iteritems(kv):
-            if not attr.startswith('__') and isinstance(field, SerializeField):
+        def_name = kv.pop('_' + name + '__default_name', 'capitalized')
+        for attr, field in (pair for pair in six.iteritems(kv) if not pair[0].startswith('__')):
+            if inspect.isclass(field) and issubclass(field, SerializeField):
+                field = field()
+            if isinstance(field, SerializeField):
+                field._set_default_keys(_default_name_maker[def_name](attr))
                 if not field.set_to_parent:
                     slots.append(attr)
                     attrs.append(attr)
@@ -322,7 +342,7 @@ class XMLSerializableModel(SerializableModel):
         cdata_re = re.compile(r'&lt;!\[CDATA\[.*\]\]&gt;', re.M)
         for src_cdata in cdata_re.finditer(prettified_xml):
             src_cdata = src_cdata.group(0)
-            dest_cdata = src_cdata.replace('&amp;', '&').replace('&lt;', '<').\
+            dest_cdata = src_cdata.replace('&amp;', '&').replace('&lt;', '<'). \
                 replace('&quot;', '"').replace('&gt;', '>')
             prettified_xml = prettified_xml.replace(src_cdata, dest_cdata)
 
@@ -359,6 +379,9 @@ class XMLTagField(SerializeField):
             return self._parse_callback(val)
         return val
 
+    def _set_default_keys(self, *keys):
+        super(XMLTagField, self)._set_default_keys('.')
+
 
 class XMLNodeField(SerializeField):
     def parse(self, root, **kwargs):
@@ -376,7 +399,7 @@ class XMLNodeField(SerializeField):
         return val
 
     def serialize(self, root, value):
-        value = value or self._default
+        value = value if value is not None else self._default
         if value is None and self._blank_if_null:
             value = ''
 
@@ -392,12 +415,13 @@ class XMLNodeField(SerializeField):
 
 class XMLNodeAttributeField(SerializeField):
     def __init__(self, *keys, **kwargs):
-        self._attr = kwargs.pop('attr')
-        assert self._attr is not None
+        self._attr = kwargs.pop('attr', None)
 
         super(XMLNodeAttributeField, self).__init__(*keys, **kwargs)
 
     def parse(self, root, **kwargs):
+        assert self._attr is not None
+
         node = _route_xml_path(root, *self._path_keys)
 
         val = self._default
@@ -412,7 +436,9 @@ class XMLNodeAttributeField(SerializeField):
         return node.get(self._attr)
 
     def serialize(self, root, value):
-        value = value or self._default
+        assert self._attr is not None
+
+        value = value if value is not None else self._default
         if value is None:
             if self._default is not None:
                 value = self._default
@@ -427,6 +453,10 @@ class XMLNodeAttributeField(SerializeField):
             node.set(self._attr, self._serialize_callback(value))
         else:
             node.set(self._attr, value)
+
+    def _set_default_keys(self, *keys):
+        if self._attr is None:
+            self._attr = keys[0]
 
 
 class XMLNodesField(SerializeField):
@@ -447,7 +477,7 @@ class XMLNodesField(SerializeField):
         return values
 
     def serialize(self, root, value):
-        value = value or self._default
+        value = value if value is not None else self._default
         if value is None and self._blank_if_null:
             value = []
 
@@ -478,7 +508,7 @@ class XMLNodeReferenceField(HasSubModelField):
 
             instance = self._model.deserial(node, **kwargs)
             if isinstance(instance, XMLSerializableModel) and \
-                    instance._root is None:
+                            instance._root is None:
                 instance._root = node.tag
 
         if instance is None:
@@ -489,7 +519,7 @@ class XMLNodeReferenceField(HasSubModelField):
         return instance
 
     def serialize(self, root, value):
-        value = value or self._default
+        value = value if value is not None else self._default
 
         if not self._required and value is None:
             return
@@ -545,7 +575,7 @@ class XMLNodesReferencesField(HasSubModelField):
         return instances
 
     def serialize(self, root, value):
-        value = value or self._default
+        value = value if value is not None else self._default
         if value is None and self._blank_if_null:
             value = []
 
@@ -604,7 +634,7 @@ class XMLNodePropertiesField(SerializeField):
         return results
 
     def serialize(self, root, value):
-        value = value or self._default
+        value = value if value is not None else self._default
         if value is None and self._blank_if_null:
             value = compat.OrderedDict()
 
@@ -683,7 +713,7 @@ class JSONNodesField(SerializeField):
         return values
 
     def serialize(self, root, value):
-        value = value or self._default
+        value = value if value is not None else self._default
         if value is None and self._blank_if_null:
             value = []
 
@@ -735,7 +765,7 @@ class JSONNodeReferenceField(HasSubModelField):
         return instance
 
     def serialize(self, root, value):
-        value = value or self._default
+        value = value if value is not None else self._default
 
         if not self._required and value is None:
             return
@@ -773,7 +803,7 @@ class JSONNodesReferencesField(HasSubModelField):
         return instances
 
     def serialize(self, root, value):
-        value = value or self._default
+        value = value if value is not None else self._default
         if value is None and self._blank_if_null:
             value = []
 

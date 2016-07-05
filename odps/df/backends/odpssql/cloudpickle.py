@@ -685,16 +685,16 @@ class CloudUnpickler(Unpickler):
     def __init__(self, *args, **kwargs):
         Unpickler.__init__(self, *args, **kwargs)
 
-        self.dispatch[pickle.BININT] = lambda x: self.load_binint()
-        self.dispatch[pickle.BININT2] = lambda x: self.load_binint2()
-        self.dispatch[pickle.LONG4] = lambda x: self.load_long4()
-        self.dispatch[pickle.BINSTRING] = lambda x: self.load_binstring()
-        self.dispatch[pickle.BINUNICODE] = lambda x: self.load_binunicode()
-        self.dispatch[pickle.EXT2] = lambda x: self.load_ext2()
-        self.dispatch[pickle.EXT4] = lambda x: self.load_ext4()
-        self.dispatch[pickle.LONG_BINGET] = lambda x: self.load_long_binget()
-        self.dispatch[pickle.LONG_BINPUT] = lambda x: self.load_long_binput()
-        self.dispatch[pickle.REDUCE] = lambda x: self.load_reduce()
+        self.dispatch[pickle.BININT] = lambda x: x.load_binint()
+        self.dispatch[pickle.BININT2] = lambda x: x.load_binint2()
+        self.dispatch[pickle.LONG4] = lambda x: x.load_long4()
+        self.dispatch[pickle.BINSTRING] = lambda x: x.load_binstring()
+        self.dispatch[pickle.BINUNICODE] = lambda x: x.load_binunicode()
+        self.dispatch[pickle.EXT2] = lambda x: x.load_ext2()
+        self.dispatch[pickle.EXT4] = lambda x: x.load_ext4()
+        self.dispatch[pickle.LONG_BINGET] = lambda x: x.load_long_binget()
+        self.dispatch[pickle.LONG_BINPUT] = lambda x: x.load_long_binput()
+        self.dispatch[pickle.REDUCE] = lambda x: x.load_reduce()
 
     def find_class(self, module, name):
         # Subclasses may override this

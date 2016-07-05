@@ -411,7 +411,13 @@ class PandasCompiler(Backend):
 
             df = pd.concat(fields, axis=1)
             if expr._having is not None:
-                df = df[kw.get(expr._having)]
+                having = kw.get(expr._having)
+                if all(not isinstance(e, GroupedSequenceReduction)
+                       for e in itertools.chain(*expr._having.all_path(expr.input))):
+                    # the having comes from the by fields, we need to do Series.groupby explicitly.
+                    bys = self._get_compiled_bys(kw, expr._by, len(having))
+                    having = having.groupby(bys).first()
+                df = df[having]
             return pd.DataFrame(
                 df.values, columns=[f.name for f in fields_exprs])[expr.schema.names]
 

@@ -31,6 +31,7 @@ import re
 import string
 import struct
 import sys
+import threading
 import time
 import traceback
 import types
@@ -148,7 +149,7 @@ def camel_to_underline(name):
 
 
 def underline_to_capitalized(name):
-    return "".join([s[0].upper() + s[1:len(s)] for s in name.split('_')])
+    return "".join([s[0].upper() + s[1:len(s)] for s in name.strip('_').split('_')])
 
 
 def underline_to_camel(name):
@@ -275,6 +276,10 @@ def str_to_bool(s):
         raise ValueError
 
 
+def bool_to_str(s):
+    return str(s).lower()
+
+
 def get_root_dir():
     return os.path.dirname(sys.modules[__name__].__file__)
 
@@ -348,18 +353,20 @@ def init_progress_bar(val=1):
 def init_progress_ui(val=1):
     from .ui import ProgressGroupUI, html_notify
 
-    bar = init_progress_bar(val=val)
-    if bar._ipython_widget:
-        try:
-            progress_group = ProgressGroupUI(bar._ipython_widget)
-        except:
-            progress_group = None
-    else:
-        progress_group = None
+    progress_group = None
+    bar = None
+    if not is_exec_thread():
+        bar = init_progress_bar(val=val)
+        if bar._ipython_widget:
+            try:
+                progress_group = ProgressGroupUI(bar._ipython_widget)
+            except:
+                pass
 
     class ProgressUI(object):
         def update(self, value=None):
-            bar.update(value=value)
+            if bar:
+                bar.update(value=value)
 
         def status(self, prefix, suffix=''):
             if progress_group:
@@ -382,7 +389,8 @@ def init_progress_ui(val=1):
             html_notify(msg)
 
         def close(self):
-            bar.close()
+            if bar:
+                bar.close()
             if progress_group:
                 progress_group.close()
 
@@ -482,3 +490,24 @@ def gen_repr_object(**kwargs):
 def build_pyodps_dir(*args):
     home_dir = os.environ.get('PYODPS_DIR') or os.path.join(os.path.expanduser('~'), '.pyodps')
     return os.path.join(home_dir, *args)
+
+
+def attach_internal(cls):
+    cls_path = cls.__module__ + '.' + cls.__name__
+    try:
+        from .internal.core import MIXIN_TARGETS
+        mixin_cls = MIXIN_TARGETS[cls_path]
+        for method_name in dir(mixin_cls):
+            if method_name.startswith('_'):
+                continue
+            att = getattr(mixin_cls, method_name)
+            if six.PY2 and type(att).__name__ in ('instancemethod', 'method'):
+                att = att.__func__
+            setattr(cls, method_name, att)
+        return cls
+    except ImportError:
+        return cls
+
+
+def is_exec_thread():
+    return threading.current_thread().name.startswith('PyODPSExecutionThread')

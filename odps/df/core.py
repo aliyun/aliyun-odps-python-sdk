@@ -78,25 +78,28 @@ class DataFrame(CollectionExpr):
             schema = odps_schema_to_df_schema(data.schema)
             super(DataFrame, self).__init__(_source_data=data, _schema=schema, **kwargs)
         elif has_pandas and isinstance(data, pd.DataFrame):
-            unknown_as_string = kwargs.pop('unknown_as_string', False)
-            as_type = kwargs.pop('as_type', None)
-            if as_type:
-                data = data.copy()
-                data.is_copy = False
-                as_type = dict((k, validate_data_type(v)) for k, v in six.iteritems(as_type))
+            if 'schema' in kwargs and kwargs['schema']:
+                schema = kwargs.pop('schema')
+            else:
+                unknown_as_string = kwargs.pop('unknown_as_string', False)
+                as_type = kwargs.pop('as_type', None)
+                if as_type:
+                    data = data.copy()
+                    data.is_copy = False
+                    as_type = dict((k, validate_data_type(v)) for k, v in six.iteritems(as_type))
 
-                if not isinstance(as_type, dict):
-                    raise TypeError('as_type must be dict')
-                for col_name, df_type in six.iteritems(as_type):
-                    pd_type = df_type_to_np_type(df_type)
-                    if col_name not in data:
-                        raise ValueError('col(%s) does not exist in pd.DataFrame' % col_name)
-                    try:
-                        data[col_name] = data[col_name][data[col_name].notnull()].astype(pd_type)
-                    except TypeError:
-                        raise TypeError('Cannot cast col(%s) to data type: %s' % (col_name, df_type))
-            schema = pd_to_df_schema(data, as_type=as_type,
-                                     unknown_as_string=unknown_as_string)
+                    if not isinstance(as_type, dict):
+                        raise TypeError('as_type must be dict')
+                    for col_name, df_type in six.iteritems(as_type):
+                        pd_type = df_type_to_np_type(df_type)
+                        if col_name not in data:
+                            raise ValueError('col(%s) does not exist in pd.DataFrame' % col_name)
+                        try:
+                            data[col_name] = data[col_name][data[col_name].notnull()].astype(pd_type)
+                        except TypeError:
+                            raise TypeError('Cannot cast col(%s) to data type: %s' % (col_name, df_type))
+                schema = pd_to_df_schema(data, as_type=as_type,
+                                         unknown_as_string=unknown_as_string)
             super(DataFrame, self).__init__(_source_data=data, _schema=schema, **kwargs)
         else:
             raise ValueError('Unknown type: %s' % data)

@@ -18,18 +18,22 @@
 # under the License.
 
 import tempfile
-import shutil
 
 from odps.tests.core import TestBase, tn
-from odps.compat import unittest
+from odps.compat import unittest, StringIO
 from odps.inter import *
 from odps.config import options
 from odps.errors import InteractiveError
 from odps.models import Schema
-from odps.df import DataFrame
+from odps.df.backends.odpssql import cloudpickle
 
 
 class Test(TestBase):
+    def setUp(self):
+        super(Test, self).setUp()
+        # install CloudUnpickler
+        cloudpickle.CloudUnpickler(StringIO('abcdefg'))
+
     def testRoom(self):
         access_id = 'test_access_id'
         access_key = 'test_access_key'

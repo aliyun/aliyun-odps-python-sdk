@@ -203,7 +203,7 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
 class VolumeReader(object):
     def __init__(self, client, response, compress_option):
         self._client = client
-        self._response = response
+        self._response = response.raw
         self._compress_option = compress_option
         self._crc = Checksum(method='crc32')
         self._buffer_size = 0
@@ -219,7 +219,9 @@ class VolumeReader(object):
         self._chunk_left = None
 
     def _init_buf(self):
-        size_buf = next(self._response.iter_content(4))
+        size_buf = self._response.read(4)
+        if not size_buf:
+            raise IOError('Tunnel reader breaks unexpectedly.')
         self._crc.update(size_buf)
         chunk_size = struct.unpack('>I', size_buf)[0]
         if chunk_size > MAX_CHUNK_SIZE or chunk_size < MIN_CHUNK_SIZE:
@@ -237,7 +239,9 @@ class VolumeReader(object):
         while data_buffer.tell() < self._buffer_size:
             try:
                 # len(buf) might be less than _buffer_size
-                buf = next(self._response.iter_content(self._buffer_size))
+                buf = self._response.read(self._buffer_size)
+                if not buf:
+                    break
                 data_buffer.write(buf)
                 has_stuff = True
             except StopIteration:

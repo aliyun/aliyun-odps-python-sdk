@@ -25,6 +25,7 @@ except ImportError:
 import logging
 
 from . import utils
+from .compat import six
 
 
 LOG = logging.getLogger(__name__)
@@ -79,7 +80,11 @@ def throw_if_parsable(resp):
     if resp.status_code == 404:
         raise NoSuchObject('No such object.')
     else:
-        raise ODPSError(str(resp.status_code))
+        text = resp.text if six.PY3 else resp.content
+        if text:
+            raise ODPSError(text, code=str(resp.status_code))
+        else:
+            raise ODPSError(str(resp.status_code))
 
 
 class ODPSError(RuntimeError):

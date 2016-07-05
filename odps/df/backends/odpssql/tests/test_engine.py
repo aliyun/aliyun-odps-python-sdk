@@ -558,6 +558,7 @@ class Test(TestBase):
             yield row.id
 
         expr = self.expr['name', 'id'].apply(my_func2, axis=1, names='cnt', types='int')
+        expr = expr.filter(expr.cnt > 1)
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
@@ -567,7 +568,7 @@ class Test(TestBase):
                 yield len(r[0])
                 yield r[1]
 
-        self.assertEqual([r[0] for r in result], [r for r in gen_expected(data)])
+        self.assertEqual([r[0] for r in result], [r for r in gen_expected(data) if r > 1])
 
     def testDatetime(self):
         data = self._gen_data(5)

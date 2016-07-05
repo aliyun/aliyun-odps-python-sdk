@@ -22,6 +22,9 @@ from ... import serializers, utils
 
 
 class OfflineModel(LazyLoad):
+    """
+    Representing an ODPS offline model.
+    """
 
     name = serializers.XMLNodeField('Name')
     owner = serializers.XMLNodeField('Owner')
@@ -39,6 +42,9 @@ class OfflineModel(LazyLoad):
         self.parse(self._client, resp, obj=self)
 
     def get_model(self):
+        """
+        Get PMML text of the current model.
+        """
         url = self.resource()
         params = {'data': ''}
         resp = self._client.get(url, params=params)

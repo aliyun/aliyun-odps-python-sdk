@@ -16,6 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from datetime import datetime
+from decimal import Decimal
+
 from odps.tests.core import TestBase, tn, pandas_case
 from odps.compat import unittest
 from odps.models import Schema
@@ -73,6 +76,27 @@ class Test(TestBase):
         self.assertEqual([2, 'name2'], list(r[0]))
 
     @pandas_case
+    def testToPandas(self):
+        table_name = tn('pyodps_test_mixed_engine_to_pandas')
+        self.odps.delete_table(table_name, if_exists=True)
+        table2 = self.odps.create_table(name=table_name,
+                                        schema=Schema.from_lists(['col%s' % i for i in range(7)],
+                                                                 ['bigint', 'double', 'string', 'datetime',
+                                                                  'boolean', 'decimal', 'datetime']))
+        expr2 = DataFrame(table2)
+
+        data2 = [
+            [1234567, 3.14, 'test', datetime(2016, 6, 1), True, Decimal('3.14'), None]
+        ]
+        self.odps.write_table(table2, 0, data2)
+
+        pd_df = expr2.to_pandas()
+        self.assertSequenceEqual(data2[0], pd_df.ix[0].tolist())
+
+        wrapeed_pd_df = expr2.to_pandas(wrap=True)
+        self.assertSequenceEqual(data2[0], list(next(wrapeed_pd_df.execute())))
+
+    @pandas_case
     def testUnicodePdDataFrame(self):
         import pandas as pd
 
@@ -82,6 +106,33 @@ class Test(TestBase):
         r = df['字段'].execute()
         self.assertEqual(to_text('中文'), to_text(r[0][0]))
         self.assertEqual(to_text('中文2'), to_text(r[1][0]))
+
+    @pandas_case
+    def testPandasGroupbyFilter(self):
+        import pandas as pd
+
+        data = [
+            [2001, 1],
+            [2002, 2],
+            [2003, 3]
+        ]
+        df = DataFrame(pd.DataFrame(data, columns=['id', 'fid']))
+
+        df2 = df.groupby('id').agg(df.fid.sum())
+        df3 = df2[df2.id == 2003]
+
+        expected = [
+            [2003, 3]
+        ]
+
+        self.assertEqual(df3.execute().values.values.tolist(), expected)
+
+        df2 = df.groupby('id').agg(df.fid.sum())
+        df2.execute()
+        self.assertIsNotNone(df2._cache_data)
+        df3 = df2[df2.id == 2003]
+
+        self.assertEqual(df3.execute().values.values.tolist(), expected)
 
 if __name__ == '__main__':
     unittest.main()

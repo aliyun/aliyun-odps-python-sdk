@@ -56,7 +56,7 @@ PyODPS的相关依赖会自动安装。
    resources-zh
    functions-zh
    volume-int-zh
-   tunnel-zh
+   models-int-zh
    cl-zh
    df-zh
    ml-int-zh

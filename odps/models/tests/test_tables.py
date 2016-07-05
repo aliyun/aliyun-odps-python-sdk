@@ -51,7 +51,10 @@ class Test(TestBase):
 
     def testTable(self):
         tables = self.odps.list_tables()
-        table = next(tables)
+        try:
+            table = next(t for t in tables if not t.is_loaded)
+        except StopIteration:
+            return
 
         self.assertIs(table, self.odps.get_table(table.name))
 

@@ -17,11 +17,15 @@
 
 import os
 import sys
+import tempfile
+import time
 
 from .. import compat
 from .. import ODPS
 from ..tunnel import TableTunnel
 from ..compat import six, ConfigParser
+
+LOCK_FILE_NAME = os.path.join(tempfile.gettempdir(), 'pyodps_test_lock_')
 
 LOGGING_CONFIG = {
     'version': 1,
@@ -77,6 +81,10 @@ def get_config():
             tunnel_endpoint = config.get("tunnel", "endpoint")
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             tunnel_endpoint = None
+        try:
+            predict_endpoint = config.get("predict", "endpoint")
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            predict_endpoint = None
 
         try:
             datahub_endpoint = config.get("datahub", "endpoint")
@@ -84,7 +92,7 @@ def get_config():
             datahub_endpoint = None
 
         config.odps = ODPS(access_id, secret_access_key, project, endpoint,
-                           tunnel_endpoint=tunnel_endpoint)
+                           tunnel_endpoint=tunnel_endpoint, predict_endpoint=predict_endpoint)
         config.tunnel = TableTunnel(config.odps, endpoint=tunnel_endpoint)
         config.datahub_endpoint = datahub_endpoint
         logging_level = config.get('test', 'logging_level')
@@ -102,10 +110,16 @@ def to_str(s):
     return s
 
 
-def tn(s):
+def tn(s, limit=128):
     if os.environ.get('TEST_NAME_SUFFIX') is not None:
-        return s + '_' + os.environ.get('TEST_NAME_SUFFIX').lower()
-    return s
+        suffix = '_' + os.environ.get('TEST_NAME_SUFFIX').lower()
+        if len(s) + len(suffix) > limit:
+            s = s[:limit - len(suffix)]
+        return s + suffix
+    else:
+        if len(s) > limit:
+            s = s[:limit]
+        return s
 
 
 def in_coverage_mode():
@@ -158,6 +172,32 @@ def snappy_case(obj):
         return obj
     except ImportError:
         return ignore_case(obj, 'Skipped due to absence of snappy.')
+
+
+def global_locked(lock_key):
+
+    def _decorator(func):
+        if callable(lock_key):
+            file_name = LOCK_FILE_NAME + '_' + func.__module__.replace('.', '__') + '__' + func.__name__ + '.lck'
+        else:
+            file_name = LOCK_FILE_NAME + '_' + lock_key + '.lck'
+
+        def _decorated(*args, **kwargs):
+            while os.path.exists(file_name):
+                time.sleep(0.5)
+            open(file_name, 'w').close()
+            try:
+                return func(*args, **kwargs)
+            finally:
+                os.unlink(file_name)
+
+        _decorated.__name__ = func.__name__
+        return _decorated
+
+    if callable(lock_key):
+        return _decorator(lock_key)
+    else:
+        return _decorator
 
 
 class TestMeta(type):

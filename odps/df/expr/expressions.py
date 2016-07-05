@@ -695,7 +695,7 @@ class CollectionExpr(Expr):
         res = self.execute(**kwargs).values
         if wrap:
             from .. import DataFrame
-            return DataFrame(res)
+            return DataFrame(res, schema=self.schema)
         return res
 
     @property

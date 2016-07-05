@@ -91,6 +91,27 @@
 
 其他还可以设置lifecycle等参数。
 
+创建行记录Record
+==================
+
+Record表示表的一行记录，我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。
+
+.. code-block:: python
+
+   >>> t = odps.get_table('mytable')
+   >>> r = t.new_record(['val0', 'val1'])  # 值的个数必须等于表schema的字段数
+   >>> r2 = t.new_record()  #  也可以不传入值
+   >>> r2[0] = 'val0' # 可以通过偏移设置值
+   >>> r2['field1'] = 'val1'  # 也可以通过字段名设置值
+   >>> r2.field1 = 'val1'  # 通过属性设置值
+   >>>
+   >>> print(record[0])  # 取第0个位置的值
+   >>> print(record['c_double_a'])  # 通过字段取值
+   >>> print(record.c_double_a)  # 通过属性取值
+   >>> print(record[0: 3])  # 切片操作
+   >>> print(record[0, 2, 3])  # 取多个位置的值
+   >>> print(record['c_int_a', 'c_double_a'])  # 通过多个字段取值
+
 获取表数据
 ==========
 
@@ -100,11 +121,7 @@
 
    >>> t = odps.get_table('dual')
    >>> for record in t.head(3):
-   >>>     print(record[0])  # 取第0个位置的值
-   >>>     print(record['c_double_a'])  # 通过字段取值
-   >>>     print(record[0: 3])  # 切片操作
-   >>>     print(record[0, 2, 3])  # 取多个位置的值
-   >>>     print(record['c_int_a', 'c_double_a'])  # 通过多个字段取值
+   >>>     # 处理每个Record对象
 
 其次，在table上可以执行 ``open_reader`` 操作来打一个reader来读取数据。记住这里需要使用 **with表达式**。
 
@@ -116,7 +133,7 @@
    >>>         # 处理一条记录
 
 最后，可以使用Tunnel API来进行读取操作，``open_reader`` 操作其实也是对Tunnel API的封装。
-详细参考 `数据上传下载通道 <tunnel-zh.html>`_ 。
+详细参考 :ref:`tunnel`。
 
 向表写数据
 ==========
@@ -126,13 +143,17 @@
 .. code-block:: python
 
    >>> with t.open_writer(partition='pt=test') as writer:
-   >>>     writer.write(records)  # 这里records可以是任意可迭代的records，默认写到block 0
+   >>>     records = [[111, 'aaa', True],                 # 这里可以是list
+   >>>                t.new_record([222, 'bbb', False]),  # 也可以是Record对象
+   >>>                [333, 'ccc', True],
+   >>>                [444, '中文', False]]
+   >>>     writer.write(records)  # 这里records可以是可迭代对象
    >>>
    >>> with t.open_writer(partition='pt=test', blocks=[0, 1]) as writer:  # 这里同是打开两个block
    >>>     writer.write(0, gen_records(block=0))
    >>>     writer.write(1, gen_records(block=1))  # 这里两个写操作可以多线程并行，各个block间是独立的
 
-同样，向表写数据也是对Tunnel API的封装，详细参考 `数据上传下载通道 <tunnel-zh.html>`_ 。
+同样，向表写数据也是对Tunnel API的封装，详细参考 :ref:`tunnel`。
 
 删除表
 =======
@@ -187,3 +208,51 @@
 
    >>> t.delete_partition('pt=test', if_exists=True)  # 存在的时候才删除
    >>> partition.drop()  # Partition对象存在的时候直接drop
+
+.. _tunnel:
+
+数据上传下载通道
+==============
+
+
+ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据。
+
+**注意**，如果安装了 **cython**，在安装pyodps时会编译C代码，加速Tunnel的上传和下载。
+
+上传
+~~~~~~
+
+.. code-block:: python
+
+   from odps.tunnel import TableTunnel
+
+   table = odps.get_table('my_table')
+
+   tunnel = TableTunnel(odps)
+   upload_session = tunnel.create_upload_session(table.name, partition_spec='pt=test')
+
+   with upload_session.open_record_writer(0) as writer:
+       record = table.new_record()
+       record[0] = 'test1'
+       record[1] = 'id1'
+       writer.write(record)
+
+       record = table.new_record(['test2', 'id2'])
+       writer.write(record)
+
+   upload_session.commit([0])
+
+下载
+~~~~~~
+
+
+.. code-block:: python
+
+   from odps.tunnel import TableTunnel
+
+   tunnel = TableTunnel(odps)
+   download_session = tunnel.create_download_session('my_table', partition_spec='pt=test')
+
+   with download_session.open_record_reader(0, download_session.count) as reader:
+       for record in reader:
+           # 处理每条记录

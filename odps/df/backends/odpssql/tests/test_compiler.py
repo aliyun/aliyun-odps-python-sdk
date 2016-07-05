@@ -194,6 +194,26 @@ class Test(TestBase):
                    'WHERE (SAMPLE(10, 3, t1.`id`) OR SAMPLE(10, 4, t1.`id`)) OR SAMPLE(10, 5, t1.`id`)'
         self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
 
+        expr = self.expr['name', self.expr.id + 1][lambda x: x.id < 1]
+        expected = 'SELECT * \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`name`, t1.`id` + 1 AS `id` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   ') t4 \n' \
+                   'WHERE t4.`id` < 1'
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr.groupby('name').agg(count=self.expr.id.count()).limit(10)[lambda x: x['count'] > 10]
+        expected = "SELECT * \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`name`, COUNT(t1.`id`) AS `count` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "  GROUP BY t1.`name` \n" \
+                   "  LIMIT 10\n" \
+                   ") t5 \n" \
+                   "WHERE t5.`count` > 10"
+        self.assertEqual(to_str(expected), to_str(self.engine.compile(expr, prettify=False)))
+
     def testElementCompilation(self):
         expect = 'SELECT t1.`id` IS NULL AS `id` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'

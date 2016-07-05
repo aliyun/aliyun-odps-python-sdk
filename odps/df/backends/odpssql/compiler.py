@@ -405,7 +405,8 @@ class OdpsSQLCompiler(Backend):
             self._from_clause = from_clause
 
     def add_where_clause(self, expr, where_clause):
-        if self._where_clause is not None:
+        if any(clause is not None for clause in
+               (self._where_clause, self._select_clause)):
             self.sub_sql_to_from_clause(expr.input)
 
         self._where_clause = where_clause
@@ -511,19 +512,11 @@ class OdpsSQLCompiler(Backend):
         predicate = expr.args[1]
         compiled = self._ctx.get_expr_compiled(predicate)
 
-        if self._group_by_clause is not None or \
-                isinstance(expr.input, ProjectCollectionExpr):
-            self.sub_sql_to_from_clause(expr.input)
-
         self._ctx.add_expr_compiled(expr, compiled)
         self.add_where_clause(expr, compiled)
 
     def visit_filter_partition_collection(self, expr):
         compiled = self._ctx.get_expr_compiled(expr._predicate)
-
-        if self._group_by_clause is not None or \
-                isinstance(expr.input, ProjectCollectionExpr):
-            self.sub_sql_to_from_clause(expr.input)
 
         self._ctx.add_expr_compiled(expr, compiled)
         self.add_where_clause(expr, compiled)
