@@ -35,7 +35,6 @@ from odps.compat import unittest, OrderedDict
 from odps.models import Schema
 from odps import types, options
 from odps.tunnel import TableTunnel
-from odps.config import option_context
 
 
 def bothPyAndC(func):
@@ -48,9 +47,9 @@ def bothPyAndC(func):
             import warnings
             warnings.warn('No c code tests for table tunnel')
         for t in ts:
-            with option_context() as options:
-                setattr(options, 'force_{0}'.format(t), True)
-
+            old_config = getattr(options, 'force_{0}'.format(t))
+            setattr(options, 'force_{0}'.format(t), True)
+            try:
                 from odps.models import record
                 reload_module(record)
 
@@ -76,6 +75,8 @@ def bothPyAndC(func):
                 self.mode = t
 
                 func(self, *args, **kwargs)
+            finally:
+                setattr(options, 'force_{0}'.format(t), old_config)
 
     return inner
 

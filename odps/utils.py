@@ -492,6 +492,17 @@ def build_pyodps_dir(*args):
     return os.path.join(home_dir, *args)
 
 
+def gen_is_secret_mode():
+    is_secret_mode = 'PYODPS_SECRET_MODE' in os.environ
+
+    def _secret_func():
+        return is_secret_mode
+
+    return _secret_func
+
+is_secret_mode = gen_is_secret_mode()
+
+
 def attach_internal(cls):
     cls_path = cls.__module__ + '.' + cls.__name__
     try:

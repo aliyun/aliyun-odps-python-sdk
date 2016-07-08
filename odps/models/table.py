@@ -281,7 +281,7 @@ class Table(LazyLoad):
         from ..tunnel import TableTunnel
 
         self._table_tunnel = TableTunnel(client=self._client, project=self.project,
-                                         endpoint=endpoint or options.tunnel_endpoint)
+                                         endpoint=endpoint or self.project._tunnel_endpoint)
         return self._table_tunnel
 
     @contextlib.contextmanager

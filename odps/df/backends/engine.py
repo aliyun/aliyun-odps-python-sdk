@@ -78,10 +78,11 @@ def get_default_engine(expr):
         if engine == Engines.ODPS:
             odps = src.odps
         elif engine == Engines.PANDAS:
-            if options.access_id is not None and options.access_key is not None and \
+            if options.account is not None and \
                     options.end_point is not None and options.default_project is not None:
-                odps = ODPS(options.access_id, options.access_key, options.default_project,
-                         endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint)
+                odps = ODPS._from_account(options.account, options.default_project,
+                                          endpoint=options.end_point,
+                                          tunnel_endpoint=options.tunnel_endpoint)
             else:
                 odps = None
         else:

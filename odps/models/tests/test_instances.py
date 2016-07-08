@@ -19,6 +19,8 @@
 
 import itertools
 import time
+import random
+from datetime import datetime, timedelta
 
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
@@ -66,13 +68,38 @@ class Test(TestBase):
             self.odps.list_instances(status=Instance.Status.RUNNING, only_owner=True), 0, 10))
         self.assertGreaterEqual(len(instances), 0)
         if len(instances) > 0:
-            self.assertTrue(all(instance.status == Instance.Status.RUNNING for instance in instances))
+            # fix: use _status instead of status to prevent from fetching the instance which is just terminated
+            self.assertTrue(all(instance._status == Instance.Status.RUNNING for instance in instances))
             self.assertEqual(len(set(instance.owner for instance in instances)), 1)
 
         from_time = time.time() - 10 * 24 * 3600
         end_time = time.time() - 24 * 3600
         instances = list(self.odps.list_instances(from_time=from_time, end_time=end_time))
         self.assertGreaterEqual(len(instances), 0)
+
+    def testListInstancesInPage(self):
+        test_table = tn('pyodps_t_tmp_list_instances_in_page')
+
+        data = [[random.randint(0, 1000)] for _ in compat.irange(10000)]
+        self.odps.delete_table(test_table, if_exists=True)
+        t = self.odps.create_table(test_table, Schema.from_lists(['num'], ['bigint']))
+        self.odps.write_table(t, data)
+
+        instance = self.odps.run_sql('select sum(num) from {0} group by num'.format(test_table))
+
+        try:
+            self.assertEqual(instance.status, Instance.Status.RUNNING)
+            self.assertIn(instance.id, [it.id for it in self.odps.get_project().instances.iterate(
+                status=Instance.Status.RUNNING,
+                from_time=datetime.now()-timedelta(days=2),
+                end_time=datetime.now()+timedelta(days=1), max_items=10)])
+        finally:
+            try:
+                instance.stop()
+            except:
+                pass
+            t.drop()
+
 
     def testInstanceExists(self):
         non_exists_instance = 'a_non_exists_instance'

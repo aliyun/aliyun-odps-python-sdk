@@ -78,7 +78,7 @@ class OfflineModels(Iterable):
 
         while True:
             offline_models = _it()
-            if not offline_models:
+            if offline_models is None:
                 break
             for offline_model in offline_models:
                 yield offline_model

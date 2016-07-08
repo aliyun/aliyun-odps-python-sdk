@@ -114,7 +114,7 @@ class VolumePartition(LazyLoad):
 
             while True:
                 files = _it()
-                if not files:
+                if files is None:
                     break
                 for f in files:
                     yield f
@@ -139,7 +139,7 @@ class VolumePartition(LazyLoad):
         from ..tunnel import VolumeTunnel
 
         self._volume_tunnel = VolumeTunnel(client=self._client, project=self.project,
-                                           endpoint=endpoint or options.tunnel_endpoint)
+                                           endpoint=endpoint or self.project._tunnel_endpoint)
         return self._volume_tunnel
 
     @contextlib.contextmanager

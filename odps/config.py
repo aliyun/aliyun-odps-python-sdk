@@ -211,8 +211,7 @@ def is_in(vals):
 
 
 options = Config()
-options.register_option('access_id', None)
-options.register_option('access_key', None)
+options.register_option('account', None)
 options.register_option('end_point', None)
 options.register_option('default_project', None)
 options.register_option('log_view_host', None)

@@ -34,7 +34,7 @@ import uuid
 from .compat import PY26, pickle, six, builtins
 from .config import options
 from .errors import NoSuchObject
-from .utils import is_main_process, build_pyodps_dir
+from . import utils
 
 if PY26:
     # Compatible ThreadPool to avoid Issue 10015 of Python 2.6
@@ -52,7 +52,7 @@ if PY26:
 else:
     from multiprocessing.pool import ThreadPool
 
-TEMP_ROOT = build_pyodps_dir('tempobjs')
+TEMP_ROOT = utils.build_pyodps_dir('tempobjs')
 SESSION_KEY = '%d_%s' % (int(time.time()), uuid.uuid4())
 CLEANER_THREADS = 100
 USER_FILE_RIGHTS = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
@@ -122,7 +122,8 @@ class ExecutionEnv(object):
         self.temp_dir = tempfile.gettempdir()
         self.template = CLEANUP_SCRIPT_TMPL
         self.file_right = USER_FILE_RIGHTS
-        self.is_main_process = is_main_process()
+        self.is_main_process = utils.is_main_process()
+        self.is_secret_mode = utils.is_secret_mode()
         for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
 
@@ -196,7 +197,7 @@ class ObjectRepository(object):
     def __init__(self, file_name):
         self._container = set()
         self._file_name = file_name
-        if os.path.exists(file_name):
+        if file_name and os.path.exists(file_name):
             self.load()
 
     def put(self, obj, dump=True):
@@ -204,33 +205,39 @@ class ObjectRepository(object):
         if dump:
             self.dump()
 
-    def cleanup(self, odps):
+    def cleanup(self, odps, use_threads=True):
         cleaned = []
 
-        def cleaner_thread(obj):
+        def _cleaner(obj):
             try:
                 obj.drop(odps)
                 cleaned.append(obj)
             except:
                 pass
 
-        pool = ThreadPool(CLEANER_THREADS)
         if self._container:
-            pool.map(cleaner_thread, self._container)
-            pool.close()
-            pool.join()
+            if use_threads:
+                pool = ThreadPool(CLEANER_THREADS)
+                pool.map(_cleaner, self._container)
+                pool.close()
+                pool.join()
+            else:
+                for o in self._container:
+                    _cleaner(o)
         for obj in cleaned:
             if obj in self._container:
                 self._container.remove(obj)
-        if not self._container:
+        if not self._container and self._file_name:
             try:
                 os.unlink(self._file_name)
             except OSError:
                 pass
-        else:
+        elif not utils.is_secret_mode():
             self.dump()
 
     def dump(self):
+        if self._file_name is None:
+            return
         with open(self._file_name, 'wb') as outf:
             pickle.dump(list(self._container), outf, protocol=0)
             outf.close()
@@ -258,7 +265,7 @@ class ObjectRepositoryLib(dict):
 
     def __del__(self):
         global cleanup_mode
-        if cleanup_mode or not self._env.is_main_process:
+        if cleanup_mode or not self._env.is_main_process or self._env.is_secret_mode:
             return
         self._exec_cleanup_script()
 
@@ -290,7 +297,7 @@ class ObjectRepositoryLib(dict):
             if env.is_windows:
                 env.os.chmod(script_name, env.file_right)
             else:
-                env.subprocess.call(['chmod', str(env.file_right), script_name])
+                env.subprocess.call(['chmod', oct(env.file_right), script_name])
         except:
             pass
 
@@ -321,9 +328,20 @@ def _is_pid_running(pid):
 
 
 def clean_objects(odps):
+    odps_key = _gen_repository_key(odps)
+    files = []
+    for biz_id in _obj_repos.biz_ids:
+        files.extend(glob.glob(os.path.join(TEMP_ROOT, biz_id, odps_key, '*.his')))
+
+    for fn in files:
+        repo = ObjectRepository(fn)
+        repo.cleanup(odps, use_threads=False)
+
+
+def clean_stored_objects(odps):
     global cleanup_timeout, host_pid
 
-    if not is_main_process():
+    if not utils.is_main_process():
         return
 
     odps_key = _gen_repository_key(odps)
@@ -357,8 +375,7 @@ def clean_objects(odps):
 
 
 def _gen_repository_key(odps):
-    return hashlib.md5('####'.join([odps.account.access_id, odps.account.secret_access_key, odps.endpoint,
-                                    odps.project]).encode('utf-8')).hexdigest()
+    return hashlib.md5('####'.join([odps.account.access_id, odps.endpoint, odps.project]).encode('utf-8')).hexdigest()
 
 
 def _put_objects(odps, objs):
@@ -367,7 +384,8 @@ def _put_objects(odps, objs):
     biz_id = options.biz_id if options.biz_id else 'default'
     ObjectRepositoryLib.add_biz_id(biz_id)
     if odps_key not in _obj_repos:
-        ObjectRepositoryLib.add_odps_info(odps)
+        if not utils.is_secret_mode():
+            ObjectRepositoryLib.add_odps_info(odps)
         file_dir = os.path.join(TEMP_ROOT, biz_id, odps_key)
         if not os.path.exists(file_dir):
             os.makedirs(file_dir)

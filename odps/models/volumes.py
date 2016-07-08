@@ -78,7 +78,7 @@ class Volumes(Iterable):
 
         while True:
             volumes = _it()
-            if not volumes:
+            if volumes is None:
                 break
             for volume in volumes:
                 yield volume

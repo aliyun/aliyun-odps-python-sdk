@@ -63,8 +63,7 @@ class Room(object):
             except pickle.UnpicklingError:
                 raise InteractiveError(
                     'Failed to enter a room: %s' % self._room_name)
-            options.access_id = access_id
-            options.access_key = access_key
+            options.account = ODPS._build_account(access_id, access_key)
             options.end_point = endpoint
             options.default_project = default_project
             options.tunnel_endpoint = tunnel_endpoint
@@ -73,8 +72,8 @@ class Room(object):
 
     @property
     def odps(self):
-        return ODPS(options.access_id, options.access_key, options.default_project,
-                    endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint)
+        return ODPS._from_account(options.account, options.default_project,
+                                  endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint)
 
     def __getattr__(self, attr):
         try:

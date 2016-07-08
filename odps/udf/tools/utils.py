@@ -58,9 +58,8 @@ def get_conf():
     access_key = config.get('secret_access_key')
     end_point = config.get('endpoint')
     project = config.get('project')
-    _odps = core.ODPS(accounts.AliyunAccount(access_id,
-                                             access_key),
-                      project, endpoint)
+    _odps = core.ODPS(access_id, access_key,
+                      project, end_point)
 
 
 @require_conf

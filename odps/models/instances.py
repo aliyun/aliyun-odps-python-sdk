@@ -53,7 +53,8 @@ class Instances(Iterable):
     def __iter__(self):
         return self.iterate()
 
-    def iterate(self, from_time=None, end_time=None, status=None, only_owner=None):
+    def iterate(self, from_time=None, end_time=None, status=None, only_owner=None,
+                max_items=None, job_name=None):
         params = dict()
         if status is not None:
             params['status'] = status.value
@@ -73,6 +74,10 @@ class Instances(Iterable):
             params['daterange'] = daterange.getvalue()
         if only_owner is not None:
             params['onlyowner'] = 'yes' if only_owner else 'no'
+        if max_items is not None:
+            params['maxitems'] = max_items
+        if job_name is not None:
+            params['jobname'] = job_name
 
         def _it():
             last_marker = params.get('marker')
@@ -90,7 +95,7 @@ class Instances(Iterable):
 
         while True:
             instances = _it()
-            if not instances:
+            if instances is None:
                 break
             for instance in instances:
                 yield instance

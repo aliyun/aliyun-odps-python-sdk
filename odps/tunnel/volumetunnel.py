@@ -53,7 +53,7 @@ class VolumeTunnel(object):
             self._project = project
 
         self._router = TunnelServerRouter(self._client)
-        self._endpoint = endpoint or options.tunnel_endpoint
+        self._endpoint = endpoint or self._project._tunnel_endpoint
 
         self._tunnel_rest = None
 

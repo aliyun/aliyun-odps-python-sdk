@@ -72,7 +72,7 @@ class XFlows(Iterable):
 
         while True:
             xflows = _it()
-            if not xflows:
+            if xflows is None:
                 break
             for xflow in xflows:
                 yield xflow

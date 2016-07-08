@@ -276,14 +276,19 @@ class PandasCompiler(Backend):
                     thens = [kw.get(it) for it in expr.thens]
                     if case is not None:
                         conditions = [case == condition for condition in conditions]
+                        condition_exprs = [expr.case == cond for cond in expr.conditions]
+                    else:
+                        condition_exprs = expr.conditions
 
-                    size = max(len(val) for e, val in zip(expr.conditions + expr.thens, conditions + thens)
+                    size = max(len(val) for e, val in zip(condition_exprs + expr.thens, conditions + thens)
                                if isinstance(e, SequenceExpr))
 
                     curr = pd.Series([None] * size)
                     for condition, then in zip(conditions, thens):
                         curr = curr.where(-condition, then)
-                    return curr.fillna(default)
+                    if default is not None:
+                        return curr.fillna(default)
+                    return curr
                 elif isinstance(expr, element.Between):
                     return input.between(*args)
                 elif isinstance(expr, element.Cut):

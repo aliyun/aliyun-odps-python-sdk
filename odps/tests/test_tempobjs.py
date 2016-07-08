@@ -25,7 +25,8 @@ import tempfile
 import json
 from time import sleep
 
-from odps import tempobj
+from odps import tempobj, utils
+from odps.compat import unittest
 from odps.tests.core import TestBase, tn, in_coverage_mode
 
 TEMP_TABLE_NAME = tn('pyodps_test_tempobj_cleanup')
@@ -132,9 +133,18 @@ class TestTempObjs(TestBase):
         tempobj.register_temp_table(self.odps, 'non_exist_table')
         tempobj.register_temp_model(self.odps, 'non_exist_model')
         tempobj.register_temp_volume_partition(self.odps, ('non_exist_vol', 'non_exist_vol_part'))
-        tempobj.clean_objects(self.odps)
+        tempobj.clean_stored_objects(self.odps)
 
     def test_cleanup(self):
+        self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
+        self.odps.execute_sql('create table {0} (col1 string) lifecycle 1'.format(TEMP_TABLE_NAME))
+        tempobj.register_temp_table(self.odps, TEMP_TABLE_NAME)
+        tempobj.clean_objects(self.odps)
+        sleep(10)
+        assert not self.odps.exist_table(TEMP_TABLE_NAME)
+
+    @unittest.skipIf(utils.is_secret_mode(), 'Skipped under restricted mode.')
+    def test_cleanup_script(self):
         self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
         self.odps.execute_sql('create table {0} (col1 string) lifecycle 1'.format(TEMP_TABLE_NAME))
         tempobj.register_temp_table(self.odps, TEMP_TABLE_NAME)
@@ -143,6 +153,7 @@ class TestTempObjs(TestBase):
         sleep(10)
         assert not self.odps.exist_table(TEMP_TABLE_NAME)
 
+    @unittest.skipIf(utils.is_secret_mode(), 'Skipped under restricted mode.')
     def test_multi_process(self):
         self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
 
@@ -164,6 +175,7 @@ class TestTempObjs(TestBase):
         assert self.odps.exist_table(TEMP_TABLE_NAME)
         self.odps.run_sql('drop table {0}'.format(TEMP_TABLE_NAME))
 
+    @unittest.skipIf(utils.is_secret_mode(), 'Skipped under restricted mode.')
     def test_plenty_create(self):
         del_insts = [self.odps.run_sql('drop table {0}'.format(tn('tmp_pyodps_create_temp_%d' % n))) for n in range(10)]
         [inst.wait_for_completion() for inst in del_insts]

@@ -71,7 +71,7 @@ class Functions(Iterable):
 
         while True:
             functions = _it()
-            if not functions:
+            if functions is None:
                 break
             for function in functions:
                 yield function
@@ -90,6 +90,17 @@ class Functions(Iterable):
 
         function.reload()
         return function
+
+    def update(self, func):
+        new_func = Function(parent=self, client=self._client,
+                            name=func.name, class_type=func.class_type,
+                            resources=func.resources)
+        headers = {
+            'Content-Type': 'application/xml'
+        }
+        data = new_func.serialize()
+
+        self._client.put(func.resource(), data, headers=headers)
 
     def delete(self, name):
         if not isinstance(name, Function):

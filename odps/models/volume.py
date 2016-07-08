@@ -125,7 +125,7 @@ class Volume(LazyLoad):
 
             while True:
                 partitions = _it()
-                if not partitions:
+                if partitions is None:
                     break
                 for partition in partitions:
                     yield partition

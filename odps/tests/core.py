@@ -20,7 +20,7 @@ import sys
 import tempfile
 import time
 
-from .. import compat
+from .. import compat, utils
 from .. import ODPS
 from ..tunnel import TableTunnel
 from ..compat import six, ConfigParser
@@ -213,6 +213,11 @@ class TestMeta(type):
 
             # disable cases on PY26 unless tests.PY26_COMPAT = True
             if compat.PY26 and not check_symbol('PY26_COMPAT'):
+                for k, v in six.iteritems(d):
+                    if k.startswith('test') and hasattr(v, '__call__'):
+                        d[k] = None
+            # disable secret mode cases on PY26 unless tests.RUN_IN_SECRET_MODE = True
+            if utils.is_secret_mode() and not check_symbol('RUN_IN_SECRET_MODE'):
                 for k, v in six.iteritems(d):
                     if k.startswith('test') and hasattr(v, '__call__'):
                         d[k] = None

@@ -51,11 +51,9 @@ class ODPSSql(Magics):
         if self._odps is not None:
             return
 
-        if options.access_id is not None and \
-                    options.access_key is not None and \
-                    options.default_project is not None:
-            self._odps = ODPS(
-                options.access_id, options.access_key, options.default_project,
+        if options.account is not None and options.default_project is not None:
+            self._odps = ODPS._from_account(
+                options.account, options.default_project,
                 endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint
             )
         else:

@@ -56,7 +56,7 @@ class Project(LazyLoad):
     """
 
     _user_cache = dict()
-    __slots__ = '_policy_cache',
+    __slots__ = '_policy_cache', '_tunnel_endpoint'
 
     class Cluster(XMLRemoteModel):
 
@@ -98,6 +98,10 @@ class Project(LazyLoad):
                                                              key_tag='Name', value_tag='Value')
     state = serializers.XMLNodeField('State')
     clusters = serializers.XMLNodesReferencesField(Cluster, 'Clusters', 'Cluster')
+
+    def __init__(self, *args, **kwargs):
+        self._tunnel_endpoint = None
+        super(Project, self).__init__(*args, **kwargs)
 
     def reload(self):
         self._policy_cache = None

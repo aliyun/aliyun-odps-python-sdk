@@ -18,3 +18,4 @@
 # under the License.
 
 PY26_COMPAT = True
+RUN_IN_SECRET_MODE = True

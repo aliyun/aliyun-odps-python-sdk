@@ -21,7 +21,7 @@ from collections import Iterable
 
 from .rest import RestClient
 from .config import options
-from .tempobj import clean_objects
+from .tempobj import clean_stored_objects
 from .compat import six
 from . import models, accounts, errors, utils
 
@@ -74,7 +74,11 @@ class ODPS(object):
         :param tunnel_endpoint:  Tunnel service URL
         """
 
-        self.account = self._build_account(access_id, secret_access_key)
+        account = kw.pop('account', None)
+        if account is None:
+            self.account = self._build_account(access_id, secret_access_key)
+        else:
+            self.account = account
         self.endpoint = endpoint
         self.project = project
         self.rest = RestClient(self.account, endpoint, project)
@@ -88,7 +92,12 @@ class ODPS(object):
         self._predict_endpoint = kw.pop('predict_endpoint', None)
         options.predict_endpoint = self._predict_endpoint
 
-        clean_objects(self)
+        clean_stored_objects(self)
+
+    @classmethod
+    def _from_account(cls, account, project, endpoint=DEFAULT_ENDPOINT, tunnel_endpoint=None):
+        return cls(None, None, project, endpoint=endpoint, tunnel_endpoint=tunnel_endpoint,
+                   account=account)
 
     def get_project(self, name=None):
         """
@@ -106,7 +115,9 @@ class ODPS(object):
             return self._projects[self.project]
         elif isinstance(name, models.Project):
             return name
-        return self._projects[name]
+        proj = self._projects[name]
+        proj._tunnel_endpoint = self._tunnel_endpoint
+        return proj
 
     def exist_project(self, name):
         """
@@ -1268,10 +1279,11 @@ class ODPS(object):
         return accounts.AliyunAccount(access_id, secret_access_key)
 
     def to_global(self):
-        options.access_id = self.account.access_id
-        options.access_key = self.account.secret_access_key
+        options.account = self.account
         options.default_project = self.project
         options.end_point = self.endpoint
+        options.tunnel_endpoint = self._tunnel_endpoint
+
 
 
 def _get_odps_from_model(self):

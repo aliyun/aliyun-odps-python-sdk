@@ -132,6 +132,7 @@ class Test(TestBase):
             self.expr.name.fillna('test').switch('test', 'test' + self.expr.name.fillna('test'),
                                                  'test2', 'test2' + self.expr.name.fillna('test'),
                                                  default=self.expr.name).rename('name4'),
+            self.expr.name.fillna('test').switch('test', 1, 'test2', 2).rename('name5'),
             self.expr.id.cut([100, 200, 300],
                              labels=['xsmall', 'small', 'large', 'xlarge'],
                              include_under=True, include_over=True).rename('id6')
@@ -172,6 +173,9 @@ class Test(TestBase):
         self.assertEqual([to_str('testtest' if it[0] is None else it[0]) for it in data],
                          [to_str(it[8]) for it in result])
 
+        self.assertEqual([to_str(1 if it[0] is None else None) for it in data],
+                         [to_str(it[9]) for it in result])
+
         def get_val(val):
             if val <= 100:
                 return 'xsmall'
@@ -181,7 +185,7 @@ class Test(TestBase):
                 return 'large'
             else:
                 return 'xlarge'
-        self.assertEqual([to_str(get_val(it[1])) for it in data], [to_str(it[9]) for it in result])
+        self.assertEqual([to_str(get_val(it[1])) for it in data], [to_str(it[10]) for it in result])
 
     def testArithmetic(self):
         data = self._gen_data(5, value_range=(-1000, 1000))

@@ -79,7 +79,7 @@ class Tables(Iterable):
 
         while True:
             tables = _it()
-            if not tables:
+            if tables is None:
                 break
             for table in tables:
                 yield table

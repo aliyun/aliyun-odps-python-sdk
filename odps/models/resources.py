@@ -77,7 +77,7 @@ class Resources(Iterable):
 
         while True:
             resources = _it()
-            if not resources:
+            if resources is None:
                 break
             for resource in resources:
                 yield resource

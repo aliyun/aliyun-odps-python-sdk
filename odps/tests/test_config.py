@@ -16,8 +16,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 from copy import deepcopy
 
+from odps.accounts import AliyunAccount
 from odps.config import Config, options, option_context, is_integer, is_null, any_validator, OptionError
 from odps.tests.core import TestBase, pandas_case
 from odps.compat import unittest
@@ -29,8 +31,11 @@ class Test(TestBase):
         old_config = Config(deepcopy(options._config))
 
         with option_context() as local_options:
-            self.assertEqual(options.access_id, old_config.access_id)
-            self.assertEqual(options.access_key, old_config.access_key)
+            if options.account is None:
+                self.assertEqual(options.account, old_config.account)
+            else:
+                self.assertEqual(options.account.access_id, old_config.account.access_id)
+                self.assertEqual(options.account.secret_access_key, old_config.account.secret_access_key)
             self.assertEqual(options.end_point, old_config.end_point)
             self.assertEqual(options.default_project, old_config.default_project)
             self.assertIsNotNone(local_options.log_view_host)
@@ -41,8 +46,8 @@ class Test(TestBase):
             self.assertIsNone(local_options.console.max_lines)
             self.assertIsNone(local_options.console.max_width)
 
-            local_options.access_id = 'test'
-            self.assertEqual(local_options.access_id, 'test')
+            local_options.account = AliyunAccount('test', '')
+            self.assertEqual(local_options.account.access_id, 'test')
 
             local_options.register_option('nest.inner.value', 50,
                                           validator=any_validator(is_null, is_integer))
@@ -60,8 +65,11 @@ class Test(TestBase):
             local_options.console.max_lines = 30
             self.assertEqual(local_options.console.max_lines, 30)
 
-        self.assertEqual(options.access_id, old_config.access_id)
-        self.assertEqual(options.access_key, old_config.access_key)
+        if options.account is None:
+            self.assertEqual(options.account, old_config.account)
+        else:
+            self.assertEqual(options.account.access_id, old_config.account.access_id)
+            self.assertEqual(options.account.secret_access_key, old_config.account.secret_access_key)
         self.assertEqual(options.end_point, old_config.end_point)
         self.assertEqual(options.default_project, old_config.default_project)
         self.assertIsNotNone(options.log_view_host)
