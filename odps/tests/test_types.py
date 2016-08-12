@@ -22,12 +22,39 @@ import decimal as _decimal
 from odps.types import *
 from odps.models import Schema, Record
 from odps.tests.core import TestBase
-from odps.compat import unittest, OrderedDict
+from odps.compat import unittest, OrderedDict, reload_module
 from datetime import datetime
+
+
+def bothPyAndC(func):
+    def inner(self, *args, **kwargs):
+        try:
+            import cython
+            ts = 'py', 'c'
+        except ImportError:
+            ts = 'py',
+            import warnings
+            warnings.warn('No c code tests for table tunnel')
+        for t in ts:
+            old_config = getattr(options, 'force_{0}'.format(t))
+            setattr(options, 'force_{0}'.format(t), True)
+            try:
+                from odps.models import record
+                reload_module(record)
+
+                from odps import models
+                reload_module(models)
+
+                func(self, *args, **kwargs)
+            finally:
+                setattr(options, 'force_{0}'.format(t), old_config)
+
+    return inner
 
 
 class Test(TestBase):
 
+    @bothPyAndC
     def testNullableRecord(self):
         s = Schema.from_lists(
             ['col%s'%i for i in range(8)],
@@ -36,6 +63,7 @@ class Test(TestBase):
         r = Record(schema=s, values=[None]*8)
         self.assertSequenceEqual(r.values, [None]*8)
 
+    @bothPyAndC
     def testRecordSetAndGetByIndex(self):
         s = Schema.from_lists(
             ['col%s'%i for i in range(8)],
@@ -59,7 +87,8 @@ class Test(TestBase):
         self.assertEquals(True, r[4])
         self.assertEquals(_decimal.Decimal('1.111'), r[5])
         self.assertEquals(['a', 'b'], r[6])
-        self.assertEquals( OrderedDict({'a': 1}), r[7])
+        self.assertEquals(OrderedDict({'a': 1}), r[7])
+        self.assertEquals([1, 1.2], r[:2])
 
     def testRecordSetAndGetByName(self):
         s = Schema.from_lists(
@@ -159,6 +188,12 @@ class Test(TestBase):
 
         self.assertRaises(AttributeError, lambda: r['col3'])
         self.assertRaises(AttributeError, lambda: r['col3', ])
+
+    def testBizarreRepr(self):
+        s = Schema.from_lists(['逗比 " \t'], ['string'], ['正常'], ['bigint'])
+        s_repr = repr(s)
+        self.assertIn('"逗比 \\" \\t"', s_repr)
+        self.assertNotIn('"正常"', s_repr)
 
 if __name__ == '__main__':
     unittest.main()

@@ -20,7 +20,7 @@
 from datetime import datetime
 import itertools
 
-from odps.tests.core import TestBase, to_str, tn
+from odps.tests.core import TestBase, to_str, tn, global_locked
 from odps.compat import unittest, six
 from odps.models import Schema, Record
 
@@ -187,6 +187,7 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name)
         self.assertFalse(self.odps.exist_table(test_table_name))
 
+    @global_locked
     def testReadWritePartitionTable(self):
         test_table_name = tn('pyodps_t_tmp_read_write_partition_table')
         schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['pt'], ['string'])
@@ -195,6 +196,7 @@ class Test(TestBase):
         self.assertFalse(self.odps.exist_table(test_table_name))
 
         table = self.odps.create_table(test_table_name, schema)
+        table._upload_ids = dict()
 
         pt1 = 'pt=20151122'
         pt2 = 'pt=20151123'

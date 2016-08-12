@@ -22,7 +22,7 @@ import time
 from odps.inter import enter, setup, teardown, list_rooms
 from odps.compat import StringIO
 from odps import types as odps_types
-from odps import options, ODPS
+from odps import options, ODPS, log
 from odps.utils import init_progress_bar, replace_sql_parameters
 from odps.df import DataFrame, Scalar, NullScalar
 from odps.df.backends.frame import ResultFrame
@@ -162,10 +162,8 @@ class ODPSSql(Magics):
             bar = init_progress_bar()
 
             instance = self._odps.run_sql(sql, hints=hints)
-            if options.verbose:
-                stdout = options.verbose_log or self._to_stdout
-                stdout('Instance ID: ' + instance.id)
-                stdout('  Log view: ' + instance.get_logview_address())
+            log('Instance ID: ' + instance.id)
+            log('  Log view: ' + instance.get_logview_address())
 
             percent = 0
             while not instance.is_terminated():

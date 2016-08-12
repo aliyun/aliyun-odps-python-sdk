@@ -34,6 +34,7 @@ class Test(TestBase):
         self.assertIs(self.odps.get_project(), self.odps.get_project())
         self.assertIs(Projects(client=self.odps.rest), Projects(client=self.odps.rest))
 
+        del self.odps._projects[self.odps.project]
         project = self.odps.get_project()
 
         self.assertEqual(project.name, self.odps.project)

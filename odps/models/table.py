@@ -23,7 +23,6 @@ import contextlib
 from .core import LazyLoad, JSONRemoteModel
 from .record import Record
 from .partitions import Partitions
-from ..config import options
 from .. import types as odps_types, serializers, utils, readers
 from ..compat import six
 
@@ -406,7 +405,7 @@ class Table(LazyLoad):
         upload_session = tunnel.create_upload_session(table=self, partition_spec=partition,
                                                       upload_id=upload_id, **kw)
 
-        if upload_id and upload_session.status != TableUploadSession.Status.Normal:
+        if upload_id and upload_session.status.value != TableUploadSession.Status.Normal.value:
             # check upload session status
             upload_session = tunnel.create_upload_session(table=self, partition_spec=partition, **kw)
             upload_id = None

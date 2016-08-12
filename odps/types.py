@@ -128,8 +128,9 @@ class Schema(object):
 
     def _repr(self):
         buf = six.StringIO()
-        space = 2 * max(len(it) for it in self.names)
-        for name, tp in zip(self.names, self.types):
+        names = [self._to_printable(n) for n in self.names]
+        space = 2 * max(len(it) for it in names)
+        for name, tp in zip(names, self.types):
             buf.write('\n{0}{1}'.format(name.ljust(space), repr(tp)))
 
         return 'Schema {{{0}\n}}'.format(utils.indent(buf.getvalue(), 2))
@@ -230,7 +231,8 @@ class OdpsSchema(Schema):
     def _repr(self):
         buf = six.StringIO()
 
-        name_space = 2 * max(len(col.name) for col in self.columns)
+        name_dict = dict([(col.name, utils.str_to_printable(col.name)) for col in self.columns])
+        name_space = 2 * max(len(n) for n in six.itervalues(name_dict))
         type_space = 2 * max(len(repr(col.type)) for col in self.columns)
 
         not_empty = lambda field: field is not None and len(field.strip()) > 0
@@ -239,7 +241,7 @@ class OdpsSchema(Schema):
         cols_strs = []
         for col in self._columns:
             cols_strs.append('{0}{1}{2}'.format(
-                col.name.ljust(name_space),
+                name_dict[col.name].ljust(name_space),
                 repr(col.type).ljust(type_space),
                 '# {0}'.format(col.comment) if not_empty(col.comment) else ''
             ))
@@ -253,7 +255,7 @@ class OdpsSchema(Schema):
             partition_strs = []
             for partition in self._partitions:
                 partition_strs.append('{0}{1}{2}'.format(
-                    partition.name.ljust(name_space),
+                    name_dict[partition.name].ljust(name_space),
                     repr(partition.type).ljust(type_space),
                     '# {0}'.format(partition.comment) if not_empty(partition.comment) else ''
                 ))

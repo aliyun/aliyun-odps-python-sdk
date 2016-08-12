@@ -373,9 +373,13 @@ class Node(six.with_metaclass(NodeMetaclass)):
 
     def _replay_descendants(self):
         for d in _node_dependency_dag.descendants(self):
+            if d._source_call is None:
+                continue
             par, method_name, args, kwargs = d._source_call
             new_df = getattr(par, method_name)(*args, **kwargs)
             new_df._copy_to(d)
+            # mark as replayed
+            d._source_call = None
 
     def _wrap_methods(self):
         cls = type(self)

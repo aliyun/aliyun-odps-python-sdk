@@ -26,6 +26,13 @@ from odps.compat import unittest
 
 
 class Test(TestBase):
+    def setUp(self):
+        super(Test, self).setUp()
+        from odps.utils import is_secret_mode
+        from odps import options
+
+        if is_secret_mode():
+            options.account = None
 
     def testOptions(self):
         old_config = Config(deepcopy(options._config))

@@ -92,7 +92,7 @@ class Test(TestBase):
             self.assertIn(instance.id, [it.id for it in self.odps.get_project().instances.iterate(
                 status=Instance.Status.RUNNING,
                 from_time=datetime.now()-timedelta(days=2),
-                end_time=datetime.now()+timedelta(days=1), max_items=10)])
+                end_time=datetime.now()+timedelta(days=1), max_items=20)])
         finally:
             try:
                 instance.stop()

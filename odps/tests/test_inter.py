@@ -19,14 +19,15 @@
 
 import tempfile
 
-from odps.tests.core import TestBase, tn
 from odps.compat import unittest, StringIO
 from odps.inter import *
 from odps.utils import is_secret_mode
 from odps.config import options
 from odps.errors import InteractiveError
+from odps.inter import *
+from odps.lib import cloudpickle
 from odps.models import Schema
-from odps.df.backends.odpssql import cloudpickle
+from odps.tests.core import TestBase, tn
 
 
 class Test(TestBase):

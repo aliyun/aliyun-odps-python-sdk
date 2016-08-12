@@ -17,7 +17,7 @@
 
 import sys
 
-__version__ = '0.5.6'
+__version__ = '0.5.7'
 __all__ = ['ODPS',]
 
 version = sys.version_info
@@ -32,6 +32,7 @@ except ImportError:
 
 from .config import options
 from .core import ODPS
+from .utils import write_log as log
 try:
     from .ipython.magics import *
 except ImportError:

@@ -360,7 +360,7 @@ def create_user_item_table(odps, table_name, tunnel=None, mode=None, project=Non
 20 Newsgroups
 """
 
-NEWSGROUP_URL = 'http://people.csail.mit.edu/jrennie/20Newsgroups/20news-bydate.tar.gz'
+NEWSGROUP_URL = 'http://repo.aliyun.com/shared_data/20news-bydate.tar.gz'
 NEWSGROUP_DATA_NAME = '20news-bydate'
 NEWSGROUP_ARCHIVE_NAME = '20news-bydate.tar.gz'
 NEWSGROUP_CACHE_NAME = '20news-bydate.pkz'
@@ -444,7 +444,7 @@ def create_newsgroup_table(odps, table_name, tunnel=None, data_part='train', pro
 MNIST
 """
 
-MNIST_PICKLED_URL = 'http://deeplearning.net/data/mnist/mnist.pkl.gz'
+MNIST_PICKLED_URL = 'http://repo.aliyun.com/shared_data/mnist.pkl.gz'
 MNIST_FILE = 'mnist.pkl.gz'
 mnist_unpickled = None
 

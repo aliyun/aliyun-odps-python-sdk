@@ -19,6 +19,7 @@ import os
 import sys
 import tempfile
 import time
+import warnings
 
 from .. import compat, utils
 from .. import ODPS
@@ -216,11 +217,6 @@ class TestMeta(type):
                 for k, v in six.iteritems(d):
                     if k.startswith('test') and hasattr(v, '__call__'):
                         d[k] = None
-            # disable secret mode cases on PY26 unless tests.RUN_IN_SECRET_MODE = True
-            if utils.is_secret_mode() and not check_symbol('RUN_IN_SECRET_MODE'):
-                for k, v in six.iteritems(d):
-                    if k.startswith('test') and hasattr(v, '__call__'):
-                        d[k] = None
 
             # disable cases in CI_MODE when tests.SKIP_IN_CI = True
             if 'CI_MODE' in os.environ and check_symbol('SKIP_IN_CI'):
@@ -252,3 +248,26 @@ class TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
 
     def teardown(self):
         pass
+
+    def assertWarns(self, func, warn_type=Warning):
+        with warnings.catch_warnings(record=True) as w:
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
+            # Trigger a warning.
+            ret_val = func()
+            # Verify some things
+            assert len(w) == 1
+            assert issubclass(w[-1].category, warn_type)
+
+            return ret_val
+
+    def assertNoWarns(self, func):
+        with warnings.catch_warnings(record=True) as w:
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
+            # Trigger a warning.
+            ret_val = func()
+            # Verify some things
+            assert len(w) == 0
+
+            return ret_val

@@ -17,6 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import warnings
+
 from ..pb.decoder import Decoder
 from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
@@ -37,6 +39,7 @@ except ImportError as e:
 
 if TableTunnelReader is None:
     class TableTunnelReader(AbstractRecordReader):
+
         def __init__(self, schema, input_stream, columns=None):
             self._schema = schema
             if columns is None:
@@ -46,14 +49,15 @@ if TableTunnelReader is None:
             self._reader = Decoder(input_stream)
             self._crc = Checksum()
             self._crccrc = Checksum()
-            self._curr_cusor = 0
+            self._curr_cursor = 0
+            self._read_limit = options.table_read_limit
 
         def _mode(self):
             return 'py'
 
         @property
         def count(self):
-            return self._curr_cusor
+            return self._curr_cursor
 
         def _read_array(self, value_type):
             res = []
@@ -82,6 +86,10 @@ if TableTunnelReader is None:
             return res
 
         def read(self):
+            if self._read_limit is not None and self.count >= self._read_limit:
+                warnings.warn('Number of lines read via tunnel already reaches the limitation.')
+                return None
+
             record = Record(self._columns)
 
             while True:
@@ -153,7 +161,7 @@ if TableTunnelReader is None:
                 else:
                     raise IOError('Unsupported type %s' % data_type)
 
-            self._curr_cusor += 1
+            self._curr_cursor += 1
             return record
 
         def __next__(self):

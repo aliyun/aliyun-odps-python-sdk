@@ -61,6 +61,7 @@ PyODPS的相关依赖会自动安装。
    df-zh
    ml-int-zh
    options-zh
+   faq-int.rst
    api
 
 

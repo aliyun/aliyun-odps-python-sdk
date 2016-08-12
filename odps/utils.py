@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import bisect
 import codecs
@@ -189,6 +189,27 @@ def long_to_uint(value):
 def stringify_expt():
     lines = traceback.format_exception(*sys.exc_info())
     return '\n'.join(lines)
+
+
+def str_to_printable(field_name):
+    if not field_name:
+        return field_name
+
+    escapes = {'\\': '\\\\', '\'': '\\\'', '"': '\\"', '\a': '\\a', '\b': '\\b', '\f': '\\f',
+               '\n': '\\n', '\r': '\\r', '\t': '\\t', '\v': '\\v', ' ': ' '}
+
+    def _escape_char(c):
+        if c in escapes:
+            return escapes[c]
+        elif c < ' ':
+            return '\\x%02x' % ord(c)
+        else:
+            return c
+
+    need_escape = lambda c: c <= ' ' or c in escapes
+    if any(need_escape(c) for c in field_name):
+        return '"' + ''.join(_escape_char(ch) for ch in field_name) + '"'
+    return field_name
 
 
 def indent(text, n_spaces):
@@ -522,3 +543,9 @@ def attach_internal(cls):
 
 def is_exec_thread():
     return threading.current_thread().name.startswith('PyODPSExecutionThread')
+
+
+def write_log(msg):
+    from . import options
+    if options.verbose:
+        (options.verbose_log or print)(msg)

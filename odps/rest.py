@@ -85,8 +85,10 @@ class RestClient(object):
             'https://', requests.adapters.HTTPAdapter(max_retries=options.retry_times))
 
         # Construct user agent without handling the letter case.
-        headers = kwargs.setdefault('headers', {})
+        headers = kwargs.get('headers', {})
+        headers = dict((k, str(v)) for k, v in six.iteritems(headers))
         headers['User-Agent'] = self._user_agent
+        kwargs['headers'] = headers
         params = kwargs.setdefault('params', {})
         if 'curr_project' not in params and self.project is not None:
             params['curr_project'] = self.project

@@ -19,10 +19,7 @@
 
 import re
 from datetime import datetime, timedelta
-import base64  # noqa
 from decimal import Decimal
-import time  # noqa
-import inspect  # noqa
 
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest, six
@@ -36,9 +33,15 @@ from odps.df.backends.odpssql.compiler import BINARY_OP_COMPILE_DIC, \
     MATH_COMPILE_DIC, DATE_PARTS_DIC
 from odps.df.backends.errors import CompileError
 from odps.df.expr.tests.core import MockTable
-from odps.df.backends.odpssql.cloudpickle import *  # noqa
 from odps.df import Scalar, NullScalar, switch, year, month, day, hour, minute, second, millisecond
-from odps.config import option_context
+
+# required by cloudpickle tests
+six.exec_("""
+import base64
+import time
+import inspect
+from odps.lib.cloudpickle import *
+""", globals(), locals())
 
 
 class Test(TestBase):
@@ -69,7 +72,7 @@ class Test(TestBase):
 
     def _testify_udf(self, expected, inputs):
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        exec (udf, globals(), locals())
+        six.exec_(udf, globals(), locals())
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual(expected, runners.simple_run(udf, inputs))
 
@@ -241,6 +244,12 @@ class Test(TestBase):
                  'AS `id` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expect), to_str(self.engine.compile(expr, prettify=False)))
+
+        expr = self.expr.filter(self.expr.id.isin(self.expr3.id))
+        expect = 'SELECT * \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                 'WHERE t1.`id` IN (SELECT t2.`id` FROM mocked_project.`pyodps_test_expr_table2` t2)'
+        self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
         expr = self.expr.id.notin([1, 2, 3]).rename('id')
         expect = 'SELECT t1.`id` NOT IN (1, 2, 3) AS `id` \n' \

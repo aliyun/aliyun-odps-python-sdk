@@ -90,6 +90,7 @@ else:
     PY3 = True
 
 PYPY = platform.python_implementation().lower() == 'pypy'
+JYTHON = platform.python_implementation().lower() == 'jython'
 
 
 #relevant opcodes
@@ -97,22 +98,23 @@ BUILD_LIST_FROM_ARG = opcode.opmap.get('BUILD_LIST_FROM_ARG')
 BUILD_LIST = opcode.opmap['BUILD_LIST']
 CALL_FUNCTION = opcode.opmap['CALL_FUNCTION']
 CALL_METHOD = opcode.opmap.get('CALL_METHOD')
-CONTINUE_LOOP = opcode.opmap.get('CONTINUE_LOOP')
 DUP_TOPX = dis.opmap.get('DUP_TOPX')
 EXTENDED_ARG = dis.EXTENDED_ARG
+EXTENDED_ARG_PY3 = 144
+FOR_ITER = opcode.opmap['FOR_ITER']
 HAVE_ARGUMENT = dis.HAVE_ARGUMENT
 JUMP_ABSOLUTE = opcode.opmap['JUMP_ABSOLUTE']
 JUMP_FORWARD = opcode.opmap['JUMP_FORWARD']
 JUMP_IF_NOT_DEBUG = opcode.opmap.get('JUMP_IF_NOT_DEBUG')
-JUMP_IF_TRUE_OR_POP = opcode.opmap.get('JUMP_IF_TRUE_OR_POP')
-JUMP_IF_FALSE_OR_POP = opcode.opmap.get('JUMP_IF_FALSE_OR_POP')
+LIST_APPEND = opcode.opmap['LIST_APPEND']
 LOAD_ATTR = opcode.opmap['LOAD_ATTR']
 LOAD_CONST = opcode.opmap['LOAD_CONST']
 LOAD_FAST = opcode.opmap['LOAD_FAST']
 LOOKUP_METHOD = opcode.opmap.get('LOOKUP_METHOD')
+MAKE_CLOSURE = opcode.opmap['MAKE_CLOSURE']
+MAKE_FUNCTION = opcode.opmap['MAKE_FUNCTION']
 NOP = opcode.opmap['NOP']
-POP_JUMP_IF_TRUE = opcode.opmap.get('POP_JUMP_IF_TRUE')
-POP_JUMP_IF_FALSE = opcode.opmap.get('POP_JUMP_IF_FALSE')
+POP_TOP = opcode.opmap.get('POP_TOP')
 ROT_TWO = opcode.opmap['ROT_TWO']
 ROT_FOUR = opcode.opmap.get('ROT_FOUR')
 
@@ -221,6 +223,9 @@ class CloudPickler(Pickler):
                 obj.co_filename, obj.co_name, obj.co_firstlineno, obj.co_lnotab, obj.co_freevars,
                 obj.co_cellvars
             )
+            # print(obj.co_name)
+            # import dis
+            # dis.dis(obj.co_code)
         else:
             args = (
                 obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags, pypy_to_cpython(obj.co_code),
@@ -670,7 +675,7 @@ def dump(obj, file, protocol=2):
 def dumps(obj, protocol=2):
     file = StringIO()
 
-    cp = CloudPickler(file,protocol)
+    cp = CloudPickler(file, protocol)
     cp.dump(obj)
 
     return file.getvalue()
@@ -683,18 +688,26 @@ else:
 
 class CloudUnpickler(Unpickler):
     def __init__(self, *args, **kwargs):
+        self._src_impl = kwargs.pop('impl', 'CP2')
         Unpickler.__init__(self, *args, **kwargs)
 
-        self.dispatch[pickle.BININT] = lambda x: x.load_binint()
-        self.dispatch[pickle.BININT2] = lambda x: x.load_binint2()
-        self.dispatch[pickle.LONG4] = lambda x: x.load_long4()
-        self.dispatch[pickle.BINSTRING] = lambda x: x.load_binstring()
-        self.dispatch[pickle.BINUNICODE] = lambda x: x.load_binunicode()
-        self.dispatch[pickle.EXT2] = lambda x: x.load_ext2()
-        self.dispatch[pickle.EXT4] = lambda x: x.load_ext4()
-        self.dispatch[pickle.LONG_BINGET] = lambda x: x.load_long_binget()
-        self.dispatch[pickle.LONG_BINPUT] = lambda x: x.load_long_binput()
-        self.dispatch[pickle.REDUCE] = lambda x: x.load_reduce()
+        self._override_dispatch(pickle.BININT, self.load_binint)
+        self._override_dispatch(pickle.BININT2, self.load_binint2)
+        self._override_dispatch(pickle.LONG4, self.load_long4)
+        self._override_dispatch(pickle.BINSTRING, self.load_binstring)
+        self._override_dispatch(pickle.BINUNICODE, self.load_binunicode)
+        self._override_dispatch(pickle.EXT2, self.load_ext2)
+        self._override_dispatch(pickle.EXT4, self.load_ext4)
+        self._override_dispatch(pickle.LONG_BINGET, self.load_long_binget)
+        self._override_dispatch(pickle.LONG_BINPUT, self.load_long_binput)
+        self._override_dispatch(pickle.REDUCE, self.load_reduce)
+
+    def _override_dispatch(self, code, func_name):
+        if callable(func_name):
+            func_name = func_name.__name__
+        lm = lambda x: getattr(x, func_name)()
+        lm.__name__ = func_name
+        self.dispatch[code] = lm
 
     def find_class(self, module, name):
         # Subclasses may override this
@@ -788,14 +801,29 @@ class CloudUnpickler(Unpickler):
                 new_to_old.extend([0, ] * len(code))
             new_to_old[ni] = i
             old_to_new[i] = ni
-            # ROT_FOUR -> DUP_TOPX 2
-            if (len(code) - i >= 7 and ord(code[i]) == LOAD_FAST
-                and ord(code[i + 3]) == LOAD_CONST and ord(code[i + 6]) == ROT_FOUR):
-                sio.write(code[i:i + 6])
+            if ord(code[i]) == ROT_FOUR:
+                # ROT_FOUR -> DUP_TOPX 2
                 [sio.write(chr(c)) for c in (DUP_TOPX, 2, 0)]
                 remapped = True
-                i += 7
-                ni += 9
+                i += 1
+                ni += 3
+            elif len(code) - i >= 3 and ord(code[i]) in (MAKE_CLOSURE, MAKE_FUNCTION):
+                # The TOSes in PY3 is changed for MAKE_CLOSURE
+                sio.write(chr(POP_TOP))
+                sio.write(code[i:i + 3])
+                remapped = True
+                i += 3
+                ni += 4
+            elif ord(code[i]) == EXTENDED_ARG_PY3:
+                sio.write(chr(EXTENDED_ARG))
+                sio.write(code[i + 1:i + 3])
+                i += 3
+                ni += 3
+            elif ord(code[i]) == EXTENDED_ARG:
+                sio.write(chr(LIST_APPEND))
+                sio.write(code[i + 1:i + 3])
+                i += 3
+                ni += 3
             elif ord(code[i]) >= HAVE_ARGUMENT:
                 sio.write(code[i:i + 3])
                 i += 3
@@ -815,15 +843,14 @@ class CloudUnpickler(Unpickler):
         while i < len(code):
             op = ord(code[i])
             if op >= HAVE_ARGUMENT:
-                if op == JUMP_FORWARD:
+                if op in opcode.hasjrel:
                     # relocate to new relative address
-                    old_abs = new_to_old[i] + ord(code[i + 1]) + (ord(code[i + 2]) << 8)
-                    new_rel = old_to_new[old_abs] - i
+                    old_abs = new_to_old[i + 3] + ord(code[i + 1]) + (ord(code[i + 2]) << 8)
+                    new_rel = old_to_new[old_abs] - i - 3
                     sio.write(code[i])
                     sio.write(chr(new_rel & 0xff))
                     sio.write(chr(new_rel >> 8))
-                elif op in (CONTINUE_LOOP, JUMP_ABSOLUTE, JUMP_IF_FALSE_OR_POP, JUMP_IF_TRUE_OR_POP,
-                            POP_JUMP_IF_FALSE, POP_JUMP_IF_TRUE):
+                elif op in opcode.hasjabs:
                     # relocate to new absolute address
                     new_abs = old_to_new[ord(code[i + 1]) + (ord(code[i + 2]) << 8)]
                     sio.write(code[i])
@@ -844,7 +871,7 @@ class CloudUnpickler(Unpickler):
         args = stack.pop()
         func = stack[-1]
         if func.__name__ == 'code':
-            if not PY3 and len(args) == 15:  # src PY3, dest PY2
+            if not PY3 and self._src_impl == 'CP3':  # src PY3, dest PY2
                 args = list(args)
                 # 5: co_code
                 args[5] = self._code_compat_py2(args[5])
@@ -856,6 +883,13 @@ class CloudUnpickler(Unpickler):
                     args[col] = args[col].encode('utf-8') if isinstance(args[col], unicode) else args[col]
 
                 args = [args[0], ] + args[2:]
+            # print(args[9 if not PY3 else 10])
+            # import dis
+            # dis.dis(args[4 if not PY3 else 5])
+        elif func.__name__ == 'tablecode':
+            if JYTHON:
+                from org.python.core import PyBytecode
+                func = PyBytecode
         elif func.__name__ == 'type' or func.__name__ == 'classobj':
             if not PY3:
                 args = list(args)
@@ -867,13 +901,13 @@ class CloudUnpickler(Unpickler):
         stack[-1] = value
 
 
-def load(file):
-    return CloudUnpickler(file).load()
+def load(file, impl='CP2'):
+    return CloudUnpickler(file, impl=impl).load()
 
 
-def loads(str):
+def loads(str, impl='CP2'):
     file = StringIO(str)
-    return CloudUnpickler(file).load()
+    return CloudUnpickler(file, impl=impl).load()
 
 
 #hack for __import__ not working as desired

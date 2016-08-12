@@ -111,8 +111,9 @@ class Test(TestBase):
         upload_ss.commit(writer.get_blocks_written())
 
     def _download_data(self, test_table, compress=False, columns=None, **kw):
+        count = kw.pop('count', 3)
         download_ss = self.tunnel.create_download_session(test_table, **kw)
-        with download_ss.open_record_reader(0, 3, compress=compress, columns=columns) as reader:
+        with download_ss.open_record_reader(0, count, compress=compress, columns=columns) as reader:
             # test use right py or c writer
             self.assertEqual(self.mode, reader._mode())
 
@@ -194,6 +195,25 @@ class Test(TestBase):
             for i in range(1, len(r)):
                 self.assertIsNone(r[i])
         self._delete_table(test_table_name)
+
+    @bothPyAndC
+    def testDownloadLimitation(self):
+        old_limit = options.table_read_limit
+
+        test_table_name = tn('pyodps_test_tunnel_limit')
+        self._create_table(test_table_name)
+        data = self._gen_data()
+        self._upload_data(test_table_name, data * 20)
+
+        options.table_read_limit = 10
+        records = self.assertWarns(lambda: self._download_data(test_table_name, compress=True, count=20))
+        self.assertEqual(len(records), 10)
+
+        options.table_read_limit = None
+        records = self.assertNoWarns(lambda: self._download_data(test_table_name, compress=True, count=20))
+        self.assertEqual(len(records), 20)
+
+        options.table_read_limit = old_limit
 
     @bothPyAndC
     def testPartitionUploadAndDownloadByRawTunnel(self):

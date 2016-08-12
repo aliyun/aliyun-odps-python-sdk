@@ -344,7 +344,7 @@ class OdpsSQLCompiler(Backend):
 
         for select_idx in reg.findall(sql):
             s_regex_str = '//{{_i{0}}}(.+?){{_i{0}}}//'.format(select_idx)
-            regex_str = '\n( *)?/{{_i{0}}}({1})+/'.format(select_idx, s_regex_str)
+            regex_str = '\n?( *)?/{{_i{0}}}({1})+/'.format(select_idx, s_regex_str)
             regex = re.compile(regex_str, re.M)
             s_regex = re.compile(s_regex_str, re.M)
 
@@ -354,6 +354,8 @@ class OdpsSQLCompiler(Backend):
 
                 fields = s_regex.findall(joined)
                 sub = self._join_compiled_fields(fields)
+                if not joined.startswith('\n'):
+                    sub = sub.lstrip('\n')
                 if space > self._indent_size:
                     return utils.indent(sub, space-self._indent_size)
                 return sub

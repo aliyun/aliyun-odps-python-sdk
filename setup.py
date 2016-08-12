@@ -20,8 +20,8 @@ from setuptools import setup, find_packages, Extension
 
 import sys
 import os
-import warnings
 import platform
+import shutil
 
 version = sys.version_info
 PY2 = version[0] == 2
@@ -46,6 +46,15 @@ if PY26:
     requirements.append('simplejson>=2.1.0')
     requirements.append('threadpool>=1.3')
 
+full_requirements = []
+if os.path.exists('odps/internal'):
+    full_requirements.extend([
+        'jupyter>=1.0.0',
+        'numpy>=1.6.0',
+        'pandas>=0.13.0',
+    ])
+    if sys.platform != 'win32':
+        full_requirements.append('cython>=0.20')
 
 long_description = None
 if os.path.exists('README.rst'):
@@ -54,7 +63,7 @@ if os.path.exists('README.rst'):
 
 setup_options = dict(
     name='pyodps',
-    version='0.5.6',
+    version='0.5.7',
     description='ODPS Python SDK and data analysis framework',
     long_description=long_description,
     author='Wu Wei',
@@ -114,10 +123,14 @@ if build_cmd == 'clean':
     for root, dirs, files in os.walk(os.path.normpath('odps/')):
         pyx_files = set()
         c_file_pairs = []
+        if '__pycache__' in dirs:
+            full_path = os.path.join(root, '__pycache__')
+            print("removing '%s'" % full_path)
+            shutil.rmtree(full_path)
         for f in files:
             fn, ext = os.path.splitext(f)
             # delete compiled binaries
-            if ext.lower() in ('.pyd', '.so'):
+            if ext.lower() in ('.pyd', '.so', '.pyc'):
                 full_path = os.path.join(root, f)
                 print("removing '%s'" % full_path)
                 os.unlink(full_path)

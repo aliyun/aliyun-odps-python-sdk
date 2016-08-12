@@ -89,7 +89,7 @@ class Expr(Node):
                     self.__execution = self.execute()
                 except Exception as e:
                     self.__execution = e
-                    raise e
+                    raise
             return self.__execution.__repr__()
 
     def _repr_html_(self):

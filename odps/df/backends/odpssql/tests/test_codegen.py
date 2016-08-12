@@ -17,19 +17,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import base64  # noqa
-from collections import namedtuple  # noqa
-import inspect  # noqa
-
 from odps.tests.core import TestBase
-from odps.compat import unittest
+from odps.compat import unittest, six
 from odps.models import Schema
 from odps.udf.tools import runners
 from odps.df.types import validate_data_type
 from odps.df.backends.odpssql.engine import ODPSEngine, UDF_CLASS_NAME
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.expr.tests.core import MockTable
-from odps.df.backends.odpssql.cloudpickle import * # noqa
+
+# required by cloudpickle tests
+six.exec_("""
+import base64
+from collections import namedtuple
+import inspect
+from odps.lib.cloudpickle import *
+""", globals(), locals())
 
 
 class Test(TestBase):
@@ -47,7 +50,7 @@ class Test(TestBase):
     def testSimpleLambda(self):
         self.engine.compile(self.expr.id.map(lambda x: x + 1))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        exec(udf)
+        six.exec_(udf)
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([4, ], runners.simple_run(udf, [(3, ), ]))
 
@@ -62,7 +65,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.id.map(my_func))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        exec(udf)
+        six.exec_(udf)
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-3, ), (0, ), (5, )]))
 
@@ -79,7 +82,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.id.map(my_func))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        exec(udf, globals(), locals())
+        six.exec_(udf, globals(), locals())
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([-2, 0, 2], runners.simple_run(udf, [(-3, ), (0, ), (5, )]))
 
@@ -95,7 +98,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.id.map(my_func))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        exec(udf, globals(), locals())
+        six.exec_(udf, globals(), locals())
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-9, ), (10, ), (15, )]))
 
@@ -113,7 +116,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.id.map(my_func))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        exec(udf, globals(), locals())
+        six.exec_(udf, globals(), locals())
         udf = locals()[UDF_CLASS_NAME]
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-9, ), (10, ), (15, )]))
 
@@ -123,7 +126,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.apply(my_func, axis=1, reduce=True).rename('test'))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        exec(udf, globals(), locals())
+        six.exec_(udf, globals(), locals())
         udf = locals()[UDF_CLASS_NAME]
         self.assertEqual(['name1', 'name2'],
                          runners.simple_run(udf, [('name', 1, None), ('name', 2, None)]))
@@ -134,7 +137,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.apply(my_func, axis=1, names=['name', 'id'], types=['string', 'int']))
         udtf = list(self.engine._ctx._func_to_udfs.values())[0]
-        exec(udtf, globals(), locals())
+        six.exec_(udtf, globals(), locals())
         udtf = locals()[UDF_CLASS_NAME]
         self.assertEqual([('name1', 1), ('name2', 2)],
                           runners.simple_run(udtf, [('name1', 1, None), ('name2', 2, None)]))
@@ -146,7 +149,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.apply(my_func, axis=1, names='name'))
         udtf = list(self.engine._ctx._func_to_udfs.values())[0]
-        exec(udtf, globals(), locals())
+        six.exec_(udtf, globals(), locals())
         udtf = locals()[UDF_CLASS_NAME]
         self.assertEqual(['name1', 'name2', 'name3', 'name4'],
                          runners.simple_run(udtf, [('name1,name2', 1, None), ('name3,name4', 2, None)]))

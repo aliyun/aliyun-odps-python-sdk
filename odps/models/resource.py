@@ -109,7 +109,7 @@ class Resource(LazyLoad):
 
     def reload(self):
         url = self.resource()
-        resp = self._client.head(url)
+        resp = self._client.get(url, params={'meta': ''})
         self.owner = resp.headers.get('x-odps-owner')
         resource_type = resp.headers.get('x-odps-resource-type')
         self.type = Resource.Type(resource_type.upper())
@@ -129,6 +129,13 @@ class Resource(LazyLoad):
         self.content_md5 = resp.headers.get('Content-MD5')
 
         self._loaded = True
+
+    def _reload_size(self):
+        url = self.resource()
+        resp = self._client.get(url, params={'meta': ''})
+
+        size = resp.headers.get('x-odps-resource-size')
+        self.size = None if size is not None else int(size)
 
     def update(self, **kw):
         raise NotImplementedError
@@ -171,7 +178,7 @@ class FileResource(Resource):
         if self._loaded:
             return False
         try:
-            self.reload()
+            self._reload_size()
             return False
         except errors.NoSuchObject:
             return True
@@ -230,7 +237,7 @@ class FileResource(Resource):
         else:
             self._fp = self.parent.read_resource(
                 self, text_mode=not self._open_binary, encoding=self._encoding)
-            self.reload()
+            self._reload_size()
             self._sync_size()
 
         self._opened = True

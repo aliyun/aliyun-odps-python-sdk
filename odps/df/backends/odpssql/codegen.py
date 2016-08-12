@@ -17,26 +17,34 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import base64
+import os
+import platform
 import uuid
 
 from .types import df_type_to_odps_type
-from .cloudpickle import dumps
-from ...expr.element import MappedExpr
 from ...expr.collections import RowAppliedCollectionExpr
+from ...expr.element import MappedExpr
 from ...expr.groupby import GroupbyAppliedCollectionExpr
-from ...expr.utils import get_executed_collection_table_name
 from ...expr.reduction import Aggregation, GroupedAggregation
+from ...expr.utils import get_executed_collection_table_name
 from ...utils import make_copy
+from ....lib import cloudpickle
 from ....compat import OrderedDict, six
-from ....utils import to_str
 from ....models import FileResource, TableResource
+from ....utils import to_str
 
-dirname = os.path.dirname(os.path.abspath(__file__))
+dirname = os.path.dirname(os.path.abspath(cloudpickle.__file__))
 CLOUD_PICKLE_FILE = os.path.join(dirname, 'cloudpickle.py')
 with open(CLOUD_PICKLE_FILE) as f:
     CLOUD_PICKLE = f.read()
+
+CLIENT_IMPL = 'CP2' if six.PY2 else 'CP3'
+if platform.python_implementation().lower() == 'pypy':
+    CLIENT_IMPL = 'PYPY2'
+elif platform.python_implementation().lower() == 'jython':
+    CLIENT_IMPL = 'JYTHON2'
+
 
 UDF_TMPL = '''\
 %(cloudpickle)s
@@ -63,7 +71,7 @@ from odps.distcache import get_cache_file, get_cache_table
 class %(func_cls_name)s(object):
 
     def __init__(self):
-        rs = loads(base64.b64decode('%(resources)s'))
+        rs = loads(base64.b64decode('%(resources)s'), impl='%(implementation)s')
         resources = []
         for t, n, fields in rs:
             if t == 'file':
@@ -77,7 +85,7 @@ class %(func_cls_name)s(object):
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
-        self.f = loads(f_str)
+        self.f = loads(f_str, impl='%(implementation)s')
 
         if inspect.isfunction(self.f):
             if resources:
@@ -92,11 +100,11 @@ class %(func_cls_name)s(object):
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
-        self.args = loads(func_args_str) or tuple()
+        self.args = loads(func_args_str, impl='%(implementation)s') or tuple()
 
         encoded_func_kwargs = '%(func_kwargs_str)s'
         func_kwargs_str = base64.b64decode(encoded_func_kwargs)
-        self.kwargs = loads(func_kwargs_str) or dict()
+        self.kwargs = loads(func_kwargs_str, impl='%(implementation)s') or dict()
 
         self.from_types = '%(raw_from_type)s'.split(',')
         self.to_type = '%(to_type)s'
@@ -149,6 +157,7 @@ UDTF_TMPL = '''\
 
 import base64
 import inspect
+import time
 from collections import namedtuple
 
 try:
@@ -163,7 +172,7 @@ from odps.distcache import get_cache_file, get_cache_table
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(BaseUDTF):
     def __init__(self):
-        rs = loads(base64.b64decode('%(resources)s'))
+        rs = loads(base64.b64decode('%(resources)s'), impl='%(implementation)s')
         resources = []
         for t, n, fields in rs:
             if t == 'file':
@@ -177,7 +186,7 @@ class %(func_cls_name)s(BaseUDTF):
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
-        self.f = loads(f_str)
+        self.f = loads(f_str, impl='%(implementation)s')
         if inspect.isfunction(self.f):
             if resources:
                 self.f = self.f(resources)
@@ -196,11 +205,11 @@ class %(func_cls_name)s(BaseUDTF):
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
-        self.args = loads(func_args_str) or tuple()
+        self.args = loads(func_args_str, impl='%(implementation)s') or tuple()
 
         encoded_func_kwargs = '%(func_kwargs_str)s'
         func_kwargs_str = base64.b64decode(encoded_func_kwargs)
-        self.kwargs = loads(func_kwargs_str) or dict()
+        self.kwargs = loads(func_kwargs_str, impl='%(implementation)s') or dict()
 
         self.names = tuple(it for it in '%(names_str)s'.split(',') if it)
 
@@ -283,6 +292,7 @@ UDAF_TMPL = '''\
 
 import base64
 import inspect
+import time
 from collections import namedtuple
 
 try:
@@ -297,7 +307,7 @@ from odps.distcache import get_cache_file, get_cache_table
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(BaseUDAF):
     def __init__(self):
-        rs = loads(base64.b64decode('%(resources)s'))
+        rs = loads(base64.b64decode('%(resources)s'), impl='%(implementation)s')
         resources = []
         for t, n, fields in rs:
             if t == 'file':
@@ -311,15 +321,15 @@ class %(func_cls_name)s(BaseUDAF):
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
-        args = loads(func_args_str) or tuple()
+        args = loads(func_args_str, impl='%(implementation)s') or tuple()
 
         encoded_func_kwargs = '%(func_kwargs_str)s'
         func_kwargs_str = base64.b64decode(encoded_func_kwargs)
-        kwargs = loads(func_kwargs_str) or dict()
+        kwargs = loads(func_kwargs_str, impl='%(implementation)s') or dict()
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
-        agg = loads(f_str)
+        agg = loads(f_str, impl='%(implementation)s')
         if resources:
             if not args and not kwargs:
                 self.f = agg(resources)
@@ -432,11 +442,12 @@ def gen_udf(expr, func_cls_name=None):
                 'from_type':  from_type,
                 'to_type': df_type_to_odps_type(node.data_type).name,
                 'func_cls_name': func_cls_name,
-                'func_str': to_str(base64.b64encode(dumps(func))),
-                'func_args_str': to_str(base64.b64encode(dumps(node._func_args))),
-                'func_kwargs_str': to_str(base64.b64encode(dumps(node._func_kwargs))),
+                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func))),
+                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args))),
+                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs))),
                 'names_str': names_str,
-                'resources': to_str(base64.b64encode(dumps([r[:3] for r in resources])))
+                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources]))),
+                'implementation': CLIENT_IMPL,
             }
             if resources:
                 func_to_resources[func] = resources
@@ -451,12 +462,13 @@ def gen_udf(expr, func_cls_name=None):
                 'from_type': from_type,
                 'to_type': to_type,
                 'func_cls_name': func_cls_name,
-                'func_str': to_str(base64.b64encode(dumps(func))),
-                'func_args_str': to_str(base64.b64encode(dumps(node._func_args))),
-                'func_kwargs_str': to_str(base64.b64encode(dumps(node._func_kwargs))),
-                'close_func_str': to_str(base64.b64encode(dumps(getattr(node, '_close_func', None)))),
+                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func))),
+                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args))),
+                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs))),
+                'close_func_str': to_str(base64.b64encode(cloudpickle.dumps(getattr(node, '_close_func', None)))),
                 'names_str': names_str,
-                'resources': to_str(base64.b64encode(dumps([r[:3] for r in resources])))
+                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources]))),
+                'implementation': CLIENT_IMPL,
             }
             if resources:
                 func_to_resources[func] = resources
@@ -467,10 +479,11 @@ def gen_udf(expr, func_cls_name=None):
                 'from_type': df_type_to_odps_type(node.input.dtype).name,
                 'to_type': df_type_to_odps_type(node.dtype).name,
                 'func_cls_name': func_cls_name,
-                'func_str': to_str(base64.b64encode(dumps(func))),
-                'func_args_str': to_str(base64.b64encode(dumps(node._func_args))),
-                'func_kwargs_str': to_str(base64.b64encode(dumps(node._func_kwargs))),
-                'resources': to_str(base64.b64encode(dumps([r[:3] for r in resources])))
+                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func))),
+                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args))),
+                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs))),
+                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources]))),
+                'implementation': CLIENT_IMPL,
             }
             if resources:
                 func_to_resources[func] = resources

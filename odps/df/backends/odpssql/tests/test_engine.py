@@ -547,10 +547,10 @@ class Test(TestBase):
         data = self._gen_data(5)
 
         def my_func(row):
-            return row.name, row.scale + 1
+            return row.name, row.scale + 1, row.birth
 
-        expr = self.expr['name', 'id', 'scale'].apply(my_func, axis=1, names=['name', 'scale'],
-                                                      types=['string', 'decimal'])
+        expr = self.expr['name', 'id', 'scale', 'birth'].apply(my_func, axis=1, names=['name', 'scale', 'birth'],
+                                                               types=['string', 'decimal', 'datetime'])
 
         res = self.engine.execute(expr)
         result = self._get_result(res)

@@ -13,6 +13,12 @@ The quick way:
 
 ::
 
+    pip install pyodps[full]
+
+If you don't need to use Jupyter, just type
+
+::
+
     pip install pyodps
 
 The dependencies will be installed automatically.

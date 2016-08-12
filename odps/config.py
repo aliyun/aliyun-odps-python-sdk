@@ -221,6 +221,7 @@ options.register_option('predict_endpoint', None)
 options.register_option('biz_id', None)
 options.register_option('temp_lifecycle', 1, validator=is_integer)
 options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
+options.register_option('table_read_limit', None, validator=any_validator(is_null, is_integer))
 
 # c or python mode, use for UT, in other cases, please do not modify the value
 options.register_option('force_c', False, validator=is_integer)

@@ -19,12 +19,12 @@
 
 import time
 import sys
-import uuid
+import uuid  # don't remove
 from contextlib import contextmanager
 
 from ....errors import ODPSError
 
-from ....utils import init_progress_ui
+from ....utils import init_progress_ui, write_log as log
 from ....models import Partition
 from ....tempobj import register_temp_table
 from ....types import PartitionSpec
@@ -61,14 +61,6 @@ class ODPSEngine(Engine):
             return 0
 
     @classmethod
-    def _to_stdout(cls, msg):
-        print(msg)
-
-    def _log(self, msg):
-        if options.verbose:
-            (options.verbose_log or self._to_stdout)(msg)
-
-    @classmethod
     def _is_source_table(cls, expr):
         return isinstance(expr, CollectionExpr) and \
                expr._source_data is not None
@@ -82,8 +74,8 @@ class ODPSEngine(Engine):
         self._ctx.create_udfs()
         instance = self._odps.run_sql(sql, hints=hints)
 
-        self._log('Instance ID: ' + instance.id)
-        self._log('  Log view: ' + instance.get_logview_address())
+        log('Instance ID: ' + instance.id)
+        log('  Log view: ' + instance.get_logview_address())
         ui.status('Executing', 'execution details')
 
         if async:
@@ -273,7 +265,7 @@ class ODPSEngine(Engine):
             except ODPSError:
                 return
         else:
-            self._log('Try to fetch data from tunnel')
+            log('Try to fetch data from tunnel')
             ui.status('Try to download data with tunnel...')
             if isinstance(expr, SliceCollectionExpr):
                 count = expr.stop
@@ -343,8 +335,8 @@ class ODPSEngine(Engine):
             lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
             sql = 'CREATE TABLE {0} {1}AS \n{2}'.format(tmp_table_name, lifecycle_str, sql)
 
-        self._log('Sql compiled:')
-        self._log(sql)
+        log('Sql compiled:')
+        log(sql)
 
         instance = self._run(sql, ui, start_progress=start_progress,
                              max_progress=0.9*max_progress, async=async, hints=hints, group=group)
@@ -553,8 +545,8 @@ class ODPSEngine(Engine):
                 name, ', '.join(partitions), sql
             )
 
-        self._log('Sql compiled:')
-        self._log(sql)
+        log('Sql compiled:')
+        log(sql)
 
         try:
             self._run(sql, ui, start_progress=start_progress, max_progress=max_progress,

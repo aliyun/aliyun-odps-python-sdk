@@ -22,8 +22,9 @@ from libc.string cimport *
 from ..pb.decoder_c cimport Decoder
 from ..checksum_c cimport Checksum
 
+import warnings
 from ..wireconstants import ProtoWireConstants
-from ... import utils, types, compat
+from ... import utils, types, compat, options
 from ...models import Record
 from ...readers import AbstractRecordReader
 
@@ -38,14 +39,15 @@ cdef class BaseTableTunnelReader:
         self._reader = Decoder(input_stream)
         self._crc = Checksum()
         self._crccrc = Checksum()
-        self._curr_cusor = 0
+        self._curr_cursor = 0
+        self._read_limit = options.table_read_limit
 
     def _mode(self):
         return 'c'
 
     @property
     def count(self):
-        return self._curr_cusor
+        return self._curr_cursor
 
     cdef list _read_array(self, object value_type):
         cdef:
@@ -112,8 +114,6 @@ cdef class BaseTableTunnelReader:
         self._crc.update_long(val)
         return utils.to_datetime(val)
 
-        return val
-
     cdef _set_string(self, object record, int i):
         cdef bytes val = self._read_string()
         record[i] = val
@@ -160,6 +160,9 @@ cdef class BaseTableTunnelReader:
             object data_type
             object record
 
+        if self._read_limit is not None and self.count >= self._read_limit:
+            warnings.warn('Number of lines read via tunnel already reaches the limitation.')
+            return None
         record = Record(self._columns)
 
         while True:
@@ -211,7 +214,7 @@ cdef class BaseTableTunnelReader:
             else:
                 raise IOError('Unsupported type %s' % data_type)
 
-        self._curr_cusor += 1
+        self._curr_cursor += 1
         return record
 
     def reads(self):

@@ -1292,8 +1292,7 @@ def _get_odps_from_model(self):
     endpoint = client.endpoint
     project = client.project
 
-    return ODPS(account.access_id, account.secret_access_key,
-                project, endpoint=endpoint)
+    return ODPS._from_account(account, project, endpoint=endpoint)
 
 models.RestModel.odps = property(fget=_get_odps_from_model)
 del _get_odps_from_model

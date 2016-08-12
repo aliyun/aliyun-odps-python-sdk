@@ -121,6 +121,11 @@ cdef _get_record_field_by_index(object record, int i):
     return values[i]
 
 
+cdef _get_record_field_by_slice(object record, slice i):
+    cpdef list values = record._values
+    return values[i]
+
+
 cdef _get_record_field_by_name(object record, object name):
     cdef dict name_indexes = record._name_indexes
     cdef int i
@@ -133,6 +138,8 @@ cdef _get_record_field(object record, object item):
     try:
         return _get_record_field_by_index(record, item)
     except TypeError:
+        if isinstance(item, slice):
+            return _get_record_field_by_slice(record, item)
         return _get_record_field_by_name(record, item)
 
 
