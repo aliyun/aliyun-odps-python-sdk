@@ -21,12 +21,9 @@ import re
 from datetime import datetime
 from decimal import Decimal
 
-from collections import defaultdict
-
 from ...expr.reduction import *
 from ...expr.arithmetic import BinOp, Add, Substract, Power, Invert, Negate, Abs
 from ...expr.merge import JoinCollectionExpr, UnionCollectionExpr
-from ...expr.collections import SortedCollectionExpr, RowAppliedCollectionExpr
 from ...expr.element import MappedExpr
 from ...expr.window import CumSum
 from ...expr.datetimes import DTScalar
@@ -1133,8 +1130,10 @@ class OdpsSQLCompiler(Backend):
     def visit_scalar(self, expr):
         compiled = None
         if expr._value is not None:
-            if expr.dtype == df_types.string and isinstance(expr.value, six.text_type):
-                compiled = repr(utils.to_str(expr.value))
+            if expr.dtype == df_types.string:
+                val = utils.to_str(expr.value) \
+                    if isinstance(expr.value, six.text_type) else expr.value
+                compiled = "'{}'".format(val.replace("'", "\\'"))
             elif isinstance(expr._value, bool):
                 compiled = 'true' if expr._value else 'false'
             elif isinstance(expr._value, datetime):

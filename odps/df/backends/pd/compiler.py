@@ -194,6 +194,15 @@ class PandasCompiler(Backend):
         children = children or expr.children()
         return [kw.get(child) for child in children]
 
+    @classmethod
+    def _merge_values(cls, exprs, kw):
+        fields = [kw.get(expr) for expr in exprs]
+        size = max(len(f) for f, e in zip(fields, exprs) if isinstance(e, SequenceExpr))
+        fields = [pd.Series([f] * size) if isinstance(e, Scalar) else f
+                  for f, e in zip(fields, exprs)]
+
+        return pd.concat(fields, axis=1, keys=[e.name for e in exprs])
+
     def visit_project_collection(self, expr):
         def handle(kw):
             children = expr.children()
@@ -686,9 +695,7 @@ class PandasCompiler(Backend):
                     return res[0]
                 return res
             else:
-                collection = next(it for it in expr.traverse(top_down=True, unique=True)
-                                  if isinstance(it, CollectionExpr))
-                input = kw.get(collection)
+                input = self._merge_values(expr.inputs, kw)
 
                 def func(s):
                     names = [f.name for f in expr.inputs]
@@ -702,8 +709,13 @@ class PandasCompiler(Backend):
                     else:
                         if resources:
                             f = expr._func(resources)
-                        f = expr._func
-                    return f(row, *expr._func_args, **expr._func_kwargs)
+                        else:
+                            f = expr._func
+
+                    res = f(row, *expr._func_args, **expr._func_kwargs)
+                    if not inspect.isgeneratorfunction(f):
+                        return res
+                    return next(res)
 
                 return input.apply(func, axis=1, reduce=True,
                                    args=expr._func_args, **expr._func_kwargs)
@@ -721,8 +733,7 @@ class PandasCompiler(Backend):
         def handle(kw):
             resources = self._get_resources(expr, kw)
 
-            input = pd.concat([kw.get(field) for field in expr.fields],
-                              axis=1, keys=[f.name for f in expr.fields])
+            input = self._merge_values(expr.fields, kw)
 
             names = [f.name for f in expr.fields]
             t = namedtuple('NamedArgs', names)

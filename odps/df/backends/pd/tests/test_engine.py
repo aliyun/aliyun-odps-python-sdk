@@ -117,6 +117,21 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         self.assertGreaterEqual(len(res), 1)
 
+    def testChinese(self):
+        data = [
+            ['中文', 4, 5.3, None, None, None],
+            ['\'中文2', 2, 3.5, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.filter(self.expr.name == '中文')
+        res = self.engine.execute(expr)
+        self.assertEqual(len(res), 1)
+
+        expr = self.expr.filter(self.expr.name == '\'中文2')
+        res = self.engine.execute(expr)
+        self.assertEqual(len(res), 1)
+
     def testElement(self):
         data = self._gen_data(5, nullable_field='name')
 
@@ -411,6 +426,34 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         result = self._get_result(res)
         self.assertEqual(result, [[r[0] + str(r[1])] for r in data])
+
+        @output(['id', 'id2'], ['int', 'int'])
+        def h(row):
+            yield row.id + row.id2, row.id - row.id2
+
+        expr = self.expr['id', Scalar(2).rename('id2')].apply(h, axis=1)
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertEqual([[d[1] + 2, d[1] - 2] for d in data], result)
+
+        def h(row):
+            yield row.id + row.id2
+
+        expr = self.expr['id', Scalar(2).rename('id2')].apply(h, axis=1, reduce=True).rename('addid')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual([[d[1] + 2] for d in data], result)
+
+        def h(row):
+            return row.id + row.id2
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual([[d[1] + 2] for d in data], result)
 
     def testFunctionResources(self):
         data = self._gen_data(5)

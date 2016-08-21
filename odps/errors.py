@@ -102,6 +102,8 @@ class ODPSError(RuntimeError):
             message = self.message
         else:
             message = self.args[0]  # py3
+        if self.request_id:
+            message = 'RequestId: %s\n%s' % (self.request_id, message)
         if self.code:
             return '%s: %s' % (self.code, message)
         return message
@@ -128,7 +130,7 @@ class ODPSError(RuntimeError):
 class ServerDefinedException(ODPSError):
 
     def __str__(self):
-        return super(ODPSError, self).__str__()
+        return super(ServerDefinedException, self).__str__()
 
 
 # A long list of server defined exceptions

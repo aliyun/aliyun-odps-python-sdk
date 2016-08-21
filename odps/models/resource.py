@@ -135,7 +135,7 @@ class Resource(LazyLoad):
         resp = self._client.get(url, params={'meta': ''})
 
         size = resp.headers.get('x-odps-resource-size')
-        self.size = None if size is not None else int(size)
+        self.size = None if size is None else int(size)
 
     def update(self, **kw):
         raise NotImplementedError

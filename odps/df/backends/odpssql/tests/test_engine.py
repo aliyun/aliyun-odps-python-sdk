@@ -208,6 +208,25 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         self.assertGreaterEqual(len(res), 0)
 
+    def testChinese(self):
+        data = [
+            ['中文', 4, 5.3, None, None, None],
+            ['\'中文2', 2, 3.5, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.filter(self.expr.name == '中文')
+        res = self.engine.execute(expr)
+        self.assertEqual(len(res), 1)
+
+        expr = self.expr.filter(self.expr.name == '\'中文2')
+        res = self.engine.execute(expr)
+        self.assertEqual(len(res), 1)
+
+        expr = self.expr.filter(self.expr.name == u'中文')
+        res = self.engine.execute(expr)
+        self.assertEqual(len(res), 1)
+
     def testElement(self):
         data = self._gen_data(5, nullable_field='name')
 

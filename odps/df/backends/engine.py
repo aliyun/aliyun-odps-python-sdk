@@ -415,7 +415,13 @@ class MixedEngine(Engine):
 
                 curr = 0.0
                 for _, func, _ in nodes[:-1]:
-                    func(start_progress=curr, max_progress=stage_progress, ui=ui, **kwargs)
+                    kw = dict(kwargs)
+
+                    # fix, prevent the `partition` and `partitions` from passing to the caching table
+                    kw.pop('partition', None)
+                    kw.pop('partitions', None)
+
+                    func(start_progress=curr, max_progress=stage_progress, ui=ui, **kw)
                     curr += stage_progress
 
                 func = nodes[-1][1]

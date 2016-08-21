@@ -304,5 +304,38 @@ class Test(TestBase):
         finally:
             table2.drop()
 
+    def testCachePersist(self):
+        expr = self.odps_df
+
+        data2 = [
+            ['name1', 3.2],
+            ['name3', 2.4]
+        ]
+
+        table_name = tn('pyodps_test_mixed_engine_cp_table2')
+        self.odps.delete_table(table_name, if_exists=True)
+        table2 = self.odps.create_table(name=table_name,
+                                        schema=Schema.from_lists(['name', 'fid'], ['string', 'double']))
+        expr2 = DataFrame(table2)
+        self.odps.write_table(table2, 0, data2)
+
+        @output(expr.schema.names, expr.schema.types)
+        def h(row):
+            yield row
+
+        l = expr.filter(expr.id > 0).apply(h, axis=1).cache()
+        r = expr2.filter(expr2.fid > 0)
+        joined = l.join(r, on=['name', r.fid < 4])['id', 'fid'].cache()
+
+        output_table = tn('pyodps_test_mixed_engine_cp_output_table')
+        self.odps.delete_table(output_table, if_exists=True)
+        schema = Schema.from_lists(['id', 'fid'], ['bigint', 'double'], ['ds'], ['string'])
+        output_t = self.odps.create_table(output_table, schema, if_not_exists=True)
+
+        t = joined.persist(output_table, partition='ds=today', create_partition=True)
+        self.assertEqual(len(t.execute()), 2)
+
+        output_t.drop()
+
 if __name__ == '__main__':
     unittest.main()
