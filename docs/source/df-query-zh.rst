@@ -505,8 +505,11 @@
     </div>
 
 
+.. note::
 
-**注意**\ ，我们用来选择的collection或者sequence，来源必须是上一步的collection，比如：
+    **注意**\ ，我们用来选择的collection或者sequence，来源必须是上一步的collection。
+
+比如：
 
 .. code:: python
 
@@ -820,8 +823,9 @@
     </div>
 
 
+.. note::
 
-**记住，与和或条件必须使用&和|，不能使用and和or。**
+    **记住，与和或条件必须使用&和|，不能使用and和or。**
 
 
 
@@ -1193,7 +1197,10 @@
 
 
 
-**另外，切片操作只能作用在collection上，不能作用于sequence。**
+.. note::
+
+    **另外，切片操作只能作用在collection上，不能作用于sequence。**
+
 
 保存DataFrame的执行结果为ODPS表
 ===============================

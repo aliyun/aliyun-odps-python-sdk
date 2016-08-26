@@ -275,15 +275,18 @@ def sample(expr, parts=None, columns=None, i=None, n=None, frac=None, replace=Fa
     >>> df.sample(parts=10, columns=['name'])
 
     Sampling with fraction or weights, replacement option can be specified:
+
     >>> df.sample(n=100)
     >>> df.sample(frac=100)
     >>> df.sample(frac=100, replace=True)
 
     Sampling with weight column:
+
     >>> df.sample(n=100, weights='weight_col')
     >>> df.sample(n=100, weights='weight_col', replace=True)
 
     Stratified sampling. Note that currently we do not support stratified sampling with replacement.
+
     >>> df.sample(strata='category', frac={'Iris Setosa': 0.5, 'Iris Versicolour': 0.4})
     """
     if isinstance(expr, CollectionExpr):

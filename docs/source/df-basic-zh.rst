@@ -213,8 +213,10 @@ DataFrame上的所有操作并不会立即执行，只有当用户显式调用\ 
     </table>
     </div>
 
-**注意**\ ：在交互式环境下，PyODPS
-DataFrame会在打印或者repr的时候，调用\ ``execute``\ 方法，这样省去了用户手动去调用execute。
+.. note::
+
+    **注意**\ ：在交互式环境下，PyODPS
+    DataFrame会在打印或者repr的时候，调用\ ``execute``\ 方法，这样省去了用户手动去调用execute。
 
 .. code:: python
 
@@ -518,7 +520,9 @@ DataFrame会在打印或者repr的时候，调用\ ``execute``\ 方法，这样�
 DataFrame的计算过程中，一些Collection被多处使用，或者用户需要查看中间过程的执行结果，
 这时用户可以使用 ``cache``\ 标记某个collection需要被优先计算。
 
-值得注意的是，``cache``\ 延迟执行，调用cache不会触发立即计算。
+.. note::
+
+    值得注意的是，``cache``\ 延迟执行，调用cache不会触发立即计算。
 
 
 .. code:: python

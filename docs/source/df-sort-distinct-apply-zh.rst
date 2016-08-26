@@ -600,7 +600,7 @@
 
 .. warning::
     除了按份数采样外，其余方法如果要在 ODPS DataFrame 上执行，需要 Project 支持 XFlow，否则，这些方法只能在
-    Pandas DataFrame 上执行。
+    Pandas DataFrame 后端上执行。
 
 - 按份数采样
 
@@ -1310,4 +1310,6 @@ PyODPS DataFrame提供了 ``bloom_filter`` 接口来进行布隆过滤器的计�
 如之前提的join场景中，少量不能过滤并不能并不会影响正确性，但能较大提升join的性能。
 
 我们可以传入 ``capacity`` 和 ``error_rate`` 来设置数据的量以及错误率，默认值是 ``3000`` 和 ``0.01``。
-要注意，调大 ``capacity`` 或者减小 ``error_rate`` 会增加内存的使用，所以应当根据实际情况选择一个合理的值。
+
+.. note::
+    要注意，调大 ``capacity`` 或者减小 ``error_rate`` 会增加内存的使用，所以应当根据实际情况选择一个合理的值。

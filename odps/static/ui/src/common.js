@@ -19,11 +19,6 @@
 /*
  * Common PyODPS Javascript Module
  */
-require.config({
-    paths: {
-        pyodps: '/nbextensions/pyodps'
-    }
-});
 
 require(['jupyter-js-widgets'], function (_) {}, function () {
     require.config({
@@ -32,14 +27,23 @@ require(['jupyter-js-widgets'], function (_) {}, function () {
         }
     })
 });
+
 var pyodps_init_time = new Date();
 
-define('pyodps/common', ['jquery', 'base/js/namespace'], function ($, IPython) {
+define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], function ($, IPython) {
     "use strict";
 
     var view_prompts = {};
 
     var register_css = function (url) {
+        var nbext_path = require.toUrl('nbextensions');
+        var user_base_path = nbext_path.substr(0, nbext_path.indexOf('nbextensions'));
+        require.config({
+            paths: {
+                pyodps: user_base_path + 'nbextensions/pyodps'
+            }
+        });
+
         if ($('style[data-pyodps-styles="' + url + '"]').length > 0) return;
         var url_parts = require.toUrl(url).split('?', 1);
         var css_url = url_parts[0] + '.css';
