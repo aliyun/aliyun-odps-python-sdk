@@ -109,11 +109,13 @@ DataFrame函数支持对Sequence使用map，它会对它的每个元素调用自
 
 
 
-map也支持使用现有的UDF函数，传入的参数是str类型（函数名）或者 `Function对象 <functions-zh.html>`_ 。
+map也支持使用现有的UDF函数，传入的参数是str类型（函数名）或者 :ref:`Function对象 <functions>` 。
 
 map传入Python函数的实现使用了ODPS Python UDF，因此，如果用户所在的Project不支持Python
 UDF，则map函数无法使用。除此以外，所有Python
-UDF的限制在此都适用。因此目前，第三方库只能使用\ ``numpy``\ 。
+UDF的限制在此都适用。
+
+目前，第三方库（包含C）只能使用\ ``numpy``\ ，纯Python库使用参考 :ref:`使用第三方纯Python库 <third_party_library>`。
 
 除了调用自定义函数，DataFrame还提供了很多内置函数，这些函数中部分使用了map函数来实现，因此，如果\ **用户所在Project未开通Python
 UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提供Python UDF支持）**\ 。
