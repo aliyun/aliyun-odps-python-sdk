@@ -45,6 +45,16 @@ class ODPS(object):
     are provided for each ODPS object.
     Take the ``Table`` as an example.
 
+    To create an ODPS instance, access_id and access_key is required, and should ensure correctness,
+    or ``SignatureNotMatch`` error will throw. If `tunnel_endpoint` is not set, the tunnel API will
+    route service URL automatically.
+
+    :param access_id: Aliyun Access ID
+    :param secret_access_key: Aliyun Access Key
+    :param project: default project name
+    :param endpoint: Rest service URL
+    :param tunnel_endpoint:  Tunnel service URL
+
     :Example:
 
     >>> odps = ODPS('**your access id**', '**your access key**', 'default_project')
@@ -63,15 +73,6 @@ class ODPS(object):
     def __init__(self, access_id, secret_access_key, project,
                  endpoint=DEFAULT_ENDPOINT, **kw):
         """
-        Initial ODPS, access_id and access_key is required, and should ensure correctness,
-        or ``SignatureNotMatch`` error will throw. If `tunnel_endpoint` is not set,
-        the tunnel API will route service URL automatically.
-
-        :param access_id: Aliyun Access ID
-        :param secret_access_key: Aliyun Access Key
-        :param project: default project name
-        :param endpoint: Rest service URL
-        :param tunnel_endpoint:  Tunnel service URL
         """
 
         account = kw.pop('account', None)
@@ -860,7 +861,7 @@ class ODPS(object):
         :param start: start position
         :param length: length limit
         :param compress_option: the compression algorithm, level and strategy
-        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :type compress_option: CompressOption
 
         :Example:
         >>> with odps.open_volume_reader('volume', 'partition', 'file') as reader:

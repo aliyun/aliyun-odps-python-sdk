@@ -37,13 +37,6 @@ class Test(TestBase):
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
-    # def testCacheNode(self):
-    #     e1 = 20 / self.expr['id'] / 3
-    #     e2 = 20 / self.expr['id'] / 3
-    #     self.assertTrue(e1.is_sibling(e2))
-    #
-    #     self.assertTrue((-(-(-self.expr['id']))).is_sibling(-self.expr['id']))
-
     def test_binary_operate(self):
         # test string
         expr = self.expr

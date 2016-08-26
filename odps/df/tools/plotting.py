@@ -36,6 +36,7 @@ def _plot_pandas(df, method='plot', **kwargs):
     y_label_size = y_label_size or label_size
 
     title_size = kwargs.pop('titlesize', None)
+    title = kwargs.pop('title', None)
 
     annotate = kwargs.pop('annotate', None)
     x_annotate_scale = kwargs.pop('xannotatescale', 1.0)
@@ -63,6 +64,8 @@ def _plot_pandas(df, method='plot', **kwargs):
 
     if title_size:
         fig.title.set_fontsize(title_size)
+    if title:
+        fig.set_title(title)
 
     if annotate:
         for ax in figs:

@@ -122,5 +122,8 @@ class Test(TestBase):
         grouped = self.expr.groupby('string')
         self.assertRaises(ExpressionError, lambda: self.expr.groupby('boolean').agg(grouped.int32.sum()))
 
+        expr = self.expr[self.expr, Scalar(1).rename('id')]
+        self.assertRaises(ExpressionError, lambda: expr.groupby('id').agg(self.expr.int32.sum()))
+
 if __name__ == '__main__':
     unittest.main()

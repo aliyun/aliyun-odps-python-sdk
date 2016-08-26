@@ -187,7 +187,6 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name)
         self.assertFalse(self.odps.exist_table(test_table_name))
 
-    @global_locked
     def testReadWritePartitionTable(self):
         test_table_name = tn('pyodps_t_tmp_read_write_partition_table')
         schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['pt'], ['string'])

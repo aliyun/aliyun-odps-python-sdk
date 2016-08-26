@@ -17,7 +17,7 @@
 
 import sys
 
-__version__ = '0.5.8'
+__version__ = '0.6.0'
 __all__ = ['ODPS',]
 
 version = sys.version_info
@@ -32,9 +32,11 @@ except ImportError:
 
 from .config import options
 from .core import ODPS
+from .df import DataFrame, Scalar, NullScalar
+from .inter import setup, enter, teardown, list_rooms
 from .utils import write_log as log
 try:
-    from .ipython.magics import *
+    from .ipython import load_ipython_extension
 except ImportError:
     pass
 

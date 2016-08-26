@@ -46,7 +46,7 @@ class Test(TestBase):
         self.engine = MixedEngine(self.odps)
 
     def testMixedCompile(self):
-        dag, expr, callbacks = self.engine._compile(self.expr)
+        dag, e, callbacks = self.engine._compile(self.expr)
 
         self.assertEqual(len(dag._graph), 2)
 
@@ -54,9 +54,9 @@ class Test(TestBase):
         root_node = root, _, _ = topos[0]
         expr_node = expr, _, _ = topos[1]
 
-        self.assertTrue(root.is_ancestor(expr))
+        self.assertTrue(expr.is_ancestor(root))
         self.assertIn(id(expr_node), dag._graph[id(root_node)])
-        self.assertEqual(len(available_engines(expr.data_source())), 1)
+        self.assertEqual(len(available_engines(e.data_source())), 1)
 
     def testCacheCompile(self):
         expr = self.tb['name', 'id'].cache()

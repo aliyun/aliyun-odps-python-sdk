@@ -9,7 +9,18 @@
                 <exporter>get_input_table_name</exporter>
                 <inputName>input</inputName>
             </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="featureColNames" required="true">
+                <alias>featureCols</alias>
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>names of feature columns</docs>
+            </param>
             <param name="labelColName" required="true">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of label column in input table</docs>
@@ -58,7 +69,12 @@
                 <exporter>get_input_table_name</exporter>
                 <inputName>input</inputName>
             </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
             <param name="labelColName" required="true">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of label column in input table</docs>
@@ -70,6 +86,12 @@
             <param name="outputTableName">
                 <exporter>get_output_table_name</exporter>
                 <outputName>output</outputName>
+            </param>
+            <param name="featureColNames" required="true">
+                <alias>featureCols</alias>
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>names of feature columns</docs>
             </param>
         </params>
         <ports>
@@ -108,6 +130,7 @@
                 <inputName>input</inputName>
             </param>
             <param name="labelColName" required="true">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of label column in input table</docs>

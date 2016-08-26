@@ -21,15 +21,17 @@
 from odps.tests.core import TestBase
 from odps.compat import unittest
 from odps.models import Schema
-from odps.df.expr.expressions import *
+from odps.df.expr.expressions import CollectionExpr, ExpressionError
 from odps.df.expr.collections import SampledCollectionExpr
-from odps.df import output
+from odps.df import DataFrame, output, types
 
 
 class Test(TestBase):
     def setup(self):
+        from odps.df.expr.tests.core import MockTable
         schema = Schema.from_lists(types._data_types.keys(), types._data_types.values())
         self.expr = CollectionExpr(_source_data=None, _schema=schema)
+        self.sourced_expr = CollectionExpr(_source_data=MockTable(client=self.odps.rest), _schema=schema)
 
     def testSort(self):
         sorted_expr = self.expr.sort(self.expr.int64)
@@ -93,13 +95,6 @@ class Test(TestBase):
         self.assertTrue(expr._sort_fields[0]._ascending)
         self.assertFalse(expr._sort_fields[1]._ascending)
 
-        expr = self.expr.map_reduce(mapper, reducer, group=lambda x: x.name,
-                                    sort=lambda x: -x.rating)
-        self.assertEqual(expr.schema.names, ['name', 'rating'])
-        self.assertEqual(len(expr._sort_fields), 2)
-        self.assertTrue(expr._sort_fields[0]._ascending)
-        self.assertFalse(expr._sort_fields[1]._ascending)
-
         expr = self.expr.map_reduce(mapper, reducer, group='name',
                                     sort=['rating', 'id'], ascending=[False, True])
 
@@ -120,9 +115,19 @@ class Test(TestBase):
 
     def testSample(self):
         self.assertIsInstance(self.expr.sample(100), SampledCollectionExpr)
-        self.assertIsInstance(self.expr.sample(frac=0.5), SampledCollectionExpr)
         self.assertIsInstance(self.expr.sample(parts=10), SampledCollectionExpr)
+        try:
+            import pandas
+        except ImportError:
+            # No pandas: go for XFlow
+            self.assertIsInstance(self.expr.sample(frac=0.5), DataFrame)
+        else:
+            # Otherwise: go for Pandas
+            self.assertIsInstance(self.expr.sample(frac=0.5), SampledCollectionExpr)
+        self.assertIsInstance(self.sourced_expr.sample(frac=0.5), DataFrame)
 
+        self.assertRaises(ExpressionError, lambda: self.expr.sample())
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(i=-1))
         self.assertRaises(ExpressionError, lambda: self.expr.sample(n=100, frac=0.5))
         self.assertRaises(ExpressionError, lambda: self.expr.sample(n=100, parts=10))
         self.assertRaises(ExpressionError, lambda: self.expr.sample(frac=0.5, parts=10))
@@ -131,6 +136,11 @@ class Test(TestBase):
         self.assertRaises(ExpressionError, lambda: self.expr.sample(frac=1.5))
         self.assertRaises(ExpressionError, lambda: self.expr.sample(parts=10, i=-1))
         self.assertRaises(ExpressionError, lambda: self.expr.sample(parts=10, i=10))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(parts=10, n=10))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(weights='weights', strata='strata'))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(frac='Yes:10', strata='strata'))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(frac=set(), strata='strata'))
+        self.assertRaises(ExpressionError, lambda: self.expr.sample(n=set(), strata='strata'))
 
 if __name__ == '__main__':
     unittest.main()

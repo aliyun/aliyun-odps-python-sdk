@@ -427,6 +427,84 @@
     </div>
 
 
+增加常数列。
+
+
+.. code:: python
+
+    from odps.df import Scalar
+
+    iris[iris, Scalar(1).rename('id')][:5]
+
+
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>sepallength</th>
+          <th>sepalwidth</th>
+          <th>petallength</th>
+          <th>petalwidth</th>
+          <th>name</th>
+          <th>id</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>5.1</td>
+          <td>3.5</td>
+          <td>1.4</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+          <td>1</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>4.9</td>
+          <td>3.0</td>
+          <td>1.4</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+          <td>1</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>4.7</td>
+          <td>3.2</td>
+          <td>1.3</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+          <td>1</td>
+        </tr>
+        <tr>
+          <th>3</th>
+          <td>4.6</td>
+          <td>3.1</td>
+          <td>1.5</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+          <td>1</td>
+        </tr>
+        <tr>
+          <th>4</th>
+          <td>5.0</td>
+          <td>3.6</td>
+          <td>1.4</td>
+          <td>0.2</td>
+          <td>Iris-setosa</td>
+          <td>1</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
 
 **注意**\ ，我们用来选择的collection或者sequence，来源必须是上一步的collection，比如：
 

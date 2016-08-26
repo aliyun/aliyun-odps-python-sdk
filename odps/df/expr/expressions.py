@@ -49,6 +49,8 @@ def run_at_once(func):
             return func(*args, **kwargs)
 
     _decorator.__name__ = func.__name__
+    _decorator.__doc__ = func.__doc__
+    _decorator.__dict__.update(func.__dict__)
     _decorator.run_at_once = True
     return _decorator
 
@@ -66,10 +68,10 @@ def repr_obj(obj):
 
 
 class Expr(Node):
-    __slots__ = '__execution', '__ban_optimize', '_engine', '_cache_data', '_need_cache'
+    __slots__ = '_ban_optimize', '_engine', '_cache_data', '_need_cache', '__execution'
 
     def _init(self, *args, **kwargs):
-        self._init_attr('_Expr__ban_optimize', False)
+        self._init_attr('_ban_optimize', False)
         self._init_attr('_engine', None)
         self._init_attr('_Expr__execution', None)
 
@@ -173,7 +175,7 @@ class Expr(Node):
 
     def cache(self):
         self._need_cache = True
-        self.__ban_optimize = True
+        self._ban_optimize = True
         return self
 
     def verify(self):
@@ -209,49 +211,30 @@ class Expr(Node):
 
     def __getattribute__(self, attr):
         try:
-            if attr != '_get_attr' and attr in self._get_attr('_args'):
-                return self._get_arg(attr)
-            return object.__getattribute__(self, attr)
+            return super(Expr, self).__getattribute__(attr)
         except AttributeError as e:
             if not attr.startswith('_'):
                 new_attr = '_%s' % attr
-                if new_attr in self._get_attr('_args'):
-                    return self._get_arg(new_attr)
+                if new_attr in object.__getattribute__(self, '_args'):
+                    try:
+                        return object.__getattribute__(self, new_attr)
+                    except AttributeError:
+                        return
+
             raise e
-
-    def __setattr__(self, key, value):
-        if self._get_attr('_args_indexes', True) and key in self._args_indexes \
-                and hasattr(self, '_cached_args') and self._cached_args:
-            cached_args = list(self._cached_args)
-            cached_args[self._args_indexes[key]] = value
-            if isinstance(value, six.string_types):
-                values = [value, ]
-            elif not isinstance(value, Iterable):
-                values = [value]
-            else:
-                values = value
-            for v in values:
-                if isinstance(v, Expr):
-                    v._add_parent(self)
-
-            self._cached_args = type(self._cached_args)(cached_args)
-
-        super(Expr, self).__setattr__(key, value)
 
     def _defunc(self, field):
         return field(self) if inspect.isfunction(field) else field
 
     @property
     def optimize_banned(self):
-        return self.__ban_optimize
+        return self._ban_optimize
 
     @optimize_banned.setter
     def optimize_banned(self, val):
-        self.__ban_optimize = val
+        self._ban_optimize = val
 
     def __hash__(self):
-        # As we will not create a new Expr unless its args are brand-new,
-        # so the expr is just different to any other exprs
         return id(self) * hash(Expr)
 
     def __eq__(self, other):
@@ -463,7 +446,9 @@ class CollectionExpr(Expr):
                 field_value = float(field_value)
             return part_col == field_value
 
-        if not isinstance(predicate, six.string_types):
+        if isinstance(predicate, list):
+            predicate = ','.join(str(s) for s in list)
+        elif not isinstance(predicate, six.string_types):
             raise ExpressionError('Only accept string predicates.')
 
         if not predicate:
@@ -610,7 +595,7 @@ class CollectionExpr(Expr):
     def columns(self):
         """
         :return: columns
-        :rtype: list which each element is an instance of :class:`odps.models.Column`
+        :rtype: list which each element is a Column
         """
 
         return [self[n] for n in self._schema.names]
@@ -628,7 +613,7 @@ class CollectionExpr(Expr):
 
     def __getattr__(self, attr):
         try:
-            obj = object.__getattribute__(self, attr)
+            obj = super(CollectionExpr, self).__getattribute__(attr)
 
             return obj
         except AttributeError as e:
@@ -641,6 +626,13 @@ class CollectionExpr(Expr):
         return 'collection'
 
     def limit(self, n):
+        """
+        limit n records
+
+        :param n: n records
+        :return:
+        """
+
         return self[:n]
 
     @run_at_once
@@ -855,7 +847,7 @@ class SequenceExpr(TypedExpr):
         return SequenceExpr
 
     def _init(self, *args, **kwargs):
-        self._name = None
+        self._init_attr('_name', None)
         super(SequenceExpr, self)._init(*args, **kwargs)
 
         if '_data_type' in kwargs:

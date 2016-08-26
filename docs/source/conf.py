@@ -43,6 +43,7 @@ extensions = [
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
+    'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
 ]
 
@@ -305,6 +306,8 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
 
+# napoleon_google_docstring = False
+
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
@@ -326,4 +329,5 @@ def setup(app):
         tags.add('internal')
     if not on_rtd:
         app.add_stylesheet('theme_override.css')
+
     app.add_directive('intinclude', IncludeInternal)

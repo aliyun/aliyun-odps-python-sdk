@@ -29,6 +29,7 @@ from unicodedata import east_asian_width
 from . import six
 
 PY26 = six.PY2 and sys.version_info[1] == 6
+PY27 = six.PY2 and sys.version_info[1] == 7
 LESS_PY26 = six.PY2 and sys.version_info[1] < 6
 LESS_PY32 = six.PY3 and sys.version_info[1] < 2
 LESS_PY33 = six.PY3 and sys.version_info[1] < 3

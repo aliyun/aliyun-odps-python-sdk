@@ -96,12 +96,14 @@ class ElementOp(ElementWise):
 
 
 class MappedExpr(ElementWise):
-    _slots = '_func', '_func_args', '_func_kwargs', '_resources', '_multiple'
+    _slots = '_func', '_func_args', '_func_kwargs', '_resources', \
+             '_multiple', '_raw_inputs'
     _args = '_inputs', '_collection_resources'
     node_name = 'Map'
 
     def _init(self, *args, **kwargs):
         self._init_attr('_multiple', False)
+        self._init_attr('_raw_inputs', None)
         super(MappedExpr, self)._init(*args, **kwargs)
 
     @property
@@ -128,7 +130,9 @@ class MappedExpr(ElementWise):
 
     @property
     def raw_input_types(self):
-        return [it.dtype for it in self._get_attr('_inputs')]
+        if self._raw_inputs:
+            return [it.dtype for it in self._raw_inputs]
+        return self.input_types
 
     @property
     def func(self):

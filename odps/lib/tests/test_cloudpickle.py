@@ -28,7 +28,7 @@ import sys
 import tempfile
 import uuid
 
-from odps.compat import six, unittest
+from odps.compat import six, unittest, PY27
 from odps.lib.cloudpickle import loads, dumps
 from odps.utils import to_binary
 from odps.tests.core import TestBase
@@ -51,18 +51,19 @@ sys.path.extend(import_paths)
 
 from odps.lib.cloudpickle import dumps
 from odps.utils import to_str
-from {module_name} import Test
-print(to_str(base64.b64encode(dumps(Test().{method_ref}()))))
+from {module_name} import {method_ref}
+print(to_str(base64.b64encode(dumps({method_ref}()))))
 """.replace('{module_name}', __name__)
 
 
 def pickled_runner(q, pickled, args, kwargs, **kw):
     wrapper = kw.pop('wrapper', None)
+    impl = kwargs.pop('impl', 'CP3')
     if wrapper:
         wrapper = loads(wrapper)
     else:
         wrapper = lambda v, a, kw: v(*a, **kw)
-    deserial = loads(base64.b64decode(pickled), impl='CP3')
+    deserial = loads(base64.b64decode(pickled), impl=impl)
     q.put(wrapper(deserial, args, kwargs))
 
 
@@ -82,14 +83,47 @@ def run_pickled(pickled, *args, **kwargs):
         return None
 
 
+def _gen_nested_yield_obj():
+    out_closure = 10
+
+    class _NestClass(object):
+        def __init__(self):
+            self._o_closure = out_closure
+
+        def nested_method(self, add_val):
+            return self._o_closure + add_val
+
+    class _FuncClass(object):
+        def __init__(self):
+            self.nest = _NestClass()
+
+        def __call__(self, add_val):
+            yield self.nest.nested_method(add_val)
+
+    return _FuncClass
+
+
+def _gen_nested_fun():
+    out_closure = 10
+
+    def _gen_nested_obj():
+        # class NestedClass(object):
+        def nested_method(add_val):
+            return out_closure + add_val
+
+        return nested_method
+
+    return lambda v: _gen_nested_obj()(v)
+
+
 class Test(TestBase):
     @staticmethod
-    def _invoke_py3_pickle(executable, method_ref):
+    def _invoke_other_python_pickle(executable, method_ref):
         paths = [path for path in sys.path if 'odps' in path.lower()]
         if callable(method_ref):
             method_ref = method_ref.__name__
         script_text = CROSS_VAR_PICKLE_CODE.format(import_paths=json.dumps(paths), method_ref=method_ref)
-        tf_name = os.path.join(tempfile.gettempdir(), 'pyodps_pk_cross_test_{}.py'.format(str(uuid.uuid4())))
+        tf_name = os.path.join(tempfile.gettempdir(), 'pyodps_pk_cross_test_{0}.py'.format(str(uuid.uuid4())))
         with open(tf_name, 'w') as out_file:
             out_file.write(script_text)
             out_file.close()
@@ -104,64 +138,50 @@ class Test(TestBase):
             sio.write(out)
         return sio.getvalue().strip()
 
-    @staticmethod
-    def _gen_nested_fun():
-        out_closure = 10
-
-        def _gen_nested_obj():
-            # class NestedClass(object):
-            def nested_method(add_val):
-                return out_closure + add_val
-
-            return nested_method
-
-        return lambda v: _gen_nested_obj()(v)
-
     def testNestedFunc(self):
-        func = self._gen_nested_fun()
+        func = _gen_nested_fun()
         obj_serial = base64.b64encode(dumps(func))
         deserial = loads(base64.b64decode(obj_serial))
         self.assertEqual(deserial(20), func(20))
 
-    @unittest.skipIf(six.PY3, 'Ignored under Python 3')
+    @unittest.skipIf(not PY27, 'Ignored under Python 3')
     def test3to2NestedFunc(self):
         executable = self.config.get('test', 'py3_executable')
         if not executable:
             return
-        func = self._gen_nested_fun()
-        py3_serial = to_binary(self._invoke_py3_pickle(executable, self._gen_nested_fun))
+        func = _gen_nested_fun()
+        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_fun))
         self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
-    def _gen_nested_yield_obj(self):
-        out_closure = 10
-
-        class _NestClass(object):
-            def __init__(self):
-                self._o_closure = out_closure
-
-            def nested_method(self, add_val):
-                return self._o_closure + add_val
-
-        class _FuncClass(object):
-            def __init__(self):
-                self.nest = _NestClass()
-
-            def __call__(self, add_val):
-                yield self.nest.nested_method(add_val)
-
-        return _FuncClass
 
     def testNestedClassObj(self):
-        func = self._gen_nested_yield_obj()
+        func = _gen_nested_yield_obj()
         obj_serial = base64.b64encode(dumps(func))
         deserial = loads(base64.b64decode(obj_serial))
         self.assertEqual(sum(deserial()(20)), sum(func()(20)))
 
-    @unittest.skipIf(six.PY3, 'Ignored under Python 3')
-    def test3to2NestedClassObj(self):
-        executable = self.config.get('test', 'py3_executable')
-        if not executable:
+    @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
+    def test3to27NestedClassObj(self):
+        try:
+            executable = self.config.get('test', 'py3_executable')
+            if not executable:
+                return
+        except:
             return
-        func = self._gen_nested_yield_obj()
-        py3_serial = to_binary(self._invoke_py3_pickle(executable, self._gen_nested_yield_obj))
-        self.assertEqual(run_pickled(py3_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw))), sum(func()(20)))
+        func = _gen_nested_yield_obj()
+        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_yield_obj))
+        self.assertEqual(run_pickled(py3_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw)), impl='CP3'),
+                         sum(func()(20)))
+
+    @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
+    def test26to27NestedClassObj(self):
+        try:
+            executable = self.config.get('test', 'py26_executable')
+            if not executable:
+                return
+        except:
+            return
+        func = _gen_nested_yield_obj()
+        py26_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_yield_obj))
+        self.assertEqual(run_pickled(py26_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw)), impl='CP26'),
+                         sum(func()(20)))

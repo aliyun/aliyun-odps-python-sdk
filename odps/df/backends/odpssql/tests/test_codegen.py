@@ -32,6 +32,7 @@ import base64
 from collections import namedtuple
 import inspect
 from odps.lib.cloudpickle import *
+from odps.lib.importer import *
 """, globals(), locals())
 
 

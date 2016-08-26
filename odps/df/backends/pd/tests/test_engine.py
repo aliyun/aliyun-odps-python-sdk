@@ -19,6 +19,7 @@
 
 from datetime import timedelta, datetime
 from random import randint
+from decimal import Decimal
 
 from odps.df.backends.tests.core import TestBase, to_str, tn, pandas_case
 from odps.compat import unittest, irange as xrange
@@ -116,6 +117,14 @@ class Test(TestBase):
         expr = self.expr.sample(parts=10)
         res = self.engine.execute(expr)
         self.assertGreaterEqual(len(res), 1)
+
+        expr = self.expr.sample(strata='isMale', n={'True': 1, 'False': 1})
+        res = self.engine.execute(expr)
+        self.assertGreaterEqual(len(res), 1)
+
+        expr = self.expr[:1].filter(lambda x: x.name == data[1][0])
+        res = self.engine.execute(expr)
+        self.assertEqual(len(res), 0)
 
     def testChinese(self):
         data = [
@@ -678,6 +687,80 @@ class Test(TestBase):
         expected = [['key', 3], ['name', 4]]
         self.assertEqual(sorted(result), sorted(expected))
 
+        # test no reducer with just combiner
+        expr = self.expr['name',].map_reduce(mapper, combiner=reducer2, group='word')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr = self.expr['name',].map_reduce(mapper, combiner=reducer, group='word')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(sorted(result), sorted(expected))
+
+        # test both combiner and reducer
+        expr = self.expr['name',].map_reduce(mapper, reducer, combiner=reducer2, group='word')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(sorted(result), sorted(expected))
+
+        # test both combiner and reducer and combiner with small buffer
+        expr = self.expr['name',].map_reduce(mapper, reducer,
+                                             combiner=reducer2, combiner_buffer_size=2, group='word')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(sorted(result), sorted(expected))
+
+    def testJoinMapReduce(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+
+        schema2 = Schema.from_lists(['name2', 'id2', 'id3'],
+                                    [types.string, types.int64, types.int64])
+
+        self._gen_data(data=data)
+
+        data2 = [
+            ['name1', 4, -1],
+        ]
+
+        import pandas as pd
+        expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
+                               _schema=schema2)
+
+        @output(['id'], ['int'])
+        def reducer(keys):
+            sums = [0]
+
+            def h(row, done):
+                sums[0] += row.id
+                if done:
+                    yield sums[0]
+
+            return h
+
+        expr = self.expr.join(expr2, on=('name', 'name2'))
+        expr = expr.map_reduce(reducer=reducer, group='name')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0][0], 14)
+
     def testDistributeSort(self):
         data = [
             ['name', 4, 5.3, None, None, None],
@@ -868,6 +951,18 @@ class Test(TestBase):
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
+
+        self.assertEqual(expected, result)
+
+        expr = self.expr[:1]
+        expr = expr.groupby('name').agg(expr.id.sum())
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 4]
+        ]
 
         self.assertEqual(expected, result)
 
@@ -1224,6 +1319,35 @@ class Test(TestBase):
             self.assertEqual(expect_r[0], actual_r[0])
             self.assertAlmostEqual(expect_r[1], actual_r[1])
 
+        expr = self.expr[
+            (self.expr['name'] + ',' + self.expr['id'].astype('string')).rename('name'),
+            self.expr.id
+        ]
+        expr = expr.groupby('name').agg(expr.id.agg(Aggregator).rename('id'))
+
+        expected = [
+            ['name1,4', 4],
+            ['name1,3', 3],
+            ['name2,2', 2],
+        ]
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr = self.expr[self.expr.name, Scalar(1).rename('id')]
+        expr = expr.groupby('name').agg(expr.id.sum())
+
+        expected = [
+            ['name1', 4],
+            ['name2', 1]
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(expected, result)
+
     def testJoin(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -1393,8 +1517,8 @@ class Test(TestBase):
 
     def testPersist(self):
         data = [
-            ['name1', 4, 5.3, None, None, None],
-            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 5.3, True, Decimal('3.14'), datetime(1999, 5, 25, 3, 10)],
+            ['name2', 2, 3.5, False, None, None],
             ['name1', 4, 4.2, None, None, None],
             ['name1', 3, 2.2, None, None, None],
             ['name1', 3, 4.1, None, None, None],

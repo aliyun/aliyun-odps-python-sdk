@@ -124,6 +124,71 @@ API会寻找名字相同的列，并作为join的条件。
 
 
 
+.. raw:: html
+
+    <div style='padding-bottom: 30px; overflow:scroll;'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>movie_id</th>
+          <th>title</th>
+          <th>release_date</th>
+          <th>video_release_date</th>
+          <th>imdb_url</th>
+          <th>user_id</th>
+          <th>rating</th>
+          <th>unix_timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>3</td>
+          <td>Four Rooms (1995)</td>
+          <td>01-Jan-1995</td>
+          <td></td>
+          <td>http://us.imdb.com/M/title-exact?Four%20Rooms%...</td>
+          <td>49</td>
+          <td>3</td>
+          <td>888068877</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>3</td>
+          <td>Four Rooms (1995)</td>
+          <td>01-Jan-1995</td>
+          <td></td>
+          <td>http://us.imdb.com/M/title-exact?Four%20Rooms%...</td>
+          <td>621</td>
+          <td>5</td>
+          <td>881444887</td>
+        </tr>
+        <tr>
+          <th>2</th>
+          <td>3</td>
+          <td>Four Rooms (1995)</td>
+          <td>01-Jan-1995</td>
+          <td></td>
+          <td>http://us.imdb.com/M/title-exact?Four%20Rooms%...</td>
+          <td>291</td>
+          <td>3</td>
+          <td>874833936</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+
+在join时，on条件两边的字段名称相同时，只会选择一个，其他类型的join则会被重命名。
+
+
+.. code:: python
+
+    movies.left_join(ratings, on='movie_id').head(3)
+
+
 
 .. raw:: html
 
@@ -186,7 +251,8 @@ API会寻找名字相同的列，并作为join的条件。
 
 
 
-可以看到，\ ``movie_id``\ 被重命名为movie\_id\_x，以及movie\_id\_y，这和\ ``suffixes``\ 参数有关（默认是\ ``('_x', '_y')``\ ），当遇到重名的列时，就会被重命名为指定的后缀。
+可以看到，\ ``movie_id``\ 被重命名为movie\_id\_x，以及movie\_id\_y，这和\ ``suffixes``\ 参数有关（默认是\ ``('_x', '_y')``\ ），
+当遇到重名的列时，就会被重命名为指定的后缀。
 
 .. code:: python
 

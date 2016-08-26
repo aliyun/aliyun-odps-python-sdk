@@ -84,6 +84,9 @@ class Room(object):
     def __getitem__(self, item):
         return self.fetch(item)
 
+    def __delitem__(self, key):
+        self.drop(key)
+
     def _obj_store_dir(self, name):
         fn = md5(to_binary(name)).hexdigest()
         return os.path.join(self._room_dir, fn)

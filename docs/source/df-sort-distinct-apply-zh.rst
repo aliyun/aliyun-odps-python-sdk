@@ -596,7 +596,15 @@
 =======
 
 
-要对一个collection的数据采样，可以调用 ``sample`` 方法。
+要对一个 collection 的数据采样，可以调用 ``sample`` 方法。PyODPS 支持四种采样方式。
+
+.. warning::
+    除了按份数采样外，其余方法如果要在 ODPS DataFrame 上执行，需要 Project 支持 XFlow，否则，这些方法只能在
+    Pandas DataFrame 上执行。
+
+- 按份数采样
+
+在这种采样方式下，数据被分为``parts``份，可选择选取的份数序号。
 
 .. code:: python
 
@@ -605,6 +613,33 @@
     iris.sample(parts=10, i=[2, 5])   # 分成10份，取第2和第5份
     iris.sample(parts=10, columns=['name', 'sepalwidth'])  # 根据name和sepalwidth的值做采样
 
+- 按比例 / 条数采样
+
+在这种采样方式下，用户指定需要采样的数据条数或采样比例。指定``replace``参数为 True 可启用放回采样。
+
+.. code:: python
+
+    iris.sample(n=100)  # 选取100条数据
+    iris.sample(frac=0.3)  # 采样30%的数据
+
+- 按权重列采样
+
+在这种采样方式下，用户指定权重列和数据条数 / 采样比例。指定``replace``参数为 True 可启用放回采样。
+
+.. code:: python
+
+    iris.sample(n=100, weights='sepal_length')
+    iris.sample(n=100, weights='sepal_width', replace=True)
+
+- 分层采样
+
+在这种采样方式下，用户指定用于分层的标签列，同时为需要采样的每个标签指定采样比例（``frac``参数）或条数
+（``strata``参数）。暂不支持放回采样。
+
+.. code:: python
+
+    iris.sample(strata='category', n={'Iris Setosa': 10, 'Iris Versicolour': 10})
+    iris.sample(strata='category', frac={'Iris Setosa': 0.5, 'Iris Versicolour': 0.4})
 
 用Apply对所有行或者所有列调用自定义函数
 =============================================
@@ -653,7 +688,6 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
       </tbody>
     </table>
     </div>
-
 
 
 ``reduce``\ 为True时，表示返回结果为Sequence，否则返回结果为Collection。
@@ -705,6 +739,19 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
         yield row.petallength - row.petalwidth, row.petallength + row.petalwidth
 
     iris.apply(handle, axis=1).count()
+
+
+.. code:: python
+
+    300
+
+
+也可以使用 map-only 的map_reduce，和 axis=1 的apply操作是等价的。
+
+
+.. code:: python
+
+    iris.map_reduce(mapper=handle).count()
 
 
 .. code:: python
@@ -770,7 +817,7 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
 ~~~~~~~~~~~~~
 
 
-类似于对 ``map`` 方法的resources参数，每个resource可以是ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。
+类似于对 :ref:`map <map>` 方法的resources参数，每个resource可以是ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。
 
 对于axis为1，也就是在行上操作，我们需要写一个函数闭包或者callable的类。
 而对于列上的聚合操作，我们只需在 \_\_init\_\_ 函数里读取资源即可。
@@ -862,13 +909,37 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
 可以看到这里的stop_words是存放于本地，但在真正执行时会被上传到ODPS作为资源引用。
 
 
+使用第三方纯Python库
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+使用方法类似 :ref:`map中使用第三方纯Python库 <third_party_library>` 。
+
+可以在全局指定使用的库：
+
+.. code:: python
+
+    from odps import options
+    options.df.libraries = ['six.whl', 'python_dateutil.whl']
+
+
+或者在立即执行的方法中，局部指定：
+
+
+.. code:: python
+
+    df.apply(my_func, axis=1).to_pandas(libraries=['six.whl', 'python_dateutil.whl'])
+
+
+.. _map_reduce:
 
 
 MapReduce API
 ==============
 
 
-PyODPS DataFrame也支持MapReduce API，用户可以分别编写map和reduce函数。我们来看个简单的wordcount的例子。
+PyODPS DataFrame也支持MapReduce API，用户可以分别编写map和reduce函数（map_reduce可以只有mapper或者reducer过程）。
+我们来看个简单的wordcount的例子。
 
 
 .. code:: python
@@ -1054,7 +1125,23 @@ group参数用来指定reduce按哪些字段做分组，如果不指定，会按
     </div>
 
 
-有时候我们在迭代的时候需要按某些列排序，则可以使用 ``sort``\ 参数，来指定按哪些列排序。
+有时候我们在迭代的时候需要按某些列排序，则可以使用 ``sort``\ 参数，来指定按哪些列排序，升序降序则通过 ``ascending``\ 参数指定。
+``ascending`` 参数可以是一个bool值，表示所有的 ``sort``\ 字段是相同升序或降序，
+也可以是一个列表，长度必须和 ``sort``\ 字段长度相同。
+
+
+指定combiner
+~~~~~~~~~~~~~~
+
+combiner表示在map_reduce API里表示在mapper端，就先对数据进行聚合操作，它的用法和reducer是完全一致的，但不能引用资源。
+并且，combiner的输出的字段名和字段类型必须和mapper完全一致。
+
+上面的例子，我们就可以使用reducer作为combiner来先在mapper端对数据做初步的聚合，减少shuffle出去的数据量。
+
+.. code:: python
+
+    words_df.map_reduce(mapper, reducer, combiner=reducer, group='word')
+
 
 
 引用资源
@@ -1145,6 +1232,29 @@ group参数用来指定reduce按哪些字段做分组，如果不指定，会按
       </tbody>
     </table>
     </div>
+
+
+使用第三方纯Python库
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+使用方法类似 :ref:`map中使用第三方纯Python库 <third_party_library>` 。
+
+可以在全局指定使用的库：
+
+.. code:: python
+
+    from odps import options
+    options.df.libraries = ['six.whl', 'python_dateutil.whl']
+
+
+或者在立即执行的方法中，局部指定：
+
+
+.. code:: python
+
+    df.map_reduce(mapper=my_mapper, reducer=my_reducer, group='key').execute(libraries=['six.whl', 'python_dateutil.whl'])
+
 
 
 布隆过滤器

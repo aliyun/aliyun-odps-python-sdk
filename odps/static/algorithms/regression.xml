@@ -3,21 +3,22 @@
     <algorithm codeName="LinearRegression">
         <reloadFields>false</reloadFields>
         <docs><![CDATA[
-将输入表的数据，选择某些列作为feature，某一列作为label，进行线性回归训练，产生线性回归模型
+        将输入表的数据，选择某些列作为feature，某一列作为label，进行线性回归训练，产生线性回归模型
 
-%params%
-%inputs%
-%outputs%]]></docs>
+        %params%
+        ]]></docs>
         <params>
             <param name="inputTableName">
                 <exporter>get_input_table_name</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="featureColNames">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="labelColName">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
             </param>
@@ -79,21 +80,21 @@
     </algorithm>
     <algorithm codeName="xgboost">
         <docs><![CDATA[
-xgboost是一种高效率boosting算法，适用回归和二分类问题，详见 https://github.com/dmlc/xgboost 。
-PAI平台目前只开放树形模型（gbtree），暂不开放线性模型（gblinear）。
+        xgboost是一种高效率boosting算法，适用回归和二分类问题，详见 https://github.com/dmlc/xgboost 。
+        PAI平台目前只开放树形模型（gbtree），暂不开放线性模型（gblinear）。
 
-%params%
-%inputs%
-%outputs%
-]]></docs>
+        %params%
+        ]]></docs>
         <reloadFields>false</reloadFields>
         <params>
             <param name="featureColNames">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
                 <docs>输入表中用于训练的特征的列名</docs>
             </param>
             <param name="labelColName">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入表中标签列的列名</docs>
@@ -202,24 +203,22 @@ PAI平台目前只开放树形模型（gbtree），暂不开放线性模型（gb
     <algorithm codeName="GBDT">
         <reloadFields>false</reloadFields>
         <docs><![CDATA[
-Gradient Boosting Decision Tree is a machine learning technique for regression problems, which produces a prediction
-model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in
-a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary
-differentiable loss function. The gradient boosting method can also be used for classification problems by reducing them
-to regression with a suitable loss function.
+        Gradient Boosting Decision Tree is a machine learning technique for regression problems, which produces a prediction
+        model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in
+        a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary
+        differentiable loss function. The gradient boosting method can also be used for classification problems by reducing them
+        to regression with a suitable loss function.
 
-GBDT could be used in all regression problems (linear/ nonlinear) while logistic regression can only be used for linear
-regression. So the application of GBDT is very wide.
+        GBDT could be used in all regression problems (linear/ nonlinear) while logistic regression can only be used for linear
+        regression. So the application of GBDT is very wide.
 
-%params%
-%inputs%
-%outputs%
+        %params%
 
-Example:
-    >>> labeled = ds.label_field('class')
-    >>> model = GBDT(tree_count=500).train(labeled)
-    >>> predicted = model.predict(dataset_to_be_predicted)
-    >>> predicted.store_odps('predicted')
+        :Example:
+        >>> labeled = ds.label_field('class')
+        >>> model = GBDT(tree_count=500).train(labeled)
+        >>> predicted = model.predict(dataset_to_be_predicted)
+        >>> predicted.store_odps('predicted')
         ]]></docs>
         <params>
             <param name="inputTableName" required="true">
@@ -236,11 +235,13 @@ Example:
                 <docs>name of modle to be output</docs>
             </param>
             <param name="labelColName" required="true">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of label column selected from input table</docs>
             </param>
             <param name="featureColNames" required="true">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
                 <docs>feature columns of input table, used for training</docs>

@@ -17,9 +17,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from collections import namedtuple
-import uuid
 import itertools
+import json
+from collections import namedtuple
 from datetime import datetime
 
 from ..core import Backend
@@ -71,11 +71,11 @@ UNARY_OP_TO_PANDAS = {
 if pd:
     SORT_CUM_WINDOW_OP_TO_PANDAS = {
         'CumSum': pd.expanding_sum,
-        'CumMean': pd.expanding_mean,
+        'CumMean': lambda s: s.expanding(min_periods=1).mean(),
         'CumMedian': pd.expanding_median,
         'CumStd': pd.expanding_std,
-        'CumMin': pd.expanding_min,
-        'CumMax': pd.expanding_max,
+        'CumMin': lambda s: s.expanding(min_periods=1).min(),
+        'CumMax': lambda s: s.expanding(min_periods=1).max(),
         'CumCount': pd.expanding_count,
     }
 
@@ -144,7 +144,7 @@ class PandasCompiler(Backend):
         nodes.append(expr._lhs)
         self._compile(expr._rhs)
         nodes.append(expr._rhs)
-        for node in self._find_all_equalizations(expr._predicate, expr._lhs, expr._rhs):
+        for node in expr._predicate:
             nodes.append(node._lhs)
             self._compile(node._lhs, traversed)
             nodes.append(node._rhs)
@@ -157,10 +157,12 @@ class PandasCompiler(Backend):
         cached_args = expr.args
 
         def cb():
-            expr._cached_args = cached_args
+            for arg_name, arg in zip(expr._args, cached_args):
+                setattr(expr, arg_name, arg)
         self._callbacks.append(cb)
 
-        expr._cached_args = [None] * len(expr.args)
+        for arg_name in expr._args:
+            setattr(expr, arg_name, None)
 
     @classmethod
     def _retrieve_until_find_root(cls, expr):
@@ -419,7 +421,7 @@ class PandasCompiler(Backend):
                             break
                     if not is_reduction:
                         fields[i] = fields[i].groupby(bys).first()
-                if len(fields[i]) == 1:
+                elif len(fields[i]) == 1:
                     fields[i] = pd.Series(fields[i] * length,
                                           name=fields_exprs[i].name).groupby(bys).first()
 
@@ -500,6 +502,10 @@ class PandasCompiler(Backend):
             i = kw.get(expr._i)
             n = kw.get(expr._n)
             frac = kw.get(expr._frac)
+            replace = kw.get(expr._replace)
+            weights = kw.get(expr._weights)
+            strata = kw.get(expr._strata)
+            random_state = kw.get(expr._random_state)
             if expr._sampled_fields:
                 collection = pd.DataFrame(
                     pd.concat([kw.get(e) for e in expr._sampled_fields], axis=1).values,
@@ -511,7 +517,23 @@ class PandasCompiler(Backend):
                 frac = 1 / float(parts)
             if i is not None and (len(i) != 1 or i[0] > 0):
                 raise NotImplementedError
-            sampled = collection.sample(n=n, frac=frac)
+            if not strata:
+                sampled = collection.sample(n=n, frac=frac, replace=replace, weights=weights,
+                                            random_state=random_state)
+            else:
+                frames = []
+                frac = json.loads(frac) if expr._frac else dict()
+                n = json.loads(n) if expr._n else dict()
+                for val in itertools.chain(six.iterkeys(frac), six.iterkeys(n)):
+                    v_frac = frac.get(val)
+                    v_n = n.get(val)
+                    filtered = collection[collection[strata].astype(str) == val]
+                    sampled = filtered.sample(n=v_n, frac=v_frac, replace=replace, random_state=random_state)
+                    frames.append(sampled)
+                if frames:
+                    sampled = pd.concat(frames)
+                else:
+                    sampled = pd.DataFrame(columns=collection.columns)
             if expr._sampled_fields:
                 return pd.concat([input, sampled], axis=1, join='inner')[
                     [n for n in input.columns.tolist()]]
@@ -532,21 +554,22 @@ class PandasCompiler(Backend):
     def _compile_grouped_reduction(self, kw, expr):
         if isinstance(expr, GroupedCount) and isinstance(expr._input, CollectionExpr):
             df = kw.get(expr.input)
-            grouped = expr._grouped
 
             bys = [[kw.get(by), ] if isinstance(by, Scalar) else kw.get(by)
-                   for by in grouped._by]
-            if any(isinstance(e, SequenceExpr) for e in grouped._by):
-                size = max(len(by) for by, e in zip(bys, grouped._by)
+                   for by in expr._by]
+            if any(isinstance(e, SequenceExpr) for e in expr._by):
+                size = max(len(by) for by, e in zip(bys, expr._by)
                            if isinstance(e, SequenceExpr))
             else:
                 size = len(df)
             bys = [(by * size if len(by) == 1 else by) for by in bys]
             return df.groupby(bys).size()
 
-        grouped = expr._grouped
-        series = kw.get(expr.input)
-        bys = self._get_compiled_bys(kw, grouped._by, len(series))
+        series = kw.get(expr.input) if isinstance(expr.input, SequenceExpr) \
+            else pd.Series([kw.get(expr.input)], name=expr.input.name)
+        bys = self._get_compiled_bys(kw, expr._by, len(series))
+        if isinstance(expr.input, Scalar):
+            series = pd.Series(series.repeat(len(bys[0])).values, index=bys[0].index)
 
         kv = dict()
         if hasattr(expr, '_ddof'):
@@ -597,13 +620,11 @@ class PandasCompiler(Backend):
 
             if isinstance(expr, GroupedSequenceReduction):
                 bys = [[kw.get(by), ] if isinstance(by, Scalar) else kw.get(by)
-                       for by in expr._grouped._by]
-                grouped = expr._grouped
+                       for by in expr._by]
             else:
                 bys = [[1, ]]
-                grouped = None
-            if grouped and any(isinstance(e, SequenceExpr) for e in grouped._by):
-                size = max(len(by) for by, e in zip(bys, grouped._by)
+            if expr._by and any(isinstance(e, SequenceExpr) for e in expr._by):
+                size = max(len(by) for by, e in zip(bys, expr._by)
                            if isinstance(e, SequenceExpr))
             else:
                 size = len(input)
@@ -937,7 +958,7 @@ class PandasCompiler(Backend):
             left = kw.get(expr._lhs)
             right = kw.get(expr._rhs)
 
-            eqs = self._find_all_equalizations(expr._predicate, expr._lhs, expr._rhs)
+            eqs = expr._predicate
 
             left_ons = []
             right_ons = []
@@ -968,7 +989,14 @@ class PandasCompiler(Backend):
             merged = left.merge(right, how=JOIN_DICT[expr._how], left_on=left_ons,
                                 right_on=right_ons,
                                 suffixes=(expr._left_suffix, expr._right_suffix))
-            return merged[expr.schema.names]
+            cols = []
+            for name in expr.schema.names:
+                if name in merged:
+                    cols.append(merged[name])
+                else:
+                    cols.append(merged[expr._column_origins[name][1]])
+
+            return pd.concat(cols, axis=1, keys=expr.schema.names)
 
         # Just add node, shouldn't add edge here
         node = (expr, handle)

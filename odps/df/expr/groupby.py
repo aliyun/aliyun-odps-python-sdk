@@ -17,9 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import itertools
 import operator
-import inspect
 
 from ...models import Schema
 from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
@@ -69,7 +67,7 @@ class BaseGroupBy(Expr):
         if attr in object.__getattribute__(self, '_to_agg'):
             return self[attr]
 
-        return super(BaseGroupBy, self).__getattribute__(attr)
+        return super(BaseGroupBy, self).__getattr__(attr)
 
     def sort_values(self, by, ascending=True):
         if hasattr(self, '_having') and self._having is not None:
@@ -157,7 +155,10 @@ class GroupBy(BaseGroupBy):
     def _validate_agg(self, agg):
         from .reduction import GroupedSequenceReduction
 
+        no_path = True
         for path in agg.all_path(self._input):
+            no_path = False
+
             has_reduction = False
             not_self = False
             for n in path:
@@ -175,6 +176,10 @@ class GroupBy(BaseGroupBy):
                     'Aggregation has not been applied to the right GroupBy: %s' % repr_obj(agg))
             if not has_reduction:
                 raise ExpressionError('No aggregation found in %s' % repr_obj(agg))
+
+        if no_path:
+            raise ExpressionError(
+                'Aggregation should be applied to the column of %s' % repr_obj(self._input))
 
     def _transform(self, reduction_expr):
         if isinstance(reduction_expr, Scalar):
@@ -359,7 +364,7 @@ class GroupByCollectionExpr(CollectionExpr):
     node_name = 'GroupBy'
 
     def _init(self, *args, **kwargs):
-        self._fields = None
+        self._init_attr('_fields', None)
 
         super(GroupByCollectionExpr, self)._init(*args, **kwargs)
 
@@ -398,10 +403,11 @@ class GroupByCollectionExpr(CollectionExpr):
 
 
 class MutateCollectionExpr(CollectionExpr):
-    _args = '_input', '_by', '_window_fields'
+    _args = '_input', '_by', '_window_fields', '_fields'
     node_name = 'Mutate'
 
     def _init(self, *args, **kwargs):
+        self._init_attr('_fields', None)
         super(MutateCollectionExpr, self)._init(*args, **kwargs)
 
         if isinstance(self._input, GroupBy):
@@ -422,6 +428,9 @@ class MutateCollectionExpr(CollectionExpr):
 
     @property
     def fields(self):
+        if self._fields is not None:
+            return self._fields
+
         return self._by + self._window_fields
 
     def accept(self, visitor):
@@ -429,12 +438,13 @@ class MutateCollectionExpr(CollectionExpr):
 
 
 class GroupbyAppliedCollectionExpr(CollectionExpr):
-    __slots__ = '_func', '_func_args', '_func_kwargs', '_resources'
+    __slots__ = '_func', '_func_args', '_func_kwargs', '_resources', '_raw_inputs'
     _args = '_input', '_by', '_sort_fields', '_fields', '_collection_resources'
     node_name = 'Apply'
 
     def _init(self, *args, **kwargs):
-        self._sort_fields = None
+        self._init_attr('_sort_fields', None)
+        self._init_attr('_raw_inputs', None)
 
         super(GroupbyAppliedCollectionExpr, self)._init(*args, **kwargs)
 
@@ -464,7 +474,9 @@ class GroupbyAppliedCollectionExpr(CollectionExpr):
 
     @property
     def raw_input_types(self):
-        return [f.dtype for f in self._get_attr('_fields')]
+        if self._raw_inputs:
+            return [f.dtype for f in self._raw_inputs]
+        return self.input_types
 
     @property
     def func(self):
@@ -511,9 +523,10 @@ class ValueCounts(CollectionExpr):
     def _init(self, *args, **kwargs):
         super(ValueCounts, self)._init(*args, **kwargs)
 
-        self._by = self._input
-        self._input = next(it for it in self._input.traverse(top_down=True)
-                           if isinstance(it, CollectionExpr))
+        if isinstance(self._input, SequenceExpr):
+            self._by = self._input
+            self._input = next(it for it in self._input.traverse(top_down=True)
+                               if isinstance(it, CollectionExpr))
         if isinstance(self._sort, bool):
             self._sort = Scalar(_value=self._sort)
 
@@ -537,6 +550,8 @@ def value_counts(expr, sort=True):
     element. Exclude NA values by default
 
     :param expr: sequence
+    :param sort: if sort
+    :type sort: bool
     :return: collection with two columns
     :rtype: :class:`odps.df.expr.expressions.CollectionExpr`
     """

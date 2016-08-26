@@ -2,19 +2,17 @@
 <algorithms baseClass="BaseProcessAlgorithm">
     <algorithm codeName="KMeans">
         <docs><![CDATA[
-K均值聚类是一种得到最广泛使用的聚类算法，把n个对象分为k个簇，使簇内具有较高的相似度。相似度的计算根据一个簇中对象的平均值来
-进行。它与处理混合正态分布的最大期望算法很相似，因为他们都试图找到数据中自然聚类的中心。
+        K均值聚类是一种得到最广泛使用的聚类算法，把n个对象分为k个簇，使簇内具有较高的相似度。相似度的计算根据一个簇中对象的平均值来
+        进行。它与处理混合正态分布的最大期望算法很相似，因为他们都试图找到数据中自然聚类的中心。
 
-算法首先随机地选择k个对象，每个对象初始地代表了一个簇的平均值或中心。对剩余的每个对象根据其与各个簇中心的距离，将它赋给最近的
-簇，然后重新计算每个簇的平均值。这个过程不断重复，直到准则函数收敛。
+        算法首先随机地选择k个对象，每个对象初始地代表了一个簇的平均值或中心。对剩余的每个对象根据其与各个簇中心的距离，将它赋给最近的
+        簇，然后重新计算每个簇的平均值。这个过程不断重复，直到准则函数收敛。
 
-它假设对象属性来自于空间向量，并且目标是使各个群组内部的均方误差总和最小。更多详细介绍请点击
-`这里 <http://www.cs.cmu.edu/~guestrin/Class/10701-S07/Slides/clustering.pdf>`_。
+        它假设对象属性来自于空间向量，并且目标是使各个群组内部的均方误差总和最小。更多详细介绍请点击
+        `这里 <http://www.cs.cmu.edu/~guestrin/Class/10701-S07/Slides/clustering.pdf>`_。
 
-%params%
-%inputs%
-%outputs%
-]]></docs>
+        %params%
+        ]]></docs>
         <reloadFields>false</reloadFields>
         <params>
             <param name="inputTableName" required="true">
@@ -100,8 +98,7 @@ K均值聚类是一种得到最广泛使用的聚类算法，把n个对象分为
                 <sequence>2</sequence>
                 <type>DATA</type>
                 <schema>
-                    <dynamic>true</dynamic>
-                    <schema>$package_root.clustering.customize.kmeans_centroid</schema>
+                    <schema>{selectedColNames}</schema>
                 </schema>
             </port>
         </ports>

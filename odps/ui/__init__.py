@@ -16,5 +16,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .common import init_frontend_scripts, html_notify
+from .common import html_notify
 from .progress import create_instance_group, fetch_instance_group, reload_instance_status, ProgressGroupUI

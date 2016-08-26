@@ -1,5 +1,6 @@
 recursive-include odps/static *.*
 recursive-include odps/internal/static *.*
+prune odps/static/ui/node_modules
 include requirements.txt
 global-include *.pyx
 global-include *.pxd

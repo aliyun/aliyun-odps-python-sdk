@@ -60,7 +60,7 @@ class Resource(LazyLoad):
     last_modified_time = serializers.XMLNodeField('LastModifiedTime', parse_callback=utils.parse_rfc822)
     last_updator = serializers.XMLNodeField('LastUpdator')
     size = serializers.XMLNodeField('ResourceSize', parse_callback=int)
-    source_table_name =  serializers.XMLNodeField('TableName')
+    source_table_name = serializers.XMLNodeField('TableName')
 
     @classmethod
     def _get_cls(cls, typo):

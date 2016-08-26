@@ -238,22 +238,5 @@ class Test(TestBase):
         except ImportError:
             pass
 
-    def testReplayDescendants(self):
-        schema = Schema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
-        table._client = self.config.odps.rest
-        expr = CollectionExpr(_source_data=table, _schema=schema)
-
-        df = expr[expr.fid > 10]
-
-        new_schema = Schema.from_lists(['name', 'id', 'fid', 'ffid'],
-                                       [types.string, types.int64, types.float64, types.float64])
-        new_table = MockTable(name='pyodps_test_expr_table', schema=new_schema)
-        new_table._client = self.config.odps.rest
-        CollectionExpr(_source_data=new_table, _schema=new_schema)._copy_to(expr)
-        expr._replay_descendants()
-
-        self.assertListEqual(['name', 'id', 'fid', 'ffid'], [c.name for c in df.columns])
-
 if __name__ == '__main__':
     unittest.main()

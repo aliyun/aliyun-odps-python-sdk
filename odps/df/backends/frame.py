@@ -31,6 +31,8 @@ from ...config import options
 from ...console import get_console_size, in_interactive_session, \
     in_ipython_frontend, in_qtconsole
 from ...utils import to_str
+from ...models import Schema
+from ...types import Partition
 from . import formatter as fmt
 
 
@@ -72,6 +74,11 @@ class ResultFrame(six.Iterator):
     @property
     def columns(self):
         return self._columns
+
+    @property
+    def schema(self):
+        return Schema(columns=[col for col in self._columns if not isinstance(col, Partition)],
+                      partitions=[col for col in self._columns if isinstance(col, Partition)])
 
     @property
     def index(self):
@@ -247,6 +254,12 @@ class ResultFrame(six.Iterator):
         # XXX: In IPython 3.x and above, the Qt console will not attempt to
         # display HTML, so this check can be removed when support for IPython 2.x
         # is no longer needed.
+
+        if self._pandas and options.display.notebook_repr_widget:
+            from .. import DataFrame
+            from ..ui import show_df_widget
+            show_df_widget(DataFrame(self._values, schema=self.schema))
+
         if self._pandas:
             return self._values._repr_html_()
 

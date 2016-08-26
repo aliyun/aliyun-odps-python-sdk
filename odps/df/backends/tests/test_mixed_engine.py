@@ -141,8 +141,7 @@ class Test(TestBase):
         self.assertEqual(len(result), 2)
         self.assertIsNotNone(df._cache_data)
 
-        new_df = self.engine._pre_process(df)
-        _, new_df, cbs = self.engine._compile(new_df)
+        _, new_df, cbs = self.engine._compile(df)
         try:
             self.assertIsNotNone(new_df._source_data)
         finally:
@@ -158,8 +157,7 @@ class Test(TestBase):
         self.assertIsNotNone(df._cache_data)
 
         df2 = df[df.id < 10]
-        new_df2 = self.engine._pre_process(df2)
-        _, new_df2, cbs = self.engine._compile(new_df2)
+        _, new_df2, cbs = self.engine._compile(df2)
         try:
             self.assertIsNotNone(new_df2.input._source_data)
         finally:

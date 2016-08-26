@@ -29,8 +29,9 @@ from ...expr.groupby import GroupbyAppliedCollectionExpr
 from ...expr.reduction import Aggregation, GroupedAggregation
 from ...expr.utils import get_executed_collection_table_name
 from ...utils import make_copy
+from ....config import options
 from ....lib import cloudpickle
-from ....compat import OrderedDict, six
+from ....compat import OrderedDict, six, PY26, PY27
 from ....models import FileResource, TableResource
 from ....utils import to_str
 
@@ -39,25 +40,52 @@ CLOUD_PICKLE_FILE = os.path.join(dirname, 'cloudpickle.py')
 with open(CLOUD_PICKLE_FILE) as f:
     CLOUD_PICKLE = f.read()
 
-CLIENT_IMPL = 'CP2' if six.PY2 else 'CP3'
+IMPORT_FILE = os.path.join(dirname, 'importer.py')
+with open(IMPORT_FILE) as f:
+    MEM_IMPORT = f.read()
+
+CLIENT_IMPL = 'CP27'
+if six.PY3:
+    CLIENT_IMPL = 'CP3'
+elif PY26:
+    CLIENT_IMPL = 'CP26'
+elif PY27:
+    CLIENT_IMPL = 'CP27'
+
 if platform.python_implementation().lower() == 'pypy':
     CLIENT_IMPL = 'PYPY2'
 elif platform.python_implementation().lower() == 'jython':
     CLIENT_IMPL = 'JYTHON2'
 
 
+READ_LIB = '''\
+def read_lib(lib, f):
+    if lib.endswith('.zip') or lib.endswith('.egg') or lib.endswith('.whl'):
+        return zipfile.ZipFile(f)
+    elif lib.endswith('.tar') or lib.endswith('.tar.gz') or lib.endswith('.tar.bz2'):
+        from io import BytesIO
+        if lib.endswith('.tar'):
+            mode = 'r'
+        else:
+            mode = 'r:gz' if lib.endswith('.tar.gz') else 'r:bz2'
+        return tarfile.open(fileobj=BytesIO(f.read()), mode=mode)
+
+    raise ValueError(
+        'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
+'''
+
+
 UDF_TMPL = '''\
 %(cloudpickle)s
+%(memimport)s
+
+%(readlib)s
 
 import base64
 from collections import namedtuple
 import time
 import inspect
-
-try:
-    import numpy
-except ImportError:
-    pass
+import sys
 
 try:
     import numpy
@@ -71,7 +99,8 @@ from odps.distcache import get_cache_file, get_cache_table
 class %(func_cls_name)s(object):
 
     def __init__(self):
-        rs = loads(base64.b64decode('%(resources)s'), impl='%(implementation)s')
+        unpickler_kw = dict(impl='%(implementation)s', dump_code=%(dump_code)s)
+        rs = loads(base64.b64decode('%(resources)s'), **unpickler_kw)
         resources = []
         for t, n, fields in rs:
             if t == 'file':
@@ -85,7 +114,7 @@ class %(func_cls_name)s(object):
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
-        self.f = loads(f_str, impl='%(implementation)s')
+        self.f = loads(f_str, **unpickler_kw)
 
         if inspect.isfunction(self.f):
             if resources:
@@ -100,14 +129,21 @@ class %(func_cls_name)s(object):
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
-        self.args = loads(func_args_str, impl='%(implementation)s') or tuple()
+        self.args = loads(func_args_str, **unpickler_kw) or tuple()
 
         encoded_func_kwargs = '%(func_kwargs_str)s'
         func_kwargs_str = base64.b64decode(encoded_func_kwargs)
-        self.kwargs = loads(func_kwargs_str, impl='%(implementation)s') or dict()
+        self.kwargs = loads(func_kwargs_str, **unpickler_kw) or dict()
 
         self.from_types = '%(raw_from_type)s'.split(',')
         self.to_type = '%(to_type)s'
+
+        libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
+        files = []
+        for lib in libraries:
+            f = get_cache_file(lib)
+            files.append(read_lib(lib, f))
+        sys.meta_path.append(CompressImporter(*files))
 
     def _handle_input(self, args):
         from datetime import datetime
@@ -154,6 +190,9 @@ class %(func_cls_name)s(object):
 
 UDTF_TMPL = '''\
 %(cloudpickle)s
+%(memimport)s
+
+%(readlib)s
 
 import base64
 import inspect
@@ -172,7 +211,8 @@ from odps.distcache import get_cache_file, get_cache_table
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(BaseUDTF):
     def __init__(self):
-        rs = loads(base64.b64decode('%(resources)s'), impl='%(implementation)s')
+        unpickler_kw = dict(impl='%(implementation)s', dump_code=%(dump_code)s)
+        rs = loads(base64.b64decode('%(resources)s'), **unpickler_kw)
         resources = []
         for t, n, fields in rs:
             if t == 'file':
@@ -186,7 +226,7 @@ class %(func_cls_name)s(BaseUDTF):
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
-        self.f = loads(f_str, impl='%(implementation)s')
+        self.f = loads(f_str, **unpickler_kw)
         if inspect.isfunction(self.f):
             if resources:
                 self.f = self.f(resources)
@@ -205,16 +245,23 @@ class %(func_cls_name)s(BaseUDTF):
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
-        self.args = loads(func_args_str, impl='%(implementation)s') or tuple()
+        self.args = loads(func_args_str, **unpickler_kw) or tuple()
 
         encoded_func_kwargs = '%(func_kwargs_str)s'
         func_kwargs_str = base64.b64decode(encoded_func_kwargs)
-        self.kwargs = loads(func_kwargs_str, impl='%(implementation)s') or dict()
+        self.kwargs = loads(func_kwargs_str, **unpickler_kw) or dict()
 
         self.names = tuple(it for it in '%(names_str)s'.split(',') if it)
 
         self.from_types = '%(raw_from_type)s'.split(',')
         self.to_types = '%(to_type)s'.split(',')
+
+        libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
+        files = []
+        for lib in libraries:
+            f = get_cache_file(lib)
+            files.append(read_lib(lib, f))
+        sys.meta_path.append(CompressImporter(*files))
 
     def _handle_input(self, args):
         from datetime import datetime
@@ -289,6 +336,9 @@ class %(func_cls_name)s(BaseUDTF):
 
 UDAF_TMPL = '''\
 %(cloudpickle)s
+%(memimport)s
+
+%(readlib)s
 
 import base64
 import inspect
@@ -307,7 +357,8 @@ from odps.distcache import get_cache_file, get_cache_table
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(BaseUDAF):
     def __init__(self):
-        rs = loads(base64.b64decode('%(resources)s'), impl='%(implementation)s')
+        unpickler_kw = dict(impl='%(implementation)s', dump_code=%(dump_code)s)
+        rs = loads(base64.b64decode('%(resources)s'), **unpickler_kw)
         resources = []
         for t, n, fields in rs:
             if t == 'file':
@@ -321,15 +372,15 @@ class %(func_cls_name)s(BaseUDAF):
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
-        args = loads(func_args_str, impl='%(implementation)s') or tuple()
+        args = loads(func_args_str, **unpickler_kw) or tuple()
 
         encoded_func_kwargs = '%(func_kwargs_str)s'
         func_kwargs_str = base64.b64decode(encoded_func_kwargs)
-        kwargs = loads(func_kwargs_str, impl='%(implementation)s') or dict()
+        kwargs = loads(func_kwargs_str, **unpickler_kw) or dict()
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
-        agg = loads(f_str, impl='%(implementation)s')
+        agg = loads(f_str, **unpickler_kw)
         if resources:
             if not args and not kwargs:
                 self.f = agg(resources)
@@ -341,6 +392,13 @@ class %(func_cls_name)s(BaseUDAF):
 
         self.from_types = '%(raw_from_type)s'.split(',')
         self.to_type = '%(to_type)s'
+
+        libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
+        files = []
+        for lib in libraries:
+            f = get_cache_file(lib)
+            files.append(read_lib(lib, f))
+        sys.meta_path.append(CompressImporter(*files))
 
     def _handle_input(self, args):
         from datetime import datetime
@@ -388,9 +446,12 @@ class %(func_cls_name)s(BaseUDAF):
 '''
 
 
-def gen_udf(expr, func_cls_name=None):
+def gen_udf(expr, func_cls_name=None, libraries=None):
     func_to_udfs = OrderedDict()
     func_to_resources = OrderedDict()
+    if libraries is not None:
+        libraries = [lib if isinstance(lib, six.string_types) else lib.name
+                     for lib in libraries]
 
     for node in expr.traverse(unique=True):
         func = getattr(node, 'func', None)
@@ -438,16 +499,20 @@ def gen_udf(expr, func_cls_name=None):
             raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
             func_to_udfs[func] = UDF_TMPL % {
                 'cloudpickle': CLOUD_PICKLE,
+                'readlib': READ_LIB,
                 'raw_from_type': raw_from_type,
                 'from_type':  from_type,
                 'to_type': df_type_to_odps_type(node.data_type).name,
                 'func_cls_name': func_cls_name,
-                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func))),
-                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args))),
-                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs))),
+                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
+                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
+                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
                 'names_str': names_str,
-                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources]))),
+                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources], dump_code=options.df.dump_udf))),
                 'implementation': CLIENT_IMPL,
+                'dump_code': options.df.dump_udf,
+                'memimport': MEM_IMPORT,
+                'libraries': ','.join(libraries if libraries is not None else []),
             }
             if resources:
                 func_to_resources[func] = resources
@@ -458,32 +523,40 @@ def gen_udf(expr, func_cls_name=None):
             to_type = ','.join(df_type_to_odps_type(t).name for t in node.schema.types)
             func_to_udfs[func] = UDTF_TMPL % {
                 'cloudpickle': CLOUD_PICKLE,
+                'readlib': READ_LIB,
                 'raw_from_type': raw_from_type,
                 'from_type': from_type,
                 'to_type': to_type,
                 'func_cls_name': func_cls_name,
-                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func))),
-                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args))),
-                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs))),
-                'close_func_str': to_str(base64.b64encode(cloudpickle.dumps(getattr(node, '_close_func', None)))),
+                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
+                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
+                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
+                'close_func_str': to_str(base64.b64encode(cloudpickle.dumps(getattr(node, '_close_func', None), dump_code=options.df.dump_udf))),
                 'names_str': names_str,
                 'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources]))),
                 'implementation': CLIENT_IMPL,
+                'dump_code': options.df.dump_udf,
+                'memimport': MEM_IMPORT,
+                'libraries': ','.join(libraries if libraries is not None else []),
             }
             if resources:
                 func_to_resources[func] = resources
         elif isinstance(node, (Aggregation, GroupedAggregation)):
             func_to_udfs[func] = UDAF_TMPL % {
                 'cloudpickle': CLOUD_PICKLE,
+                'readlib': READ_LIB,
                 'raw_from_type': df_type_to_odps_type(node.raw_input.dtype).name,
                 'from_type': df_type_to_odps_type(node.input.dtype).name,
                 'to_type': df_type_to_odps_type(node.dtype).name,
                 'func_cls_name': func_cls_name,
-                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func))),
-                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args))),
-                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs))),
-                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources]))),
+                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
+                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
+                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
+                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources], dump_code=options.df.dump_udf))),
                 'implementation': CLIENT_IMPL,
+                'dump_code': options.df.dump_udf,
+                'memimport': MEM_IMPORT,
+                'libraries': ','.join(libraries if libraries is not None else []),
             }
             if resources:
                 func_to_resources[func] = resources

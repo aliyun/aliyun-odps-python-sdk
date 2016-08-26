@@ -16,6 +16,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-PY26_COMPAT = True
-RUN_IN_SECRET_MODE = True

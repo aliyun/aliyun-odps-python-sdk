@@ -38,6 +38,9 @@ class DataFrame(CollectionExpr):
 
     Users can initial a DataFrame by :class:`odps.models.Table`.
 
+    :param data: ODPS table or pandas DataFrame
+    :type data: :class:`odps.models.Table` or pandas DataFrame
+
     :Example:
 
     >>> df = DataFrame(o.get_table('my_example_table'))
@@ -69,17 +72,23 @@ class DataFrame(CollectionExpr):
 
     __slots__ = ()
 
-    def __init__(self, data, **kwargs):
-        """
-        :param data: ODPS table
-        :type data: :class:`odps.models.Table`
-        """
+    def __init__(self, *args, **kwargs):
+        if len(args) == 1:
+            data = args[0]
+        else:
+            data = kwargs.pop('_source_data', None)
+            if data is None:
+                raise ValueError('ODPS Table or pandas DataFrame should be provided.')
+
         if isinstance(data, Table):
-            schema = odps_schema_to_df_schema(data.schema)
-            super(DataFrame, self).__init__(_source_data=data, _schema=schema, **kwargs)
+            if '_schema' not in kwargs:
+                kwargs['_schema'] = odps_schema_to_df_schema(data.schema)
+            super(DataFrame, self).__init__(_source_data=data, **kwargs)
         elif has_pandas and isinstance(data, pd.DataFrame):
             if 'schema' in kwargs and kwargs['schema']:
                 schema = kwargs.pop('schema')
+            elif '_schema' in kwargs:
+                schema = kwargs.pop('_schema')
             else:
                 unknown_as_string = kwargs.pop('unknown_as_string', False)
                 as_type = kwargs.pop('as_type', None)

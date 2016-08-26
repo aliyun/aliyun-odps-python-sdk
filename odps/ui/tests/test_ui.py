@@ -28,25 +28,6 @@ TIMEOUT = 10
 
 class TestUI(UITestBase):
     @ui_case
-    def test_script_read(self):
-        print(os.environ)
-        print(sys.argv)
-        with setup_kernel() as client:
-            test_code = textwrap.dedent("""
-            from odps.compat import six
-            from odps.ui.common import load_script
-            'True' if len(load_script()) > 0 else 'False'
-            """).strip()
-            msg_id = client.execute(test_code)
-
-            exec_result_data = self.grab_execute_result(client, msg_id)
-            self.assertDictEqual(exec_result_data['data'], {'text/plain': "'True'"})
-
-            shell_msg = client.get_shell_msg(block=True, timeout=TIMEOUT)
-            content = shell_msg['content']
-            self.assertEqual(content['status'], 'ok')
-
-    @ui_case
     def test_html_notify(self):
         with setup_kernel() as client:
             client.execute('from odps.ui import html_notify')

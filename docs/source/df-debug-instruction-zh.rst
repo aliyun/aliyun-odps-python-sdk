@@ -23,7 +23,7 @@ DataFrame调试指南
 
 
 
-.. image:: _static/output_35_0.svg
+.. image:: _static/df-steps-visualize.svg
 
 
 可以看到，这个计算过程中，PyODPS DataFrame将GroupBy和列筛选做了操作合并。
@@ -39,7 +39,7 @@ DataFrame调试指南
 
 
 
-.. image:: _static/output_36_0.svg
+.. image:: _static/df-op-merge-visualize.svg
 
 
 此时，由于用户执行了cache操作，这时整个执行计划将会分成两步来执行。

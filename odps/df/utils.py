@@ -89,3 +89,38 @@ def make_copy(f):
         return NewCls
     else:
         return f
+
+
+def to_collection(seq_or_scalar):
+    from .expr.expressions import CollectionExpr, Column, SequenceExpr
+    from .expr.reduction import GroupedSequenceReduction, Count
+
+    if isinstance(seq_or_scalar, CollectionExpr):
+        return seq_or_scalar
+
+    expr = seq_or_scalar
+    for node in expr.traverse(top_down=True, unique=True):
+        if isinstance(node, GroupedSequenceReduction):
+            return node._grouped.agg(expr)[[expr.name, ]]
+        elif isinstance(node, Column):
+            return node.input[[expr, ]]
+        elif isinstance(node, Count) and isinstance(node.input, CollectionExpr):
+            return node.input[[expr, ]]
+        elif isinstance(node, SequenceExpr) and hasattr(node, '_input') and \
+                isinstance(node._input, CollectionExpr):
+            return node.input[[expr, ]]
+
+    raise NotImplementedError
+
+
+def is_project_expr(collection):
+    from .expr.expressions import ProjectCollectionExpr, FilterPartitionCollectionExpr
+    from .expr.groupby import GroupByCollectionExpr
+    from .expr.window import MutateCollectionExpr
+    from .expr.collections import DistinctCollectionExpr
+
+    if isinstance(collection, (ProjectCollectionExpr, FilterPartitionCollectionExpr,
+                               GroupByCollectionExpr, MutateCollectionExpr,
+                               DistinctCollectionExpr)):
+        return True
+    return False

@@ -158,6 +158,24 @@ $ pyou plus.Plus < plus.input
 5
 ```
 
+## Contributing
+
+For a development install, clone the repository and then install from source:
+
+```
+git clone https://github.com/aliyun/aliyun-odps-python-sdk
+cd pyodps
+pip install -r requirements.txt -e .
+```
+
+If you need to modify the frontend code, you need to install [nodejs/npm](https://www.npmjs.com/). To build and
+install your frontend code, use
+
+```
+python setup.py build_js
+python setup.py install_js
+```
+
 ## License
 
 Licensed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0.html)

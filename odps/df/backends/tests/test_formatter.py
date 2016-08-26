@@ -31,6 +31,7 @@ from odps.df.types import validate_data_type, int64
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.expr.tests.core import MockTable
+from odps.df.expr.groupby import GroupByCollectionExpr
 from odps.df.backends.engine import MixedEngine
 from odps.df.backends.formatter import ExprExecutionGraphFormatter
 from odps.models import Schema, Record
@@ -92,12 +93,22 @@ class Test(TestBase):
         t = MockTable(name='pyodps_test_svg', schema=self.schema, _client=self.odps.rest)
         expr = CollectionExpr(_source_data=t, _schema=self.schema)
 
+        expr1 = expr.groupby('name').agg(id=expr['id'].sum())
+        expr2 = expr1['name', expr1.id + 3]
+
+        engine = MixedEngine(self.odps)
+        dag, expr3, _ = engine._compile(expr2)
+        self.assertIsInstance(expr3, GroupByCollectionExpr)
+        dot = ExprExecutionGraphFormatter(expr3, dag)._to_dot()
+        self.assertNotIn('Projection', dot)
+
         expr1 = expr.groupby('name').agg(id=expr['id'].sum()).cache()
         expr2 = expr1['name', expr1.id + 3]
 
         engine = MixedEngine(self.odps)
         dag, expr3, _ = engine._compile(expr2)
-        self.assertTrue(ExprExecutionGraphFormatter(expr3, dag)._to_dot())
+        dot = ExprExecutionGraphFormatter(expr3, dag)._to_dot()
+        self.assertIn('Projection', dot)
 
 
 if __name__ == '__main__':

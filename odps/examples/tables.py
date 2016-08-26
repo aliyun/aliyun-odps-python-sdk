@@ -26,7 +26,7 @@ import warnings
 
 from itertools import groupby, product
 
-from ..compat import pickle, urlretrieve, reduce
+from ..compat import pickle, urlretrieve, reduce, six, OrderedDict
 from ..compat.six import text_type
 from ..tunnel import TableTunnel
 from ..utils import load_static_text_file, build_pyodps_dir
@@ -337,8 +337,19 @@ def create_user_item_table(odps, table_name, tunnel=None, mode=None, project=Non
     if mode == 'agg':
         data_rows = [k + (len(list(p)), ) for k, p in groupby(sorted(data_rows, key=lambda item: (item[0], item[1])), lambda item: (item[0], item[1]))]
         odps.execute_sql('create table %s (user string, item string, payload bigint)' % table_name, project=project)
+    elif mode == 'exist':
+        items = dict()
+        for k, g1 in groupby(sorted(data_rows, key=lambda it: it[0]), key=lambda it: it[0]):
+            items[k] = dict((k2, 1) for k2 in set(it2[1] for it2 in g1))
+        products = set(it[1] for it in data_rows)
+        for k, g in six.iteritems(items):
+            unexist_set = products - set(six.iterkeys(g))
+            for it in unexist_set:
+                g[it] = 0
+        data_rows = [(u, p, l) for u, ud in six.iteritems(items) for p, l in six.iteritems(ud)]
+        odps.execute_sql('create table %s (user string, item string, label bigint)' % table_name, project=project)
     elif mode == 'kv':
-        data_rows = [(k[0], '{}:{}'.format(k[1], len(list(p))))
+        data_rows = [(k[0], '{0}:{1}'.format(k[1], len(list(p))))
                      for k, p in groupby(sorted(data_rows, key=lambda item: (item[0], item[1])), lambda item: (item[0], item[1]))]
         data_rows = [(k, ','.join((v[1] for v in p))) for k, p in groupby(data_rows, key=lambda item: item[0])]
         odps.execute_sql('create table %s (user string, item_list string)' % table_name, project=project)
@@ -354,6 +365,30 @@ def create_user_item_table(odps, table_name, tunnel=None, mode=None, project=Non
         writer.write(rec)
     writer.close()
     upload_ss.commit([0, ])
+
+
+@table_creator
+def create_dow_jones(odps, table_name, tunnel=None, project=None):
+    fields = """quarter stock date open high low close volume percent_change_price percent_change_volume_over_last_wk
+    previous_weeks_volume next_weeks_open next_weeks_close percent_change_next_weeks_price days_to_next_dividend
+    percent_return_next_dividend""".strip().split()
+    field_types = OrderedDict([(fname, 'double') for fname in fields])
+    field_types['quarter'] = 'bigint'
+    field_types['stock'] = 'string'
+    field_types['date'] = 'string'
+    fields_str = ','.join('`{0}` {1}'.format(k, v) for k, v in six.iteritems(field_types))
+
+    odps.execute_sql('drop table if exists ' + table_name, project=project)
+    odps.execute_sql('create table %s (%s)' % (table_name, fields_str), project=project)
+
+    def iter_lines():
+        for line in load_static_text_file('data/dow_jones.txt').splitlines():
+            ldata = line.split(',')
+            ldata[0] = int(ldata[0])
+            ldata[3:] = [float(v) if v else None for v in ldata[3:]]
+            yield ldata
+
+    odps.write_table(table_name, iter_lines())
 
 
 """

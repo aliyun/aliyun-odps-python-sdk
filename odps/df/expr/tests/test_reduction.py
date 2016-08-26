@@ -29,9 +29,6 @@ class Test(TestBase):
         schema = Schema.from_lists(types._data_types.keys(), types._data_types.values())
         self.expr = CollectionExpr(_source_data=None, _schema=schema)
 
-    # def testCacheNode(self):
-    #     self.assertIs(self.expr.string.min(), self.expr.string.min())
-
     def testMin(self):
         min_ = self.expr.string.min()
         self.assertIsInstance(min_, StringScalar)

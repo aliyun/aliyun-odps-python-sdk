@@ -556,7 +556,7 @@ DataFrame API提供了value\_counts这个方法来快速达到同样的目的。
 
 
 
-.. image:: _static/output_29_1.png
+.. image:: _static/df-value-count-plot.png
 
 
 我们将年龄分成30组，来看个年龄分布的直方图
@@ -575,7 +575,7 @@ DataFrame API提供了value\_counts这个方法来快速达到同样的目的。
 
 
 
-.. image:: _static/output_31_1.png
+.. image:: _static/df-age-hist.png
 
 
 好了，现在我们把这三张表联合起来，只需要使用join就可以了。join完成后我们把它保存成一张新的表。

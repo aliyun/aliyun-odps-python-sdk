@@ -86,12 +86,15 @@ class SequenceReduction(Scalar):
 
 class GroupedSequenceReduction(SequenceExpr):
     __slots__ = '_grouped',
-    _args = '_input',
+    _args = '_input', '_by'
 
     def _init(self, *args, **kwargs):
         self._init_attr('_grouped', None)
+        self._init_attr('_by', None)
         super(GroupedSequenceReduction, self)._init(*args, **kwargs)
         assert self._grouped is not None
+        if self._by is None:
+            self._by = self._grouped._by
 
     @property
     def source_name(self):
@@ -209,13 +212,17 @@ class GroupedNUnique(GroupedSequenceReduction):
 
 
 class Aggregation(SequenceReduction):
-    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources'
-    _args = '_input', '_collection_resources'
+    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources', '_raw_input'
+    _args = '_input', '_collection_resources', '_by'
     node_name = 'Aggregation'
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_raw_input', None)
+        super(Aggregation, self)._init(*args, **kwargs)
 
     @property
     def raw_input(self):
-        return self._get_attr('_input')
+        return self._raw_input or self._input
 
     @property
     def func(self):
@@ -230,13 +237,17 @@ class Aggregation(SequenceReduction):
 
 
 class GroupedAggregation(GroupedSequenceReduction):
-    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources'
-    _args = '_input', '_collection_resources'
+    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources', '_raw_input'
+    _args = '_input', '_collection_resources', '_by'
     node_name = 'Aggregation'
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_raw_input', None)
+        super(GroupedAggregation, self)._init(*args, **kwargs)
 
     @property
     def raw_input(self):
-        return self._get_attr('_input')
+        return self._raw_input or self._input
 
     @property
     def func(self):
@@ -285,14 +296,35 @@ def _reduction(expr, output_cls, output_type=None, **kw):
 
 
 def min_(expr):
+    """
+    Min value
+
+    :param expr:
+    :return:
+    """
+
     return _reduction(expr, Min)
 
 
 def max_(expr):
+    """
+    Max value
+
+    :param expr:
+    :return:
+    """
+
     return _reduction(expr, Max)
 
 
 def count(expr):
+    """
+    Value counts
+
+    :param expr:
+    :return:
+    """
+
     if isinstance(expr, SequenceExpr):
         return Count(_value_type=types.int64, _input=expr)
     elif isinstance(expr, SequenceGroupBy):
@@ -315,6 +347,14 @@ def _stats_type(expr):
 
 
 def var(expr, **kw):
+    """
+    Variance
+
+    :param expr:
+    :param kw:
+    :return:
+    """
+
     ddof = kw.get('ddof', kw.get('_ddof', 1))
 
     output_type = _stats_type(expr)
@@ -322,6 +362,13 @@ def var(expr, **kw):
 
 
 def sum_(expr):
+    """
+    Sum value
+
+    :param expr:
+    :return:
+    """
+
     output_type = None
     if isinstance(expr, (SequenceExpr, SequenceGroupBy)):
         if expr._data_type == types.boolean:
@@ -332,6 +379,14 @@ def sum_(expr):
 
 
 def std(expr, **kw):
+    """
+    Standard deviation.
+
+    :param expr:
+    :param kw:
+    :return:
+    """
+
     ddof = kw.get('ddof', kw.get('_ddof', 1))
 
     output_type = _stats_type(expr)
@@ -339,26 +394,61 @@ def std(expr, **kw):
 
 
 def mean(expr):
+    """
+    Arithmetic mean.
+
+    :param expr:
+    :return:
+    """
+
     output_type = _stats_type(expr)
     return _reduction(expr, Mean, output_type)
 
 
 def median(expr):
+    """
+    Median value.
+
+    :param expr:
+    :return:
+    """
+
     output_type = _stats_type(expr)
     return _reduction(expr, Median, output_type)
 
 
 def any_(expr):
+    """
+    Any is True.
+
+    :param expr:
+    :return:
+    """
+
     output_type = types.boolean
     return _reduction(expr, Any, output_type)
 
 
 def all_(expr):
+    """
+    All is True.
+
+    :param expr:
+    :return:
+    """
+
     output_type = types.boolean
     return _reduction(expr, All, output_type)
 
 
 def nunique(expr):
+    """
+    The distinct count.
+
+    :param expr:
+    :return:
+    """
+
     output_type = types.int64
     return _reduction(expr, NUnique, output_type)
 

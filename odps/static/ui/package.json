@@ -1,0 +1,19 @@
+{
+  "name": "pyodps",
+  "description": "Front-end module of PyODPS",
+  "version": "0.6.0",
+  "author": "Alibaba, Inc.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aliyun/aliyun-odps-python-sdk.git"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "grunt": "~1.0.1",
+    "grunt-contrib-requirejs": "~1.0.0",
+    "grunt-contrib-copy": "~1.0.0",
+    "grunt-contrib-clean": "~1.0.0",
+    "grunt-contrib-uglify": "~1.0.0",
+    "grunt-contrib-cssmin": "~1.0.0"
+  }
+}

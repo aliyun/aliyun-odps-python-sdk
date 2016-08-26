@@ -17,3 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from . import magics, completer
+
+
+def load_ipython_extension(ipython):
+    for mod in (magics, completer):
+        if hasattr(magics, 'load_ipython_extension'):
+            mod.load_ipython_extension(ipython)

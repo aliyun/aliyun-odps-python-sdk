@@ -1315,7 +1315,7 @@ class ExprExecutionGraphFormatter(object):
         nodes = self._dag.topological_sort()
         for i, node in enumerate(nodes):
             sid = i + 1
-            _, _, expr_node = node
+            expr_node, _, _ = node
 
             buffer.write('Stage {0}: \n\n'.format(sid))
             compiled = self._compile(expr_node)
@@ -1334,13 +1334,13 @@ class ExprExecutionGraphFormatter(object):
 
         for i, node in enumerate(self._dag.topological_sort()):
             sid = i + 1
-            _, _, expr_node = node
+            expr_node, _, _ = node
 
             buffer.write('<h3>Stage {0}</h3>'.format(sid))
             compiled = self._compile(expr_node)
             if compiled:
                 buffer.write('<h4>SQL compiled</h4>')
-                buffer.write('<code>{}</code>'.format(compiled))
+                buffer.write('<code>{0}</code>'.format(compiled))
             else:
                 buffer.write('<p>Local execution</p>')
 
@@ -1411,9 +1411,10 @@ class ExprExecutionGraphFormatter(object):
                             write_indent_newline('START -> EXPR{0};'.format(eid), ind=2)
                     else:
                         for pre in pres:
-                            pre_expr, _, pre_src_expr = pre
-                            pid = traversed[id(pre_src_expr)]
-                            if pre_expr is expr:
+                            _, _, pre_expr = pre
+                            pid = traversed[id(pre_expr)]
+                            if (isinstance(pre_expr, Scalar) and isinstance(expr, Scalar)) or \
+                                    (isinstance(pre_expr, CollectionExpr) and isinstance(expr, CollectionExpr)):
                                 write_indent_newline('EXPR{0} -> EXPR{1};'.format(pid, eid), ind=2)
 
             if compiled:

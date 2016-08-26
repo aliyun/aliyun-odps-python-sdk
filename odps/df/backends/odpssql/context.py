@@ -20,16 +20,16 @@
 import itertools
 import uuid
 import time
-import weakref
 
 from ....compat import OrderedDict, six
 from ....utils import TEMP_TABLE_PREFIX
 from ....errors import ODPSError
+from ...expr.core import ExprProxy
 
 
 UDF_CLASS_NAME = 'PyOdpsFunc'
 
-_replaced_exprs = weakref.WeakKeyDictionary()
+_replaced_exprs = dict()
 
 
 class ODPSContext(object):
@@ -39,6 +39,7 @@ class ODPSContext(object):
         self._index = itertools.count(1)
         self._expr_alias = dict()
         self._compiled_exprs = dict()
+        self._expr_raw_args = dict()
 
         self._col_index = itertools.count(1)
         self._need_alias_columns = dict()
@@ -105,7 +106,7 @@ class ODPSContext(object):
     def get_udf(self, func):
         return self._registered_funcs[func]
 
-    def create_udfs(self):
+    def create_udfs(self, libraries=None):
         self._func_to_functions.clear()
 
         for func, udf in six.iteritems(self._func_to_udfs):
@@ -123,6 +124,8 @@ class ODPSContext(object):
                                                          table_name=table_name)
                         resources.append(res)
                         self._to_drops.append(res)
+            if libraries is not None:
+                resources.extend(libraries)
 
             function = self._odps.create_function(
                     udf_name, class_type='{0}.{1}'.format(udf_name, UDF_CLASS_NAME),
@@ -132,10 +135,10 @@ class ODPSContext(object):
             self._to_drops.append(function)
 
     def add_replaced_expr(self, expr, to_replace):
-        _replaced_exprs[expr] = to_replace
+        _replaced_exprs[ExprProxy(expr, _replaced_exprs)] = to_replace
 
     def get_replaced_expr(self, expr):
-        return _replaced_exprs.get(expr)
+        return _replaced_exprs.get(ExprProxy(expr))
 
     def add_need_alias_column(self, column):
         if id(column) in self._need_alias_column_indexes:

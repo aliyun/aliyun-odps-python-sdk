@@ -89,9 +89,9 @@ from odps.tests.core import tn
 odps = ODPS(**tempobj.compat_kwargs(odps_info))
 insts = []
 for tid in range(10):
-    table_name = tn('tmp_pyodps_create_temp_{{}}'.format(tid))
+    table_name = tn('tmp_pyodps_create_temp_{{0}}'.format(tid))
     tempobj.register_temp_table(odps, table_name)
-    insts.append(odps.run_sql('create table {{}} (col1 string) lifecycle 1'.format(table_name)))
+    insts.append(odps.run_sql('create table {{0}} (col1 string) lifecycle 1'.format(table_name)))
 for inst in insts:
     inst.wait_for_completion()
 """

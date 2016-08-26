@@ -30,14 +30,6 @@ class Test(TestBase):
         schema = Schema.from_lists(types._data_types.keys(), types._data_types.values())
         self.expr = CollectionExpr(_source_data=None, _schema=schema)
 
-    # def testCacheNode(self):
-    #     self.assertIs(self.expr.groupby('boolean').int16.cumsum(),
-    #                   self.expr.groupby('boolean').int16.cumsum())
-    #     self.assertIs(self.expr.groupby('boolean').sort('int8').int16.cumsum(),
-    #                   self.expr.groupby('boolean').sort('int8').int16.cumsum())
-    #     self.assertIs(self.expr.groupby('string').decimal.lag(-5, sort=['int8']),
-    #                   self.expr.groupby('string').decimal.lag(-5, sort=['int8']))
-
     def testCumSum(self):
         grouped = self.expr.groupby('boolean')
 

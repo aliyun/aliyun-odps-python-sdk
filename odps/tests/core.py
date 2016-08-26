@@ -212,12 +212,6 @@ class TestMeta(type):
 
             check_symbol = lambda s: hasattr(test_pack, s) and getattr(test_pack, s)
 
-            # disable cases on PY26 unless tests.PY26_COMPAT = True
-            if compat.PY26 and not check_symbol('PY26_COMPAT'):
-                for k, v in six.iteritems(d):
-                    if k.startswith('test') and hasattr(v, '__call__'):
-                        d[k] = None
-
             # disable cases in CI_MODE when tests.SKIP_IN_CI = True
             if 'CI_MODE' in os.environ and check_symbol('SKIP_IN_CI'):
                 for k, v in six.iteritems(d):

@@ -17,11 +17,62 @@
 # under the License.
 
 from setuptools import setup, find_packages, Extension
+from setuptools.command.install import install
+from distutils.cmd import Command
 
 import sys
 import os
 import platform
 import shutil
+
+extra_install_cmds = []
+
+
+def which(program):
+    import os
+
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
+
+
+# http://stackoverflow.com/questions/12683834/how-to-copy-directory-recursively-in-python-and-overwrite-all
+def recursive_overwrite(src, dest, filter_func=None):
+    destinations = []
+    filter_func = filter_func or (lambda s: True)
+    if os.path.isdir(src):
+        if not os.path.isdir(dest):
+            os.makedirs(dest)
+        files = os.listdir(src)
+        for f in files:
+            if not filter_func(f):
+                continue
+            destinations.extend(
+                recursive_overwrite(os.path.join(src, f), os.path.join(dest, f))
+            )
+    else:
+        shutil.copyfile(src, dest)
+        destinations.append(dest)
+    return destinations
+
+
+class CustomInstall(install):
+    def run(self):
+        global extra_install_cmds
+        install.run(self)
+        [self.run_command(cmd) for cmd in extra_install_cmds]
 
 version = sys.version_info
 PY2 = version[0] == 2
@@ -30,7 +81,21 @@ PY26 = PY2 and version[1] == 6
 PYPY = platform.python_implementation().lower() == 'pypy'
 
 if PY2 and version[:2] < (2, 6):
-    raise Exception('pyodps supports python 2.6+ (including python 3+).')
+    raise Exception('PyODPS supports Python 2.6+ (including Python 3+).')
+
+try:
+    import pip
+    for pk in pip.get_installed_distributions():
+        if pk.key == 'odps':
+            raise Exception('Package `odps` collides with PyODPS. Please uninstall it before installing PyODPS.')
+except ImportError:
+    pass
+
+try:
+    from jupyter_core.paths import jupyter_data_dir
+    has_jupyter = True
+except ImportError:
+    has_jupyter = False
 
 if len(sys.argv) > 1 and sys.argv[1] == 'clean':
     build_cmd = sys.argv[1]
@@ -45,16 +110,15 @@ if PY26:
     requirements.append('ordereddict>=1.1')
     requirements.append('simplejson>=2.1.0')
     requirements.append('threadpool>=1.3')
+    requirements.append('importlib>=1.0')
 
-full_requirements = []
-if os.path.exists('odps/internal'):
-    full_requirements.extend([
-        'jupyter>=1.0.0',
-        'numpy>=1.6.0',
-        'pandas>=0.13.0',
-    ])
-    if sys.platform != 'win32':
-        full_requirements.append('cython>=0.20')
+full_requirements = [
+    'jupyter>=1.0.0',
+    'numpy>=1.6.0',
+    'pandas>=0.13.0',
+]
+if sys.platform != 'win32':
+    full_requirements.append('cython>=0.20')
 
 long_description = None
 if os.path.exists('README.rst'):
@@ -63,7 +127,7 @@ if os.path.exists('README.rst'):
 
 setup_options = dict(
     name='pyodps',
-    version='0.5.8',
+    version='0.6.0',
     description='ODPS Python SDK and data analysis framework',
     long_description=long_description,
     author='Wu Wei',
@@ -85,10 +149,12 @@ setup_options = dict(
         'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Software Development :: Libraries',
     ],
+    cmdclass={'install': CustomInstall},
     packages=find_packages(exclude=('*.tests.*', '*.tests')),
     include_package_data=True,
     scripts=['scripts/pyou', ],
     install_requires=requirements,
+    extras_require={'full': full_requirements}
 )
 
 if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
@@ -112,10 +178,79 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
             Extension('odps.tunnel.tabletunnel.reader_c', ['odps/tunnel/tabletunnel/reader_c.pyx']),
         ]
 
-        setup_options['cmdclass'] = {'build_ext': build_ext}
+        setup_options['cmdclass'].update({'build_ext': build_ext})
         setup_options['ext_modules'] = cythonize(extensions)
     except:
         pass
+
+if build_cmd != 'clean' and has_jupyter:
+    class InstallJS(Command):
+        description = "install JavaScript extensions"
+        user_options = []
+
+        def initialize_options(self):
+            pass
+
+        def finalize_options(self):
+            pass
+
+        def run(self):
+            cur_path = os.path.dirname(os.path.abspath(__file__))
+            src_dir = os.path.join(cur_path, 'odps', 'static', 'ui', 'target')
+            dest_dir = os.path.join(jupyter_data_dir(), 'nbextensions', 'pyodps')
+            if os.path.exists(dest_dir):
+                shutil.rmtree(dest_dir)
+            if not os.path.exists(dest_dir):
+                os.makedirs(dest_dir)
+            recursive_overwrite(src_dir, dest_dir)
+
+            try:
+                from notebook.nbextensions import enable_nbextension
+            except ImportError:
+                return
+            enable_nbextension('notebook', 'pyodps/main')
+
+
+    class BuildJS(Command):
+        description = "build JavaScript files"
+        user_options = [
+            ('registry=', None, 'npm registry')
+        ]
+
+        def initialize_options(self):
+            self.registry = None
+
+        def finalize_options(self):
+            pass
+
+        def run(self):
+            if not which('npm') or not which('grunt'):
+                raise Exception('You need to install npm and grunt before building the scripts.')
+
+            cwd = os.getcwd()
+
+            os.chdir(os.path.join(os.path.abspath(os.getcwd()), 'odps', 'static', 'ui'))
+            cmd = 'npm install'
+            if getattr(self, 'registry', None):
+                cmd += ' --registry=' + self.registry
+            print('executing ' + cmd)
+            ret = os.system(cmd)
+            ret >>= 8
+            if ret != 0:
+                print(cmd + ' exited with error: %d' % ret)
+
+            print('executing grunt')
+            ret = os.system('grunt')
+            ret >>= 8
+            if ret != 0:
+                print('grunt exited with error: %d' % ret)
+
+            os.chdir(cwd)
+
+
+    setup_options['cmdclass'].update({'install_js': InstallJS, 'build_js': BuildJS})
+    extra_install_cmds.append('install_js')
+
 
 setup(**setup_options)
 

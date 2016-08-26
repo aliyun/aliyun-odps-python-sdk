@@ -84,6 +84,67 @@ class Test(TestBase):
         dag.reset_graph()
         self.assertEqual(len(dag.nodes()), 0)
 
+    def testReversedDAG(self):
+        dag = DAG(reverse=True)
+
+        labels = tuple('abcde')
+
+        node1, node2, node3, node4, node5 = labels
+
+        for i in range(1, 6):
+            dag.add_node(locals()['node%d' % i])
+
+        dag.add_edge(node1, node3)
+        dag.add_edge(node2, node4)
+        dag.add_edge(node3, node4)
+        dag.add_edge(node4, node5)
+
+        loc_vars = locals()
+        self.assertEqual(sorted([loc_vars['node%d' % i] for i in range(1, 6)]),
+                         sorted(dag.nodes()))
+
+        self.assertTrue(dag.contains_node(node1))
+        self.assertTrue(dag.contains_edge(node2, node4))
+        self.assertFalse(dag.contains_edge(node2, node5))
+
+        self.assertEqual(list(labels), dag.topological_sort())
+        self.assertEqual(list('bca'), dag.ancestors([node4, ]))
+        self.assertEqual(list('de'), dag.descendants([node3, ]))
+
+        dag.add_edge(node2, node1)
+        self.assertEqual(list('bacde'), dag.topological_sort())
+        self.assertEqual(list('ab'), dag.ancestors([node3, ]))
+        self.assertEqual(list('daec'), dag.descendants([node2, ]))
+
+        self.assertRaises(DAGValidationError, lambda: dag.add_edge(node4, node2))
+        self.assertRaises(DAGValidationError, lambda: dag.add_edge(node4, node1))
+
+        self.assertEqual(dag.successors(node2), list('da'))
+        self.assertEqual(dag.predecessors(node4), list('bc'))
+
+        dag.remove_node(node4)
+        self.assertIn(''.join(dag.topological_sort()), set(['beac', 'ebac']))
+        self.assertFalse(dag.contains_node(node4))
+        self.assertRaises(KeyError, lambda: dag.remove_node(node4))
+        self.assertFalse(dag.contains_edge(node4, node5))
+        self.assertRaises(KeyError, lambda: dag.add_edge(node4, node5))
+        self.assertRaises(KeyError, lambda: dag.remove_edge(node4, node5))
+        self.assertRaises(KeyError, lambda: dag.successors(node4))
+
+        self.assertEqual(list('ab'), dag.ancestors([node3, ]))
+        self.assertEqual(list(''), dag.ancestors([node5, ]))
+        self.assertEqual(list('ac'), dag.descendants([node2, ]))
+        self.assertEqual(list(''), dag.descendants([node5, ]))
+
+        dag.remove_edge(node2, node1)
+        self.assertFalse(dag.contains_edge(node2, node1))
+        self.assertEqual(list('a'), dag.ancestors([node3, ]))
+        self.assertEqual(list('c'), dag.descendants([node1, ]))
+        self.assertSetEqual(set('abe'), set(dag.indep_nodes()))
+
+        dag.reset_graph()
+        self.assertEqual(len(dag.nodes()), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

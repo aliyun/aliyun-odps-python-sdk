@@ -284,4 +284,283 @@ three types of T tests.
             <meta name="calculator" value="$package_root.statistics.customize.get_chisq_test_result"/>
         </metas>
     </algorithm>
+    <algorithm codeName="Covariance">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>用于计算一个矩阵中每一列之间的协方差</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="selectedColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <alias>cols</alias>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>input data</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="cov"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.statistics.customize.get_mat_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="MatrixPearson">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>用于计算一个矩阵中每一列之间的协方差</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="selectedColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <alias>cols</alias>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>input data</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="corrcoef"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.statistics.customize.get_mat_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="ChiSquare">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>卡法独立性检验是检验两个因素（各有两项或以上的分类）之间是否相互影响的问题，其零假设是两因素之间相互独立。</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="xColName">
+                <alias>xCol</alias>
+                <docs>column X</docs>
+            </param>
+            <param name="yColName">
+                <alias>yCol</alias>
+                <docs>column Y</docs>
+            </param>
+            <param name="probConfig">
+                <alias>p</alias>
+                <docs>类别概率配置</docs>
+            </param>
+            <param name="colName">
+                <alias>col</alias>
+                <docs>需要做卡方检验的列</docs>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>summary</outputName>
+            </param>
+            <param name="outputDetailTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>detail</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>input data</docs>
+            </port>
+            <port name="summary">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="detail">
+                <ioType>OUTPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="chisq_test"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.statistics.customize.get_chisq_test_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="Covariance">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>用于计算一个矩阵中每一列之间的协方差</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="selectedColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <alias>cols</alias>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>input data</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="cov"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.statistics.customize.get_mat_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="MatrixPearson">
+        <baseClass>BaseMetricsAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>用于计算一个矩阵中每一列之间的协方差</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="selectedColNames" required="true">
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <alias>cols</alias>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>input data</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="corrcoef"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.statistics.customize.get_mat_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="quantile">
+        <baseClass>BaseProcessAlgorithm</baseClass>
+        <exportFunction>true</exportFunction>
+        <docs>计算表中几个字段的分位数</docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="colName" required="true">
+                <alias>cols</alias>
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="N" required="true">
+                <alias>cols</alias>
+                <value>100</value>
+                <docs>分位点个数，默认 100</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>input data</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>quantile: bigint, {colName}</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="quantile"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
 </algorithms>

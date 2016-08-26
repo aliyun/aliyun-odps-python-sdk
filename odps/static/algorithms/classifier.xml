@@ -4,20 +4,18 @@
         <reloadFields>false</reloadFields>
         <baseClass>BaseProcessAlgorithm</baseClass>
         <docs><![CDATA[
-KNN (k-Nearest Neighbor) algorithm classifies an instance by selecting K nearest neighbors and choose the label
-shared by largest numbers of nodes. Click `here <http://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm>`_ to get
-more information.
+        KNN (k-Nearest Neighbor) algorithm classifies an instance by selecting K nearest neighbors and choose the label
+        shared by largest numbers of nodes. Click `here <http://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm>`_ to get
+        more information.
 
-Note that different to other algorithms, KNN use ``transform`` to predict and does not produce models.
+        Note that different to other algorithms, KNN use ``transform`` to predict and does not produce models.
 
-%params%
-%inputs%
-%outputs%
+        %params%
 
-Example:
-    >>> labeled = ds.label_field('class')
-    >>> predicted = KNN(k=5).transform(labeled, to_be_predict)
-    >>> predicted.store_odps('predicted')
+        :Example:
+        >>> labeled = ds.label_field('class')
+        >>> predicted = KNN(k=5).transform(labeled, to_be_predict)
+        >>> predicted.store_odps('predicted')
         ]]>
         </docs>
         <params>
@@ -97,21 +95,21 @@ Example:
     </algorithm>
     <algorithm codeName="xgboost">
         <docs><![CDATA[
-xgboost是一种高效率boosting算法，适用回归和二分类问题，详见 https://github.com/dmlc/xgboost 。
-PAI平台目前只开放树形模型（gbtree），暂不开放线性模型（gblinear）。
+        xgboost是一种高效率boosting算法，适用回归和二分类问题，详见 https://github.com/dmlc/xgboost 。
+        PAI平台目前只开放树形模型（gbtree），暂不开放线性模型（gblinear）。
 
-%params%
-%inputs%
-%outputs%
-]]></docs>
+        %params%
+        ]]></docs>
         <reloadFields>false</reloadFields>
         <params>
             <param name="featureColNames">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
                 <docs>输入表中用于训练的特征的列名</docs>
             </param>
             <param name="labelColName">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入表中标签列的列名</docs>
@@ -220,18 +218,16 @@ PAI平台目前只开放树形模型（gbtree），暂不开放线性模型（gb
     <algorithm codeName="RandomForests">
         <reloadFields>false</reloadFields>
         <docs><![CDATA[
-Random forest is a classifier which contains multiple decision trees and its output category depends on the mode of
-individual tree output categories.
+        Random forest is a classifier which contains multiple decision trees and its output category depends on the mode of
+        individual tree output categories.
 
-%params%
-%inputs%
-%outputs%
+        %params%
 
-Example:
-    >>> labeled = ds.label_field('class')
-    >>> model = RandomForests(tree_num=10).train(labeled)
-    >>> predicted = model.predict(dataset_to_be_predicted)
-    >>> predicted.store_odps('predicted')
+        :Example:
+        >>> labeled = ds.label_field('class')
+        >>> model = RandomForests(tree_num=10).train(labeled)
+        >>> predicted = model.predict(dataset_to_be_predicted)
+        >>> predicted.store_odps('predicted')
         ]]>
         </docs>
         <params>
@@ -240,6 +236,7 @@ Example:
                 <inputName>input</inputName>
             </param>
             <param name="featureColNames" required="true">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
                 <docs>input columns. the feature column names selected from input table, which are used for training
@@ -254,6 +251,7 @@ Example:
                 </docs>
             </param>
             <param name="labelColName" required="true">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>label column.the name of label column selected from input table</docs>
@@ -275,6 +273,7 @@ Example:
                 <docs>the number of trees in forest and the range is (0, 1000]</docs>
             </param>
             <param name="weightColName">
+                <alias>weightCol</alias>
                 <exporter>get_weight_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of weight column in input table. If there is no weight column, then the parameter is None.
@@ -358,21 +357,19 @@ Example:
     <algorithm codeName="LogisticRegression">
         <reloadFields>false</reloadFields>
         <docs><![CDATA[
-Logistic regression is a classification method utilizing logistic functions. Detailed information can be found
-`here <https://en.wikipedia.org/wiki/Logistic_regression>`_.
+        Logistic regression is a classification method utilizing logistic functions. Detailed information can be found
+        `here <https://en.wikipedia.org/wiki/Logistic_regression>`_.
 
-Note that although the original logistic regression algorithm only support binary classification, algorithm implemented
-in ODPS ML extends it using one-vs-rest strategy. It also use L-BFGS to improve performance.
+        Note that although the original logistic regression algorithm only support binary classification, algorithm implemented
+        in ODPS ML extends it using one-vs-rest strategy. It also use L-BFGS to improve performance.
 
-%params%
-%inputs%
-%outputs%
+        %params%
 
-Example:
-    >>> labeled = ds.label_field('class')
-    >>> model = LogisticRegression(max_iter=100).train(labeled)
-    >>> predicted = model.predict(dataset_to_be_predicted)
-    >>> predicted.store_odps('predicted')
+        :Example:
+        >>> labeled = ds.label_field('class')
+        >>> model = LogisticRegression(max_iter=100).train(labeled)
+        >>> predicted = model.predict(dataset_to_be_predicted)
+        >>> predicted.store_odps('predicted')
         ]]>
         </docs>
         <params>
@@ -381,13 +378,13 @@ Example:
                 <inputName>input</inputName>
             </param>
             <param name="featureColNames" required="true">
-                <min>0</min>
-                <max>1000</max>
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
                 <docs>names of feature columns, selected from input table and used for training</docs>
             </param>
             <param name="labelColName" required="true">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of label column in input table</docs>
@@ -472,18 +469,16 @@ Example:
     </algorithm>
     <algorithm codeName="LinearSVM">
         <docs><![CDATA[
-Support Vector Machine (SVM) is a kind of pattern recognition method based on VC dimension theory and minimal
-structural risk principle. This version only supports linear binary classification.
+        Support Vector Machine (SVM) is a kind of pattern recognition method based on VC dimension theory and minimal
+        structural risk principle. This version only supports linear binary classification.
 
-%params%
-%inputs%
-%outputs%
+        %params%
 
-Example:
-    >>> labeled = ds.label_field('class')
-    >>> model = LinearSVM(epsilon=0.001).train(labeled)
-    >>> predicted = model.predict(dataset_to_be_predicted)
-    >>> predicted.store_odps('predicted')
+        :Example:
+        >>> labeled = ds.label_field('class')
+        >>> model = LinearSVM(epsilon=0.001).train(labeled)
+        >>> predicted = model.predict(dataset_to_be_predicted)
+        >>> predicted.store_odps('predicted')
         ]]></docs>
         <params>
             <param name="inputTableName" required="true">
@@ -495,6 +490,7 @@ Example:
                 <inputName>input</inputName>
             </param>
             <param name="labelColName" required="true">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of label column</docs>
@@ -505,6 +501,7 @@ Example:
                 <docs>name of output model</docs>
             </param>
             <param name="featureColNames" required="true">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
                 <docs>names of feature columns selected from input table, used for training</docs>
@@ -558,22 +555,20 @@ Example:
     </algorithm>
     <algorithm codeName="GBDT_LR">
         <docs><![CDATA[
-Gradient Boosting Decision Tree is a machine learning technique for regression problems, which produces a prediction
-model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in
-a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary
-differentiable loss function. This GBDT_LR module is used for binary classification. That is to set a threshold,
-if the label value is greater than the threshold, it is indicated as a positive example, otherwise it is indicated as
-a negative example.
+        Gradient Boosting Decision Tree is a machine learning technique for regression problems, which produces a prediction
+        model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in
+        a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary
+        differentiable loss function. This GBDT_LR module is used for binary classification. That is to set a threshold,
+        if the label value is greater than the threshold, it is indicated as a positive example, otherwise it is indicated as
+        a negative example.
 
-%params%
-%inputs%
-%outputs%
+        %params%
 
-Example:
-    >>> labeled = ds.label_field('class')
-    >>> model = GBDTLR(tree_count=500).train(labeled)
-    >>> predicted = model.predict(dataset_to_be_predicted)
-    >>> predicted.store_odps('predicted')
+        :Example:
+        >>> labeled = ds.label_field('class')
+        >>> model = GBDTLR(tree_count=500).train(labeled)
+        >>> predicted = model.predict(dataset_to_be_predicted)
+        >>> predicted.store_odps('predicted')
         ]]></docs>
         <params>
             <param name="inputTableName" required="true">
@@ -590,11 +585,13 @@ Example:
                 <docs>name of modle to be output</docs>
             </param>
             <param name="labelColName" required="true">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of label column selected from input table</docs>
             </param>
             <param name="featureColNames" required="true">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
                 <docs>feature columns of input table, used for training</docs>
@@ -695,19 +692,17 @@ Example:
     <algorithm codeName="NaiveBayes">
         <reloadFields>false</reloadFields>
         <docs><![CDATA[
-Naive Bayes classifiers are a family of simple probabilistic classifiers based on applying Bayes' theorem with strong
-(naive) independence assumptions between the features in machine learning. Click
-`here <http://en.wikipedia.org/wiki/Naive_Bayes_classifier>`_ for more information.
+        Naive Bayes classifiers are a family of simple probabilistic classifiers based on applying Bayes' theorem with strong
+        (naive) independence assumptions between the features in machine learning. Click
+        `here <http://en.wikipedia.org/wiki/Naive_Bayes_classifier>`_ for more information.
 
-%params%
-%inputs%
-%outputs%
+        %params%
 
-Example:
-    >>> labeled = ds.label_field('class')
-    >>> model = NaiveBayes().train(labeled)
-    >>> predicted = model.predict(dataset_to_be_predicted)
-    >>> predicted.store_odps('predicted')
+        :Example:
+        >>> labeled = ds.label_field('class')
+        >>> model = NaiveBayes().train(labeled)
+        >>> predicted = model.predict(dataset_to_be_predicted)
+        >>> predicted.store_odps('predicted')
         ]]></docs>
         <params>
             <param name="inputTableName" required="true">
@@ -719,11 +714,13 @@ Example:
                 <inputName>input</inputName>
             </param>
             <param name="featureColNames" required="true">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
                 <docs>feature columns in input table, used for training</docs>
             </param>
             <param name="labelColName" required="true">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>name of label column in input table</docs>
@@ -758,6 +755,140 @@ Example:
         </ports>
         <metas>
             <meta name="xflowName" value="NaiveBayes"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="GLM">
+        <public>false</public>
+        <reloadFields>false</reloadFields>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="featureColNames" required="true">
+                <alias>featureCols</alias>
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>feature columns in input table, used for training</docs>
+            </param>
+            <param name="labelColName" required="true">
+                <alias>labelCol</alias>
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="outputModelTableName" required="true">
+                <exporter>get_output_model_table_name(table_name=model)</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="distribute">
+                <value>gamma</value>
+                <docs>数据分布</docs>
+            </param>
+            <param name="varPower">
+                <value>0</value>
+                <docs>变量的指数，只有分布为Tweedie才有效</docs>
+            </param>
+            <param name="link">
+                <value>log</value>
+                <docs>线性变换函数</docs>
+            </param>
+            <param name="linkPower">
+                <value>1</value>
+                <docs>指数函数的指数，只有link为Power才有效</docs>
+            </param>
+            <param name="maxIter">
+                <value>1</value>
+                <docs>最大迭代次数</docs>
+            </param>
+            <param name="epsilon">
+                <value>0.000001</value>
+                <docs>收敛精度</docs>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined features and labels</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+                <docs>trained model which can be used in prediction</docs>
+                <model>
+                    <type>TablesModel</type>
+                    <copyParams>method</copyParams>
+                    <!--<schemas>-->
+                        <!--<schema name="model">-->
+                            <!--<dynamic>true</dynamic>-->
+                            <!--<schema>$package_root.classifiers.customize.discriminant_model_table</schema>-->
+                        <!--</schema>-->
+                    <!--</schemas>-->
+                </model>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="glm"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="GLMPredict">
+        <public>false</public>
+        <baseClass>BaseProcessAlgorithm</baseClass>
+        <reloadFields>false</reloadFields>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputModelTableName" required="true">
+                <exporter>get_input_model_table_name(table_name=model)</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="outputTableName" required="true">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="appendColNames">
+                <exporter>get_original_columns</exporter>
+                <inputName>input</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="model">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>MODEL</type>
+            </port>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <copyInput>input</copyInput>
+                    <schema>conclusion: bigint: predicted_class</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="glm_predict"/>
             <meta name="xflowProjectName" value="algo_public"/>
         </metas>
     </algorithm>

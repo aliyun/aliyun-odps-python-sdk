@@ -133,7 +133,7 @@ class OdpsSQLCompiler(Backend):
         self._limit = None
 
     def _cleanup(self):
-        self._sub_compiles = dict()
+        self._sub_compiles = defaultdict(lambda: list())
         for callback in self._callbacks:
             callback()
         self._callbacks = list()
@@ -171,14 +171,16 @@ class OdpsSQLCompiler(Backend):
         compiled = self._compile(expr.rhs)
         self._sub_compiles[expr].append(compiled)
 
-        cached_args = expr.args
-        expr._tmp_cached_args = cached_args
+        args = expr.args
+        self._ctx._expr_raw_args[id(expr)] = args
+        for arg_name in expr._args:
+            setattr(expr, arg_name, None)
 
         def cb():
-            expr._cached_args = cached_args
-        self._callbacks.append(cb)
+            for arg_name, arg in zip(expr._args, args):
+                setattr(expr, arg_name, arg)
 
-        expr._cached_args = [None] * len(expr.args)
+        self._callbacks.append(cb)
 
     def _compile_join_node(self, expr, traversed):
         travs = set()
@@ -213,14 +215,16 @@ class OdpsSQLCompiler(Backend):
         if expr._mapjoin:
             self._ctx._mapjoin_hints.append(self._ctx.get_collection_alias(expr.rhs)[0])
 
-        cached_args = expr.args
-        expr._tmp_cached_args = cached_args
+        args = expr.args
+        self._ctx._expr_raw_args[id(expr)] = args
+        for arg_name in expr._args:
+            setattr(expr, arg_name, None)
 
         def cb():
-            expr._cached_args = cached_args
-        self._callbacks.append(cb)
+            for arg_name, arg in zip(expr._args, args):
+                setattr(expr, arg_name, arg)
 
-        expr._cached_args = [None] * len(expr.args)
+        self._callbacks.append(cb)
 
     @classmethod
     def _find_table(cls, expr):
@@ -235,14 +239,16 @@ class OdpsSQLCompiler(Backend):
         compiled = self._compile(to_sub)
         self._sub_compiles[expr].append(compiled)
 
-        cached_args = expr.values
-        expr._tmp_cached_args = cached_args
+        args = expr.args
+        self._ctx._expr_raw_args[id(expr)] = args
+        for arg_name in expr._args:
+            setattr(expr, arg_name, None)
 
         def cb():
-            expr._cached_args = cached_args
-        self._callbacks.append(cb)
+            for arg_name, arg in zip(expr._args, args):
+                setattr(expr, arg_name, arg)
 
-        expr._cached_args = [None] * len(expr.args)
+        self._callbacks.append(cb)
 
     def _compile(self, expr, traversed=None,
                  return_traversed=False, root_expr=None):
@@ -327,7 +333,7 @@ class OdpsSQLCompiler(Backend):
             compiled_name = self._unquote(compiled)
             column = symbols_to_columns[symbol]
             if compiled_name != column.name:
-                return ' AS {}'.format(self._quote(column.name))
+                return ' AS {0}'.format(self._quote(column.name))
             else:
                 return ''
 
@@ -341,7 +347,7 @@ class OdpsSQLCompiler(Backend):
 
         for select_idx in reg.findall(sql):
             s_regex_str = '//{{_i{0}}}(.+?){{_i{0}}}//'.format(select_idx)
-            regex_str = '\n?( *)?/{{_i{0}}}({1})+/'.format(select_idx, s_regex_str)
+            regex_str = '\n?( *)/{{_i{0}}}({1})+/'.format(select_idx, s_regex_str)
             regex = re.compile(regex_str, re.M)
             s_regex = re.compile(s_regex_str, re.M)
 
@@ -368,7 +374,7 @@ class OdpsSQLCompiler(Backend):
         while True:
             if isinstance(collection, JoinCollectionExpr):
                 idx, column_name = collection._column_origins[column_name]
-                args = collection._tmp_cached_args  # get the args which are substituted out
+                args = self._ctx._expr_raw_args[id(collection)]  # get the args which are substituted out
                 lhs, rhs = args[0], args[1]
                 collection = (lhs, rhs)[idx]
             elif self._ctx.get_collection_alias(collection, silent=True):
@@ -392,6 +398,9 @@ class OdpsSQLCompiler(Backend):
     def add_select_clause(self, expr, select_clause):
         if self._select_clause is not None:
             self.sub_sql_to_from_clause(expr.input)
+        if isinstance(expr, (GroupByCollectionExpr, MutateCollectionExpr)) and \
+                self._limit is not None:
+            self.sub_sql_to_from_clause(expr.input)
 
         self._select_clause = select_clause
         if self._ctx._mapjoin_hints:
@@ -405,7 +414,7 @@ class OdpsSQLCompiler(Backend):
 
     def add_where_clause(self, expr, where_clause):
         if any(clause is not None for clause in
-               (self._where_clause, self._select_clause)):
+               (self._where_clause, self._select_clause, self._limit)):
             self.sub_sql_to_from_clause(expr.input)
 
         self._where_clause = where_clause
@@ -846,9 +855,11 @@ class OdpsSQLCompiler(Backend):
             self.add_having_clause(expr, self._ctx.get_expr_compiled(having))
 
     def visit_mutate(self, expr):
-        bys, mutates = tuple(expr.args[1:])
+        bys, mutates, fields = tuple(expr.args[1:])
+        if fields is None:
+            fields = bys + mutates
 
-        select_fields = [self._compile_select_field(field) for field in bys + mutates]
+        select_fields = [self._compile_select_field(field) for field in fields]
         select_clause = self._join_select_fields(select_fields)
 
         self.add_select_clause(expr, select_clause)
@@ -1133,7 +1144,7 @@ class OdpsSQLCompiler(Backend):
             if expr.dtype == df_types.string:
                 val = utils.to_str(expr.value) \
                     if isinstance(expr.value, six.text_type) else expr.value
-                compiled = "'{}'".format(val.replace("'", "\\'"))
+                compiled = "'{0}'".format(val.replace("'", "\\'"))
             elif isinstance(expr._value, bool):
                 compiled = 'true' if expr._value else 'false'
             elif isinstance(expr._value, datetime):

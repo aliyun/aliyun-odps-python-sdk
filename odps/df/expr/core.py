@@ -19,23 +19,14 @@
 
 from __future__ import absolute_import
 
-import copy
 import itertools
 import weakref
-from collections import deque, defaultdict
+from collections import deque, defaultdict, Iterable
 
 from ... import compat
 from ...compat import six
-from ...dag import WeakNodeDAG
+from ...dag import DAG, Queue
 from . import utils
-
-_node_dependency_dag = WeakNodeDAG()
-DF_SYSTEM_METHODS = set("""
-__class__ __name__ __init__ __new__ __del__ __hash__ __init__ __getattribute__ __members__ __methods__ __repr__
-__getstate__ __setstate__
-accept ast all_path children compile data_source equals execute is_ancestor iter_args leaves output_type path
-substitute traverse verify visualize
-""".strip().split())
 
 
 class NodeMetaclass(type):
@@ -52,24 +43,14 @@ class NodeMetaclass(type):
             kv['__slots__'] = ()
         return type.__new__(mcs, name, bases, kv)
 
-    def __call__(cls, *args, **kwargs):
-        inst = super(NodeMetaclass, cls).__call__(*args, **kwargs)
-        inst._wrap_methods()
-        _node_dependency_dag.add_node(inst)
-        return inst
-
 
 class Node(six.with_metaclass(NodeMetaclass)):
-    __slots__ = '_cached_args', '_args_indexes', '__weakref__', '__parents', \
-                '__siblings', '__tmp_cached_args', '_source_call'
+    __slots__ = '_args_indexes', '__weakref__'
     _args = ()
 
     def __init__(self, *args, **kwargs):
         self._args_indexes = dict((name, i) for i, name in enumerate(self._args))
-        self._source_call = None
         self._init(*args, **kwargs)
-        self._fill_parents()
-        self.__tmp_cached_args = None
 
     def _init(self, *args, **kwargs):
         for arg, value in zip(self._args, args):
@@ -78,73 +59,13 @@ class Node(six.with_metaclass(NodeMetaclass)):
         for key, value in six.iteritems(kwargs):
             setattr(self, key, value)
 
-        # When we substitute an arg with another,
-        # we do not change the original arg,
-        # instead, we store the new arg in the _cached_args.
-        # When we traverse the node,
-        # we will try to fetch args from the _cached_args first.
-        self._init_attr('_cached_args', None)
-
     def _init_attr(self, attr, val):
-        try:
-            object.__getattribute__(self, attr)
-        except AttributeError:
+        if not hasattr(self, attr):
             setattr(self, attr, val)
-
-    def _fill_parents(self):
-        if not hasattr(self, '_Node__parents') or self.__parents is None:
-            self.__parents = weakref.WeakValueDictionary()
-
-        for child in self.children():
-            child._add_parent(self)
-
-    def _remove_parent(self, parent):
-        if id(parent) in self.__parents:
-            del self.__parents[id(parent)]
-
-    def _add_parent(self, parent):
-        self.__parents[id(parent)] = parent
-
-    def _extend_parents(self, parents):
-        for parent in parents:
-            self._add_parent(parent)
-
-    @property
-    def parents(self):
-        return compat.lvalues(self.__parents)
-
-    @property
-    def _tmp_cached_args(self):
-        return self.__tmp_cached_args
-
-    @_tmp_cached_args.setter
-    def _tmp_cached_args(self, args):
-        self.__tmp_cached_args = args
-
-    def _get_attr(self, attr, silent=False):
-        if silent:
-            try:
-                return object.__getattribute__(self, attr)
-            except AttributeError:
-                return
-        return object.__getattribute__(self, attr)
-
-    def _init_cached_args(self):
-        if self._cached_args is not None:
-            return self._cached_args
-        self._cached_args = tuple(self._get_attr(arg_name, True)
-                                  for arg_name in self._args)
-
-    def _get_arg(self, arg_name):
-        self._init_cached_args()
-
-        idx = self._args_indexes[arg_name]
-        return self._cached_args[idx]
 
     @property
     def args(self):
-        self._init_cached_args()
-        return self._cached_args
+        return tuple(getattr(self, arg, None) for arg in self._args)
 
     def iter_args(self):
         for name, arg in zip(self._args, self.args):
@@ -159,28 +80,25 @@ class Node(six.with_metaclass(NodeMetaclass)):
                 if ds is not None:
                     yield ds
 
-    def substitute(self, old_arg, new_arg):
+    def substitute(self, old_arg, new_arg, dag=None):
+        if dag is not None:
+            dag.substitute(old_arg, new_arg, parents=[self])
+            return
+
         if hasattr(old_arg, '_name') and old_arg._name is not None and \
                         new_arg._name is None:
-            new_arg = new_arg.rename(old_arg._name)
+            new_arg._name = old_arg._name
 
-        cached_args = []
-        for arg in self.args:
+        for arg_name, arg in zip(self._args, self.args):
             if not isinstance(arg, (list, tuple)):
                 if arg is old_arg:
-                    cached_args.append(new_arg)
-                else:
-                    cached_args.append(arg)
+                    setattr(self, arg_name, new_arg)
             else:
                 subs = list(arg)
                 for i in range(len(subs)):
                     if subs[i] is old_arg:
                         subs[i] = new_arg
-                cached_args.append(type(arg)(subs))
-        self._cached_args = tuple(cached_args)
-
-        old_arg._remove_parent(self)
-        new_arg._add_parent(self)
+                setattr(self, arg_name, type(arg)(subs))
 
     def children(self):
         args = []
@@ -234,8 +152,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
                     yield curr
 
     def _slot_values(self):
-        return [getattr(self, slot, None) for slot in utils.get_attrs(self)
-                if slot != '_cached_args']
+        return [getattr(self, slot, None) for slot in utils.get_attrs(self)]
 
     def __eq__(self, other):
         return self.equals(other)
@@ -263,34 +180,11 @@ class Node(six.with_metaclass(NodeMetaclass)):
     def __hash__(self):
         return hash((type(self), tuple(self.children())))
 
-    def _is_ancestor_bottom_up(self, other):
-        traversed = set()
-        def is_trav(n):
-            if id(n) in traversed:
+    def is_ancestor(self, other):
+        for n in self.traverse(top_down=True, unique=True):
+            if n is other:
                 return True
-            traversed.add(id(n))
-            return False
-
-        q = deque()
-        q.append(other)
-        is_trav(other)
-
-        while len(q) > 0:
-            curr = q.popleft()
-            if curr is self:
-                return True
-            q.extendleft(
-                [p for p in curr.parents if not is_trav(p)])
         return False
-
-    def is_ancestor(self, other, updown=True):
-        if updown:
-            for n in self.traverse(top_down=True, unique=True):
-                if n is other:
-                    return True
-            return False
-        else:
-            return self._is_ancestor_bottom_up(other)
 
     def path(self, other, strict=False):
         all_apaths = self.all_path(other, strict=strict)
@@ -342,77 +236,79 @@ class Node(six.with_metaclass(NodeMetaclass)):
 
         attr_dict = dict((attr, getattr(self, attr, None)) for attr in slots)
         copied = type(self)(**attr_dict)
-        copied._extend_parents(self.parents)
         return copied
+
+    def copy_to(self, target):
+        slots = utils.get_attrs(self)
+        for attr in slots:
+            if hasattr(self, attr):
+                setattr(target, attr, getattr(self, attr, None))
+
+    def copy_tree(self, on_copy=None):
+        if on_copy is not None and not isinstance(on_copy, Iterable):
+            on_copy = [on_copy, ]
+
+        expr_id_to_copied = dict()
+
+        def get(n):
+            if n is None:
+                return n
+            return expr_id_to_copied[id(n)]
+
+        for node in self.traverse(unique=True):
+            slots = utils.get_attrs(node)
+            attr_dict = dict((attr, getattr(node, attr, None)) for attr in slots)
+
+            for arg_name, arg in zip(node._args, node.args):
+                if isinstance(arg, (tuple, list)):
+                    attr_dict[arg_name] = type(arg)(get(it) for it in arg)
+                else:
+                    attr_dict[arg_name] = get(arg)
+
+            copied_node = type(node)(**attr_dict)
+            expr_id_to_copied[id(node)] = copied_node
+            if on_copy is not None:
+                [func(node, copied_node) for func in on_copy]
+
+        return expr_id_to_copied[id(self)]
+
+    def to_dag(self, copy=True):
+        if copy:
+            expr = self.copy_tree()
+        else:
+            expr = self
+
+        dag = ExprDAG(expr)
+        dag.add_node(expr)
+
+        queue = Queue()
+        queue.put(expr)
+
+        traversed = set()
+        traversed.add(id(expr))
+
+        while not queue.empty():
+            node = queue.get()
+
+            for child in node.children():
+                if not dag.contains_node(child):
+                    dag.add_node(child)
+                if not dag.contains_edge(child, node):
+                    dag.add_edge(child, node, validate=False)
+
+                if id(child) in traversed:
+                    continue
+                traversed.add(id(child))
+                queue.put(child)
+
+        dag._validate()  # validate the DAG
+        return dag
 
     def __getstate__(self):
         slots = utils.get_attrs(self)
 
         return tuple((slot, object.__getattribute__(self, slot)) for slot in slots
                      if not slot.startswith('__'))
-
-    def _copy_to(self, target):
-        for cls, slots in ((cls, getattr(cls, '__slots__', [])) for cls in type(self).__mro__):
-            for attr in slots:
-                if attr.startswith('__'):
-                    attr = '_' + cls.__name__ + attr
-                if hasattr(target, attr):
-                    setattr(target, attr, getattr(self, attr))
-
-    def _direct_copy(self):
-        new_node = copy.copy(self)
-        _node_dependency_dag.add_node(new_node)
-        return new_node
-
-    def _closest(self, cond):
-        collected = set()
-        stop_cond = lambda n: not collected.intersection(_node_dependency_dag.successors(n))
-        for n in _node_dependency_dag.bfs(self, _node_dependency_dag.predecessors, stop_cond):
-            if cond(n):
-                yield n
-
-    def _replay_descendants(self):
-        for d in _node_dependency_dag.descendants(self):
-            if d._source_call is None:
-                continue
-            par, method_name, args, kwargs = d._source_call
-            new_df = getattr(par, method_name)(*args, **kwargs)
-            new_df._copy_to(d)
-            # mark as replayed
-            d._source_call = None
-
-    def _wrap_methods(self):
-        cls = type(self)
-        if hasattr(cls, '_methods_wrapped'):
-            return
-
-        def _gen_wrapped_method(member_name):
-            mt = getattr(cls, member_name)
-            # if method is attached outside odps.ml, we do not wrap
-            if not hasattr(mt, '__module__') or mt.__module__ is None or not mt.__module__.startswith('odps.df'):
-                return mt
-            if hasattr(mt, '_source_recorder_wrapped'):
-                return mt
-
-            def _decorated(self, *args, **kwargs):
-                ret = mt(self, *args, **kwargs)
-                if isinstance(ret, Node):
-                    ret._source_call = (self, member_name, args, kwargs)
-                    _node_dependency_dag.add_edge(self, ret, validate=False)
-                    for d in itertools.chain((self, ), _extract_df_inputs(args), _extract_df_inputs(kwargs)):
-                        _node_dependency_dag.add_edge(d, ret, validate=False)
-                return ret
-
-            _decorated._source_recorder_wrapped = True
-            _decorated.__name__ = mt.__name__
-            return _decorated
-
-        for member_name in dir(cls):
-            if member_name in DF_SYSTEM_METHODS:
-                continue
-            if (member_name.startswith('__') or not member_name.startswith('_')) and callable(getattr(cls, member_name)):
-                setattr(cls, member_name, _gen_wrapped_method(member_name))
-        cls._methods_wrapped = True
 
     def __setstate__(self, state):
         self.__init__(**dict(state))
@@ -431,3 +327,193 @@ def _extract_df_inputs(o):
                 yield v
     else:
         yield None
+
+
+class ExprProxy(object):
+    def __init__(self, expr, d=None, compare=False):
+        if d is not None:
+            def callback(_):
+                if self in d:
+                    del d[self]
+        else:
+            callback = None
+        self._ref = weakref.ref(expr, callback)
+        self._cmp = compare
+        self._hash = hash(expr)
+        self._expr_id = id(expr)
+
+    def __call__(self):
+        return self._ref()
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        if isinstance(other, ExprProxy):
+            if self._ref() is not None and other() is not None:
+                return self._ref() is other()
+            return self._expr_id == other._expr_id
+
+        obj = self._ref()
+        if obj is not None and self._cmp:
+            return obj.equals(other)
+
+        return self._expr_id == id(other)
+
+
+class ExprDAG(DAG):
+    def __init__(self, root, dag=None):
+        self._root = weakref.ref(root)
+        super(ExprDAG, self).__init__()
+        if dag is not None:
+            self._graph = dag._graph
+            self._map = dag._map
+
+    @property
+    def root(self):
+        return self._root()
+
+    @root.setter
+    def root(self, root):
+        self._root = weakref.ref(root)
+
+    def traverse(self, root=None, top_down=False, traversed=None):
+        root = root or self.root
+        return root.traverse(top_down=top_down, unique=True, traversed=traversed)
+
+    def substitute(self, expr, new_expr, parents=None):
+        if expr is self.root:
+            self.root = new_expr
+
+        parents = self.successors(expr) if parents is None else parents
+
+        if expr._need_cache:
+            new_expr.cache()
+
+        q = Queue()
+        q.put(new_expr)
+
+        while not q.empty():
+            node = q.get()
+            if not self.contains_node(node):
+                self.add_node(node)
+
+            for child in node.children():
+                if not self.contains_node(child):
+                    q.put(child)
+                    self.add_node(child)
+                if not self.contains_edge(child, node):
+                    self.add_edge(child, node, validate=False)
+
+        for parent in parents:
+            parent.substitute(expr, new_expr)
+            self.add_edge(new_expr, parent, validate=False)
+            try:
+                self.remove_edge(expr, parent)
+            except KeyError:
+                pass
+
+    def prune(self):
+        while True:
+            nodes = [n for n, succ in six.iteritems(self._graph) if len(succ) == 0]
+            if len(nodes) == 1 and nodes[0] is self.root:
+                break
+            for node in nodes:
+                if node is not self.root:
+                    self.remove_node(node)
+
+    def closest_ancestors(self, node, cond):
+        collected = set()
+        stop_cond = lambda n: not collected.intersection(self.successors(n))
+        for n in self.bfs(node, self.predecessors, stop_cond):
+            if cond(n):
+                collected.add(n)
+                yield n
+
+
+class ExprDictionary(dict):
+    def _ref(self, obj, ref_self=False):
+        r = self if ref_self else None
+        return obj if isinstance(obj, ExprProxy) else ExprProxy(obj, d=r)
+
+    def __getitem__(self, item):
+        if item is None:
+            raise KeyError
+        return dict.__getitem__(self, self._ref(item))
+
+    def __setitem__(self, key, value):
+        if key is None:
+            raise KeyError
+        return dict.__setitem__(self, self._ref(key, True), value)
+
+    def __iter__(self):
+        for k in dict.__iter__(self):
+            return k()
+
+    def __delitem__(self, key):
+        if key is None:
+            raise KeyError
+        return dict.__delitem__(self, self._ref(key))
+
+    def __contains__(self, item):
+        if item is None:
+            return False
+        return dict.__contains__(self, self._ref(item))
+
+    def get(self, k, d=None):
+        if k is None:
+            raise KeyError
+        return dict.get(self, self._ref(k), d)
+
+    def has_key(self, k):
+        if k is None:
+            return False
+        return dict.has_key(self, self._ref(k))
+
+    def pop(self, k, d=None):
+        if k is None:
+            return False
+        return dict.pop(self, self._ref(k), d)
+
+    def popitem(self):
+        k, v = dict.popitem(self)
+        return k(), v
+
+    def setdefault(self, k, d=None):
+        if k is None:
+            raise KeyError
+        return dict.setdefault(self, self._ref(k, True), d)
+
+    def update(self, E=None, **F):
+        if hasattr(E, 'keys'):
+            for k in E.keys():
+                self[k] = E[k]
+        elif E is not None:
+            for k, v in E:
+                self[k] = v
+        else:
+            for k, v in six.iteritems(F):
+                self[k] = v
+
+    if six.PY2:
+        def items(self):
+            return [(k(), v) for k, v in dict.items(self)]
+
+        def keys(self):
+            return [k() for k in dict.keys(self)]
+
+        def iteritems(self):
+            for k, v in dict.iteritems(self):
+                yield k(), v
+
+        def iterkeys(self):
+            for k in dict.iterkeys(self):
+                yield k()
+    else:
+        def items(self):
+            for k, v in dict.items(self):
+                yield k(), v
+
+        def keys(self):
+            for k in dict.keys(self):
+                yield k()

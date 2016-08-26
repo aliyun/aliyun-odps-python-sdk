@@ -35,11 +35,6 @@ class Test(TestBase):
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
-    # def testCacheNode(self):
-    #     self.assertIs(self.expr.name.count('test'), self.expr.name.count('test'))
-    #     self.assertIs(self.expr.name.rjust(3), self.expr.name.rjust(3))
-    #     self.assertIsNot(self.expr.name.zfill(3), self.expr.name.zfill(5))
-
     def testStrings(self):
         self.assertRaises(AttributeError, lambda: self.expr.id.strip())
         self.assertRaises(AttributeError, lambda: self.expr.fid.upper())

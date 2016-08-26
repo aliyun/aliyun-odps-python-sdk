@@ -67,7 +67,11 @@ class TestBase(Base):
                     if numpy.isnan(t):
                         return None
                 except TypeError:
-                    return t
+                    pass
+                if isinstance(t, pandas.Timestamp):
+                    t = t.to_datetime()
+                elif pandas.isnull(t):
+                    t = None
                 return t
 
             if isinstance(res, pandas.DataFrame):

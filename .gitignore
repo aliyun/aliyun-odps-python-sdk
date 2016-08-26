@@ -26,6 +26,15 @@ pip-log.txt
 # xlib logs
 xlibsyslog
 
+# node-js
+node_modules
+jspm_packages
+
+npm-debug.log*
+.npm
+.node_repl_history
+.grunt
+
 # Unit test / coverage reports
 .coverage
 htmlcov

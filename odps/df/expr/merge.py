@@ -17,13 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import operator
 import inspect
 from .expressions import CollectionExpr, ProjectCollectionExpr, \
     Column, BooleanSequenceExpr, SequenceExpr, repr_obj
 from .arithmetic import Equal
 from .errors import ExpressionError
-from ...compat import reduce, six
+from ...compat import six
 from ...models import Schema
 
 
@@ -33,11 +32,11 @@ class JoinCollectionExpr(CollectionExpr):
     _args = '_lhs', '_rhs', '_predicate'
 
     def _init(self, *args, **kwargs):
-        self._left_suffix = None
-        self._right_suffix = None
-        self._column_origins = dict()
-        self._renamed_columns = dict()
-        self._column_conflict = False
+        self._init_attr('_left_suffix', None)
+        self._init_attr('_right_suffix', None)
+        self._init_attr('_column_origins', dict())
+        self._init_attr('_renamed_columns', dict())
+        self._init_attr('_column_conflict', False)
 
         super(JoinCollectionExpr, self)._init(*args, **kwargs)
         if not isinstance(self._lhs, CollectionExpr):
@@ -211,6 +210,9 @@ class JoinCollectionExpr(CollectionExpr):
                 equal_expr.rhs.is_ancestor(self._get_child(self._lhs)))
 
     def _validate_predicates(self, predicates):
+        if predicates is None:
+            return
+
         is_validate = False
         subs = []
         if self._mapjoin:
@@ -255,7 +257,7 @@ class JoinCollectionExpr(CollectionExpr):
         if len(subs) ==0:
             self._predicate = None
         else:
-            self._predicate = reduce(operator.and_, subs)
+            self._predicate = subs
 
 
 class InnerJoin(JoinCollectionExpr):
@@ -265,6 +267,9 @@ class InnerJoin(JoinCollectionExpr):
 
     def _get_non_suffixes_fields(self):
         non_suffixes = set()
+
+        if not self._predicate:
+            return non_suffixes
 
         for p in self._predicate:
             if isinstance(p, six.string_types):

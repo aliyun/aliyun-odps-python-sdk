@@ -22,6 +22,7 @@
                 <inputName>feature</inputName>
             </param>
             <param name="labelColName">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>feature</inputName>
             </param>
@@ -73,10 +74,12 @@
         <enabled>false</enabled>
         <params>
             <param name="featureColNames">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>feature</inputName>
             </param>
             <param name="labelColName">
+                <alias>labelCol</alias>
                 <exporter>get_label_column</exporter>
                 <inputName>feature</inputName>
             </param>
@@ -185,6 +188,7 @@
                 <inputName>model</inputName>
             </param>
             <param name="featureColNames">
+                <alias>featureCols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>feature</inputName>
             </param>
@@ -209,7 +213,7 @@
                 <sequence>1</sequence>
                 <type>DATA</type>
                 <schema>
-                    <schema>$package_root.preprocess.customize.binning_predict_output</schema>
+                    <schema>{metaColNames}, prediction_score: double, prediction_prob: double, prediction_detail: string</schema>
                     <dynamic>true</dynamic>
                 </schema>
             </port>

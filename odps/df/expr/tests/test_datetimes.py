@@ -36,10 +36,6 @@ class Test(TestBase):
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
-    # def testCacheNode(self):
-    #     self.assertIs(self.expr.birth.year, self.expr.birth.year)
-    #     self.assertIs(self.expr.birth.strftime('%Y'), self.expr.birth.strftime('%Y'))
-
     def testDatetimes(self):
         self.assertRaises(AttributeError, lambda: self.expr.id.hour)
         self.assertRaises(AttributeError, lambda: self.expr.fid.minute)

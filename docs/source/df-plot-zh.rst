@@ -6,6 +6,8 @@
 PyODPS
 DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** 和 **matplotlib** 的安装。
 
+接下来的例子都是在jupyter中运行。
+
 .. code:: python
 
     from odps.df import DataFrame
@@ -32,7 +34,7 @@ DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** �
 
 
 
-.. image:: _static/output_7_1.png
+.. image:: _static/df-plot-iris-sequence.png
 
 
 .. code:: python
@@ -49,7 +51,7 @@ DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** �
 
 
 
-.. image:: _static/output_8_1.png
+.. image:: _static/df-plot-iris-collection.png
 
 
 .. code:: python
@@ -66,7 +68,7 @@ DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** �
 
 
 
-.. image:: _static/output_9_1.png
+.. image:: _static/df-plot-iris-sum.png
 
 
 .. code:: python
@@ -86,7 +88,7 @@ DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** �
 
 
 
-.. image:: _static/output_10_1.png
+.. image:: _static/df-plot-iris-hist.png
 
 
 参数\ ``kind``\ 表示了绘图的类型，支持的包括：
@@ -147,3 +149,49 @@ DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** �
     </div>
 
 详细参数可以参考Pandas文档：http://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.plot.html
+
+除此之外，plot函数还增加了几个参数，方便进行绘图。
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <tr>
+        <th>参数</th>
+        <th>说明</th>
+      </tr>
+      <tr>
+        <td>xlabel</td>
+        <td>x轴名</td>
+      </tr>
+      <tr>
+        <td>ylabel</td>
+        <td>y轴名</td>
+      </tr>
+      <tr>
+        <td>xlabelsize</td>
+        <td>x轴名大小</td>
+      </tr>
+      <tr>
+        <td>ylabelsize</td>
+        <td>y轴名大小</td>
+      </tr>
+      <tr>
+        <td>labelsize</td>
+        <td>轴名大小</td>
+      </tr>
+      <tr>
+        <td>title</td>
+        <td>标题</td>
+      </tr>
+      <tr>
+        <td>titlesize</td>
+        <td>标题大小</td>
+      </tr>
+      <tr>
+        <td>annotate</td>
+        <td>是否标记值</td>
+      </tr>
+    </table>
+    </div>

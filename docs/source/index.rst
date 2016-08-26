@@ -49,21 +49,10 @@ PyODPS的相关依赖会自动安装。
 
    installation-int-zh.rst
    installation-pub-zh.rst
-   projects-zh
-   tables-zh
-   sql-zh
-   instances-zh
-   resources-zh
-   functions-zh
-   volume-int-zh
-   models-int-zh
-   cl-zh
+   base-zh
    df-zh
    ml-int-zh
+   interactive-zh
    options-zh
    faq-int.rst
    api
-
-
-
-

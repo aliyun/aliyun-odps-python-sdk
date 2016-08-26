@@ -9,10 +9,10 @@
     iris = DataFrame(o.get_table('pyodps_iris'))
     lens = DataFrame(o.get_table('pyodps_ml_100k_lens'))
 
-元素级别操作
-============
 
 对于一个Sequence来说，对它加上一个常量、或者执行sin函数的这类操作时，是作用于每个元素上的。接下来会详细说明。
+
+.. _map:
 
 使用自定义函数
 ==============
@@ -118,6 +118,8 @@ UDF的限制在此都适用。因此目前，第三方库只能使用\ ``numpy``
 除了调用自定义函数，DataFrame还提供了很多内置函数，这些函数中部分使用了map函数来实现，因此，如果\ **用户所在Project未开通Python
 UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提供Python UDF支持）**\ 。
 
+.. _function_resource:
+
 引用资源
 ~~~~~~~~~~~~~
 
@@ -216,9 +218,158 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
     </div>
 
 
+.. _third_party_library:
 
-NULL相关
-========
+使用第三方纯Python库
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+现在用户可以把第三方Python包作为资源上传到ODPS，支持的格式有whl、egg、zip以及tar.gz。
+在全局或者在立即执行的方法时，指定需要使用的包文件。即可以在自定义函数中使用第三方库。
+
+值得注意的是，第三方库的依赖库，也必须指定，否则依然会有导入错误。
+
+下面我们会以 python-dateutil 这个包作为例子。
+
+首先，我们可以使用pip download命令，下载包以及其依赖到某个路径。
+这里下载后会出现两个包：six-1.10.0-py2.py3-none-any.whl和python_dateutil-2.5.3-py2.py3-none-any.whl
+（这里注意需要下载支持linux环境的包）
+
+.. code-block:: shell
+
+    pip download python-dateutil -d /to/path/
+
+
+
+然后我们分别把两个文件上传到ODPS资源
+
+.. code:: python
+
+    # 这里要确保资源名的后缀是正确的文件类型
+    odps.create_resource('six.whl', 'file', file_obj=open('six-1.10.0-py2.py3-none-any.whl'))
+    odps.create_resource('python_dateutil.whl', 'file', file_obj=open('python_dateutil-2.5.3-py2.py3-none-any.whl'))
+
+
+现在我们有个DataFrame，只有一个string类型字段。
+
+
+
+
+.. code:: python
+
+    df
+
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>datestr</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>2016-08-26 14:03:29</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>2015-08-26 14:03:29</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+
+全局配置使用到的三方库：
+
+
+.. code:: python
+
+    from odps import options
+
+    def get_year(t):
+        from dateutil.parser import parse
+        return parse(t).strftime('%Y')
+
+    options.df.libraries = ['six.whl', 'python_dateutil.whl']
+    df.datestr.map(get_year)
+
+
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>datestr</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>2016</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>2015</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+
+立即运行方法指定：
+
+
+.. code:: python
+
+    def get_year(t):
+        from dateutil.parser import parse
+        return parse(t).strftime('%Y')
+
+    df.datestr.map(get_year).execute(libraries=['six.whl', 'python_dateutil.whl'])
+
+
+
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <thead>
+        <tr style="text-align: right;">
+          <th></th>
+          <th>datestr</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>0</th>
+          <td>2016</td>
+        </tr>
+        <tr>
+          <th>1</th>
+          <td>2015</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+
+
+
+NULL相关（isnull，notnull，fillna）
+=======================================
 
 DataFrame
 API提供了几个和NULL相关的内置函数，比如isnull来判断是否某字段是NULL，notnull则相反，fillna是将NULL填充为用户指定的值。
@@ -267,8 +418,8 @@ API提供了几个和NULL相关的内置函数，比如isnull来判断是否某�
 
 
 
-逻辑判断
-========
+逻辑判断（ifelse，switch）
+==============================
 
 ``ifelse``\ 作用于boolean类型的字段，当条件成立时，返回第0个参数，否则返回第1个参数。
 
@@ -1111,8 +1262,8 @@ string相关操作包括：
     </table>
     </div>
 
-其他操作
-========
+其他元素操作（isin，notin，cut）
+======================================
 
 ``isin``\ 给出Sequence里的元素是否在某个集合元素里。\ ``notin``\ 是相反动作。
 

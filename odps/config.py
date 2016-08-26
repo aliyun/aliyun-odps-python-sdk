@@ -222,6 +222,7 @@ options.register_option('biz_id', None)
 options.register_option('temp_lifecycle', 1, validator=is_integer)
 options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
 options.register_option('table_read_limit', None, validator=any_validator(is_null, is_integer))
+options.register_option('completion_size', 10, validator=is_integer)
 
 # c or python mode, use for UT, in other cases, please do not modify the value
 options.register_option('force_c', False, validator=is_integer)
@@ -246,22 +247,19 @@ options.register_option('interactive', is_interactive(), validator=is_bool)
 options.register_option('verbose', False, validator=is_bool)
 options.register_option('verbose_log', None)
 options.register_option('df.optimize', True, validator=is_bool)
+options.register_option('df.optimizes.cp', True, validator=is_bool)
+options.register_option('df.optimizes.pp', True, validator=is_bool)
 options.register_option('df.analyze', True, validator=is_bool)
 options.register_option('df.use_cache', True, validator=is_bool)
 options.register_option('df.quote', True, validator=is_bool)
+options.register_option('df.dump_udf', False, validator=is_bool)
+options.register_option('df.libraries', None)
 
 # PyODPS ML
 options.register_option('ml.xflow_project', 'algo_public', validator=is_string)
 options.register_option('ml.parallel_num', 5, validator=is_integer)
 options.register_option('ml.dry_run', False, validator=is_bool)
 options.register_option('ml.retry_times', 3, validator=is_integer)
-
-# PyODPS PAI
-# TODO remove in 0.7.0
-options.register_option('pai.xflow_project', 'algo_public', validator=is_string)
-options.register_option('pai.parallel_num', 5, validator=is_integer)
-options.register_option('pai.dry_run', False, validator=is_bool)
-options.register_option('pai.retry_times', 3, validator=is_integer)
 
 # display
 from .console import detect_console_encoding
@@ -271,6 +269,7 @@ options.register_option('display.max_rows', 60, validator=any_validator(is_null,
 options.register_option('display.max_columns', 20, validator=any_validator(is_null, is_integer))
 options.register_option('display.large_repr', 'truncate', validator=is_in(['truncate', 'info']))
 options.register_option('display.notebook_repr_html', True, validator=is_bool)
+options.register_option('display.notebook_repr_widget', True, validator=is_bool)
 options.register_option('display.precision', 6, validator=is_integer)
 options.register_option('display.float_format', None)
 options.register_option('display.chop_threshold', None)

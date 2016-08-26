@@ -31,8 +31,10 @@ from .odpssql.engine import ODPSEngine
 from .pd.engine import PandasEngine
 from .errors import NoBackendFound
 from .optimize import Optimizer
+from .context import context
 from .formatter import ExprExecutionGraphFormatter
 from .. import Scalar
+from ..expr.core import ExprProxy
 from ..expr.expressions import CollectionExpr, SequenceExpr
 from ..expr.merge import JoinCollectionExpr, UnionCollectionExpr
 from ..expr.element import IsIn
@@ -43,7 +45,7 @@ from ...dag import DAG
 from ...utils import init_progress_ui, TEMP_TABLE_PREFIX, gen_repr_object
 from ...tempobj import register_temp_table
 from ...ui.progress import create_instance_group
-from ...compat import Enum
+from ...compat import Enum, OrderedDict, six
 
 
 class Engines(Enum):
@@ -105,7 +107,7 @@ class MixedEngine(Engine):
     def _need_handle_sources(self, expr):
         return len(available_engines(expr.data_source())) > 1
 
-    def _calc_pandas(self, expr):
+    def _need_pandas_calc(self, expr):
         try:
             import pandas as pd
 
@@ -120,77 +122,86 @@ class MixedEngine(Engine):
         self._generated_table_names.append(table_name)
         return table_name
 
-    def _sub(self, to_sub, sub):
-        parents = to_sub.parents
-        for parent in parents:
-            parent.substitute(to_sub, sub)
+    def _sub(self, to_sub, sub, dag):
+        dag.substitute(to_sub, sub)
 
-    def _add_node(self, dag, expr, func, src_expr=None):
-        src_expr = src_expr or expr
+    def _add_node(self, dag, expr, func, copied):
         nodes = dag.nodes()
 
-        curr = (expr, func, src_expr)
+        curr = (expr, func, copied)
         dag.add_node(curr)
 
         for node in nodes:
-            e = node[0]
-            if src_expr.is_ancestor(e):
+            e, _, _ = node
+            if expr.is_ancestor(e):
                 dag.add_edge(node, curr)
+            elif e.is_ancestor(expr):
+                dag.add_edge(curr, node)
 
-    def _compile_join_or_union_node(self, node, dag, callbacks):
+    def _compile_join_or_union_node(self, node, src_node, node_dag, dag, callbacks):
         if not self._need_handle_sources(node):
             return
 
         # Right now, we just persit DataFrame from pandas to ODPS
-        to_sub = next(it for it in (node._lhs, node._rhs) if self._calc_pandas(it))
+        to_sub, src_to_sub = next(
+            (it, src_it) for it, src_it in [(node._lhs, src_node._lhs), (node._rhs, src_node._rhs)]
+            if self._need_pandas_calc(it))
         table_name = self._gen_table_name()
 
         sub = CollectionExpr(_source_data=self._odps.get_table(table_name),
                              _schema=to_sub.schema)
 
-        cb = lambda: self._sub(sub, to_sub)
+        cb = lambda: self._sub(sub, to_sub, node_dag)
 
         def func(**kwargs):
             if 'lifecycle' not in kwargs:
                 kwargs['lifecycle'] = options.temp_lifecycle
-            self._pandas_engine.persist(to_sub, table_name, **kwargs)
+            self._pandas_engine.persist(to_sub, table_name, src_expr=src_to_sub,
+                                        dag=node_dag, **kwargs)
             callbacks.remove(cb)
 
-        self._sub(to_sub, sub)
-        self._add_node(dag, node, func, src_expr=to_sub)
+        self._sub(to_sub, sub, node_dag)
+        self._add_node(dag, src_to_sub, func, to_sub)
         callbacks.append(cb)
 
-    def _compile_isin_node(self, node, dag, callbacks):
+    def _compile_isin_node(self, node, src_node, node_dag, dag, callbacks):
         if not self._need_handle_sources(node):
             return
 
         seq = node._values[0]
+        src_seq = src_node._values[0]
 
+        args = node.args
         def cb():
-            node._cached_args = None
+            for arg_name, arg in zip(node._args, args):
+                setattr(node, arg_name, arg)
 
         def func(**kwargs):
-            vals = list(self._pandas_engine.execute(seq, **kwargs)[:, 0])
-            node._cached_args = tuple(
-                node._cached_args[:1] + (tuple(Scalar(it) for it in vals), ))
+            vals = list(self._pandas_engine.execute(seq, src_expr=src_seq,
+                                                    dag=node_dag, **kwargs)[:, 0])
+            node._values = tuple(Scalar(val) for val in vals)
             callbacks.remove(cb)
 
-        node._cached_args = tuple(node._cached_args[:1] + ((None, ), ))
-        self._add_node(dag, node, func)
+        for arg_name in node._args[1:]:
+            setattr(node, arg_name, None)
+        self._add_node(dag, src_seq, func, seq)
         callbacks.append(cb)
 
-    def _compile_cache_node(self, node, dag, callbacks):
+    def _compile_cache_node(self, node, src_node, node_dag, dag, callbacks):
         engines = list(available_engines(node.data_source()))
-        assert len(engines) == 1
-        executor = self._odpssql_engine if engines[0] == Engines.ODPS \
-            else self._pandas_engine
+        if len(engines) == 1:
+            executor = self._odpssql_engine if engines[0] == Engines.ODPS \
+                else self._pandas_engine
+        else:
+            # we now just upload pandas data to ODPS
+            executor = self._odpssql_engine
 
         try:
             import pandas as pd
         except ImportError:
             pass
 
-        if engines[0] == Engines.ODPS:
+        if executor is self._odpssql_engine:
             if isinstance(node, (CollectionExpr, SequenceExpr)):
                 tmp_table_name = self._gen_table_name()
                 if isinstance(node, CollectionExpr):
@@ -217,7 +228,9 @@ class MixedEngine(Engine):
                 sub = Scalar(_value=None, _value_type=node.dtype)
 
         def func(**kwargs):
-            if engines[0] == Engines.ODPS:
+            kwargs['src_expr'] = src_node
+            kwargs['dag'] = node_dag
+            if executor is self._odpssql_engine:
                 if isinstance(node, (CollectionExpr, SequenceExpr)):
                     tmp_table_name = sub._source_data.name
                     if 'lifecycle' not in kwargs:
@@ -233,9 +246,9 @@ class MixedEngine(Engine):
                 else:
                     sub._value = executor.execute(node, **kwargs)
 
-        self._sub(node, sub)
-        self._add_node(dag, sub, func, src_expr=node)
-        callbacks.append(lambda: self._sub(sub, node))
+        self._sub(node, sub, node_dag)
+        self._add_node(dag, src_node, func, node)
+        callbacks.append(lambda: self._sub(sub, node, node_dag))
 
         return sub
 
@@ -265,17 +278,18 @@ class MixedEngine(Engine):
             return True
         return node._need_cache and node._cache_data is None
 
-    def _compile_function(self, node, dag, callbacks):
+    def _compile_function(self, node, src_node, node_dag, dag, callbacks):
         if not self._need_handle_sources(node):
             return
 
         # if node input comes from an ODPS table
         is_node_input_from_table = \
             isinstance(next(node.children()[0].data_source()), Table)
-        for collection in node._collection_resources:
+        for i, collection in enumerate(node._collection_resources):
             # if the collection resource comes from an ODPS table
             is_source_from_table = \
                 isinstance(next(collection.data_source()), Table)
+            src_collection = src_node._collection_resources[i]
 
             if is_node_input_from_table and not is_source_from_table:
                 table_name = self._gen_table_name()
@@ -283,29 +297,33 @@ class MixedEngine(Engine):
                 sub = CollectionExpr(_source_data=self._odps.get_table(table_name),
                                      _schema=collection.schema)
 
-                cb = lambda: self._sub(sub, collection)
+                cb = lambda: self._sub(sub, collection, node_dag)
 
                 def func(**kwargs):
-                    self._pandas_engine.persist(collection, table_name, **kwargs)
+                    self._pandas_engine.persist(collection, table_name,
+                                                src_expr=src_collection,
+                                                dag=node_dag, **kwargs)
                     callbacks.remove(cb)
 
             elif not is_node_input_from_table and is_source_from_table:
                 sub = CollectionExpr(_source_data=pd.DataFrame(),
                                      _schema=collection.schema)
 
-                cb = lambda: self._sub(sub, collection)
+                cb = lambda: self._sub(sub, collection, node_dag)
 
                 def func(**kwargs):
-                    data = collection.to_pandas(**kwargs)
+                    res = self._odpssql_engine.execute(
+                        collection, src_expr=src_collection, dag=node_dag, **kwargs)
+                    data = res.values
                     sub._source_data = data
             else:
                 continue
 
-            self._sub(collection, sub)
-            self._add_node(dag, node, func, src_expr=collection)
+            self._sub(collection, sub, node_dag)
+            self._add_node(dag, src_collection, func, collection)
             callbacks.append(cb)
 
-    def _handle_cache(self, expr, use_cache, callbacks):
+    def _handle_cache(self, expr, node_dag, use_cache, callbacks):
         if not use_cache:
             return
 
@@ -321,54 +339,81 @@ class MixedEngine(Engine):
                 sub = Scalar(_value=expr._cache_data, _value_type=expr.dtype)
 
             if sub:
-                self._sub(expr, sub)
-                cb = lambda: self._sub(sub, expr)
+                self._sub(expr, sub, node_dag)
+                cb = lambda: self._sub(sub, expr, node_dag)
                 callbacks.append(cb)
                 return sub
 
     def _compile(self, expr, use_cache=None):
         use_cache = use_cache if use_cache is not None else options.df.use_cache
 
+        src_expr = expr
         dag = DAG()
-
         callbacks = []
 
-        for node in expr.traverse(unique=True):
-            if isinstance(node, (JoinCollectionExpr, UnionCollectionExpr)):
-                self._compile_join_or_union_node(node, dag, callbacks)
-            elif isinstance(node, IsIn):
-                self._compile_isin_node(node, dag, callbacks)
-            elif hasattr(node, '_func') and node._collection_resources:
-                self._compile_function(node, dag, callbacks)
-            if self._need_cache(node, use_cache):
-                sub = self._compile_cache_node(node, dag, callbacks)
-                if node is expr:
-                    expr = sub
-                    break
-            elif hasattr(node, '_cache_data') and node._cache_data is not None:
-                sub = self._handle_cache(node, use_cache, callbacks)
-                if sub is not None and node is expr:
-                    expr = sub
-                    break
+        need_cache = OrderedDict()
+        to_compile = OrderedDict()
+        cached = OrderedDict()
 
+        def on_copy(src_node, node):
+            if isinstance(node, (JoinCollectionExpr, UnionCollectionExpr)) \
+                    and self._need_handle_sources(node):
+                to_compile[ExprProxy(src_node)] = (node, self._compile_join_or_union_node)
+            elif isinstance(node, IsIn) and self._need_handle_sources(node):
+                to_compile[ExprProxy(src_node)] = (node, self._compile_isin_node)
+            elif hasattr(node, '_func') and node._collection_resources and \
+                    self._need_handle_sources(node):
+                to_compile[ExprProxy(src_node)] = (node, self._compile_function)
+
+            if self._need_cache(node, use_cache):
+                need_cache[ExprProxy(src_node)] = (node, self._compile_cache_node)
+            elif hasattr(node, '_cache_data') and node._cache_data is not None:
+                cached[ExprProxy(src_node)] = (node, self._handle_cache)
+
+        expr = context.register_to_copy_expr(src_expr, rebuilt=True, on_copy=on_copy)
+        node_dag = context.build_dag(src_expr, expr, rebuilt=True)
+
+        skip = False
+        # substitute the calculated node first
+        for node, func in list(six.itervalues(cached))[::-1]:
+            if use_cache and node is node_dag.root:
+                skip=True
+            func(node, node_dag, use_cache, callbacks)
+            if skip:
+                break
+
+        if not skip:
+            # handle the cache node which has not been calculated
+            for p, val in six.iteritems(need_cache):
+                src_node = p()
+                node, func = val
+                func(node, src_node, node_dag, dag, callbacks)
+                # we do optimize here
+                op_dag = context.build_dag(None, node, dag=node_dag)
+                Optimizer(op_dag).optimize()
+
+            # handle the node which comes from different data sources
+            for p, val in six.iteritems(to_compile):
+                src_node = p()
+                node, func = val
+                func(node, src_node, node_dag, dag, callbacks)
+
+        expr = Optimizer(node_dag).optimize()
         engines = list(available_engines(expr.data_source()))
         assert len(engines) == 1
         executor = self._odpssql_engine if engines[0] == Engines.ODPS \
             else self._pandas_engine
 
         def func(method, *args, **kwargs):
+            kwargs['src_expr'] = src_expr
+            kwargs['dag'] = node_dag
             return getattr(executor, method)(*args, **kwargs)
 
-        self._add_node(dag, expr, func)
+        self._add_node(dag, src_expr, func, expr)
 
         return dag, expr, callbacks
 
-    def _pre_process(self, expr, use_cache=None):
-        return Optimizer(expr, use_cache=use_cache).optimize()
-
-    def _compile_dag(self, expr, use_cache=None):
-        expr = self._pre_process(expr, use_cache=use_cache)
-
+    def _compile_dag(self, expr):
         dag, expr, callbacks = self._compile(expr)
         [cb() for cb in callbacks]
 
@@ -376,8 +421,6 @@ class MixedEngine(Engine):
         return dag
 
     def compile(self, expr, use_cache=None):
-        expr = self._pre_process(expr, use_cache=use_cache)
-
         dag, expr, callbacks = self._compile(expr)
         try:
             formatter = ExprExecutionGraphFormatter(expr, dag)
@@ -401,7 +444,6 @@ class MixedEngine(Engine):
         group = create_instance_group('DataFrame Operation[%s]' % node_name)
         ui.add_keys(group)
 
-        expr = self._pre_process(expr, use_cache=use_cache)
         dag, expr, callbacks = self._compile(expr, use_cache=use_cache)
 
         try:
@@ -427,6 +469,7 @@ class MixedEngine(Engine):
                 func = nodes[-1][1]
                 kwargs['start_progress'] = curr
                 kwargs['max_progress'] = stage_progress
+                kwargs['src_expr'] = src_expr
                 kwargs['ui'] = ui
                 res = func(method, expr, *args, **kwargs)
 
@@ -455,8 +498,6 @@ class MixedEngine(Engine):
         return self._run(expr, 'persist', name, **kwargs)
 
     def visualize(self, expr):
-        expr = self._pre_process(expr)
-
         dag, expr, callbacks = self._compile(expr)
         try:
             formatter = ExprExecutionGraphFormatter(expr, dag)

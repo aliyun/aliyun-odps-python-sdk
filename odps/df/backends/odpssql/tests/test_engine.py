@@ -23,10 +23,12 @@ from datetime import datetime, timedelta
 from functools import partial
 from random import randint
 import uuid
-from decimal import Decimal
+import os
+import zipfile
+import tarfile
 
 from odps.df.backends.tests.core import TestBase, to_str, tn
-from odps.compat import unittest, irange as xrange, six, DECIMAL_TYPES
+from odps.compat import unittest, irange as xrange, six, BytesIO
 from odps.models import Schema, Instance
 from odps import types
 from odps.df.types import validate_data_type
@@ -35,6 +37,7 @@ from odps.df.backends.odpssql.types import df_schema_to_odps_schema, \
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.backends.odpssql.engine import ODPSEngine
 from odps.df import Scalar, output_names, output_types, output, day, millisecond
+from odps import options
 
 
 class Test(TestBase):
@@ -135,6 +138,13 @@ class Test(TestBase):
         df = self.engine.persist(self.expr, table_name, partitions=['name', 'id'])
 
         try:
+            expr = df.filter(df.ismale == data[0][3],
+                             df.name == data[0][0], df.id == data[0][1],
+                             df.scale == data[0][4]
+                             )
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertIsNone(res)
+
             expr = df.count()
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertIsNone(res)
@@ -207,6 +217,10 @@ class Test(TestBase):
         expr = self.expr.sample(parts=10, columns=self.expr.id)
         res = self.engine.execute(expr)
         self.assertGreaterEqual(len(res), 0)
+
+        expr = self.expr[:1].filter(lambda x: x.name == data[1][0])
+        res = self.engine.execute(expr)
+        self.assertEqual(len(res), 0)
 
     def testChinese(self):
         data = [
@@ -365,6 +379,11 @@ class Test(TestBase):
     def testMath(self):
         data = self._gen_data(5, value_range=(1, 90))
 
+        if hasattr(math, 'expm1'):
+            expm1 = math.expm1
+        else:
+            expm1 = lambda x: 2 * math.exp(x / 2.0) * math.sinh(x / 2.0)
+
         methods_to_fields = [
             (math.sin, self.expr.id.sin()),
             (math.cos, self.expr.id.cos()),
@@ -377,7 +396,7 @@ class Test(TestBase):
             (math.log10, self.expr.id.log10()),
             (math.log1p, self.expr.id.log1p()),
             (math.exp, self.expr.id.exp()),
-            (math.expm1, self.expr.id.expm1()),
+            (expm1, self.expr.id.expm1()),
             (math.acosh, self.expr.id.arccosh()),
             (math.asinh, self.expr.id.arcsinh()),
             (math.atanh, self.expr.id.arctanh()),
@@ -561,6 +580,112 @@ class Test(TestBase):
                 table_resource.drop()
             except:
                 pass
+
+    def testThirdPartyLibraries(self):
+        import requests
+        from odps.compat import BytesIO
+
+        data = [
+            ['2016-08-18', 4, 5.3, None, None, None],
+            ['2015-08-18', 2, 3.5, None, None, None],
+            ['2014-08-18', 4, 4.2, None, None, None],
+            ['2013-08-18', 3, 2.2, None, None, None],
+            ['2012-08-18', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        dateutil_urls = [
+            'http://mirrors.aliyun.com/pypi/packages/33/68/'
+            '9eadc96f9899caebd98f55f942d6a8f3fb2b8f8e69ba81a0f771269897e9/'
+            'python_dateutil-2.5.3-py2.py3-none-any.whl#md5=dbcd46b171e01d4518db96e3571810db',
+            'http://mirrors.aliyun.com/pypi/packages/3e/f5/'
+            'aad82824b369332a676a90a8c0d1e608b17e740bbb6aeeebca726f17b902/'
+            'python-dateutil-2.5.3.tar.gz#md5=05ffc6d2cc85a7fd93bb245807f715ef',
+            'http://mirrors.aliyun.com/pypi/packages/b7/9f/'
+            'ba2b6aaf27e74df59f31b77d1927d5b037cc79a89cda604071f93d289eaf/'
+            'python-dateutil-2.5.3.zip#md5=52b3f339f41986c25c3a2247e722db17'
+        ]
+        dateutil_resources = []
+        for dateutil_url, name in zip(dateutil_urls, ['dateutil.whl', 'dateutil.tar.gz', 'dateutil.zip']):
+            obj = BytesIO(requests.get(dateutil_url).content)
+            res_name = '%s_%s.%s' % (
+                name.split('.', 1)[0], str(uuid.uuid4()).replace('-', '_'), name.split('.', 1)[1])
+            res = self.odps.create_resource(res_name, 'file', file_obj=obj)
+            dateutil_resources.append(res)
+
+        resources = []
+        six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
+
+        zip_io = BytesIO()
+        zip_f = zipfile.ZipFile(zip_io, 'w')
+        zip_f.write(six_path, arcname='mylib/six.py')
+        zip_f.close()
+        zip_io.seek(0)
+
+        rn = 'six_%s.zip' % str(uuid.uuid4())
+        resource = self.odps.create_resource(rn, 'file', file_obj=zip_io)
+        resources.append(resource)
+
+        tar_io = BytesIO()
+        tar_f = tarfile.open(fileobj=tar_io, mode='w:gz')
+        tar_f.add(six_path, arcname='mylib/six.py')
+        tar_f.close()
+        tar_io.seek(0)
+
+        rn = 'six_%s.tar.gz' % str(uuid.uuid4())
+        resource = self.odps.create_resource(rn, 'file', file_obj=tar_io)
+        resources.append(resource)
+
+        try:
+            for resource in resources:
+                for dateutil_resource in dateutil_resources:
+                    def f(x):
+                        from dateutil.parser import parse
+                        return int(parse(x).strftime('%Y'))
+
+                    expr = self.expr.name.map(f, rtype='int')
+
+                    res = self.engine.execute(expr, libraries=[resource.name, dateutil_resource])
+                    result = self._get_result(res)
+
+                    self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
+
+                    def f(row):
+                        from dateutil.parser import parse
+                        return int(parse(row.name).strftime('%Y')),
+
+                    expr = self.expr.apply(f, axis=1, names=['name', ], types=['int', ])
+
+                    res = self.engine.execute(expr, libraries=[resource, dateutil_resource])
+                    result = self._get_result(res)
+
+                    self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
+
+                    class Agg(object):
+                        def buffer(self):
+                            return [0]
+
+                        def __call__(self, buffer, val):
+                            from dateutil.parser import parse
+                            buffer[0] += int(parse(val).strftime('%Y'))
+
+                        def merge(self, buffer, pbuffer):
+                            buffer[0] += pbuffer[0]
+
+                        def getvalue(self, buffer):
+                            return buffer[0]
+
+                    expr = self.expr.name.agg(Agg, rtype='int')
+
+                    options.df.libraries = [resource.name, dateutil_resource]
+                    try:
+                        res = self.engine.execute(expr)
+                    finally:
+                        options.df.libraries = None
+
+                    self.assertEqual(res, sum([int(r[0].split('-')[0]) for r in data]))
+        finally:
+            [res.drop() for res in resources + dateutil_resources]
 
     def testApply(self):
         data = self._gen_data(5)
@@ -784,6 +909,18 @@ class Test(TestBase):
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
+
+        self.assertEqual(expected, result)
+
+        expr = self.expr[:1]
+        expr = expr.groupby('name').agg(expr.id.sum())
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 4]
+        ]
 
         self.assertEqual(expected, result)
 
@@ -1129,6 +1266,35 @@ class Test(TestBase):
             self.assertEqual(expect_r[0], actual_r[0])
             self.assertAlmostEqual(expect_r[1], actual_r[1])
 
+        expr = self.expr[
+            (self.expr['name'] + ',' + self.expr['id'].astype('string')).rename('name'),
+            self.expr.id
+        ]
+        expr = expr.groupby('name').agg(expr.id.agg(Aggregator).rename('id'))
+
+        expected = [
+            ['name1,4', 4],
+            ['name1,3', 3],
+            ['name2,2', 2],
+        ]
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr = self.expr[self.expr.name, Scalar(1).rename('id')]
+        expr = expr.groupby('name').agg(expr.id.sum())
+
+        expected = [
+            ['name1', 4],
+            ['name2', 1]
+        ]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(expected, result)
+
     def testMapReduceByApplyDistributeSort(self):
         data = [
             ['name key', 4, 5.3, None, None, None],
@@ -1223,6 +1389,59 @@ class Test(TestBase):
 
         expected = [['key', 3], ['name', 4]]
         self.assertEqual(sorted(result), sorted(expected))
+
+        # test both combiner and reducer
+        expr = self.expr['name',].map_reduce(mapper, reducer, combiner=reducer2, group='word')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(sorted(result), sorted(expected))
+
+    def testJoinMapReduce(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+
+        schema2 = Schema.from_lists(['name2', 'id2', 'id3'],
+                                    [types.string, types.bigint, types.bigint])
+
+        table_name = tn('pyodps_test_engine_table2')
+        self.odps.delete_table(table_name, if_exists=True)
+        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
+
+        self._gen_data(data=data)
+
+        data2 = [
+            ['name1', 4, -1],
+        ]
+
+        self.odps.write_table(table2, 0, data2)
+
+        @output(['id'], ['int'])
+        def reducer(keys):
+            sums = [0]
+
+            def h(row, done):
+                sums[0] += row.id
+                if done:
+                    yield sums[0]
+
+            return h
+
+        expr = self.expr.join(expr2, on=('name', 'name2'))
+        expr = expr.map_reduce(reducer=reducer, group='name')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0][0], 14)
 
     def testDistributeSort(self):
         data = [

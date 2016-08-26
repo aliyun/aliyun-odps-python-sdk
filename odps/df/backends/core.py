@@ -17,9 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from ..expr.expressions import *
-from ..expr.groupby import GroupBy, SequenceGroupBy
-from ..expr.reduction import Count, GroupedSequenceReduction
+from .. import utils
 
 
 class Backend(object):
@@ -123,18 +121,7 @@ class Backend(object):
 
 class Engine(object):
     def _convert_table(self, expr):
-        for node in expr.traverse(top_down=True, unique=True):
-            if isinstance(node, GroupedSequenceReduction):
-                return node._grouped.agg(expr)[[expr.name, ]]
-            elif isinstance(node, Column):
-                return node.input[[expr, ]]
-            elif isinstance(node, Count) and isinstance(node.input, CollectionExpr):
-                return node.input[[expr, ]]
-            elif isinstance(node, SequenceExpr) and hasattr(node, '_input') and \
-                    isinstance(node._input, CollectionExpr):
-                return node.input[[expr, ]]
-
-        raise NotImplementedError
+        return utils.to_collection(expr)
 
     def compile(self, expr):
         raise NotImplementedError

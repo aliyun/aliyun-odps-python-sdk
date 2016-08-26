@@ -28,6 +28,7 @@ import inspect
 import multiprocessing
 import os
 import re
+import shutil
 import string
 import struct
 import sys
@@ -191,7 +192,7 @@ def stringify_expt():
     return '\n'.join(lines)
 
 
-def str_to_printable(field_name):
+def str_to_printable(field_name, auto_quote=True):
     if not field_name:
         return field_name
 
@@ -208,7 +209,8 @@ def str_to_printable(field_name):
 
     need_escape = lambda c: c <= ' ' or c in escapes
     if any(need_escape(c) for c in field_name):
-        return '"' + ''.join(_escape_char(ch) for ch in field_name) + '"'
+        ret = ''.join(_escape_char(ch) for ch in field_name)
+        return '"' + ret + '"' if auto_quote else ret
     return field_name
 
 
@@ -275,6 +277,16 @@ def to_str(text, encoding='utf-8'):
 def is_lambda(f):
     lam = lambda: 0
     return isinstance(f, type(lam)) and f.__name__ == lam.__name__
+
+
+def str_to_kv(string, typ=None):
+    d = dict()
+    for pair in string.split(','):
+        k, v = pair.split(':', 1)
+        if typ:
+            v = typ(v)
+        d[k] = v
+    return d
 
 
 def interval_select(val, intervals, targets):

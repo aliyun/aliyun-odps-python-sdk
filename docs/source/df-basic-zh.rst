@@ -330,6 +330,21 @@ DataFrame会在打印或者repr的时候，调用\ ``execute``\ 方法，这样�
 此时打印或者repr对象，会显示整棵抽象语法树。
 
 
+立即运行设置运行参数
+====================
+
+对于立即执行的方法，比如 ``execute``、``persist``、``to_pandas`` 等，可以设置运行时参数（仅对ODPS SQL后端有效 ）。
+
+一种方法是设置全局参数。详细参考 :ref:`SQL设置运行参数 <sql_hints>` 。
+
+也可以在这些立即执行的方法上，使用 ``hints`` 参数。这样，这些参数只会作用于当前的计算过程。
+
+
+.. code:: python
+
+    iris[iris.sepallength < 5].to_pandas(hints={'odps.sql.mapper.split.size': 16})
+
+
 运行时显示详细信息
 ==================
 

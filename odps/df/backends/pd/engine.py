@@ -24,6 +24,7 @@ from .compiler import PandasCompiler
 from ..core import Engine
 from ..frame import ResultFrame
 from ... import DataFrame
+from ...expr.core import ExprProxy
 from ...expr.expressions import *
 from ...backends.odpssql.types import df_schema_to_odps_schema, df_type_to_odps_type
 from ..errors import CompileError
@@ -31,7 +32,12 @@ from ....utils import init_progress_ui
 from ....models import Schema, Partition
 from ....errors import ODPSError
 from ....types import PartitionSpec
+from .... import compat
+from ..context import context
 from . import analyzer as ana
+
+
+_replaced_expr = dict()
 
 
 class PandasEngine(Engine):
@@ -58,18 +64,38 @@ class PandasEngine(Engine):
             if close_ui:
                 ui.close()
 
-    def _optimize(self, expr):
+    def _optimize(self, expr, src_expr, dag=None):
         if self._global_optimize:
-            from ..optimize import Optimizer
-            expr = Optimizer(expr).optimize()
+            # we copy the entire ast,
+            # and all the modification will be applied to the copied ast.
+            if dag is None:
+                # the expr is already copied one
+                expr = context.register_to_copy_expr(src_expr, expr)
+            dag = context.build_dag(src_expr, expr, dag=dag)
 
-        expr = ana.Analyzer(expr).analyze()
+            from ..optimize import Optimizer
+            Optimizer(dag).optimize()
+        else:
+            dag = context.build_dag(src_expr, expr, dag=dag)
+
+        expr = ana.Analyzer(dag).analyze()
         return expr
 
-    def _pre_process(self, expr):
+    def _pre_process(self, expr, src_expr=None, dag=None):
+        src_expr = src_expr or expr
+
+        if isinstance(expr, Scalar) and expr.name is None:
+            expr = expr.rename('__rand_%s' % int(time.time()))
+
         if isinstance(expr, (Scalar, SequenceExpr)):
             expr = self._convert_table(expr)
-        expr = self._optimize(expr)
+
+        replaced = _replaced_expr.get(ExprProxy(src_expr))
+        if replaced is not None:
+            return replaced
+
+        expr = self._optimize(expr, src_expr, dag=dag)
+        _replaced_expr[ExprProxy(src_expr, _replaced_expr)] = expr
         return expr
 
     def _compile(self, expr):
@@ -105,6 +131,7 @@ class PandasEngine(Engine):
 
     def execute(self, expr, ui=None, start_progress=0, max_progress=1,
                 head=None, tail=None, **kw):
+        src_expr = kw.get('src_expr', expr)
         close_ui = ui is None
         ui = ui or init_progress_ui()
 
@@ -116,15 +143,24 @@ class PandasEngine(Engine):
                 if close_ui:
                     ui.close()
 
-        if isinstance(expr, Scalar) and expr.name is None:
-            expr = expr.rename('__rand_%s' % int(time.time()))
+        expr = self._pre_process(expr, src_expr, dag=kw.get('dag'))
 
-        src_expr = expr
-        expr = self._pre_process(expr)
-
-        return self._execute(expr, ui, src_expr=src_expr, close_ui=close_ui,
+        return self._execute(expr, ui, close_ui=close_ui,
                              start_progress=start_progress, max_progress=max_progress,
-                             head=head, tail=tail)
+                             head=head, tail=tail, src_expr=src_expr)
+
+    @classmethod
+    def _convert_pd_type(cls, values, table):
+        import pandas as pd
+
+        retvals = []
+        for val, t in compat.izip(values, table.schema.types):
+            if pd.isnull(val):
+                retvals.append(None)
+            else:
+                retvals.append(val)
+
+        return retvals
 
     def _write_table_no_partitions(self, frame, table, ui, partition=None,
                                    start_progress=0, max_progress=1):
@@ -137,7 +173,7 @@ class PandasEngine(Engine):
                     percent = start_progress + float(i) / size * max_progress
                     ui.update(min(percent, 1))
 
-                yield table.new_record(list(row))
+                yield table.new_record(self._convert_pd_type(row, table))
 
             ui.update(start_progress+max_progress)
 
@@ -166,7 +202,7 @@ class PandasEngine(Engine):
                         percent = start_progress + float(curr[0]) / size * max_progress
                         ui.update(min(percent, 1))
 
-                    yield table.new_record(list(row))
+                    yield table.new_record(self._convert_pd_type(row, table))
 
             with table.open_writer(partition=vals_to_partitions[name]) as writer:
                 writer.write(gen())
@@ -187,13 +223,15 @@ class PandasEngine(Engine):
                  odps=None, close_ui=True, lifecycle=None, start_progress=0, max_progress=1,
                  execute_percent=0.5, create_table=True, drop_partition=False,
                  create_partition=False, **kwargs):
+        src_expr = kwargs.get('src_expr', expr)
         odps = odps or self._odps
         if odps is None:
             raise ODPSError('ODPS entrance should be provided')
 
         try:
             df = self._execute(expr, ui=ui, start_progress=start_progress,
-                               max_progress=max_progress*execute_percent, close_ui=close_ui)
+                               max_progress=max_progress*execute_percent, close_ui=close_ui,
+                               src_expr=src_expr)
             schema = Schema(columns=df.columns)
 
             if partitions is not None:
@@ -253,11 +291,13 @@ class PandasEngine(Engine):
         close_ui = ui is None
         ui = ui or init_progress_ui()
 
+        src_expr = kwargs.pop('src_expr', expr)
         expr = self._pre_process(expr)
 
         return self._persist(expr, name, ui, project=project, partitions=partitions, partition=partition,
                              odps=odps, close_ui=close_ui, lifecycle=lifecycle,
                              execute_percent=execute_percent,
                              start_progress=start_progress, max_progress=max_progress,
-                             drop_partition=drop_partition, create_partition=create_partition, **kwargs)
+                             drop_partition=drop_partition, create_partition=create_partition,
+                             src_expr=src_expr, **kwargs)
 

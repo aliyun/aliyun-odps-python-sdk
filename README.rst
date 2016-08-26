@@ -163,6 +163,27 @@ Python UDF Debugging Tool
     2
     5
 
+Contributing
+------------
+
+For a development install, clone the repository and then install from
+source:
+
+::
+
+    git clone https://github.com/aliyun/aliyun-odps-python-sdk
+    cd pyodps
+    pip install -r requirements.txt -e .
+
+If you need to modify the frontend code, you need to install
+`nodejs/npm <https://www.npmjs.com/>`__. To build and install your
+frontend code, use
+
+::
+
+    python setup.py build_js
+    python setup.py install_js
+
 License
 -------
 

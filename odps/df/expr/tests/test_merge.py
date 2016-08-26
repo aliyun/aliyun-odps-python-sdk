@@ -17,8 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import operator
+
 from odps.tests.core import TestBase
-from odps.compat import unittest
+from odps.compat import unittest, reduce
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.merge import *
 from odps.df import types
@@ -73,7 +75,7 @@ class Test(TestBase):
         self.assertIsInstance(joined, JoinCollectionExpr)
         self.assertIsInstance(joined, InnerJoin)
         self.assertNotIsInstance(joined, LeftJoin)
-        self.assertIsInstance(joined._predicate, Equal)
+        self.assertIsInstance(joined._predicate[0], Equal)
         self.assertEqual(joined._lhs, e)
         self.assertEqual(joined._rhs, e1)
         self.assertEqual(joined._how, 'INNER')
@@ -85,11 +87,12 @@ class Test(TestBase):
         joined = e.inner_join(e1, ['fid', 'id'])
         self.assertIsInstance(joined, InnerJoin)
         self.assertNotIsInstance(joined, LeftJoin)
-        pred = joined._predicate.args[0]
+        predicate = reduce(operator.and_, joined._predicate)
+        pred = predicate.args[0]
         self.assertIsInstance(pred, Equal)
         self.assertEqual(pred._lhs.name, 'fid')
         self.assertEqual(pred._rhs.name, 'fid')
-        pred = joined._predicate.args[1]
+        pred = predicate.args[1]
         self.assertIsInstance(pred, Equal)
         self.assertEqual(pred._lhs.name, 'id')
         self.assertEqual(pred._rhs.name, 'id')

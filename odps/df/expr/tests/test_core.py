@@ -76,8 +76,10 @@ class Test(TestBase):
         self.assertSequenceEqual(list(node5.traverse()),
                                  [node1, node6, node3, node2, node4, node5])
 
-        self.assertIs(node4.parents[0], node5)
-        self.assertIs(node2.parents[0], node4)
+        all_nodes = list(node5.traverse())
+        copy_nodes = list(node5.copy_tree().traverse())
+        self.assertEqual(len(all_nodes), len(copy_nodes))
+        self.assertTrue(all(l is not r for l, r in zip(all_nodes, copy_nodes)))
 
 
 if __name__ == '__main__':

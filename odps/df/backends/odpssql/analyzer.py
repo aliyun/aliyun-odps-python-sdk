@@ -20,6 +20,7 @@
 import re
 import string
 import random
+import itertools
 
 from ..core import Backend
 from ...expr.arithmetic import *
@@ -28,37 +29,41 @@ from ...expr.datetimes import *
 from ...expr.strings import *
 from ...expr.element import *
 from ...expr.reduction import *
-from ...expr.window import *
 from ...expr.collections import *
 from ...expr.merge import *
+from ...expr.window import *  # noqa
 from ..errors import CompileError
 from ... import types
 from ....models import Schema
 
 
 class Analyzer(Backend):
-    def __init__(self, expr, traversed=None):
-        self._expr = expr
+    def __init__(self, dag, traversed=None):
+        self._expr = dag.root
+        self._dag = dag
         self._indexer = itertools.count(0)
         self._traversed = traversed or set()
 
-        self._iters = []
-
     def analyze(self):
         for node in self._iter():
+            self._traversed.add(id(node))
             self._visit_node(node)
 
-        return self._expr
+        return self._dag.root
 
     def _iter(self):
         for node in self._expr.traverse(top_down=True, unique=True,
                                         traversed=self._traversed):
             yield node
 
-        for node in itertools.chain(
-                *(it.traverse(top_down=True, unique=True, traversed=self._traversed)
-                  for it in self._iters)):
-            yield node
+        while True:
+            all_traversed = True
+            for node in self._expr.traverse(top_down=True, unique=True):
+                if id(node) not in self._traversed:
+                    all_traversed = False
+                    yield node
+            if all_traversed:
+                break
 
     def _visit_node(self, node):
         try:
@@ -66,12 +71,11 @@ class Analyzer(Backend):
         except NotImplementedError:
             return
 
-    def _sub(self, expr, to_sub, parents):
-        if not parents and expr is self._expr:
-            self._expr = to_sub
-        else:
-            [p.substitute(expr, to_sub) for p in parents]
-        self._iters.append(to_sub)
+    def _sub(self, expr, to_sub, parents=None):
+        self._dag.substitute(expr, to_sub, parents=parents)
+
+    def _parents(self, expr):
+        return self._dag.successors(expr)
 
     def visit_project_collection(self, expr):
         # FIXME how to handle nested reduction?
@@ -126,11 +130,10 @@ class Analyzer(Backend):
         get = lambda x: x.name if not isinstance(x, six.string_types) else x
         projected = collection[sorted(sink_selects, key=get)]
         projected.optimize_banned = True  # TO prevent from optimizing
-        expr.substitute(collection, projected)
+        expr.substitute(collection, projected, dag=self._dag)
 
         for col, col_name in to_replace:
-            parents = col.parents
-            self._sub(col, projected[col_name], parents)
+            self._sub(col, projected[col_name])
 
     def visit_filter_collection(self, expr):
         # FIXME how to handle nested reduction?
@@ -181,23 +184,24 @@ class Analyzer(Backend):
         get = lambda x: x.name if not isinstance(x, six.string_types) else x
         projected = collection[sorted(sink_selects, key=get)]
         projected.optimize_banned = True  # TO prevent from optimizing
-        expr.substitute(collection, projected)
+        expr.substitute(collection, projected, dag=self._dag)
 
         for col, col_name in to_replace:
-            parents = col.parents
-            self._sub(col, projected[col_name], parents)
+            self._sub(col, projected[col_name])
 
-        parents = expr.parents
         to_sub = expr[expr.schema.names]
-        self._sub(expr, to_sub, parents)
+        self._sub(expr, to_sub)
 
     def _reduction_to_window(self, expr):
         clazz = 'Cum' + expr.node_name
         return globals()[clazz](_input=expr.input, _data_type=expr.dtype)
 
     def visit_join(self, expr):
+        if expr._predicate:
+            expr._predicate = reduce(operator.and_, expr._predicate)
+
         for node in (expr.rhs, ):
-            parents = node.parents
+            parents = self._parents(node)
             if isinstance(node, JoinCollectionExpr):
                 projection = JoinProjectCollectionExpr(
                     _input=node, _schema=node.schema,
@@ -220,7 +224,7 @@ class Analyzer(Backend):
         walk(expr)
 
         if need_project[0]:
-            parents = expr.parents
+            parents = self._parents(expr)
             if not parents or \
                     not any(isinstance(parent, (ProjectCollectionExpr, JoinCollectionExpr))
                             for parent in parents):
@@ -242,12 +246,15 @@ class Analyzer(Backend):
                 no_output_decimal():
             return
 
-        inputs = []
+        inputs = list(raw_inputs)
         for input in raw_inputs:
-            if input.dtype != types.decimal:
-                inputs.append(input)
-            else:
-                inputs.append(input.astype('string'))
+            if input.dtype == types.decimal:
+                self._sub(input, input.astype('string'), parents=[expr, ])
+        if hasattr(expr, '_raw_inputs'):
+            expr._raw_inputs = inputs
+        else:
+            assert len(inputs) == 1
+            expr._raw_input = inputs[0]
 
         attrs = get_attrs(expr)
         attr_values = dict((attr, getattr(expr, attr, None)) for attr in attrs)
@@ -288,16 +295,21 @@ class Analyzer(Backend):
                         fields.append(name)
                 sub = sub[fields]
 
-        for src_input, input in zip(raw_inputs, inputs):
-            sub.substitute(src_input, input)
-
-        parents = expr.parents
-        self._sub(expr, sub, parents=parents)
+        self._sub(expr, sub)
 
     def visit_function(self, expr):
         self._handle_function(expr, expr._inputs)
 
+    def _handle_groupby_applied_collection(self, expr):
+        if isinstance(expr.input, JoinCollectionExpr):
+            sub = JoinProjectCollectionExpr(
+                _input=expr.input, _schema=expr.input.schema,
+                _fields=expr.input._fetch_fields())
+            self._sub(expr.input, sub)
+
     def visit_apply_collection(self, expr):
+        if isinstance(expr, GroupbyAppliedCollectionExpr):
+            self._handle_groupby_applied_collection(expr)
         self._handle_function(expr, expr._fields)
 
     def visit_user_defined_aggregator(self, expr):
@@ -346,9 +358,8 @@ class Analyzer(Backend):
                 conditions.append(bin <= expr.input)
             thens.append(expr.labels[-1])
 
-        parents = expr.parents
         to_sub = Switch(_conditions=conditions, _thens=thens, **kw)
-        self._sub(expr, to_sub, parents)
+        self._sub(expr, to_sub)
 
     def _find(self, expr, tp):
         res = next(it for it in expr.traverse(top_down=True, unique=True)
@@ -367,12 +378,11 @@ class Analyzer(Backend):
 
     def visit_element_op(self, expr):
         if isinstance(expr, Between):
-            parents = expr.parents
             if expr.inclusive:
                 to_sub = ((expr.left <= expr.input) & (expr.input <= expr.right))
             else:
                 to_sub = ((expr.left < expr.input) & (expr.input < expr.right))
-            self._sub(expr, to_sub.rename(expr.name), parents)
+            self._sub(expr, to_sub.rename(expr.name))
         elif isinstance(expr, Cut):
             self._visit_cut(expr)
         else:
@@ -401,19 +411,17 @@ class Analyzer(Backend):
                                       _schema=expr.schema)
         expr.input.optimize_banned = True
 
-        parents = expr.parents
-        self._sub(expr, to_sub, parents)
+        self._sub(expr, to_sub)
 
     def visit_value_counts(self, expr):
         collection = expr.input
         by = expr._by
         sort = expr._sort.value
 
-        parents = expr.parents
         to_sub = collection.groupby(by).agg(count=by.count())
         if sort:
             to_sub = to_sub.sort('count', ascending=False)
-        self._sub(expr, to_sub, parents)
+        self._sub(expr, to_sub)
 
     def _gen_mapped_expr(self, expr, inputs, func, name,
                          args=None, kwargs=None, multiple=False):
@@ -435,8 +443,7 @@ class Analyzer(Backend):
             # multiple False will pass *args instead of namedtuple
             to_sub = self._gen_mapped_expr(expr, (expr.lhs, expr.rhs),
                                            func, expr.name, multiple=False)
-            parents = expr.parents
-            self._sub(expr, to_sub, parents)
+            self._sub(expr, to_sub)
             return
         if isinstance(expr, Add) and \
                 all(child.dtype == types.datetime for child in (expr.lhs, expr.rhs)):
@@ -466,8 +473,7 @@ class Analyzer(Backend):
 
             inputs = expr.lhs, expr.rhs, Scalar('+') if isinstance(expr, Add) else Scalar('-')
             to_sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
-            parents = expr.parents
-            self._sub(expr, to_sub, parents)
+            self._sub(expr, to_sub)
 
         raise NotImplementedError
 
@@ -476,9 +482,8 @@ class Analyzer(Backend):
             raise NotImplementedError
 
         if isinstance(expr, Invert) and isinstance(expr.input.dtype, types.Integer):
-            parents = expr.parents
             to_sub = expr.input.map(lambda x: ~x)
-            self._sub(expr, to_sub, parents)
+            self._sub(expr, to_sub)
             return
 
         raise NotImplementedError
@@ -511,9 +516,8 @@ class Analyzer(Backend):
             else:
                 raise NotImplementedError
 
-            parents = expr.parents
             to_sub = expr.input.map(func, expr.dtype)
-            self._sub(expr, to_sub, parents)
+            self._sub(expr, to_sub)
             return
 
         raise NotImplementedError
@@ -528,31 +532,29 @@ class Analyzer(Backend):
             def func(x):
                 return x.strftime(date_format)
 
-            parents = expr.parents
             to_sub = expr.input.map(func, expr.dtype)
-            self._sub(expr, to_sub, parents)
+            self._sub(expr, to_sub)
             return
 
         raise NotImplementedError
 
     def visit_string_op(self, expr):
-        parents = expr.parents
         if isinstance(expr, Ljust):
             rest = expr.width - expr.input.len()
             to_sub = expr.input + \
                      (rest >= 0).ifelse(expr._fillchar.repeat(rest), '')
-            self._sub(expr, to_sub.rename(expr.name), parents)
+            self._sub(expr, to_sub.rename(expr.name))
             return
         elif isinstance(expr, Rjust):
             rest = expr.width - expr.input.len()
             to_sub = (rest >= 0).ifelse(expr._fillchar.repeat(rest), '') + expr.input
-            self._sub(expr, to_sub.rename(expr.name), parents)
+            self._sub(expr, to_sub.rename(expr.name))
             return
         elif isinstance(expr, Zfill):
             fillchar = Scalar('0')
             rest = expr.width - expr.input.len()
             to_sub = (rest >= 0).ifelse(fillchar.repeat(rest), '') + expr.input
-            self._sub(expr, to_sub.rename(expr.name), parents)
+            self._sub(expr, to_sub.rename(expr.name))
             return
 
         if not options.df.analyze:
@@ -656,7 +658,7 @@ class Analyzer(Backend):
             inputs = expr.input, expr._start, expr._end, expr._step
             to_sub = self._gen_mapped_expr(expr, tuple(i for i in inputs if i is not None),
                                            func, expr.name, multiple=False)
-            self._sub(expr, to_sub, parents)
+            self._sub(expr, to_sub)
             return
         elif isinstance(expr, Swapcase):
             func = lambda x: x.swapcase()
@@ -697,15 +699,14 @@ class Analyzer(Backend):
 
         if func is not None:
             to_sub = expr.input.map(func, expr.dtype)
-            self._sub(expr, to_sub, parents)
+            self._sub(expr, to_sub)
             return
 
         raise NotImplementedError
 
     def visit_reduction(self, expr):
-        parents = expr.parents
         if isinstance(expr, (Var, GroupedVar)):
             to_sub = expr.input.std(ddof=expr._ddof) ** 2
-            self._sub(expr, to_sub, parents)
+            self._sub(expr, to_sub)
 
         raise NotImplementedError

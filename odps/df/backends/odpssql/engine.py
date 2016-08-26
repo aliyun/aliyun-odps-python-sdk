@@ -19,22 +19,24 @@
 
 import time
 import sys
+import itertools
 import uuid  # don't remove
 from contextlib import contextmanager
 
 from ....errors import ODPSError
 
 from ....utils import init_progress_ui, write_log as log
-from ....models import Partition
+from ....models import Partition, Resource
 from ....tempobj import register_temp_table
 from ....types import PartitionSpec
 from ....tunnel.tabletunnel.downloadsession import TableDownloadSession
-from ....ui import reload_instance_status
+from ....ui import reload_instance_status, fetch_instance_group
 from ...core import DataFrame
 from ...expr.reduction import *
 from ...expr.arithmetic import And, Equal
 from ..core import Engine
 from ..frame import ResultFrame
+from ..context import context
 from . import types
 from . import analyzer as ana
 from ..errors import CompileError
@@ -50,13 +52,12 @@ class ODPSEngine(Engine):
 
         self._global_optimize = global_optimize
 
-    def _get_task_percent(self, instance, task_name):
-        progress = instance.get_task_progress(task_name)
-
-        if len(progress.stages) > 0:
+    @staticmethod
+    def _get_task_percent(task_progress):
+        if len(task_progress.stages) > 0:
             all_percent = sum((float(stage.terminated_workers) / stage.total_workers)
-                              for stage in progress.stages if stage.total_workers > 0)
-            return all_percent / len(progress.stages)
+                              for stage in task_progress.stages if stage.total_workers > 0)
+            return all_percent / len(task_progress.stages)
         else:
             return 0
 
@@ -69,9 +70,25 @@ class ODPSEngine(Engine):
         if group:
             reload_instance_status(self._odps, group, instance.id)
             ui.update_group()
+            return fetch_instance_group(group).instances.get(instance.id)
 
-    def _run(self, sql, ui, start_progress=0, max_progress=1, async=False, hints=None, group=None):
-        self._ctx.create_udfs()
+    @classmethod
+    def _get_libraries(cls, libraries):
+        def conv(libs):
+            if isinstance(libs, (six.binary_type, six.text_type, Resource)):
+                return [libs, ]
+            return libs
+
+        libraries = conv(libraries) or []
+        if options.df.libraries is not None:
+            libraries.extend(conv(options.df.libraries))
+        if len(libraries) == 0:
+            return
+        return list(set(libraries))
+
+    def _run(self, sql, ui, start_progress=0, max_progress=1, async=False, hints=None,
+             group=None, libraries=None):
+        self._ctx.create_udfs(libraries=self._get_libraries(libraries))
         instance = self._odps.run_sql(sql, hints=hints)
 
         log('Instance ID: ' + instance.id)
@@ -83,20 +100,18 @@ class ODPSEngine(Engine):
 
         try:
             percent = 0
-            times = itertools.count(0)
             while not instance.is_terminated():
-                task_names = instance.get_task_names()
-                last_percent = percent
-                if len(task_names) > 0:
-                    percent = sum(self._get_task_percent(instance, name)
-                                  for name in task_names) / len(task_names)
-                else:
-                    percent = 0
-                percent = min(1, max(percent, last_percent))
-                ui.update(start_progress + percent * max_progress)
+                inst_progress = self._reload_ui(group, instance, ui)
 
-                if next(times) % 5 == 0:  # update group ui every 5 secs
-                    self._reload_ui(group, instance, ui)
+                if inst_progress:
+                    last_percent = percent
+                    if inst_progress is not None and len(inst_progress.tasks) > 0:
+                        percent = sum(self._get_task_percent(task)
+                                      for task in six.itervalues(inst_progress.tasks)) / len(inst_progress.tasks)
+                    else:
+                        percent = 0
+                    percent = min(1, max(percent, last_percent))
+                    ui.update(start_progress + percent * max_progress)
 
                 time.sleep(1)
 
@@ -184,6 +199,8 @@ class ODPSEngine(Engine):
                 if extract(expr._lhs):
                     values.append(expr._rhs.value)
                     return True
+                else:
+                    return False
             else:
                 return False
 
@@ -268,6 +285,8 @@ class ODPSEngine(Engine):
             log('Try to fetch data from tunnel')
             ui.status('Try to download data with tunnel...')
             if isinstance(expr, SliceCollectionExpr):
+                if expr.start is not None:
+                    raise ExpressionError('For ODPS backend, slice\'s start cannot be specified')
                 count = expr.stop
             try:
                 with self._open_reader(table, partition=partition) as reader:
@@ -304,13 +323,14 @@ class ODPSEngine(Engine):
         ui = ui or init_progress_ui()
         lifecycle = lifecycle or options.temp_lifecycle
         group = kw.get('group')
+        libraries = kw.pop('libraries', None)
 
         if isinstance(expr, Scalar) and expr.value is not None:
             ui.update(start_progress+max_progress)
             return expr.value
 
-        src_expr = expr
-        expr = self._pre_process(expr)
+        src_expr = kw.get('src_expr', expr)
+        expr = self._pre_process(expr, src_expr, dag=kw.get('dag'))
 
         try:
             result = self._handle_cases(expr, ui, head=head, tail=tail)
@@ -324,7 +344,7 @@ class ODPSEngine(Engine):
                 if close_ui:
                     ui.close()
 
-        sql = self._compile(expr)
+        sql = self._compile(expr, libraries=libraries)
 
         cache_data = None
         if isinstance(expr, CollectionExpr):
@@ -339,7 +359,8 @@ class ODPSEngine(Engine):
         log(sql)
 
         instance = self._run(sql, ui, start_progress=start_progress,
-                             max_progress=0.9*max_progress, async=async, hints=hints, group=group)
+                             max_progress=0.9*max_progress, async=async, hints=hints,
+                             group=group, libraries=libraries)
 
         use_tunnel = kw.get('use_tunnel', True)
         if async:
@@ -441,40 +462,49 @@ class ODPSEngine(Engine):
             if close_ui:
                 ui.close()
 
-    def _optimize(self, expr):
+    def _optimize(self, expr, src_expr, dag=None):
         if self._global_optimize:
-            from ..optimize import Optimizer
-            expr = Optimizer(expr).optimize()
+            # we copy the entire ast,
+            # and all the modification will be applied to the copied ast.
+            if dag is None:
+                # the expr is already copied one
+                expr = context.register_to_copy_expr(src_expr, expr)
+            dag = context.build_dag(src_expr, expr, dag=dag)
 
-        expr = ana.Analyzer(expr).analyze()
+            from ..optimize import Optimizer
+            Optimizer(dag).optimize()
+        else:
+            dag = context.build_dag(src_expr, expr, dag=dag)
+        expr = ana.Analyzer(dag).analyze()
         return expr
 
-    def _pre_process(self, expr):
-        src_expr = expr
+    def _pre_process(self, expr, src_expr=None, dag=None):
+        src_expr = src_expr or expr
 
         if isinstance(expr, Scalar) and expr.value is not None:
             return expr.value
-        elif isinstance(expr, (Scalar, SequenceExpr)):
-            expr = self._convert_table(expr)
 
         replaced = self._ctx.get_replaced_expr(src_expr)
-        if replaced is None:
-            expr = self._optimize(expr)
-            self._ctx.add_replaced_expr(src_expr, expr)
-        else:
-            expr = replaced
+        if replaced is not None:
+            return replaced
 
+        if isinstance(expr, (Scalar, SequenceExpr)):
+            expr = self._convert_table(expr)
+
+        expr = self._optimize(expr, src_expr, dag=dag)
+        self._ctx.add_replaced_expr(src_expr, expr)
         return expr
 
-    def compile(self, expr, prettify=True):
+    def compile(self, expr, prettify=True, libraries=None):
         expr = self._pre_process(expr)
 
-        return self._compile(expr, prettify=prettify)
+        return self._compile(expr, prettify=prettify, libraries=libraries)
 
-    def _compile(self, expr, prettify=False):
+    def _compile(self, expr, prettify=False, libraries=None):
         backend = OdpsSQLCompiler(self._ctx, beautify=prettify)
 
-        self._ctx.register_udfs(*gen_udf(expr, UDF_CLASS_NAME))
+        self._ctx.register_udfs(*gen_udf(expr, UDF_CLASS_NAME,
+                                         libraries=self._get_libraries(libraries)))
 
         return backend.compile(expr)
 
@@ -484,6 +514,9 @@ class ODPSEngine(Engine):
         close_ui = ui is None
         ui = ui or init_progress_ui()
         group = kw.get('group')
+        libraries = kw.pop('libraries', None)
+
+        src_expr = kw.pop('src_expr', expr)
 
         should_cache = False
 
@@ -550,10 +583,10 @@ class ODPSEngine(Engine):
 
         try:
             self._run(sql, ui, start_progress=start_progress, max_progress=max_progress,
-                      hints=hints, group=group)
+                      hints=hints, group=group, libraries=libraries)
             t = self._odps.get_table(name, project=project)
             if should_cache:
-                expr._cache_data = t
+                src_expr._cache_data = t
             if partition:
                 filters = []
                 for k in partition.keys:

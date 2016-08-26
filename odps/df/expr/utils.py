@@ -23,6 +23,7 @@ import traceback
 
 from .. import types
 from ... import compat
+from ...utils import str_to_kv
 from ...models import FileResource, TableResource
 from ...compat import six
 

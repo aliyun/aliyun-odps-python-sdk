@@ -21,7 +21,7 @@ import time
 import uuid
 import logging
 
-from .common import init_frontend_scripts, build_unicode_control
+from .common import build_trait
 from ..compat import OrderedDict, six
 from ..models.instance import Instance
 from ..serializers import JSONSerializableModel, JSONNodeField, JSONNodesReferencesField
@@ -163,14 +163,13 @@ except Exception:
 else:
     if in_ipython_frontend():
         class InstancesProgress(widgets.DOMWidget):
-            _view_name = build_unicode_control('InstancesProgress', sync=True)
-            _view_module = build_unicode_control('pyodps/progress', sync=True)
-            prefix = build_unicode_control('prefix', sync=True)
-            suffix = build_unicode_control('suffix', sync=True)
+            _view_name = build_trait(Unicode, 'InstancesProgress', sync=True)
+            _view_module = build_trait(Unicode, 'pyodps/progress', sync=True)
+            prefix = build_trait(Unicode, 'prefix', sync=True)
+            suffix = build_trait(Unicode, 'suffix', sync=True)
 
             def __init__(self, **kwargs):
                 """Constructor"""
-                init_frontend_scripts()
                 widgets.DOMWidget.__init__(self, **kwargs)  # Call the base.
 
                 # Allow the user to register error callbacks with the following signatures:
