@@ -33,8 +33,10 @@ from ...expr.collections import *
 from ...expr.merge import *
 from ...expr.window import *  # noqa
 from ..errors import CompileError
+from ....errors import NoSuchObject
 from ... import types
 from ....models import Schema
+from ...utils import is_source_collection
 
 
 class Analyzer(Backend):
@@ -710,3 +712,12 @@ class Analyzer(Backend):
             self._sub(expr, to_sub)
 
         raise NotImplementedError
+
+    def visit_column(self, expr):
+        if is_source_collection(expr.input):
+            try:
+                if expr.input._source_data.schema.is_partition(expr.source_name) and \
+                                expr.dtype != types.string:
+                    expr._source_data_type = types.string
+            except NoSuchObject:
+                return

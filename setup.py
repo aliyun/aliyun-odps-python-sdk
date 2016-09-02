@@ -115,7 +115,7 @@ if PY26:
 full_requirements = [
     'jupyter>=1.0.0',
     'numpy>=1.6.0',
-    'pandas>=0.13.0',
+    'pandas>=0.17.0',
 ]
 if sys.platform != 'win32':
     full_requirements.append('cython>=0.20')
@@ -127,7 +127,7 @@ if os.path.exists('README.rst'):
 
 setup_options = dict(
     name='pyodps',
-    version='0.6.0',
+    version='0.6.1',
     description='ODPS Python SDK and data analysis framework',
     long_description=long_description,
     author='Wu Wei',

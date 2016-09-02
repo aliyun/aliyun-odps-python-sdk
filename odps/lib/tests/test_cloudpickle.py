@@ -26,6 +26,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 import uuid
 
 from odps.compat import six, unittest, PY27
@@ -52,7 +53,9 @@ sys.path.extend(import_paths)
 from odps.lib.cloudpickle import dumps
 from odps.utils import to_str
 from {module_name} import {method_ref}
-print(to_str(base64.b64encode(dumps({method_ref}()))))
+with open(r'{pickled_file}', 'w') as f:
+    f.write(to_str(base64.b64encode(dumps({method_ref}()))))
+    f.close()
 """.replace('{module_name}', __name__)
 
 
@@ -87,11 +90,13 @@ def _gen_nested_yield_obj():
     out_closure = 10
 
     class _NestClass(object):
+        inner_gain = 5
+
         def __init__(self):
             self._o_closure = out_closure
 
         def nested_method(self, add_val):
-            return self._o_closure + add_val
+            return self._o_closure + add_val + self.inner_gain
 
     class _FuncClass(object):
         def __init__(self):
@@ -101,6 +106,50 @@ def _gen_nested_yield_obj():
             yield self.nest.nested_method(add_val)
 
     return _FuncClass
+
+
+class BuildMeta(type):
+    pass
+
+
+class BuildBase(object):
+    pass
+
+
+if six.PY2:
+    def _gen_class_builder_func():
+        out_closure = 10
+
+        def _gen_nested_class_obj():
+            class BuildCls(BuildBase):
+                __metaclass__ = BuildMeta
+                a = 10
+
+                def b(self, add_val):
+                    print(self.a)
+                    return self.a + add_val + out_closure
+
+            return BuildCls
+        return _gen_nested_class_obj
+else:
+    py3_code = textwrap.dedent("""
+    def _gen_class_builder_func():
+        out_closure = 10
+
+        def _gen_nested_class_obj():
+            class BuildCls(BuildBase, metaclass=BuildMeta):
+                a = 10
+
+                def b(self, add_val):
+                    print(self.a)
+                    return self.a + add_val + out_closure
+
+            return BuildCls
+        return _gen_nested_class_obj
+    """)
+    my_locs = locals().copy()
+    six.exec_(py3_code, globals(), my_locs)
+    _gen_class_builder_func = my_locs.get('_gen_class_builder_func')
 
 
 def _gen_nested_fun():
@@ -122,21 +171,26 @@ class Test(TestBase):
         paths = [path for path in sys.path if 'odps' in path.lower()]
         if callable(method_ref):
             method_ref = method_ref.__name__
-        script_text = CROSS_VAR_PICKLE_CODE.format(import_paths=json.dumps(paths), method_ref=method_ref)
-        tf_name = os.path.join(tempfile.gettempdir(), 'pyodps_pk_cross_test_{0}.py'.format(str(uuid.uuid4())))
-        with open(tf_name, 'w') as out_file:
+        ts_name = os.path.join(tempfile.gettempdir(), 'pyodps_pk_cross_test_{0}.py'.format(str(uuid.uuid4())))
+        tp_name = os.path.join(tempfile.gettempdir(), 'pyodps_pk_cross_pickled_{0}'.format(str(uuid.uuid4())))
+        script_text = CROSS_VAR_PICKLE_CODE.format(import_paths=json.dumps(paths), method_ref=method_ref,
+                                                   pickled_file=tp_name)
+        with open(ts_name, 'w') as out_file:
             out_file.write(script_text)
             out_file.close()
-        proc = subprocess.Popen([executable, tf_name], stdout=subprocess.PIPE)
-        sio = six.StringIO()
-        while True:
-            out = proc.stdout.read(1)
-            if out == '' and proc.poll() != None:
-                if proc.poll() != 0:
-                    raise SystemError('Pickle error occured!')
-                break
-            sio.write(out)
-        return sio.getvalue().strip()
+        proc = subprocess.Popen([executable, ts_name])
+        proc.wait()
+        if not os.path.exists(tp_name):
+            raise SystemError('Pickle error occured!')
+        else:
+            with open(tp_name, 'r') as f:
+                pickled = f.read().strip()
+                f.close()
+            os.unlink(tp_name)
+
+            if not pickled:
+                raise SystemError('Pickle error occured!')
+        return pickled
 
     def testNestedFunc(self):
         func = _gen_nested_fun()
@@ -153,7 +207,6 @@ class Test(TestBase):
         py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_fun))
         self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
-
     def testNestedClassObj(self):
         func = _gen_nested_yield_obj()
         obj_serial = base64.b64encode(dumps(func))
@@ -161,7 +214,7 @@ class Test(TestBase):
         self.assertEqual(sum(deserial()(20)), sum(func()(20)))
 
     @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
-    def test3to27NestedClassObj(self):
+    def test3to27NestedYieldObj(self):
         try:
             executable = self.config.get('test', 'py3_executable')
             if not executable:
@@ -174,7 +227,7 @@ class Test(TestBase):
                          sum(func()(20)))
 
     @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
-    def test26to27NestedClassObj(self):
+    def test26to27NestedYieldObj(self):
         try:
             executable = self.config.get('test', 'py26_executable')
             if not executable:
@@ -185,3 +238,16 @@ class Test(TestBase):
         py26_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_yield_obj))
         self.assertEqual(run_pickled(py26_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw)), impl='CP26'),
                          sum(func()(20)))
+
+    @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
+    def test3to27NestedClassObj(self):
+        try:
+            executable = self.config.get('test', 'py3_executable')
+            if not executable:
+                return
+        except:
+            return
+        cls = _gen_class_builder_func()()
+        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_class_builder_func))
+        self.assertEqual(run_pickled(py3_serial, 5, wrapper=lambda cls, a, kw: cls()().b(*a, **kw), impl='CP3'),
+                         cls().b(5))

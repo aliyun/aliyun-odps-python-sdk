@@ -198,6 +198,13 @@ Enum = enum.Enum
 DECIMAL_TYPES = tuple(DECIMAL_TYPES)
 Decimal = decimal.Decimal
 
+try:
+    import pandas as pd
+    if not hasattr(pd.DataFrame, 'sort_values'):
+        pd.DataFrame.sort_values = pd.DataFrame.sort
+except ImportError:
+    pass
+
 from .six.moves import reduce
 from .six.moves import reload_module
 from .six.moves.queue import Queue, Empty

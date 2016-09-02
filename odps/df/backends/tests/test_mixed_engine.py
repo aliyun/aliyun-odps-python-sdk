@@ -335,5 +335,21 @@ class Test(TestBase):
 
         output_t.drop()
 
+    def testBigintPartitionedCache(self):
+        table = tn('pyodps_test_bigint_partitioned_cache')
+        self.odps.delete_table(table, if_exists=True)
+        expr = self.odps_df.persist(table, partitions=['id'])
+
+        @output(['id', 'name'], ['int', 'string'])
+        def handle(row):
+            return row.id + 1, row.name
+
+        expr = expr['tt' + expr.name, expr.id].cache()
+        new_expr = expr.map_reduce(mapper=handle)
+
+        res = self.engine.execute(new_expr)
+        self.assertEqual(len(res), 3)
+
+
 if __name__ == '__main__':
     unittest.main()

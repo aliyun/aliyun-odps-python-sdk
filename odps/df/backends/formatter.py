@@ -30,6 +30,7 @@ from ...utils import to_text, to_str, indent, require_package
 from ...models import Table, Schema
 from ..types import *
 from ..expr.expressions import CollectionExpr, Scalar
+from ..utils import is_source_collection
 
 
 def is_integer(val):
@@ -1286,7 +1287,7 @@ class ExprExecutionGraphFormatter(object):
         return Source(self._to_dot())._repr_svg_()
 
     def _format_expr(self, expr):
-        if isinstance(expr, CollectionExpr) and expr._source_data is not None:
+        if is_source_collection(expr):
             if isinstance(expr._source_data, Table):
                 return 'Collection: %s' % expr._source_data.name
             else:

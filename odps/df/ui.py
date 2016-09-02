@@ -38,6 +38,7 @@ else:
         _view_name = build_trait(Unicode, 'DFView', sync=True)
         _view_module = build_trait(Unicode, 'pyodps/df-view', sync=True)
         start_sign = build_trait(Int, False, sync=True)
+        error_sign = build_trait(Int, False, sync=True)
         table_records = build_trait(Dict, sync=True)
         bar_chart_records = build_trait(Dict, sync=True)
         pie_chart_records = build_trait(Dict, sync=True)
@@ -56,12 +57,13 @@ else:
         @staticmethod
         def _render_graph(pd_df, group_cols, key_cols, **kw):
             def _to_columnar_dict(pd_df):
-                vdict = {c: pd_df[c].values.tolist() for c in pd_df.columns}
+                vdict = dict((c, pd_df[c].values.tolist()) for c in pd_df.columns)
                 vdict['$count'] = len(pd_df)
                 return vdict
 
             if key_cols:
-                key_dfs = pd_df[list(key_cols)].drop_duplicates().sort_values(key_cols).values.tolist()
+                distinct_df = pd_df[list(key_cols)].drop_duplicates()
+                key_dfs = distinct_df.sort_values(key_cols).values.tolist()
             else:
                 key_dfs = None
 
@@ -77,6 +79,13 @@ else:
             return dict(groups=groups, data=sub_dfs, keys=key_dfs, **kw)
 
         def _handle_msgs(self, _, content, buffers):
+            try:
+                self._actual_handle_msgs(content, buffer)
+            except:
+                self.error_sign = (self.error_sign + 1) % 2
+                raise
+
+        def _actual_handle_msgs(self, content, buffers):
             action = content.get('action', '')
             if action == 'start_widget':
                 self.start_sign = (self.start_sign + 1) % 2

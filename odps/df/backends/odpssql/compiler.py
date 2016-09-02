@@ -30,6 +30,7 @@ from ...expr.datetimes import DTScalar
 from ...expr import element
 from ...expr import strings
 from ...expr import datetimes
+from ...utils import is_source_collection
 from ... import types as df_types
 from . import types
 from ..core import Backend
@@ -156,13 +157,6 @@ class OdpsSQLCompiler(Backend):
                     for n in ins:
                         yield n
 
-    @classmethod
-    def _is_source_table(cls, expr):
-        if isinstance(expr, CollectionExpr) and expr._source_data is not None:
-            return True
-
-        return False
-
     def _compile_union_node(self, expr, traversed):
         compiled = self._compile(expr.lhs)
 
@@ -187,7 +181,7 @@ class OdpsSQLCompiler(Backend):
 
         compiled, trav = self._compile(expr.lhs, return_traversed=True)
         travs.update(trav)
-        if not self._is_source_table(expr.lhs) and not isinstance(expr.lhs, JoinCollectionExpr):
+        if not is_source_collection(expr.lhs) and not isinstance(expr.lhs, JoinCollectionExpr):
             self._sub_compiles[expr].append(
                 '(\n{0}\n) {1}'.format(utils.indent(compiled, self._indent_size),
                                      self._ctx.get_collection_alias(expr.lhs, create=True)[0])
@@ -197,7 +191,7 @@ class OdpsSQLCompiler(Backend):
 
         compiled, trav = self._compile(expr.rhs, return_traversed=True)
         travs.update(trav)
-        if not self._is_source_table(expr.rhs):
+        if not is_source_collection(expr.rhs):
             self._sub_compiles[expr].append(
                 '(\n{0}\n) {1}'.format(utils.indent(compiled, self._indent_size),
                                      self._ctx.get_collection_alias(expr.rhs, create=True)[0])
@@ -459,7 +453,7 @@ class OdpsSQLCompiler(Backend):
     def _compile_select_field(self, field):
         compiled = self._ctx.get_expr_compiled(field)
 
-        if not isinstance(field, Column):
+        if not isinstance(field, Column) or field._source_data_type != field._data_type:
             compiled = '{0} AS {1}'.format(compiled, self._quote(field.name))
         else:
             if compiled.startswith('%(') and compiled.endswith(')s'):
@@ -961,6 +955,10 @@ class OdpsSQLCompiler(Backend):
         else:
             symbol = self._ctx.add_need_alias_column(expr)
             compiled = '%({0})s'.format(symbol)
+
+        if expr._source_data_type != expr._data_type:
+            compiled = 'CAST({0} AS {1})'.format(
+                compiled, types.df_type_to_odps_type(expr.dtype))
 
         self._ctx.add_expr_compiled(expr, compiled)
 

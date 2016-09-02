@@ -199,20 +199,13 @@ PyODPS 还提供了 IPython 的插件，来更方便得操作 ODPS。
     <odps.inter.Room at 0x11341df10>
 
 
+此时全局会包含o和odps变量，即ODPS入口。
 
-.. code:: python
-
-    room = _
-
-这样我们就取到了我们的默认帐号所在的room。
-
-.. code:: python
-
-    o = room.odps
 
 .. code:: python
 
     o.get_table('dual')
+    odps.get_table('dual')
 
 
 

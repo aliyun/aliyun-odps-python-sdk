@@ -1677,7 +1677,7 @@ class Test(TestBase):
                    "FROM (\n" \
                    "  SELECT t1.`name`, t1.`id`, t1.`fid` \n" \
                    "  FROM mocked_project.`pyodps_test_expr_table2` t1 \n" \
-                   "  WHERE ((t1.`part1` == 'a') AND (t1.`part2` == 1)) OR (t1.`part1` == 'b') \n" \
+                   "  WHERE ((t1.`part1` == 'a') AND (CAST(t1.`part2` AS BIGINT) == 1)) OR (t1.`part1` == 'b') \n" \
                    ") t2"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(df, prettify=False)))
 
@@ -1686,7 +1686,7 @@ class Test(TestBase):
 
         expected = "SELECT t1.`id`, t1.`name` \n" \
                    "FROM mocked_project.`pyodps_test_expr_table2` t1 \n" \
-                   "WHERE ((t1.`part1` == 'a') AND (t1.`part2` == 1)) OR (t1.`part1` == 'b')"
+                   "WHERE ((t1.`part1` == 'a') AND (CAST(t1.`part2` AS BIGINT) == 1)) OR (t1.`part1` == 'b')"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(df, prettify=False)))
 
 if __name__ == '__main__':

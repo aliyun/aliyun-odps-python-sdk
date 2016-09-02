@@ -24,12 +24,12 @@ String.prototype.rsplit = function(sep, maxsplit) {
     return maxsplit ? [ split.slice(0, -maxsplit).join(sep) ].concat(split.slice(-maxsplit)) : split;
 };
 
-define('pyodps/df-view', ['jquery', 'jupyter-js-widgets', 'pyodps/common', 'echarts.min', 'westeros.min'],
-       function($, widgets, pyodps, echarts) {
+define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', 'pyodps/common', 'echarts.min', 'westeros.min'],
+       function($, IPython, widgets, pyodps, echarts) {
     "use strict";
     var viewer_counter = 1;
     var df_view_pager_sizes = [1, 5, 1];
-    var df_view_html = '<div class="row df-view">' +
+    var df_view_html = '<div class="row df-view output-suppressor">' +
         '<ul class="df-function-nav nav nav-pills pills-small">' +
         ' <li class="active"><a class="btn-df-table" data-toggle="tab" href="#show-table-{counter}"><i class="fa fa-table" /></a></li>' +
         ' <li><a class="btn-bar-chart" data-toggle="tab" href="#show-bar-chart-{counter}"><i class="fa fa-bar-chart" /></a></li>' +
@@ -152,10 +152,17 @@ define('pyodps/df-view', ['jquery', 'jupyter-js-widgets', 'pyodps/common', 'echa
     pyodps.register_css('pyodps/chosen');
     pyodps.register_css('pyodps/fonts/custom-font');
 
+    $([IPython.events]).on("kernel_busy.Kernel", function() {
+        $('.cell').not(':has(.output-suppressor)').each(function () {
+            $(this).find('div.output_wrapper').show();
+        });
+    });
+
     var DFView = widgets.DOMWidgetView.extend({
         render: function() {
             var that = this;
             that.listenTo(that.model, 'change:start_sign', that._actual_render);
+            that.listenTo(that.model, 'change:error_sign', that._render_error);
             that.send({
                 action: 'start_widget'
             });
@@ -353,6 +360,17 @@ define('pyodps/df-view', ['jquery', 'jupyter-js-widgets', 'pyodps/common', 'echa
             that.$el.find('.df-graph-toolbar').hide();
             that.send({action: 'fetch_table'});
             _resize_table_areas();
+        },
+        
+        _render_error: function () {
+            var that = this;
+            var _error_renderer = function () {
+                var $that_el = $(that.$el);
+                var error_html = $that_el.closest('.cell').find('.output_subarea.output_error').html();
+                if (!error_html) window.setTimeout(_error_renderer, 200);
+                $that_el.find('.show-body:visible').html(error_html);
+            };
+            window.setTimeout(_error_renderer, 500);
         },
 
         _destroy_popover: function (dom) {

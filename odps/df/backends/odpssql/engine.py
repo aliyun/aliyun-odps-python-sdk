@@ -29,11 +29,13 @@ from ....utils import init_progress_ui, write_log as log
 from ....models import Partition, Resource
 from ....tempobj import register_temp_table
 from ....types import PartitionSpec
+from ....compat import izip
 from ....tunnel.tabletunnel.downloadsession import TableDownloadSession
 from ....ui import reload_instance_status, fetch_instance_group
 from ...core import DataFrame
 from ...expr.reduction import *
 from ...expr.arithmetic import And, Equal
+from ...utils import is_source_collection
 from ..core import Engine
 from ..frame import ResultFrame
 from ..context import context
@@ -60,11 +62,6 @@ class ODPSEngine(Engine):
             return all_percent / len(task_progress.stages)
         else:
             return 0
-
-    @classmethod
-    def _is_source_table(cls, expr):
-        return isinstance(expr, CollectionExpr) and \
-               expr._source_data is not None
 
     def _reload_ui(self, group, instance, ui):
         if group:
@@ -152,7 +149,7 @@ class ODPSEngine(Engine):
         if not isinstance(collection, CollectionExpr):
             return False
 
-        if cls._is_source_table(collection):
+        if is_source_collection(collection):
             return True
         if not no_filter and cls._filter_on_partition(collection):
             return True
@@ -228,6 +225,24 @@ class ODPSEngine(Engine):
         with t.open_reader(reopen=True, **kwargs) as reader:
             yield reader
 
+    @classmethod
+    def _to_partition_spec(cls, kv):
+        spec = PartitionSpec()
+        for k, v in kv:
+            spec[k] = v
+        return spec
+
+    @classmethod
+    def _partition_prefix(cls, all_partitions, filtered_partitions):
+        filtered_partitions = sorted(six.iteritems(filtered_partitions.kv),
+                                     key=lambda x: all_partitions.index(x[0]))
+        if len(filtered_partitions) > len(all_partitions):
+            return
+        if not all(zip(l == r for l, r in zip(all_partitions, filtered_partitions))):
+            return
+
+        return cls._to_partition_spec(filtered_partitions)
+
     def _handle_cases(self, expr, ui=None, start_progress=0, max_progress=1,
                       head=None, tail=None):
         if ui is None:
@@ -238,7 +253,7 @@ class ODPSEngine(Engine):
                 isinstance(expr.fields[0], Count):
             expr = expr.fields[0]
 
-        columns, partition, count = (None, ) * 3
+        columns, partitions, count = (None, ) * 3
         pkv = None
         if isinstance(expr, Count):
             if isinstance(expr.input, Column):
@@ -257,7 +272,7 @@ class ODPSEngine(Engine):
             ret = self._filter_on_partition(input)
             if ret:
                 pkv = dict((k, v) for k, v in ret)
-                partition = ','.join(['='.join(str(i) for i in it) for it in ret])
+                partitions = self._to_partition_spec(ret)
                 input = input.input
                 continue
 
@@ -269,12 +284,22 @@ class ODPSEngine(Engine):
             break
 
         table = next(expr.data_source())
-        partition_size = len(partition.split(',')) if partition is not None else 0
-        if table.schema._partitions is not None and \
-                len(table.schema._partitions) != partition_size:
-            return
+        partition, filter_all_partitions = None, True
+        if table.schema._partitions:
+            if partitions is not None:
+                partition = self._partition_prefix(
+                    [p.name for p in table.schema._partitions], partitions)
+                if partition is None:
+                    return
+                if len(table.schema._partitions) != len(partitions):
+                    filter_all_partitions = False
+            else:
+                filter_all_partitions = False
 
         if isinstance(expr, Count):
+            if not filter_all_partitions:
+                # if not filter all partitions, fall back to ODPS SQL to calculate count
+                return
             try:
                 with self._open_reader(table, partition=partition) as reader:
                     ui.update(start_progress + max_progress)
@@ -285,37 +310,75 @@ class ODPSEngine(Engine):
             log('Try to fetch data from tunnel')
             ui.status('Try to download data with tunnel...')
             if isinstance(expr, SliceCollectionExpr):
-                if expr.start is not None:
+                if expr.start:
                     raise ExpressionError('For ODPS backend, slice\'s start cannot be specified')
                 count = expr.stop
             try:
-                with self._open_reader(table, partition=partition) as reader:
-                    if tail is not None:
-                        start = max(reader.count - tail, 0)
+                fetch_partitions = [partition] if filter_all_partitions else \
+                    (p.name for p in table.iterate_partitions(partition))
+                if tail is not None:
+                    fetch_partitions = list(fetch_partitions)[::-1]
+
+                data = []
+
+                start, size, step = None, None, None
+                if head is not None:
+                    size = min(head, count) if count is not None else head
+                elif tail is not None:
+                    if filter_all_partitions:
+                        start = None if count is None else max(count - tail, 0)
+                        size = tail if count is None else min(count, tail)
                     else:
-                        start = None
-                    if head is not None:
-                        count = min(count, head) if count is not None else head
+                        # tail on multi partitions, just fall back to SQL
+                        return
+                else:
+                    size = count
 
-                    data = []
-                    curr = itertools.count(0)
-                    size = count or reader.count
-                    for r in reader.read(start=start, count=count, columns=columns):
-                        i = next(curr)
-                        if i % 50 == 0:
-                            ui.update(start_progress + min(float(i) / size * max_progress, 1))
-                        if pkv:
-                            for k, v in six.iteritems(pkv):
-                                if k in r and r[k] is None:
-                                    # fill back the partition data which is lost in the tunnel
-                                    r[k] = types.odps_types.validate_value(v, table.schema.get_type(k))
-                        data.append(r.values)
-                    ui.update(start_progress + max_progress)
+                if size is None and tail is not None:
+                    fetch_partitions = list(fetch_partitions)
 
-                    schema = types.df_schema_to_odps_schema(expr._schema, ignorecase=True)
-                    return ResultFrame(data, schema=schema)
+                cum = 0
+                for curr_part, partition in izip(itertools.count(1), fetch_partitions):
+                    rest = size - cum if size is not None else None
+                    finished = False
+
+                    with self._open_reader(table, partition=partition) as reader:
+                        if tail is not None and start is None:
+                            s = max(reader.count - tail, 0)
+                            start = s if start is None else max(s, start)
+
+                        for i, r in izip(itertools.count(1),
+                                         reader.read(start=start, count=rest, columns=columns)):
+                            if size is not None and cum > size - 1:
+                                finished = True
+                                break
+                            cum += 1
+                            if cum % 50 == 0:
+                                if size is not None:
+                                    ui.update(start_progress + float(cum) / size * max_progress)
+                                else:
+                                    p = float(i) / reader.count * curr_part / len(fetch_partitions)
+                                    ui.update(start_progress + p * max_progress)
+
+                            if pkv:
+                                self._fill_back_partition_values(r, table, pkv)
+                            data.append(r.values)
+
+                    if finished:
+                        break
+
+                ui.update(start_progress + max_progress)
+                return ResultFrame(data, schema=expr._schema)
             except ODPSError:
                 return
+
+    @classmethod
+    def _fill_back_partition_values(cls, record, table, pkv):
+        if pkv:
+            for k, v in six.iteritems(pkv):
+                if k in record and record[k] is None:
+                    # fill back the partition data which is lost in the tunnel
+                    record[k] = types.odps_types.validate_value(v, table.schema.get_type(k))
 
     def execute(self, expr, ui=None, async=False, start_progress=0,
                 max_progress=1, lifecycle=None, head=None, tail=None, hints=None, **kw):

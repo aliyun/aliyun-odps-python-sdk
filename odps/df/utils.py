@@ -91,6 +91,12 @@ def make_copy(f):
         return f
 
 
+def is_source_collection(expr):
+    from .expr.expressions import CollectionExpr
+
+    return isinstance(expr, CollectionExpr) and expr._source_data is not None
+
+
 def to_collection(seq_or_scalar):
     from .expr.expressions import CollectionExpr, Column, SequenceExpr
     from .expr.reduction import GroupedSequenceReduction, Count

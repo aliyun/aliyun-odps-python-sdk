@@ -120,6 +120,12 @@ UDF的限制在此都适用。
 除了调用自定义函数，DataFrame还提供了很多内置函数，这些函数中部分使用了map函数来实现，因此，如果\ **用户所在Project未开通Python
 UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提供Python UDF支持）**\ 。
 
+
+.. warning::
+    由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS
+    Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常
+    执行。
+
 .. _function_resource:
 
 引用资源

@@ -96,6 +96,7 @@ JYTHON = platform.python_implementation().lower() == 'jython'
 
 
 #relevant opcodes
+BUILD_CLASS = opcode.opmap.get('BUILD_CLASS')
 BUILD_LIST_FROM_ARG = opcode.opmap.get('BUILD_LIST_FROM_ARG')
 BUILD_LIST = opcode.opmap['BUILD_LIST']
 BUILD_MAP = opcode.opmap.get('BUILD_MAP')
@@ -118,17 +119,22 @@ JUMP_IF_TRUE_OR_POP = opcode.opmap.get('JUMP_IF_TRUE_OR_POP')
 LIST_APPEND = opcode.opmap['LIST_APPEND']
 LIST_APPEND_PY26 = 18
 LOAD_ATTR = opcode.opmap['LOAD_ATTR']
+LOAD_BUILD_CLASS_PY3 = 71
 LOAD_CONST = opcode.opmap['LOAD_CONST']
 LOAD_FAST = opcode.opmap['LOAD_FAST']
+LOAD_LOCALS = opcode.opmap.get('LOAD_LOCALS')
 LOOKUP_METHOD = opcode.opmap.get('LOOKUP_METHOD')
-MAKE_CLOSURE = opcode.opmap['MAKE_CLOSURE']
+MAKE_CLOSURE = opcode.opmap.get('MAKE_CLOSURE')
 MAKE_FUNCTION = opcode.opmap['MAKE_FUNCTION']
 NOP = opcode.opmap['NOP']
 POP_JUMP_IF_TRUE = opcode.opmap.get('POP_JUMP_IF_TRUE')
 POP_JUMP_IF_FALSE = opcode.opmap.get('POP_JUMP_IF_FALSE')
 POP_TOP = opcode.opmap.get('POP_TOP')
+RETURN_VALUE = opcode.opmap['RETURN_VALUE']
 ROT_TWO = opcode.opmap['ROT_TWO']
+ROT_THREE = opcode.opmap.get('ROT_THREE')
 ROT_FOUR = opcode.opmap.get('ROT_FOUR')
+STORE_NAME = opcode.opmap.get('STORE_NAME')
 
 DELETE_GLOBAL = dis.opname.index('DELETE_GLOBAL')
 LOAD_GLOBAL = dis.opname.index('LOAD_GLOBAL')
@@ -150,7 +156,7 @@ def _builtin_type(name):
     return getattr(types, name)
 
 
-def pypy_to_cpython(code):
+def _pypy_to_cpython(code):
     if not PYPY:
         return code
 
@@ -173,6 +179,22 @@ def pypy_to_cpython(code):
         i += (3 if code[i] >= HAVE_ARGUMENT else 1)
 
     return ''.join(chr(c) for c in code)
+
+
+def _extract_code_args(obj):
+    if PY3:
+        return (
+            obj.co_argcount, obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
+            obj.co_flags, _pypy_to_cpython(obj.co_code), obj.co_consts, obj.co_names, obj.co_varnames,
+            obj.co_filename, obj.co_name, obj.co_firstlineno, obj.co_lnotab, obj.co_freevars,
+            obj.co_cellvars
+        )
+    else:
+        return (
+            obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags, _pypy_to_cpython(obj.co_code),
+            obj.co_consts, obj.co_names, obj.co_varnames, obj.co_filename, obj.co_name,
+            obj.co_firstlineno, obj.co_lnotab, obj.co_freevars, obj.co_cellvars
+        )
 
 
 class CloudPickler(Pickler):
@@ -229,19 +251,7 @@ class CloudPickler(Pickler):
         """
         Save a code object
         """
-        if PY3:
-            args = (
-                obj.co_argcount, obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
-                obj.co_flags, pypy_to_cpython(obj.co_code), obj.co_consts, obj.co_names, obj.co_varnames,
-                obj.co_filename, obj.co_name, obj.co_firstlineno, obj.co_lnotab, obj.co_freevars,
-                obj.co_cellvars
-            )
-        else:
-            args = (
-                obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags, pypy_to_cpython(obj.co_code),
-                obj.co_consts, obj.co_names, obj.co_varnames, obj.co_filename, obj.co_name,
-                obj.co_firstlineno, obj.co_lnotab, obj.co_freevars, obj.co_cellvars
-            )
+        args = _extract_code_args(obj)
         if self.dump_code:
             print(obj.co_name)
             dis.dis(obj.co_code)
@@ -338,7 +348,7 @@ class CloudPickler(Pickler):
         """
         Find all globals names read or written to by codeblock co
         """
-        code = pypy_to_cpython(co.co_code)
+        code = _pypy_to_cpython(co.co_code)
         if not PY3:
             code = [ord(c) for c in code]
         names = co.co_names
@@ -829,81 +839,104 @@ class CloudUnpickler(Unpickler):
         return sio.getvalue()
 
     @classmethod
-    def _opcode_compat_3_to_27(cls, code):
+    def _code_compat_3_to_27(cls, code_args):
         # only works under Python 2.7
-        from cStringIO import StringIO
+        code_args = list(code_args)
+
+        # translate byte codes
+        byte_code = code_args[5]
         # build line mappings, extra space for new_to_old mapping, as code could be longer
-        new_to_old = [0, ] * (2 * len(code))
-        old_to_new = [0, ] * len(code)
+        new_to_old = [0, ] * (2 * len(byte_code))
+        old_to_new = [0, ] * len(byte_code)
         remapped = False
         # replace LOAD_FAST / LOAD_CONST / ROT_FOUR group
         i, ni = 0, 0
         sio = StringIO()
-        while i < len(code):
+        while i < len(byte_code):
             if len(new_to_old) <= ni:
-                new_to_old.extend([0, ] * len(code))
+                new_to_old.extend([0, ] * len(byte_code))
             new_to_old[ni] = i
             old_to_new[i] = ni
-            if ord(code[i]) == ROT_FOUR:
+            opcode_ord = ord(byte_code[i])
+            if opcode_ord == LOAD_BUILD_CLASS_PY3:
+                func_cid = len(code_args[6])
+                code_args[6] = code_args[6] + (_py27_build_py3_class, )
+                [sio.write(chr(c)) for c in (LOAD_CONST, func_cid & 0xff, func_cid >> 8)]
+                remapped = True
+                i += 1
+                ni += 3
+            elif opcode_ord == ROT_FOUR:
                 # ROT_FOUR -> DUP_TOPX 2
                 [sio.write(chr(c)) for c in (DUP_TOPX, 2, 0)]
                 remapped = True
                 i += 1
                 ni += 3
-            elif len(code) - i >= 3 and ord(code[i]) in (MAKE_CLOSURE, MAKE_FUNCTION):
+            elif len(byte_code) - i >= 3 and opcode_ord in (MAKE_CLOSURE, MAKE_FUNCTION):
                 # The TOSes in PY3 is changed for MAKE_CLOSURE
                 sio.write(chr(POP_TOP))
-                sio.write(code[i:i + 3])
+                sio.write(byte_code[i:i + 3])
                 remapped = True
                 i += 3
                 ni += 4
-            elif ord(code[i]) == EXTENDED_ARG_PY3:
+            elif opcode_ord == EXTENDED_ARG_PY3:
                 sio.write(chr(EXTENDED_ARG))
-                sio.write(code[i + 1:i + 3])
+                sio.write(byte_code[i + 1:i + 3])
                 i += 3
                 ni += 3
-            elif ord(code[i]) == EXTENDED_ARG:
+            elif opcode_ord == EXTENDED_ARG:
                 sio.write(chr(LIST_APPEND))
-                sio.write(code[i + 1:i + 3])
+                sio.write(byte_code[i + 1:i + 3])
                 i += 3
                 ni += 3
-            elif ord(code[i]) >= HAVE_ARGUMENT:
-                sio.write(code[i:i + 3])
+            elif opcode_ord >= HAVE_ARGUMENT:
+                sio.write(byte_code[i:i + 3])
                 i += 3
                 ni += 3
             else:
-                sio.write(code[i])
+                sio.write(byte_code[i])
                 i += 1
                 ni += 1
-        code = sio.getvalue()
+        byte_code = sio.getvalue()
 
         if not remapped:
-            return code
+            code_args[5] = byte_code
         else:
-            return cls._realign_opcode(code, new_to_old, old_to_new)
+            code_args[5] = cls._realign_opcode(byte_code, new_to_old, old_to_new)
+
+        # 7: co_names, 8: co_varnames, 13: co_freevars
+        for col in (6, 7, 8, 13, 14):
+            code_args[col] = cls._conv_string_tuples(code_args[col])
+        # 9: co_filename, 10: co_name
+        for col in (9, 10):
+            code_args[col] = code_args[col].encode('utf-8') if isinstance(code_args[col], unicode) else code_args[col]
+
+        return [code_args[0], ] + code_args[2:]
 
     @classmethod
-    def _opcode_compat_26_to_27(cls, code):
+    def _code_compat_26_to_27(cls, code_args):
         # only works under Python 2.7
-        from cStringIO import StringIO
+        code_args = list(code_args)
+
+        # translate byte codes
+        byte_code = code_args[4]
         # build line mappings, extra space for new_to_old mapping, as code could be longer
-        new_to_old = [0, ] * (2 * len(code))
-        old_to_new = [0, ] * len(code)
+        new_to_old = [0, ] * (2 * len(byte_code))
+        old_to_new = [0, ] * len(byte_code)
         remapped = False
         i, ni = 0, 0
         sio = StringIO()
-        while i < len(code):
+        while i < len(byte_code):
             if len(new_to_old) <= ni:
-                new_to_old.extend([0, ] * len(code))
+                new_to_old.extend([0, ] * len(byte_code))
             new_to_old[ni] = i
             old_to_new[i] = ni
-            opcode_ord = ord(code[i])
+            opcode_ord = ord(byte_code[i])
             if opcode_ord == JUMP_IF_TRUE_OR_POP:
                 # JUMP_IF_TRUE -> DUP_TOP, POP_JUMP_IF_TRUE
                 sio.write(chr(DUP_TOP))
                 sio.write(chr(POP_JUMP_IF_TRUE))
 
-                abs_pos = i + 3 + ord(code[i + 1]) + (ord(code[i + 2]) << 8)
+                abs_pos = i + 3 + ord(byte_code[i + 1]) + (ord(byte_code[i + 2]) << 8)
                 sio.write(chr(abs_pos & 0xff))
                 sio.write(chr(abs_pos >> 8))
 
@@ -915,7 +948,7 @@ class CloudUnpickler(Unpickler):
                 sio.write(chr(DUP_TOP))
                 sio.write(chr(POP_JUMP_IF_FALSE))
 
-                abs_pos = i + 3 + ord(code[i + 1]) + (ord(code[i + 2]) << 8)
+                abs_pos = i + 3 + ord(byte_code[i + 1]) + (ord(byte_code[i + 2]) << 8)
                 sio.write(chr(abs_pos & 0xff))
                 sio.write(chr(abs_pos >> 8))
 
@@ -924,12 +957,12 @@ class CloudUnpickler(Unpickler):
                 ni += 4
             elif (opcode_ord + 1) in (COMPARE_OP, IMPORT_NAME, BUILD_MAP, LOAD_ATTR, IMPORT_FROM):
                 sio.write(chr(opcode_ord + 1))
-                sio.write(code[i + 1:i + 3])
+                sio.write(byte_code[i + 1:i + 3])
                 i += 3
                 ni += 3
             elif opcode_ord + 2 == EXTENDED_ARG:
                 sio.write(chr(opcode_ord + 2))
-                sio.write(code[i + 1:i + 3])
+                sio.write(byte_code[i + 1:i + 3])
                 i += 3
                 ni += 3
             elif opcode_ord == LIST_APPEND_PY26:
@@ -937,20 +970,21 @@ class CloudUnpickler(Unpickler):
                 remapped = True
                 i += 1
                 ni += 4
-            elif ord(code[i]) >= HAVE_ARGUMENT:
-                sio.write(code[i:i + 3])
+            elif ord(byte_code[i]) >= HAVE_ARGUMENT:
+                sio.write(byte_code[i:i + 3])
                 i += 3
                 ni += 3
             else:
-                sio.write(code[i])
+                sio.write(byte_code[i])
                 i += 1
                 ni += 1
-        code = sio.getvalue()
+        byte_code = sio.getvalue()
 
         if not remapped:
-            return code
+            code_args[4] = byte_code
         else:
-            return cls._realign_opcode(code, new_to_old, old_to_new)
+            code_args[4] = cls._realign_opcode(byte_code, new_to_old, old_to_new)
+        return code_args
 
     def load_reduce(self):
         # Replace the internal implementation of pickle
@@ -960,21 +994,9 @@ class CloudUnpickler(Unpickler):
         func = stack[-1]
         if func.__name__ == 'code':
             if PY27 and self._src_impl == 'CP3':  # src PY3, dest PY27
-                args = list(args)
-                # 5: co_code
-                args[5] = self._opcode_compat_3_to_27(args[5])
-                # 7: co_names, 8: co_varnames, 13: co_freevars
-                for col in (6, 7, 8, 13, 14):
-                    args[col] = self._conv_string_tuples(args[col])
-                # 9: co_filename, 10: co_name
-                for col in (9, 10):
-                    args[col] = args[col].encode('utf-8') if isinstance(args[col], unicode) else args[col]
-
-                args = [args[0], ] + args[2:]
+                args = self._code_compat_3_to_27(args)
             elif PY27 and self._src_impl == 'CP26':  # src PY26, dest PY27
-                args = list(args)
-                # 4: co_code
-                args[4] = self._opcode_compat_26_to_27(args[4])
+                args = self._code_compat_26_to_27(args)
 
             if self._dump_code:
                 print(args[9 if not PY3 else 10])
@@ -984,14 +1006,14 @@ class CloudUnpickler(Unpickler):
             if JYTHON:
                 from org.python.core import PyBytecode
                 func = PyBytecode
-        elif func.__name__ == 'type' or func.__name__ == 'classobj':
+        elif func.__name__ == 'type' or func.__name__ == 'classobj' or (isinstance(func, type) and issubclass(func, type)):
             if not PY3:
                 args = list(args)
                 args[0] = args[0].encode('utf-8') if isinstance(args[0], unicode) else args[0]
         try:
             value = func(*args)
         except Exception as exc:
-            raise Exception('Failed to unpickle reduce. func=%s args=%s msg="%s"' % (func.__name__, repr(args), str(exc)))
+            raise Exception('Failed to unpickle reduce. func=%s mod=%s args=%s msg="%s"' % (func.__name__, func.__module__, repr(args), str(exc)))
         stack[-1] = value
 
 
@@ -1094,3 +1116,47 @@ Note: These can never be renamed due to client compatibility issues"""
 def _getobject(modname, attribute):
     mod = __import__(modname, fromlist=[attribute])
     return mod.__dict__[attribute]
+
+
+def _py27_build_py3_class(func, name, *bases, **kwds):
+    # Stack structure: (class_name, base_classes_tuple, method dictionary)
+    metacls = kwds.pop('metaclass', None)
+    bases = tuple(bases)
+    code_args = list(_extract_code_args(func.__code__))
+
+    # start translating code
+    consts = code_args[5]
+    n_consts = len(consts)
+    name_cid, base_cid, metaclass_cid = range(n_consts, n_consts + 3)
+    code_args[5] = consts + (name, bases, metacls)
+
+    names = code_args[6]
+    metaclass_nid = len(names)
+    code_args[6] = names + ('__metaclass__', )
+
+    aug_code = [POP_TOP, ]
+
+    if metacls is not None:
+        aug_code += [
+            LOAD_CONST, metaclass_cid & 0xff, metaclass_cid >> 8,
+            STORE_NAME, metaclass_nid & 0xff, metaclass_nid >> 8,
+        ]
+
+    aug_code += [
+        LOAD_CONST, name_cid & 0xff, name_cid >> 8,
+        LOAD_CONST, base_cid & 0xff, base_cid >> 8,
+        LOAD_LOCALS,
+        BUILD_CLASS,
+        RETURN_VALUE
+    ]
+    if not hasattr(func, '_cp_original_len'):
+        func._cp_original_len = len(code_args[4]) - 1
+
+    sio = StringIO()
+    sio.write(code_args[4][:func._cp_original_len])
+    [sio.write(chr(o)) for o in aug_code]
+    code_args[4] = sio.getvalue()
+
+    code_obj = types.CodeType(*code_args)
+    func.__code__ = code_obj
+    return func()

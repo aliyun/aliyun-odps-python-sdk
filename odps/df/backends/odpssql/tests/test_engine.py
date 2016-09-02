@@ -160,6 +160,75 @@ class Test(TestBase):
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 
+        table =self.odps.create_table(
+            table_name, Schema.from_lists(['val'], ['bigint'], ['name', 'id'], ['string', 'bigint']))
+        table.create_partition('name=a,id=1')
+        with table.open_writer('name=a,id=1') as writer:
+            writer.write([[0], [1], [2]])
+        table.create_partition('name=a,id=2')
+        with table.open_writer('name=a,id=2') as writer:
+            writer.write([[3], [4], [5]])
+        table.create_partition('name=b,id=1')
+        with table.open_writer('name=b,id=1') as writer:
+            writer.write([[6], [7], [8]])
+
+        df = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(table.schema))
+
+        try:
+            expr = df.count()
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertIsNone(res)
+
+            expr = df[df.name == 'a'].count()
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertIsNone(res)
+
+            expr = df[df.id == 1].count()
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertIsNone(res)
+
+            expr = df.filter(df.name == 'a', df.id == 1).count()
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertEqual(res, 3)
+
+            expr = df
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertEqual(len(res), 9)
+
+            expr = df[df.name == 'a']
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertEqual(len(res), 6)
+
+            expr = df[df.id == 1]
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertIsNone(res)
+
+            expr = df[df.name == 'a'][:4]
+            res = self.engine._handle_cases(expr, self.faked_bar, head=5)
+            result = self._get_result(res)
+            self.assertEqual(sum(r[0] for r in result), 6)
+
+            expr = df[df.name == 'a'][:5]
+            res = self.engine._handle_cases(expr, self.faked_bar, head=4)
+            result = self._get_result(res)
+            self.assertEqual(sum(r[0] for r in result), 6)
+
+            expr = df[df.name == 'a']
+            res = self.engine._handle_cases(expr, self.faked_bar, head=4)
+            result = self._get_result(res)
+            self.assertEqual(sum(r[0] for r in result), 6)
+
+            expr = df[df.name == 'a'][:5]
+            res = self.engine._handle_cases(expr, self.faked_bar, tail=4)
+            self.assertIsNone(res)
+
+            expr = df.filter(df.name == 'a', df.id == 1)[:2]
+            res = self.engine._handle_cases(expr, self.faked_bar, tail=1)
+            result = self._get_result(res)
+            self.assertEqual(sum(r[0] for r in result), 1)
+        finally:
+            self.odps.delete_table(table_name, if_exists=True)
+
     def testAsync(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
 

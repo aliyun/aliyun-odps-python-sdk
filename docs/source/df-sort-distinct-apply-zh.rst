@@ -931,6 +931,12 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
     df.apply(my_func, axis=1).to_pandas(libraries=['six.whl', 'python_dateutil.whl'])
 
 
+.. warning::
+    由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS
+    Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常
+    执行。
+
+
 .. _map_reduce:
 
 
@@ -1254,6 +1260,12 @@ combiner表示在map_reduce API里表示在mapper端，就先对数据进行聚�
 .. code:: python
 
     df.map_reduce(mapper=my_mapper, reducer=my_reducer, group='key').execute(libraries=['six.whl', 'python_dateutil.whl'])
+
+
+.. warning::
+    由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS
+    Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常
+    执行。
 
 
 

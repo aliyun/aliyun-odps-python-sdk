@@ -143,7 +143,7 @@ class Expr(Node):
         return engine.compile(self)
 
     @run_at_once
-    def persist(self, name, partitions=None, lifecycle=None, project=None, **kwargs):
+    def persist(self, name, partitions=None, partition=None, lifecycle=None, project=None, **kwargs):
         """
         Persist the execution into a new table. If `partitions` not specfied,
         will create a new table without partitions, and insert the SQL result into it.
@@ -152,6 +152,8 @@ class Expr(Node):
         :param name: table name
         :param partitions: list of string, the partition fields
         :type partitions: list
+        :param partition: persit to a perticular partition
+        :type partition: string or PartitionSpec
         :param int lifecycle: table lifecycle. If absent, `options.lifecycle` will be used.
         :return: :class:`odps.df.DataFrame`
 
@@ -159,6 +161,7 @@ class Expr(Node):
 
         >>> df = df['name', 'id', 'ds']
         >>> df.persist('odps_new_table')
+        >>> df.persist('odps_new_table', partition='pt=test')
         >>> df.persist('odps_new_table', partitions=['ds'])
         """
 
@@ -170,8 +173,8 @@ class Expr(Node):
             lifecycle = \
                 options.lifecycle if not name.startswith(TEMP_TABLE_PREFIX) \
                     else options.temp_lifecycle
-        return engine.persist(self, name, partitions=partitions, lifecycle=lifecycle,
-                              project=project, **kwargs)
+        return engine.persist(self, name, partitions=partitions, partition=partition,
+                              lifecycle=lifecycle, project=project, **kwargs)
 
     def cache(self):
         self._need_cache = True

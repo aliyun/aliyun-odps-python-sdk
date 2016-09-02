@@ -20,6 +20,7 @@
 from operator import itemgetter
 
 from ... import utils, models, compat
+from ..utils import is_source_collection
 from .expressions import *
 from .collections import SortedColumn
 from .reduction import Count, GroupedCount
@@ -112,7 +113,7 @@ class ExprFormatter(object):
             return buf.getvalue()
 
     def _format_collection(self, expr, buf=None, indent=0):
-        if isinstance(expr, CollectionExpr) and expr._source_data is not None:
+        if is_source_collection(expr):
             return self._format_source_collection(expr, buf=buf, indent=indent)
         else:
             return self._format_transformed_collection(expr, buf=buf, indent=indent)

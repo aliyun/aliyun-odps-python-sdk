@@ -23,6 +23,7 @@ import math
 from requests import Response
 
 from . import types
+from .models.record import Record
 from .compat import six
 
 
@@ -135,7 +136,7 @@ class RecordReader(AbstractRecordReader):
         values = self._readline()
         if values is None:
             raise StopIteration
-        return types.Record(self._columns, values=values)
+        return Record(self._columns, values=values)
 
     next = __next__
 

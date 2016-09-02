@@ -38,6 +38,7 @@ from ..expr.core import ExprProxy
 from ..expr.expressions import CollectionExpr, SequenceExpr
 from ..expr.merge import JoinCollectionExpr, UnionCollectionExpr
 from ..expr.element import IsIn
+from ..utils import is_source_collection
 from ...models import Table, Schema
 from ... import ODPS
 from ... import options
@@ -253,7 +254,7 @@ class MixedEngine(Engine):
         return sub
 
     def _is_source_data(self, node):
-        if isinstance(node, CollectionExpr) and node._source_data is not None:
+        if is_source_collection(node):
             return True
         if isinstance(node, Scalar) and node._value is not None:
             return True

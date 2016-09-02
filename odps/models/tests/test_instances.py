@@ -233,6 +233,28 @@ class Test(TestBase):
 
         table.drop()
 
+    def testReadSQLWrite(self):
+        test_table = tn('pyodps_t_tmp_read_sql_instance_write')
+        self.odps.delete_table(test_table, if_exists=True)
+        table = self.odps.create_table(
+            test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
+        self.odps.write_table(
+            table, 0, [table.new_record([1]), table.new_record([2])])
+        self.odps.write_table(table, [table.new_record([3]), ])
+
+        test_table2 = tn('pyodps_t_tmp_read_sql_instance_write2')
+        self.odps.delete_table(test_table2, if_exists=True)
+        table2 = self.odps.create_table(test_table2, table.schema)
+
+        try:
+            with self.odps.execute_sql('select * from %s' % test_table).open_reader() as reader:
+                with table2.open_writer() as writer:
+                    for record in reader:
+                        writer.write(table2.new_record(record.values))
+        finally:
+            table.drop()
+            table2.drop()
+
     def testReadChineseSQLInstance(self):
         test_table = tn('pyodps_t_tmp_read_chn_sql_instance')
         self.odps.delete_table(test_table, if_exists=True)
