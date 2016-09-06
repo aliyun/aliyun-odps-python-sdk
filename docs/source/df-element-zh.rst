@@ -1228,14 +1228,6 @@ string相关操作包括：
         <td></td>
       </tr>
       <tr>
-        <td>month</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td>month</td>
-        <td></td>
-      </tr>
-      <tr>
         <td>day</td>
         <td></td>
       </tr>

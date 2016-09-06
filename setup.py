@@ -116,6 +116,7 @@ full_requirements = [
     'jupyter>=1.0.0',
     'numpy>=1.6.0',
     'pandas>=0.17.0',
+    'matplotlib>=1.4',
 ]
 if sys.platform != 'win32':
     full_requirements.append('cython>=0.20')
