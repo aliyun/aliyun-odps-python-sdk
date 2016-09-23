@@ -1308,7 +1308,7 @@ class ExprExecutionGraphFormatter(object):
 
         source = next(expr.data_source())
         if isinstance(source, Table):
-            return ODPSEngine(source.odps).compile(expr)
+            return ODPSEngine(source.odps, global_optimize=False).compile(expr)
 
     def _to_str(self):
         buffer = six.StringIO()
@@ -1316,7 +1316,7 @@ class ExprExecutionGraphFormatter(object):
         nodes = self._dag.topological_sort()
         for i, node in enumerate(nodes):
             sid = i + 1
-            expr_node, _, _ = node
+            _, _, expr_node = node
 
             buffer.write('Stage {0}: \n\n'.format(sid))
             compiled = self._compile(expr_node)
@@ -1335,7 +1335,7 @@ class ExprExecutionGraphFormatter(object):
 
         for i, node in enumerate(self._dag.topological_sort()):
             sid = i + 1
-            expr_node, _, _ = node
+            _, _, expr_node = node
 
             buffer.write('<h3>Stage {0}</h3>'.format(sid))
             compiled = self._compile(expr_node)

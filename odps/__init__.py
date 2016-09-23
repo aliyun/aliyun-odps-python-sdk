@@ -16,9 +16,9 @@
 # under the License.
 
 import sys
+from ._version import __version__
 
-__version__ = '0.6.1'
-__all__ = ['ODPS',]
+__all__ = ['ODPS', ]
 
 version = sys.version_info
 if version[0] == 2 and version[:2] < (2, 6):

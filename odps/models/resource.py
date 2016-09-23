@@ -18,7 +18,7 @@
 # under the License.
 
 from .core import LazyLoad
-from .cache import cache
+from .cache import cache, cache_parent
 from .. import serializers, utils, types, errors, compat
 from ..compat import Enum, six
 
@@ -38,7 +38,7 @@ class Resource(LazyLoad):
                  :class:`odps.models.TableResource`
     """
 
-    __slots__ = 'content_md5', 'is_temp_resource', 'volumn_path', '_type_indicator'
+    __slots__ = 'content_md5', 'is_temp_resource', 'volume_path', '_type_indicator'
 
     class Type(Enum):
         FILE = 'FILE'
@@ -84,6 +84,10 @@ class Resource(LazyLoad):
         else:
             return cls
 
+    @staticmethod
+    def _filter_cache(_, **kwargs):
+        return kwargs.get('type') is not None and kwargs['type'] != Resource.Type.UNKOWN
+
     @cache
     def __new__(cls, *args, **kwargs):
         typo = kwargs.get('type')
@@ -93,9 +97,7 @@ class Resource(LazyLoad):
         kwargs['type'] = Resource.Type.UNKOWN
         obj = Resource(**kwargs)
         obj.reload()
-        for attr in obj.__slots__:
-            kwargs[attr] = getattr(obj, attr, None)
-        return Resource(**kwargs)
+        return Resource(**obj.extract())
 
     def __init__(self, **kwargs):
         typo = kwargs.get('type')
@@ -125,7 +127,7 @@ class Resource(LazyLoad):
             resp.headers.get('Last-Modified'))
 
         self.source_table_name = resp.headers.get('x-odps-copy-table-source')
-        self.volumn_path = resp.headers.get('x-odps-copy-file-source')
+        self.volume_path = resp.headers.get('x-odps-copy-file-source')
         self.content_md5 = resp.headers.get('Content-MD5')
 
         self._loaded = True
@@ -144,6 +146,7 @@ class Resource(LazyLoad):
         return self.parent.delete(self)
 
 
+@cache_parent
 class FileResource(Resource):
     """
     File resource represents for a file.
@@ -458,6 +461,7 @@ class FileResource(Resource):
         return self._parent.update(self, file_obj=file_obj)
 
 
+@cache_parent
 class JarResource(FileResource):
     """
     File resource representing for the .jar file.
@@ -468,6 +472,7 @@ class JarResource(FileResource):
         self.type = Resource.Type.JAR
 
 
+@cache_parent
 class PyResource(FileResource):
     """
     File resource representing for the .py file.
@@ -478,6 +483,7 @@ class PyResource(FileResource):
         self.type = Resource.Type.PY
 
 
+@cache_parent
 class ArchiveResource(FileResource):
     """
     File resource representing for the compressed file like .zip/.tgz/.tar.gz/.tar/jar
@@ -488,6 +494,7 @@ class ArchiveResource(FileResource):
         self.type = Resource.Type.ARCHIVE
 
 
+@cache_parent
 class TableResource(Resource):
     """
     Take a table as a resource.
@@ -574,3 +581,25 @@ class TableResource(Resource):
                    partition=partition)
         resources = self.parent
         return resources.update(self)
+
+
+@cache_parent
+class VolumeArchiveResource(Resource):
+    """
+    Volume archive resource represents for a volume archive
+    """
+
+    def __init__(self, **kw):
+        super(VolumeArchiveResource, self).__init__(**kw)
+        self.type = Resource.Type.VOLUMEARCHIVE
+
+
+@cache_parent
+class VolumeFileResource(Resource):
+    """
+    Volume resource represents for a volume archive
+    """
+
+    def __init__(self, **kw):
+        super(VolumeFileResource, self).__init__(**kw)
+        self.type = Resource.Type.VOLUMEFILE

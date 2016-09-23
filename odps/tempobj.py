@@ -113,7 +113,7 @@ class ExecutionEnv(object):
         package_root = os.path.dirname(__file__)
         if package_root not in import_paths:
             import_paths.append(package_root)
-        self.import_path_json = json.dumps(import_paths)
+        self.import_path_json = json.dumps(import_paths, ensure_ascii=False)
 
         self.builtins = builtins
         self.io = __import__('io', fromlist=[''])

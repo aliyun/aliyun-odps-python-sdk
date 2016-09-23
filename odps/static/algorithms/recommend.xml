@@ -21,6 +21,7 @@
                 <inputName>input</inputName>
             </param>
             <param name="selectedColNames">
+                <alias>cols</alias>
                 <exporter>$package_root.recommend.customize.get_rec_triple_selected_col_names</exporter>
                 <inputName>input</inputName>
             </param>

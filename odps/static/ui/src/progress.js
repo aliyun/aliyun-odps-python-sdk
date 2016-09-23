@@ -184,8 +184,15 @@ define('pyodps/progress', ["jquery", "pyodps/common", "jupyter-js-widgets"], fun
                     if (undefined === inst_rec.endDate) {
                         inst_rec.endDate = new Date().valueOf();
                     }
-                    if (inst_rec.endDate - inst_rec.startDate < 1000 * 5)
-                        return;
+                    // check if the instance returns instantly
+                    if (inst_rec.endDate - inst_rec.startDate < 1000 * 5) {
+                        var is_success = true;
+                        $.each(inst_json.tasks, function (idx, task_json) {
+                            if (task_json.status != 'SUCCESS') is_success = false;
+                        });
+                        // if is successful, we do not render
+                        if (is_success) return;
+                    }
                 }
                 var inst_obj = $(instance_html.replace(/\{INSTANCE_ID\}/g, inst_json.id));
                 var tasks_holder = $('.tasks', inst_obj);

@@ -145,14 +145,14 @@ class Expr(Node):
     @run_at_once
     def persist(self, name, partitions=None, partition=None, lifecycle=None, project=None, **kwargs):
         """
-        Persist the execution into a new table. If `partitions` not specfied,
+        Persist the execution into a new table. If `partitions` not specified,
         will create a new table without partitions, and insert the SQL result into it.
         If `partitions` are specified, they will be the partition fields of the new table.
 
         :param name: table name
         :param partitions: list of string, the partition fields
         :type partitions: list
-        :param partition: persit to a perticular partition
+        :param partition: persist to a specified partition
         :type partition: string or PartitionSpec
         :param int lifecycle: table lifecycle. If absent, `options.lifecycle` will be used.
         :return: :class:`odps.df.DataFrame`

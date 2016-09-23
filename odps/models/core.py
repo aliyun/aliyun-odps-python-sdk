@@ -75,12 +75,12 @@ class RestModel(XMLRemoteModel):
         name = quote_plus(name).replace('+', '%20')
         return name
 
-    def resource(self):
+    def resource(self, client=None):
         parent = self._parent
         if parent is None:
-            parent_res = self._client.endpoint
+            parent_res = (client or self._client).endpoint
         else:
-            parent_res = parent.resource()
+            parent_res = parent.resource(client=client)
         name = self._name()
         if name is None:
             return parent_res
@@ -143,19 +143,22 @@ class LazyLoad(RestModel):
         return super(LazyLoad, self).__repr__()
 
     def __hash__(self):
-        return hash((self.name, self.parent))
+        return hash((self._name(), self.parent))
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
 
-        return self.name == other.name and self.parent == other.parent
+        return self._name() == other._name() and self.parent == other.parent
 
     def __getstate__(self):
-        return self.name, self._parent, self._client
+        return self._name(), self._parent, self._client
 
     def __setstate__(self, state):
         name, parent, client = state
+        self._set_state(name, parent, client)
+
+    def _set_state(self, name, parent, client):
         self.__init__(name=name, _parent=parent, _client=client)
 
 

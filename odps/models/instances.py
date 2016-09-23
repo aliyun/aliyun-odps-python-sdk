@@ -126,14 +126,15 @@ class Instances(Iterable):
     def _get_submit_instance_content(cls, job):
         return Instance.AnonymousSubmitInstance(job=job).serialize()
 
-    def create(self, xml=None, job=None, task=None, priority=None, running_cluster=None):
+    def create(self, xml=None, job=None, task=None, priority=None, running_cluster=None, headers=None):
         if xml is None:
             job = self._create_job(job=job, task=task, priority=priority,
                                    running_cluster=running_cluster)
 
             xml = self._get_submit_instance_content(job)
 
-        headers = {'Content-Type': 'application/xml'}
+        headers = headers or dict()
+        headers['Content-Type'] = 'application/xml'
         url = self.resource()
         resp = self._client.post(url, xml, headers=headers)
 

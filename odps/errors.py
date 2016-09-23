@@ -157,3 +157,7 @@ class SchemaParseError(ServerDefinedException):
 
 class InvalidStateSetting(ServerDefinedException):
     pass
+
+
+class NoSuchPath(ODPSError):
+    pass

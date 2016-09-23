@@ -17,19 +17,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import contextlib
 import sys
 import struct
 
 from requests.exceptions import StreamConsumedError
 
 from . import io
-from .router import TunnelServerRouter
+from .base import BaseTunnel
 from .checksum import Checksum
 from .errors import TunnelError
 from .. import serializers, options
-from ..rest import RestClient
-from ..models import Projects, errors
-from ..compat import irange, urlparse, Enum, six
+from ..models import errors
+from ..compat import irange, Enum, six, BytesIO
 from ..utils import to_binary, to_text
 
 MAX_CHUNK_SIZE = 256 * 1024 * 1024
@@ -39,46 +39,12 @@ CHECKSUM_SIZE = 4
 CHECKSUM_PACKER = '>i' if six.PY2 else '>I'
 
 
-class VolumeTunnel(object):
-    def __init__(self, odps=None, client=None, project=None, endpoint=None):
-        self._client = odps.rest if odps is not None else client
-        self._account = self._client.account
-        if project is None and odps is None:
-            raise AttributeError('VolumeTunnel requires project parameter.')
-        if isinstance(project, six.string_types):
-            self._project = Projects(client=self._client)[project or odps.project]
-        elif project is None:
-            self._project = odps.get_project()
-        else:
-            self._project = project
-
-        self._router = TunnelServerRouter(self._client)
-        self._endpoint = endpoint or self._project._tunnel_endpoint
-
-        self._tunnel_rest = None
-
-    @property
-    def endpoint(self):
-        return self._endpoint
-
-    @property
-    def tunnel_rest(self):
-        if self._tunnel_rest is not None:
-            return self._tunnel_rest
-
-        endpoint = self._endpoint
-        if endpoint is None:
-            scheme = urlparse(self._client.endpoint).scheme
-            endpoint = self._router.get_tunnel_server(self._project, scheme)
-        self._tunnel_rest = RestClient(self._account, endpoint, self._client.project)
-        return self._tunnel_rest
-
+class VolumeTunnel(BaseTunnel):
     def create_download_session(self, volume, partition_spec, file_name, download_id=None, compress_option=None,
                                 compress_algo=None, compress_level=None, compress_strategy=None):
         if not isinstance(volume, six.string_types):
             volume = volume.name
-        volume = Projects(client=self.tunnel_rest)[self._project.name].volumes[volume]
-        compress_option = compress_option
+        volume = self._project.volumes[volume]
         if compress_option is None and compress_algo is not None:
             compress_option = io.CompressOption(
                 compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
@@ -87,17 +53,94 @@ class VolumeTunnel(object):
                                      compress_option=compress_option)
 
     def create_upload_session(self, volume, partition_spec, upload_id=None, compress_option=None,
-                              compress_algo=None, compres_level=None, compress_strategy=None):
+                              compress_algo=None, compress_level=None, compress_strategy=None):
         if not isinstance(volume, six.string_types):
             volume = volume.name
-        volume = Projects(client=self.tunnel_rest)[self._project.name].volumes[volume]
-        compress_option = compress_option
+        volume = self._project.volumes[volume]
         if compress_option is None and compress_algo is not None:
             compress_option = io.CompressOption(
-                compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
+                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
 
         return VolumeUploadSession(self.tunnel_rest, volume, partition_spec, upload_id=upload_id,
                                    compress_option=compress_option)
+
+
+class VolumeFSTunnel(BaseTunnel):
+    @contextlib.contextmanager
+    def open_reader(self, volume, path, start=None, length=None, compress_option=None, compress_algo=None,
+                    compress_level=None, compress_strategy=None):
+        if not isinstance(volume, six.string_types):
+            volume = volume.name
+        volume = self._project.volumes[volume]
+
+        if start is None:
+            start = 0
+        if length is None:
+            file_obj = volume[path]
+            length = file_obj.length
+
+        headers = {
+            'Range': 'bytes={0}-{1}'.format(start, start + length - 1),
+            'x-odps-volume-fs-path': '/' + volume.name + '/' + path.lstrip('/'),
+        }
+
+        if compress_option is not None:
+            if compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
+                headers['Accept-Encoding'] = 'deflate'
+            elif compress_option.algorithm != io.CompressOption.CompressAlgorithm.ODPS_RAW:
+                raise TunnelError('invalid compression option')
+
+        url = volume.resource(client=self.tunnel_rest)
+        resp = self.tunnel_rest.get(url, headers=headers, stream=True)
+        if not self.tunnel_rest.is_ok(resp):
+            e = TunnelError.parse(resp)
+            raise e
+
+        if compress_option is None and compress_algo is not None:
+            compress_option = io.CompressOption(
+                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
+
+        content_encoding = resp.headers.get('Content-Encoding')
+        if content_encoding is not None:
+            compress = True
+        else:
+            compress = False
+
+        option = compress_option if compress else None
+        yield VolumeReader(self.tunnel_rest, resp, option)
+
+    def open_writer(self, volume, path, replication=None, compress_option=None, compress_algo=None,
+                    compress_level=None, compress_strategy=None):
+        if not isinstance(volume, six.string_types):
+            volume = volume.name
+        volume = self._project.volumes[volume]
+
+        headers = {
+            'Content-Type': 'application/octet-stream',
+            'Transfer-Encoding': 'chunked',
+            'x-odps-volume-fs-path': '/' + volume.name + '/' + path.lstrip('/'),
+        }
+        params = {}
+
+        if compress_option is None and compress_algo is not None:
+            compress_option = io.CompressOption(
+                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
+        if compress_option is not None:
+            if compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
+                headers['Content-Encoding'] = 'deflate'
+            elif compress_option.algorithm != io.CompressOption.CompressAlgorithm.ODPS_RAW:
+                raise TunnelError('invalid compression option')
+
+        if replication:
+            params['replication'] = replication
+
+        url = volume.resource(client=self.tunnel_rest)
+
+        chunk_upload = lambda data: self.tunnel_rest.post(url, data=data, params=params, headers=headers)
+        if compress_option is None and compress_algo is not None:
+            compress_option = io.CompressOption(
+                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
+        return VolumeFSWriter(self.tunnel_rest, chunk_upload, volume, path, compress_option)
 
 
 class VolumeDownloadSession(serializers.JSONSerializableModel):
@@ -164,17 +207,16 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
             e = TunnelError.parse(resp)
             raise e
 
-    def open(self, start=0, length=sys.maxsize, compress=False):
+    def open(self, start=0, length=sys.maxsize):
         compress_option = self._compress_option or io.CompressOption()
 
         params = {}
 
         headers = {'Content-Length': 0, 'x-odps-tunnel-version': 4}
-        if compress:
-            if compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
-                headers['Accept-Encoding'] = 'deflate'
-            elif compress_option.algorithm != io.CompressOption.CompressAlgorithm.ODPS_RAW:
-                raise TunnelError('invalid compression option')
+        if compress_option.algorithm == io.CompressOption.CompressAlgorithm.ODPS_ZLIB:
+            headers['Accept-Encoding'] = 'deflate'
+        elif compress_option.algorithm != io.CompressOption.CompressAlgorithm.ODPS_RAW:
+            raise TunnelError('invalid compression option')
 
         params['data'] = ''
         params['range'] = '(%s,%s)' % (start, length)
@@ -203,7 +245,7 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
 class VolumeReader(object):
     def __init__(self, client, response, compress_option):
         self._client = client
-        self._response = response.raw
+        self._response = io.RequestsInputStream(response)
         self._compress_option = compress_option
         self._crc = Checksum(method='crc32')
         self._buffer_size = 0
@@ -218,8 +260,11 @@ class VolumeReader(object):
         # left part of checksum block when chunked, see _read_buf()
         self._chunk_left = None
 
+    def _raw_read(self, l):
+        return self._response.read(l)
+
     def _init_buf(self):
-        size_buf = self._response.read(4)
+        size_buf = self._raw_read(4)
         if not size_buf:
             raise IOError('Tunnel reader breaks unexpectedly.')
         self._crc.update(size_buf)
@@ -239,7 +284,7 @@ class VolumeReader(object):
         while data_buffer.tell() < self._buffer_size:
             try:
                 # len(buf) might be less than _buffer_size
-                buf = self._response.read(self._buffer_size)
+                buf = self._raw_read(self._buffer_size)
                 if not buf:
                     break
                 data_buffer.write(buf)
@@ -428,7 +473,7 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
     def _format_file_name(file_name):
         buf = six.StringIO()
         if file_name and file_name[0] == '/':
-            raise TunnelError("FileName cann't start with '/', file name is " + file_name)
+            raise TunnelError("FileName cannot start with '/', file name is " + file_name)
         pre_slash = False
         for ch in file_name:
             if ch == '/':
@@ -458,9 +503,9 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
 
         url = self.resource() + '/' + self.id
 
-        chunk_upload = lambda data: self._client.post(url, data=data, params=params, headers=headers)
+        chunk_uploader = lambda data: self._client.post(url, data=data, params=params, headers=headers)
         option = compress_option if compress else None
-        return VolumeWriter(self._client, chunk_upload, option)
+        return VolumeWriter(self._client, chunk_uploader, option)
 
     def commit(self, files):
         if not files:
@@ -564,9 +609,31 @@ class VolumeWriter(object):
         if not self._client.is_ok(result):
             e = TunnelError.parse(result)
             raise e
+        return result
 
     def __enter__(self):
         return self
 
     def __exit__(self, *_):
         self.close()
+
+
+class VolumeFSWriter(VolumeWriter):
+    def __init__(self, client, uploader, volume, path, compress_option):
+        self._volume = volume
+        self._path = path
+        super(VolumeFSWriter, self).__init__(client, uploader, compress_option)
+
+    def close(self):
+        result = super(VolumeFSWriter, self).close()
+        if 'x-odps-volume-sessionid' not in result.headers:
+            raise TunnelError('No session id returned in response.')
+        headers = {
+            'x-odps-volume-fs-path': '/' + self._volume.name + '/' + self._path.lstrip('/'),
+            'x-odps-volume-sessionid': result.headers.get('x-odps-volume-sessionid'),
+        }
+        commit_result = self._client.put(self._volume.resource(client=self._client), None, headers=headers)
+        if not self._client.is_ok(commit_result):
+            e = TunnelError.parse(commit_result)
+            raise e
+        return result

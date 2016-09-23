@@ -49,7 +49,7 @@ class Test(TestBase):
 
 可托天下。"""
 
-    def testCompressAndDecompressDflate(self):
+    def testCompressAndDecompressDeflate(self):
         tube = io.BytesIO()
 
         outstream = DeflateOutputStream(tube)

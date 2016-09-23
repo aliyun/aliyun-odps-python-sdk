@@ -60,6 +60,8 @@ if six.PY3:
     irange = range
     izip = zip
 
+    long_type = int
+
     import io
     StringIO = io.StringIO
     BytesIO = io.BytesIO
@@ -110,6 +112,8 @@ else:
 
     irange = xrange
     izip = itertools.izip
+
+    long_type = long
 
     from ..lib import enum
 

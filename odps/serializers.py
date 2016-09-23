@@ -320,6 +320,15 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
 
         return root
 
+    def extract(self, **base_kw):
+        kwargs = base_kw.copy()
+        for attr in self.__slots__:
+            try:
+                kwargs[attr] = object.__getattribute__(self, attr)
+            except AttributeError:
+                pass
+        return kwargs
+
 
 class XMLSerializableModel(SerializableModel):
     __slots__ = '_root',

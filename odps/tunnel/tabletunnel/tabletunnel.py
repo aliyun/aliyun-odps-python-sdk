@@ -19,48 +19,13 @@
 
 from .uploadsession import TableUploadSession
 from .downloadsession import TableDownloadSession
+from ..base import BaseTunnel
 from ..io import CompressOption
-from ..router import TunnelServerRouter
-from ...rest import RestClient
-from ... import options
-from ...compat import urlparse, six
+from ...compat import six
 from ...models import Projects
 
 
-class TableTunnel(object):
-    def __init__(self, odps=None, client=None, project=None, endpoint=None):
-        self._client = odps.rest if odps is not None else client
-        self._account = self._client.account
-        if project is None and odps is None:
-            raise AttributeError('TableTunnel requires project parameter.')
-        if isinstance(project, six.string_types):
-            self._project = Projects(client=self._client)[project or odps.project]
-        elif project is None:
-            self._project = odps.get_project()
-        else:
-            self._project = project
-
-        self._router = TunnelServerRouter(self._client)
-        self._endpoint = endpoint or self._project._tunnel_endpoint
-
-        self._tunnel_rest = None
-
-    @property
-    def endpoint(self):
-        return self._endpoint
-
-    @property
-    def tunnel_rest(self):
-        if self._tunnel_rest is not None:
-            return self._tunnel_rest
-
-        endpoint = self._endpoint
-        if endpoint is None:
-            scheme = urlparse(self._client.endpoint).scheme
-            endpoint = self._router.get_tunnel_server(self._project, scheme)
-        self._tunnel_rest = RestClient(self._account, endpoint, self._client.project)
-        return self._tunnel_rest
-
+class TableTunnel(BaseTunnel):
     def create_download_session(self, table, partition_spec=None,
                                 download_id=None, compress_option=None,
                                 compress_algo=None, compres_level=None, compress_strategy=None):

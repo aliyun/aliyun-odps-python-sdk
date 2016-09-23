@@ -28,7 +28,7 @@ _FORCE_THREAD = False
 
 
 class RequestsIO(object):
-    ASYNC_ERR = None
+    _async_err = None
     CHUNK_SIZE = 1024
 
     def __new__(cls, *args, **kwargs):
@@ -44,6 +44,7 @@ class RequestsIO(object):
     def __init__(self, post_call, chunk_size=None):
         self._queue = None
         self._resp = None
+        self._async_err = None
         self._chunk_size = chunk_size or self.CHUNK_SIZE
 
         def data_generator():
@@ -61,7 +62,7 @@ class RequestsIO(object):
             try:
                 self._resp = post_call(data_generator())
             except Exception as e:
-                self.ASYNC_ERR = e
+                self._async_err = e
                 raise e
 
         self._async_func = async_func
@@ -86,7 +87,10 @@ class RequestsIO(object):
         self._queue.put(None)
         if self._wait_obj:
             self._wait_obj.join()
-        return self._resp
+        if self._async_err is None:
+            return self._resp
+        else:
+            raise self._async_err
 
 
 class ThreadRequestsIO(RequestsIO):
@@ -184,82 +188,96 @@ class SnappyOutputStream(object):
                 self._output.write(remaining)
 
 
-class DeflateInputStream(object):
+class SimpleInputStream(object):
 
     READ_BLOCK_SIZE = 1024
 
     def __init__(self, input):
-        self._decompressor = zlib.decompressobj(zlib.MAX_WBITS)
         self._input = input
         self._internal_buffer = compat.BytesIO()
-        self._cursor = 0
+        self._buffered_len = 0
 
     def read(self, limit):
-        if self._internal_buffer.tell() == self._cursor:
+        buf_io = compat.BytesIO()
+        size_left = limit
+        while size_left > 0:
+            content = self._internal_read(size_left)
+            if not content:
+                break
+            buf_io.write(content)
+            size_left -= len(content)
+        return buf_io.getvalue()
+
+    def _internal_read(self, limit):
+        if self._internal_buffer.tell() == self._buffered_len:
             self._refill_buffer()
         b = self._internal_buffer.read(limit)
         return b
 
     def _refill_buffer(self):
         while True:
-            data = self._input.read(self.READ_BLOCK_SIZE)
-            if data:
-                decompressed = self._decompressor.decompress(data)
-                if decompressed:
-                    self._internal_buffer.write(decompressed)
-                    self._cursor += len(decompressed)
-                    self._internal_buffer.seek(0)
-                    break
-                else:
-                    pass  # buffering
-            else:
-                remainder = self._decompressor.flush()
-                if remainder:
-                    self._internal_buffer.write(remainder)
-                    self._cursor += len(remainder)
-                    self._internal_buffer.seek(0)
-                else:
-                    break
+            content = self._buffer_next_chunk()
+            if content is None:
+                break
+            if content:
+                self._internal_buffer = compat.BytesIO(content)
+                self._internal_buffer.seek(0)
+                self._buffered_len = len(content)
+                break
+
+    def _read_block(self):
+        content = self._input.read(self.READ_BLOCK_SIZE)
+        return content if content else None
+
+    def _buffer_next_chunk(self):
+        return self._read_block()
 
 
-class SnappyInputStream(object):
+class RequestsInputStream(SimpleInputStream):
+    def _read_block(self):
+        content = self._input.raw.read(self.READ_BLOCK_SIZE, decode_content=True)
+        return content if content else None
+
+
+class DeflateInputStream(SimpleInputStream):
+    def __init__(self, input):
+        super(DeflateInputStream, self).__init__(input)
+        self._decompressor = zlib.decompressobj(zlib.MAX_WBITS)
+
+    def _buffer_next_chunk(self):
+        data = self._read_block()
+        if data is None:
+            return None
+        if data:
+            return self._decompressor.decompress(data)
+        else:
+            return self._decompressor.flush()
+
+
+class SnappyInputStream(SimpleInputStream):
 
     READ_BLOCK_SIZE = 1024
 
     def __init__(self, input):
+        super(SnappyInputStream, self).__init__(input)
         try:
             import snappy
         except ImportError:
             raise errors.DependencyNotInstalledError(
                 "python-snappy library is required for snappy support")
         self._decompressor = snappy.StreamDecompressor()
-        self._input = input
-        self._internal_buffer = compat.BytesIO()
-        self._cursor = 0
 
-    def read(self, limit):
-        if self._internal_buffer.tell() == self._cursor:
-            self._refill_buffer()
-        b = self._internal_buffer.read(limit)
-        return b
+    def _buffer_next_chunk(self):
+        data = self._read_block()
+        if data is None:
+            return None
+        if data:
+            return self._decompressor.decompress(data)
+        else:
+            return self._decompressor.flush()
 
-    def _refill_buffer(self):
-        while True:
-            data = self._input.read(self.READ_BLOCK_SIZE)
-            if data:
-                decompressed = self._decompressor.decompress(data)
-                if decompressed:
-                    self._internal_buffer.write(decompressed)
-                    self._cursor += len(decompressed)
-                    self._internal_buffer.seek(0)
-                    break
-                else:
-                    pass  # buffering
-            else:
-                remainder = self._decompressor.flush()
-                if remainder:
-                    self._internal_buffer.write(remainder)
-                    self._cursor += len(remainder)
-                    self._internal_buffer.seek(0)
-                else:
-                    break
+
+class SnappyRequestsInputStream(SnappyInputStream):
+    def _read_block(self):
+        content = self._input.raw.read(self.READ_BLOCK_SIZE, decode_content=False)
+        return content if content else None

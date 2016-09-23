@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from ..io import CompressOption, SnappyInputStream
+from ..io import CompressOption, SnappyRequestsInputStream, RequestsInputStream
 from ..errors import TunnelError
 from ... import serializers, types, compat
 from ...compat import Enum, six
@@ -136,16 +136,16 @@ class TableDownloadSession(serializers.JSONSerializableModel):
 
         option = compress_option if compress else None
         if option is None:
-            input_stream = compat.BytesIO(resp.content)  # create a file-like object from body
+            input_stream = resp.raw  # create a file-like object from body
         elif compress_option.algorithm == \
                 CompressOption.CompressAlgorithm.ODPS_RAW:
-            input_stream = compat.BytesIO(resp.content)  # create a file-like object from body
+            input_stream = resp.raw  # create a file-like object from body
         elif compress_option.algorithm == \
                 CompressOption.CompressAlgorithm.ODPS_ZLIB:
-            input_stream = compat.BytesIO(resp.content)  # Requests automatically decompress gzip data!
+            input_stream = RequestsInputStream(resp)  # Requests automatically decompress gzip data!
         elif compress_option.algorithm == \
                 CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-            input_stream = SnappyInputStream(compat.BytesIO(resp.content))
+            input_stream = SnappyRequestsInputStream(resp)
         else:
             raise errors.InvalidArgument('Invalid compression algorithm.')
 

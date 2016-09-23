@@ -735,19 +735,37 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.volumes.iterate(owner=owner)
 
+    @utils.deprecated('`create_volume` is deprecated. Use `created_parted_volume` instead.')
     def create_volume(self, name, project=None, **kwargs):
+        self.create_parted_volume(name, project=project, **kwargs)
+
+    def create_parted_volume(self, name, project=None, **kwargs):
         """
-        Create a volume in a project.
+        Create an old-fashioned partitioned volume in a project.
 
         :param str name: volume name name
         :param str project: project name, if not provided, will be the default project
         :return: volume
-        :rtype: :class:`odps.models.Volume`
+        :rtype: :class:`odps.models.PartedVolume`
 
-        .. seealso:: :class:`odps.models.Volume`
+        .. seealso:: :class:`odps.models.PartedVolume`
         """
         project = self.get_project(name=project)
-        return project.volumes.create(name=name, **kwargs)
+        return project.volumes.create_parted(name=name, **kwargs)
+
+    def create_fs_volume(self, name, project=None, **kwargs):
+        """
+        Create a new-fashioned file system volume in a project.
+
+        :param str name: volume name name
+        :param str project: project name, if not provided, will be the default project
+        :return: volume
+        :rtype: :class:`odps.models.FSVolume`
+
+        .. seealso:: :class:`odps.models.FSVolume`
+        """
+        project = self.get_project(name=project)
+        return project.volumes.create_fs(name=name, **kwargs)
 
     def exist_volume(self, name, project=None):
         """
@@ -763,11 +781,11 @@ class ODPS(object):
 
     def get_volume(self, name, project=None):
         """
-        Get volume by given name
+        Get volume by given name.
 
         :param str name: volume name
         :param str project: project name, if not provided, will be the default project
-        :return: volume
+        :return: volume object. Return type depends on the type of the volume.
         :rtype: :class:`odps.models.Volume`
         """
         project = self.get_project(name=project)
@@ -794,11 +812,11 @@ class ODPS(object):
         :rtype: list
         """
         volume = self.get_volume(volume, project)
-        return volume.partitions.iterate
+        return volume.partitions.iterate()
 
-    def get_volume_partition(self, volume, partition, project=None):
+    def get_volume_partition(self, volume, partition=None, project=None):
         """
-        Get partition in a volume by given name
+        Get partition in a parted volume by given name.
 
         :param str volume: volume name
         :param str partition: partition name
@@ -806,10 +824,14 @@ class ODPS(object):
         :return: partitions
         :rtype: :class:`odps.models.VolumePartition`
         """
+        if partition is None:
+            if not volume.startswith('/') or '/' not in volume.lstrip('/'):
+                raise ValueError('You should provide a partition name or use partition path instead.')
+            volume, partition = volume.lstrip('/').split('/', 1)
         volume = self.get_volume(volume, project)
         return volume.partitions[partition]
 
-    def exist_volume_partition(self, volume, partition, project=None):
+    def exist_volume_partition(self, volume, partition=None, project=None):
         """
         If the volume with given name exists in a partition or not.
 
@@ -817,13 +839,17 @@ class ODPS(object):
         :param str partition: partition name
         :param str project: project name, if not provided, will be the default project
         """
+        if partition is None:
+            if not volume.startswith('/') or '/' not in volume.lstrip('/'):
+                raise ValueError('You should provide a partition name or use partition path instead.')
+            volume, partition = volume.lstrip('/').split('/', 1)
         try:
             volume = self.get_volume(volume, project)
         except errors.NoSuchObject:
             return False
         return partition in volume.partitions
 
-    def delete_volume_partition(self, volume, partition, project=None):
+    def delete_volume_partition(self, volume, partition=None, project=None):
         """
         Delete partition in a volume by given name
 
@@ -831,23 +857,147 @@ class ODPS(object):
         :param str partition: partition name
         :param str project: project name, if not provided, will be the default project
         """
+        if partition is None:
+            if not volume.startswith('/') or '/' not in volume.lstrip('/'):
+                raise ValueError('You should provide a partition name or use partition path instead.')
+            volume, partition = volume.lstrip('/').split('/', 1)
         volume = self.get_volume(volume, project)
         return volume.delete_partition(partition)
 
-    def list_volume_files(self, volume, partition, project=None):
+    def list_volume_files(self, volume, partition=None, project=None):
         """
-        List files in a partition of a volume.
+        List files in a volume. In partitioned volumes, the function returns files under specified partition.
+        In file system volumes, the function returns files under specified path.
 
         :param str volume: volume name
-        :param str partition: partition name
+        :param str partition: partition name for partitioned volumes, and path for file system volumes.
         :param str project: project name, if not provided, will be the default project
         :return: files
         :rtype: list
-        """
-        volume = self.get_volume(volume, project)
-        return volume.partitions[partition].files.iterate
 
-    def open_volume_reader(self, volume, partition, file_name, project=None, endpoint=None,
+        :Example:
+        >>> # List files under a partition in a partitioned volume. Two calls are equivalent.
+        >>> odps.list_volume_files('parted_volume', 'partition_name')
+        >>> odps.list_volume_files('/parted_volume/partition_name')
+        >>> # List files under a path in a file system volume. Two calls are equivalent.
+        >>> odps.list_volume_files('fs_volume', 'dir1/dir2')
+        >>> odps.list_volume_files('/fs_volume/dir1/dir2')
+        """
+        from .models import PartedVolume
+        if partition is None:
+            if not volume.startswith('/'):
+                raise ValueError('You should provide a partition name or use partition / path instead.')
+            volume = volume.lstrip('/')
+            if '/' in volume:
+                volume, partition = volume.split('/', 1)
+        volume = self.get_volume(volume, project)
+        if isinstance(volume, PartedVolume):
+            if not partition:
+                raise ValueError('Malformed partition url.')
+            return volume.partitions[partition].files.iterate()
+        else:
+            return volume[partition].objects.iterate()
+
+    def create_volume_directory(self, volume, path=None, project=None):
+        """
+        Create a directory under a file system volume.
+
+        :param str volume: name of the volume.
+        :param str path: path of the directory to be created.
+        :param str project: project name, if not provided, will be the default project.
+        :return: directory object.
+        """
+        from .models import PartedVolume
+        if path is None:
+            if not volume.startswith('/'):
+                raise ValueError('You should provide a valid path.')
+            volume = volume.lstrip('/')
+            if '/' in volume:
+                volume, path = volume.split('/', 1)
+        volume = self.get_volume(volume, project)
+        if isinstance(volume, PartedVolume):
+            raise ValueError('Only supported under file system volumes.')
+        else:
+            return volume.create_dir(path)
+
+    def get_volume_file(self, volume, path=None, project=None):
+        """
+        Get a file / directory object under a file system volume.
+
+        :param str volume: name of the volume.
+        :param str path: path of the directory to be created.
+        :param str project: project name, if not provided, will be the default project.
+        :return: directory object.
+        """
+        from .models import PartedVolume
+        if path is None:
+            if not volume.startswith('/'):
+                raise ValueError('You should provide a valid path.')
+            volume = volume.lstrip('/')
+            if '/' in volume:
+                volume, path = volume.split('/', 1)
+        volume = self.get_volume(volume, project)
+        if isinstance(volume, PartedVolume):
+            raise ValueError('Only supported under file system volumes.')
+        else:
+            return volume[path]
+
+    def move_volume_file(self, old_path, new_path, replication=None, project=None):
+        """
+        Move a file / directory object under a file system volume to another location in the same volume.
+
+        :param str old_path: old path of the volume file.
+        :param str new_path: target path of the moved file.
+        :param int replication: file replication.
+        :param str project: project name, if not provided, will be the default project.
+        :return: directory object.
+        """
+        from .models import PartedVolume
+
+        if not new_path.startswith('/'):
+            # make relative path absolute
+            old_root, _ = old_path.rsplit('/', 1)
+            new_path = old_root + '/' + new_path
+
+        if not old_path.startswith('/'):
+            raise ValueError('You should provide a valid path.')
+        old_volume, old_path = old_path.lstrip('/').split('/', 1)
+
+        new_volume, _ = new_path.lstrip('/').split('/', 1)
+
+        if old_volume != new_volume:
+            raise ValueError('Moving between different volumes is not supported.')
+
+        volume = self.get_volume(old_volume, project)
+        if isinstance(volume, PartedVolume):
+            raise ValueError('Only supported under file system volumes.')
+        else:
+            volume[old_path].move(new_path, replication=replication)
+
+    def delete_volume_file(self, volume, path=None, recursive=False, project=None):
+        """
+        Delete a file / directory object under a file system volume.
+
+        :param str volume: name of the volume.
+        :param str path: path of the directory to be created.
+        :param bool recursive: if True, recursively delete files
+        :param str project: project name, if not provided, will be the default project.
+        :return: directory object.
+        """
+        from .models import PartedVolume
+        if path is None:
+            if not volume.startswith('/'):
+                raise ValueError('You should provide a valid path.')
+            volume = volume.lstrip('/')
+            if '/' in volume:
+                volume, path = volume.split('/', 1)
+        volume = self.get_volume(volume, project)
+        if isinstance(volume, PartedVolume):
+            raise ValueError('Only supported under file system volumes.')
+        else:
+            volume[path].delete(recursive=recursive)
+
+    def open_volume_reader(self, volume, partition=None, file_name=None, project=None,
                            start=None, length=None, **kwargs):
         """
         Open a volume file for read. A file-like object will be returned which can be used to read contents from
@@ -857,38 +1007,74 @@ class ODPS(object):
         :param str partition: name of the partition
         :param str file_name: name of the file
         :param str project: project name, if not provided, will be the default project
-        :param str endpoint: tunnel service URL
         :param start: start position
         :param length: length limit
         :param compress_option: the compression algorithm, level and strategy
         :type compress_option: CompressOption
 
         :Example:
-        >>> with odps.open_volume_reader('volume', 'partition', 'file') as reader:
+        >>> with odps.open_volume_reader('parted_volume', 'partition', 'file') as reader:
         >>>     [print(line) for line in reader]
         """
+        from .models import PartedVolume
+        if partition is None:
+            if not volume.startswith('/'):
+                raise ValueError('You should provide a partition name or use partition / path instead.')
+            volume = volume.lstrip('/')
+            volume, partition = volume.split('/', 1)
+            if '/' in partition:
+                partition, file_name = partition.rsplit('/', 1)
+            else:
+                partition, file_name = None, partition
         volume = self.get_volume(volume, project)
-        return volume.partitions[partition].open_reader(file_name, endpoint=endpoint, start=start, length=length,
-                                                        **kwargs)
+        if isinstance(volume, PartedVolume):
+            if not partition:
+                raise ValueError('Malformed partition url.')
+            return volume.partitions[partition].open_reader(file_name, start=start, length=length, **kwargs)
+        else:
+            return volume[partition].open_reader(file_name, start=start, length=length, **kwargs)
 
-    def open_volume_writer(self, volume, partition, project=None, endpoint=None, **kwargs):
+    def open_volume_writer(self, volume, partition=None, project=None, **kwargs):
         """
-        Open a volume partition to write to. You can use `open` method to open a file inside the volume and write to it,
-        or use `write` method to write to specific files.
+        Write data into a volume. This function behaves differently under different types of volumes.
+
+        Under partitioned volumes, all files under a partition should be uploaded in one submission. The method
+        returns a writer object with whose `open` method you can open a file inside the volume and write to it,
+        or you can use `write` method to write to specific files.
+
+        Under file system volumes, the method returns a file-like object.
 
         :param str volume: name of the volume
-        :param str partition: name of the partition
+        :param str partition: partition name for partitioned volumes, and path for file system volumes.
         :param str project: project name, if not provided, will be the default project
-        :param str endpoint: tunnel service URL
         :param compress_option: the compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
+
         :Example:
-        >>> with odps.open_volume_writer('volume', 'partition') as writer:
+        >>> # Writing to partitioned volumes
+        >>> with odps.open_volume_writer('parted_volume', 'partition') as writer:
+        >>>     # both write methods are acceptable
         >>>     writer.open('file1').write('some content')
         >>>     writer.write('file2', 'some content')
+        >>> # Writing to file system volumes
+        >>> with odps.open_volume_writer('/fs_volume/dir1/file_name') as writer:
+        >>>     writer.write('some content')
         """
+        from .models import PartedVolume
+        if partition is None:
+            if not volume.startswith('/'):
+                raise ValueError('You should provide a partition name or use partition / path instead.')
+            volume = volume.lstrip('/')
+            volume, partition = volume.split('/', 1)
         volume = self.get_volume(volume, project)
-        return volume.partitions[partition].open_writer(endpoint=endpoint, **kwargs)
+        if isinstance(volume, PartedVolume):
+            return volume.partitions[partition].open_writer(**kwargs)
+        else:
+            if '/' in partition:
+                partition, file_name = partition.rsplit('/', 1)
+            else:
+                partition, file_name = None, partition
+            return volume[partition].open_writer(file_name, **kwargs)
 
     def list_xflows(self, project=None, owner=None):
         """

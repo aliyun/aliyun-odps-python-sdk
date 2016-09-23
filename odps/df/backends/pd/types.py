@@ -46,24 +46,31 @@ if has_np:
     _df_to_np_types = dict((v, k) for k, v in six.iteritems(_np_to_df_types))
 
 
-def np_type_to_df_type(dtype, arr=None, unknown_as_string=False):
+def np_type_to_df_type(dtype, arr=None, unknown_as_string=False, name=None):
     if dtype in _np_to_df_types:
         return _np_to_df_types[dtype]
 
+    name = ', field: ' + name if name else ''
     if arr is None or len(arr) == 0:
-        raise TypeError('Unknown dtype: %s' % dtype)
+        raise TypeError('Unknown dtype: %s%s' % (dtype, name))
 
     for it in arr:
         if it is None:
             continue
         if isinstance(it, six.string_types):
             return types.string
+        elif isinstance(it, six.integer_types):
+            return types.int64
+        elif isinstance(it, float):
+            return types.float64
         elif isinstance(it, datetime):
             return types.datetime
         elif isinstance(it, Decimal):
             return types.decimal
+        elif unknown_as_string:  # not inferred
+            return types.string
         else:
-            raise TypeError('Unknown dtype: %s' % dtype)
+            raise TypeError('Unknown dtype: %s%s' % (dtype, name))
 
     if unknown_as_string:
         return types.string
@@ -84,7 +91,8 @@ def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None):
             df_types.append(as_type[names[i]])
             continue
         df_types.append(np_type_to_df_type(dtypes[i], arr,
-                                           unknown_as_string=unknown_as_string))
+                                           unknown_as_string=unknown_as_string,
+                                           name=names[i]))
 
     return Schema.from_lists(names, df_types)
 

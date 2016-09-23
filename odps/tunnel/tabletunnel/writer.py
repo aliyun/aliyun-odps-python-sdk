@@ -269,7 +269,7 @@ class RecordWriter(BaseRecordWriter):
 
     def write(self, record):
         self._start_upload()
-        if self._req_io.ASYNC_ERR:
+        if self._req_io._async_err:
             raise IOError("writer abort since an async error occurs")
         super(RecordWriter, self).write(record)
 

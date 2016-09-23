@@ -99,7 +99,7 @@ class Test(TestBase):
         writer.close()
         upload_ss.commit([0, ])
 
-    def _bufferred_upload_data(self, test_table, records, buffer_size=None, compress=False, **kw):
+    def _buffered_upload_data(self, test_table, records, buffer_size=None, compress=False, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
         writer = upload_ss.open_record_writer(buffer_size=buffer_size, compress=compress)
         for r in records:
@@ -170,13 +170,13 @@ class Test(TestBase):
     @bothPyAndC
     def testBufferredUploadAndDownloadByRawTunnel(self):
         table, data = self._gen_table(size=10)
-        self._bufferred_upload_data(table, data)
+        self._buffered_upload_data(table, data)
         records = self._download_data(table)
         self._assert_reads_data_equal(records, data)
         self._delete_table(table)
 
         table, data = self._gen_table(size=10)
-        self._bufferred_upload_data(table, data, buffer_size=1024)
+        self._buffered_upload_data(table, data, buffer_size=1024)
         records = self._download_data(table)
         self._assert_reads_data_equal(records, data)
         self._delete_table(table)
@@ -269,7 +269,7 @@ class Test(TestBase):
     @bothPyAndC
     def testBufferredUploadAndDownloadByZlibTunnel(self):
         table, data = self._gen_table(size=10)
-        self._bufferred_upload_data(table, data, compress=True)
+        self._buffered_upload_data(table, data, compress=True)
         records = self._download_data(table, compress=True)
         self._assert_reads_data_equal(records, data)
         self._delete_table(table)
@@ -291,7 +291,7 @@ class Test(TestBase):
     @bothPyAndC
     def testBufferredUploadAndDownloadBySnappyTunnel(self):
         table, data = self._gen_table(size=10)
-        self._bufferred_upload_data(table, data, compress=True, compress_algo='snappy')
+        self._buffered_upload_data(table, data, compress=True, compress_algo='snappy')
         records = self._download_data(table, compress=True, compress_algo='snappy')
         self._assert_reads_data_equal(records, data)
         self._delete_table(table)

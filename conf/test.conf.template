@@ -4,8 +4,11 @@ secret_access_key=
 project=
 endpoint=
 
-[tunnel]
+[predict]
 endpoint=
 
 [test]
 logging_level=INFO
+secondary_user=
+py3_executable=
+py26_executable=

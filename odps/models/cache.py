@@ -29,13 +29,22 @@ class ObjectCache(object):
     def __init__(self):
         self._caches = weakref.WeakValueDictionary()
 
+    @staticmethod
+    def _get_cache_class(cls):
+        if hasattr(cls, '_cache_class'):
+            cls._cache_class = ObjectCache._get_cache_class(cls._cache_class)
+            return cls._cache_class
+        return cls
+
     def _fetch(self, cache_key):
         client, parent, _, _ = cache_key
         if parent is None:
             return self._caches.get(cache_key)
 
         ancestor = getattr(parent, '_parent')
-        parent_cls = type(parent)
+        parent_cls = self._get_cache_class(type(parent))
+        if parent_cls is None:
+            return None
         name = getattr(parent, 'name', parent_cls.__name__.lower())
 
         parent_cache_key = client, ancestor, parent_cls, name
@@ -46,10 +55,11 @@ class ObjectCache(object):
     def _get_cache(self, cls, **kw):
         kwargs = dict(kw)
         parent = kwargs.pop('parent', None) or kwargs.pop('_parent', None)
-        name = kwargs.pop('name', None)
+        name = kwargs.pop(getattr(cls, '_cache_name_arg', 'name'), None)
         client = kwargs.pop('client', None) or kwargs.pop('_client', None)
+        cache_cls = self._get_cache_class(cls)
 
-        cache_key = client, parent, cls, name
+        cache_key = client, parent, cache_cls, name
         obj = None
         if name is not None:
             obj = self._fetch(cache_key)
@@ -71,7 +81,11 @@ class ObjectCache(object):
             return obj
 
         obj = func(cls, **kwargs)
-        self._caches[cache_key] = obj
+
+        if not hasattr(cls, '_filter_cache'):
+            self._caches[cache_key] = obj
+        elif cls._filter_cache(func, **obj.extract(**kwargs)):
+            self._caches[cache_key] = obj
         return obj
 
     def cache_container(self, func, cls, **kwargs):
@@ -89,39 +103,16 @@ class ObjectCache(object):
         self._caches[cache_key] = obj
         return obj
 
-    def cache_resource(self, func, cls, **kwargs):
-        cache_key = None
-        obj = None
-
-        from .resource import Resource
-
-        if 'type' in kwargs and kwargs['type'] != Resource.Type.UNKOWN:
-            cache_key, obj = self._get_cache(cls, **kwargs)
-
-        if obj is not None:
-            return obj
-
-        obj = func(cls, **kwargs)
-        if cache_key is not None:
-            self._caches[cache_key] = obj
-        return obj
-
     def del_item_cache(self, obj, item):
         item = obj[item]
 
         client = getattr(item, '_client')
         parent = getattr(item, '_parent')
-        name = getattr(item, 'name')
+        name = item._name()
 
         if name is not None:
-            from .resource import Resource
-
-            if isinstance(item, Resource):
-                clz = Resource
-            else:
-                clz = type(item)
-
-            cache_key = client, parent, clz , name
+            clz = self._get_cache_class(type(item))
+            cache_key = client, parent, clz, name
             if cache_key in self._caches:
                 del self._caches[cache_key]
 
@@ -132,15 +123,15 @@ _object_cache = ObjectCache()
 def cache(func):
     def inner(cls, **kwargs):
         bases = [base.__name__ for base in inspect.getmro(cls)]
-        if 'Resource' in bases:
-            return _object_cache.cache_resource(func, cls, **kwargs)
-        elif 'LazyLoad' in bases:
+        if 'LazyLoad' in bases:
             return _object_cache.cache_lazyload(func, cls, **kwargs)
         elif 'Container' in bases:
             return _object_cache.cache_container(func, cls, **kwargs)
 
         return func(cls, **kwargs)
 
+    inner.__name__ = func.__name__
+    inner.__doc__ = func.__doc__
     return inner
 
 
@@ -150,4 +141,12 @@ def del_cache(func):
             _object_cache.del_item_cache(obj, item)
         return func(obj, item)
 
+    inner.__name__ = func.__name__
+    inner.__doc__ = func.__doc__
+    inner._cache_maker = True
     return inner
+
+
+def cache_parent(cls):
+    cls._cache_class = cls.__bases__[0]
+    return cls

@@ -939,19 +939,38 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
             else
                 chart = echarts.init(chart_body.get(0), 'westeros');
 
-            var series_array = [];
+            var series_array = [], is_numerical = true, group_datum;
             var grouped_data = that._build_grouped_data(that._line_chart_conf, records);
             for (i = 0; i < grouped_data.groups.length; i++) {
-                var group_datum = grouped_data.groups[i];
+                group_datum = grouped_data.groups[i];
+                for (j = 0; j < group_datum.data.length; j++) {
+                    if (group_datum.data[j]) {
+                        if (isNaN(parseFloat(grouped_data.xkeys[j]))) {
+                            is_numerical = false;
+                            break;
+                        }
+                    }
+                }
+                if (!is_numerical) break;
+            }
+            for (i = 0; i < grouped_data.groups.length; i++) {
+                group_datum = grouped_data.groups[i];
                 var label;
                 if (records.groups)
                     label = 'Group: ' + group_datum.group + ' Data: ' +  group_datum.value;
                 else
                     label = 'Data: ' +  group_datum.value;
                 var data_array = [];
-                for (j = 0; j < group_datum.data.length; j++) {
-                    if (group_datum.data[j])
-                        data_array.push([grouped_data.xkeys[j], group_datum.data[j]]);
+                if (is_numerical) {
+                    for (j = 0; j < group_datum.data.length; j++) {
+                        if (group_datum.data[j])
+                            data_array.push([grouped_data.xkeys[j], group_datum.data[j]]);
+                    }
+                } else {
+                    for (j = 0; j < group_datum.data.length; j++) {
+                        if (group_datum.data[j])
+                            data_array.push(group_datum.data[j]);
+                    }
                 }
                 series_array.push({
                     name: label,
@@ -975,7 +994,7 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
                 xAxis: {
                     min: 'auto',
                     max: 'auto',
-                    type: 'value'
+                    type: is_numerical ? 'value' : 'category'
                 },
                 yAxis: {
                     min: 'auto',
@@ -983,6 +1002,9 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
                 },
                 series: series_array
             };
+            if (!is_numerical)
+                options.xAxis.data = grouped_data.xkeys;
+
             chart.setOption(options, true, false);
             $(chart_body).data('chart', chart);
             that._refresh_chart('line');
@@ -1001,19 +1023,38 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
             else
                 chart = echarts.init(chart_body.get(0), 'westeros');
 
-            var series_array = [];
+            var series_array = [], is_numerical = true, group_datum;
             var grouped_data = that._build_grouped_data(that._scatter_chart_conf, records);
             for (i = 0; i < grouped_data.groups.length; i++) {
-                var group_datum = grouped_data.groups[i];
+                group_datum = grouped_data.groups[i];
+                for (j = 0; j < group_datum.data.length; j++) {
+                    if (group_datum.data[j]) {
+                        if (isNaN(parseFloat(grouped_data.xkeys[j]))) {
+                            is_numerical = false;
+                            break;
+                        }
+                    }
+                }
+                if (!is_numerical) break;
+            }
+            for (i = 0; i < grouped_data.groups.length; i++) {
+                group_datum = grouped_data.groups[i];
                 var label;
                 if (records.groups)
                     label = 'Group: ' + group_datum.group + ' Data: ' +  group_datum.value;
                 else
                     label = 'Data: ' +  group_datum.value;
                 var data_array = [];
-                for (j = 0; j < group_datum.data.length; j++) {
-                    if (group_datum.data[j])
-                        data_array.push([grouped_data.xkeys[j], group_datum.data[j]]);
+                if (is_numerical) {
+                    for (j = 0; j < group_datum.data.length; j++) {
+                        if (group_datum.data[j])
+                            data_array.push([grouped_data.xkeys[j], group_datum.data[j]]);
+                    }
+                } else {
+                    for (j = 0; j < group_datum.data.length; j++) {
+                        if (group_datum.data[j])
+                            data_array.push(group_datum.data[j]);
+                    }
                 }
                 series_array.push({
                     name: label,
@@ -1037,7 +1078,7 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
                 xAxis: {
                     min: 'auto',
                     max: 'auto',
-                    type: 'value'
+                    type: is_numerical ? 'value' : 'category'
                 },
                 yAxis: {
                     min: 'auto',
@@ -1045,6 +1086,9 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
                 },
                 series: series_array
             };
+            if (!is_numerical)
+                options.xAxis.data = grouped_data.xkeys;
+
             chart.setOption(options, true, false);
             $(chart_body).data('chart', chart);
             that._refresh_chart('scatter');

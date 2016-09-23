@@ -20,7 +20,7 @@
 from datetime import datetime
 import itertools
 
-from odps.tests.core import TestBase, to_str, tn, global_locked
+from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
 from odps.models import Schema, Record
 

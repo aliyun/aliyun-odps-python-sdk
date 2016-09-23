@@ -18,7 +18,7 @@
 
 from .io import CompressOption
 from .tabletunnel import TableTunnel, TableUploadSession, TableDownloadSession
-from .volumetunnel import VolumeTunnel, VolumeUploadSession, VolumeDownloadSession
+from .volumetunnel import VolumeTunnel, VolumeFSTunnel, VolumeUploadSession, VolumeDownloadSession
 
 TableUploadStatus = TableUploadSession.Status
 TableDownloadStatus = TableDownloadSession.Status

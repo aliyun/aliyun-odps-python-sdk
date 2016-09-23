@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import gc
 import os
 import sys
 import tempfile
@@ -228,6 +229,8 @@ class TestMeta(type):
 class TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
 
     def setUp(self):
+        gc.collect()
+
         self.config = get_config()
         self.odps = self.config.odps
         self.tunnel = self.config.tunnel

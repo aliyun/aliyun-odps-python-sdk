@@ -171,6 +171,7 @@
                 <outputName>output</outputName>
             </param>
             <param name="selectedColNames">
+                <alias>cols</alias>
                 <exporter>$package_root.text.customize.get_doc_content_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入表中用于分词的列名</docs>
@@ -271,6 +272,7 @@
                 <outputName>output</outputName>
             </param>
             <param name="selectedColNames">
+                <alias>cols</alias>
                 <exporter>$package_root.text.customize.get_doc_content_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入表中用于清理停用词</docs>

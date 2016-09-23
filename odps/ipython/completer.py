@@ -57,7 +57,6 @@ class BaseCompleter(object):
         call_tuple = self.get_list_call(cursor_text, full_line)
         if call_tuple is None:
             return None
-        print(call_tuple, file=sys.stderr)
         code, quote = call_tuple
         if quote is None:
             quote = '\''

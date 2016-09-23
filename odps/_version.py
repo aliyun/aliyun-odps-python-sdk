@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,25 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .errors import TunnelError
-from ..compat import urlparse
-
-
-class TunnelServerRouter(object):
-    
-    def __init__(self, client):
-        self.client = client
-        
-    def get_tunnel_server(self, project, protocol):
-        if protocol is None or protocol not in ('http', 'https'):
-            raise TunnelError("Invalid protocol: "+protocol)
-
-        url = '/'.join([project.resource().rstrip('/'), 'tunnel'])
-        params = {'service': ''}
-        resp = self.client.get(url, params=params)
-
-        if self.client.is_ok(resp):
-            addr = resp.text
-            return urlparse('%s://%s' % (protocol, addr)).geturl()
-        else:
-            raise TunnelError("Can't get tunnel server address")
+version_info = (0, 6, 2)
+__version__ = '.'.join(map(str, version_info[:3])) + ''.join(version_info[3:])

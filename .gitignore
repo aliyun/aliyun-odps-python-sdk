@@ -71,3 +71,6 @@ benchmarks/*.png
 
 # generated reports
 misc/algo_diff.txt
+
+# test pyodpswrapper
+bin/test_pyodpswrapper.py

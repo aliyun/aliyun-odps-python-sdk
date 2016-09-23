@@ -34,6 +34,7 @@
                 <docs>输出聚类质心表，列数等于输入表(有选中则等于选中列总数)，行数等于聚类数，每行表示一个聚类质心位置</docs>
             </param>
             <param name="selectedColNames" required="true">
+                <alias>cols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>input</inputName>
             </param>

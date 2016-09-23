@@ -18,6 +18,7 @@
                 <outputName>output</outputName>
             </param>
             <param name="selectedColNames">
+                <alias>cols</alias>
                 <exporter>get_feature_columns</exporter>
                 <inputName>feature</inputName>
             </param>

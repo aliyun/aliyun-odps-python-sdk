@@ -25,6 +25,18 @@ import os
 import platform
 import shutil
 
+repo_root = os.path.dirname(os.path.abspath(__file__))
+
+try:
+    execfile
+except NameError:
+    def execfile(fname, globs, locs=None):
+        locs = locs or globs
+        exec(compile(open(fname).read(), fname, "exec"), globs, locs)
+
+version_ns = {}
+execfile(os.path.join(repo_root, 'odps', '_version.py'), version_ns)
+
 extra_install_cmds = []
 
 
@@ -128,7 +140,7 @@ if os.path.exists('README.rst'):
 
 setup_options = dict(
     name='pyodps',
-    version='0.6.1',
+    version=version_ns['__version__'],
     description='ODPS Python SDK and data analysis framework',
     long_description=long_description,
     author='Wu Wei',
@@ -196,8 +208,7 @@ if build_cmd != 'clean' and has_jupyter:
             pass
 
         def run(self):
-            cur_path = os.path.dirname(os.path.abspath(__file__))
-            src_dir = os.path.join(cur_path, 'odps', 'static', 'ui', 'target')
+            src_dir = os.path.join(repo_root, 'odps', 'static', 'ui', 'target')
             dest_dir = os.path.join(jupyter_data_dir(), 'nbextensions', 'pyodps')
             if os.path.exists(dest_dir):
                 shutil.rmtree(dest_dir)

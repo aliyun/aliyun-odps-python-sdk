@@ -410,8 +410,11 @@ class Instance(LazyLoad):
                   'taskname': task_name}
 
         resp = self._client.get(self.resource(), params=params)
-        return json.loads(resp.text if six.PY3 else resp.content,
-                          object_pairs_hook=OrderedDict)
+        res = resp.text if six.PY3 else resp.content
+        try:
+            return json.loads(res, object_pairs_hook=OrderedDict)
+        except ValueError:
+            return res
 
     def get_logview_address(self, hours=None):
         """

@@ -86,8 +86,7 @@ class Partition(LazyLoad):
 
         return super(Partition, self).__getattribute__(attr)
 
-    def __setstate__(self, state):
-        name, parent, client = state
+    def _set_state(self, name, parent, client):
         self.__init__(spec=name, _parent=parent, _client=client)
 
     def _name(self):
