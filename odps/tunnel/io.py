@@ -190,7 +190,7 @@ class SnappyOutputStream(object):
 
 class SimpleInputStream(object):
 
-    READ_BLOCK_SIZE = 1024
+    READ_BLOCK_SIZE = 1024 * 10
 
     def __init__(self, input):
         self._input = input
@@ -198,15 +198,18 @@ class SimpleInputStream(object):
         self._buffered_len = 0
 
     def read(self, limit):
-        buf_io = compat.BytesIO()
+        if limit <= self._buffered_len - self._internal_buffer.tell():
+            return self._internal_buffer.read(limit)
+
+        bufs = list()
         size_left = limit
         while size_left > 0:
             content = self._internal_read(size_left)
             if not content:
                 break
-            buf_io.write(content)
+            bufs.append(content)
             size_left -= len(content)
-        return buf_io.getvalue()
+        return bytes().join(bufs)
 
     def _internal_read(self, limit):
         if self._internal_buffer.tell() == self._buffered_len:
@@ -215,15 +218,22 @@ class SimpleInputStream(object):
         return b
 
     def _refill_buffer(self):
+        self._buffered_len = 0
+
+        buffer = []
+        left = self.READ_BLOCK_SIZE
         while True:
             content = self._buffer_next_chunk()
             if content is None:
                 break
             if content:
-                self._internal_buffer = compat.BytesIO(content)
-                self._internal_buffer.seek(0)
-                self._buffered_len = len(content)
+                length = len(content)
+                left -= length
+                self._buffered_len += length
+                buffer.append(content)
                 break
+
+        self._internal_buffer = compat.BytesIO(bytes().join(buffer))
 
     def _read_block(self):
         content = self._input.read(self.READ_BLOCK_SIZE)

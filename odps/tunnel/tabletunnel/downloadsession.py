@@ -136,10 +136,10 @@ class TableDownloadSession(serializers.JSONSerializableModel):
 
         option = compress_option if compress else None
         if option is None:
-            input_stream = resp.raw  # create a file-like object from body
+            input_stream = RequestsInputStream(resp)  # create a file-like object from body
         elif compress_option.algorithm == \
                 CompressOption.CompressAlgorithm.ODPS_RAW:
-            input_stream = resp.raw  # create a file-like object from body
+            input_stream = RequestsInputStream(resp)  # create a file-like object from body
         elif compress_option.algorithm == \
                 CompressOption.CompressAlgorithm.ODPS_ZLIB:
             input_stream = RequestsInputStream(resp)  # Requests automatically decompress gzip data!
