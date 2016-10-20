@@ -19,10 +19,10 @@
 
 from odps.tests.core import TestBase, pandas_case
 from odps.compat import unittest
-from odps.models import Schema
 from odps.df.expr.expressions import *
 from odps.df import types
 from odps.df.backends.pd.compiler import PandasCompiler
+from odps.df.backends.context import ExecuteContext
 
 
 @pandas_case
@@ -37,8 +37,9 @@ class Test(TestBase):
         expr = CollectionExpr(_source_data=df, _schema=schema)
 
         expr = expr['a', 'b']
+        ctx = ExecuteContext()
 
-        compiler = PandasCompiler()
+        compiler = PandasCompiler(ctx.build_dag(expr, expr))
         dag = compiler.compile(expr)
 
         self.assertEqual(len(dag._graph), 4)

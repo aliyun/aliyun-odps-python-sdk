@@ -63,9 +63,9 @@ cdef class Encoder:
         self._buffer += (<unsigned char *>&value)[:sizeof(double)]
         return sizeof(double)
 
-    cpdef int append_string(self, const unsigned char *value):
-        cdef int size
-        size = set_varint32(len(value), self._buffer)
+    cpdef int append_string(self, bytes value):
+        cdef int value_len = len(value)
+        cdef int size = set_varint32(value_len, self._buffer)
         self._buffer += value
-        return size + len(value)
+        return size + value_len
 

@@ -71,6 +71,16 @@ class Node(six.with_metaclass(NodeMetaclass)):
         for name, arg in zip(self._args, self.args):
             yield name, arg
 
+    @property
+    def _dag_args(self):
+        # _dag_args is the Nodes which will be added to the dag
+        # and may be substituted during the optimization
+        return self._args
+
+    @property
+    def dag_args(self):
+        return tuple(getattr(self, arg, None) for arg in self._dag_args)
+
     def _data_source(self):
         yield None
 
@@ -89,7 +99,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
                         new_arg._name is None:
             new_arg._name = old_arg._name
 
-        for arg_name, arg in zip(self._args, self.args):
+        for arg_name, arg in zip(self._dag_args, self.dag_args):
             if not isinstance(arg, (list, tuple)):
                 if arg is old_arg:
                     setattr(self, arg_name, new_arg)
@@ -100,10 +110,11 @@ class Node(six.with_metaclass(NodeMetaclass)):
                         subs[i] = new_arg
                 setattr(self, arg_name, type(arg)(subs))
 
-    def children(self):
+    def children(self, args_attr=None):
         args = []
 
-        for arg in self.args:
+        args_attr = args_attr or 'args'
+        for arg in getattr(self, args_attr):
             if isinstance(arg, (list, tuple)):
                 args.extend(arg)
             else:
@@ -116,7 +127,8 @@ class Node(six.with_metaclass(NodeMetaclass)):
             if len(n.children()) == 0:
                 yield n
 
-    def traverse(self, top_down=False, unique=False, traversed=None):
+    def traverse(self, top_down=False, unique=False, traversed=None,
+                 args_attrs=None):
         traversed = traversed if traversed is not None else set()
 
         def is_trav(n):
@@ -133,23 +145,29 @@ class Node(six.with_metaclass(NodeMetaclass)):
             return
 
         checked = set()
+        yields = set()
         while len(q) > 0:
             curr = q.popleft()
             if top_down:
                 yield curr
-                children = [c for c in curr.children() if not is_trav(c)]
+                children = [c for c in curr.children(args_attr=args_attrs)
+                            if not is_trav(c)]
                 q.extendleft(children[::-1])
             else:
                 if id(curr) not in checked:
-                    children = curr.children()
+                    children = curr.children(args_attr=args_attrs)
                     if len(children) == 0:
                         yield curr
                     else:
                         q.appendleft(curr)
-                        q.extendleft([c for c in children if not is_trav(c)][::-1])
+                        q.extendleft([c for c in children
+                                      if not is_trav(c) or id(c) not in checked][::-1])
                     checked.add(id(curr))
                 else:
-                    yield curr
+                    if id(curr) not in yields:
+                        yield curr
+                        if unique:
+                            yields.add(id(curr))
 
     def _slot_values(self):
         return [getattr(self, slot, None) for slot in utils.get_attrs(self)]
@@ -231,10 +249,16 @@ class Node(six.with_metaclass(NodeMetaclass)):
             for path in other._all_path(self):
                 yield path
 
-    def copy(self):
+    def _attr_dict(self):
         slots = utils.get_attrs(self)
 
-        attr_dict = dict((attr, getattr(self, attr, None)) for attr in slots)
+        return dict((attr, getattr(self, attr, None)) for attr in slots)
+
+    def _copy_type(self):
+        return type(self)
+
+    def copy(self):
+        attr_dict = self._attr_dict()
         copied = type(self)(**attr_dict)
         return copied
 
@@ -253,13 +277,15 @@ class Node(six.with_metaclass(NodeMetaclass)):
         def get(n):
             if n is None:
                 return n
-            return expr_id_to_copied[id(n)]
+            try:
+                return expr_id_to_copied[id(n)]
+            except KeyError:
+                raise
 
-        for node in self.traverse(unique=True):
-            slots = utils.get_attrs(node)
-            attr_dict = dict((attr, getattr(node, attr, None)) for attr in slots)
+        for node in self.traverse(unique=True, args_attrs='dag_args'):
+            attr_dict = node._attr_dict()
 
-            for arg_name, arg in zip(node._args, node.args):
+            for arg_name, arg in zip(node._dag_args, node.dag_args):
                 if isinstance(arg, (tuple, list)):
                     attr_dict[arg_name] = type(arg)(get(it) for it in arg)
                 else:
@@ -290,7 +316,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
         while not queue.empty():
             node = queue.get()
 
-            for child in node.children():
+            for child in node.children(args_attr='dag_args'):
                 if not dag.contains_node(child):
                     dag.add_node(child)
                 if not dag.contains_edge(child, node):
@@ -462,7 +488,7 @@ class ExprDictionary(dict):
 
     def get(self, k, d=None):
         if k is None:
-            raise KeyError
+            return d
         return dict.get(self, self._ref(k), d)
 
     def has_key(self, k):

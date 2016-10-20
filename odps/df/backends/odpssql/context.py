@@ -21,6 +21,7 @@ import itertools
 import uuid
 import time
 
+from .... import tempobj
 from ....compat import OrderedDict, six
 from ....utils import TEMP_TABLE_PREFIX
 from ....errors import ODPSError
@@ -81,13 +82,9 @@ class ODPSContext(object):
                 raise e
 
     def add_expr_compiled(self, expr, compiled):
-        if self._compiled_exprs.get(id(expr)):
-            pass
         self._compiled_exprs[id(expr)] = compiled
 
     def get_expr_compiled(self, expr):
-        if id(expr) not in self._compiled_exprs:
-            pass
         return self._compiled_exprs[id(expr)]
 
     def _gen_udf_name(self):
@@ -112,6 +109,7 @@ class ODPSContext(object):
         for func, udf in six.iteritems(self._func_to_udfs):
             udf_name = self._registered_funcs[func]
             py_resource = self._odps.create_resource(udf_name + '.py', 'py', file_obj=udf)
+            tempobj.register_temp_resource(self._odps, udf_name + '.py')
             self._to_drops.append(py_resource)
 
             resources = [py_resource, ]
@@ -122,6 +120,7 @@ class ODPSContext(object):
                     else:
                         res = self._odps.create_resource(name, 'table',
                                                          table_name=table_name)
+                        tempobj.register_temp_resource(self._odps, name)
                         resources.append(res)
                         self._to_drops.append(res)
             if libraries is not None:
@@ -130,6 +129,7 @@ class ODPSContext(object):
             function = self._odps.create_function(
                     udf_name, class_type='{0}.{1}'.format(udf_name, UDF_CLASS_NAME),
                     resources=resources)
+            tempobj.register_temp_function(self._odps, udf_name)
 
             self._func_to_functions[func] = function
             self._to_drops.append(function)

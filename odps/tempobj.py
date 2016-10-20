@@ -31,26 +31,10 @@ import threading
 import time
 import uuid
 
-from .compat import PY26, pickle, six, builtins
+from .compat import PY26, pickle, six, builtins, futures
 from .config import options
 from .errors import NoSuchObject
 from . import utils
-
-if PY26:
-    # Compatible ThreadPool to avoid Issue 10015 of Python 2.6
-    import threadpool
-
-    class ThreadPool(threadpool.ThreadPool):
-        def map(self, func, iterable):
-            [self.putRequest(threadpool.WorkRequest(func, (v, ))) for v in iterable]
-
-        def close(self):
-            pass
-
-        def join(self):
-            self.wait()
-else:
-    from multiprocessing.pool import ThreadPool
 
 TEMP_ROOT = utils.build_pyodps_dir('tempobjs')
 SESSION_KEY = '%d_%s' % (int(time.time()), uuid.uuid4())
@@ -182,6 +166,28 @@ class TempModel(TempObject):
             pass
 
 
+class TempFunction(TempObject):
+    __slots__ = 'function', 'project'
+    _type = 'Function'
+
+    def drop(self, odps):
+        try:
+            odps.delete_function(self.function, self.project)
+        except NoSuchObject:
+            pass
+
+
+class TempResource(TempObject):
+    __slots__ = 'resource', 'project'
+    _type = 'Resource'
+
+    def drop(self, odps):
+        try:
+            odps.delete_resource(self.resource, self.project)
+        except NoSuchObject:
+            pass
+
+
 class TempVolumePartition(TempObject):
     __slots__ = 'volume', 'partition', 'project'
     _type = 'VolumePartition'
@@ -217,12 +223,10 @@ class ObjectRepository(object):
 
         if self._container:
             if use_threads:
-                pool = ThreadPool(CLEANER_THREADS)
-                pool.map(_cleaner, self._container)
-                pool.close()
-                pool.join()
+                pool = futures.ThreadPoolExecutor(CLEANER_THREADS)
+                list(pool.map(_cleaner, reversed(list(self._container))))
             else:
-                for o in self._container:
+                for o in reversed(list(self._container)):
                     _cleaner(o)
         for obj in cleaned:
             if obj in self._container:
@@ -405,6 +409,18 @@ def register_temp_model(odps, model, project=None):
     if isinstance(model, six.string_types):
         model = [model, ]
     _put_objects(odps, [TempModel(m, project if project else odps.project) for m in model])
+
+
+def register_temp_resource(odps, resource, project=None):
+    if isinstance(resource, six.string_types):
+        resource = [resource, ]
+    _put_objects(odps, [TempResource(r, project if project else odps.project) for r in resource])
+
+
+def register_temp_function(odps, func, project=None):
+    if isinstance(func, six.string_types):
+        func = [func, ]
+    _put_objects(odps, [TempFunction(f, project if project else odps.project) for f in func])
 
 
 def register_temp_volume_partition(odps, volume_partition_tuple, project=None):

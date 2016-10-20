@@ -41,6 +41,14 @@ class Test(TestBase):
         table2._client = self.config.odps.rest
         self.expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
 
+    def testDir(self):
+        expr_dir = dir(self.expr)
+        self.assertIn('id', expr_dir)
+        self.assertIn('fid', expr_dir)
+
+        new_df = self.expr[self.expr.id, self.expr.fid, self.expr.name.rename('if')]
+        self.assertNotIn('if', dir(new_df))
+
     def testProjection(self):
         projected = self.expr['name', self.expr.id.rename('new_id')]
 
@@ -237,6 +245,13 @@ class Test(TestBase):
             self.assertRaises(ExpressionError, lambda: df.filter_partition('Fieldd2=2'))
         except ImportError:
             pass
+
+    def testDepExpr(self):
+        expr1 = Scalar('1')
+        expr2 = self.expr['id']
+        expr2.add_deps(expr1)
+
+        self.assertIn(expr1, expr2.deps)
 
 if __name__ == '__main__':
     unittest.main()

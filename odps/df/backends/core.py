@@ -18,6 +18,12 @@
 # under the License.
 
 from .. import utils
+from ...compat import Enum
+
+
+class EngineTypes(Enum):
+    ODPS = 'ODPS'
+    PANDAS = 'PANDAS'
 
 
 class Backend(object):
@@ -77,6 +83,9 @@ class Backend(object):
         raise NotImplementedError
 
     def visit_sample(self, expr):
+        raise NotImplementedError
+
+    def visit_pivot(self, expr):
         raise NotImplementedError
 
     def visit_reduction(self, expr):

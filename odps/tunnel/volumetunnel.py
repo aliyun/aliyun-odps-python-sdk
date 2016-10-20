@@ -376,14 +376,14 @@ class VolumeReader(object):
                     return out_buf.getvalue()
 
             if len(buf) >= length_left:
-                out_buf.write(bytes(buf[start_pos:length_left]))
-                length_left = 0
+                out_buf.write(bytes(buf[start_pos:start_pos + length_left]))
                 if len(buf) > length_left:
-                    self._left_part = buf[length_left:]
+                    self._left_part = buf[start_pos + length_left:]
                     self._left_part_pos = 0
+                length_left = 0
             else:
-                out_buf.write(bytes(buf[start_pos:self._data_size]))
-                length_left -= len(buf)
+                out_buf.write(bytes(buf[start_pos:start_pos + self._data_size]))
+                length_left -= self._data_size
         return out_buf.getvalue() if has_stuff else None
 
     def _it(self, size=sys.maxsize, encoding='utf-8'):

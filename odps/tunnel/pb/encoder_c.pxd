@@ -42,4 +42,4 @@ cdef class Encoder:
 
     cpdef int append_float(self, float value)
 
-    cpdef int append_string(self, const unsigned char* value)
+    cpdef int append_string(self, bytes value)

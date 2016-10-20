@@ -36,7 +36,7 @@ from odps.df.backends.odpssql.types import df_schema_to_odps_schema, \
     odps_schema_to_df_schema
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.backends.odpssql.engine import ODPSEngine
-from odps.df import Scalar, output_names, output_types, output, day, millisecond
+from odps.df import Scalar, output_names, output_types, output, day, millisecond, agg
 from odps import options
 
 
@@ -1363,6 +1363,31 @@ class Test(TestBase):
         result = self._get_result(res)
 
         self.assertEqual(expected, result)
+
+        @output_types('float')
+        class Aggregator(object):
+            def buffer(self):
+                return [0.0, 0]
+
+            def __call__(self, buffer, val0, val1):
+                buffer[0] += val0
+                buffer[1] += val1
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+                buffer[1] += pbuffer[1]
+
+            def getvalue(self, buffer):
+                if buffer[1] == 0:
+                    return 0.0
+                return buffer[0] / buffer[1]
+
+        expr = agg([self.expr['fid'], self.expr['id']], Aggregator).rename('agg')
+
+        expected = sum(r[2] for r in data) / sum(r[1] for r in data)
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertAlmostEqual(expected, result)
 
     def testMapReduceByApplyDistributeSort(self):
         data = [

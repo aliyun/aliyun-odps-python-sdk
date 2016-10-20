@@ -22,14 +22,14 @@ from random import randint
 from decimal import Decimal
 
 from odps.df.backends.tests.core import TestBase, to_str, tn, pandas_case
-from odps.compat import unittest, irange as xrange
+from odps.compat import unittest, irange as xrange, OrderedDict
 from odps.models import Schema
 from odps.df.types import validate_data_type
 from odps.df.expr.expressions import *
 from odps.df.backends.pd.engine import PandasEngine
 from odps.df.backends.odpssql.engine import ODPSEngine
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema
-from odps.df import output_types, output_names, output, day, millisecond
+from odps.df import output_types, output_names, output, day, millisecond, agg
 
 TEMP_FILE_RESOURCE = tn('pyodps_tmp_file_resource')
 TEMP_TABLE = tn('pyodps_temp_table')
@@ -116,7 +116,10 @@ class Test(TestBase):
 
         expr = self.expr.sample(parts=10)
         res = self.engine.execute(expr)
-        self.assertGreaterEqual(len(res), 1)
+        self.assertEqual(len(res), 1)
+
+        expr = self.expr.sample(parts=10, i=(2, 3))
+        self.assertRaises(NotImplementedError, lambda: self.engine.execute(expr))
 
         expr = self.expr.sample(strata='isMale', n={'True': 1, 'False': 1})
         res = self.engine.execute(expr)
@@ -822,6 +825,112 @@ class Test(TestBase):
         ]
         self.assertEqual(expected, result)
 
+    def testPivot(self):
+        data = [
+            ['name1', 1, 1.0, True, None, None],
+            ['name1', 2, 2.0, True, None, None],
+            ['name2', 1, 3.0, False, None, None],
+            ['name2', 3, 4.0, False, None, None]
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.pivot(rows='id', columns='name', values='fid').distinct()
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 1.0, 3.0],
+            [2, 2.0, None],
+            [3, None, 4.0]
+        ]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr = self.expr.pivot(rows='id', columns='name', values=['fid', 'isMale'])
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 1.0, 3.0, True, False],
+            [2, 2.0, None, True, None],
+            [3, None, 4.0, None, False]
+        ]
+        self.assertEqual(res.schema.names,
+                         ['id', 'name1_fid', 'name2_fid', 'name1_isMale', 'name2_isMale'])
+        self.assertEqual(sorted(result), sorted(expected))
+
+    def testPivotTable(self):
+        data = [
+            ['name1', 1, 1.0, True, None, None],
+            ['name1', 1, 5.0, True, None, None],
+            ['name1', 2, 2.0, True, None, None],
+            ['name2', 1, 3.0, False, None, None],
+            ['name2', 3, 4.0, False, None, None]
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.pivot_table(rows='name', values='fid')
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 8.0/3],
+            ['name2', 3.5],
+        ]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr = self.expr.pivot_table(rows='name', values='fid', aggfunc=['mean', 'sum'])
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 8.0/3, 8.0],
+            ['name2', 3.5, 7.0],
+        ]
+        self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum'])
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr = self.expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0).distinct()
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 3.0, 3.0],
+            [2, 2.0, 0],
+            [3, 0, 4.0]
+        ]
+
+        self.assertEqual(res.schema.names, ['id', 'name1_fid_mean', 'name2_fid_mean'])
+        self.assertEqual(result, expected)
+
+        class Agg(object):
+            def buffer(self):
+                return [0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+
+            def getvalue(self, buffer):
+                return buffer[0]
+
+        aggfuncs = OrderedDict([('my_sum', Agg), ('mean', 'mean')])
+        expr = self.expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0,
+                                     aggfunc=aggfuncs)
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 6.0, 3.0, 3.0, 3.0],
+            [2, 2.0, 0, 2.0, 0],
+            [3, 0, 4.0, 0, 4.0]
+        ]
+
+        self.assertEqual(res.schema.names, ['id', 'name1_fid_my_sum', 'name2_fid_my_sum',
+                                            'name1_fid_mean', 'name2_fid_mean'])
+        self.assertEqual(result, expected)
+
     def testGroupbyAggregation(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -1347,6 +1456,31 @@ class Test(TestBase):
         result = self._get_result(res)
 
         self.assertEqual(expected, result)
+
+        @output_types('float')
+        class Aggregator(object):
+            def buffer(self):
+                return [0.0, 0]
+
+            def __call__(self, buffer, val0, val1):
+                buffer[0] += val0
+                buffer[1] += val1
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+                buffer[1] += pbuffer[1]
+
+            def getvalue(self, buffer):
+                if buffer[1] == 0:
+                    return 0.0
+                return buffer[0] / buffer[1]
+
+        expr = agg([self.expr['fid'], self.expr['id']], Aggregator).rename('agg')
+
+        expected = sum(r[2] for r in data) / sum(r[1] for r in data)
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertAlmostEqual(expected, result)
 
     def testJoin(self):
         data = [

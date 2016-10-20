@@ -24,10 +24,11 @@ from .compiler import PandasCompiler
 from ..core import Engine
 from ..frame import ResultFrame
 from ... import DataFrame
-from ...expr.core import ExprProxy
+from ...expr.core import ExprProxy, ExprDictionary
 from ...expr.expressions import *
 from ...backends.odpssql.types import df_schema_to_odps_schema, df_type_to_odps_type
 from ..errors import CompileError
+from ...utils import is_source_collection
 from ....utils import init_progress_ui
 from ....models import Schema, Partition
 from ....errors import ODPSError
@@ -46,20 +47,38 @@ class PandasEngine(Engine):
 
         self._global_optimize = global_optimize
 
-    def _run(self, expr, dag, ui, start_progress=0, max_progress=1,
-             close_ui=True):
-        topos = dag.topological_sort()
-
+    def _run(self, dag, ui, expr_dag, start_progress=0,
+             max_progress=1, close_ui=True):
         ui.status('Try to execute by local pandas...')
         try:
-            results = dict()
-            for node in topos:
-                expr, func = node
-                results[expr] = func(results)
+            results = ExprDictionary()
+            while True:
+                topos = dag.topological_sort()
+
+                no_sub = True
+                for node in topos:
+                    expr, func = node
+                    if expr in results:
+                        continue
+                    res = func(results)
+                    if isinstance(res, tuple):
+                        src = expr
+                        expr = res[0]
+                        res = res[1]
+                        no_sub = False
+                        results[src] = res
+                    results[expr] = res
+                if no_sub:
+                    break
 
             ui.update(start_progress+max_progress)
 
-            return results[expr]
+            try:
+                return results[expr_dag.root]
+            except KeyError as e:
+                if len(results) == 1:
+                    return compat.lvalues(results)[0]
+                raise e
         finally:
             if close_ui:
                 ui.close()
@@ -73,13 +92,16 @@ class PandasEngine(Engine):
                 expr = context.register_to_copy_expr(src_expr, expr)
             dag = context.build_dag(src_expr, expr, dag=dag)
 
+            # analyze first
+            ana.Analyzer(dag).analyze()
+
             from ..optimize import Optimizer
-            Optimizer(dag).optimize()
+            expr = Optimizer(dag).optimize()
         else:
             dag = context.build_dag(src_expr, expr, dag=dag)
 
-        expr = ana.Analyzer(dag).analyze()
-        return expr
+        # no rewriter applied here
+        return expr, dag
 
     def _pre_process(self, expr, src_expr=None, dag=None):
         src_expr = src_expr or expr
@@ -90,29 +112,32 @@ class PandasEngine(Engine):
         if isinstance(expr, (Scalar, SequenceExpr)):
             expr = self._convert_table(expr)
 
-        replaced = _replaced_expr.get(ExprProxy(src_expr))
+        if is_source_collection(expr) and context.is_dag_built(src_expr):
+            replaced = expr
+        else:
+            replaced = _replaced_expr.get(ExprProxy(src_expr))
         if replaced is not None:
-            return replaced
+            return replaced, dag or context.get_dag(src_expr)
 
-        expr = self._optimize(expr, src_expr, dag=dag)
+        expr, dag = self._optimize(expr, src_expr, dag=dag)
         _replaced_expr[ExprProxy(src_expr, _replaced_expr)] = expr
-        return expr
+        return expr, dag
 
-    def _compile(self, expr):
-        backend = PandasCompiler()
+    def _compile(self, expr, dag):
+        backend = PandasCompiler(dag)
         return backend.compile(expr)
 
     def compile(self, expr):
-        expr = self._pre_process(expr)
-        return self._compile(expr)
+        expr, dag = self._pre_process(expr)
+        return self._compile(expr, dag)
 
-    def _execute(self, expr, ui, src_expr=None, close_ui=True,
+    def _execute(self, expr, ui, expr_dag, src_expr=None, close_ui=True,
                  start_progress=0, max_progress=1, head=None, tail=None):
         src_expr = src_expr or expr
 
-        dag = self._compile(expr)
+        dag = self._compile(expr, expr_dag)
 
-        df = self._run(expr, dag, ui, start_progress=start_progress,
+        df = self._run(dag, ui, expr_dag, start_progress=start_progress,
                        max_progress=max_progress, close_ui=close_ui)
 
         if not isinstance(src_expr, Scalar):
@@ -123,7 +148,7 @@ class PandasEngine(Engine):
                 values = df.values[-tail:]
             else:
                 values = df.values
-            return ResultFrame(values, schema=expr.schema)
+            return ResultFrame(values, schema=expr_dag.root.schema)
         else:
             res = df.values[0][0]
             src_expr._cache_data = res
@@ -143,9 +168,9 @@ class PandasEngine(Engine):
                 if close_ui:
                     ui.close()
 
-        expr = self._pre_process(expr, src_expr, dag=kw.get('dag'))
+        expr, expr_dag = self._pre_process(expr, src_expr, dag=kw.get('dag'))
 
-        return self._execute(expr, ui, close_ui=close_ui,
+        return self._execute(expr, ui, expr_dag, close_ui=close_ui,
                              start_progress=start_progress, max_progress=max_progress,
                              head=head, tail=tail, src_expr=src_expr)
 
@@ -219,7 +244,7 @@ class PandasEngine(Engine):
                                               start_progress=start_progress,
                                               max_progress=max_progress)
 
-    def _persist(self, expr, name, ui, project=None, partitions=None, partition=None,
+    def _persist(self, expr, name, expr_dag, ui, project=None, partitions=None, partition=None,
                  odps=None, close_ui=True, lifecycle=None, start_progress=0, max_progress=1,
                  execute_percent=0.5, create_table=True, drop_partition=False,
                  create_partition=False, **kwargs):
@@ -229,7 +254,7 @@ class PandasEngine(Engine):
             raise ODPSError('ODPS entrance should be provided')
 
         try:
-            df = self._execute(expr, ui=ui, start_progress=start_progress,
+            df = self._execute(expr, ui, expr_dag, start_progress=start_progress,
                                max_progress=max_progress*execute_percent, close_ui=close_ui,
                                src_expr=src_expr)
             schema = Schema(columns=df.columns)
@@ -292,10 +317,10 @@ class PandasEngine(Engine):
         ui = ui or init_progress_ui()
 
         src_expr = kwargs.pop('src_expr', expr)
-        expr = self._pre_process(expr)
+        expr, expr_dag = self._pre_process(expr)
 
-        return self._persist(expr, name, ui, project=project, partitions=partitions, partition=partition,
-                             odps=odps, close_ui=close_ui, lifecycle=lifecycle,
+        return self._persist(expr, name, expr_dag, ui, project=project, partitions=partitions,
+                             partition=partition, odps=odps, close_ui=close_ui, lifecycle=lifecycle,
                              execute_percent=execute_percent,
                              start_progress=start_progress, max_progress=max_progress,
                              drop_partition=drop_partition, create_partition=create_partition,

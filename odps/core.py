@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 import json
 import re
 from collections import Iterable
 
 from .rest import RestClient
 from .config import options
+from .errors import NoSuchObject
 from .tempobj import clean_stored_objects
 from .compat import six
 from . import models, accounts, errors, utils
@@ -71,7 +73,7 @@ class ODPS(object):
     >>> odps.delete_table('test_table')
     """
     def __init__(self, access_id, secret_access_key, project,
-                 endpoint=DEFAULT_ENDPOINT, **kw):
+                 endpoint=None, **kw):
         """
         """
 
@@ -80,9 +82,9 @@ class ODPS(object):
             self.account = self._build_account(access_id, secret_access_key)
         else:
             self.account = account
-        self.endpoint = endpoint
+        self.endpoint = endpoint or DEFAULT_ENDPOINT
         self.project = project
-        self.rest = RestClient(self.account, endpoint, project)
+        self.rest = RestClient(self.account, self.endpoint, project)
 
         self._projects = models.Projects(client=self.rest)
         self._project = self.get_project()
@@ -217,7 +219,7 @@ class ODPS(object):
 
         :param name: table name
         :param project: project name, if not provided, will be the default project
-        :param if_exists:  will not delete the table if not exists, default False
+        :param if_exists:  will not raise errors when the table does not exist, default False
         :param async: if True, will run asynchronously
         :type async: bool
         :return: None if not async else odps instance
@@ -1140,7 +1142,7 @@ class ODPS(object):
         xflow_project = xflow_project or project
         if isinstance(xflow_project, models.Project):
             xflow_project = xflow_project.name
-        return project.xflows.execute_xflow(
+        return project.xflows.run_xflow(
             xflow_name=xflow_name, xflow_project=xflow_project, project=project, parameters=parameters)
 
     def execute_xflow(self, xflow_name, xflow_project=None, parameters=None, project=None):
@@ -1238,17 +1240,22 @@ class ODPS(object):
         project = self.get_project(name=project)
         return name in project.offline_models
 
-    def delete_offline_model(self, name, project=None):
+    def delete_offline_model(self, name, project=None, if_exists=False):
         """
         Delete the offline model by given name.
 
         :param name: offline model's name
+        :param if_exists:  will not raise errors when the offline model does not exist, default False
         :param project: project name, if not provided, will be the default project
         :return: None
         """
 
         project = self.get_project(name=project)
-        return project.offline_models.delete(name)
+        try:
+            return project.offline_models.delete(name)
+        except NoSuchObject:
+            if not if_exists:
+                raise
 
     def get_logview_address(self, instance_id, hours=None, project=None):
         """
@@ -1490,3 +1497,5 @@ except ImportError:
     pass
 
 options.log_view_host = LOG_VIEW_HOST_DEFAULT
+if 'PYODPS_ENDPOINT' in os.environ:
+    DEFAULT_ENDPOINT = os.environ.get('PYODPS_ENDPOINT')

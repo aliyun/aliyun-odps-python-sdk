@@ -51,6 +51,12 @@ class Test(TestBase):
 
         self.assertSequenceEqual(list(node5.leaves()), [node1, node2])
 
+        node6 = FakeNode(node5, node3, name='6')
+        self.assertSequenceEqual(list(node6.traverse()),
+                                 [node1, node1, node3, node2, node4, node5, node3, node6])
+        self.assertSequenceEqual(list(node6.traverse(unique=True)),
+                                 [node1, node3, node2, node4, node5, node6])
+
         node1_copy = FakeNode(name='1')
         self.assertEqual(node1, node1_copy)
         self.assertEqual(hash(node1), hash(node1_copy))

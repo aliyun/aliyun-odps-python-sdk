@@ -27,13 +27,15 @@ from ...expr.expressions import *
 from ...expr.reduction import GroupedSequenceReduction, GroupedCount, Count
 from ...expr.merge import JoinCollectionExpr
 from ...expr.datetimes import DTScalar
+from ...expr.collections import PivotCollectionExpr
 from ...expr import element
 from ...expr import arithmetic
 from ....dag import DAG
 from ..errors import CompileError
+from ..utils import refresh_dynamic
 from . import types
 from ... import types as df_types
-from ....models import FileResource, TableResource
+from ....models import FileResource, TableResource, Schema
 from .... import compat
 
 try:
@@ -104,9 +106,10 @@ class PandasCompiler(Backend):
     in which each node is a pair of <expr, function>.
     """
 
-    def __init__(self):
+    def __init__(self, expr_dag):
         self._dag = DAG()
         self._expr_to_dag_node = dict()
+        self._expr_dag = expr_dag
         self._callbacks = list()
 
     def compile(self, expr):
@@ -361,7 +364,7 @@ class PandasCompiler(Backend):
                 input = pd.Series([input])
 
             assert len(expr._args) == len(expr.args)
-            kv = dict((name.lstrip('_'), kw.get(arg))
+            kv = dict((name.lstrip('_'), self._get(arg, kw))
                       for name, arg in zip(expr._args[1:], expr.args[1:]))
             op = expr.node_name.lower()
 
@@ -495,17 +498,24 @@ class PandasCompiler(Backend):
 
         self._add_node(expr, handle)
 
+    def _get(self, item, kw):
+        if item is None:
+            return
+        if isinstance(item, (list, tuple, set)):
+            return type(item)(kw.get(it) for it in item)
+        return kw.get(item)
+
     def visit_sample(self, expr):
         def handle(kw):
-            input = kw.get(expr.input)
-            parts = kw.get(expr._parts)
-            i = kw.get(expr._i)
-            n = kw.get(expr._n)
-            frac = kw.get(expr._frac)
-            replace = kw.get(expr._replace)
-            weights = kw.get(expr._weights)
-            strata = kw.get(expr._strata)
-            random_state = kw.get(expr._random_state)
+            input = self._get(expr.input, kw)
+            parts = self._get(expr._parts, kw)
+            i = self._get(expr._i, kw)
+            n = self._get(expr._n, kw)
+            frac = self._get(expr._frac, kw)
+            replace = self._get(expr._replace, kw)
+            weights = self._get(expr._weights, kw)
+            strata = self._get(expr._strata, kw)
+            random_state = self._get(expr._random_state, kw)
             if expr._sampled_fields:
                 collection = pd.DataFrame(
                     pd.concat([kw.get(e) for e in expr._sampled_fields], axis=1).values,
@@ -539,6 +549,118 @@ class PandasCompiler(Backend):
                     [n for n in input.columns.tolist()]]
             return sampled
 
+        self._add_node(expr, handle)
+
+    def _get_names(self, x, force_list=False):
+        if x is None:
+            return x
+        res = [it.name for it in x]
+        if not force_list and len(res) == 1:
+            return res[0]
+        return res
+
+    def _get_pivot_handler(self, expr):
+        def handle(kw):
+            df = self._merge_values(expr._group + expr._columns + expr._values, kw)
+
+            pivoted = df.pivot(index=self._get_names(expr._group),
+                               columns=self._get_names(expr._columns))
+            columns = pivoted.columns.levels
+            pivoted.reset_index(inplace=True)
+
+            names = self._get_names(expr._group, True)
+            tps = [g.dtype for g in expr._group]
+            if len(columns[0]) == 1:
+                tp = expr._values[0].dtype
+                for name in columns[1]:
+                    names.append(name)
+                    tps.append(tp)
+            else:
+                for value_name, value_col in zip(columns[0], expr._values):
+                    for name in columns[1]:
+                        names.append('{0}_{1}'.format(name, value_name))
+                        tps.append(value_col.dtype)
+            expr._schema = Schema.from_lists(names, tps)
+
+            res = pd.DataFrame(pivoted.values, columns=names)
+            to_sub = CollectionExpr(_source_data=res, _schema=expr._schema)
+            self._expr_dag.substitute(expr, to_sub)
+
+            # trigger refresh of dynamic operations
+            def func(expr):
+                for c in expr.traverse(unique=True):
+                    if c not in self._expr_to_dag_node:
+                        c.accept(self)
+            refresh_dynamic(to_sub, self._expr_dag, func=func)
+
+            return to_sub, res
+
+        return handle
+
+    def _get_pivot_table_handler(self, expr):
+        def get_real_aggfunc(aggfunc):
+            if isinstance(aggfunc, six.string_types):
+                if aggfunc == 'count':
+                    return getattr(np, 'size')
+                return getattr(np, aggfunc)
+            if inspect.isclass(aggfunc):
+                aggfunc = aggfunc()
+
+                def func(x):
+                    buffer = aggfunc.buffer()
+                    for it in x:
+                        aggfunc(buffer, it)
+                    return aggfunc.getvalue(buffer)
+
+                return func
+            return aggfunc
+
+        def handle(kw):
+            columns = expr._columns if expr._columns else []
+            df = self._merge_values(expr._group + columns + expr._values, kw)
+            pivoted = df.pivot_table(index=self._get_names(expr._group),
+                                     columns=self._get_names(expr._columns),
+                                     values=self._get_names(expr._values),
+                                     aggfunc=[get_real_aggfunc(f) for f in expr._agg_func],
+                                     fill_value=expr.fill_value)
+            levels = pivoted.columns.levels if isinstance(pivoted.columns, pd.MultiIndex) \
+                else [pivoted.columns]
+            pivoted.reset_index(inplace=True)
+
+            names = self._get_names(expr._group, True)
+            tps = [g.dtype for g in expr._group]
+            columns_values = levels[-1] if expr._columns else [None, ]
+            for agg_func_name in expr._agg_func_names:
+                for value_col in expr._values:
+                    for col in columns_values:
+                        base = '{0}_'.format(col) if col is not None else ''
+                        name = '{0}{1}_{2}'.format(base, value_col.name, agg_func_name)
+                        names.append(name)
+                        tps.append(value_col.dtype)
+            if expr._columns:
+                expr._schema = Schema.from_lists(names, tps)
+
+            res = pd.DataFrame(pivoted.values, columns=names)
+            to_sub = CollectionExpr(_source_data=res, _schema=expr._schema)
+            self._expr_dag.substitute(expr, to_sub)
+
+            # trigger refresh of dynamic operations
+            def func(expr):
+                for c in expr.traverse(unique=True):
+                    if c not in self._expr_to_dag_node:
+                        c.accept(self)
+
+            refresh_dynamic(to_sub, self._expr_dag, func=func)
+
+            return to_sub, res
+
+        return handle
+
+    def visit_pivot(self, expr):
+        if isinstance(expr, PivotCollectionExpr):
+            handle = self._get_pivot_handler(expr)
+        else:
+            handle = self._get_pivot_table_handler(expr)
         self._add_node(expr, handle)
 
     def _get_compiled_bys(self, kw, by_exprs, length):
@@ -603,7 +725,7 @@ class PandasCompiler(Backend):
         def handle(kw):
             resources = self._get_resources(expr, kw)
 
-            input = kw.get(expr.input)
+            input = self._merge_values(expr._inputs, kw)
 
             func = expr._aggregator
             args = expr._func_args
@@ -632,13 +754,13 @@ class PandasCompiler(Backend):
 
             def f(x):
                 buffer = agg.buffer()
-                for it in x:
-                    agg(buffer, it)
+                for it in x.iterrows():
+                    agg(buffer, *it[1])
                 ret = agg.getvalue(buffer)
                 np_type = types.df_type_to_np_type(expr.dtype)
                 return np.array([ret,], dtype=np_type)[0]
 
-            res = input.groupby(bys).agg(f)
+            res = input.groupby(bys).apply(f)
             if isinstance(expr, Scalar):
                 return res.iloc[0]
             return res

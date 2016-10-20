@@ -17,9 +17,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# for performance
+import cProfile
+from pstats import Stats
 import re
-from datetime import datetime, timedelta
 from decimal import Decimal
+from datetime import datetime, timedelta
 
 from odps import options
 from odps.tests.core import TestBase, to_str
@@ -45,6 +48,9 @@ import inspect
 from odps.lib.cloudpickle import *
 from odps.lib.importer import *
 """, globals(), locals())
+
+
+ENABLE_PROFILE = False
 
 
 class Test(TestBase):
@@ -73,10 +79,19 @@ class Test(TestBase):
         options.df.optimizes.pp = False
 
         self.maxDiff = None
+        if ENABLE_PROFILE:
+            self.pr = cProfile.Profile()
+            self.pr.enable()
 
     def teardown(self):
         options.df.optimizes.cp = True
         options.df.optimizes.pp = True
+
+        if ENABLE_PROFILE:
+            p = Stats(self.pr)
+            p.strip_dirs()
+            p.sort_stats('time')
+            p.print_stats(40)
 
     def _clear_functions(self, engine):
         engine._ctx._registered_funcs.clear()

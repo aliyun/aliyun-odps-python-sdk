@@ -1325,3 +1325,119 @@ PyODPS DataFrame提供了 ``bloom_filter`` 接口来进行布隆过滤器的计�
 
 .. note::
     要注意，调大 ``capacity`` 或者减小 ``error_rate`` 会增加内存的使用，所以应当根据实际情况选择一个合理的值。
+
+
+.. _dfpivot:
+
+
+透视表（pivot_table）
+========================
+
+PyODPS DataFrame提供透视表的功能。我们通过几个例子来看使用。
+
+
+.. code:: python
+
+    df
+
+.. code:: python
+
+         A    B      C  D  E
+    0  foo  one  small  1  3
+    1  foo  one  large  2  4
+    2  foo  one  large  2  5
+    3  foo  two  small  3  6
+    4  foo  two  small  3  4
+    5  bar  one  large  4  5
+    6  bar  one  small  5  3
+    7  bar  two  small  6  2
+    8  bar  two  large  7  1
+
+
+最简单的透视表必须提供一个 ``rows`` 参数，表示按一个或者多个字段做取平均值的操作。
+
+
+.. code:: python
+
+    df['A', 'D', 'E'].pivot_table(rows='A')
+
+
+.. code:: python
+
+         A  D_mean  E_mean
+    0  bar     5.5    2.75
+    1  foo     2.2    4.40
+
+
+rows可以提供多个，表示按多个字段做聚合。
+
+.. code:: python
+
+    df.pivot_table(rows=['A', 'B', 'C'])
+
+.. code:: python
+
+         A    B      C  D_mean  E_mean
+    0  bar  one  large     4.0     5.0
+    1  bar  one  small     5.0     3.0
+    2  bar  two  large     7.0     1.0
+    3  bar  two  small     6.0     2.0
+    4  foo  one  large     2.0     4.5
+    5  foo  one  small     1.0     3.0
+    6  foo  two  small     3.0     5.0
+
+我们可以指定 ``values`` 来显示指定要计算的列。
+
+.. code:: python
+
+    df.pivot_table(rows=['A', 'B'], values='D')
+
+.. code:: python
+
+         A    B    D_mean
+    0  bar  one  4.500000
+    1  bar  two  6.500000
+    2  foo  one  1.666667
+    3  foo  two  3.000000
+
+计算值列时，默认会计算平均值，用户可以指定一个或者多个聚合函数。
+
+.. code:: python
+
+    df.pivot_table(rows=['A', 'B'], values=['D'], aggfunc=['mean', 'count', 'sum'])
+
+.. code:: python
+
+         A    B    D_mean  D_count  D_sum
+    0  bar  one  4.500000        2      9
+    1  bar  two  6.500000        2     13
+    2  foo  one  1.666667        3      5
+    3  foo  two  3.000000        2      6
+
+我们也可以把原始数据的某一列的值，作为新的collection的列。 **这也是透视表最强大的地方。**
+
+.. code:: python
+
+    df.pivot_table(rows=['A', 'B'], values='D', columns='C')
+
+.. code:: python
+
+         A    B  large_D_mean  small_D_mean
+    0  bar  one           4.0           5.0
+    1  bar  two           7.0           6.0
+    2  foo  one           2.0           1.0
+    3  foo  two           NaN           3.0
+
+我们可以提供 ``fill_value`` 来填充空值。
+
+.. code:: python
+
+    df.pivot_table(rows=['A', 'B'], values='D', columns='C', fill_value=0)
+
+.. code:: python
+
+         A    B  large_D_mean  small_D_mean
+    0  bar  one             4             5
+    1  bar  two             7             6
+    2  foo  one             2             1
+    3  foo  two             0             3

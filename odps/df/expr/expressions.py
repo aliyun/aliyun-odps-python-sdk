@@ -21,15 +21,16 @@ from __future__ import absolute_import
 import inspect
 import operator
 from collections import defaultdict, Iterable
+import functools
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
 from .utils import get_attrs, is_called_by_inspector
 from .. import types
-from ...compat import reduce, six
+from ...compat import reduce, isvalidattr, dir2
 from ...config import options
-from ...errors import DependencyNotInstalledError
 from ...utils import TEMP_TABLE_PREFIX
+from ...models import Schema
 
 _df_exec_hook = None
 
@@ -55,6 +56,41 @@ def run_at_once(func):
     return _decorator
 
 
+class ReprWrapper(object):
+    def __init__(self, func, repr):
+        self._func = func
+        self._repr = repr
+        functools.update_wrapper(self, func)
+
+    def __call__(self, *args, **kwargs):
+        return self._func(*args, **kwargs)
+
+    def __repr__(self):
+        return self._repr(self._func)
+
+
+def _wrap_method_repr(func):
+    def inner(*args, **kwargs):
+        obj = func(*args, **kwargs)
+        if inspect.ismethod(obj):
+            def _repr(x):
+                instance = getattr(x, 'im_self', getattr(x, '__self__', None))
+                method = 'bound method' if instance is not None else 'unbound method'
+                if instance is not None:
+                    return '<%(method)s %(instance)s.%(name)s>' % {
+                        'method': method,
+                        'instance': getattr(instance, 'node_name', instance.__class__.__name__),
+                        'name': x.__name__
+                    }
+                else:
+                    return '<function __main__.%s>' % x.__name__
+
+            return ReprWrapper(obj, _repr)
+        return obj
+
+    return inner
+
+
 def repr_obj(obj):
     if hasattr(obj, '_repr'):
         try:
@@ -68,9 +104,16 @@ def repr_obj(obj):
 
 
 class Expr(Node):
-    __slots__ = '_ban_optimize', '_engine', '_cache_data', '_need_cache', '__execution'
+    __slots__ = '_deps', '_ban_optimize', '_engine', '_cache_data', '_need_cache', '__execution'
 
     def _init(self, *args, **kwargs):
+        """
+        _deps is used for common dependencies.
+        When a expr depend on other exprs, and the expr is not calculated from the others,
+        the _deps are specified to indentify the dependencies.
+        """
+        self._init_attr('_deps', None)
+
         self._init_attr('_ban_optimize', False)
         self._init_attr('_engine', None)
         self._init_attr('_Expr__execution', None)
@@ -212,13 +255,14 @@ class Expr(Node):
 
         return self._repr()
 
+    @_wrap_method_repr
     def __getattribute__(self, attr):
         try:
             return super(Expr, self).__getattribute__(attr)
         except AttributeError as e:
             if not attr.startswith('_'):
                 new_attr = '_%s' % attr
-                if new_attr in object.__getattribute__(self, '_args'):
+                if new_attr in object.__getattribute__(self, '_args_indexes'):
                     try:
                         return object.__getattribute__(self, new_attr)
                     except AttributeError:
@@ -236,6 +280,35 @@ class Expr(Node):
     @optimize_banned.setter
     def optimize_banned(self, val):
         self._ban_optimize = val
+
+    @property
+    def args(self):
+        if not self._deps:
+            return super(Expr, self).args
+        return super(Expr, self).args + self.deps
+
+    @property
+    def deps(self):
+        return tuple(dep if not isinstance(dep, tuple) else dep[0]
+                     for dep in self._deps)
+
+    def add_deps(self, *deps):
+        dependencies = []
+        if len(deps) == 1 and isinstance(deps[0], Iterable):
+            dependencies.append([d for d in dependencies
+                                 if isinstance(d, Expr)])
+        else:
+            dependencies.extend(deps)
+
+        if getattr(self, '_deps', None) is None:
+            self._deps = dependencies
+        else:
+            self._deps.extend(dependencies)
+
+    def rebuild(self):
+        # used in the dynamic setting, do nothing by default
+        # `rebuild` will copy itself, and apply all changes to the new one
+        return self.copy()
 
     def __hash__(self):
         return id(self) * hash(Expr)
@@ -371,11 +444,15 @@ class CollectionExpr(Expr):
     node_name = 'Collection'
 
     def _init(self, *args, **kwargs):
+        self._init_attr('_source_data', None)
         super(CollectionExpr, self)._init(*args, **kwargs)
 
         if hasattr(self, '_schema') and any(it is None for it in self._schema.names):
             raise TypeError('Schema cannot has field whose name is None')
-        self._source_data = getattr(self, '_source_data', None)
+
+    def __dir__(self):
+        dir_set = set(dir2(self)) | set([c.name for c in self.schema if isvalidattr(c.name)])
+        return sorted(dir_set)
 
     def __getitem__(self, item):
         item = self._defunc(item)
@@ -498,8 +575,9 @@ class CollectionExpr(Expr):
 
         return field
 
-    def _get_fields(self, fields):
+    def _get_fields(self, fields, ret_raw_fields=False):
         selects = []
+        raw_selects = []
 
         for field in fields:
             field = self._defunc(field)
@@ -508,9 +586,14 @@ class CollectionExpr(Expr):
                     selects.extend(self._get_fields(field._project_fields))
                 else:
                     selects.extend(self._get_fields(field._fetch_fields()))
+                raw_selects.append(field)
             else:
-                selects.append(self._get_field(field))
+                select = self._get_field(field)
+                selects.append(select)
+                raw_selects.append(select)
 
+        if ret_raw_fields:
+            return selects, raw_selects
         return selects
 
     def _project(self, fields):
@@ -620,7 +703,7 @@ class CollectionExpr(Expr):
 
             return obj
         except AttributeError as e:
-            if attr in object.__getattribute__(self, '_schema'):
+            if attr in object.__getattribute__(self, '_schema')._name_indexes:
                 return self[attr]
 
             raise e
@@ -1034,6 +1117,13 @@ class DatetimeSequenceExpr(SequenceExpr):
         self._data_type = types.datetime
 
 
+class UnknownSequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(UnknownSequenceExpr, self)._init(*args, **kwargs)
+        if not isinstance(self._data_type, types.Unknown):
+            self._data_type = types.Unknown()
+
+
 _typed_sequence_exprs = [globals()[t.__class__.__name__ + SequenceExpr.__name__]
                          for t in types._data_types.values()]
 
@@ -1065,6 +1155,13 @@ class AsTypedSequenceExpr(SequenceExpr):
     def source_type(self):
         return self._source_data_type or self._input._source_data_type
 
+    def rebuild(self):
+        attr_dict = self._attr_dict()
+        tp = self._copy_type()
+        if isinstance(attr_dict['_source_data_type'], types.Unknown):
+            attr_dict['_source_data_type'] = self._input.dtype
+        return tp(**attr_dict)
+
 
 class Column(SequenceExpr):
     _args = '_input',
@@ -1072,6 +1169,15 @@ class Column(SequenceExpr):
     @property
     def input(self):
         return self._input
+
+    def rebuild(self):
+        attr_dict = self._attr_dict()
+        tp = self._copy_type()
+        new_col = self.input[self.source_name]
+        for attr in ('_source_data_type', '_data_type'):
+            if isinstance(attr_dict[attr], types.Unknown):
+                attr_dict[attr] = new_col.dtype
+        return tp(**attr_dict)
 
     def accept(self, visitor):
         return visitor.visit_column(self)
@@ -1228,6 +1334,13 @@ class AsTypedScalar(Scalar):
     def dtype(self):
         return self._value_type
 
+    def rebuild(self):
+        attr_dict = self._attr_dict()
+        tp = self._copy_type()
+        if isinstance(attr_dict['_source_value_type'], types.Unknown):
+            attr_dict['_source_value_type'] = self._input.dtype
+        return tp(**attr_dict)
+
     @property
     def source_type(self):
         return self._source_value_type
@@ -1293,6 +1406,13 @@ class DatetimeScalar(Scalar):
         self._value_type = types.datetime
 
 
+class UnknownScalar(Scalar):
+    def _init(self, *args, **kwargs):
+        super(UnknownScalar, self)._init(*args, **kwargs)
+        if not isinstance(self._value_type, types.Unknown):
+            self._value_type = types.Unknown()
+
+
 _typed_scalar_exprs = [globals()[t.__class__.__name__ + Scalar.__name__]
                        for t in types._data_types.values()]
 
@@ -1332,11 +1452,17 @@ class FilterCollectionExpr(CollectionExpr):
     def input(self):
         return self._input
 
+    def rebuild(self):
+        rebuilt = super(FilterCollectionExpr, self).rebuild()
+        rebuilt._schema = rebuilt.input.schema
+        return rebuilt
+
     def accept(self, visitor):
         visitor.visit_filter_collection(self)
 
 
 class ProjectCollectionExpr(CollectionExpr):
+    __slots__ = '_raw_fields',
     _args = '_input', '_fields'
     node_name = 'Projection'
 
@@ -1349,7 +1475,12 @@ class ProjectCollectionExpr(CollectionExpr):
                 raise ExpressionError('Column does not have a name, '
                                       'please specify one by `rename`: %s' % repr_obj(field._repr()))
 
+        self._init_attr('_raw_fields', None)
         super(ProjectCollectionExpr, self)._init(*args, **kwargs)
+
+    @property
+    def _dag_args(self):
+        return self._args + ('_raw_fields', )
 
     @property
     def _project_fields(self):
@@ -1366,6 +1497,16 @@ class ProjectCollectionExpr(CollectionExpr):
     @property
     def fields(self):
         return self._fields
+
+    def rebuild(self):
+        if self._raw_fields:
+            return self._input.select(*self._raw_fields)
+        rebuilt = super(ProjectCollectionExpr, self).rebuild()
+        rebuilt._schema = Schema.from_lists(
+            [f.name for f in rebuilt._fields],
+            [f.dtype for f in rebuilt._fields]
+        )
+        return rebuilt
 
     def accept(self, visitor):
         visitor.visit_project_collection(self)
@@ -1442,6 +1583,11 @@ class SliceCollectionExpr(CollectionExpr):
         args = [self._input] + list(self._indexes)
         for it in zip(['collection', 'start', 'stop', 'step'], args):
             yield it
+
+    def rebuild(self):
+        rebuilt = super(SliceCollectionExpr, self).rebuild()
+        rebuilt._schema = self.input.schema
+        return rebuilt
 
     def accept(self, visitor):
         visitor.visit_slice_collection(self)

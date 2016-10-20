@@ -23,8 +23,10 @@ from .core import DataFrame
 from .expr.expressions import Scalar, BuiltinFunction
 from .expr.element import switch
 from .expr.datetimes import year, month, day, hour, minute, second, millisecond
+from .expr.reduction import aggregate, agg
 from .utils import output_types, output_names, output
 from ..compat import six
+
 
 def NullScalar(tp):
     return Scalar(_value_type=tp)

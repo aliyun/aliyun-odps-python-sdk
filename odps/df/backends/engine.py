@@ -19,18 +19,18 @@
 
 import time
 import uuid
+import itertools
 
 try:
     import pandas as pd
-    has_pandas = True
 except ImportError:
-    has_pandas = False
+    pass
 
 from .core import Engine
 from .odpssql.engine import ODPSEngine
 from .pd.engine import PandasEngine
-from .errors import NoBackendFound
 from .optimize import Optimizer
+from .analyzer import available_engines, Engines, Analyzer, EngineSelecter
 from .context import context
 from .formatter import ExprExecutionGraphFormatter
 from .. import Scalar
@@ -46,26 +46,7 @@ from ...dag import DAG
 from ...utils import init_progress_ui, TEMP_TABLE_PREFIX, gen_repr_object
 from ...tempobj import register_temp_table
 from ...ui.progress import create_instance_group
-from ...compat import Enum, OrderedDict, six
-
-
-class Engines(Enum):
-    ODPS = 'ODPS'
-    PANDAS = 'PANDAS'
-
-
-def available_engines(sources):
-    engines = set()
-
-    for src in sources:
-        if isinstance(src, Table):
-            engines.add(Engines.ODPS)
-        elif has_pandas and isinstance(src, pd.DataFrame):
-            engines.add(Engines.PANDAS)
-        else:
-            raise NoBackendFound('No backend found for data source: %s' % src)
-
-    return engines
+from ...compat import OrderedDict, six
 
 
 def get_default_engine(expr):
@@ -102,19 +83,10 @@ class MixedEngine(Engine):
         self._odps = odps
         self._generated_table_names = []
 
+        self._selecter = EngineSelecter()
+
         self._pandas_engine = PandasEngine(self._odps, global_optimize=False)
         self._odpssql_engine = ODPSEngine(self._odps, global_optimize=False)
-
-    def _need_handle_sources(self, expr):
-        return len(available_engines(expr.data_source())) > 1
-
-    def _need_pandas_calc(self, expr):
-        try:
-            import pandas as pd
-
-            return isinstance(next(expr.data_source()), pd.DataFrame)
-        except ImportError:
-            return False
 
     def _gen_table_name(self):
         table_name = '%s%s_%s' % (TEMP_TABLE_PREFIX, int(time.time()),
@@ -133,20 +105,24 @@ class MixedEngine(Engine):
         dag.add_node(curr)
 
         for node in nodes:
-            e, _, _ = node
-            if expr.is_ancestor(e):
-                dag.add_edge(node, curr)
-            elif e.is_ancestor(expr):
-                dag.add_edge(curr, node)
+            for n, e in ((node[0], expr), (node[2], copied)):
+                if n is None or e is None:
+                    continue
+                if e.is_ancestor(n):
+                    dag.add_edge(node, curr)
+                elif n.is_ancestor(e):
+                    dag.add_edge(curr, node)
+
+        return curr
 
     def _compile_join_or_union_node(self, node, src_node, node_dag, dag, callbacks):
-        if not self._need_handle_sources(node):
+        if not self._selecter.has_diff_data_sources(node, no_cache=True):
             return
 
         # Right now, we just persit DataFrame from pandas to ODPS
         to_sub, src_to_sub = next(
             (it, src_it) for it, src_it in [(node._lhs, src_node._lhs), (node._rhs, src_node._rhs)]
-            if self._need_pandas_calc(it))
+            if self._selecter.has_pandas_data_source(it))
         table_name = self._gen_table_name()
 
         sub = CollectionExpr(_source_data=self._odps.get_table(table_name),
@@ -166,7 +142,7 @@ class MixedEngine(Engine):
         callbacks.append(cb)
 
     def _compile_isin_node(self, node, src_node, node_dag, dag, callbacks):
-        if not self._need_handle_sources(node):
+        if not self._selecter.has_diff_data_sources(node, no_cache=True):
             return
 
         seq = node._values[0]
@@ -253,6 +229,22 @@ class MixedEngine(Engine):
 
         return sub
 
+    def _handle_dep(self, node, dag):
+        for d in node._deps:
+            if isinstance(d, tuple):
+                dep, dep_callback = d
+            else:
+                dep, dep_callback = d, None
+
+            def func(**kwargs):
+                engine = self._odpssql_engine \
+                    if self._selecter.has_odps_data_source(dep) else self._pandas_engine
+                result = engine.execute(dep, **kwargs)
+                if dep_callback:
+                    dep_callback(result, node)
+
+            self._add_node(dag, None, func, dep)
+
     def _is_source_data(self, node):
         if is_source_collection(node):
             return True
@@ -280,9 +272,6 @@ class MixedEngine(Engine):
         return node._need_cache and node._cache_data is None
 
     def _compile_function(self, node, src_node, node_dag, dag, callbacks):
-        if not self._need_handle_sources(node):
-            return
-
         # if node input comes from an ODPS table
         is_node_input_from_table = \
             isinstance(next(node.children()[0].data_source()), Table)
@@ -345,6 +334,14 @@ class MixedEngine(Engine):
                 callbacks.append(cb)
                 return sub
 
+    def _analyze(self, expr_dag, execute_dag):
+        def sub_has_deps(_, new_expr):
+            if new_expr._deps is not None:
+                self._handle_dep(new_expr, execute_dag)
+
+        Analyzer(self._selecter, expr_dag, on_sub=sub_has_deps).analyze()
+        return Optimizer(expr_dag).optimize()
+
     def _compile(self, expr, use_cache=None):
         use_cache = use_cache if use_cache is not None else options.df.use_cache
 
@@ -358,12 +355,12 @@ class MixedEngine(Engine):
 
         def on_copy(src_node, node):
             if isinstance(node, (JoinCollectionExpr, UnionCollectionExpr)) \
-                    and self._need_handle_sources(node):
+                    and self._selecter.has_diff_data_sources(node):
                 to_compile[ExprProxy(src_node)] = (node, self._compile_join_or_union_node)
-            elif isinstance(node, IsIn) and self._need_handle_sources(node):
+            elif isinstance(node, IsIn) and self._selecter.has_diff_data_sources(node):
                 to_compile[ExprProxy(src_node)] = (node, self._compile_isin_node)
             elif hasattr(node, '_func') and node._collection_resources and \
-                    self._need_handle_sources(node):
+                    self._selecter.has_diff_data_sources(node):
                 to_compile[ExprProxy(src_node)] = (node, self._compile_function)
 
             if self._need_cache(node, use_cache):
@@ -391,7 +388,7 @@ class MixedEngine(Engine):
                 func(node, src_node, node_dag, dag, callbacks)
                 # we do optimize here
                 op_dag = context.build_dag(None, node, dag=node_dag)
-                Optimizer(op_dag).optimize()
+                self._analyze(op_dag, dag)
 
             # handle the node which comes from different data sources
             for p, val in six.iteritems(to_compile):
@@ -399,16 +396,21 @@ class MixedEngine(Engine):
                 node, func = val
                 func(node, src_node, node_dag, dag, callbacks)
 
-        expr = Optimizer(node_dag).optimize()
+        expr = self._analyze(node_dag, dag)
         engines = list(available_engines(expr.data_source()))
-        assert len(engines) == 1
-        executor = self._odpssql_engine if engines[0] == Engines.ODPS \
-            else self._pandas_engine
+        if len(engines) == 0 and isinstance(expr, Scalar):
+            def func(*args, **kwargs):
+                return expr._value
+        else:
+            assert len(engines) == 1
+            executor = self._odpssql_engine if engines[0] == Engines.ODPS \
+                else self._pandas_engine
 
-        def func(method, *args, **kwargs):
-            kwargs['src_expr'] = src_expr
-            kwargs['dag'] = node_dag
-            return getattr(executor, method)(*args, **kwargs)
+            def func(method, *args, **kwargs):
+                kwargs['src_expr'] = src_expr
+                kwargs['dag'] = node_dag
+                args = (node_dag.root, ) + args[1:]  # expr may change during running
+                return getattr(executor, method)(*args, **kwargs)
 
         self._add_node(dag, src_expr, func, expr)
 
@@ -459,6 +461,7 @@ class MixedEngine(Engine):
                 curr = 0.0
                 for _, func, _ in nodes[:-1]:
                     kw = dict(kwargs)
+                    kw['finish'] = False
 
                     # fix, prevent the `partition` and `partitions` from passing to the caching table
                     kw.pop('partition', None)

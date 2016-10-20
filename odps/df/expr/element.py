@@ -155,30 +155,30 @@ class NotNull(ElementOp):
 
 
 class FillNa(ElementOp):
-    _args = '_input', '_value'
+    _args = '_input', '_fill_value'
 
     def _init(self, *args, **kwargs):
-        self._value = None
+        self._init_attr('_fill_value', None)
 
         super(FillNa, self)._init(*args, **kwargs)
 
-        if self._value is not None and not isinstance(self._value, Expr):
-            tp = types.validate_value_type(self._value)
+        if self._fill_value is not None and not isinstance(self._fill_value, Expr):
+            tp = types.validate_value_type(self._fill_value)
             if not self.input.dtype.can_implicit_cast(tp):
                 raise ValueError('fillna cannot cast value from %s to %s' % (
                     tp, self.input.dtype))
-            self._value = Scalar(_value=self._value, _value_type=self.dtype)
-        if not self.input.dtype.can_implicit_cast(self._value.dtype):
+            self._fill_value = Scalar(_value=self._fill_value, _value_type=self.dtype)
+        if not self.input.dtype.can_implicit_cast(self._fill_value.dtype):
             raise ValueError('fillna cannot cast value from %s to %s' % (
-                self._value.dtype, self.input.dtype))
+                self._fill_value.dtype, self.input.dtype))
 
     @property
-    def value(self):
-        if self._value is None:
+    def fill_value(self):
+        if self._fill_value is None:
             return
-        if isinstance(self._value, Scalar):
-            return self._value.value
-        return self._value
+        if isinstance(self._fill_value, Scalar):
+            return self._fill_value.value
+        return self._fill_value
 
 
 class IsIn(ElementOp):
@@ -440,9 +440,9 @@ def _fillna(expr, value):
     """
 
     if isinstance(expr, SequenceExpr):
-        return FillNa(_input=expr, _value=value, _data_type=expr.dtype)
+        return FillNa(_input=expr, _fill_value=value, _data_type=expr.dtype)
     elif isinstance(expr, Scalar):
-        return FillNa(_input=expr, _value=value, _value_type=expr.dtype)
+        return FillNa(_input=expr, _fill_value=value, _value_type=expr.dtype)
 
 
 def _isin(expr, values):

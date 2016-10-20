@@ -18,8 +18,6 @@
 # under the License.
 
 import re
-import string
-import random
 import itertools
 
 from ..core import Backend
@@ -31,20 +29,24 @@ from ...expr.element import *
 from ...expr.reduction import *
 from ...expr.collections import *
 from ...expr.merge import *
-from ...expr.window import *  # noqa
+from ...utils import output
 from ..errors import CompileError
-from ....errors import NoSuchObject
+from ..utils import refresh_dynamic
 from ... import types
-from ....models import Schema
-from ...utils import is_source_collection
 
 
 class Analyzer(Backend):
-    def __init__(self, dag, traversed=None):
+    """
+    Analyzer is used before optimzing,
+    which analyze some operation that is not supported for this execution backend.
+    """
+
+    def __init__(self, dag, traversed=None, on_sub=None):
         self._expr = dag.root
         self._dag = dag
         self._indexer = itertools.count(0)
         self._traversed = traversed or set()
+        self._on_sub = on_sub
 
     def analyze(self):
         for node in self._iter():
@@ -73,249 +75,13 @@ class Analyzer(Backend):
         except NotImplementedError:
             return
 
-    def _sub(self, expr, to_sub, parents=None):
-        self._dag.substitute(expr, to_sub, parents=parents)
+    def _sub(self, expr, sub, parents=None):
+        self._dag.substitute(expr, sub, parents=parents)
+        if self._on_sub:
+            self._on_sub(expr, sub)
 
     def _parents(self, expr):
         return self._dag.successors(expr)
-
-    def visit_project_collection(self, expr):
-        # FIXME how to handle nested reduction?
-        if isinstance(expr, Summary):
-            return
-
-        collection = expr.input
-
-        sink_selects = []
-        columns = set()
-        to_replace = []
-
-        windows_rewrite = False
-        for field in expr.fields:
-            has_window = False
-            traversed = set()
-            for path in field.all_path(collection, strict=True):
-                for node in path:
-                    if id(node) in traversed:
-                        continue
-                    else:
-                        traversed.add(id(node))
-                    if isinstance(node, SequenceReduction):
-                        windows_rewrite = True
-                        has_window = True
-
-                        win = self._reduction_to_window(node)
-                        window_name = '%s_%s' % (win.name, next(self._indexer))
-                        sink_selects.append(win.rename(window_name))
-                        to_replace.append((node, window_name))
-                        break
-                    elif isinstance(node, Column):
-                        if node.input is not collection:
-                            continue
-
-                        if node.name in columns:
-                            to_replace.append((node, node.name))
-                            continue
-                        columns.add(node.name)
-                        select_field = collection[node.source_name]
-                        if node.is_renamed():
-                            select_field = select_field.rename(node.name)
-                        sink_selects.append(select_field)
-                        to_replace.append((node, node.name))
-
-            if has_window:
-                field._name = field.name
-
-        if not windows_rewrite:
-            return
-
-        get = lambda x: x.name if not isinstance(x, six.string_types) else x
-        projected = collection[sorted(sink_selects, key=get)]
-        projected.optimize_banned = True  # TO prevent from optimizing
-        expr.substitute(collection, projected, dag=self._dag)
-
-        for col, col_name in to_replace:
-            self._sub(col, projected[col_name])
-
-    def visit_filter_collection(self, expr):
-        # FIXME how to handle nested reduction?
-        collection = expr.input
-
-        sink_selects = []
-        columns = set()
-        to_replace = []
-
-        windows_rewrite = False
-        traversed = set()
-        for path in expr.predicate.all_path(collection, strict=True):
-            for node in path:
-                if id(node) in traversed:
-                    continue
-                else:
-                    traversed.add(id(node))
-                if isinstance(node, SequenceReduction):
-                    windows_rewrite = True
-
-                    win = self._reduction_to_window(node)
-                    window_name = '%s_%s' % (win.name, next(self._indexer))
-                    sink_selects.append(win.rename(window_name))
-                    to_replace.append((node, window_name))
-                    break
-                elif isinstance(node, Column):
-                    if node.input is not collection:
-                        continue
-                    if node.name in columns:
-                        to_replace.append((node, node.name))
-                        continue
-                    columns.add(node.name)
-                    select_field = collection[node.source_name]
-                    if node.is_renamed():
-                        select_field = select_field.rename(node.name)
-                    sink_selects.append(select_field)
-                    to_replace.append((node, node.name))
-
-        for column_name in expr.schema.names:
-            if column_name in columns:
-                continue
-            columns.add(column_name)
-            sink_selects.append(column_name)
-
-        if not windows_rewrite:
-            return
-
-        get = lambda x: x.name if not isinstance(x, six.string_types) else x
-        projected = collection[sorted(sink_selects, key=get)]
-        projected.optimize_banned = True  # TO prevent from optimizing
-        expr.substitute(collection, projected, dag=self._dag)
-
-        for col, col_name in to_replace:
-            self._sub(col, projected[col_name])
-
-        to_sub = expr[expr.schema.names]
-        self._sub(expr, to_sub)
-
-    def _reduction_to_window(self, expr):
-        clazz = 'Cum' + expr.node_name
-        return globals()[clazz](_input=expr.input, _data_type=expr.dtype)
-
-    def visit_join(self, expr):
-        if expr._predicate:
-            expr._predicate = reduce(operator.and_, expr._predicate)
-
-        for node in (expr.rhs, ):
-            parents = self._parents(node)
-            if isinstance(node, JoinCollectionExpr):
-                projection = JoinProjectCollectionExpr(
-                    _input=node, _schema=node.schema,
-                    _fields=node._fetch_fields())
-                self._sub(node, projection, parents)
-            elif isinstance(node, JoinProjectCollectionExpr):
-                self._sub(node.input, node, parents)
-
-        need_project = [False, ]
-
-        def walk(node):
-            if isinstance(node, JoinCollectionExpr) and \
-                    node.column_conflict:
-                need_project[0] = True
-                return
-
-            if isinstance(node, JoinCollectionExpr):
-                walk(node.lhs)
-
-        walk(expr)
-
-        if need_project[0]:
-            parents = self._parents(expr)
-            if not parents or \
-                    not any(isinstance(parent, (ProjectCollectionExpr, JoinCollectionExpr))
-                            for parent in parents):
-                to_sub = expr[expr]
-                self._sub(expr, to_sub, parents)
-
-    def _handle_function(self, expr, raw_inputs):
-        # Since Python UDF cannot support decimal field,
-        # We will try to replace the decimal input with string.
-        # If the output is decimal, we will also try to replace it with string,
-        # and then cast back to decimal
-        def no_output_decimal():
-            if isinstance(expr, (SequenceExpr, Scalar)):
-                return expr.dtype != types.decimal
-            else:
-                return all(t != types.decimal for t in expr.schema.types)
-
-        if all(input.dtype != types.decimal for input in raw_inputs) and \
-                no_output_decimal():
-            return
-
-        inputs = list(raw_inputs)
-        for input in raw_inputs:
-            if input.dtype == types.decimal:
-                self._sub(input, input.astype('string'), parents=[expr, ])
-        if hasattr(expr, '_raw_inputs'):
-            expr._raw_inputs = inputs
-        else:
-            assert len(inputs) == 1
-            expr._raw_input = inputs[0]
-
-        attrs = get_attrs(expr)
-        attr_values = dict((attr, getattr(expr, attr, None)) for attr in attrs)
-        if isinstance(expr, (SequenceExpr, Scalar)):
-            if expr.dtype == types.decimal:
-                if isinstance(expr, SequenceExpr):
-                    attr_values['_data_type'] = types.string
-                    attr_values['_source_data_type'] = types.string
-                else:
-                    attr_values['_value_type'] = types.string
-                    attr_values['_source_value_type'] = types.string
-            sub = type(expr)._new(**attr_values)
-
-            if expr.dtype == types.decimal:
-                sub = sub.astype('decimal')
-        else:
-            names = expr.schema.names
-            tps = expr.schema.types
-            cast_names = set()
-            if any(tp == types.decimal for tp in tps):
-                new_tps = []
-                for name, tp in zip(names, tps):
-                    if tp != types.decimal:
-                        new_tps.append(tp)
-                        continue
-                    new_tps.append(types.string)
-                    cast_names.add(name)
-                if len(cast_names) > 0:
-                    attr_values['_schema'] = Schema.from_lists(names, new_tps)
-            sub = type(expr)(**attr_values)
-
-            if len(cast_names) > 0:
-                fields = []
-                for name in names:
-                    if name in cast_names:
-                        fields.append(sub[name].astype('decimal'))
-                    else:
-                        fields.append(name)
-                sub = sub[fields]
-
-        self._sub(expr, sub)
-
-    def visit_function(self, expr):
-        self._handle_function(expr, expr._inputs)
-
-    def _handle_groupby_applied_collection(self, expr):
-        if isinstance(expr.input, JoinCollectionExpr):
-            sub = JoinProjectCollectionExpr(
-                _input=expr.input, _schema=expr.input.schema,
-                _fields=expr.input._fetch_fields())
-            self._sub(expr.input, sub)
-
-    def visit_apply_collection(self, expr):
-        if isinstance(expr, GroupbyAppliedCollectionExpr):
-            self._handle_groupby_applied_collection(expr)
-        self._handle_function(expr, expr._fields)
-
-    def visit_user_defined_aggregator(self, expr):
-        self._handle_function(expr, [expr.input, ])
 
     def _visit_cut(self, expr):
         is_seq = isinstance(expr, SequenceExpr)
@@ -360,31 +126,16 @@ class Analyzer(Backend):
                 conditions.append(bin <= expr.input)
             thens.append(expr.labels[-1])
 
-        to_sub = Switch(_conditions=conditions, _thens=thens, **kw)
-        self._sub(expr, to_sub)
-
-    def _find(self, expr, tp):
-        res = next(it for it in expr.traverse(top_down=True, unique=True)
-                   if isinstance(it, tp))
-        return res
-
-    def _find_table(self, seq_expr):
-        return self._find(seq_expr, CollectionExpr)
-
-    def _gen_name(self, expr):
-        if expr.name is None:
-            rand = ''.join(random.choice(string.ascii_lowercase)
-                           for _ in range(random.randint(5, 10)))
-            return '%s_%s' % (rand, next(self._indexer))
-        return '%s_%s' % (expr.name, next(self._indexer))
+        sub = Switch(_conditions=conditions, _thens=thens, **kw)
+        self._sub(expr, sub)
 
     def visit_element_op(self, expr):
         if isinstance(expr, Between):
             if expr.inclusive:
-                to_sub = ((expr.left <= expr.input) & (expr.input <= expr.right))
+                sub = ((expr.left <= expr.input) & (expr.input.copy() <= expr.right))
             else:
-                to_sub = ((expr.left < expr.input) & (expr.input < expr.right))
-            self._sub(expr, to_sub.rename(expr.name))
+                sub = ((expr.left < expr.input) & (expr.input.copy() < expr.right))
+            self._sub(expr, sub.rename(expr.name))
         elif isinstance(expr, Cut):
             self._visit_cut(expr)
         else:
@@ -409,21 +160,169 @@ class Analyzer(Backend):
                 condition = cond
             else:
                 condition |= cond
-        to_sub = FilterCollectionExpr(_input=expr.input, _predicate=condition,
-                                      _schema=expr.schema)
+        sub = FilterCollectionExpr(_input=expr.input, _predicate=condition,
+                                   _schema=expr.schema)
         expr.input.optimize_banned = True
 
-        self._sub(expr, to_sub)
+        self._sub(expr, sub)
+
+    def _visit_pivot(self, expr):
+        columns_expr = expr.input.distinct([c.copy() for c in expr._columns])
+
+        group_names = [g.name for g in expr._group]
+        group_types = [g.dtype for g in expr._group]
+        exprs = [expr]
+
+        def callback(result, new_expr):
+            expr = exprs[0]
+            columns = [r[0] for r in result]
+
+            if len(expr._values) > 1:
+                names = group_names + \
+                    ['{0}_{1}'.format(v.name, c)
+                     for v in expr._values for c in columns]
+                types = group_types + \
+                        list(itertools.chain(*[[n.dtype] * len(columns)
+                                               for n in expr._values]))
+            else:
+                names = group_names + columns
+                types = group_types + [expr._values[0].dtype] * len(columns)
+            new_expr._schema = Schema.from_lists(names, types)
+
+            column_name = expr._columns[0].name  # column's size can only be 1
+            values_names = [v.name for v in expr._values]
+
+            @output(names, types)
+            def reducer(keys):
+                values = [None] * len(columns) * len(values_names)
+
+                def h(row, done):
+                    col = getattr(row, column_name)
+                    for val_idx, value_name in enumerate(values_names):
+                        val = getattr(row, value_name)
+                        idx = len(columns) * val_idx + columns.index(col)
+                        if values[idx] is not None:
+                            raise ValueError('Row contains duplicate entries')
+                        values[idx] = val
+                    if done:
+                        yield keys + tuple(values)
+
+                return h
+
+            fields = expr._group + expr._columns + expr._values
+            pivoted = expr.input.select(fields).map_reduce(reducer=reducer, group=group_names)
+            self._sub(new_expr, pivoted)
+
+            # trigger refresh of dynamic operations
+            refresh_dynamic(pivoted, self._dag)
+
+        sub = CollectionExpr(_schema=DynamicSchema.from_lists(group_names, group_types),
+                             _deps=[(columns_expr, callback)])
+        self._sub(expr, sub)
+
+    def _visit_pivot_table_without_columns(self, expr):
+        def get_agg(field, agg_func, agg_func_name, fill_value):
+            if isinstance(agg_func, six.string_types):
+                aggregated = getattr(field, agg_func)()
+            else:
+                aggregated = field.agg(agg_func)
+            if fill_value is not None:
+                aggregated.fillna(fill_value)
+            return aggregated.rename('{0}_{1}'.format(field.name, agg_func_name))
+
+        grouped = expr.input.groupby(expr._group)
+        aggs = []
+        for agg_func, agg_func_name in zip(expr._agg_func, expr._agg_func_names):
+            for value in expr._values:
+                agg = get_agg(value, agg_func, agg_func_name, expr.fill_value)
+                aggs.append(agg)
+        sub = grouped.aggregate(aggs, sort_by_name=False)
+
+        self._sub(expr, sub)
+
+    def _visit_pivot_table_with_columns(self, expr):
+        columns_expr = expr.input.distinct([c.copy() for c in expr._columns])
+
+        group_names = [g.name for g in expr._group]
+        group_types = [g.dtype for g in expr._group]
+        exprs = [expr]
+
+        def callback(result, new_expr):
+            expr = exprs[0]
+            columns = [r[0] for r in result]
+
+            names = list(group_names)
+            tps = list(group_types)
+            aggs = []
+            for agg_func_name, agg_func in zip(expr._agg_func_names, expr._agg_func):
+                for value_col in expr._values:
+                    for col in columns:
+                        base = '{0}_'.format(col) if col is not None else ''
+                        name = '{0}{1}_{2}'.format(base, value_col.name, agg_func_name)
+                        names.append(name)
+                        tps.append(value_col.dtype)
+
+                        field = (expr._columns[0] == col).ifelse(
+                            value_col, Scalar(_value_type=value_col.dtype))
+                        if isinstance(agg_func, six.string_types):
+                            agg = getattr(field, agg_func)()
+                        else:
+                            func = agg_func()
+
+                            class ActualAgg(object):
+                                def buffer(self):
+                                    return func.buffer()
+
+                                def __call__(self, buffer, value):
+                                    if value is None:
+                                        return
+                                    func(buffer, value)
+
+                                def merge(self, buffer, pbuffer):
+                                    func.merge(buffer, pbuffer)
+
+                                def getvalue(self, buffer):
+                                    return func.getvalue(buffer)
+
+                            agg = field.agg(ActualAgg)
+                        if expr.fill_value is not None:
+                            agg = agg.fillna(expr.fill_value)
+                        agg = agg.rename(name)
+                        aggs.append(agg)
+
+            new_expr._schema = Schema.from_lists(names, tps)
+
+            pivoted = expr.input.groupby(expr._group).aggregate(aggs, sort_by_name=False)
+            self._sub(new_expr, pivoted)
+
+            # trigger refresh of dynamic operations
+            refresh_dynamic(pivoted, self._dag)
+
+        sub = CollectionExpr(_schema=DynamicSchema.from_lists(group_names, group_types),
+                             _deps=[(columns_expr, callback)])
+        self._sub(expr, sub)
+
+    def _visit_pivot_table(self, expr):
+        if expr._columns is None:
+            self._visit_pivot_table_without_columns(expr)
+        else:
+            self._visit_pivot_table_with_columns(expr)
+
+    def visit_pivot(self, expr):
+        if isinstance(expr, PivotCollectionExpr):
+            self._visit_pivot(expr)
+        else:
+            self._visit_pivot_table(expr)
 
     def visit_value_counts(self, expr):
         collection = expr.input
         by = expr._by
         sort = expr._sort.value
 
-        to_sub = collection.groupby(by).agg(count=by.count())
+        sub = collection.groupby(by).agg(count=by.count())
         if sort:
-            to_sub = to_sub.sort('count', ascending=False)
-        self._sub(expr, to_sub)
+            sub = sub.sort('count', ascending=False)
+        self._sub(expr, sub)
 
     def _gen_mapped_expr(self, expr, inputs, func, name,
                          args=None, kwargs=None, multiple=False):
@@ -443,9 +342,9 @@ class Analyzer(Backend):
         if isinstance(expr, FloorDivide):
             func = lambda l, r: l // r
             # multiple False will pass *args instead of namedtuple
-            to_sub = self._gen_mapped_expr(expr, (expr.lhs, expr.rhs),
+            sub = self._gen_mapped_expr(expr, (expr.lhs, expr.rhs),
                                            func, expr.name, multiple=False)
-            self._sub(expr, to_sub)
+            self._sub(expr, sub)
             return
         if isinstance(expr, Add) and \
                 all(child.dtype == types.datetime for child in (expr.lhs, expr.rhs)):
@@ -474,8 +373,8 @@ class Analyzer(Backend):
                 return res
 
             inputs = expr.lhs, expr.rhs, Scalar('+') if isinstance(expr, Add) else Scalar('-')
-            to_sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
-            self._sub(expr, to_sub)
+            sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
+            self._sub(expr, sub)
 
         raise NotImplementedError
 
@@ -484,8 +383,8 @@ class Analyzer(Backend):
             raise NotImplementedError
 
         if isinstance(expr, Invert) and isinstance(expr.input.dtype, types.Integer):
-            to_sub = expr.input.map(lambda x: ~x)
-            self._sub(expr, to_sub)
+            sub = expr.input.map(lambda x: ~x)
+            self._sub(expr, sub)
             return
 
         raise NotImplementedError
@@ -518,8 +417,8 @@ class Analyzer(Backend):
             else:
                 raise NotImplementedError
 
-            to_sub = expr.input.map(func, expr.dtype)
-            self._sub(expr, to_sub)
+            sub = expr.input.map(func, expr.dtype)
+            self._sub(expr, sub)
             return
 
         raise NotImplementedError
@@ -534,8 +433,8 @@ class Analyzer(Backend):
             def func(x):
                 return x.strftime(date_format)
 
-            to_sub = expr.input.map(func, expr.dtype)
-            self._sub(expr, to_sub)
+            sub = expr.input.map(func, expr.dtype)
+            self._sub(expr, sub)
             return
 
         raise NotImplementedError
@@ -543,20 +442,20 @@ class Analyzer(Backend):
     def visit_string_op(self, expr):
         if isinstance(expr, Ljust):
             rest = expr.width - expr.input.len()
-            to_sub = expr.input + \
+            sub = expr.input + \
                      (rest >= 0).ifelse(expr._fillchar.repeat(rest), '')
-            self._sub(expr, to_sub.rename(expr.name))
+            self._sub(expr, sub.rename(expr.name))
             return
         elif isinstance(expr, Rjust):
             rest = expr.width - expr.input.len()
-            to_sub = (rest >= 0).ifelse(expr._fillchar.repeat(rest), '') + expr.input
-            self._sub(expr, to_sub.rename(expr.name))
+            sub = (rest >= 0).ifelse(expr._fillchar.repeat(rest), '') + expr.input
+            self._sub(expr, sub.rename(expr.name))
             return
         elif isinstance(expr, Zfill):
             fillchar = Scalar('0')
             rest = expr.width - expr.input.len()
-            to_sub = (rest >= 0).ifelse(fillchar.repeat(rest), '') + expr.input
-            self._sub(expr, to_sub.rename(expr.name))
+            sub = (rest >= 0).ifelse(fillchar.repeat(rest), '') + expr.input
+            self._sub(expr, sub.rename(expr.name))
             return
 
         if not options.df.analyze:
@@ -592,17 +491,17 @@ class Analyzer(Backend):
         elif isinstance(expr, Find) and expr.end is not None:
             start = expr.start
             end = expr.end
-            sub = expr.sub
+            substr = expr.sub
 
             def func(x):
-                return x.find(sub, start, end)
+                return x.find(substr, start, end)
         elif isinstance(expr, RFind):
             start = expr.start
             end = expr.end
-            sub = expr.sub
+            substr = expr.sub
 
             def func(x):
-                return x.rfind(sub, start, end)
+                return x.rfind(substr, start, end)
         elif isinstance(expr, (Lstrip, Strip, Rstrip)) and expr.to_strip != ' ':
             to_strip = expr.to_strip
 
@@ -658,9 +557,9 @@ class Analyzer(Backend):
                 return x[s: e: t]
 
             inputs = expr.input, expr._start, expr._end, expr._step
-            to_sub = self._gen_mapped_expr(expr, tuple(i for i in inputs if i is not None),
+            sub = self._gen_mapped_expr(expr, tuple(i for i in inputs if i is not None),
                                            func, expr.name, multiple=False)
-            self._sub(expr, to_sub)
+            self._sub(expr, sub)
             return
         elif isinstance(expr, Swapcase):
             func = lambda x: x.swapcase()
@@ -700,24 +599,15 @@ class Analyzer(Backend):
                     func = lambda x: u_safe(x).isdecimal()
 
         if func is not None:
-            to_sub = expr.input.map(func, expr.dtype)
-            self._sub(expr, to_sub)
+            sub = expr.input.map(func, expr.dtype)
+            self._sub(expr, sub)
             return
 
         raise NotImplementedError
 
     def visit_reduction(self, expr):
         if isinstance(expr, (Var, GroupedVar)):
-            to_sub = expr.input.std(ddof=expr._ddof) ** 2
-            self._sub(expr, to_sub)
+            sub = expr.input.std(ddof=expr._ddof) ** 2
+            self._sub(expr, sub)
 
         raise NotImplementedError
-
-    def visit_column(self, expr):
-        if is_source_collection(expr.input):
-            try:
-                if expr.input._source_data.schema.is_partition(expr.source_name) and \
-                                expr.dtype != types.string:
-                    expr._source_data_type = types.string
-            except NoSuchObject:
-                return

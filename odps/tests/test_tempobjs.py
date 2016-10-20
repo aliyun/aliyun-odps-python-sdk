@@ -132,6 +132,8 @@ class TestTempObjs(TestBase):
     def test_drop(self):
         tempobj.register_temp_table(self.odps, 'non_exist_table')
         tempobj.register_temp_model(self.odps, 'non_exist_model')
+        tempobj.register_temp_function(self.odps, 'non_exist_function')
+        tempobj.register_temp_resource(self.odps, 'non_exist_resource')
         tempobj.register_temp_volume_partition(self.odps, ('non_exist_vol', 'non_exist_vol_part'))
         tempobj.clean_stored_objects(self.odps)
 

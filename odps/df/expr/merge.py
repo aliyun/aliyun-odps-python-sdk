@@ -77,8 +77,9 @@ class JoinCollectionExpr(CollectionExpr):
     def _is_column(self, col, expr):
         return col.input is expr or col.input is self._get_child(expr)
 
-    def _get_fields(self, fields):
+    def _get_fields(self, fields, ret_raw_fields=False):
         selects = []
+        raw_selects = []
 
         for field in fields:
             field = self._defunc(field)
@@ -89,9 +90,14 @@ class JoinCollectionExpr(CollectionExpr):
                     selects.extend(self._get_fields(field._project_fields))
                 else:
                     selects.extend(self._get_fields(field._fetch_fields()))
+                raw_selects.append(field)
             else:
-                selects.append(self._get_field(field))
+                select = self._get_field(field)
+                selects.append(select)
+                raw_selects.append(select)
 
+        if ret_raw_fields:
+            return selects, raw_selects
         return selects
 
     def _get_field(self, field):
@@ -176,9 +182,10 @@ class JoinCollectionExpr(CollectionExpr):
 
         for col in self._lhs.schema.columns:
             name = col.name
-            if col.name in self._rhs.schema:
+            if col.name in self._rhs.schema._name_indexes:
                 self._column_conflict = True
-            if col.name in self._rhs.schema and col.name not in non_suffixes_fields:
+            if col.name in self._rhs.schema._name_indexes and \
+                    col.name not in non_suffixes_fields:
                 name = '%s%s' % (col.name, self._left_suffix)
                 self._renamed_columns[col.name] = (name,)
             names.append(name)
@@ -187,9 +194,10 @@ class JoinCollectionExpr(CollectionExpr):
             self._column_origins[name] = 0, col.name
         for col in self._rhs.schema.columns:
             name = col.name
-            if col.name in self._lhs.schema:
+            if col.name in self._lhs.schema._name_indexes:
                 self._column_conflict = True
-            if col.name in self._lhs.schema and col.name not in non_suffixes_fields:
+            if col.name in self._lhs.schema._name_indexes and \
+                    col.name not in non_suffixes_fields:
                 name = '%s%s' % (col.name, self._right_suffix)
                 self._renamed_columns[col.name] = \
                     self._renamed_columns[col.name][0], name
@@ -200,7 +208,9 @@ class JoinCollectionExpr(CollectionExpr):
 
             self._column_origins[name] = 1, col.name
 
-        self._schema = Schema.from_lists(names, typos)
+        schema_type = type(self._lhs.schema) if issubclass(type(self._lhs.schema), Schema) \
+            else type(self._rhs.schema)
+        self._schema = schema_type.from_lists(names, typos)
 
     def _validate_equal(self, equal_expr):
         # FIXME: sometimes may be wrong, e.g. t3 = t1.join(t2, 'name')); t4.join(t3, t4.id == t3.id)
@@ -365,7 +375,7 @@ def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False
     >>> df.join(df2, mapjoin=False)
     """
     if on is None and not mapjoin:
-        on = [name for name in left.schema.names if name in right.schema]
+        on = [name for name in left.schema.names if name in right.schema._name_indexes]
 
     if isinstance(suffixes, (tuple, list)) and len(suffixes) == 2:
         left_suffix, right_suffix = suffixes

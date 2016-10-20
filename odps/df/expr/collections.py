@@ -23,12 +23,14 @@ import json
 from collections import namedtuple
 
 from .expressions import *
+from .dynamic import DynamicCollectionExpr
 from . import utils
 from ...models import Schema
 from ..expr.arithmetic import Negate
-from ..types import validate_data_type, string
-from ..utils import FunctionWrapper, output
-from ...compat import OrderedDict
+from ..types import validate_data_type, string, DynamicSchema
+from ..utils import FunctionWrapper
+from ...compat import OrderedDict, six, lkeys, lvalues
+from ...utils import str_to_kv
 
 
 class SortedColumn(SequenceExpr):
@@ -101,6 +103,11 @@ class SortedCollectionExpr(SortedExpr, CollectionExpr):
     def input(self):
         return self._input
 
+    def rebuild(self):
+        rebuilt = super(SortedCollectionExpr, self).rebuild()
+        rebuilt._schema = self.input.schema
+        return rebuilt
+
     def accept(self, visitor):
         visitor.visit_sort(self)
 
@@ -130,24 +137,24 @@ def sort_values(expr, by, ascending=True):
 
 
 class DistinctCollectionExpr(CollectionExpr):
+    __slots__ = '_all',
     _args = '_input', '_unique_fields'
     node_name = 'Distinct'
 
     def _init(self, *args, **kwargs):
         super(DistinctCollectionExpr, self)._init(*args, **kwargs)
 
-        get_field = lambda field: \
-            Column(self._input, _name=field, _data_type=self._input._schema[field].type)
-
         if self._unique_fields:
-            self._unique_fields = list(get_field(field) if isinstance(field, six.string_types) else field
+            self._unique_fields = list(self._input._get_field(field)
                                        for field in self._unique_fields)
 
-            names = [field.name for field in self._unique_fields]
-            types = [field._data_type for field in self._unique_fields]
-            self._schema = Schema.from_lists(names, types)
+            if not hasattr(self, '_schema'):
+                names = [field.name for field in self._unique_fields]
+                types = [field._data_type for field in self._unique_fields]
+                self._schema = Schema.from_lists(names, types)
         else:
-            self._unique_fields = list(get_field(field) for field in self._input._schema.names)
+            self._unique_fields = list(self._input._get_field(field)
+                                       for field in self._input._schema.names)
             self._schema = self._input._schema
 
     def iter_args(self):
@@ -157,6 +164,9 @@ class DistinctCollectionExpr(CollectionExpr):
     @property
     def input(self):
         return self._input
+
+    def rebuild(self):
+        return self._input.distinct(self._unique_fields if not self._all else [])
 
     def accept(self, visitor):
         return visitor.visit_distinct(self)
@@ -183,7 +193,7 @@ def distinct(expr, on=None, *ons):
 
     on = [it(expr) if inspect.isfunction(it) else it for it in on]
 
-    return DistinctCollectionExpr(expr, _unique_fields=on)
+    return DistinctCollectionExpr(expr, _unique_fields=on, _all=(len(on) == 0))
 
 
 def unique(expr):
@@ -231,6 +241,11 @@ class SampledCollectionExpr(CollectionExpr):
     @property
     def input(self):
         return self._input
+
+    def rebuild(self):
+        rebuilt = super(SampledCollectionExpr, self).rebuild()
+        rebuilt._schema = self.input.schema
+        return rebuilt
 
     def accept(self, visitor):
         return visitor.visit_sample(self)
@@ -305,12 +320,12 @@ def sample(expr, parts=None, columns=None, i=None, n=None, frac=None, replace=Fa
             if frac is not None and not isinstance(frac, (six.string_types, dict)):
                 raise ExpressionError('`frac` should be a k-v string or a dictionary object.')
             if isinstance(frac, six.string_types):
-                frac = utils.str_to_kv(frac, float)
+                frac = str_to_kv(frac, float)
 
             if n is not None and not isinstance(n, (six.string_types, dict)):
                 raise ExpressionError('`n` should be a k-v string or a dictionary object.')
             if isinstance(n, six.string_types):
-                n = utils.str_to_kv(n, int)
+                n = str_to_kv(n, int)
 
             for val in six.itervalues(frac or dict()):
                 if val < 0 or val > 1:
@@ -780,6 +795,212 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
                            names=reducer_output_names, types=reducer_output_types)
 
 
+class PivotCollectionExpr(DynamicCollectionExpr):
+    _args = '_input', '_group', '_columns', '_values'
+    node_name = 'Pivot'
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_group', None)
+        self._init_attr('_columns', None)
+        self._init_attr('_values', None)
+
+        super(PivotCollectionExpr, self)._init(*args, **kwargs)
+
+        if not hasattr(self, '_schema'):
+            self._schema = DynamicSchema.from_lists(
+                [f.name for f in self._group], [f.dtype for f in self._group]
+            )
+
+    def iter_args(self):
+        for it in zip(['collection', 'group', 'columns', 'values'], self.args):
+            yield it
+
+    @property
+    def input(self):
+        return self._input
+
+    def accept(self, visitor):
+        return visitor.visit_pivot(self)
+
+
+def pivot(expr, rows, columns, values=None):
+    """
+    Produce ‘pivot’ table based on 3 columns of this DataFrame.
+    Uses unique values from rows / columns and fills with values.
+
+    :param expr: collection
+    :param rows: use to make new collection's grouped rows
+    :param columns: use to make new collection's columns
+    :param values: values to use for populating new collection's values
+    :return: collection
+
+    :Example:
+
+    >>> df.pivot(rows='id', columns='category')
+    >>> df.pivot(rows='id', columns='category', values='sale')
+    >>> df.pivot(rows=['id', 'id2'], columns='category', values='sale')
+    """
+
+    rows = [expr._get_field(r) for r in utils.to_list(rows)]
+    columns = [expr._get_field(c) for c in utils.to_list(columns)]
+    if values:
+        values = utils.to_list(values)
+    else:
+        names = set(c.name for c in rows + columns)
+        values = [n for n in expr.schema.names if n not in names]
+        if not values:
+            raise ValueError('No values found for pivot')
+    values = [expr._get_field(v) for v in values]
+
+    if len(columns) > 1:
+        raise ValueError('More than one `columns` are not supported yet')
+
+    return PivotCollectionExpr(_input=expr, _group=rows,
+                               _columns=columns, _values=values)
+
+
+class PivotTableCollectionExpr(CollectionExpr):
+    __slots__ = '_agg_func', '_agg_func_names'
+    _args = '_input', '_group', '_columns', '_values', '_fill_value'
+    node_name = 'PivotTable'
+
+    def _init(self, *args, **kwargs):
+        for arg in self._args:
+            self._init_attr(arg, None)
+
+        super(PivotTableCollectionExpr, self)._init(*args, **kwargs)
+
+        for attr in ('_fill_value', ):
+            val = getattr(self, attr, None)
+            if val is not None and not isinstance(val, Scalar):
+                setattr(self, attr, Scalar(_value=val))
+
+    @property
+    def input(self):
+        return self._input
+
+    @property
+    def fill_value(self):
+        if self._fill_value:
+            return self._fill_value.value
+
+    @property
+    def margins(self):
+        return self._margins.value
+
+    @property
+    def margins_name(self):
+        return self._margins_name.value
+
+    def accept(self, visitor):
+        return visitor.visit_pivot(self)
+
+
+def pivot_table(expr, values=None, rows=None, columns=None, aggfunc='mean',
+                fill_value=None):
+    """
+    Create a spreadsheet-style pivot table as a DataFrame.
+
+    :param expr: collection
+    :param values (optional): column to aggregate
+    :param rows: rows to group
+    :param columns: keys to group by on the pivot table column
+    :param aggfunc: aggregate function or functions
+    :param fill_value (optional): value to replace missing value with, default None
+    :return: collection
+
+    :Example:
+    >>> df
+        A    B      C   D
+    0  foo  one  small  1
+    1  foo  one  large  2
+    2  foo  one  large  2
+    3  foo  two  small  3
+    4  foo  two  small  3
+    5  bar  one  large  4
+    6  bar  one  small  5
+    7  bar  two  small  6
+    8  bar  two  large  7
+    >>> table = df.pivot_table(values='D', rows=['A', 'B'], columns='C', aggfunc='sum')
+    >>> table
+         A    B  large_D_sum   small_D_sum
+    0  bar  one          4.0           5.0
+    1  bar  two          7.0           6.0
+    2  foo  one          4.0           1.0
+    3  foo  two          NaN           6.0
+    """
+
+    def get_names(iters):
+        return [r if isinstance(r, six.string_types) else r.name
+                for r in iters]
+
+    def get_aggfunc_name(f):
+        if isinstance(f, six.string_types):
+            return f
+        if isinstance(f, FunctionWrapper):
+            return f.output_names[0]
+        return 'aggregation'
+
+    if not rows:
+        raise ValueError('No group keys passed')
+    rows = utils.to_list(rows)
+    rows_names = get_names(rows)
+    rows = [expr._get_field(r) for r in rows]
+
+    if isinstance(aggfunc, dict):
+        agg_func_names = lkeys(aggfunc)
+        aggfunc = lvalues(aggfunc)
+    else:
+        aggfunc = utils.to_list(aggfunc)
+        agg_func_names = [get_aggfunc_name(af) for af in aggfunc]
+
+    if not columns:
+        if values is None:
+            values = [n for n in expr.schema.names if n not in rows_names]
+        else:
+            values = utils.to_list(values)
+        values = [expr._get_field(v) for v in values]
+
+        names = rows_names
+        types = [r.dtype for r in rows]
+        for func, func_name in zip(aggfunc, agg_func_names):
+            for value in values:
+                if isinstance(func, six.string_types):
+                    seq = getattr(value, func)()
+                else:
+                    seq = value.agg(func)
+                seq = seq.rename('{0}_{1}'.format(value.name, func_name))
+                names.append(seq.name)
+                types.append(seq.dtype)
+        schema = Schema.from_lists(names, types)
+
+        return PivotTableCollectionExpr(_input=expr, _group=rows, _values=values,
+                                        _fill_value=fill_value, _schema=schema,
+                                        _agg_func=aggfunc, _agg_func_names=agg_func_names)
+    else:
+        columns = [expr._get_field(c) for c in utils.to_list(columns)]
+
+        if values:
+            values = utils.to_list(values)
+        else:
+            names = set(c.name for c in rows + columns)
+            values = [n for n in expr.schema.names if n not in names]
+            if not values:
+                raise ValueError('No values found for pivot_table')
+        values = [expr._get_field(v) for v in values]
+
+        if len(columns) > 1:
+            raise ValueError('More than one `columns` are not supported yet')
+
+        schema = DynamicSchema.from_lists(rows_names, [r.dtype for r in rows])
+        base_tp = PivotTableCollectionExpr
+        tp = type(base_tp.__name__, (DynamicCollectionExpr, base_tp), dict())
+        return tp(_input=expr, _group=rows, _values=values,
+                  _columns=columns, _agg_func=aggfunc,
+                  _fill_value=fill_value, _schema=schema,
+                  _agg_func_names=agg_func_names)
+
+
 _collection_methods = dict(
     sort_values=sort_values,
     sort=sort_values,
@@ -788,6 +1009,8 @@ _collection_methods = dict(
     map_reduce=map_reduce,
     sample=sample,
     __sample=__df_sample,
+    pivot=pivot,
+    pivot_table=pivot_table
 )
 
 _sequence_methods = dict(

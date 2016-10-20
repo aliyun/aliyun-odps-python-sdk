@@ -175,6 +175,8 @@ ODPS的字段和DataFrame的类型映射关系如下：
 
 目前DataFrame不支持ODPS中的array和map类型，未来的版本会支持。
 
+.. _df_delay_execute:
+
 延迟执行
 ========
 

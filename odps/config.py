@@ -19,6 +19,7 @@
 
 from copy import deepcopy
 import contextlib
+import warnings
 
 from .compat import six
 
@@ -27,29 +28,110 @@ DEFAULT_CHUNK_SIZE = 1496
 DEFAULT_CONNECT_RETRY_TIMES = 4
 DEFAULT_CONNECT_TIMEOUT = 5
 DEFAULT_READ_TIMEOUT = 120
+_DEFAULT_REDIRECT_WARN = 'Option {source} has been replaced by {target} and might be removed in a future release.'
 
 
 class OptionError(Exception):
     pass
 
 
+class Redirection(object):
+    def __init__(self, item, warn=None):
+        self._items = item.split('.')
+        self._warn = warn
+        self._warned = True
+        self._parent = None
+
+    def bind(self, attr_dict):
+        self._parent = attr_dict
+        self.getvalue()
+        self._warned = False
+
+    def getvalue(self):
+        if self._warn and not self._warned:
+            self._warned = True
+            warnings.warn(self._warn)
+        conf = self._parent.root
+        for it in self._items:
+            conf = getattr(conf, it)
+        return conf
+
+    def setvalue(self, value):
+        if self._warn and not self._warned:
+            self._warned = True
+            warnings.warn(self._warn)
+        conf = self._parent.root
+        for it in self._items[:-1]:
+            conf = getattr(conf, it)
+        setattr(conf, self._items[-1], value)
+
+
+class PandasRedirection(Redirection):
+    def __init__(self, *args, **kw):
+        super(PandasRedirection, self).__init__(*args, **kw)
+        self._val = None
+        try:
+            import pandas
+            self._use_pd = True
+        except ImportError:
+            self._use_pd = False
+
+    def getvalue(self):
+        if self._use_pd:
+            import pandas as pd
+            return pd.get_option('.'.join(self._items))
+        else:
+            return self._val
+
+    def setvalue(self, value):
+        if self._use_pd:
+            import pandas as pd
+            key = '.'.join(self._items)
+            if value != pd.get_option(key):
+                pd.set_option(key, value)
+        else:
+            self._val = value
+
+
 class AttributeDict(dict):
     def __init__(self, *args, **kwargs):
         self._inited = False
+        self._parent = kwargs.pop('_parent', None)
+        self._root = None
         super(AttributeDict, self).__init__(*args, **kwargs)
         self._inited = True
+
+    @property
+    def root(self):
+        if self._root is not None:
+            return self._root
+        if self._parent is None:
+            self._root = self
+        else:
+            self._root = self._parent.root
+        return self._root
 
     def __getattr__(self, item):
         if item in self:
             val = self[item]
             if isinstance(val, AttributeDict):
                 return val
+            elif isinstance(val[0], Redirection):
+                return val[0].getvalue()
             else:
                 return val[0]
         return object.__getattribute__(self, item)
 
+    def __dir__(self):
+        return list(six.iterkeys(self))
+
     def register(self, key, value, validator=None):
         self[key] = value, validator
+        if isinstance(value, Redirection):
+            value.bind(self)
+
+    def unregister(self, key):
+        del self[key]
 
     def _setattr(self, key, value, silent=False):
         if not silent and key not in self:
@@ -58,11 +140,17 @@ class AttributeDict(dict):
         if not isinstance(value, AttributeDict):
             validate = None
             if key in self:
+                val = self[key]
                 validate = self[key][1]
                 if validate is not None:
                     if not validate(value):
                         raise ValueError('Cannot set value %s' % value)
-            self[key] = value, validate
+                if isinstance(val[0], Redirection):
+                    val[0].setvalue(value)
+                else:
+                    self[key] = value, validate
+            else:
+                self[key] = value, validate
         else:
             self[key] = value
 
@@ -83,43 +171,12 @@ class AttributeDict(dict):
             self._setattr(key, value)
 
 
-class DisplayAttributeDict(AttributeDict):
-    def __init__(self, *args, **kwargs):
-        self._inited = False
-        self._prefix = None
-        super(DisplayAttributeDict, self).__init__(*args, **kwargs)
-
-    def register(self, key, value, validator=None):
-        self[key] = value, validator
-
-    def _setattr(self, key, value, silent=False):
-        if not silent and key not in self:
-            raise OptionError('You can only set the value of existing options')
-
-        assert not isinstance(value, AttributeDict)
-
-        validate = None
-        if key in self:
-            validate = self[key][1]
-            if validate is not None:
-                if not validate(value):
-                    raise ValueError('Cannot set value %s' % value)
-        self[key] = value, validate
-
-        try:
-            import pandas as pd
-
-            try:
-                pd.set_option('%s.%s' % (self._prefix, key), value)
-            except:
-                pass
-        except ImportError:
-            pass
-
-
 class Config(object):
     def __init__(self, config=None):
         self._config = config or AttributeDict()
+
+    def __dir__(self):
+        return list(six.iterkeys(self._config))
 
     def __getattr__(self, item):
         return getattr(self._config, item)
@@ -134,22 +191,11 @@ class Config(object):
         splits = option.split('.')
         conf = self._config
 
-        if splits[0] == 'display':
-            dict_cls = DisplayAttributeDict
-        else:
-            dict_cls = AttributeDict
-
         for i, name in enumerate(splits[:-1]):
             config = conf.get(name)
             if config is None:
-                val = dict_cls()
+                val = AttributeDict(_parent=conf)
                 conf[name] = val
-                if isinstance(val, DisplayAttributeDict):
-                    # set the prefix used in the pandas option
-                    if i == 0:
-                        val._prefix = 'display'
-                    else:
-                        val._prefix = '%s.%s' % (conf._prefix, name)
                 conf = val
             elif not isinstance(config, dict):
                 raise AttributeError(
@@ -163,6 +209,32 @@ class Config(object):
                 'Fail to set option: %s, option has been set' % option)
 
         conf.register(key, value, validator)
+
+    def register_pandas(self, option, value=None, validator=None):
+        redir = PandasRedirection(option)
+        self.register_option(option, redir, validator=validator)
+        if value is not None:
+            redir.setvalue(value)
+
+    def redirect_option(self, option, target, warn=_DEFAULT_REDIRECT_WARN):
+        redir = Redirection(target, warn=warn.format(source=option, target=target))
+        self.register_option(option, redir)
+
+    def unregister_option(self, option):
+        splits = option.split('.')
+        conf = self._config
+        for name in splits[:-1]:
+            config = conf.get(name)
+            if not isinstance(config, dict):
+                raise AttributeError(
+                    'Fail to unregister option: %s, conflict has encountered' % option)
+            else:
+                conf = config
+
+        key = splits[-1]
+        if key not in conf:
+            raise AttributeError('Option %s not configured, thus failed to unregister.' % option)
+        conf.unregister(key)
 
 
 @contextlib.contextmanager
@@ -255,37 +327,40 @@ options.register_option('df.quote', True, validator=is_bool)
 options.register_option('df.dump_udf', False, validator=is_bool)
 options.register_option('df.libraries', None)
 
+# Runner
+options.register_option('runner.parallel_num', 5, validator=is_integer)
+options.register_option('runner.dry_run', False, validator=is_bool)
+options.register_option('runner.retry_times', 3, validator=is_integer)
+
 # PyODPS ML
 options.register_option('ml.xflow_project', 'algo_public', validator=is_string)
-options.register_option('ml.parallel_num', 5, validator=is_integer)
-options.register_option('ml.dry_run', False, validator=is_bool)
-options.register_option('ml.retry_times', 3, validator=is_integer)
+options.redirect_option('ml.parallel_num', 'runner.parallel_num')
+options.redirect_option('ml.dry_run', 'runner.dry_run')
+options.redirect_option('ml.retry_times', 'runner.retry_times')
+options.register_option('ml.auto_transfer_pmml', True, validator=is_bool)
 
 # display
 from .console import detect_console_encoding
 
-options.register_option('display.encoding', detect_console_encoding(), validator=is_string)
-options.register_option('display.max_rows', 60, validator=any_validator(is_null, is_integer))
-options.register_option('display.max_columns', 20, validator=any_validator(is_null, is_integer))
-options.register_option('display.large_repr', 'truncate', validator=is_in(['truncate', 'info']))
-options.register_option('display.notebook_repr_html', True, validator=is_bool)
+options.register_pandas('display.encoding', detect_console_encoding(), validator=is_string)
+options.register_pandas('display.max_rows', 60, validator=any_validator(is_null, is_integer))
+options.register_pandas('display.max_columns', 20, validator=any_validator(is_null, is_integer))
+options.register_pandas('display.large_repr', 'truncate', validator=is_in(['truncate', 'info']))
+options.register_pandas('display.notebook_repr_html', True, validator=is_bool)
+options.register_pandas('display.precision', 6, validator=is_integer)
+options.register_pandas('display.float_format', None)
+options.register_pandas('display.chop_threshold', None)
+options.register_pandas('display.column_space', 12, validator=is_integer)
+options.register_pandas('display.pprint_nest_depth', 3, validator=is_integer)
+options.register_pandas('display.max_seq_items', 100, validator=is_integer)
+options.register_pandas('display.max_colwidth', 50, validator=is_integer)
+options.register_pandas('display.multi_sparse', True, validator=is_bool)
+options.register_pandas('display.colheader_justify', 'right', validator=is_string)
+options.register_pandas('display.unicode.ambiguous_as_wide', False, validator=is_bool)
+options.register_pandas('display.unicode.east_asian_width', False, validator=is_bool)
+options.redirect_option('display.height', 'display.max_rows')
+options.register_pandas('display.width', 80, validator=any_validator(is_null, is_integer))
+options.register_pandas('display.expand_frame_repr', True)
+options.register_pandas('display.show_dimensions', 'truncate', validator=is_in([True, False, 'truncate']))
+
 options.register_option('display.notebook_repr_widget', True, validator=is_bool)
-options.register_option('display.precision', 6, validator=is_integer)
-options.register_option('display.float_format', None)
-options.register_option('display.chop_threshold', None)
-options.register_option('display.column_space', 12, validator=is_integer)
-options.register_option('display.pprint_nest_depth', 3, validator=is_integer)
-options.register_option('display.max_seq_items', 100, validator=is_integer)
-options.register_option('display.max_colwidth', 50, validator=is_integer)
-options.register_option('display.multi_sparse', True, validator=is_bool)
-options.register_option('display.colheader_justify', 'right', validator=is_string)
-options.register_option('display.unicode.ambiguous_as_wide', False, validator=is_bool)
-options.register_option('display.unicode.east_asian_width', False, validator=is_bool)
-options.register_option('display.height', 60, validator=any_validator(is_null, is_integer))
-options.register_option('display.width', 80, validator=any_validator(is_null, is_integer))
-options.register_option('display.expand_frame_repr', True)
-options.register_option('display.show_dimensions', 'truncate', validator=is_in([True, False, 'truncate']))
-
-
-
-

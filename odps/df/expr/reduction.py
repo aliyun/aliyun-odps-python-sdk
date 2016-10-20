@@ -17,6 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import absolute_import
+
+from collections import Iterable
+
 from .expressions import *
 from .groupby import *
 from . import utils
@@ -32,7 +36,9 @@ class SequenceReduction(Scalar):
 
     @property
     def source_name(self):
-        return self._input._name
+        if self._source_name:
+            return self._source_name
+        return self._input.name
 
     @property
     def name(self):
@@ -57,7 +63,7 @@ class SequenceReduction(Scalar):
         return repr(self._value_type)
 
     def to_grouped_reduction(self, grouped):
-        collection = next(n for n in self._input.traverse(top_down=True, unique=True)
+        collection = next(n for n in self.input.traverse(top_down=True, unique=True)
                           if isinstance(n, CollectionExpr))
         if collection is not grouped._input:
             raise ExpressionError('Aggregation should be applied to %s, %s instead' % (
@@ -97,8 +103,14 @@ class GroupedSequenceReduction(SequenceExpr):
             self._by = self._grouped._by
 
     @property
+    def _dag_args(self):
+        return self._args + ('_grouped', )
+
+    @property
     def source_name(self):
-        return self._source_name or self._input.name
+        if self._source_name:
+            return self._source_name
+        return self._input.name
 
     @property
     def name(self):
@@ -212,17 +224,28 @@ class GroupedNUnique(GroupedSequenceReduction):
 
 
 class Aggregation(SequenceReduction):
-    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources', '_raw_input'
-    _args = '_input', '_collection_resources', '_by'
+    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources', '_raw_inputs'
+    _args = '_inputs', '_collection_resources', '_by'
     node_name = 'Aggregation'
 
     def _init(self, *args, **kwargs):
-        self._init_attr('_raw_input', None)
+        self._init_attr('_raw_inputs', None)
         super(Aggregation, self)._init(*args, **kwargs)
 
     @property
-    def raw_input(self):
-        return self._raw_input or self._input
+    def source_name(self):
+        if self._source_name:
+            return self._source_name
+        if len(self._inputs) == 1:
+            return self._inputs[0].name
+
+    @property
+    def raw_inputs(self):
+        return self._raw_inputs or self._inputs
+
+    @property
+    def input(self):
+        return self._inputs[0]
 
     @property
     def func(self):
@@ -231,23 +254,44 @@ class Aggregation(SequenceReduction):
     @func.setter
     def func(self, f):
         self._aggregator = f
+
+    @property
+    def input_types(self):
+        return [f.dtype for f in self._inputs]
+
+    @property
+    def raw_input_types(self):
+        if self._raw_inputs:
+            return [f.dtype for f in self._raw_inputs]
+        return self.input_types
 
     def accept(self, visitor):
         visitor.visit_user_defined_aggregator(self)
 
 
 class GroupedAggregation(GroupedSequenceReduction):
-    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources', '_raw_input'
-    _args = '_input', '_collection_resources', '_by'
+    __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources', '_raw_inputs'
+    _args = '_inputs', '_collection_resources', '_by'
     node_name = 'Aggregation'
 
     def _init(self, *args, **kwargs):
-        self._init_attr('_raw_input', None)
+        self._init_attr('_raw_inputs', None)
         super(GroupedAggregation, self)._init(*args, **kwargs)
 
     @property
-    def raw_input(self):
-        return self._raw_input or self._input
+    def source_name(self):
+        if self._source_name:
+            return self._source_name
+        if len(self._inputs) == 1:
+            return self._inputs[0].name
+
+    @property
+    def raw_inputs(self):
+        return self._raw_inputs or self._inputs
+
+    @property
+    def input(self):
+        return self._inputs[0]
 
     @property
     def func(self):
@@ -256,6 +300,16 @@ class GroupedAggregation(GroupedSequenceReduction):
     @func.setter
     def func(self, f):
         self._aggregator = f
+
+    @property
+    def input_types(self):
+        return [f.dtype for f in self._inputs]
+
+    @property
+    def raw_input_types(self):
+        if self._raw_inputs:
+            return [f.dtype for f in self._raw_inputs]
+        return self.input_types
 
     def accept(self, visitor):
         visitor.visit_user_defined_aggregator(self)
@@ -471,7 +525,7 @@ def describe(expr):
         return expr[fields]
 
 
-def aggregate(expr, aggregator, rtype=None, resources=None, args=(), **kwargs):
+def aggregate(exprs, aggregator, rtype=None, resources=None, args=(), **kwargs):
     name = None
     if isinstance(aggregator, FunctionWrapper):
         if aggregator.output_names:
@@ -482,24 +536,44 @@ def aggregate(expr, aggregator, rtype=None, resources=None, args=(), **kwargs):
             rtype = rtype or aggregator.output_types[0]
         aggregator = aggregator._func
 
-    rtype = rtype or expr.dtype
+    if not isinstance(exprs, Iterable):
+        exprs = [exprs, ]
+        if rtype is None:
+            rtype = exprs[0].dtype
+
+    if rtype is None:
+        raise ValueError('rtype should be specified')
     output_type = types.validate_data_type(rtype)
 
+    collection = None
+    if len(exprs) > 0:
+        for expr in exprs:
+            coll = next(it for it in expr.traverse(top_down=True, unique=True)
+                        if isinstance(it, CollectionExpr))
+            if collection is None:
+                collection = coll
+            elif collection is not coll:
+                raise ValueError('The sequences to aggregate should come from the same collection')
+
     collection_resources = utils.get_collection_resources(resources)
-    if isinstance(expr, SequenceGroupBy):
-        collection = expr.input.input
-        input = collection[expr.name]
-        return GroupedAggregation(_input=input, _aggregator=aggregator,
+    if all(isinstance(expr, SequenceGroupBy) for expr in exprs):
+        collection = exprs[0].input.input
+        inputs = [collection[expr.name] for expr in exprs]
+        return GroupedAggregation(_inputs=inputs, _aggregator=aggregator,
                                   _data_type=output_type, _name=name,
                                   _func_args=args, _func_kwargs=kwargs, _resources=resources,
                                   _collection_resources=collection_resources,
-                                  _grouped=expr.input)
+                                  _grouped=exprs[0].input)
     else:
-        input = expr
-        return Aggregation(_input=input, _aggregator=aggregator,
+        assert not any(isinstance(expr, SequenceGroupBy) for expr in exprs)
+        return Aggregation(_inputs=exprs, _aggregator=aggregator,
                            _value_type=output_type, _name=name,
                            _func_args=args, _func_kwargs=kwargs, _resources=resources,
                            _collection_resources=collection_resources)
+
+
+def agg(*args, **kwargs):
+    return aggregate(*args, **kwargs)
 
 
 _number_sequence_methods = dict(

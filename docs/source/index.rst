@@ -47,8 +47,9 @@ PyODPS的相关依赖会自动安装。
 .. toctree::
    :maxdepth: 1
 
-   installation-int-zh.rst
-   installation-pub-zh.rst
+   installation-int-zh
+   installation-pub-zh
+   platform-int-zh
    base-zh
    df-zh
    ml-int-zh

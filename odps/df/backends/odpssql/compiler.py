@@ -501,7 +501,7 @@ class OdpsSQLCompiler(Backend):
             return utils.indent(buf.getvalue()[:-2], self._indent_size)
 
     def visit_project_collection(self, expr):
-        fields = expr.children()[1:]
+        fields = expr._fields
         compiled_fields = [self._compile_select_field(field)
                            for field in fields]
 
@@ -552,7 +552,7 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, element.FillNa):
             compiled = 'IF(%(input)s IS NULL, %(value)r, %(input)s)' % {
                 'input': self._ctx.get_expr_compiled(expr.input),
-                'value': expr.value
+                'value': expr.fill_value
             }
         elif isinstance(expr, element.IsIn):
             if expr.values is not None:
@@ -937,7 +937,7 @@ class OdpsSQLCompiler(Backend):
             func_name = self._ctx.get_udf(expr._aggregator)
             is_func_created = True
 
-        args = [self._ctx.get_expr_compiled(expr.input)]
+        args = [self._ctx.get_expr_compiled(i) for i in expr.inputs]
         if hasattr(expr, '_func_args') and expr._func_args is not None \
                 and not is_func_created:
             func_args = [repr(arg) for arg in expr._func_args]

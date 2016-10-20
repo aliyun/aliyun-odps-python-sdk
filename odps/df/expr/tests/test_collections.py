@@ -17,9 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
 from odps.tests.core import TestBase
-from odps.compat import unittest
+from odps.compat import unittest, OrderedDict
 from odps.models import Schema
 from odps.df.expr.expressions import CollectionExpr, ExpressionError
 from odps.df.expr.collections import SampledCollectionExpr
@@ -141,6 +140,76 @@ class Test(TestBase):
         self.assertRaises(ExpressionError, lambda: self.expr.sample(frac='Yes:10', strata='strata'))
         self.assertRaises(ExpressionError, lambda: self.expr.sample(frac=set(), strata='strata'))
         self.assertRaises(ExpressionError, lambda: self.expr.sample(n=set(), strata='strata'))
+
+    def testPivot(self):
+        from odps.df.expr.dynamic import DynamicMixin
+
+        expr = self.expr.pivot('string', 'int8', 'float32')
+
+        self.assertIn('string', expr._schema._name_indexes)
+        self.assertEqual(len(expr._schema._name_indexes), 1)
+        self.assertIn('non_exist', expr._schema)
+        self.assertIsInstance(expr['non_exist'], DynamicMixin)
+
+        expr = self.expr.pivot(
+            ['string', 'int8'], 'int16', ['datetime', 'string'])
+
+        self.assertIn('string', expr._schema._name_indexes)
+        self.assertIn('int8', expr._schema._name_indexes)
+        self.assertEqual(len(expr._schema._name_indexes), 2)
+        self.assertIn('non_exist', expr._schema)
+        self.assertIsInstance(expr['non_exist'], DynamicMixin)
+
+        self.assertRaises(ValueError, lambda: self.expr.pivot(
+            ['string', 'int8'], ['datetime', 'string'], 'int16'))
+
+    def testPivotTable(self):
+        from odps.df.expr.dynamic import DynamicMixin
+
+        expr = self.expr.pivot_table(values='int8', rows='float32')
+        self.assertNotIsInstance(expr, DynamicMixin)
+        self.assertEqual(expr.schema.names, ['float32', 'int8_mean'])
+
+        expr = self.expr.pivot_table(values=('int16', 'int32'), rows=['float32', 'int8'])
+        self.assertEqual(expr.schema.names, ['float32', 'int8', 'int16_mean', 'int32_mean'])
+
+        expr = self.expr.pivot_table(values=('int16', 'int32'), rows=['string', 'boolean'],
+                                     aggfunc=['mean', 'sum'])
+        self.assertEqual(expr.schema.names, ['string', 'boolean', 'int16_mean', 'int32_mean',
+                                             'int16_sum', 'int32_sum'])
+        self.assertEqual(expr.schema.types, [types.string, types.boolean, types.float64, types.float64,
+                                             types.int16, types.int32])
+
+        @output(['my_mean'], ['float'])
+        class Aggregator(object):
+            def buffer(self):
+                return [0.0, 0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+                buffer[1] += 1
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+                buffer[1] += pbuffer[1]
+
+            def getvalue(self, buffer):
+                if buffer[1] == 0:
+                    return 0.0
+                return buffer[0] / buffer[1]
+
+        expr = self.expr.pivot_table(values='int16', rows='string', aggfunc=Aggregator)
+        self.assertEqual(expr.schema.names, ['string', 'int16_my_mean'])
+        self.assertEqual(expr.schema.types, [types.string, types.float64])
+
+        aggfunc = OrderedDict([('my_agg', Aggregator), ('my_agg2', Aggregator)])
+
+        expr = self.expr.pivot_table(values='int16', rows='string', aggfunc=aggfunc)
+        self.assertEqual(expr.schema.names, ['string', 'int16_my_agg', 'int16_my_agg2'])
+        self.assertEqual(expr.schema.types, [types.string, types.float64, types.float64])
+
+        expr = self.expr.pivot_table(values='int16', columns='boolean', rows='string')
+        self.assertIsInstance(expr, DynamicMixin)
 
 if __name__ == '__main__':
     unittest.main()

@@ -17,13 +17,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import absolute_import
+
 import itertools
 import inspect
 import traceback
+import collections
 
 from .. import types
 from ... import compat
-from ...utils import str_to_kv
 from ...models import FileResource, TableResource
 from ...compat import six
 
@@ -110,3 +112,11 @@ def get_executed_collection_table_name(collection):
 
 def is_called_by_inspector():
     return any(1 for v in traceback.extract_stack() if 'oinspect' in v[0].lower() and 'ipython' in v[0].lower())
+
+
+def to_list(field):
+    if isinstance(field, six.string_types):
+        return [field, ]
+    if isinstance(field, collections.Iterable):
+        return list(field)
+    return [field, ]

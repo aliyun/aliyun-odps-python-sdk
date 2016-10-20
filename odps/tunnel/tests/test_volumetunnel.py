@@ -121,4 +121,10 @@ class Test(TestBase):
             writer.write(block)
 
         with vol.open_reader(TEST_FILE_NAME, compress_option=comp_option) as reader:
-            assert reader.read() == block
+            parts = []
+            while True:
+                b = reader.read(10003)
+                if not b:
+                    break
+                parts.append(b)
+            self.assertEqual(bytes().join(parts), block)

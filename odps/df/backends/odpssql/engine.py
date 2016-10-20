@@ -22,6 +22,7 @@ import sys
 import itertools
 import uuid  # don't remove
 from contextlib import contextmanager
+import warnings
 
 from ....errors import ODPSError
 
@@ -41,6 +42,7 @@ from ..frame import ResultFrame
 from ..context import context
 from . import types
 from . import analyzer as ana
+from . import rewriter as rwr
 from ..errors import CompileError
 from .context import ODPSContext, UDF_CLASS_NAME
 from .compiler import OdpsSQLCompiler
@@ -456,10 +458,12 @@ class ODPSEngine(Engine):
             self._ctx.close()  # clear udfs and resources generated
             return self._fetch(expr, src_expr, instance, ui, close_ui=close_ui,
                                cache_data=cache_data, head=head, tail=tail,
-                               use_tunnel=use_tunnel, group=group)
+                               use_tunnel=use_tunnel, group=group, finish_progress=max_progress,
+                               finish=kw.get('finish', True))
 
     def _fetch(self, expr, src_expr, instance, ui, finish_progress=1,
-               close_ui=True, cache_data=None, head=None, tail=None, use_tunnel=True, group=None):
+               close_ui=True, cache_data=None, head=None, tail=None, use_tunnel=True,
+               group=None, finish=True):
         if isinstance(expr, (CollectionExpr, Summary)):
             df_schema = expr._schema
             schema = types.df_schema_to_odps_schema(expr._schema, ignorecase=True)
@@ -471,11 +475,12 @@ class ODPSEngine(Engine):
             schema = None
         try:
             if cache_data is not None:
-                if group:
+                if group and finish:
                     ui.remove_keys(group)
                 if use_tunnel:
                     try:
-                        ui.status('Start to use tunnel to download results...')
+                        if finish:
+                            ui.status('Start to use tunnel to download results...')
                         with cache_data.open_reader(reopen=True) as reader:
                             if head:
                                 reader = reader[:head]
@@ -490,13 +495,15 @@ class ODPSEngine(Engine):
                     except ODPSError:
                         # some project has closed the tunnel download
                         # we just ignore the error
+                        warnings.warn('Fail to download data by tunnel, 10000 records will be limited')
                         pass
 
                 if tail:
                     raise NotImplementedError
 
                 try:
-                    ui.status('Start to use head to download results...')
+                    if finish:
+                        ui.status('Start to use head to download results...')
                     return ResultFrame(cache_data.head(head or 10000), schema=df_schema)
                 finally:
                     src_expr._cache_data = cache_data
@@ -534,11 +541,15 @@ class ODPSEngine(Engine):
                 expr = context.register_to_copy_expr(src_expr, expr)
             dag = context.build_dag(src_expr, expr, dag=dag)
 
+            # analyze first
+            ana.Analyzer(dag).analyze()
+
             from ..optimize import Optimizer
             Optimizer(dag).optimize()
         else:
             dag = context.build_dag(src_expr, expr, dag=dag)
-        expr = ana.Analyzer(dag).analyze()
+
+        expr = rwr.Rewriter(dag).rewrite()
         return expr
 
     def _pre_process(self, expr, src_expr=None, dag=None):

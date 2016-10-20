@@ -193,6 +193,15 @@ def in_ipython_frontend():
     return False
 
 
+def is_widgets_available():
+    if widgets is None:
+        return False
+    if hasattr(widgets.Widget, '_version_validated'):
+        return bool(getattr(widgets.Widget, '_version_validated', None))
+    else:
+        return True
+
+
 def in_qtconsole():
     """
     check if we're inside an IPython qtconsole
@@ -219,7 +228,7 @@ def get_console_size():
     """
     display_width = options.display.width
     # deprecated.
-    display_height = options.display.height
+    display_height = options.display.max_rows
 
     # Consider
     # interactive shell terminal, can detect term size
@@ -238,7 +247,7 @@ def get_console_size():
             try:
                 from pandas.core.config import get_default_val
                 terminal_width = get_default_val('display.width')
-                terminal_height = get_default_val('display.height')
+                terminal_height = get_default_val('display.max_rows')
             except ImportError:
                 terminal_width, terminal_height = None, None
         else:
@@ -888,7 +897,8 @@ class ProgressBar(six.Iterator):
             else:
                 self._widget = widgets.FloatProgress()
 
-            display(self._widget)
+            if is_widgets_available():
+                display(self._widget)
             self._widget.value = 0
 
         # Calculate percent completion, and update progress bar
@@ -969,7 +979,8 @@ class StatusLine(object):
         if self.ipython_widget:
             if not self._widget:
                 self._widget = widgets.HTML()
-                display(self._widget)
+                if is_widgets_available():
+                    display(self._widget)
             self._widget.value = text
 
     def close(self):

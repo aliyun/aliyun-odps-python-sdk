@@ -76,6 +76,14 @@ class Test(TestBase):
         self.assertIn(id(distinct_node), dag._graph[id(groupby_node)])
         self.assertIsInstance(distincted, DistinctCollectionExpr)
 
+    def testDep(self):
+        expr = self.tb.pivot_table(rows='id', columns='name', values='fid')
+
+        dag, expr, callbacks = self.engine._compile(expr)
+
+        self.assertEqual(len(dag._graph), 2)
+        self.assertEqual(sum(len(v) for v in dag._graph.values()), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

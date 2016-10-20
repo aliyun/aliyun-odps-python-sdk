@@ -29,7 +29,7 @@ require(['pyodps'], function(p) { p.register_css('##CSS_STR##'); });
 
 
 try:
-    from ..console import widgets, ipython_major_version, in_ipython_frontend
+    from ..console import widgets, ipython_major_version, in_ipython_frontend, is_widgets_available
     if any(v is None for v in (widgets, ipython_major_version, in_ipython_frontend)):
         raise ImportError
 
@@ -72,5 +72,6 @@ else:
 def html_notify(msg):
     if in_ipython_frontend and in_ipython_frontend():
         notifier = HTMLNotifier()
-        display(notifier)
+        if is_widgets_available():
+            display(notifier)
         notifier.notify(msg)

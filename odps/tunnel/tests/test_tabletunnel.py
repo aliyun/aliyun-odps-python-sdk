@@ -127,7 +127,7 @@ class Test(TestBase):
 
     def _gen_data(self):
         return [
-            ('hello world', 2**63-1, math.pi, datetime(2015, 9, 19, 2, 11, 25, 33000),
+            ('hello \x00\x00 world', 2**63-1, math.pi, datetime(2015, 9, 19, 2, 11, 25, 33000),
              True, Decimal('3.14'), ['simple', 'easy'], OrderedDict({'s': 1})),
             ('goodbye', 222222, math.e, datetime(2020, 3, 10), False, Decimal('2.555555'),
              ['true', None], OrderedDict({'true': 1})),
@@ -141,7 +141,7 @@ class Test(TestBase):
                  'array<string>', 'map<string,bigint>']
 
         self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(table_name, schema=Schema.from_lists(fields, types))
+        return self.odps.create_table(table_name, schema=Schema.from_lists(fields, types), lifecycle=1)
 
     def _create_partitioned_table(self, table_name):
         fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']

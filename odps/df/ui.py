@@ -22,7 +22,7 @@ import math
 
 from . import DataFrame, Scalar
 from ..ui.common import build_trait
-from ..console import in_ipython_frontend
+from ..console import in_ipython_frontend, is_widgets_available
 from ..compat import six
 
 MAX_TABLE_FETCH_SIZE = 10
@@ -80,7 +80,7 @@ else:
 
         def _handle_msgs(self, _, content, buffers):
             try:
-                self._actual_handle_msgs(content, buffer)
+                self._actual_handle_msgs(content, buffers)
             except:
                 self.error_sign = (self.error_sign + 1) % 2
                 raise
@@ -137,4 +137,5 @@ else:
 def show_df_widget(df, **kwargs):
     if in_ipython_frontend() and DFViewWidget:
         widget = DFViewWidget(df, **kwargs)
-        display(widget)
+        if is_widgets_available():
+            display(widget)

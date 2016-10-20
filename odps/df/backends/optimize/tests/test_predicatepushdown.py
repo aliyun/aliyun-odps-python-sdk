@@ -80,6 +80,16 @@ class Test(TestBase):
                    "WHERE (((t1.`id` + 1) * 2) < 3) AND (t1.`name` == 'name1')"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.filter(self.expr.id.between(2, 6),
+                                self.expr.name.lower().contains('pyodps', regex=False)).name.nunique()
+        expected = "SELECT COUNT(DISTINCT t2.`name`) AS `name_nunique` \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`name`, t1.`id` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "  WHERE ((t1.`id` >= 2) AND (t1.`id` <= 6)) AND INSTR(TOLOWER(t1.`name`), 'pyodps') > 0 \n" \
+                   ") t2"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testFilterPushDownThroughJoin(self):
         expr = self.expr.join(self.expr3, on='name')
         expr = expr[(expr.id_x < 10) & (expr.fid_y > 3)]

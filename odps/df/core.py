@@ -17,19 +17,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-try:
-    import pandas as pd
-    has_pandas = True
-except ImportError:
-    has_pandas = False
+import functools
 
 from ..models import Table
-from ..compat import six
+from ..compat import six, izip
 from .expr.utils import get_attrs
 from .expr.expressions import CollectionExpr
 from .types import validate_data_type
 from .backends.odpssql.types import odps_schema_to_df_schema
 from .backends.pd.types import pd_to_df_schema,  df_type_to_np_type
+
+try:
+    import pandas as pd
+    has_pandas = True
+except ImportError:
+    has_pandas = False
 
 
 class DataFrame(CollectionExpr):
@@ -124,6 +126,47 @@ class DataFrame(CollectionExpr):
         data = kv.pop('_source_data')
         kv.pop('_schema', None)
         return type(self)(data, **kv)
+
+    @staticmethod
+    def batch_persist(dfs, tables, *args, **kw):
+        """
+        Persist multiple DataFrames into ODPS.
+
+        :param dfs: DataFrames to persist.
+        :param tables: Table names to persist to. Use (table, partition) tuple to store to a table partition.
+        :param args: args for Expr.persist
+        :param kw: kwargs for Expr.persist
+
+        :Examples:
+        >>> DataFrame.batch_persist([df1, df2], ['table_name1', ('table_name2', 'partition_name2')], lifecycle=1)
+        """
+        actions = []
+        odps = None
+        for df, table in izip(dfs, tables):
+            if isinstance(table, tuple):
+                table, partition = table
+            else:
+                partition = None
+            actions.append(functools.partial(df.persist, table, partition=partition, *args, **kw))
+
+        for df in dfs:
+            try:
+                odps = six.next(df.data_source()).odps
+                if odps is not None:
+                    break
+            except StopIteration:
+                pass
+
+        if odps is None:
+            from ..inter import enter, InteractiveError
+            try:
+                odps = enter().odps
+            except (InteractiveError, AttributeError):
+                import warnings
+                warnings.warn('No ODPS object available in rooms. Further actions might lead to errors.',
+                              RuntimeWarning)
+        from ..runner import RunnerContext
+        RunnerContext.instance()._batch_run_actions(actions, odps)
 
     @property
     def data(self):

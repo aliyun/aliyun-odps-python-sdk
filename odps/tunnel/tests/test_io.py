@@ -19,9 +19,10 @@
 
 from odps.tests.core import TestBase, snappy_case
 from odps.compat import unittest, BytesIO
-from odps.tunnel.io import *
+from odps.tunnel import io as tio
 
 import io
+import traceback
 
 try:
     from string import letters
@@ -49,15 +50,19 @@ class Test(TestBase):
 
 可托天下。"""
 
+    def tearDown(self):
+        super(Test, self).tearDown()
+        tio._FORCE_THREAD = False
+
     def testCompressAndDecompressDeflate(self):
         tube = io.BytesIO()
 
-        outstream = DeflateOutputStream(tube)
+        outstream = tio.DeflateOutputStream(tube)
         outstream.write(self.TEXT.encode('utf8'))
         outstream.flush()
 
         tube.seek(0)
-        instream = DeflateInputStream(tube)
+        instream = tio.DeflateInputStream(tube)
 
         b = bytearray()
         while True:
@@ -72,12 +77,12 @@ class Test(TestBase):
     def testCompressAndDecompressSnappy(self):
         tube = io.BytesIO()
 
-        outstream = SnappyOutputStream(tube)
+        outstream = tio.SnappyOutputStream(tube)
         outstream.write(self.TEXT.encode('utf8'))
         outstream.flush()
 
         tube.seek(0)
-        instream = SnappyInputStream(tube)
+        instream = tio.SnappyInputStream(tube)
 
         b = bytearray()
         while True:
@@ -87,6 +92,64 @@ class Test(TestBase):
             b += part
 
         self.assertEquals(self.TEXT.encode('utf8'), b)
+
+    def testClass(self):
+        tio._FORCE_THREAD = False
+
+        req_io = tio.RequestsIO(lambda c: None)
+        if tio.GreenletRequestsIO is None:
+            self.assertIsInstance(req_io, tio.ThreadRequestsIO)
+        else:
+            self.assertIsInstance(req_io, tio.GreenletRequestsIO)
+        self.assertIsInstance(tio.ThreadRequestsIO(lambda c: None), tio.ThreadRequestsIO)
+        if tio.GreenletRequestsIO is not None:
+            self.assertIsInstance(tio.GreenletRequestsIO(lambda c: None), tio.GreenletRequestsIO)
+
+        tio._FORCE_THREAD = True
+
+        req_io = tio.RequestsIO(lambda c: None)
+        self.assertIsInstance(req_io, tio.ThreadRequestsIO)
+        self.assertIsInstance(tio.ThreadRequestsIO(lambda c: None), tio.ThreadRequestsIO)
+        if tio.GreenletRequestsIO is not None:
+            self.assertIsInstance(tio.GreenletRequestsIO(lambda c: None), tio.GreenletRequestsIO)
+
+    def testRaises(self):
+        exc_trace = [None]
+
+        def raise_poster(it):
+            exc_trace[0] = None
+            next(it)
+            try:
+                raise AttributeError
+            except:
+                tb = traceback.format_exc().splitlines()
+                exc_trace[0] = '\n'.join(tb[-3:])
+                raise
+
+        tio._FORCE_THREAD = True
+
+        req_io = tio.ThreadRequestsIO(raise_poster)
+        req_io.start()
+        try:
+            req_io.write('TEST_DATA')
+            req_io.write('ANOTHER_PIECE')
+            req_io.finish()
+        except AttributeError:
+            tb = traceback.format_exc().splitlines()
+            self.assertEqual('\n'.join(tb[-3:]), exc_trace[0])
+
+        if tio.GreenletRequestsIO is None:
+            return
+
+        req_io = tio.GreenletRequestsIO(raise_poster)
+        req_io.start()
+        try:
+            req_io.write('TEST_DATA')
+            req_io.write('ANOTHER_PIECE')
+            req_io.finish()
+        except AttributeError:
+            tb = traceback.format_exc().splitlines()
+            self.assertEqual('\n'.join(tb[-3:]), exc_trace[0])
 
 
 if __name__ == '__main__':

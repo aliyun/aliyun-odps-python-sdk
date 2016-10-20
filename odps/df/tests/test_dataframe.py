@@ -19,7 +19,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from odps.tests.core import TestBase, tn, pandas_case
+from odps.tests.core import TestBase, tn, pandas_case, global_locked
 from odps.compat import unittest
 from odps.models import Schema
 from odps.df import DataFrame
@@ -74,6 +74,24 @@ class Test(TestBase):
         r = df[df.name == 'name2'].head(1)
         self.assertEqual(1, len(r))
         self.assertEqual([2, 'name2'], list(r[0]))
+
+    @global_locked('odps_instance_method_repr')
+    def testInstanceMethodRepr(self):
+        from odps import options
+
+        class CannotExecuteDataFrame(DataFrame):
+            def execute(self, **kwargs):
+                raise RuntimeError('DataFrame cannot be executed')
+
+        options.interactive = True
+
+        try:
+            df = CannotExecuteDataFrame(self.table)
+
+            self.assertEqual(repr(df.count), '<bound method Collection.count>')
+            self.assertEqual(repr(df.name.count), '<bound method Column._count>')
+        finally:
+            options.interactive = False
 
     @pandas_case
     def testToPandas(self):
@@ -133,6 +151,11 @@ class Test(TestBase):
         df3 = df2[df2.id == 2003]
 
         self.assertEqual(df3.execute().values.values.tolist(), expected)
+        self.assertEqual(df3.execute().values.values.tolist(), expected)
+
+        df4 = df.fid.sum()
+        self.assertEqual(df4.execute(), 6)
+        self.assertEqual(df4.execute(), 6)
 
 if __name__ == '__main__':
     unittest.main()

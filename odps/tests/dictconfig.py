@@ -550,6 +550,7 @@ class DictConfigurator(BaseConfigurator):
 
 dictConfigClass = DictConfigurator
 
+
 def dictConfig(config):
     """Configure logging using a dictionary."""
     dictConfigClass(config).configure()

@@ -37,18 +37,18 @@ class Test(TestBase):
                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
                                    ['ds'], datatypes('string'))
         table = MockTable(name='pyodps_test_expr_table', schema=schema)
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
+        self.expr = CollectionExpr(_source_data=table, _schema=Schema(columns=schema.columns))
 
         table1 = MockTable(name='pyodps_test_expr_table1', schema=schema)
-        self.expr1 = CollectionExpr(_source_data=table1, _schema=schema)
+        self.expr1 = CollectionExpr(_source_data=table1, _schema=Schema(columns=schema.columns))
 
         table2 = MockTable(name='pyodps_test_expr_table2', schema=schema)
-        self.expr2 = CollectionExpr(_source_data=table2, _schema=schema)
+        self.expr2 = CollectionExpr(_source_data=table2, _schema=Schema(columns=schema.columns))
 
         schema2 = Schema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'),
                                     ['part1', 'part2'], datatypes('string', 'int64'))
         table3 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
-        self.expr3 = CollectionExpr(_source_data=table3, _schema=schema2)
+        self.expr3 = CollectionExpr(_source_data=table3, _schema=Schema(columns=schema2.columns))
 
     def testProjectPrune(self):
         expr = self.expr.select('name', 'id')
@@ -207,11 +207,8 @@ class Test(TestBase):
     def testSamplePrune(self):
         expr = self.expr['name', 'id'].sample(parts=5)['id', ]
 
-        expected = "SELECT t2.`id` \n" \
-                   "FROM (\n" \
-                   "  SELECT t1.`name`, t1.`id` \n" \
-                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
-                   ") t2 \n" \
+        expected = "SELECT t1.`id` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
                    "WHERE SAMPLE(5, 1)"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 

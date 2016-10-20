@@ -152,7 +152,7 @@ User Interface
 
 
 try:
-    from ..console import widgets, ipython_major_version, in_ipython_frontend
+    from ..console import widgets, ipython_major_version, in_ipython_frontend, is_widgets_available
     if ipython_major_version < 4:
         from IPython.utils.traitlets import Unicode, List
     else:
@@ -173,8 +173,6 @@ else:
                 widgets.DOMWidget.__init__(self, **kwargs)  # Call the base.
 
                 # Allow the user to register error callbacks with the following signatures:
-                #    callback()
-                #    callback(sender)
                 self.errors = widgets.CallbackDispatcher(accepted_nargs=[0, 1])
 
             def update(self):
@@ -242,7 +240,8 @@ class ProgressGroupUI(object):
         if self._ipython_widget:
             if not self._widget:
                 self._widget = InstancesProgress()
-                display(self._widget)
+                if is_widgets_available():
+                    display(self._widget)
             self._widget.prefix = self._prefix
             self._widget.suffix = self._suffix
         self._widget.update()
@@ -251,7 +250,8 @@ class ProgressGroupUI(object):
         if self._ipython_widget:
             if not self._widget:
                 self._widget = InstancesProgress()
-                display(self._widget)
+                if is_widgets_available():
+                    display(self._widget)
         if isinstance(keys, six.string_types):
             keys = [keys, ]
         data = [fetch_instance_group(key).serialize() for key in keys]
@@ -265,4 +265,3 @@ class ProgressGroupUI(object):
     def close(self):
         if self._ipython_widget and self._widget:
             self._widget.close()
-

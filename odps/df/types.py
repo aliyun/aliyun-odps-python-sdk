@@ -21,7 +21,7 @@ from datetime import datetime as _datetime
 from decimal import Decimal as _Decimal
 
 from ..types import DataType, Array, Map, ARRAY_RE, MAP_RE
-from ..models import Schema  # noqa
+from ..models import Schema, Column
 from ..compat import OrderedDict, six
 
 
@@ -292,3 +292,61 @@ def is_number(data_type):
         return True
 
     return False
+
+
+class Unknown(DataType):
+    __slots__ = 'type', # the type of the column and identify that it's a dynamic field
+    _singleton = False
+    CLASS_NAME = 'Unknown'
+
+    def __init__(self, nullable=True, type=None):
+        super(Unknown, self).__init__(nullable=nullable)
+        self.type = type
+
+    def _equals(self, other):
+        # ``Unknown`` type is not equal to other types
+        return False
+
+    def can_implicit_cast(self, other):
+        # ``Unknown`` can cast to other types
+        return True
+
+
+class DynamicSchema(Schema):
+    def __init__(self, *args, **kwargs):
+        self.default_type = kwargs.pop('default_type', None)
+        super(DynamicSchema, self).__init__(*args, **kwargs)
+
+    def __contains__(self, item):
+        # We do not know the actual columns,
+        # just return True
+        return True
+
+    def __eq__(self, other):
+        return False
+
+    def __getitem__(self, item):
+        if isinstance(item, six.string_types):
+            try:
+                return super(DynamicSchema, self).__getitem__(item)
+            except ValueError:
+                return Column(name=item, type=Unknown(type=self.default_type))
+
+        return super(DynamicSchema, self).__getitem__(item)
+
+    def get_column(self, name):
+        try:
+            return super(DynamicSchema, self).get_column()
+        except ValueError:
+            return Column(name=name, type=Unknown(type=self.default_type))
+
+    @classmethod
+    def from_schema(cls, schema, default_type=None):
+        if isinstance(schema, DynamicSchema):
+            if default_type == schema.default_type:
+                return schema
+            default_type = default_type or schema.default_type
+            return DynamicSchema(columns=schema._columns,
+                                 default_type=default_type)
+        return DynamicSchema(columns=schema._columns,
+                             default_type=default_type)

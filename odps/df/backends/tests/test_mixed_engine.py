@@ -17,8 +17,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from odps.tests.core import TestBase, tn, pandas_case
-from odps.compat import unittest
+from odps.tests.core import tn, pandas_case
+from odps.df.backends.tests.core import TestBase
+from odps.compat import unittest, OrderedDict
 from odps.models import Schema
 from odps.errors import ODPSError
 from odps.df.backends.engine import MixedEngine
@@ -59,6 +60,18 @@ class Test(TestBase):
 
     def teardown(self):
         self.t.drop()
+
+    def testGroupReduction(self):
+        expr = self.odps_df.select(self.odps_df, id2=self.odps_df.id.map(lambda x: x + 1))
+        expr = expr.groupby('name').id2.sum()
+
+        expected = [
+            ['name1', 6],
+            ['name2', 3]
+        ]
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertEqual(sorted([[r[1]] for r in expected]), sorted(result))
 
     def assertPandasEqual(self, df1, df2):
         from odps.compat import six
@@ -200,6 +213,172 @@ class Test(TestBase):
         def plot(**_):
             pass
         self.assertRaises(ODPSError, lambda: df.plot(x='id', plot_func=plot))
+
+    def testPivot(self):
+        data = [
+            ['name1', 1, 1.0, True],
+            ['name1', 2, 2.0, True],
+            ['name2', 1, 3.0, False],
+            ['name2', 3, 4.0, False]
+        ]
+
+        table_name = tn('pyodps_test_mixed_engine_pivot')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(
+            name=table_name,
+            schema=Schema.from_lists(['name', 'id', 'fid', 'ismale'],
+                                     ['string', 'bigint', 'double', 'boolean']))
+        expr = DataFrame(table)
+        try:
+            self.odps.write_table(table, 0, data)
+
+            expr1 = expr.pivot(rows='id', columns='name', values='fid').distinct()
+            res = self.engine.execute(expr1)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 1.0, 3.0],
+                [2, 2.0, None],
+                [3, None, 4.0]
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+
+            expr2 = expr.pivot(rows='id', columns='name', values=['fid', 'ismale'])
+            res = self.engine.execute(expr2)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 1.0, 3.0, True, False],
+                [2, 2.0, None, True, None],
+                [3, None, 4.0, None, False]
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+
+            expr3 = expr.pivot(rows='id', columns='name', values='fid')['name3']
+            with self.assertRaises(ValueError) as cm:
+                self.engine.execute(expr3)
+            self.assertIn('name3', str(cm.exception))
+
+            expr4 = expr.pivot(rows='id', columns='name', values='fid')['id', 'name1']
+            res = self.engine.execute(expr4)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 1.0],
+                [2, 2.0],
+                [3, None]
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+
+            expr5 = expr.pivot(rows='id', columns='name', values='fid')
+            expr5 = expr5[expr5, (expr5['name1'].astype('int') + 1).rename('new_name')]
+            res = self.engine.execute(expr5)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 1.0, 3.0, 2.0],
+                [2, 2.0, None, 3.0],
+                [3, None, 4.0, None]
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+
+            expr6 = expr.pivot(rows='id', columns='name', values='fid')
+            expr6 = expr6.join(self.odps_df, on='id')[expr6, 'name']
+            res = self.engine.execute(expr6)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 1.0, 3.0, 'name1'],
+                [2, 2.0, None, 'name2'],
+                [3, None, 4.0, 'name1']
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+        finally:
+            table.drop()
+
+    def testPivotTable(self):
+        data = [
+            ['name1', 1, 1.0, True],
+            ['name1', 1, 5.0, True],
+            ['name1', 2, 2.0, True],
+            ['name2', 1, 3.0, False],
+            ['name2', 3, 4.0, False]
+        ]
+
+        table_name = tn('pyodps_test_mixed_engine_pivot_table')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(
+            name=table_name,
+            schema=Schema.from_lists(['name', 'id', 'fid', 'ismale'],
+                                     ['string', 'bigint', 'double', 'boolean']))
+        expr = DataFrame(table)
+        try:
+            self.odps.write_table(table, 0, data)
+
+            expr1 = expr.pivot_table(rows='name', values='fid')
+            res = self.engine.execute(expr1)
+            result = self._get_result(res)
+
+            expected = [
+                ['name1', 8.0 / 3],
+                ['name2', 3.5],
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+
+            expr2 = expr.pivot_table(rows='name', values='fid', aggfunc=['mean', 'sum'])
+            res = self.engine.execute(expr2)
+            result = self._get_result(res)
+
+            expected = [
+                ['name1', 8.0 / 3, 8.0],
+                ['name2', 3.5, 7.0],
+            ]
+            self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum'])
+            self.assertEqual(sorted(result), sorted(expected))
+
+            expr3 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0).distinct()
+            res = self.engine.execute(expr3)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 3.0, 3.0],
+                [2, 2.0, 0],
+                [3, 0, 4.0]
+            ]
+
+            self.assertEqual(res.schema.names, ['id', 'name1_fid_mean', 'name2_fid_mean'])
+            self.assertEqual(result, expected)
+
+            class Agg(object):
+                def buffer(self):
+                    return [0]
+
+                def __call__(self, buffer, val):
+                    buffer[0] += val
+
+                def merge(self, buffer, pbuffer):
+                    buffer[0] += pbuffer[0]
+
+                def getvalue(self, buffer):
+                    return buffer[0]
+
+            aggfuncs = OrderedDict([('my_sum', Agg), ('mean', 'mean')])
+            expr4 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0,
+                                     aggfunc=aggfuncs)
+            res = self.engine.execute(expr4)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 6.0, 3.0, 3.0, 3.0],
+                [2, 2.0, 0, 2.0, 0],
+                [3, 0, 4.0, 0, 4.0]
+            ]
+
+            self.assertEqual(res.schema.names, ['id', 'name1_fid_my_sum', 'name2_fid_my_sum',
+                                                'name1_fid_mean', 'name2_fid_mean'])
+            self.assertEqual(result, expected)
+        finally:
+            table.drop()
 
     def testHeadAndTail(self):
         res = self.odps_df.head(2)

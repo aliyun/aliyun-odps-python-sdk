@@ -6,13 +6,17 @@ SQL
 PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 ``execute_sql`` 或者 ``run_sql`` 方法的返回值是 `运行实例 <instances-zh.html>`_ 。
 
+.. _execute_sql:
+
 执行SQL
 -------
 
 .. code-block:: python
 
    >>> odps.execute_sql('select * from dual')  #  同步的方式执行，会阻塞直到SQL执行完成
+   >>>
    >>> instance = odps.run_sql('select * from dual')  # 异步的方式执行
+   >>> print(instance.get_logview_address())  # 获取logview地址
    >>> instance.wait_for_success()  # 阻塞直到完成
 
 .. _sql_hints:

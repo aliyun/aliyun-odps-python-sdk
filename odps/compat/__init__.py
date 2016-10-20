@@ -34,6 +34,7 @@ LESS_PY26 = six.PY2 and sys.version_info[1] < 6
 LESS_PY32 = six.PY3 and sys.version_info[1] < 2
 LESS_PY33 = six.PY3 and sys.version_info[1] < 3
 LESS_PY34 = six.PY3 and sys.version_info[1] < 4
+LESS_PY35 = six.PY3 and sys.version_info[1] < 5
 PYPY = platform.python_implementation().lower() == 'pypy'
 
 SEEK_SET = 0
@@ -103,6 +104,7 @@ if six.PY3:
     dictconfig = lambda config: logging.config.dictConfig(config)
 
     import builtins
+    from concurrent import futures
 else:
     lrange = range
     lzip = zip
@@ -173,6 +175,7 @@ else:
         dictconfig = lambda config: logging.config.dictConfig(config)
 
     import __builtin__ as builtins
+    from ..lib import futures
 
 if PY26:
     try:
@@ -208,6 +211,8 @@ try:
         pd.DataFrame.sort_values = pd.DataFrame.sort
 except ImportError:
     pass
+
+from .utils import isvalidattr, dir2, raise_exc
 
 from .six.moves import reduce
 from .six.moves import reload_module

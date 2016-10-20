@@ -32,8 +32,8 @@ from ..types import string, validate_data_type
 
 
 class BaseGroupBy(Expr):
-    __slots__ = '_by', '_to_agg', '_by_names'
-    _args = '_input',
+    __slots__ = '_to_agg', '_by_names'
+    _args = '_input', '_by'
 
     def _init(self, *args, **kwargs):
         super(BaseGroupBy, self)._init(*args, **kwargs)
@@ -41,7 +41,7 @@ class BaseGroupBy(Expr):
             self._by = self._input._get_fields(self._by)
         else:
             self._by = [self._input._get_field(self._by)]
-        self._to_agg = set(col.name for col in self._input._schema.columns)
+        self._to_agg = tuple(set(col.name for col in self._input._schema.columns))
 
     def __getitem__(self, item):
         if isinstance(item, six.string_types):
@@ -198,7 +198,7 @@ class GroupBy(BaseGroupBy):
 
                     if isinstance(node, SequenceReduction):
                         to_sub = node.to_grouped_reduction(self)
-                    elif isinstance(node, Scalar):
+                    elif isinstance(node, Scalar) and node._value is None:
                         to_sub = node.to_sequence()
                     else:
                         continue
@@ -237,6 +237,8 @@ class GroupBy(BaseGroupBy):
         return self[predicate]
 
     def aggregate(self, *aggregations, **kw):
+        sort_by_name = kw.pop('sort_by_name', True)
+
         if len(aggregations) == 1 and isinstance(aggregations[0], list):
             aggregations = aggregations[0]
         else:
@@ -247,8 +249,11 @@ class GroupBy(BaseGroupBy):
                                  for new_name, agg in six.iteritems(kw)])
 
         # keep sequence to ensure that unittests works well
-        aggregations = sorted([self._transform(agg) for agg in aggregations],
-                              key=lambda it: it.name)
+        if sort_by_name:
+            aggregations = sorted([self._transform(agg) for agg in aggregations],
+                                  key=lambda it: it.name)
+        else:
+            aggregations = [self._transform(agg) for agg in aggregations]
 
         if not aggregations:
             raise ValueError('Cannot aggregate on grouped data')

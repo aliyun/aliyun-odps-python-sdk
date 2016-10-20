@@ -93,16 +93,37 @@ class Test(TestBase):
             options.display.val = 3
         self.assertRaises(OptionError, set_notexist)
 
-    @pandas_case
+    def testRedirection(self):
+        local_config = Config()
+
+        local_config.register_option('test.redirect_src', 10)
+        local_config.redirect_option('test.redirect_redir', 'test.redirect_src')
+
+        self.assertIn('test', dir(local_config))
+        self.assertIn('redirect_redir', dir(local_config.test))
+
+        local_config.test.redirect_redir = 20
+        self.assertEqual(local_config.test.redirect_src, 20)
+        local_config.test.redirect_src = 10
+        self.assertEqual(local_config.test.redirect_redir, 10)
+
+        local_config.unregister_option('test.redirect_redir')
+        local_config.unregister_option('test.redirect_src')
+        self.assertRaises(AttributeError, lambda: local_config.test.redirect_redir)
+        self.assertRaises(AttributeError, lambda: local_config.test.redirect_src)
+
     def testSetDisplayOption(self):
         options.display.max_rows = 10
         options.display.unicode.ambiguous_as_wide = True
         self.assertEqual(options.display.max_rows, 10)
         self.assertTrue(options.display.unicode.ambiguous_as_wide)
 
-        import pandas as pd
-        self.assertEqual(pd.options.display.max_rows, 10)
-        self.assertTrue(pd.options.display.unicode.ambiguous_as_wide)
+        try:
+            import pandas as pd
+            self.assertEqual(pd.options.display.max_rows, 10)
+            self.assertTrue(pd.options.display.unicode.ambiguous_as_wide)
+        except ImportError:
+            pass
 
 if __name__ == '__main__':
     unittest.main()

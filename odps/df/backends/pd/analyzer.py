@@ -25,11 +25,12 @@ from ...expr.merge import JoinCollectionExpr
 
 
 class Analyzer(Backend):
-    def __init__(self, dag, traversed=None):
+    def __init__(self, dag, traversed=None, on_sub=None):
         self._expr = dag.root
         self._dag = dag
         self._indexer = itertools.count(0)
         self._traversed = traversed or set()
+        self._on_sub = on_sub
 
     def analyze(self):
         for node in self._iter():
@@ -57,38 +58,3 @@ class Analyzer(Backend):
             node.accept(self)
         except NotImplementedError:
             return
-
-    def visit_project_collection(self, expr):
-        if not isinstance(expr, ProjectCollectionExpr) or \
-                not isinstance(expr.input, JoinCollectionExpr):
-            return
-
-        joined = expr.input
-        lhs = joined._get_child(expr.input._lhs)
-        rhs = joined._get_child(expr.input._rhs)
-
-        for field in expr._fields:
-            if field.is_ancestor(joined):
-                continue
-
-            idx = 0 if field.is_ancestor(lhs) else 1
-            child = (lhs, rhs)[idx]
-
-            for path in field.all_path(child, strict=True):
-                # TODO modification may not be applied to the paths
-                if not isinstance(path[-2], Column):
-                    continue
-
-                col = path[-2]
-
-                src_name = col.source_name
-                if src_name in joined._renamed_columns:
-                    src_name = joined._renamed_columns[src_name][idx]
-
-                new_col = joined[src_name]
-                if col.is_renamed():
-                    new_col = new_col.rename(col._name)
-
-                parent = expr if len(path) < 3 else path[-3]
-                parent.substitute(col, new_col, dag=self._dag)
-                self._iters.append(new_col)

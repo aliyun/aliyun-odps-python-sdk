@@ -123,7 +123,7 @@ class XFlows(Iterable):
         inst = XFlows.AnonymousSubmitXFlowInstance(instance=xflow_instance)
         return inst.serialize()
 
-    def execute_xflow(self, xflow_instance=None, project=None, **kw):
+    def run_xflow(self, xflow_instance=None, project=None, **kw):
         project = project or self.parent
         return project.instances.create(
             xml=self._gen_xlow_instance_xml(xflow_instance=xflow_instance, **kw))
