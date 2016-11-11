@@ -116,7 +116,7 @@ class XFlows(Iterable):
 
         instance = serializers.XMLNodeReferenceField('XFlows.XFlowInstance', 'XflowInstance')
 
-    def _gen_xlow_instance_xml(self, xflow_instance=None, **kw):
+    def _gen_xflow_instance_xml(self, xflow_instance=None, **kw):
         if xflow_instance is None:
             xflow_instance = XFlows.XFlowInstance(**kw)
 
@@ -126,7 +126,7 @@ class XFlows(Iterable):
     def run_xflow(self, xflow_instance=None, project=None, **kw):
         project = project or self.parent
         return project.instances.create(
-            xml=self._gen_xlow_instance_xml(xflow_instance=xflow_instance, **kw))
+            xml=self._gen_xflow_instance_xml(xflow_instance=xflow_instance, **kw))
 
     class XFlowResult(XMLRemoteModel):
         class XFlowAction(XMLRemoteModel):

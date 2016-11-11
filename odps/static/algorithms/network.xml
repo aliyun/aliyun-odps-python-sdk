@@ -17,11 +17,11 @@
                 <outputName>output</outputName>
             </param>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="maxEdgeCnt">
@@ -78,11 +78,11 @@
                 <inputName>input</inputName>
             </param>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="workerNum">
@@ -134,11 +134,11 @@
                 <outputName>output</outputName>
             </param>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="maxEdgeCnt">
@@ -194,11 +194,11 @@
                 <outputName>output</outputName>
             </param>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="workerNum">
@@ -253,17 +253,17 @@
         <fieldChangable>true</fieldChangable>
         <params>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表的起点所在列</docs>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表的终点所在列</docs>
             </param>
             <param name="edgeWeightCol">
-                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <exporter>$package_root.network._customize.get_edge_weight_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表边的权重所在列</docs>
             </param>
@@ -295,7 +295,7 @@
                 <outputName>output</outputName>
             </param>
             <param name="hasEdgeWeight">
-                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <exporter>$package_root.network._customize.graph_has_edge_weight</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表的边是否有权重</docs>
             </param>
@@ -338,17 +338,17 @@
         <fieldChangable>true</fieldChangable>
         <params>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表的起点所在列</docs>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表的终点所在列</docs>
             </param>
             <param name="edgeWeightCol">
-                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <exporter>$package_root.network._customize.get_edge_weight_column</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表边的权重所在列</docs>
             </param>
@@ -364,12 +364,12 @@
                 <docs>数据切分大小</docs>
             </param>
             <param name="vertexCol" required="true">
-                <exporter>$package_root.network.customize.get_vertex_id_column</exporter>
+                <exporter>$package_root.network._customize.get_vertex_id_column</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点所在列</docs>
             </param>
             <param name="vertexWeightCol">
-                <exporter>$package_root.network.customize.get_vertex_weight_column</exporter>
+                <exporter>$package_root.network._customize.get_vertex_weight_column</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点的权重所在列</docs>
             </param>
@@ -398,12 +398,12 @@
                 <outputName>output</outputName>
             </param>
             <param name="hasEdgeWeight">
-                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <exporter>$package_root.network._customize.graph_has_edge_weight</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表的边是否有权重</docs>
             </param>
             <param name="hasVertexWeight">
-                <exporter>$package_root.network.customize.graph_has_vertex_weight</exporter>
+                <exporter>$package_root.network._customize.graph_has_vertex_weight</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点是否有权重</docs>
             </param>
@@ -468,12 +468,12 @@
                 <docs>数据切分大小</docs>
             </param>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>input</inputName>
                 <docs>边表中起点所在列</docs>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
                 <docs>边表中终点所在列</docs>
             </param>
@@ -525,17 +525,17 @@
         <fieldChangable>true</fieldChangable>
         <params>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表的起点所在列</docs>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表的终点所在列</docs>
             </param>
             <param name="edgeWeightCol">
-                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <exporter>$package_root.network._customize.get_edge_weight_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表边的权重所在列</docs>
             </param>
@@ -567,7 +567,7 @@
                 <outputName>output</outputName>
             </param>
             <param name="hasEdgeWeight">
-                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <exporter>$package_root.network._customize.graph_has_edge_weight</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表的边是否有权重</docs>
             </param>
@@ -609,27 +609,27 @@
         <fieldChangable>false</fieldChangable>
         <params>
             <param name="vertexCol">
-                <exporter>$package_root.network.customize.get_vertex_id_column</exporter>
+                <exporter>$package_root.network._customize.get_vertex_id_column</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点所在列</docs>
             </param>
             <param name="vertexWeightCol">
-                <exporter>$package_root.network.customize.get_vertex_weight_column</exporter>
+                <exporter>$package_root.network._customize.get_vertex_weight_column</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点的权重所在列</docs>
             </param>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表的起点所在列</docs>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表的终点所在列</docs>
             </param>
             <param name="edgeWeightCol">
-                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <exporter>$package_root.network._customize.get_edge_weight_column</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表边的权重所在列</docs>
             </param>
@@ -675,12 +675,12 @@
                 <outputName>output</outputName>
             </param>
             <param name="hasVertexWeight">
-                <exporter>$package_root.network.customize.graph_has_vertex_weight</exporter>
+                <exporter>$package_root.network._customize.graph_has_vertex_weight</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点是否有权重</docs>
             </param>
             <param name="hasEdgeWeight">
-                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <exporter>$package_root.network._customize.graph_has_edge_weight</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表的边是否有权重</docs>
             </param>
@@ -722,27 +722,27 @@
         <fieldChangable>true</fieldChangable>
         <params>
             <param name="vertexCol" required="true">
-                <exporter>$package_root.network.customize.get_vertex_id_column</exporter>
+                <exporter>$package_root.network._customize.get_vertex_id_column</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点所在列</docs>
             </param>
             <param name="vertexWeightCol">
-                <exporter>$package_root.network.customize.get_vertex_weight_column</exporter>
+                <exporter>$package_root.network._customize.get_vertex_weight_column</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点的权重所在列</docs>
             </param>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表的起点所在列</docs>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表的终点所在列</docs>
             </param>
             <param name="edgeWeightCol">
-                <exporter>$package_root.network.customize.get_edge_weight_column</exporter>
+                <exporter>$package_root.network._customize.get_edge_weight_column</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表边的权重所在列</docs>
             </param>
@@ -782,17 +782,17 @@
                 <outputName>output</outputName>
             </param>
             <param name="hasEdgeWeight">
-                <exporter>$package_root.network.customize.graph_has_edge_weight</exporter>
+                <exporter>$package_root.network._customize.graph_has_edge_weight</exporter>
                 <inputName>edge</inputName>
                 <docs>输入边表的边是否有权重</docs>
             </param>
             <param name="hasVertexWeight">
-                <exporter>$package_root.network.customize.graph_has_vertex_weight</exporter>
+                <exporter>$package_root.network._customize.graph_has_vertex_weight</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点是否有权重</docs>
             </param>
             <param name="vertexLabelCol" required="true">
-                <exporter>$package_root.network.customize.get_vertex_label_column</exporter>
+                <exporter>$package_root.network._customize.get_vertex_label_column</exporter>
                 <inputName>vertex</inputName>
                 <docs>输入点表的点的标签</docs>
             </param>
@@ -841,12 +841,12 @@
     </algorithm>
     <algorithm codeName="Modularity">
         <docs><![CDATA[
-Modularity是一种评估社区网络结构的指标，来评估网络结构中划分出来社区的紧密程度，往往0.3以上是比较明显的社区结构。
+        Modularity是一种评估社区网络结构的指标，来评估网络结构中划分出来社区的紧密程度，往往0.3以上是比较明显的社区结构。
 
-%params%
+        %params%
 
-:Returns: modularity value
-]]></docs>
+        :Returns: modularity value
+        ]]></docs>
         <baseClass>BaseMetricsAlgorithm</baseClass>
         <exportFunction>true</exportFunction>
         <params>
@@ -863,17 +863,17 @@ Modularity是一种评估社区网络结构的指标，来评估网络结构中�
                 <outputName>output</outputName>
             </param>
             <param name="fromGroupCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_label_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表起点的群组</docs>
             </param>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表的起点所在列</docs>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表的终点所在列</docs>
             </param>
@@ -893,7 +893,7 @@ Modularity是一种评估社区网络结构的指标，来评估网络结构中�
                 <docs>数据切分大小</docs>
             </param>
             <param name="toGroupCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_label_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_label_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入边表终点的群组</docs>
             </param>
@@ -914,7 +914,7 @@ Modularity是一种评估社区网络结构的指标，来评估网络结构中�
         <metas>
             <meta name="xflowName" value="Modularity"/>
             <meta name="xflowProjectName" value="algo_public"/>
-            <meta name="calculator" value="$package_root.network.customize.get_modularity_result"/>
+            <meta name="calculator" value="$package_root.network._customize.get_modularity_result"/>
         </metas>
     </algorithm>
     <algorithm codeName="TreeDepth">
@@ -934,11 +934,11 @@ Modularity是一种评估社区网络结构的指标，来评估网络结构中�
                 <inputName>input</inputName>
             </param>
             <param name="fromVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_from_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_from_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="toVertexCol" required="true">
-                <exporter>$package_root.network.customize.get_to_vertex_column</exporter>
+                <exporter>$package_root.network._customize.get_to_vertex_column</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="outputTableName" required="true">

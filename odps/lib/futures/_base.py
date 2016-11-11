@@ -7,6 +7,8 @@ import threading
 import itertools
 import time
 
+from ..lib_utils import raise_exc
+
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 FIRST_COMPLETED = 'FIRST_COMPLETED'
@@ -354,7 +356,7 @@ class Future(object):
 
     def __get_result(self):
         if self._exception:
-            raise type(self._exception), self._exception, self._traceback
+            raise_exc(type(self._exception), self._exception, self._traceback)
         else:
             return self._result
 

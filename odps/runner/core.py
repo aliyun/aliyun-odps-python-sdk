@@ -27,7 +27,7 @@ from weakref import WeakValueDictionary, ref
 from ..dag import DAG
 from ..utils import gen_repr_object, underline_to_capitalized
 from ..errors import NoSuchObject
-from ..compat import StringIO, six
+from ..compat import StringIO, OrderedDict, six
 from .enums import EngineType, PortType
 from .utils import JSONSerialClassEncoder
 from .user_tb import get_user_stack
@@ -44,12 +44,12 @@ class BaseRunnerNode(object):
     """
 
     def __init__(self, code_name, engine=EngineType.XFLOW):
-        self.parameters = dict()
+        self.parameters = OrderedDict()
         self.metas = dict()
-        self.inputs = dict()
-        self.outputs = dict()
-        self.input_edges = dict()
-        self.output_edges = dict()
+        self.inputs = OrderedDict()
+        self.outputs = OrderedDict()
+        self.input_edges = OrderedDict()
+        self.output_edges = OrderedDict()
         self.node_id = -1
         self.code_name = code_name
         self.virtual = False
@@ -121,19 +121,20 @@ class BaseRunnerNode(object):
     def add_exporter(self, param, exporter):
         self.exporters[param] = exporter
 
-    def gen_command_params(self):
-        params = dict((k, self._format_parameter_value(v)) for k, v in six.iteritems(self.parameters)
-                      if k in self.exported and v is not None)
+    def convert_params(self):
+        params = dict((k, v) for k, v in six.iteritems(self.parameters) if k in self.exported)
 
         for name, exporter in six.iteritems(self.exporters):
             try:
-                val = self._format_parameter_value(exporter())
+                params[name] = exporter()
             except Exception as ex:
                 raise ValueError('Failed to convert param %s: %s.' % (name, str(ex)))
-            if val is not None:
-                params[name] = val
-            elif name in params:
-                del params[name]
+
+        for k, v in list(six.iteritems(params)):
+            if v is None:
+                params.pop(k)
+            if isinstance(v, (list, tuple, set)) and len(v) == 0:
+                params.pop(k)
         return params
 
     def calc_node_hash(self, odps):
@@ -172,22 +173,6 @@ class BaseRunnerNode(object):
 
     def optimize(self):
         return False, None
-
-    @staticmethod
-    def _format_parameter_value(value):
-        if value is None:
-            return None
-        elif isinstance(value, bool):
-            if value:
-                return 'true'
-            else:
-                return 'false'
-        elif isinstance(value, (list, set)):
-            if not value:
-                return None
-            return ','.join([BaseRunnerNode._format_parameter_value(v) for v in value])
-        else:
-            return str(value)
 
     def _get_text(self, sel_ports=None):
         name_template = '{0}_{1}'

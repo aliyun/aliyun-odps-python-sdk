@@ -24,8 +24,7 @@ import uuid  # don't remove
 from contextlib import contextmanager
 import warnings
 
-from ....errors import ODPSError
-
+from ....errors import ODPSError, NoPermission
 from ....utils import init_progress_ui, write_log as log
 from ....models import Partition, Resource
 from ....tempobj import register_temp_table
@@ -85,10 +84,10 @@ class ODPSEngine(Engine):
             return
         return list(set(libraries))
 
-    def _run(self, sql, ui, start_progress=0, max_progress=1, async=False, hints=None,
-             group=None, libraries=None):
+    def _run(self, sql, ui, start_progress=0, max_progress=1, async=False,
+             hints=None, priority=None, group=None, libraries=None):
         self._ctx.create_udfs(libraries=self._get_libraries(libraries))
-        instance = self._odps.run_sql(sql, hints=hints)
+        instance = self._odps.run_sql(sql, hints=hints, priority=priority)
 
         log('Instance ID: ' + instance.id)
         log('  Log view: ' + instance.get_logview_address())
@@ -287,13 +286,13 @@ class ODPSEngine(Engine):
 
         table = next(expr.data_source())
         partition, filter_all_partitions = None, True
-        if table.schema._partitions:
+        if table.schema.partitions:
             if partitions is not None:
                 partition = self._partition_prefix(
-                    [p.name for p in table.schema._partitions], partitions)
+                    [p.name for p in table.schema.partitions], partitions)
                 if partition is None:
                     return
-                if len(table.schema._partitions) != len(partitions):
+                if len(table.schema.partitions) != len(partitions):
                     filter_all_partitions = False
             else:
                 filter_all_partitions = False
@@ -371,6 +370,8 @@ class ODPSEngine(Engine):
 
                 ui.update(start_progress + max_progress)
                 return ResultFrame(data, schema=expr._schema)
+            except NoPermission:
+                raise
             except ODPSError:
                 return
 
@@ -383,12 +384,14 @@ class ODPSEngine(Engine):
                     record[k] = types.odps_types.validate_value(v, table.schema.get_type(k))
 
     def execute(self, expr, ui=None, async=False, start_progress=0,
-                max_progress=1, lifecycle=None, head=None, tail=None, hints=None, **kw):
+                max_progress=1, lifecycle=None, head=None, tail=None,
+                hints=None, priority=None, **kw):
         close_ui = ui is None
         ui = ui or init_progress_ui()
         lifecycle = lifecycle or options.temp_lifecycle
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
+        use_tunnel = kw.get('use_tunnel', True)
 
         if isinstance(expr, Scalar) and expr.value is not None:
             ui.update(start_progress+max_progress)
@@ -397,22 +400,31 @@ class ODPSEngine(Engine):
         src_expr = kw.get('src_expr', expr)
         expr = self._pre_process(expr, src_expr, dag=kw.get('dag'))
 
-        try:
-            result = self._handle_cases(expr, ui, head=head, tail=tail)
-        except KeyboardInterrupt:
-            ui.status('Halt by interruption')
-            sys.exit(1)
-        if result is not None:
+        no_permission = False
+        if options.df.optimizes.tunnel:
             try:
-                return result
-            finally:
-                if close_ui:
-                    ui.close()
+                result = self._handle_cases(expr, ui, head=head, tail=tail)
+            except KeyboardInterrupt:
+                ui.status('Halt by interruption')
+                sys.exit(1)
+            except NoPermission:
+                result = None
+                no_permission = True
+                if head:
+                    expr = expr[:head]
+                warnings.warn('Fail to download data by tunnel, 10000 records will be limited')
+            if result is not None:
+                try:
+                    return result
+                finally:
+                    if close_ui:
+                        ui.close()
 
         sql = self._compile(expr, libraries=libraries)
 
         cache_data = None
-        if isinstance(expr, CollectionExpr):
+        if not no_permission and isinstance(expr, CollectionExpr):
+            # When tunnel cannot handle, we will try to create a table
             tmp_table_name = '%s%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))
             register_temp_table(self._odps, tmp_table_name)
             cache_data = self._odps.get_table(tmp_table_name)
@@ -424,10 +436,10 @@ class ODPSEngine(Engine):
         log(sql)
 
         instance = self._run(sql, ui, start_progress=start_progress,
-                             max_progress=0.9*max_progress, async=async, hints=hints,
+                             max_progress=0.9*max_progress, async=async,
+                             hints=hints, priority=priority,
                              group=group, libraries=libraries)
 
-        use_tunnel = kw.get('use_tunnel', True)
         if async:
             engine = self
 
@@ -458,7 +470,8 @@ class ODPSEngine(Engine):
             self._ctx.close()  # clear udfs and resources generated
             return self._fetch(expr, src_expr, instance, ui, close_ui=close_ui,
                                cache_data=cache_data, head=head, tail=tail,
-                               use_tunnel=use_tunnel, group=group, finish_progress=max_progress,
+                               use_tunnel=use_tunnel, group=group,
+                               finish_progress=start_progress+max_progress,
                                finish=kw.get('finish', True))
 
     def _fetch(self, expr, src_expr, instance, ui, finish_progress=1,
@@ -583,7 +596,7 @@ class ODPSEngine(Engine):
         return backend.compile(expr)
 
     def persist(self, expr, name, partitions=None, partition=None, project=None, ui=None,
-                start_progress=0, max_progress=1, lifecycle=None, hints=None,
+                start_progress=0, max_progress=1, lifecycle=None, hints=None, priority=None,
                 create_table=True, drop_partition=False, create_partition=False, **kw):
         close_ui = ui is None
         ui = ui or init_progress_ui()
@@ -657,7 +670,7 @@ class ODPSEngine(Engine):
 
         try:
             self._run(sql, ui, start_progress=start_progress, max_progress=max_progress,
-                      hints=hints, group=group, libraries=libraries)
+                      hints=hints, priority=priority, group=group, libraries=libraries)
             t = self._odps.get_table(name, project=project)
             if should_cache:
                 src_expr._cache_data = t

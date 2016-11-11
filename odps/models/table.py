@@ -228,11 +228,11 @@ class Table(LazyLoad):
         buf.write(utils.indent('\n'.join(cols_strs), 4))
         buf.write('\n')
 
-        if self.schema._partitions:
+        if self.schema.partitions:
             buf.write('  partitions:\n')
 
             partition_strs = []
-            for partition in self.schema._partitions:
+            for partition in self.schema.partitions:
                 partition_strs.append('{0}: {1}{2}'.format(
                     partition.name.ljust(name_space),
                     repr(partition.type).ljust(type_space),

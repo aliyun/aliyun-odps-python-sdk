@@ -15,16 +15,33 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import zipfile
+
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
 from odps import compat
-from odps.models import Resource, FileResource, TableResource, Schema
+from odps.models import Resource, FileResource, TableResource, VolumeArchiveResource, \
+    VolumeFileResource, Schema
 from odps import errors, types
 
-FILE_CONTENT = '''This is a pyodps test file!
-Enjoy it'''
-OVERWRITE_FILE_CONTENT = '''This is an overwritten pyodps test file!
-Enjoy it'''
+FILE_CONTENT = to_str("""
+Proudly swept the rain by the cliffs
+As it glided through the trees
+Still following ever the bud
+The ahihi lehua of the vale
+""")
+OVERWRITE_FILE_CONTENT = to_str("""
+Farewell to thee, farewell to thee
+The charming one who dwells in the shaded bowers
+One fond embrace,
+'Ere I depart
+Until we meet again
+Sweet memories come back to me
+Bringing fresh remembrances
+Of the past
+Dearest one, yes, you are mine own
+From you, true love shall never depart
+""")
 
 
 class Test(TestBase):
@@ -66,14 +83,12 @@ class Test(TestBase):
         self.assertEqual(res.get_source_table().name, test_table_name)
         self.assertIsNone(res.get_source_table_partition())
 
-        test_table_name = tn('pyodps_t_tmp_resource_table')
         test_table_partition = 'pt=test,sec=1'
         schema = Schema.from_lists(['id', 'name'], ['string', 'string'], ['pt', 'sec'], ['string', 'bigint'])
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(test_table_name, schema)
         table.create_partition(test_table_partition)
 
-        resource_name = tn('pyodps_t_tmp_table_resource')
         res = res.update(partition=test_table_partition)
         self.assertIsInstance(res, TableResource)
         self.assertEqual(res.get_source_table().name, test_table_name)
@@ -125,7 +140,7 @@ class Test(TestBase):
             fp.seek(0)
             add_newline = lambda s: s if s.endswith('\n') else s+'\n'
             self.assertEqual([to_str(add_newline(l)) for l in fp],
-                             [to_str(add_newline(l)) for l in FILE_CONTENT.split('\n')])
+                             [to_str(add_newline(l)) for l in FILE_CONTENT.splitlines()])
 
             self.assertFalse(fp._need_commit)
             self.assertTrue(fp._opened)
@@ -171,7 +186,7 @@ class Test(TestBase):
             self.assertTrue(fp._need_commit)
 
         fp = resource.open(mode='r')
-        self.assertEqual(to_str(fp.read()), to_str('T'))
+        self.assertEqual(to_str(fp.read()), FILE_CONTENT[0])
         fp.close()
 
         with resource.open(mode='w+') as fp:
@@ -187,6 +202,64 @@ class Test(TestBase):
             fp.seek(0)
             self.assertEqual(to_str(fp.read()), to_str('update'))
 
+        self.odps.delete_resource(resource_name)
+
+    def testVolumeArchiveResource(self):
+        volume_name = tn('pyodps_t_tmp_resource_archive_volume')
+        resource_name = tn('pyodps_t_tmp_volume_archive_resource') + '.zip'
+        partition_name = 'test_partition'
+        file_name = 'test_file.zip'
+        try:
+            self.odps.delete_volume(volume_name)
+        except errors.ODPSError:
+            pass
+        try:
+            self.odps.delete_resource(resource_name)
+        except errors.ODPSError:
+            pass
+
+        file_io = six.BytesIO()
+        zfile = zipfile.ZipFile(file_io, 'a', zipfile.ZIP_DEFLATED, False)
+        zfile.writestr('file1.txt', FILE_CONTENT)
+        zfile.writestr('file2.txt', OVERWRITE_FILE_CONTENT)
+        zfile.close()
+
+        self.odps.create_parted_volume(volume_name)
+        with self.odps.open_volume_writer(volume_name, partition_name) as writer:
+            writer.write(file_name, file_io.getvalue())
+
+        volume_file = self.odps.get_volume_partition(volume_name, partition_name).files[file_name]
+        self.odps.create_resource(resource_name, 'volumearchive', volume_file=volume_file)
+        res = self.odps.get_resource(resource_name)
+        self.assertIsInstance(res, VolumeArchiveResource)
+        self.assertEqual(res.type, Resource.Type.VOLUMEARCHIVE)
+        self.assertEqual(res.volume_path, volume_file.path)
+        self.odps.delete_resource(resource_name)
+
+    def testVolumeFileResource(self):
+        volume_name = tn('pyodps_t_tmp_resource_file_volume')
+        resource_name = tn('pyodps_t_tmp_volume_file_resource')
+        partition_name = 'test_partition'
+        file_name = 'test_file.txt'
+        try:
+            self.odps.delete_volume(volume_name)
+        except errors.ODPSError:
+            pass
+        try:
+            self.odps.delete_resource(resource_name)
+        except errors.ODPSError:
+            pass
+
+        self.odps.create_parted_volume(volume_name)
+        with self.odps.open_volume_writer(volume_name, partition_name) as writer:
+            writer.write(file_name, FILE_CONTENT)
+
+        volume_file = self.odps.get_volume_partition(volume_name, partition_name).files[file_name]
+        self.odps.create_resource(resource_name, 'volumefile', volume_file=volume_file)
+        res = self.odps.get_resource(resource_name)
+        self.assertIsInstance(res, VolumeFileResource)
+        self.assertEqual(res.type, Resource.Type.VOLUMEFILE)
+        self.assertEqual(res.volume_path, volume_file.path)
         self.odps.delete_resource(resource_name)
 
 

@@ -36,6 +36,7 @@ expected_xml_template = '''<?xml version="1.0" ?>
   <Teacher>
     <Name>t1</Name>
   </Teacher>
+  <Student name="s1">s1_content</Student>
   <Professors>
     <Professor>
       <Name>p1</Name>
@@ -71,7 +72,7 @@ LIST_OBJ_LAST_TMPL = '''<?xml version="1.0" ?>
 
 
 class Example(XMLSerializableModel):
-    __slots__ = 'name', 'type', 'date', 'lessons', 'teacher', \
+    __slots__ = 'name', 'type', 'date', 'lessons', 'teacher', 'student',\
                 'professors', 'properties', 'jsn', 'bool_false', 'bool_true'
 
     _root = 'Example'
@@ -84,6 +85,15 @@ class Example(XMLSerializableModel):
         def __eq__(self, other):
             return isinstance(other, Example.Teacher) and \
                    self.name == other.name
+
+    class Student(XMLSerializableModel):
+        name = XMLNodeAttributeField(attr='name')
+        content = XMLNodeField('.')
+
+        def __eq__(self, other):
+            return isinstance(other, Example.Student) and \
+                   self.name == other.name and \
+                   self.content == other.content
 
     class Json(JSONSerializableModel):
 
@@ -108,6 +118,7 @@ class Example(XMLSerializableModel):
     bool_false = XMLNodeField('Disabled', type='bool')
     lessons = XMLNodesField('Lessons', 'Lesson')
     teacher = XMLNodeReferenceField(Teacher, 'Teacher')
+    student = XMLNodeReferenceField(Student, 'Student')
     professors = XMLNodesReferencesField(Teacher, 'Professors', 'Professor')
     properties = XMLNodePropertiesField('Config', 'Property', key_tag='Name', value_tag='Value')
     jsn = XMLNodeReferenceField(Json, 'json')
@@ -117,6 +128,7 @@ class Test(TestBase):
 
     def testSerializers(self):
         teacher = Example.Teacher(name='t1')
+        student = Example.Student(name='s1', content='s1_content')
         professors = [Example.Teacher(name='p1'), Example.Teacher(name='p2')]
         jsn = Example.Json(label='json', tags=['t1', 't2'],
                            nest=Example.Json.Nest(name='n'),
@@ -124,8 +136,8 @@ class Test(TestBase):
 
         dt = datetime.fromtimestamp(time.mktime(datetime.now().timetuple()))
         example = Example(name='example 1', type='ex', date=dt, bool_true=True, bool_false=False,
-                          lessons=['less1', 'less2'], teacher=teacher, professors=professors,
-                          properties={'test': 'true'}, jsn=jsn)
+                          lessons=['less1', 'less2'], teacher=teacher, student=student,
+                          professors=professors, properties={'test': 'true'}, jsn=jsn)
         sel = example.serialize()
 
         self.assertEqual(
@@ -140,6 +152,7 @@ class Test(TestBase):
         self.assertEqual(example.bool_false, parsed_example.bool_false)
         self.assertSequenceEqual(example.lessons, parsed_example.lessons)
         self.assertEqual(example.teacher, parsed_example.teacher)
+        self.assertEqual(example.student, parsed_example.student)
         self.assertSequenceEqual(example.professors, parsed_example.professors)
         self.assertTrue(len(example.properties) == len(parsed_example.properties) and
                         any(example.properties[it] == parsed_example.properties[it])

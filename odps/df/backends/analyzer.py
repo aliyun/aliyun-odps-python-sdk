@@ -110,7 +110,7 @@ class Analyzer(Backend):
     Analyze each node, and do two things:
 
     1) decide the backend for the specified expr
-    2) use the backend's analyze to analyze the expr
+    2) use the backend's analyzer to analyze the expr
     """
 
     def __init__(self, selecter, dag, traversed=None, on_sub=None):

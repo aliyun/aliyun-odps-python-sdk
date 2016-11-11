@@ -17,12 +17,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .expressions import SequenceExpr, Scalar
 from .groupby import *
 from .reduction import _stats_type
 from . import utils, errors
 from .. import types
-from ...utils import camel_to_underline
+from ...utils import camel_to_underline, object_getattr
 
 
 class Window(SequenceExpr):
@@ -263,7 +262,7 @@ def _cumulative_op(expr, op_cls, sort=None, ascending=True, unique=False,
         data_type = data_type or expr._data_type
 
         return op_cls(_input=column, _partition_by=expr._input._by,
-                      _order_by=getattr(expr._input, '_sorted_fields', None),
+                      _order_by=object_getattr(expr._input, '_sorted_fields', None),
                       _preceding=preceding, _following=following,
                       _data_type=data_type, _distinct=unique)
 
@@ -328,7 +327,7 @@ def cumstd(expr, sort=None, ascending=True, unique=False,
 def _rank_op(expr, op_cls, data_type, sort=None, ascending=True):
     if isinstance(expr, SequenceGroupBy):
         grouped = expr._input
-        sort = sort or getattr(grouped, '_sorted_fields', None) or expr.name
+        sort = sort or object_getattr(grouped, '_sorted_fields', None) or expr.name
     elif not isinstance(expr, BaseGroupBy):
         raise NotImplementedError
     else:
@@ -342,7 +341,7 @@ def _rank_op(expr, op_cls, data_type, sort=None, ascending=True):
         raise ExpressionError('`sort` arg is required for the rank operation')
 
     return op_cls(_input=grouped._input, _partition_by=grouped._by,
-                  _order_by=getattr(grouped, '_sorted_fields', None),
+                  _order_by=object_getattr(grouped, '_sorted_fields', None),
                   _data_type=data_type)
 
 
@@ -373,7 +372,7 @@ def _shift_op(expr, op_cls, offset, default=None, sort=None, ascending=True):
         column = collection[expr._name]
 
         return op_cls(_input=column, _partition_by=expr._input._by,
-                      _order_by=getattr(expr._input, '_sorted_fields', None),
+                      _order_by=object_getattr(expr._input, '_sorted_fields', None),
                       _offset=offset, _default=default,
                       _name=expr._name, _data_type=expr._data_type)
 

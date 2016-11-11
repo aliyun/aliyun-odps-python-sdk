@@ -331,7 +331,8 @@ def _reduction(expr, output_cls, output_type=None, **kw):
     elif isinstance(expr, GroupBy):
         aggs = []
 
-        for name in expr._to_agg:
+        # TODO: dynamic may need rebuilt
+        for name in expr._to_agg.names:
             agg = expr[name]
             if hasattr(agg, method_name):
                 aggs.append(getattr(agg, method_name)(**kw))
@@ -344,8 +345,7 @@ def _reduction(expr, output_cls, output_type=None, **kw):
     if isinstance(expr, SequenceExpr):
         return output_cls(_value_type=output_type, _input=expr, **kw)
     elif isinstance(expr, SequenceGroupBy):
-        collection = expr.input.input
-        return grouped_output_cls(_data_type=output_type, _input=collection[expr.name],
+        return grouped_output_cls(_data_type=output_type, _input=expr.to_column(),
                                   _grouped=expr.input, **kw)
 
 
@@ -382,8 +382,7 @@ def count(expr):
     if isinstance(expr, SequenceExpr):
         return Count(_value_type=types.int64, _input=expr)
     elif isinstance(expr, SequenceGroupBy):
-        collection = expr.input.input
-        return GroupedCount(_data_type=types.int64, _input=collection[expr.name])
+        return GroupedCount(_data_type=types.int64, _input=expr.to_column())
     elif isinstance(expr, CollectionExpr):
         return Count(_value_type=types.int64, _input=expr).rename('count')
     elif isinstance(expr, GroupBy):
@@ -557,15 +556,13 @@ def aggregate(exprs, aggregator, rtype=None, resources=None, args=(), **kwargs):
 
     collection_resources = utils.get_collection_resources(resources)
     if all(isinstance(expr, SequenceGroupBy) for expr in exprs):
-        collection = exprs[0].input.input
-        inputs = [collection[expr.name] for expr in exprs]
+        inputs = [expr.to_column() for expr in exprs]
         return GroupedAggregation(_inputs=inputs, _aggregator=aggregator,
                                   _data_type=output_type, _name=name,
                                   _func_args=args, _func_kwargs=kwargs, _resources=resources,
                                   _collection_resources=collection_resources,
                                   _grouped=exprs[0].input)
     else:
-        assert not any(isinstance(expr, SequenceGroupBy) for expr in exprs)
         return Aggregation(_inputs=exprs, _aggregator=aggregator,
                            _value_type=output_type, _name=name,
                            _func_args=args, _func_kwargs=kwargs, _resources=resources,

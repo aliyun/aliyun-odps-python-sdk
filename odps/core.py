@@ -86,11 +86,11 @@ class ODPS(object):
         self.project = project
         self.rest = RestClient(self.account, self.endpoint, project)
 
-        self._projects = models.Projects(client=self.rest)
-        self._project = self.get_project()
-
         self._tunnel_endpoint = kw.pop('tunnel_endpoint', None)
         options.tunnel_endpoint = self._tunnel_endpoint
+
+        self._projects = models.Projects(client=self.rest)
+        self._project = self.get_project()
 
         self._predict_endpoint = kw.pop('predict_endpoint', None)
         options.predict_endpoint = self._predict_endpoint
@@ -115,7 +115,7 @@ class ODPS(object):
         """
 
         if name is None:
-            return self._projects[self.project]
+            name = self.project
         elif isinstance(name, models.Project):
             return name
         proj = self._projects[name]
@@ -186,8 +186,7 @@ class ODPS(object):
         Create an table by given schema and other optional parameters.
 
         :param name: table name
-        :param schema: table schema
-        :type schema: :class:`odps.models.Schema`
+        :param schema: table schema. Can be an instance of :class:`odps.models.Schema` or a string like 'col1 string, col2 bigint'
         :param project: project name, if not provided, will be the default project
         :param comment:  table comment
         :param if_not_exists:  will not create if this table already exists, default False
@@ -683,6 +682,10 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Instance`
         """
 
+        priority = priority or options.priority
+        if priority is None and options.get_priority is not None:
+            priority = options.get_priority(self)
+
         def update(kv, dest):
             if not kv:
                 return
@@ -924,7 +927,7 @@ class ODPS(object):
 
     def get_volume_file(self, volume, path=None, project=None):
         """
-        Get a file / directory object under a file system volume.
+        Get a file under a partition of a parted volume, or a file / directory object under a file system volume.
 
         :param str volume: name of the volume.
         :param str path: path of the directory to be created.
@@ -940,7 +943,10 @@ class ODPS(object):
                 volume, path = volume.split('/', 1)
         volume = self.get_volume(volume, project)
         if isinstance(volume, PartedVolume):
-            raise ValueError('Only supported under file system volumes.')
+            if '/' not in path:
+                raise ValueError('Partition/File format malformed.')
+            part, file_name = path.split('/', 1)
+            return volume.get_partition(part).files[file_name]
         else:
             return volume[path]
 

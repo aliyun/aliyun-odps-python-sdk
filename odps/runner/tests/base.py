@@ -24,9 +24,10 @@ from collections import Iterable
 
 from odps.config import options
 from odps.compat import six
-from odps.df.core import CollectionExpr
+from odps.df.core import CollectionExpr, DataFrame
 from odps.runner import BaseRunnerNode, RunnerContext, node_engine, BaseNodeEngine, EngineType, PortType, \
     adapter_from_df, DFAdapter
+from odps.df.backends.odpssql.types import df_schema_to_odps_schema
 from odps.tests.core import TestBase, tn
 from odps.examples.tables import TestDataMixIn
 
@@ -60,6 +61,13 @@ class MockNodeEngine(BaseNodeEngine):
             self._node.action(self._node)
         else:
             print(msg)
+
+    def after_exec(self):
+        from odps.runner import RunnerContext
+        context = RunnerContext.instance()
+        self._node.after_exec(self._odps, True)
+        context._node_outputs[self._node_hash] = dict((pn, self.get_output_object(p))
+                                                      for pn, p in six.iteritems(self._node.outputs))
 
 
 class RunnerTestBase(TestDataMixIn, TestBase):
@@ -106,7 +114,8 @@ class RunnerTestBase(TestDataMixIn, TestBase):
         outputs = []
         for idx, out_type in enumerate(output_types):
             if out_type == PortType.DATA or PmmlModel is None:
-                new_df = six.next(s for s in sources if isinstance(s, CollectionExpr)).copy()
+                schema = df_schema_to_odps_schema(six.next(s for s in sources if isinstance(s, CollectionExpr)).schema)
+                new_df = DataFrame(DFAdapter._build_mock_table('mock_table', schema, self.odps))
                 DFAdapter(odps, merge_node.outputs['output%d' % (1 + idx)], new_df, uplink=uplinks)
                 outputs.append(new_df)
             else:

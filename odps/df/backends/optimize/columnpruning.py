@@ -83,18 +83,21 @@ class ColumnPruning(Backend):
             return False, set()
 
         if len(set(expr.schema.names) - columns) > 0:
-            return True, columns
+            return True, sorted(columns)
 
-        return False, columns
+        return False, sorted(columns)
 
     def _need_project_on_source(self, expr):
         def no_project(node):
             if is_project_expr(node):
                 # has been projected out, just skip
                 return True
+            parents = self._dag.successors(node)
+            if len(parents) == 1 and isinstance(parents[0], Column):
+                return True
             if isinstance(node, (FilterCollectionExpr, SortedCollectionExpr,
                                  SliceCollectionExpr)) or node is expr:
-                collection_parents = [n for n in self._dag.successors(node)
+                collection_parents = [n for n in parents
                                       if isinstance(n, CollectionExpr)]
                 if len(collection_parents) == 1 and no_project(collection_parents[0]):
                     return True

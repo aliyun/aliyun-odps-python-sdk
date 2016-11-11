@@ -19,9 +19,11 @@
 
 import inspect
 from .expressions import CollectionExpr, ProjectCollectionExpr, \
-    Column, BooleanSequenceExpr, SequenceExpr, repr_obj
+    Column, BooleanSequenceExpr, SequenceExpr, Expr, repr_obj
+from .core import ExprDictionary
 from .arithmetic import Equal
 from .errors import ExpressionError
+from ..utils import is_source_collection
 from ...compat import six
 from ...models import Schema
 
@@ -344,6 +346,37 @@ _join_dict = {
 }
 
 
+def _make_different_sources(left, right, predicate=None):
+    src_collections = ExprDictionary()
+    exprs = ExprDictionary()
+
+    for n in left.traverse(unique=True):
+        if is_source_collection(n):
+            src_collections[n] = True
+        exprs[n] = True
+
+    subs = ExprDictionary()
+
+    for src_collection in src_collections.keys():
+        for path in right.all_path(src_collection, strict=True):
+            for i, node in enumerate(path):
+                if node in exprs:
+                    copied = subs.get(node, node.copy())
+                    if i > 0:
+                        prev = path[i - 1]
+                        subs.get(prev, prev).substitute(node, copied)
+                    subs[node] = copied
+
+                    if predicate and node is right:
+                        for p in predicate:
+                            if not isinstance(p, Expr):
+                                continue
+                            for pred_path in p.all_path(right, strict=True):
+                                pred_path[-2].substitute(right, copied)
+
+    return left, subs.get(right, right)
+
+
 def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False):
     """
     Join two collections.
@@ -387,6 +420,8 @@ def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False
         it = on[i]
         if inspect.isfunction(it):
             on[i] = it(left, right)
+
+    left, right = _make_different_sources(left, right, on)
 
     try:
         return _join_dict[how.upper()](_lhs=left, _rhs=right, _predicate=on, _left_suffix=left_suffix,
@@ -592,7 +627,7 @@ def union(left, right, distinct=False):
     :Example:
     >>> df['name', 'id'].union(df2['id', 'name'])
     """
-
+    left, right = _make_different_sources(left, right)
     return UnionCollectionExpr(_lhs=left, _rhs=right, _distinct=distinct)
 
 

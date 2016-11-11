@@ -37,14 +37,14 @@ class SecurityConfiguration(LazyLoad):
     project_protection = serializers.XMLNodeReferenceField(ProjectProtection, 'ProjectProtection')
     check_permission_using_acl_v2 = serializers.XMLNodeField('CheckPermissionUsingAclV2', type='bool')
     check_permission_using_policy_v2 = serializers.XMLNodeField('CheckPermissionUsingPolicyV2', type='bool')
-    support_acl = serializers.XMLNodeField('SupportACL', parse_callback=utils.str_to_bool, type='bool')
-    support_policy = serializers.XMLNodeField('SupportPolicy', parse_callback=utils.str_to_bool, type='bool')
-    support_package = serializers.XMLNodeField('SupportPackage', parse_callback=utils.str_to_bool, type='bool')
-    support_acl_v2 = serializers.XMLNodeField('SupportACLV2', parse_callback=utils.str_to_bool, type='bool')
-    support_package_v2 = serializers.XMLNodeField('SupportPackageV2', parse_callback=utils.str_to_bool, type='bool')
+    support_acl = serializers.XMLNodeField('SupportACL', type='bool')
+    support_policy = serializers.XMLNodeField('SupportPolicy', type='bool')
+    support_package = serializers.XMLNodeField('SupportPackage', type='bool')
+    support_acl_v2 = serializers.XMLNodeField('SupportACLV2', type='bool')
+    support_package_v2 = serializers.XMLNodeField('SupportPackageV2', type='bool')
     check_permission_using_package = serializers.XMLNodeField('CheckPermissionUsingPackage', type='bool')
-    create_package = serializers.XMLNodeField('CreatePackage', parse_callback=utils.str_to_bool, type='bool')
-    create_package_v2 = serializers.XMLNodeField('CreatePackageV2', parse_callback=utils.str_to_bool, type='bool')
+    create_package = serializers.XMLNodeField('CreatePackage', type='bool')
+    create_package_v2 = serializers.XMLNodeField('CreatePackageV2', type='bool')
 
     @property
     def project(self):

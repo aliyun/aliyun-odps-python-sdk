@@ -124,6 +124,7 @@ class Test(TestBase):
         df11 = self.expr2.groupby('id').mutate(id2=lambda x: x.id.cumsum())
         self.assertNotIsInstance(df11, DynamicMixin)
         self.assertNotIsInstance(df11._schema, DynamicSchema)
+        self.expr.groupby('id').sort('id').non_exist.astype('int').cumsum()
 
         # join
         df12 = self.expr.join(self.expr2)[self.expr, self.expr2['id2']]

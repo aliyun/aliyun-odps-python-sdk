@@ -31,6 +31,25 @@ class VolumeFile(serializers.XMLSerializableModel):
 
     name = serializers.XMLNodeField('Name')
 
+    @property
+    def partition(self):
+        return self.parent.parent
+
+    @property
+    def project(self):
+        return self.partition.project
+
+    @property
+    def volume(self):
+        return self.partition.volume
+
+    def open_reader(self, **kw):
+        return self.partition.open_reader(self.name, **kw)
+
+    @property
+    def path(self):
+        return '/'.join((self.project.name, 'volumes', self.volume.name, self.partition.name, self.name))
+
 
 class VolumePartition(LazyLoad):
     """
@@ -74,16 +93,23 @@ class VolumePartition(LazyLoad):
 
     class VolumeFiles(serializers.XMLSerializableModel):
         _root = 'Items'
-        __slots__ = ['partition']
         skip_null = False
 
         marker = serializers.XMLNodeField('Marker')
         files = serializers.XMLNodesReferencesField(VolumeFile, 'Item')
         max_items = serializers.XMLNodeField('MaxItems', parse_callback=int)
 
-        def __init__(self, partition, **kwargs):
-            self.partition = partition
-            super(VolumePartition.VolumeFiles, self).__init__(**kwargs)
+        def __getitem__(self, item):
+            for f in self.iterate(name=item):
+                if f.name == item:
+                    return f
+            raise KeyError
+
+        def get(self, item, default=None):
+            try:
+                return self[item]
+            except KeyError:
+                return default
 
         def __iter__(self):
             return self.iterate()
@@ -105,10 +131,10 @@ class VolumePartition(LazyLoad):
                         (last_marker is None or len(last_marker) == 0):
                     return
 
-                url = self.partition.resource()
-                resp = self.partition._client.get(url, params=params)
+                url = self.parent.resource()
+                resp = self.parent._client.get(url, params=params)
 
-                v = self.parse(resp, obj=self)
+                v = self.parse(resp, obj=self, parent=self.parent)
                 params['marker'] = v.marker
 
                 return v.files
@@ -122,7 +148,7 @@ class VolumePartition(LazyLoad):
 
     @property
     def files(self):
-        return self.VolumeFiles(self)
+        return self.VolumeFiles(_parent=self)
 
     def list_files(self):
         """

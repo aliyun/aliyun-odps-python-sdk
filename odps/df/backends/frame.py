@@ -25,7 +25,6 @@ try:
 except ImportError:
     has_pandas = False
 
-from ...compat.six import StringIO
 from ...compat import u, six, izip as zip
 from ...config import options
 from ...console import get_console_size, in_interactive_session, \
@@ -37,6 +36,24 @@ from . import formatter as fmt
 
 
 class ResultFrame(six.Iterator):
+    class ResultRecord(list):
+        def __init__(self, columns, values):
+            self._columns = columns
+            self._column_id_by_name = dict([(v, k) for k, v in enumerate(columns)])
+            super(ResultFrame.ResultRecord, self).__init__(values)
+
+        def __getitem__(self, item):
+            if isinstance(item, six.string_types):
+                item = self._column_id_by_name[item]
+            return list.__getitem__(self, item)
+
+        def iteritems(self):
+            for col, val in zip(self._columns, self):
+                yield col.name, val
+
+        def keys(self):
+            return [c.name for c in self._columns]
+
     def __init__(self, data, columns=None, schema=None, index=None, pandas=True):
         if columns is None and schema is None:
             raise ValueError('Either columns or schema should be provided')
@@ -93,7 +110,7 @@ class ResultFrame(six.Iterator):
             if self._pandas:
                 return self._values.iloc[item]
             else:
-                return self._values[item]
+                return self.ResultRecord(self._columns, self._values[item])
         elif isinstance(item, slice):
             if self._pandas:
                 return self._values.iloc[item]
@@ -119,7 +136,7 @@ class ResultFrame(six.Iterator):
             if self._pandas:
                 return self._values.iloc[self._cursor]
             else:
-                return self._values[self._cursor]
+                return self.ResultRecord(self._columns, self._values[self._cursor])
         except IndexError:
             raise StopIteration
 
@@ -201,7 +218,7 @@ class ResultFrame(six.Iterator):
         # when auto-detecting, so width=None and not in ipython front end
         # check whether repr fits horizontal by actualy checking
         # the width of the rendered repr
-        buf = StringIO()
+        buf = six.StringIO()
 
         # only care about the stuff we'll actually print out
         # and to_string on entire frame may be expensive
@@ -229,7 +246,7 @@ class ResultFrame(six.Iterator):
         if self._pandas:
             return repr(self._values)
 
-        buf = StringIO(u(""))
+        buf = six.StringIO(u(""))
 
         max_rows = options.display.max_rows
         max_cols = options.display.max_columns

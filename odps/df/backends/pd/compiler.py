@@ -51,6 +51,7 @@ BINARY_OP_TO_PANDAS = {
     'Substract': operator.sub,
     'Multiply': operator.mul,
     'Divide': operator.div if six.PY2 else operator.truediv,
+    'Mod': operator.mod,
     'FloorDivide': operator.floordiv,
     'Power': operator.pow,
     'Greater': operator.gt,
@@ -281,7 +282,7 @@ class PandasCompiler(Backend):
                     else:
                         return ~input.isin(args)
                 elif isinstance(expr, element.IfElse):
-                    return np.where(input, args[0], args[1])
+                    return pd.Series(np.where(input, args[0], args[1]), name=expr.name)
                 elif isinstance(expr, element.Switch):
                     case = None if expr.case is None else kw.get(expr.case)
                     default = None if expr.default is None else kw.get(expr.default)

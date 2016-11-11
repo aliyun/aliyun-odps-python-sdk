@@ -18,9 +18,9 @@
 # under the License.
 
 from .core import Iterable
-from .table import Table
+from .table import Table, TableSchema
 from .. import serializers, errors
-from ..compat import six
+from ..compat import six, OrderedDict
 
 
 class Tables(Iterable):
@@ -125,6 +125,31 @@ class Tables(Iterable):
 
     def create(self, table_name, table_schema, comment=None, if_not_exists=False,
                lifecycle=None, shard_num=None, hub_lifecycle=None, async=False):
+
+        def make_schema_dict(schema_repr):
+            if schema_repr is None:
+                return schema_repr
+            if not isinstance(schema_repr, dict):
+                if isinstance(schema_repr, six.string_types):
+                    schema_array = []
+                    for f in schema_repr.split(','):
+                        splited = f.strip().rsplit(' ', 1)
+                        splited[0] = splited[0].strip('`')
+                        schema_array.append(tuple(splited))
+                    schema_repr = schema_array
+                schema_repr = OrderedDict(schema_repr)
+            return schema_repr
+
+        if not isinstance(table_schema, TableSchema):
+            if isinstance(table_schema, tuple):
+                table_schema, partition_schema = table_schema
+            else:
+                partition_schema = None
+            table_schema = make_schema_dict(table_schema)
+            partition_schema = make_schema_dict(partition_schema)
+
+            table_schema = TableSchema.from_dict(table_schema, partition_schema)
+
         sql = self._gen_create_table_sql(table_name, table_schema, comment=comment,
                                          if_not_exists=if_not_exists, lifecycle=lifecycle,
                                          shard_num=shard_num, hub_lifecycle=hub_lifecycle)

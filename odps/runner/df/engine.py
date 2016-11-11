@@ -31,18 +31,10 @@ class DFNodeEngine(BaseNodeEngine):
     def before_exec(self):
         super(DFNodeEngine, self).before_exec()
 
-        df_cache = self._runner._df_cache
         for inp in six.itervalues(self._node.inputs):
             ep = inp.obj
             if isinstance(ep, DFAdapter) and isinstance(ep.df, DataFrame):
-                if '.' in ep.table:
-                    proj, table = ep.table.split('.', 1)
-                else:
-                    proj, table = None, ep.table
-                if (proj, table) not in df_cache:
-                    df = DataFrame(self._odps.get_table(table, project=proj))
-                    df_cache[(proj, table)] = df
-                ep.df._source_data = df_cache[(proj, table)]._source_data
+                ep.reload()
 
     def actual_exec(self):
         def _after_run_sql(instance, sql):
@@ -68,15 +60,8 @@ class DFNodeEngine(BaseNodeEngine):
         dag = context._dag
         ds_container = context._obj_container
         ancestors = dag.ancestors(self._node, lambda n: n.engine == EngineType.DF)
-        input_adapter_list = [ds_container[inp.obj_uuid]
-                              for ancestor in ancestors for inp in six.itervalues(ancestor.inputs)]
-        for adapter in input_adapter_list:
-            if isinstance(adapter.df, DataFrame):
-                if '.' in adapter.table:
-                    proj, table = adapter.table.split('.', 1)
-                else:
-                    proj, table = None, adapter.table
-                adapter.df._source_data = self._odps.get_table(table, project=proj)
+        [ds_container[inp.obj_uuid].reload()
+         for ancestor in ancestors for inp in six.itervalues(ancestor.inputs)]
         output_ds_list = [ds_container[outp.obj_uuid] for outp in six.itervalues(self._node.outputs)
                           if outp.obj_uuid in ds_container]
         # todo deal with nodes

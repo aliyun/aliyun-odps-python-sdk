@@ -112,7 +112,12 @@ class Test(TestBase):
         expr = self.expr.name.hash()
         res = self.engine.execute(expr)
         result = self._get_result(res.values)
-        self.assertEqual([[hash(r[0])] for r in data], result),
+        self.assertEqual([[hash(r[0])] for r in data], result)
+
+        expr = (self.expr.name == data[0][0]).ifelse('eq', 'ne').rename('name')
+        res = self.engine.execute(expr)
+        result = self._get_result(res.values)
+        self.assertEqual([['eq' if d[0] == data[0][0] else 'ne'] for d in data], result)
 
         expr = self.expr.sample(parts=10)
         res = self.engine.execute(expr)
@@ -232,6 +237,7 @@ class Test(TestBase):
             (self.expr.id // 2).rename('id6'),
             (self.expr.birth + day(1).rename('birth1')),
             (self.expr.birth - (self.expr.birth - millisecond(10))).rename('birth2'),
+            (self.expr.id % 2).rename('id7'),
         ]
 
         expr = self.expr[fields]
@@ -278,6 +284,9 @@ class Test(TestBase):
                          [it[12] for it in result])
 
         self.assertEqual([10] * len(data), [it[13] for it in result])
+
+        self.assertEqual([it[1] % 2 for it in data],
+                         [it[14] for it in result])
 
     def testMath(self):
         data = self._gen_data(5, value_range=(1, 90))
@@ -888,6 +897,19 @@ class Test(TestBase):
         ]
         self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum'])
         self.assertEqual(sorted(result), sorted(expected))
+
+        expr = self.expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum'])
+        expr = expr['name1_fid_mean',
+                    expr.groupby(Scalar(1)).sort('name1_fid_mean').name1_fid_mean.astype('float').cumsum()]
+
+        k = lambda x: list(0 if it is None else it for it in x)
+
+        expected = [
+            [2, 2], [3, 5], [None, 5]
+        ]
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertEqual(sorted(result, key=k), sorted(expected, key=k))
 
         expr = self.expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0).distinct()
         res = self.engine.execute(expr)

@@ -366,6 +366,12 @@ class Expr(Node):
     def __rfloordiv__(self, other):
         return self._rfloordiv(other)
 
+    def __mod__(self, other):
+        return self._mod(other)
+
+    def __rmod__(self, other):
+        return self._rmod(other)
+
     def __sub__(self, other):
         return self._sub(other)
 
@@ -537,7 +543,7 @@ class CollectionExpr(Expr):
             part_formatter = lambda p: reduce(operator.and_, map(_parse_partition_predicate, p.split('/')))
             predicate_obj = reduce(operator.or_, map(part_formatter, predicate.split(',')))
 
-        if not source.schema._partitions:
+        if not source.schema.partitions:
             raise ExpressionError('No partition columns in the collection.')
         if exclude:
             columns = [c for c in self.schema if c.name not in source.schema._partition_schema]

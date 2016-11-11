@@ -22,9 +22,8 @@ import contextlib
 from .core import LazyLoad, cache, Iterable
 from .cache import cache_parent
 from .volumes import Volume
-from .. import serializers, utils, errors
+from .. import serializers, errors
 from ..compat import six, long_type
-from ..utils import str_to_bool
 
 
 class VolumeFSObject(LazyLoad):
@@ -47,7 +46,7 @@ class VolumeFSObject(LazyLoad):
     project = serializers.XMLNodeField('Project')
     volume = serializers.XMLNodeField('Volume')
     path = serializers.XMLNodeField('Path')
-    _isdir = serializers.XMLNodeField('Isdir', parse_callback=str_to_bool)
+    _isdir = serializers.XMLNodeField('Isdir', type='bool')
     permission = serializers.XMLNodeField('permission')
     _replication = serializers.XMLNodeField('BlockReplications', parse_callback=int)
     length = serializers.XMLNodeField('Length', parse_callback=long_type)
@@ -55,9 +54,9 @@ class VolumeFSObject(LazyLoad):
     block_size = serializers.XMLNodeField('BlockSize', parse_callback=long_type)
     owner = serializers.XMLNodeField('Owner')
     group = serializers.XMLNodeField('Group')
-    creation_time = serializers.XMLNodeField('CreationTime', parse_callback=utils.parse_rfc822)
-    access_time = serializers.XMLNodeField('AccessTime', parse_callback=utils.parse_rfc822)
-    last_modified_time = serializers.XMLNodeField('ModificationTime', parse_callback=utils.parse_rfc822)
+    creation_time = serializers.XMLNodeField('CreationTime', type='rfc822')
+    access_time = serializers.XMLNodeField('AccessTime', type='rfc822')
+    last_modified_time = serializers.XMLNodeField('ModificationTime', type='rfc822')
     symlink = serializers.XMLNodeField('Symlink')
 
     @staticmethod

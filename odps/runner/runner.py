@@ -126,7 +126,6 @@ class Runner(object):
         self._engines = dict()
 
         self._visualizer = None
-        self._df_cache = dict()
 
         self._dry_run = options.runner.dry_run
 

@@ -9,13 +9,14 @@
         <reloadFields>false</reloadFields>
         <params>
             <param name="docId" required="true">
+                <alias>docIdCol</alias>
                 <value>id</value>
-                <exporter>$package_root.text.customize.get_doc_id_column</exporter>
+                <exporter>$package_root.text._customize.get_doc_id_column</exporter>
                 <inputName>input</inputName>
                 <docs>标识文章id的列名</docs>
             </param>
             <param name="docContent" required="true">
-                <exporter>$package_root.text.customize.get_doc_content_column</exporter>
+                <exporter>$package_root.text._customize.get_doc_content_column</exporter>
                 <inputName>input</inputName>
                 <docs>标识文章内容的列名</docs>
             </param>
@@ -83,19 +84,19 @@
             <param name="docIdCol">
                 <value>id</value>
                 <required>true</required>
-                <exporter>$package_root.text.customize.get_doc_id_column</exporter>
+                <exporter>$package_root.text._customize.get_doc_id_column</exporter>
                 <inputName>input</inputName>
                 <docs>标识文章id的列名</docs>
             </param>
             <param name="wordCol" required="true">
                 <value>word</value>
-                <exporter>$package_root.text.customize.get_word_column</exporter>
+                <exporter>$package_root.text._customize.get_word_column</exporter>
                 <inputName>input</inputName>
                 <docs>word列名</docs>
             </param>
             <param name="countCol" required="true">
                 <value>count</value>
-                <exporter>$package_root.text.customize.get_word_count_column</exporter>
+                <exporter>$package_root.text._customize.get_word_count_column</exporter>
                 <inputName>input</inputName>
                 <docs>count列名</docs>
             </param>
@@ -172,7 +173,7 @@
             </param>
             <param name="selectedColNames">
                 <alias>cols</alias>
-                <exporter>$package_root.text.customize.get_doc_content_column</exporter>
+                <exporter>$package_root.text._customize.get_doc_content_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入表中用于分词的列名</docs>
             </param>
@@ -248,8 +249,14 @@
             <meta name="xflowProjectName" value="algo_public"/>
         </metas>
     </algorithm>
-    <algorithm codeName="FilterStopWords">
+    <algorithm codeName="FilterNoises">
         <reloadFields>false</reloadFields>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+        停用词过滤，是文本分析中一个预处理方法。它的功能是过滤分词结果中的噪声（例如：的、是、啊等）。
+
+        %params%
+        ]]></docs>
         <params>
             <param name="inputTableName" required="true">
                 <exporter>get_input_table_name</exporter>
@@ -273,7 +280,7 @@
             </param>
             <param name="selectedColNames">
                 <alias>cols</alias>
-                <exporter>$package_root.text.customize.get_doc_content_column</exporter>
+                <exporter>$package_root.text._customize.get_doc_content_column</exporter>
                 <inputName>input</inputName>
                 <docs>输入表中用于清理停用词</docs>
             </param>
@@ -296,10 +303,509 @@
                 <sequence>1</sequence>
                 <type>DATA</type>
                 <docs>输出</docs>
+                <schema>
+                    <schema>{#input|input}</schema>
+                </schema>
             </port>
         </ports>
         <metas>
             <meta name="xflowName" value="FilterNoise"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="StrDiff">
+        <reloadFields>false</reloadFields>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+        计算字符串相似度在机器学习领域是一个非常基本的操作，主要用在信息检索，自然语言处理，生物信息学等领域。
+        算法支持Levenshtein Distance，Longest Common SubString，String Subsequence Kernel，Cosine，simhash_hamming
+        五种相似度计算方式。
+
+        本算法支持两两比较的输入方式。
+
+        %params%
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="inputSelectedColName1">
+                <alias>col1</alias>
+                <docs>相似度计算中第一列的列名</docs>
+            </param>
+            <param name="inputSelectedColName2">
+                <alias>col2</alias>
+                <docs>相似度计算中第二列的列名</docs>
+            </param>
+            <param name="inputAppendColNames">
+                <alias>appendInputCols</alias>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputColName">
+                <alias>outputCol</alias>
+                <value>output</value>
+            </param>
+            <param name="method">
+                <value>levenshtein_sim</value>
+            </param>
+            <param name="lambda">
+                <value>0.5</value>
+            </param>
+            <param name="k">
+                <value>2</value>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出</docs>
+                <schema>
+                    <schema>{inputAppendColNames}, {outputColName}:double</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="string_similarity"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="TopNSimilarity">
+        <reloadFields>false</reloadFields>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+        计算字符串相似度在机器学习领域是一个非常基本的操作，主要用在信息检索，自然语言处理，生物信息学等领域。
+        算法支持Levenshtein Distance，Longest Common SubString，String Subsequence Kernel，Cosine，simhash_hamming
+        五种相似度计算方式。
+
+        本算法支持 top n 输入方式。
+
+        %params%
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="mapTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>map</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="inputSelectedColName">
+                <alias>col</alias>
+                <docs>相似度计算中的列名</docs>
+                <inputName>input</inputName>
+            </param>
+            <param name="mapSelectedColName">
+                <alias>mapCol</alias>
+                <docs>相似度计算中第二列的列名</docs>
+                <inputName>map</inputName>
+            </param>
+            <param name="inputAppendColNames">
+                <alias>appendInputCols</alias>
+                <inputName>input</inputName>
+            </param>
+            <param name="mapAppendColNames">
+                <alias>appendMapCols</alias>
+                <inputName>map</inputName>
+            </param>
+            <param name="outputColName">
+                <alias>outputCol</alias>
+                <value>output</value>
+            </param>
+            <param name="method">
+                <value>levenshtein_sim</value>
+            </param>
+            <param name="lambda">
+                <value>0.5</value>
+            </param>
+            <param name="k">
+                <value>2</value>
+            </param>
+            <param name="topN">
+                <alias>n</alias>
+                <value>10</value>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="map">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+                <docs>映射表</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出</docs>
+                <schema>
+                    <schema>{inputAppendColNames}, {mapAppendColNames}, {outputColName}:double</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="string_similarity_topn"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="ExtractKeywords">
+        <reloadFields>false</reloadFields>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+        关键词抽取是自然语言处理中的重要技术之一，具体是指从文本里面把跟这篇文章意义最相关的一些词抽取出来。
+        本算法基于 TextRank，它受到网页之间关系 PageRank 算法启发，利用局部词汇之间关系（共现窗口）构建网络，
+        计算词的重要性，选取权重大的做为关键词。
+
+        %params%
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="docIdCol" required="true">
+                <exporter>$package_root.text._customize.get_doc_id_column</exporter>
+                <inputName>input</inputName>
+                <docs>标识文章id的列名</docs>
+            </param>
+            <param name="docContent" required="true">
+                <exporter>$package_root.text._customize.get_doc_content_column</exporter>
+                <inputName>input</inputName>
+                <docs>标识文章内容的列名</docs>
+            </param>
+            <param name="topN">
+                <alias>n</alias>
+                <docs>输出至多多少个关键词</docs>
+                <value>5</value>
+            </param>
+            <param name="windowSize">
+                <docs>TextRank 算法的窗口大小</docs>
+                <value>2</value>
+            </param>
+            <param name="dumpingFactor">
+                <docs>TextRank 算法的阻尼系数</docs>
+                <value>0.85</value>
+            </param>
+            <param name="maxIter">
+                <docs>TextRank 算法的最大迭代次数</docs>
+                <value>100</value>
+            </param>
+            <param name="epsilon">
+                <docs>TextRank 算法的收敛残差阈值</docs>
+                <value>0.000001</value>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出</docs>
+                <schema>
+                    <schema>{docIdCol}, keywords: string, weight: double</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="KeywordsExtraction"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="SummarizeText">
+        <reloadFields>false</reloadFields>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+        动文摘就是利用计算机自动地从原始文献中提取文摘，文摘是全面准确地反映某一文献中心内容地简单连贯的短文。
+        本算法基于TextRank，通过提取文档中已存在的句子形成摘要。
+
+        %params%
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="docIdCol" required="true">
+                <exporter>$package_root.text._customize.get_doc_id_column</exporter>
+                <inputName>input</inputName>
+                <docs>标识文章id的列名</docs>
+            </param>
+            <param name="sentenceCol" required="true">
+                <exporter>$package_root.text._customize.get_sentence_column</exporter>
+                <inputName>input</inputName>
+                <docs>标识句子</docs>
+            </param>
+            <param name="topN">
+                <alias>n</alias>
+                <docs>输出前多个关键句</docs>
+                <value>3</value>
+            </param>
+            <param name="similarityType">
+                <docs>句子相似度的计算方法，可选 lcs_sim, levenshtein_sim, cosine, ssk。默认 lcs_sim。</docs>
+                <value>lcs_sim</value>
+            </param>
+            <param name="lambda">
+                <docs>匹配字符串的权重</docs>
+                <value>0.5</value>
+            </param>
+            <param name="k">
+                <docs>子串的长度</docs>
+                <value>2</value>
+            </param>
+            <param name="dumpingFactor">
+                <docs>TextRank 算法的阻尼系数</docs>
+                <value>0.85</value>
+            </param>
+            <param name="maxIter">
+                <docs>TextRank 算法的最大迭代次数</docs>
+                <value>100</value>
+            </param>
+            <param name="epsilon">
+                <docs>TextRank 算法的收敛残差阈值</docs>
+                <value>0.000001</value>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出</docs>
+                <schema>
+                    <schema>doc_id: string, abstract: string</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="TextSummarization"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="CountNgram">
+        <reloadFields>false</reloadFields>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+        ngram-count是语言模型中的其中一个步骤，完成的是基于词的基础上生成n-gram，
+        并统计在全部语料集上，对应n-gram的个数。生成的是全局的个数，并不是单个文档的个数。
+
+        %params%
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputSelectedColNames">
+                <alias>selectedCols</alias>
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>输入表选择列</docs>
+            </param>
+            <param name="weightColName">
+                <alias>weightCol</alias>
+                <exporter>get_weight_column</exporter>
+                <inputName>input</inputName>
+                <docs>权重列名</docs>
+            </param>
+            <param name="countTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>count</inputName>
+            </param>
+            <param name="countTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>count</inputName>
+            </param>
+            <param name="countWordColName">
+                <alias>wordCol</alias>
+                <inputName>count</inputName>
+                <docs>count 表中词所在的列名</docs>
+            </param>
+            <param name="countCountColName">
+                <alias>countCol</alias>
+                <inputName>count</inputName>
+                <docs>count 表中 count 所在的列</docs>
+            </param>
+            <param name="vocabTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>vocab</inputName>
+            </param>
+            <param name="vocabTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>vocab</inputName>
+            </param>
+            <param name="vocabSelectedColName">
+                <alias>vocabCol</alias>
+                <inputName>vocab</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="order">
+                <alias>order</alias>
+                <docs>N-grams的最大长度</docs>
+                <value>3</value>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="count">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>data</type>
+                <docs>ngram 以往输出（可合并）</docs>
+            </port>
+            <port name="vocab">
+                <ioType>INPUT</ioType>
+                <sequence>3</sequence>
+                <type>data</type>
+                <docs>词袋输入</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出</docs>
+                <schema>
+                    <schema>ngram: string, word: string, count: bigint</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="ngram_count"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="SemanticVectorDistance">
+        <reloadFields>false</reloadFields>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+        基于算法语义向量结果（如 Word2Vec 生成的词向量），计算给定的词（或者句子）的扩展词（或者句子），
+        即计算其中某一向量距离最近的向量集合。其中一个用法是：基于word2vec生成的词向量结果，
+        根据输入的词返回最为相似的词列表。
+
+        %params%
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="idTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>id</inputName>
+            </param>
+            <param name="idTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>id</inputName>
+            </param>
+            <param name="idColName">
+                <inputName>id</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="order">
+                <alias>order</alias>
+                <docs>N-grams的最大长度</docs>
+                <value>3</value>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="id">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>data</type>
+                <docs>ngram 以往输出（可合并）</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="SemanticVectorDistance"/>
             <meta name="xflowProjectName" value="algo_public"/>
         </metas>
     </algorithm>

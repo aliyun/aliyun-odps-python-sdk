@@ -84,7 +84,7 @@ class Test(TestBase):
                                 self.expr.name.lower().contains('pyodps', regex=False)).name.nunique()
         expected = "SELECT COUNT(DISTINCT t2.`name`) AS `name_nunique` \n" \
                    "FROM (\n" \
-                   "  SELECT t1.`name`, t1.`id` \n" \
+                   "  SELECT t1.`id`, t1.`name` \n" \
                    "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
                    "  WHERE ((t1.`id` >= 2) AND (t1.`id` <= 6)) AND INSTR(TOLOWER(t1.`name`), 'pyodps') > 0 \n" \
                    ") t2"
@@ -205,6 +205,22 @@ class Test(TestBase):
                    '    SELECT t2.`name`, t2.`id` \n' \
                    '    FROM mocked_project.`pyodps_test_expr_table2` t2 \n' \
                    '    WHERE (t2.`id` + 1) < 3\n' \
+                   ') t3'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr1 = self.expr.filter(self.expr.id == 1)['name', 'id']
+        expr2 = self.expr.filter(self.expr.id == 0)['id', 'name']
+        expr = expr1.union(expr2)
+
+        expected = 'SELECT * \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`name`, t1.`id` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  WHERE t1.`id` == 1 \n' \
+                   '  UNION ALL\n' \
+                   '    SELECT t2.`name`, t2.`id` \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table` t2 \n' \
+                   '    WHERE t2.`id` == 0\n' \
                    ') t3'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 

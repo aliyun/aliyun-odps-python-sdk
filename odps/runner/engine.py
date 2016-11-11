@@ -141,7 +141,7 @@ class BaseNodeEngine(object):
                         context._obj_container[out_port.obj_uuid].fill(old_outputs[port_name])
                 self._node.executed = True
 
-        self._gen_params = self._node.gen_command_params()
+        self._gen_params = self._node.convert_params()
         if not self._node.executed and not self._dry_run:
             self._node.before_exec(self._odps, self._gen_params)
 
@@ -163,8 +163,7 @@ class BaseNodeEngine(object):
         from ..runner import RunnerContext
         context = RunnerContext.instance()
 
-        if self._node.reload_on_finish:
-            self._reload_output()
+        self._reload_output()
 
         self._node.after_exec(self._odps, True)
 
@@ -228,3 +227,19 @@ class BaseNodeEngine(object):
     def log_instance(inst):
         log('Instance ID: ' + inst.id)
         log('  Log view: ' + inst.get_logview_address())
+
+    @classmethod
+    def _format_value(cls, value):
+        if value is None:
+            return None
+        elif isinstance(value, bool):
+            if value:
+                return 'true'
+            else:
+                return 'false'
+        elif isinstance(value, (list, set)):
+            if not value:
+                return None
+            return ','.join([cls._format_value(v) for v in value])
+        else:
+            return str(value)

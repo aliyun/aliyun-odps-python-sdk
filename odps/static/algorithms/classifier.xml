@@ -281,7 +281,7 @@
                 </docs>
             </param>
             <param name="algorithmTypes">
-                <exporter>$package_root.classifiers.customize.random_forest_algo_types</exporter>
+                <exporter>$package_root.classifiers._customize.random_forest_algo_types</exporter>
             </param>
             <param name="randomColNum">
                 <inputName>input</inputName>
@@ -295,7 +295,7 @@
                 <docs>minimal leaf size, the minimum number is 2</docs>
             </param>
             <param name="minNumPer">
-                <exporter>$package_root.classifiers.customize.random_forest_min_num_per</exporter>
+                <exporter>$package_root.classifiers._customize.random_forest_min_num_per</exporter>
                 <docs>the minimal proportion accounted by leaf node number for parent nodes. -1 indicates no this
                     limitation. The default value is -1 and the range is [0.0,1.0]
                 </docs>
@@ -530,7 +530,7 @@
             <param name="cost">
                 <value>1</value>
                 <exported>false</exported>
-                <setter>$package_root.classifiers.customize.linear_svm_set_cost</setter>
+                <setter>$package_root.classifiers._customize.linear_svm_set_cost</setter>
                 <docs>shortcut for setting both positive cost and negative cost</docs>
             </param>
         </params>
@@ -829,7 +829,7 @@
                     <!--<schemas>-->
                         <!--<schema name="model">-->
                             <!--<dynamic>true</dynamic>-->
-                            <!--<schema>$package_root.classifiers.customize.discriminant_model_table</schema>-->
+                            <!--<schema>$package_root.classifiers._customize.discriminant_model_table</schema>-->
                         <!--</schema>-->
                     <!--</schemas>-->
                 </model>

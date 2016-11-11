@@ -24,7 +24,6 @@ import codecs
 import copy
 import glob
 import hmac
-import inspect
 import multiprocessing
 import os
 import re
@@ -44,7 +43,7 @@ from datetime import datetime
 from email.utils import parsedate_tz, formatdate
 
 from . import compat
-from .compat import six
+from .compat import six, getargspec
 
 TEMP_TABLE_PREFIX = 'tmp_pyodps_'
 
@@ -459,7 +458,7 @@ survey_calls = dict()
 
 def survey(func):
     def _decorator(*args, **kwargs):
-        arg_spec = inspect.getargspec(func)
+        arg_spec = getargspec(func)
 
         if 'self' in arg_spec.args:
             func_cls = args[0].__class__
@@ -534,6 +533,13 @@ def gen_is_secret_mode():
     return _secret_func
 
 is_secret_mode = gen_is_secret_mode()
+
+
+def object_getattr(obj, attr, default=None):
+    try:
+        return object.__getattribute__(obj, attr)
+    except AttributeError as e:
+        return default
 
 
 def attach_internal(cls):

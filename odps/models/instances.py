@@ -25,6 +25,7 @@ from .instance import Instance
 from .job import Job
 from .. import serializers, errors, utils
 from ..compat import six
+from ..config import options
 
 
 class Instances(Iterable):
@@ -126,7 +127,8 @@ class Instances(Iterable):
     def _get_submit_instance_content(cls, job):
         return Instance.AnonymousSubmitInstance(job=job).serialize()
 
-    def create(self, xml=None, job=None, task=None, priority=None, running_cluster=None, headers=None):
+    def create(self, xml=None, job=None, task=None, priority=None, running_cluster=None,
+               headers=None, create_callback=None):
         if xml is None:
             job = self._create_job(job=job, task=task, priority=priority,
                                    running_cluster=running_cluster)
@@ -143,6 +145,10 @@ class Instances(Iterable):
             raise errors.ODPSError('Invalid response, Location header required.')
 
         instance_id = location.rsplit('/', 1)[1]
+
+        create_callback = create_callback or options.instance_create_callback
+        if create_callback is not None:
+            create_callback(instance_id)
 
         body = resp.text
         if body:

@@ -343,7 +343,13 @@ class Analyzer(Backend):
             func = lambda l, r: l // r
             # multiple False will pass *args instead of namedtuple
             sub = self._gen_mapped_expr(expr, (expr.lhs, expr.rhs),
-                                           func, expr.name, multiple=False)
+                                        func, expr.name, multiple=False)
+            self._sub(expr, sub)
+            return
+        if isinstance(expr, Mod):
+            func = lambda l, r: l % r
+            sub = self._gen_mapped_expr(expr, (expr.lhs, expr.rhs),
+                                        func, expr.name, multiple=False)
             self._sub(expr, sub)
             return
         if isinstance(expr, Add) and \
@@ -502,6 +508,25 @@ class Analyzer(Backend):
 
             def func(x):
                 return x.rfind(substr, start, end)
+        elif isinstance(expr, Replace):
+            def func(x, pat, repl, n, case, flags):
+                use_re = not case or len(pat) > 1 or flags
+
+                if use_re:
+                    if not case:
+                        flags |= re.IGNORECASE
+                    regex = re.compile(pat, flags=flags)
+                    n = n if n >= 0 else 0
+
+                    return regex.sub(repl, x, count=n)
+                else:
+                    return x.replace(pat, repl, n)
+
+            inputs = expr.input, expr._pat, expr._repl, expr._n, \
+                     expr._case, expr._flags
+            sub = self._gen_mapped_expr(expr, inputs, func,
+                                        expr.name, multiple=False)
+            self._sub(expr, sub)
         elif isinstance(expr, (Lstrip, Strip, Rstrip)) and expr.to_strip != ' ':
             to_strip = expr.to_strip
 
@@ -558,7 +583,7 @@ class Analyzer(Backend):
 
             inputs = expr.input, expr._start, expr._end, expr._step
             sub = self._gen_mapped_expr(expr, tuple(i for i in inputs if i is not None),
-                                           func, expr.name, multiple=False)
+                                        func, expr.name, multiple=False)
             self._sub(expr, sub)
             return
         elif isinstance(expr, Swapcase):

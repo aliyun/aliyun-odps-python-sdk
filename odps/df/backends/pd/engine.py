@@ -65,8 +65,12 @@ class PandasEngine(Engine):
                         src = expr
                         expr = res[0]
                         res = res[1]
-                        no_sub = False
                         results[src] = res
+                        results[expr] = res
+
+                        # break cuz the dag has changed
+                        no_sub = False
+                        break
                     results[expr] = res
                 if no_sub:
                     break

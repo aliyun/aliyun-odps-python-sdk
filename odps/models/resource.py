@@ -70,19 +70,26 @@ class Resource(LazyLoad):
         if isinstance(typo, six.string_types):
             typo = Resource.Type(typo.upper())
 
-        clazz = lambda name: globals()[name]
+        clz = lambda name: globals()[name]
         if typo == Resource.Type.FILE:
-            return clazz('FileResource')
+            return clz('FileResource')
         elif typo == Resource.Type.JAR:
-            return clazz('JarResource')
+            return clz('JarResource')
         elif typo == Resource.Type.PY:
-            return clazz('PyResource')
+            return clz('PyResource')
         elif typo == Resource.Type.ARCHIVE:
-            return clazz('ArchiveResource')
+            return clz('ArchiveResource')
         elif typo == Resource.Type.TABLE:
-            return clazz('TableResource')
+            return clz('TableResource')
+        elif typo == Resource.Type.VOLUMEARCHIVE:
+            return clz('VolumeArchiveResource')
+        elif typo == Resource.Type.VOLUMEFILE:
+            return clz('VolumeFileResource')
         else:
             return cls
+
+    def create(self, overwrite=False, **kw):
+        raise NotImplementedError
 
     @staticmethod
     def _filter_cache(_, **kwargs):
@@ -164,6 +171,42 @@ class FileResource(Resource):
         READWRITE = 'r+'
         TRUNCEREADWRITE = 'w+'
         APPENDREADWRITE = 'a+'
+
+    def create(self, overwrite=False, **kw):
+        file_obj = kw.pop('file_obj', None)
+
+        if file_obj is None:
+            raise ValueError('parameter `file_obj` cannot be None, either string or file-like object')
+        if isinstance(file_obj, six.text_type):
+            file_obj = file_obj.encode('utf-8')
+        if isinstance(file_obj, six.binary_type):
+            file_obj = six.BytesIO(file_obj)
+
+        if self.name is None or len(self.name.strip()) == 0:
+            raise errors.ODPSError('File Resource Name should not empty.')
+
+        method = self._client.post if not overwrite else self._client.put
+        url = self.parent.resource() if not overwrite else self.resource()
+
+        headers = {'Content-Type': 'application/octet-stream',
+                   'Content-Disposition': 'attachment;filename=%s' % self.name,
+                   'x-odps-resource-type': self.type.value.lower(),
+                   'x-odps-resource-name': self.name}
+        if self._getattr('comment') is not None:
+            headers['x-odps-comment'] = self.comment
+        if self._getattr('is_temp_resource'):
+            headers['x-odps-resource-istemp'] = 'true' if self.is_temp_resource else 'false'
+
+        if not isinstance(file_obj, six.string_types):
+            file_obj.seek(0)
+            content = file_obj.read()
+        else:
+            content = file_obj
+        method(url, content, headers=headers)
+
+        if overwrite:
+            self.reload()
+        return self
 
     def __init__(self, **kw):
         super(FileResource, self).__init__(**kw)
@@ -421,7 +464,7 @@ class FileResource(Resource):
             resources = self.parent
 
             if is_create:
-                resources.create(obj=self, file_obj=self._fp)
+                resources.create(self=self, file_obj=self._fp)
             else:
                 resources.update(obj=self, file_obj=self._fp)
 
@@ -510,6 +553,27 @@ class TableResource(Resource):
         self._init(project_name=project_name, table_name=table_name,
                    partition=partition_spec)
 
+    def create(self, overwrite=False, **kw):
+        if self.name is None or len(self.name.strip()) == 0:
+            raise errors.ODPSError('Table Resource Name should not be empty.')
+
+        method = self._client.post if not overwrite else self._client.put
+        url = self.parent.resource() if not overwrite else self.resource()
+
+        headers = {'Content-Type': 'text/plain',
+                   'x-odps-resource-type': self.type.value.lower(),
+                   'x-odps-resource-name': self.name,
+                   'x-odps-copy-table-source': self.source_table_name}
+        if self._getattr('comment') is not None:
+            headers['x-odps-comment'] = self._getattr('comment')
+
+        method(url, '', headers=headers)
+
+        if overwrite:
+            del self.parent[self.name]
+            return self.parent[self.name]
+        return self
+
     def _init(self, project_name=None, table_name=None, partition=None):
         project_name = project_name or self._project
         if project_name is not None and project_name != self._project:
@@ -584,7 +648,50 @@ class TableResource(Resource):
 
 
 @cache_parent
-class VolumeArchiveResource(Resource):
+class VolumeResource(Resource):
+    def create(self, overwrite=False, **kw):
+        if self.name is None or len(self.name.strip()) == 0:
+            raise errors.ODPSError('Volume Resource Name should not be empty.')
+
+        method = self._client.post if not overwrite else self._client.put
+        url = self.parent.resource() if not overwrite else self.resource()
+
+        headers = {'Content-Type': 'text/plain',
+                   'x-odps-resource-type': self.type.value.lower(),
+                   'x-odps-resource-name': self.name,
+                   'x-odps-copy-file-source': self.volume_path}
+        if self._getattr('comment') is not None:
+            headers['x-odps-comment'] = self._getattr('comment')
+
+        method(url, '', headers=headers)
+
+        if overwrite:
+            del self.parent[self.name]
+            return self.parent[self.name]
+        return self
+
+
+@cache_parent
+class VolumeFileResource(VolumeResource):
+    """
+    Volume resource represents for a volume archive
+    """
+
+    def __init__(self, **kw):
+        okw = kw.copy()
+        okw.pop('volume_file', None)
+        super(VolumeFileResource, self).__init__(**okw)
+        self.type = Resource.Type.VOLUMEFILE
+
+    def create(self, overwrite=False, **kw):
+        if 'volume_file' in kw:
+            vf = kw.pop('volume_file')
+            self.volume_path = vf.path
+        return super(VolumeFileResource, self).create(overwrite, **kw)
+
+
+@cache_parent
+class VolumeArchiveResource(VolumeFileResource):
     """
     Volume archive resource represents for a volume archive
     """
@@ -592,14 +699,3 @@ class VolumeArchiveResource(Resource):
     def __init__(self, **kw):
         super(VolumeArchiveResource, self).__init__(**kw)
         self.type = Resource.Type.VOLUMEARCHIVE
-
-
-@cache_parent
-class VolumeFileResource(Resource):
-    """
-    Volume resource represents for a volume archive
-    """
-
-    def __init__(self, **kw):
-        super(VolumeFileResource, self).__init__(**kw)
-        self.type = Resource.Type.VOLUMEFILE

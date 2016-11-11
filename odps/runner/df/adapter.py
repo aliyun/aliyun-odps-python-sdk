@@ -113,6 +113,8 @@ class DFExecNode(DFNode):
     def optimize(self):
         if len(self.args) != 2 or len(self.inputs) != 1:
             return False, None
+        if not isinstance(self.bind_df._source_data, DFMockTable):
+            return False, None
         ep = self.inputs['input1'].obj
         if ep is not None:
             # direct df output
@@ -249,6 +251,7 @@ class DFAdapter(RunnerObject):
         self._operations = []
         self._table = None
         self._partitions = None
+        self._custom_reload_functions = []
 
         if df is not None:
             _df_endpoint_dict[df] = self
@@ -271,8 +274,9 @@ class DFAdapter(RunnerObject):
         _df_link_maintainer[df] |= set(depends)
 
     @staticmethod
-    def _build_mock_table(table_name, schema):
-        return DFMockTable(name=table_name, schema=schema)
+    def _build_mock_table(table_name, schema, odps=None):
+        client = odps.rest if odps else None
+        return DFMockTable(name=table_name, schema=schema, client=client)
 
     def gen_temp_names(self):
         if not self.table:
@@ -372,6 +376,16 @@ class DFAdapter(RunnerObject):
             fields = set(c.name for c in self.df.schema.columns)
             return [f for f in self._fields if f.name in fields]
         return self._fields
+
+    def reload(self):
+        if isinstance(self.df, DataFrame):
+            if '.' in self.table:
+                proj, table = self.table.split('.', 1)
+            else:
+                proj, table = None, self.table
+            self.df._source_data = self._odps.get_table(table, project=proj)
+        for func in self._custom_reload_functions:
+            func()
 
     def _link_incoming_dfs(self):
         if self.df is None:

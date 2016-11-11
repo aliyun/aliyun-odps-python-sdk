@@ -117,6 +117,8 @@ class Test(TestBase):
         options.display.unicode.ambiguous_as_wide = True
         self.assertEqual(options.display.max_rows, 10)
         self.assertTrue(options.display.unicode.ambiguous_as_wide)
+        options.register_pandas('display.non_exist', True)
+        self.assertEqual(options.display.non_exist, True)
 
         try:
             import pandas as pd

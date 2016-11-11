@@ -769,12 +769,6 @@ class OdpsSQLCompiler(Backend):
             else:
                 compiled = 'INSTR(%s, %s, %s) - 1' % (
                     input, self._ctx.get_expr_compiled(expr._sub), start)
-        elif isinstance(expr, strings.Replace):
-            if not expr.case or expr.flags > 0:
-                raise NotImplementedError
-            compiled = 'REGEXP_REPLACE(%s, %s, %s, %s)' % (
-                input, self._ctx.get_expr_compiled(expr._pat),
-                self._ctx.get_expr_compiled(expr._repl), 0 if expr.n < 0 else expr.n)
         elif isinstance(expr, strings.Get):
             compiled = 'SUBSTR(%s, %s, 1)' % (input, expr.index + 1)
         elif isinstance(expr, strings.Len):

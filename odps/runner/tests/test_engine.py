@@ -16,24 +16,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from ..compat import Enum
+from odps.runner.tests.base import RunnerTestBase
+from odps.runner.engine import BaseNodeEngine
 
 
-class EngineType(Enum):
-    MOCK = 'MOCK'
-    LAMBDA = 'LAMBDA'
-    XFLOW = 'XFLOW'
-    XLIB = 'XLIB'
-    SQL = 'SQL'
-    DF = 'DF'
-    PS = 'PS'
-
-
-class PortType(Enum):
-    DATA = 'DATA'
-    MODEL = 'MODEL'
-
-
-class PortDirection(Enum):
-    INPUT = 'INPUT'
-    OUTPUT = 'OUTPUT'
+class Test(RunnerTestBase):
+    def test_param_format(self):
+        self.assertEqual(BaseNodeEngine._format_value(None), None)
+        self.assertEqual(BaseNodeEngine._format_value(True), 'true')
+        self.assertEqual(BaseNodeEngine._format_value(False), 'false')
+        self.assertEqual(BaseNodeEngine._format_value(''), '')
+        self.assertEqual(BaseNodeEngine._format_value([]), None)
+        self.assertEqual(BaseNodeEngine._format_value([1, 2, 3, 4]), '1,2,3,4')
+        self.assertEqual(BaseNodeEngine._format_value(set([1, 2, 3, 4])), '1,2,3,4')
+        self.assertEqual(BaseNodeEngine._format_value(12), '12')

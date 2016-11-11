@@ -3,14 +3,18 @@
     <algorithm codeName="RFImportance">
         <baseClass>BaseMetricsAlgorithm</baseClass>
         <exportFunction>true</exportFunction>
-        <docs>计算随机森林模型中特征重要性。</docs>
+        <docs><![CDATA[
+        计算随机森林模型中特征重要性。
+
+        %params%
+        ]]></docs>
         <params>
             <param name="inputTableName" required="true">
                 <exporter>get_input_table_name</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="inputTablePartitions">
-                <exporter>get_input_table_name</exporter>
+                <exporter>get_input_table_partitions</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="featureColNames" required="true">
@@ -57,20 +61,24 @@
         <metas>
             <meta name="xflowName" value="feature_importance"/>
             <meta name="xflowProjectName" value="algo_public"/>
-            <meta name="calculator" value="$package_root.feature.customize.get_rf_importance"/>
+            <meta name="calculator" value="$package_root.feature._customize.get_rf_importance"/>
         </metas>
     </algorithm>
     <algorithm codeName="GBDTImportance">
         <baseClass>BaseMetricsAlgorithm</baseClass>
         <exportFunction>true</exportFunction>
-        <docs>计算 GBDT 模型中特征重要性。</docs>
+        <docs><![CDATA[
+        计算 GBDT 模型中特征重要性。
+
+        %params%
+        ]]></docs>
         <params>
             <param name="inputTableName" required="true">
                 <exporter>get_input_table_name</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="inputTablePartitions">
-                <exporter>get_input_table_name</exporter>
+                <exporter>get_input_table_partitions</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="labelColName" required="true">
@@ -105,7 +113,7 @@
                 <ioType>INPUT</ioType>
                 <sequence>2</sequence>
                 <type>MODEL</type>
-                <docs>random forests model</docs>
+                <docs>GBDT model</docs>
             </port>
             <port name="output">
                 <ioType>OUTPUT</ioType>
@@ -117,16 +125,24 @@
         <metas>
             <meta name="xflowName" value="gbdt_importance"/>
             <meta name="xflowProjectName" value="algo_public"/>
-            <meta name="calculator" value="$package_root.feature.customize.get_gbdt_importance"/>
+            <meta name="calculator" value="$package_root.feature._customize.get_gbdt_importance"/>
         </metas>
     </algorithm>
     <algorithm codeName="RegressionImportance">
         <baseClass>BaseMetricsAlgorithm</baseClass>
         <exportFunction>true</exportFunction>
-        <docs>计算线性和二分类回归模型中特征重要性。</docs>
+        <docs><![CDATA[
+        计算线性和二分类回归模型中特征重要性。
+
+        %params%
+        ]]></docs>
         <params>
             <param name="inputTableName" required="true">
                 <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
                 <inputName>input</inputName>
             </param>
             <param name="labelColName" required="true">
@@ -143,6 +159,27 @@
                 <exporter>get_output_table_name</exporter>
                 <outputName>output</outputName>
             </param>
+            <param name="featureColNames">
+                <alias>featureCols</alias>
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>输入表中用于训练的特征的列名</docs>
+            </param>
+            <param name="itemDelimiter">
+                <exporter>get_item_delimiter</exporter>
+                <inputName>input</inputName>
+                <docs>item(key value对)之间的分隔符</docs>
+            </param>
+            <param name="kvDelimiter">
+                <exporter>get_kv_delimiter</exporter>
+                <inputName>input</inputName>
+                <docs>表中每个item的key和value之间的分隔符</docs>
+            </param>
+            <param name="enableSparse">
+                <exporter>get_enable_sparse</exporter>
+                <inputName>input</inputName>
+                <docs>是否稀疏数据</docs>
+            </param>
         </params>
         <ports>
             <port name="input">
@@ -155,7 +192,7 @@
                 <ioType>INPUT</ioType>
                 <sequence>2</sequence>
                 <type>MODEL</type>
-                <docs>random forests model</docs>
+                <docs>regression model</docs>
             </port>
             <port name="output">
                 <ioType>OUTPUT</ioType>
@@ -167,7 +204,7 @@
         <metas>
             <meta name="xflowName" value="regression_feature_importance"/>
             <meta name="xflowProjectName" value="algo_public"/>
-            <meta name="calculator" value="$package_root.feature.customize.get_regression_importance"/>
+            <meta name="calculator" value="$package_root.feature._customize.get_regression_importance"/>
         </metas>
     </algorithm>
 </algorithms>

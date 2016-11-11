@@ -23,8 +23,9 @@ from odps.compat import unittest, OrderedDict
 from odps.models import Schema
 from odps.errors import ODPSError
 from odps.df.backends.engine import MixedEngine
+from odps.df.backends.odpssql.engine import ODPSEngine
 from odps.df.backends.pd.engine import PandasEngine
-from odps.df import DataFrame, output
+from odps.df import DataFrame, output, Scalar
 
 
 @pandas_case
@@ -336,6 +337,20 @@ class Test(TestBase):
             self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum'])
             self.assertEqual(sorted(result), sorted(expected))
 
+            expr5 = expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum'])
+            expr6 = expr5['name1_fid_mean',
+                          expr5.groupby(Scalar(1)).sort('name1_fid_mean').name1_fid_mean.astype('float').cumsum()]
+
+            k = lambda x: list(0 if it is None else it for it in x)
+
+            # TODO: fix this situation, act different compared to pandas
+            expected = [
+                [2, 2], [3, 5], [None, None]
+            ]
+            res = self.engine.execute(expr6)
+            result = self._get_result(res)
+            self.assertEqual(sorted(result, key=k), sorted(expected, key=k))
+
             expr3 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0).distinct()
             res = self.engine.execute(expr3)
             result = self._get_result(res)
@@ -410,6 +425,29 @@ class Test(TestBase):
 
         self.assertEqual(len(self.pd_df.name.head(1)), 1)
         self.assertEqual(len(self.pd_df.name.tail(1)), 1)
+
+        class TunnelOnlyODPSEngine(ODPSEngine):
+            def execute(self, expr, **kw):
+                expr = self._pre_process(expr)
+                head = kw.get('head')
+                return self._handle_cases(expr, head=head)
+
+        engine = MixedEngine(self.odps)
+        engine._odpssql_engine = TunnelOnlyODPSEngine(self.odps, global_optimize=False)
+
+        res = engine.execute(self.odps_df['id'], head=3)
+        self.assertIsNotNone(res)
+        self.assertEqual(sum(res.values['id']), 6)
+
+        table_name = tn('pyodps_df_mixed2')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = next(self.odps_df.data_source())
+        table2 = self.odps.create_table(table_name, table.schema)
+        try:
+            res = DataFrame(table2).head(10)
+            self.assertEqual(len(res), 0)
+        finally:
+            table2.drop()
 
     def testMapReduceWithResource(self):
         pd_df2 = self.odps_df.to_pandas(wrap=True)

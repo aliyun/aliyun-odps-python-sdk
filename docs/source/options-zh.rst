@@ -21,6 +21,8 @@ tunnel_endpoint        Tunnel Endpoint           None
 lifecycle              所有表生命周期            None
 temp_lifecycle         临时表生命周期            1
 biz_id                 用户 ID                   None
+verbose                是否打印日志              False
+verbose_log            日志接收器                None
 chunk_size             写入缓冲区大小            1496
 retry_times            请求重试次数              4
 connect_timeout        连接超时                  5
@@ -28,7 +30,7 @@ read_timeout           读取超时                  120
 table_read_limit       表下载条数限制             None
 completion_size        对象补全列举条数限制        10
 notebook_repr_widget   使用交互式图表             True
-sql.settings           ODPS SQL运行全局hints      None
+sql.settings           ODPS oSQL运行全局hints      None
 runner.parallel_num    最多并行执行作业数         5
 runner.retry_times     最大重试次数               3
 ===================== ========================= =======
@@ -37,19 +39,18 @@ runner.retry_times     最大重试次数               3
 DataFrame 配置
 ==================
 
-================ ======================================= =======
-选项             说明	                                 默认值
-================ ======================================= =======
-verbose          是否打印日志                              False
-verbose_log      日志接收器                                None
-interactive      是否在交互式环境                           根据检测值
-df.analyze       是否启用非 ODPS 内置函数                   True
-df.optimize      是否开启DataFrame全部优化                  True
-df.optimizes.pp  是否开启DataFrame谓词下推优化               True
-df.optimizes.cp  是否开启DataFrame列剪裁优化                 True
-df.quote         ODPS SQL后端是否用``来标记字段和表名        True
-df.libraries     DataFrame运行使用的第三方库（资源名）        None
-================ ======================================= =======
+==================== ======================================= =======
+选项                 说明	                                 默认值
+==================== ======================================= =======
+interactive          是否在交互式环境                           根据检测值
+df.analyze           是否启用非 ODPS 内置函数                   True
+df.optimize          是否开启DataFrame全部优化                  True
+df.optimizes.pp      是否开启DataFrame谓词下推优化               True
+df.optimizes.cp      是否开启DataFrame列剪裁优化                 True
+df.optimizes.tunnel  是否开启DataFrame使用tunnel优化执行         True
+df.quote             ODPS SQL后端是否用``来标记字段和表名        True
+df.libraries         DataFrame运行使用的第三方库（资源名）        None
+==================== ======================================= =======
 
 
 机器学习配置

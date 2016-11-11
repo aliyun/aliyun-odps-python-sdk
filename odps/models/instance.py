@@ -95,7 +95,7 @@ class Instance(LazyLoad):
                         text = self.text
                     if self.transform is not None and self.transform == 'Base64':
                         try:
-                            return base64.b64decode(text)
+                            return utils.to_str(base64.b64decode(text))
                         except TypeError:
                             return text
                     return text
@@ -462,10 +462,14 @@ class Instance(LazyLoad):
         params = {'source': ''}
         resp = self._client.get(url, params=params)
 
-        job = Job.parse(self._client, resp)
+        job = Job.parse(self._client, resp, parent=self)
         return job
 
     def get_tasks(self):
+        return self.tasks
+
+    @property
+    def tasks(self):
         job = self._get_job()
         return job.tasks
 

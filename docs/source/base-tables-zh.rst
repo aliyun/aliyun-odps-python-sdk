@@ -55,6 +55,14 @@
     <column c_datetime_a, type datetime>,
     <column c_datetime_b, type datetime>]
 
+
+通过提供 ``project`` 参数，来跨project获取表。
+
+.. code-block:: python
+
+   >>> t = odps.get_table('dual', project='other_project')
+
+
 创建表的Schema
 ---------------
 
@@ -90,8 +98,18 @@
 
 其他还可以设置lifecycle等参数。
 
-创建行记录Record
-------------------
+同步表更新
+-------------
+
+有时候，一个表可能被别的程序做了更新，比如schema有了变化。此时可以调用 ``reload`` 方法来更新。
+
+.. code-block:: python
+
+   >>> table.reload()
+
+
+行记录Record
+-------------------
 
 Record表示表的一行记录，我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。
 
@@ -140,10 +158,16 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
    >>> with t.open_writer(partition='pt=test') as writer:
    >>>     records = [[111, 'aaa', True],                 # 这里可以是list
-   >>>                t.new_record([222, 'bbb', False]),  # 也可以是Record对象
+   >>>                [222, 'bbb', False],
    >>>                [333, 'ccc', True],
    >>>                [444, '中文', False]]
    >>>     writer.write(records)  # 这里records可以是可迭代对象
+   >>>
+   >>>     records = [t.new_record([111, 'aaa', True]),   # 也可以是Record对象
+   >>>                t.new_record([222, 'bbb', False]),
+   >>>                t.new_record([333, 'ccc', True]),
+   >>>                t.new_record([444, '中文', False])]
+   >>>     writer.write(records)
    >>>
    >>> with t.open_writer(partition='pt=test', blocks=[0, 1]) as writer:  # 这里同是打开两个block
    >>>     writer.write(0, gen_records(block=0))

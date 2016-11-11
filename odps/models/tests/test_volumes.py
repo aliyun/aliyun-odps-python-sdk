@@ -88,7 +88,7 @@ class Test(TestBase):
         self.odps.create_parted_volume(TEST_PARTED_VOLUME_NAME)
 
         vol = self.odps.get_volume(TEST_PARTED_VOLUME_NAME)
-        partition_path = '/{0}/{1}'.format(TEST_PARTED_VOLUME_NAME, TEST_PARTITION_NAME)
+        partition_path = '/'.join(('', TEST_PARTED_VOLUME_NAME, TEST_PARTITION_NAME))
         partition = vol.get_partition(TEST_PARTITION_NAME)
         self.assertIs(partition, self.odps.get_volume_partition(partition_path))
         with partition.open_writer() as writer:
@@ -97,7 +97,12 @@ class Test(TestBase):
         partition.reload()
         self.assertEqual(partition.name, TEST_PARTITION_NAME)
 
-        with partition.open_reader(TEST_FILE_NAME) as reader:
+        file_path = '/'.join(('', TEST_PARTED_VOLUME_NAME, TEST_PARTITION_NAME, TEST_FILE_NAME))
+        file_obj = self.odps.get_volume_file(file_path)
+        self.assertEqual(file_obj.name, TEST_FILE_NAME)
+        self.assertEqual(self.odps.project + '/volumes/' + file_path.lstrip('/'), file_obj.path)
+
+        with partition.files[TEST_FILE_NAME].open_reader() as reader:
             out_content = reader.read()
             if not six.PY2:
                 out_content = out_content.decode('utf-8')

@@ -159,5 +159,9 @@ class InvalidStateSetting(ServerDefinedException):
     pass
 
 
-class NoSuchPath(ODPSError):
+class NoPermission(ServerDefinedException):
+    pass
+
+
+class NoSuchPath(ServerDefinedException):
     pass

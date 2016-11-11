@@ -79,7 +79,11 @@ class PandasRedirection(Redirection):
     def getvalue(self):
         if self._use_pd:
             import pandas as pd
-            return pd.get_option('.'.join(self._items))
+            from pandas.core.config import OptionError as PandasOptionError
+            try:
+                return pd.get_option('.'.join(self._items))
+            except PandasOptionError:
+                self._use_pd = False
         else:
             return self._val
 
@@ -291,6 +295,8 @@ options.register_option('log_view_hours', 24, validator=is_integer)
 options.register_option('tunnel_endpoint', None)
 options.register_option('predict_endpoint', None)
 options.register_option('biz_id', None)
+options.register_option('priority', None, validator=any_validator(is_null, is_integer))
+options.register_option('get_priority', None)
 options.register_option('temp_lifecycle', 1, validator=is_integer)
 options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
 options.register_option('table_read_limit', None, validator=any_validator(is_null, is_integer))
@@ -299,6 +305,9 @@ options.register_option('completion_size', 10, validator=is_integer)
 # c or python mode, use for UT, in other cases, please do not modify the value
 options.register_option('force_c', False, validator=is_integer)
 options.register_option('force_py', False, validator=is_integer)
+
+# instance create callback
+options.register_option('instance_create_callback', None)
 
 # network connections
 options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
@@ -321,6 +330,7 @@ options.register_option('verbose_log', None)
 options.register_option('df.optimize', True, validator=is_bool)
 options.register_option('df.optimizes.cp', True, validator=is_bool)
 options.register_option('df.optimizes.pp', True, validator=is_bool)
+options.register_option('df.optimizes.tunnel', True, validator=is_bool)
 options.register_option('df.analyze', True, validator=is_bool)
 options.register_option('df.use_cache', True, validator=is_bool)
 options.register_option('df.quote', True, validator=is_bool)
@@ -338,6 +348,7 @@ options.redirect_option('ml.parallel_num', 'runner.parallel_num')
 options.redirect_option('ml.dry_run', 'runner.dry_run')
 options.redirect_option('ml.retry_times', 'runner.retry_times')
 options.register_option('ml.auto_transfer_pmml', True, validator=is_bool)
+options.register_option('ml.use_old_metrics', False, validator=is_bool)
 
 # display
 from .console import detect_console_encoding

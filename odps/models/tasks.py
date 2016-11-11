@@ -16,19 +16,7 @@
 
 from .core import AbstractXMLRemoteModel
 from .. import serializers, errors, compat
-from ..compat import Enum
-
-
-class TaskType(Enum):
-    UnknownTask = 'UNKNOWN'
-    SQLTask = 'SQL'
-
-
-def _get_task_type(name):
-    try:
-        return TaskType(name)
-    except ValueError:
-        return TaskType.UnknownTask
+from ..compat import six
 
 
 class Task(AbstractXMLRemoteModel):
@@ -38,7 +26,7 @@ class Task(AbstractXMLRemoteModel):
     _type_indicator = 'type'
 
     name = serializers.XMLNodeField('Name')
-    type = serializers.XMLTagField('.', parse_callback=lambda s: _get_task_type(s.upper()))
+    type = serializers.XMLTagField('.')
     comment = serializers.XMLNodeField('Comment')
     properties = serializers.XMLNodePropertiesField('Config', 'Property',
                                                     key_tag='Name', value_tag='Value')
@@ -47,7 +35,15 @@ class Task(AbstractXMLRemoteModel):
         typo = kwargs.get('type')
 
         if typo is not None:
-            task_cls = globals().get(typo.name, cls)
+            task_cls = None
+            for v in six.itervalues(globals()):
+                if not isinstance(v, type) or not issubclass(v, Task):
+                    continue
+                cls_type = getattr(v, '_root', v.__name__)
+                if typo == cls_type:
+                    task_cls = v
+            if task_cls is None:
+                task_cls = cls
         else:
             task_cls = cls
 
@@ -59,9 +55,25 @@ class Task(AbstractXMLRemoteModel):
         self.properties[key] = value
 
     def serialize(self):
-        if self.type == TaskType.UnknownTask:
-            raise errors.OdpsError('Unknown task type')
+        if type(self) is Task:
+            raise errors.ODPSError('Unknown task type')
         return super(Task, self).serialize()
+
+    @property
+    def progress(self):
+        return self.parent.parent.get_task_progress(self.name)
+
+    @property
+    def result(self):
+        return self.parent.parent.get_task_result(self.name)
+
+    @property
+    def summary(self):
+        return self.parent.parent.get_task_summary(self.name)
+
+    @property
+    def detail(self):
+        return self.parent.parent.get_task_detail(self.name)
 
 
 def format_cdata(query):

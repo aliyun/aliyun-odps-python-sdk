@@ -29,6 +29,7 @@ from ...compat import reduce, six
 from ..utils import FunctionWrapper
 from .. import types
 from ..types import string, validate_data_type
+from ...utils import object_getattr
 
 
 class BaseGroupBy(Expr):
@@ -36,12 +37,14 @@ class BaseGroupBy(Expr):
     _args = '_input', '_by'
 
     def _init(self, *args, **kwargs):
+        self._init_attr('_to_agg', None)
         super(BaseGroupBy, self)._init(*args, **kwargs)
         if isinstance(self._by, list):
             self._by = self._input._get_fields(self._by)
         else:
             self._by = [self._input._get_field(self._by)]
-        self._to_agg = tuple(set(col.name for col in self._input._schema.columns))
+        if self._to_agg is None:
+            self._to_agg = self._input.schema
 
     def __getitem__(self, item):
         if isinstance(item, six.string_types):
@@ -55,19 +58,27 @@ class BaseGroupBy(Expr):
         if not all(is_field(it) for it in item):
             raise TypeError('Fail to get group by fields, unknown type: %s' % type(item))
         if any(col.is_renamed() for col in item if isinstance(col, Column)):
-            raise TypeError('Fail to get group by fields, column cannot be renamed')
+            raise ValueError('Fail to get group by fields, column cannot be renamed')
 
-        _to_agg = \
-            [field.source_name for field in item if field.source_name in self._to_agg]
+        _to_agg = type(self._input.schema)(
+            self._input.schema([field.source_name for field in item
+                                if field.source_name in self._to_agg]))
 
         return GroupBy(_input=self._input, _by=self._by,
                        _by_names=self._by_names, _to_agg=_to_agg)
 
     def __getattr__(self, attr):
-        if attr in object.__getattribute__(self, '_to_agg'):
-            return self[attr]
+        try:
+            return object.__getattribute__(self, attr)
+        except AttributeError as e:
+            if attr.startswith('__'):
+                raise e
 
-        return super(BaseGroupBy, self).__getattr__(attr)
+            agg = object.__getattribute__(self, '_to_agg')
+            if agg is not None and attr in agg:
+                return self[attr]
+
+            raise e
 
     def sort_values(self, by, ascending=True):
         if hasattr(self, '_having') and self._having is not None:
@@ -77,7 +88,7 @@ class BaseGroupBy(Expr):
             by = [by, ]
         by = [self._defunc(it) for it in by]
 
-        attr_values = dict((attr, getattr(self, attr, None))
+        attr_values = dict((attr, object_getattr(self, attr, None))
                            for attr in utils.get_attrs(self))
         attr_values['_sorted_fields'] = by
         attr_values['_ascending'] = ascending
@@ -110,7 +121,7 @@ class BaseGroupBy(Expr):
 
         win_field_names = filter(lambda it: it is not None,
                                  [win.source_name for win in windows])
-        if not frozenset(win_field_names).issubset(self._to_agg):
+        if not frozenset(win_field_names).issubset(self._to_agg.names):
             for agg_field_name in win_field_names:
                 if agg_field_name not in self._to_agg:
                     raise ValueError('Unknown field to aggregate: %s' % repr_obj(agg_field_name))
@@ -274,8 +285,13 @@ class GroupBy(BaseGroupBy):
 
 
 class SequenceGroupBy(Expr):
-    __slots__ = '_name', '_data_type'
+    __slots__ = '_name', '_data_type', '_source_data_type'
     _args = '_input',
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_data_type', None)
+        self._init_attr('_source_data_type', None)
+        super(SequenceGroupBy, self)._init(*args, **kwargs)
 
     def __new__(cls, *args, **kwargs):
         data_type = kwargs.get('_data_type')
@@ -298,6 +314,33 @@ class SequenceGroupBy(Expr):
     @property
     def input(self):
         return self._input
+
+    def astype(self, data_type):
+        data_type = types.validate_data_type(data_type)
+
+        if data_type == self._data_type:
+            return self
+
+        attr_dict = dict((k, getattr(self, k, None)) for k in utils.get_attrs(self))
+        attr_dict['_data_type'] = data_type
+        attr_dict['_source_data_type'] = self._source_data_type
+
+        cls = globals().get(repr(data_type).capitalize() + SequenceGroupBy.__name__)
+        new_sequence_groupby = cls(**attr_dict)
+
+        return new_sequence_groupby
+
+    def is_astyped(self):
+        if self._source_data_type is None:
+            return False
+        return self._data_type != self._source_data_type
+
+    def to_column(self):
+        collection = self.input.input
+        input = collection[self.name]
+        if self.is_astyped():
+            input = input.astype(self._data_type)
+        return input
     
 
 class BooleanSequenceGroupBy(SequenceGroupBy):
@@ -358,6 +401,12 @@ class DatetimeSequenceGroupBy(SequenceGroupBy):
     def _init(self, *args, **kwargs):
         super(DatetimeSequenceGroupBy, self)._init(*args, **kwargs)
         self._data_type = types.datetime
+
+
+class UnknownSequenceGroupBy(SequenceGroupBy):
+    def _init(self, *args, **kwargs):
+        super(UnknownSequenceGroupBy, self)._init(*args, **kwargs)
+        self._data_type = types.Unknown()
 
 
 class SortedGroupBy(BaseGroupBy, SortedExpr):
@@ -457,7 +506,7 @@ class GroupbyAppliedCollectionExpr(CollectionExpr):
             if isinstance(self._input, SortedGroupBy):
                 self._sort_fields = self._input._sorted_fields
             self._by = self._input._by
-            self._fields = self._input._to_agg
+            self._fields = self._input._to_agg.names
             self._input = self._input._input
 
         self._fields = sorted(

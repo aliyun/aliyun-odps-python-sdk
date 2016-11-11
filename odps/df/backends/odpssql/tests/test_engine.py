@@ -106,6 +106,12 @@ class Test(TestBase):
         result = self._get_result(res)
         self.assertEqual([it[:2] for it in data], result)
 
+        expr = self.expr['name']
+        res = self.engine._handle_cases(
+            self.engine._pre_process(expr), self.faked_bar)
+        result = self._get_result(res)
+        self.assertEqual([it[:1] for it in data], result)
+
         table_name = tn('pyodps_test_engine_partitioned')
         self.odps.delete_table(table_name, if_exists=True)
 
@@ -234,11 +240,43 @@ class Test(TestBase):
 
         expr = self.expr.id.sum()
 
-        res = self.engine.execute(expr, async=True)
+        res = self.engine.execute(expr, async=True, priority=4)
         self.assertNotEqual(res.instance.status, Instance.Status.TERMINATED)
         res.wait()
 
         self.assertEqual(sum(it[1] for it in data), res.fetch())
+        self.assertEqual(res.instance.priority, 4)
+
+    def testNoPermission(self):
+        class NoPermissionEngine(ODPSEngine):
+            def _handle_cases(self, *args, **kwargs):
+                from odps.errors import NoPermission
+                raise NoPermission('No permission to use tunnel')
+
+            def _open_reader(self, t, **kwargs):
+                raise RuntimeError('Cannot use tunnel')
+
+        data = self._gen_data(10, value_range=(-1000, 1000))
+
+        res = NoPermissionEngine(self.odps).execute(self.expr)
+        result = self._get_result(res)
+        self.assertEqual(data, result)
+
+    def testNoTunnelCase(self):
+        class NoTunnelCaseEngine(ODPSEngine):
+            def _handle_cases(self, *args, **kwargs):
+                raise RuntimeError('Not allow to use tunnel')
+
+        data = self._gen_data(10, value_range=(-1000, 1000))
+
+        options.df.optimizes.tunnel = False
+
+        try:
+            res = NoTunnelCaseEngine(self.odps).execute(self.expr)
+            result = self._get_result(res)
+            self.assertEqual(data, result)
+        finally:
+            options.df.optimizes.tunnel = True
 
     def testBase(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
@@ -398,6 +436,7 @@ class Test(TestBase):
             (self.expr.id // 2).rename('id6'),
             (self.expr.birth + day(1).rename('birth1')),
             (self.expr.birth - (self.expr.birth - millisecond(10))).rename('birth2'),
+            (self.expr.id % 2).rename('id7'),
         ]
 
         expr = self.expr[fields]
@@ -444,6 +483,9 @@ class Test(TestBase):
                          [it[12] for it in result])
 
         self.assertEqual([10] * len(data), [it[13] for it in result])
+
+        self.assertEqual([it[1] % 2 for it in data],
+                         [it[14] for it in result])
 
     def testMath(self):
         data = self._gen_data(5, value_range=(1, 90))

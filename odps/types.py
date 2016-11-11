@@ -270,9 +270,14 @@ class OdpsSchema(Schema):
         partitions = self._partitions or []
         return self._columns + partitions
 
+    @property
+    def partitions(self):
+        return self._partitions
+
     def get_columns(self):
         return self._columns
 
+    @utils.deprecated('use partitions property instead')
     def get_partitions(self):
         return self._partitions
 
@@ -884,7 +889,7 @@ _odps_primitive_to_builtin_types = {
 }
 
 
-def _infer_primitive_data_type(value):
+def infer_primitive_data_type(value):
     for data_type, builtin_types in six.iteritems(_odps_primitive_to_builtin_types):
         if isinstance(value, builtin_types):
             return data_type
@@ -900,7 +905,7 @@ def _validate_primitive_value(value, data_type):
     if isinstance(value, builtin_types):
         return value
 
-    inferred_data_type = _infer_primitive_data_type(value)
+    inferred_data_type = infer_primitive_data_type(value)
     if inferred_data_type is None:
         raise ValueError(
             'Unknown value type, cannot infer from value: %s, type: %s' % (value, type(value)))

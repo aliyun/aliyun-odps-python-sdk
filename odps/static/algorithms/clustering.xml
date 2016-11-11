@@ -28,10 +28,10 @@
                 <outputName>index</outputName>
                 <docs>输出聚类编号表。行数等于输入表总行数，每行的值表示输入表对应行表示的点的聚类编号</docs>
             </param>
-            <param name="centerTableName" required="true">
-                <exporter>get_output_table_name</exporter>
-                <outputName>centroid</outputName>
-                <docs>输出聚类质心表，列数等于输入表(有选中则等于选中列总数)，行数等于聚类数，每行表示一个聚类质心位置</docs>
+            <param name="modelName" required="true">
+                <exporter>get_output_model_name</exporter>
+                <outputName>model</outputName>
+                <docs>输出聚类质心模型表</docs>
             </param>
             <param name="selectedColNames" required="true">
                 <alias>cols</alias>
@@ -67,7 +67,7 @@
                 <inputName>initCenter</inputName>
             </param>
             <param name="appendColsIndex">
-                <exporter>$package_root.clustering.customize.get_kmeans_input_append_col_idx</exporter>
+                <exporter>$package_root.clustering._customize.get_kmeans_input_append_col_idx</exporter>
                 <inputName>input</inputName>
             </param>
         </params>
@@ -91,16 +91,13 @@
                 <type>DATA</type>
                 <schema>
                     <copyInput>input</copyInput>
-                    <schema>index: bigint</schema>
+                    <schema>cluster_index: bigint: predicted_class</schema>
                 </schema>
             </port>
-            <port name="centroid">
+            <port name="model">
                 <ioType>OUTPUT</ioType>
                 <sequence>2</sequence>
-                <type>DATA</type>
-                <schema>
-                    <schema>{selectedColNames}</schema>
-                </schema>
+                <type>MODEL</type>
             </port>
         </ports>
         <metas>

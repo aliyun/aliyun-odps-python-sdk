@@ -1,5 +1,226 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <algorithms baseClass="BaseProcessAlgorithm">
+    <algorithm codeName="AppendID">
+        <public>false</public>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>false</fieldChangable>
+        <params>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="outputPartition">
+                <exporter>get_output_table_partitions</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="IDColName">
+                <value>append_id</value>
+            </param>
+            <param name="selectedColNames">
+                <exporter>$package_root.preprocess._customize.get_append_id_selected_cols</exporter>
+                <outputName>input</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <schema>
+                    <schema>$package_root.preprocess._customize.append_id_output</schema>
+                    <dynamic>true</dynamic>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="AppendID"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="Split">
+        <public>false</public>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>false</fieldChangable>
+        <params>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="output1TableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output1</outputName>
+            </param>
+            <param name="output1TablePartition">
+                <exporter>get_output_table_partitions</exporter>
+                <outputName>output1</outputName>
+            </param>
+            <param name="output2TableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output2</outputName>
+            </param>
+            <param name="output2TablePartition">
+                <exporter>get_output_table_partitions</exporter>
+                <outputName>output2</outputName>
+            </param>
+            <param name="fraction" />
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output1">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output2">
+                <ioType>OUTPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="Split"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="RandomSample">
+        <public>false</public>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>false</fieldChangable>
+        <params>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="sampleSize" />
+            <param name="sampleRatio" />
+            <param name="replace" />
+            <param name="randomSeed" />
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="RandomSample"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="WeightedSample">
+        <public>false</public>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>false</fieldChangable>
+        <params>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="sampleSize" />
+            <param name="sampleRatio" />
+            <param name="probCol" />
+            <param name="replace" />
+            <param name="randomSeed" />
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="WeightedSample"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="StratifiedSample">
+        <public>false</public>
+        <reloadFields>false</reloadFields>
+        <fieldChangable>false</fieldChangable>
+        <params>
+            <param name="inputTableName">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputPartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="sampleSize" />
+            <param name="sampleRatio" />
+            <param name="strataColName" />
+            <param name="randomSeed" />
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="WeightedSample"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
     <algorithm codeName="binning">
         <enabled>false</enabled>
         <reloadFields>false</reloadFields>

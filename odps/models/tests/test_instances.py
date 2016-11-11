@@ -20,13 +20,14 @@
 import itertools
 import time
 import random
+import textwrap
 from datetime import datetime, timedelta
 
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
 from odps.models import Instance, SQLTask, Schema
 from odps.errors import ODPSError
-from odps import errors, compat
+from odps import errors, compat, types as odps_types
 
 expected_xml_template = '''<?xml version="1.0" ?>
 <Instance>
@@ -80,12 +81,33 @@ class Test(TestBase):
     def testListInstancesInPage(self):
         test_table = tn('pyodps_t_tmp_list_instances_in_page')
 
-        data = [[random.randint(0, 1000)] for _ in compat.irange(10000)]
+        delay_udf = textwrap.dedent("""
+        from odps.udf import annotate
+        import time
+
+        @annotate("bigint->bigint")
+        class Delayer(object):
+           def evaluate(self, arg0):
+               time.sleep(45)
+               return arg0
+        """)
+        resource_name = tn('test_delayer_function_resource')
+        function_name = tn('test_delayer_function')
+
+        if self.odps.exist_resource(resource_name + '.py'):
+            self.odps.delete_resource(resource_name + '.py')
+        res = self.odps.create_resource(resource_name + '.py', 'py', file_obj=delay_udf)
+
+        if self.odps.exist_function(function_name):
+            self.odps.delete_function(function_name)
+        fun = self.odps.create_function(function_name, class_type=resource_name + '.Delayer', resources=[res, ])
+
+        data = [[random.randint(0, 1000)] for _ in compat.irange(100)]
         self.odps.delete_table(test_table, if_exists=True)
         t = self.odps.create_table(test_table, Schema.from_lists(['num'], ['bigint']))
         self.odps.write_table(t, data)
 
-        instance = self.odps.run_sql('select sum(num) from {0} group by num'.format(test_table))
+        instance = self.odps.run_sql('select sum({0}(num)) from {1} group by num'.format(function_name, test_table))
 
         try:
             self.assertEqual(instance.status, Instance.Status.RUNNING)
@@ -98,6 +120,8 @@ class Test(TestBase):
                 instance.stop()
             except:
                 pass
+            res.drop()
+            fun.drop()
             t.drop()
 
 
@@ -255,14 +279,14 @@ class Test(TestBase):
             table.drop()
             table2.drop()
 
-    def testReadChineseSQLInstance(self):
-        test_table = tn('pyodps_t_tmp_read_chn_sql_instance')
+    def testReadNonAsciiSQLInstance(self):
+        test_table = tn('pyodps_t_tmp_read_non_ascii_sql_instance')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table,
             schema=Schema.from_lists(['size', 'name'], ['bigint', 'string']), if_not_exists=True)
 
-        data = [[1, '中文'], [2, '测试数据']]
+        data = [[1, '中\\\\n\\\n文 ,\r '], [2, '测试\x00\x01\x02数据']]
         self.odps.write_table(
             table, 0, [table.new_record(it) for it in data])
 
@@ -274,6 +298,31 @@ class Test(TestBase):
 
         table.drop()
 
+    def testReadMapArraySQLInstance(self):
+        test_table = tn('pyodps_t_tmp_read_map_array_sql_instance')
+        self.odps.delete_table(test_table, if_exists=True)
+        table = self.odps.create_table(
+            test_table,
+            schema=Schema.from_lists(
+                ['idx', 'map_col', 'array_col'],
+                ['bigint', odps_types.Map(odps_types.string, odps_types.string), odps_types.Array(odps_types.string)],
+            )
+        )
+
+        data = [
+            [0, {'key1': 'value1', 'key2': 'value2'}, ['item1', 'item2', 'item3']],
+            [1, {'key3': 'value3', 'key4': 'value4'}, ['item4', 'item5']],
+        ]
+        self.odps.write_table(test_table, data)
+
+        with self.odps.execute_sql('select * from %s' % test_table).open_reader(table.schema) as reader:
+            read_data = [list(r.values) for r in reader]
+            read_data = sorted(read_data, key=lambda r: r[0])
+            expected_data = sorted(data, key=lambda r: r[0])
+
+            self.assertSequenceEqual(read_data, expected_data)
+
+        table.drop()
 
     def testSQLAliasInstance(self):
         test_table = tn('pyodps_t_tmp_sql_aliases_instance')
@@ -300,18 +349,20 @@ class Test(TestBase):
         res1 = self.odps.create_resource(res_name1, 'file', file_obj='1')
         res2 = self.odps.create_resource(res_name2, 'file', file_obj='2')
 
-        test_func_content = """\
-from odps.udf import annotate
-from odps.distcache import get_cache_file
+        test_func_content = """
+        from odps.udf import annotate
+        from odps.distcache import get_cache_file
 
-@annotate('bigint->bigint')
-class Example(object):
-    def __init__(self):
-        self.n = int(get_cache_file('%s').read())
+        @annotate('bigint->bigint')
+        class Example(object):
+            def __init__(self):
+                self.n = int(get_cache_file('%s').read())
 
-    def evaluate(self, arg):
-        return arg + self.n
-""" % res_name1
+            def evaluate(self, arg):
+                return arg + self.n
+        """ % res_name1
+        test_func_content = textwrap.dedent(test_func_content)
+
         py_res_name = tn('pyodps_t_tmp_func_res')
         try:
             self.odps.delete_resource(py_res_name+'.py')

@@ -22,7 +22,7 @@ import math
 
 from requests import Response
 
-from . import types
+from . import types, compat, utils
 from .models.record import Record
 from .compat import six
 
@@ -99,6 +99,7 @@ class AbstractRecordReader(object):
 
 class RecordReader(AbstractRecordReader):
     NULL_TOKEN = '\\N'
+    BACK_SLASH_ESCAPE = '\\x%02x' % ord('\\')
 
     def __init__(self, schema, stream, **kwargs):
         self._schema = schema
@@ -108,13 +109,30 @@ class RecordReader(AbstractRecordReader):
             self.raw = self._fp.content if six.PY2 else self._fp.text
         else:
             self.raw = self._fp
-        self._csv = csv.reader(self.raw.splitlines())
+        self._csv = csv.reader(six.StringIO(self._escape_csv(self.raw)))
+
+    @classmethod
+    def _escape_csv(cls, s):
+        escaped = utils.to_text(s).encode('unicode_escape')
+        # Make invisible chars available to `csv` library.
+        # Note that '\n' and '\r' should be unescaped.
+        # '\\' should be replaced with '\x5c' before unescaping
+        # to avoid mis-escaped strings like '\\n'.
+        return utils.to_text(escaped) \
+            .replace('\\\\', cls.BACK_SLASH_ESCAPE) \
+            .replace('\\n', '\n') \
+            .replace('\\r', '\r')
+
+    @staticmethod
+    def _unescape_csv(s):
+        return s.encode('utf-8').decode('unicode_escape')
 
     def _readline(self):
         try:
             values = next(self._csv)
             res = []
             for i, value in enumerate(values):
+                value = self._unescape_csv(value)
                 if value == self.NULL_TOKEN:
                     res.append(None)
                 elif self._columns and self._columns[i].type == types.boolean:
@@ -124,6 +142,28 @@ class RecordReader(AbstractRecordReader):
                         res.append(False)
                     else:
                         res.append(value)
+                elif self._columns and isinstance(self._columns[i].type, types.Map):
+                    col_type = self._columns[i].type
+                    if not (value.startswith('{') and value.endswith('}')):
+                        raise ValueError('Dict format error!')
+
+                    items = []
+                    for kv in value[1:-1].split(','):
+                        k, v = kv.split(':', 1)
+                        k = col_type.key_type.cast_value(k.strip(), types.string)
+                        v = col_type.value_type.cast_value(v.strip(), types.string)
+                        items.append((k, v))
+                    res.append(compat.OrderedDict(items))
+                elif self._columns and isinstance(self._columns[i].type, types.Array):
+                    col_type = self._columns[i].type
+                    if not (value.startswith('[') and value.endswith(']')):
+                        raise ValueError('Array format error!')
+
+                    items = []
+                    for item in value[1:-1].split(','):
+                        item = col_type.value_type.cast_value(item.strip(), types.string)
+                        items.append(item)
+                    res.append(items)
                 else:
                     res.append(value)
             return res

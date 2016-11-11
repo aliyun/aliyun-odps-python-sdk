@@ -74,3 +74,6 @@ misc/algo_diff.txt
 
 # test pyodpswrapper
 bin/test_pyodpswrapper.py
+
+# tmp files
+*.tmp

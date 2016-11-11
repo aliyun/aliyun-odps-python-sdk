@@ -49,7 +49,7 @@ class Test(TestBase):
         project = 'algo_project'
         parameters = {'key': 'value'}
 
-        got_xml = self.odps.get_project(project).xflows._gen_xlow_instance_xml(
+        got_xml = self.odps.get_project(project).xflows._gen_xflow_instance_xml(
             xflow_name=xflow_name, xflow_project=project, parameters=parameters)
         self.assertEqual(to_str(got_xml), to_str(EXPECTED_XFLOW_INSTANCE_XML))
 

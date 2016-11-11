@@ -16,6 +16,7 @@
 # under the License.
 
 from odps.tests.core import TestBase, to_str
+from odps.errors import ODPSError
 from odps.compat import unittest
 from odps.models import SQLTask, Task
 
@@ -35,6 +36,18 @@ template = '''<?xml version="1.0" ?>
 
 
 class Test(TestBase):
+    def testTaskClassType(self):
+        typed = Task(type='SQL', query='select * from dual')
+        self.assertIsInstance(typed, SQLTask)
+
+        unknown_typed = Task(type='UnknownType')
+        self.assertIs(type(unknown_typed), Task)
+        self.assertRaises(ODPSError, lambda: unknown_typed.serialize())
+
+        untyped = Task()
+        self.assertIs(type(untyped), Task)
+        self.assertRaises(ODPSError, lambda: untyped.serialize())
+
     def testSQLTaskToXML(self):
         query = 'select * from dual'
 

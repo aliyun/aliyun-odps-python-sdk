@@ -21,10 +21,9 @@ from __future__ import print_function
 
 import inspect
 import re
-import sys
 from collections import namedtuple
 
-from ..compat import six
+from ..compat import six, getargspec
 from .. import ODPS, options, utils
 
 PROJECT_REGEX = re.compile('.*project *= *(?P<project>[^\(\),]+)')
@@ -101,7 +100,7 @@ class ObjectCompleter(BaseCompleter):
                     break
 
             if lister:
-                arg_tuple = inspect.getargspec(getattr(ODPS, lister))
+                arg_tuple = getargspec(getattr(ODPS, lister))
                 use_prefix = 'prefix' in arg_tuple[0]
                 self._methods[m_name] = method_type(use_prefix=use_prefix, list_method=lister)
 

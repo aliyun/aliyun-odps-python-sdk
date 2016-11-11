@@ -130,31 +130,21 @@ class TestCore(RunnerTestBase):
         steps_obj = df6.show_steps()
         self.assertEqual(steps_obj.text.strip(), steps_text)
 
-    def test_param_format(self):
-        self.assertEqual(BaseRunnerNode._format_parameter_value(None), None)
-        self.assertEqual(BaseRunnerNode._format_parameter_value(True), 'true')
-        self.assertEqual(BaseRunnerNode._format_parameter_value(False), 'false')
-        self.assertEqual(BaseRunnerNode._format_parameter_value(''), '')
-        self.assertEqual(BaseRunnerNode._format_parameter_value([]), None)
-        self.assertEqual(BaseRunnerNode._format_parameter_value([1, 2, 3, 4]), '1,2,3,4')
-        self.assertEqual(BaseRunnerNode._format_parameter_value(set([1, 2, 3, 4])), '1,2,3,4')
-        self.assertEqual(BaseRunnerNode._format_parameter_value(12), '12')
-
-    def test_gen_params(self):
+    def test_convert_params(self):
         self.create_ionosphere(IONOSPHERE_TABLE)
         df1 = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
         df2 = self.mock_action(df1, msg='Node2')
         node2 = _get_bind_node(df2)
-        self.assertDictEqual(node2.gen_command_params(), dict(message='Node2'))
+        self.assertDictEqual(node2.convert_params(), dict(message='Node2'))
 
         node2.add_exporter('message', lambda: [])
-        self.assertEqual(node2.gen_command_params(), dict())
+        self.assertEqual(node2.convert_params(), dict())
 
         node2.add_exporter('message', lambda: 'ConvValue')
-        self.assertEqual(node2.gen_command_params(), dict(message='ConvValue'))
+        self.assertEqual(node2.convert_params(), dict(message='ConvValue'))
 
         node2.add_exporter('message', lambda: 2 / 0)  # which raises div by zero error
-        self.assertRaises(ValueError, lambda: node2.gen_command_params())
+        self.assertRaises(ValueError, lambda: node2.convert_params())
 
     def test_object_container(self):
         class TestObj(object):

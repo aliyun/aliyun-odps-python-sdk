@@ -26,7 +26,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 from unicodedata import east_asian_width
 
-from . import six
+from .lib import six
 
 PY26 = six.PY2 and sys.version_info[1] == 6
 PY27 = six.PY2 and sys.version_info[1] == 7
@@ -49,7 +49,7 @@ _EAW_MAP = {'Na': 1, 'N': 1, 'W': 2, 'F': 2, 'H': 1}
 import decimal
 DECIMAL_TYPES = [decimal.Decimal, ]
 
-import json
+import json  # don't remove
 
 if six.PY3:
     lrange = lambda *x: list(range(*x))
@@ -68,7 +68,7 @@ if six.PY3:
     BytesIO = io.BytesIO
 
     if LESS_PY34:
-        from ..lib import enum
+        from .lib import enum
     else:
         import enum
 
@@ -104,7 +104,7 @@ if six.PY3:
     dictconfig = lambda config: logging.config.dictConfig(config)
 
     import builtins
-    from concurrent import futures
+    from concurrent import futures  # don't remove
 else:
     lrange = range
     lzip = zip
@@ -117,7 +117,7 @@ else:
 
     long_type = long
 
-    from ..lib import enum
+    from .lib import enum
 
     try:
         import cdecimal as decimal
@@ -174,8 +174,8 @@ else:
 
         dictconfig = lambda config: logging.config.dictConfig(config)
 
-    import __builtin__ as builtins
-    from ..lib import futures
+    import __builtin__ as builtins  # don't remove
+    from .lib import futures  # don't remove
 
 if PY26:
     try:
@@ -184,7 +184,7 @@ if PY26:
         pass
 if PY26 or LESS_PY32:
     try:
-        from ..tests.dictconfig import dictConfig
+        from .tests.dictconfig import dictConfig
         dictconfig = lambda config: dictConfig(config)
     except ImportError:
         pass
@@ -212,18 +212,18 @@ try:
 except ImportError:
     pass
 
-from .utils import isvalidattr, dir2, raise_exc
+from .lib.lib_utils import isvalidattr, dir2, raise_exc, getargspec, getfullargspec
 
-from .six.moves import reduce
-from .six.moves import reload_module
-from .six.moves.queue import Queue, Empty
-from .six.moves.urllib.request import urlretrieve
-from .six.moves import cPickle as pickle
-from .six.moves.urllib.parse import urlparse, unquote, quote, quote_plus, parse_qsl
-from .six.moves import configparser as ConfigParser
+from .lib.six.moves import reduce
+from .lib.six.moves import reload_module
+from .lib.six.moves.queue import Queue, Empty
+from .lib.six.moves.urllib.request import urlretrieve
+from .lib.six.moves import cPickle as pickle
+from .lib.six.moves.urllib.parse import urlencode, urlparse, unquote, quote, quote_plus, parse_qsl
+from .lib.six.moves import configparser as ConfigParser
 
 
 __all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress',
            'reduce', 'reload_module', 'Queue', 'Empty',
-           'urlretrieve', 'pickle', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
+           'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
            'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES']

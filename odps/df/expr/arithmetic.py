@@ -97,6 +97,10 @@ class FloorDivide(Arithmetic):
     __slots__ = ()
 
 
+class Mod(Arithmetic):
+    __slots__ = ()
+
+
 class Power(Arithmetic):
     __slots__ = ()
 
@@ -284,6 +288,14 @@ def _rdiv(expr, other):
     return _reversed_arithmetic(expr, other, Divide, output_type=output_type)
 
 
+def _mod(expr, other):
+    return _arithmetic(expr, other, Mod)
+
+
+def _rmod(expr, other):
+    return _reversed_arithmetic(expr, other, Mod)
+
+
 def _floordiv(expr, other):
     return _arithmetic(expr, other, FloorDivide)
 
@@ -358,6 +370,8 @@ _number_methods = dict(
     _rdiv=_rdiv,
     _floordiv=_floordiv,
     _rfloordiv=_rfloordiv,
+    _mod=_mod,
+    _rmod=_rmod,
     _pow=_pow,
     _rpow=_rpow,
     _neg=_neg,

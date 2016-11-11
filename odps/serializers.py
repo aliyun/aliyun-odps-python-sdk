@@ -65,10 +65,27 @@ def _route_json_path(root, *keys, **kw):
     return root
 
 
+def parse_ndarray(array):
+    try:
+        import numpy as np
+        return np.asarray(array)
+    except ImportError:
+        return array
+
+
+def serialize_ndarray(array):
+    try:
+        return array.tolist()
+    except AttributeError:
+        return array
+
+
 _serialize_types = dict()
 _serialize_types['bool'] = (utils.str_to_bool, utils.bool_to_str)
+_serialize_types['json'] = (json.loads, json.dumps)
 _serialize_types['rfc822'] = (utils.parse_rfc822, utils.gen_rfc822)
 _serialize_types['rfc822l'] = (utils.parse_rfc822, lambda s: utils.gen_rfc822(s, localtime=True))
+_serialize_types['ndarray'] = (parse_ndarray, serialize_ndarray)
 
 
 class SerializeField(object):
@@ -267,11 +284,12 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
     @classmethod
     def deserial(cls, content, obj=None, **kw):
         obj = cls._init_obj(content, obj=obj, **kw)
+        obj_type = type(obj)
 
-        fields = dict(getattr(cls, '__fields'))
+        fields = dict(getattr(obj_type, '__fields'))
 
         if isinstance(content, six.string_types):
-            if issubclass(cls, XMLSerializableModel):
+            if issubclass(obj_type, XMLSerializableModel):
                 content = ElementTree.fromstring(content)
             else:
                 content = json.loads(content)
@@ -290,7 +308,7 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
                     parent_kw[attr] = prop.parse(content, **kwargs)
 
         for k, v in six.iteritems(self_kw):
-            cls._setattr(obj, k, v, skip_null=getattr(cls, 'skip_null', True))
+            obj_type._setattr(obj, k, v, skip_null=getattr(obj_type, 'skip_null', True))
 
         if obj.parent is not None:
             for k, v in six.iteritems(parent_kw):
@@ -732,7 +750,7 @@ class JSONNodesField(SerializeField):
         if self._serialize_callback:
             value = self._serialize_callback(value)
 
-        assert len(self._path_keys) >=2
+        assert len(self._path_keys) >= 2
 
         prev_path_keys = self._path_keys[:-2]
         if prev_path_keys:
