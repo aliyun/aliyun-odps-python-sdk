@@ -1262,6 +1262,78 @@ string相关操作包括：
     </table>
     </div>
 
+
+PyODPS 也支持时间的加减操作，比如可以通过以下方法得到前3天的日期。
+
+
+.. code-block:: python
+
+    df
+
+
+.. code-block:: python
+
+                               a
+    0 2016-11-14 14:17:26.366091
+    1 2016-11-14 14:17:26.366098
+    2 2016-11-14 14:17:26.366099
+
+
+.. code-block:: python
+
+    from odps.df import day
+
+    df.a - day(3)
+
+.. code-block:: python
+
+                               a
+    0 2016-11-11 14:17:26.366091
+    1 2016-11-11 14:17:26.366098
+    2 2016-11-11 14:17:26.366099
+
+
+支持的时间类型包括：
+
+.. raw:: html
+
+    <div style='padding-bottom: 30px'>
+    <table border="1" class="dataframe">
+      <tr>
+        <th>属性</th>
+        <th>说明</th>
+      </tr>
+      <tr>
+        <td>year</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>month</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>day</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>hour</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>minute</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>second</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>millisecond</td>
+        <td></td>
+    </table>
+    </div>
+
+
 其他元素操作（isin，notin，cut）
 ======================================
 

@@ -63,6 +63,8 @@
    >>> t = odps.get_table('dual', project='other_project')
 
 
+.. _table_schema:
+
 创建表的Schema
 ---------------
 
@@ -76,6 +78,12 @@
    >>> schema = Schema(columns=columns, partitions=partitions)
    >>> schema.columns
    [<column num, type bigint>, <partition pt, type string>]
+   >>> schema.partitions
+   [<partition pt, type string>]
+   >>> schema.names  # 获取非分区字段的字段名
+   ['num']
+   >>> schema.types  # 获取非分区字段的字段类型
+   [bigint]
 
 
 第二种方法是使用 ``Schema.from_lists``，这种方法更容易调用，但显然无法直接设置列和分区的注释了。

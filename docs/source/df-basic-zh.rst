@@ -19,7 +19,7 @@
     import numpy as np
     df = DataFrame(pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc')))
 
-``dtypes``\ 可以用来查看DataFrame的字段和类型。
+``dtypes``\ 可以用来查看DataFrame的字段和类型。``dtypes`` 返回的是 :ref:`Schema类型 <table_schema>` 。
 
 .. code:: python
 
@@ -37,6 +37,7 @@
       petalwidth            float64       
       name                  string        
     }
+
 
 在用pandas DataFrame初始化时，对于numpy object类型（string也是），PyODPS DataFrame会尝试推断类型，
 如果一整列都为空，则会报错。
