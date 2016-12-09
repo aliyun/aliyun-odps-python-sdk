@@ -1,8 +1,8 @@
 .. _dfdebuginstruction:
 
 
-DataFrame调试指南
-=====================
+调试指南
+=========
 
 
 可视化DataFrame
@@ -16,50 +16,34 @@ DataFrame调试指南
 
 .. code:: python
 
-    df = iris.groupby('name').agg(id=iris.sepalwidth.sum())
-    df = df[df.name, df.id + 3]
-    df.visualize()
-
-
-
+    >>> df = iris.groupby('name').agg(id=iris.sepalwidth.sum())
+    >>> df = df[df.name, df.id + 3]
+    >>> df.visualize()
 
 .. image:: _static/df-steps-visualize.svg
 
-
 可以看到，这个计算过程中，PyODPS DataFrame将GroupBy和列筛选做了操作合并。
-
-
 
 .. code:: python
 
-    df = iris.groupby('name').agg(id=iris.sepalwidth.sum()).cache()
-    df2 = df[df.name, df.id + 3]
-    df2.visualize()
-
-
-
+    >>> df = iris.groupby('name').agg(id=iris.sepalwidth.sum()).cache()
+    >>> df2 = df[df.name, df.id + 3]
+    >>> df2.visualize()
 
 .. image:: _static/df-op-merge-visualize.svg
 
 
 此时，由于用户执行了cache操作，这时整个执行计划将会分成两步来执行。
 
-
 ODPS SQL后端查看编译结果
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 我们可以直接调用 ``compile`` 方法来查看ODPS SQL后端编译到SQL的结果。
 
 .. code:: python
 
-    df = iris.groupby('name').agg(sepalwidth=iris.sepalwidth.max())
-
-.. code:: python
-
-    df.compile()
-
-.. code:: python
-
+    >>> df = iris.groupby('name').agg(sepalwidth=iris.sepalwidth.max())
+    >>> df.compile()
     Stage 1:
 
     SQL compiled:
@@ -88,34 +72,33 @@ ODPS SQL后端查看编译结果
 
 .. code:: python
 
-    iris.count()
-    iris['name', 'sepalwidth'][:10]
+    >>> iris.count()
+    >>> iris['name', 'sepalwidth'][:10]
 
 对于分区表，如有个DataFrame来源于分区表（有三个分区字段，ds、hh、mm），以下操作会使用tunnel下载。
 
 .. code:: python
 
-    df[:10]
-    df[df.ds == '20160808']['f0', 'f1']
-    df[(df.ds == '20160808') & (df.hh == 3)][:10]
-    df[(df.ds == '20160808') & (df.hh == 3) & (df.mm == 15)]
+    >>> df[:10]
+    >>> df[df.ds == '20160808']['f0', 'f1']
+    >>> df[(df.ds == '20160808') & (df.hh == 3)][:10]
+    >>> df[(df.ds == '20160808') & (df.hh == 3) & (df.mm == 15)]
 
 因此我们可以使用 ``to_pandas`` 方法来将部分数据下载到本地来进行调试，我们可以写出如下代码：
 
 .. code:: python
 
-    DEBUG = True
-
+    >>> DEBUG = True
 
 .. code:: python
 
-    if DEBUG:
-        df = iris[:100].to_pandas(wrap=True)
-    else:
-        df = iris
+    >>> if DEBUG:
+    >>>     df = iris[:100].to_pandas(wrap=True)
+    >>> else:
+    >>>     df = iris
 
 这样，当我们全部编写完成时，再把 ``DEBUG`` 设置为False就可以在ODPS上执行完整的计算了。
 
 .. note::
 
-    **还是需要提醒，由于沙箱的限制，本地调试通过的程序不一定能在ODPS上也跑通。**
+    **由于沙箱的限制，本地调试通过的程序不一定能在ODPS上也跑通。**

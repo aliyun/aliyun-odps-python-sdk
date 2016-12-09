@@ -46,7 +46,7 @@ class TestCore(RunnerTestBase):
         super(TestCore, self).setUp()
         self.ml_context = RunnerContext.instance()
 
-    def test_base_dag_node(self):
+    def test_base_runner_node(self):
         self.maxDiff = None
 
         self.create_ionosphere(IONOSPHERE_TABLE)

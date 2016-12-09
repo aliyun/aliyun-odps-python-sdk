@@ -20,11 +20,11 @@
 import inspect
 from .expressions import CollectionExpr, ProjectCollectionExpr, \
     Column, BooleanSequenceExpr, SequenceExpr, Expr, repr_obj
-from .core import ExprDictionary
+from .core import Node, ExprDictionary
 from .arithmetic import Equal
 from .errors import ExpressionError
 from ..utils import is_source_collection
-from ...compat import six
+from ...compat import six, reduce
 from ...models import Schema
 
 
@@ -90,6 +90,16 @@ class JoinCollectionExpr(CollectionExpr):
                         any(c is self._get_child(self._lhs) for c in field.children()) or \
                         any(c is self._get_child(self._rhs) for c in field.children()):
                     selects.extend(self._get_fields(field._project_fields))
+                elif field is self:
+                    selects.extend(self._get_fields(self._schema.names))
+                elif field is self._get_child(self._lhs):
+                    fields = [self._renamed_columns.get(n, [n])[0]
+                              for n in field.schema.names]
+                    selects.extend(self._get_fields(fields))
+                elif field is self._get_child(self._rhs):
+                    fields = [self._renamed_columns.get(n, [None, n])[1]
+                              for n in field.schema.names]
+                    selects.extend(self._get_fields(fields))
                 else:
                     selects.extend(self._get_fields(field._fetch_fields()))
                 raw_selects.append(field)
@@ -111,47 +121,50 @@ class JoinCollectionExpr(CollectionExpr):
             return Column(self, _name=field, _data_type=self._schema[field].type)
 
         root = field
-        subs = dict()
+        has_path = False
 
-        collections = self, self._get_child(self._lhs), self._get_child(self._rhs)
-        collections_ids = set(id(c) for c in collections)
-        for collection in collections:
-            for path in root.all_path(collection, strict=True):
-                for i, node in enumerate(path):
-                    if id(node) in subs:
-                        path[i] = subs[id(node)]
+        for expr in root.traverse(top_down=True, unique=True,
+                                  stop_cond=lambda x: isinstance(x, Column)):
+            if isinstance(expr, Column):
+                if self._is_column(expr, self):
+                    has_path = True
+                    continue
+                if self._is_column(expr, self._lhs):
+                    has_path = True
+                    idx = 0
+                elif self._is_column(expr, self._rhs):
+                    has_path = True
+                    idx = 1
+                elif isinstance(self._lhs, JoinCollectionExpr):
+                    try:
+                        expr = self._lhs._get_field(expr)
+                    except ExpressionError:
                         continue
-                    if id(node) in collections_ids:
-                        break
+                    has_path = True
+                    idx = 0
+                elif isinstance(self._rhs, JoinCollectionExpr):
+                    try:
+                        expr = self._rhs._get_field(expr)
+                    except ExpressionError:
+                        continue
+                    has_path = True
+                    idx = 1
+                else:
+                    continue
 
-                    if isinstance(node, Column):
-                        if self._is_column(node, self):
-                            subs[id(node)] = node
-                            continue
-                        idx = -1
-                        if self._is_column(node, self._lhs):
-                            idx = 0
-                        elif self._is_column(node, self._rhs):
-                            idx = 1
+                name = expr.source_name
+                if name in self._renamed_columns:
+                    name = self._renamed_columns[name][idx]
+                to_sub = self._get_field(name)
+                if expr.is_renamed():
+                    to_sub = to_sub.rename(expr.name)
 
-                        if idx == -1:
-                            raise ExpressionError('field must come from Join collection '
-                                                  'or its left and right child collection: %s'
-                                                  % repr_obj(field))
+                to_sub.copy_to(expr)
 
-                        name = node.source_name
-                        if name in self._renamed_columns:
-                            name = self._renamed_columns[name][idx]
-                        to_sub = self._get_field(name)
-                        if node.is_renamed():
-                            to_sub = to_sub.rename(node.name)
-
-                        path[i] = to_sub
-                        subs[id(node)] = to_sub
-                        if i == 0:
-                            root = to_sub
-                        else:
-                            path[i - 1].substitute(node, to_sub)
+        if isinstance(field, SequenceExpr) and not has_path:
+            raise ExpressionError('field must come from Join collection '
+                                  'or its left and right child collection: %s'
+                                  % repr_obj(field))
 
         return root
 
@@ -347,32 +360,32 @@ _join_dict = {
 
 
 def _make_different_sources(left, right, predicate=None):
-    src_collections = ExprDictionary()
     exprs = ExprDictionary()
 
     for n in left.traverse(unique=True):
-        if is_source_collection(n):
-            src_collections[n] = True
         exprs[n] = True
 
     subs = ExprDictionary()
 
-    for src_collection in src_collections.keys():
-        for path in right.all_path(src_collection, strict=True):
-            for i, node in enumerate(path):
-                if node in exprs:
-                    copied = subs.get(node, node.copy())
-                    if i > 0:
-                        prev = path[i - 1]
-                        subs.get(prev, prev).substitute(node, copied)
-                    subs[node] = copied
+    dag = right.to_dag(copy=False)
+    need_cache = lambda x: hasattr(x, '_need_cache') and x._need_cache
+    for n in dag.traverse(stop_cond=need_cache):
+        if n in exprs:
+            copied = subs.get(n, n.copy())
+            for p in dag.successors(n):
+                if p in exprs and p not in subs:
+                    subs[p] = p.copy()
+                subs.get(p, p).substitute(n, copied)
+            subs[n] = copied
 
-                    if predicate and node is right:
-                        for p in predicate:
-                            if not isinstance(p, Expr):
-                                continue
-                            for pred_path in p.all_path(right, strict=True):
-                                pred_path[-2].substitute(right, copied)
+            if predicate and n is right:
+                for p in predicate:
+                    if not isinstance(p, Expr):
+                        continue
+                    p_dag = p.to_dag(copy=False)
+                    for p_n in p_dag.traverse(top_down=True):
+                        if p_n is right:
+                            p_dag.substitute(right, copied)
 
     return left, subs.get(right, right)
 
@@ -601,10 +614,9 @@ class UnionCollectionExpr(CollectionExpr):
             if not self._validate_collection_child():
                 raise ExpressionError('Table schemas must be equal to form union')
         else:
-            raise ExpressionError('Column schemas must be equal to form union')
+            raise ExpressionError('Both inputs should be collections or sequences.')
 
     def _clean_schema(self):
-
         return Schema.from_lists(self._lhs.schema.names, self._lhs.schema.types)
 
     def accept(self, visitor):
@@ -613,6 +625,51 @@ class UnionCollectionExpr(CollectionExpr):
     def iter_args(self):
         for it in zip(['collection(left)', 'collection(right)'], self.args):
             yield it
+
+
+class ConcatCollectionExpr(CollectionExpr):
+    _args = '_lhs', '_rhs',
+    node_name = 'Concat'
+
+    def _init(self, *args, **kwargs):
+        super(ConcatCollectionExpr, self)._init(*args, **kwargs)
+
+        self._schema = self._clean_schema()
+
+    def iter_args(self):
+        for it in zip(['collection(left)', 'collection(right)'], self.args):
+            yield it
+
+    def _clean_schema(self):
+        return Schema.from_lists(
+            self._lhs.schema.names + self._rhs.schema.names,
+            self._lhs.schema.types + self._rhs.schema.types,
+        )
+
+    @staticmethod
+    def _get_sequence_source_collection(expr):
+        return next(it for it in expr.traverse(top_down=True, unique=True) if isinstance(it, CollectionExpr))
+
+    @classmethod
+    def validate_input(cls, *inputs):
+        new_inputs = []
+        for i in inputs:
+            if isinstance(i, SequenceExpr):
+                source_collection = cls._get_sequence_source_collection(i)
+                new_inputs.append(source_collection[[i]])
+            else:
+                new_inputs.append(i)
+
+        if any(not isinstance(i, CollectionExpr) for i in new_inputs):
+            raise ExpressionError('Inputs should be collections or sequences.')
+
+        unioned = reduce(lambda a, b: a | b, (set(i.schema.names) for i in inputs))
+        total_fields = sum((len(i.schema.names) for i in inputs))
+        if total_fields != len(unioned):
+            raise ExpressionError('Column names in inputs should not collides with each other.')
+
+    def accept(self, visitor):
+        return visitor.visit_concat(self)
 
 
 def union(left, right, distinct=False):
@@ -631,7 +688,49 @@ def union(left, right, distinct=False):
     return UnionCollectionExpr(_lhs=left, _rhs=right, _distinct=distinct)
 
 
+def __horz_concat(left, rights):
+    for right in rights:
+        left, right = _make_different_sources(left, right)
+        left = ConcatCollectionExpr(_lhs=left, _rhs=right)
+    return left
+
+
+def concat(left, rights, distinct=False, axis=0):
+    """
+    Concat collections.
+
+    :param left: left collection
+    :param rights: right collections, can be a DataFrame object or a list of DataFrames
+    :param distinct: whether to remove duplicate entries. only available when axis == 0
+    :param axis: when axis == 0, the DataFrames are merged vertically, otherwise horizontally.
+    :return: collection
+
+    Note that axis==1 can only be used under Pandas DataFrames or XFlow.
+
+    :Example:
+    >>> df['name', 'id'].concat(df2['score'], axis=1)
+    """
+    if isinstance(rights, Node):
+        rights = [rights, ]
+    if not rights:
+        raise ValueError('At least one DataFrame should be provided.')
+
+    if axis == 0:
+        for right in rights:
+            left = union(left, right, distinct=distinct)
+        return left
+
+    ConcatCollectionExpr.validate_input(left, *rights)
+
+    if hasattr(left, '_xflow_concat'):
+        return left._xflow_concat(rights)
+    else:
+        return __horz_concat(left, rights)
+
+
 CollectionExpr.union = union
 SequenceExpr.union = union
-CollectionExpr.concat = union
-SequenceExpr.concat = union
+CollectionExpr.__horz_concat = __horz_concat
+SequenceExpr.__horz_concat = __horz_concat
+CollectionExpr.concat = concat
+SequenceExpr.concat = concat

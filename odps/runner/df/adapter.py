@@ -25,9 +25,11 @@ from ...models import Table
 from ...df.core import DataFrame, CollectionExpr
 from ...df.utils import to_collection as to_df_collection
 from ...df.expr.core import ExprDictionary
+from ...df.expr.dynamic import DynamicMixin
 from ...df.expr.expressions import SequenceExpr, Scalar
 from ...df.expr.expressions import FilterPartitionCollectionExpr
 from ...compat import six, reduce
+from ...config import options
 from ..core import BaseRunnerNode, RunnerObject, ObjectDescription, EngineType, PortType
 from ..utils import gen_table_name
 
@@ -35,19 +37,25 @@ _df_endpoint_dict = ExprDictionary()
 _df_link_maintainer = ExprDictionary()
 
 
-class DFMockProject(object):
+class DFIntermediateProject(object):
     def __init__(self):
         self.name = 'mocked_project'
 
 
-class DFMockTable(Table):
+class DFIntermediateTable(Table):
+    __slots__ = 'intermediate',
+
     def __init__(self, **kwargs):
-        super(DFMockTable, self).__init__(**kwargs)
+        super(DFIntermediateTable, self).__init__(**kwargs)
         self._loaded = True
+        self.intermediate = True
 
     @property
     def project(self):
-        return DFMockProject()
+        if self.intermediate:
+            return DFIntermediateProject()
+        else:
+            return self.parent.parent
 
 
 class DFNode(BaseRunnerNode):
@@ -113,7 +121,8 @@ class DFExecNode(DFNode):
     def optimize(self):
         if len(self.args) != 2 or len(self.inputs) != 1:
             return False, None
-        if not isinstance(self.bind_df._source_data, DFMockTable):
+        if not isinstance(self.bind_df._source_data, DFIntermediateTable) or \
+                not self.bind_df._source_data.intermediate:
             return False, None
         ep = self.inputs['input1'].obj
         if ep is not None:
@@ -142,16 +151,28 @@ def adapter_from_df(df, odps=None, skip_orphan=False):
         for idx, inp_ep in enumerate(input_eps):
             inp_ep._link_node(node, 'input%d' % (idx + 1))
 
-        try:
-            odps = odps or six.next(df.data_source()).odps
-        except StopIteration:
+        odps = None
+        for source in df.data_source():
+            if hasattr(source, 'odps'):
+                odps = source.odps
+                break
+        if odps is None:
             from ...inter import enter, InteractiveError
-            try:
-                odps = enter().odps
-            except (InteractiveError, AttributeError):
-                import warnings
-                warnings.warn('No ODPS object available in rooms. Further actions might lead to errors.',
-                              RuntimeWarning)
+            from ... import ODPS
+
+            if options.account is not None and options.default_project is not None:
+                odps = ODPS._from_account(
+                    options.account, options.default_project,
+                    endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint
+                )
+            else:
+                try:
+                    odps = enter().odps
+                except (InteractiveError, AttributeError):
+                    import warnings
+                    warnings.warn('No ODPS object available in rooms. Use odps.to_global() to make your ODPS object global.',
+                                  RuntimeWarning)
+
         return DFAdapter(odps, node.outputs['output'], df, uplink=input_eps)
 
 
@@ -276,7 +297,7 @@ class DFAdapter(RunnerObject):
     @staticmethod
     def _build_mock_table(table_name, schema, odps=None):
         client = odps.rest if odps else None
-        return DFMockTable(name=table_name, schema=schema, client=client)
+        return DFIntermediateTable(name=table_name, schema=schema, client=client)
 
     def gen_temp_names(self):
         if not self.table:
@@ -378,12 +399,26 @@ class DFAdapter(RunnerObject):
         return self._fields
 
     def reload(self):
-        if isinstance(self.df, DataFrame):
+        if isinstance(self.df, DataFrame) and all(hasattr(source, 'odps') for source in self.df.data_source()):
             if '.' in self.table:
                 proj, table = self.table.split('.', 1)
             else:
                 proj, table = None, self.table
-            self.df._source_data = self._odps.get_table(table, project=proj)
+
+            new_df = DataFrame(self._odps.get_table(table, project=proj))
+            table_obj = self.df._source_data
+            if isinstance(table_obj, DFIntermediateTable):
+                new_table_obj = new_df._source_data
+                for s in Table.__slots__:
+                    setattr(table_obj, s, getattr(new_table_obj, s))
+                table_obj.intermediate = False
+
+            self.df._schema = new_df._schema
+
+            if isinstance(self.df, DynamicMixin):
+                self.df._schema = new_df._schema
+                self.df.__class__ = DataFrame
+
         for func in self._custom_reload_functions:
             func()
 

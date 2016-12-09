@@ -21,6 +21,7 @@ from __future__ import absolute_import
 import json
 import logging
 import platform
+from string import Template
 
 import requests
 import requests.packages.urllib3.util.ssl_
@@ -46,9 +47,11 @@ def default_user_agent():
     except IOError:
         py_system = 'Unknown'
         py_release = 'Unknown'
-    return ' '.join(['%s/%s' % ('pyodps', __version__),
-                     '%s/%s' % (py_implementation, py_version),
-                     '%s/%s' % (py_system, py_release)])
+
+    ua_template = Template(options.user_agent_pattern or '$pyodps_version $python_version $os_version')
+    return ua_template.safe_substitute(pyodps_version='%s/%s' % ('pyodps', __version__),
+                                       python_version='%s/%s' % (py_implementation, py_version),
+                                       os_version='%s/%s' % (py_system, py_release))
 
 
 class RestClient(object):

@@ -21,6 +21,8 @@ import itertools
 import json
 from collections import namedtuple
 from datetime import datetime
+import re
+import time
 
 from ..core import Backend
 from ...expr.expressions import *
@@ -28,8 +30,7 @@ from ...expr.reduction import GroupedSequenceReduction, GroupedCount, Count
 from ...expr.merge import JoinCollectionExpr
 from ...expr.datetimes import DTScalar
 from ...expr.collections import PivotCollectionExpr
-from ...expr import element
-from ...expr import arithmetic
+from ...expr import arithmetic, element
 from ....dag import DAG
 from ..errors import CompileError
 from ..utils import refresh_dynamic
@@ -222,8 +223,7 @@ class PandasCompiler(Backend):
                 size = max(len(f) for f, e in zip(fields, expr._fields)
                            if isinstance(e, SequenceExpr))
             for i in range(len(fields)):
-                child = children[1:][i]
-                if isinstance(child, Scalar):
+                if not isinstance(fields[i], pd.Series):
                     fields[i] = pd.Series([fields[i]] * size)
 
             return pd.concat(fields, axis=1, keys=names)
@@ -328,8 +328,8 @@ class PandasCompiler(Backend):
             children_vals = self._get_children_vals(kw, expr)
 
             if expr.lhs.dtype == df_types.datetime and expr.rhs.dtype == df_types.datetime:
-                return (pd.to_datetime(children_vals[0]) - pd.to_datetime(children_vals[1])) / \
-                       np.timedelta64(1, 'ms')
+                return ((pd.to_datetime(children_vals[0]) - pd.to_datetime(children_vals[1])) /
+                        np.timedelta64(1, 'ms')).astype(np.int64)
 
             op = BINARY_OP_TO_PANDAS[expr.node_name]
             return op(*children_vals)
@@ -373,6 +373,14 @@ class PandasCompiler(Backend):
                 res = getattr(getattr(input, 'str'), op)(children_vals[1])
             elif op == 'strptime':
                 res = input.map(lambda x: datetime.strptime(x, children_vals[1]))
+            elif op == 'extract':
+                def extract(x, pat, flags, group):
+                    regex = re.compile(pat, flags=flags)
+                    m = regex.match(x)
+                    if m:
+                        return m.group(group)
+                df = self._merge_values([expr.input, expr._pat, expr._flags, expr._group], kw)
+                return pd.Series([extract(*r[1]) for r in df.iterrows()])
             else:
                 if op == 'slice':
                     kv['stop'] = kv.pop('end', None)
@@ -825,7 +833,7 @@ class PandasCompiler(Backend):
                 if kwargs is not None and len(kwargs) > 0:
                     raise NotImplementedError
 
-                if not inspect.isfunction(func):
+                if inspect.isclass(func):
                     if resources:
                         func = func(resources)
                     else:
@@ -902,7 +910,8 @@ class PandasCompiler(Backend):
                 raise NotImplementedError
 
             if hasattr(expr, '_sort_fields') and expr._sort_fields is not None:
-                input = input.sort_values([f.name for f in expr._sort_fields])
+                input = input.sort_values([f.name for f in expr._sort_fields],
+                                          ascending=[f._ascending for f in expr._sort_fields])
 
             rows = []
             for s in input.iterrows():
@@ -1058,7 +1067,7 @@ class PandasCompiler(Backend):
             if expr.value is not None:
                 return expr.value
 
-            raise NotImplementedError
+            return None
 
         self._add_node(expr, handle)
 
@@ -1126,6 +1135,73 @@ class PandasCompiler(Backend):
         self._dag.add_node(node)
         self._expr_to_dag_node[expr] = node
 
+    def visit_extract_kv(self, expr):
+        def handle(kw):
+            from ... import types
+            _input = kw.get(expr._input)
+            columns = [getattr(_input, c.name) for c in expr._columns]
+            kv_delim = kw.get(expr._kv_delimiter)
+            item_delim = kw.get(expr._item_delimiter)
+            default = kw.get(expr._default)
+
+            kv_slot_map = dict()
+            app_col_names = []
+
+            def validate_kv(v):
+                parts = v.split(kv_delim)
+                if len(parts) != 2:
+                    raise ValueError('Malformed KV pair: %s' % v)
+                return parts[0]
+
+            for col in columns:
+                kv_slot_map[col.name] = dict()
+
+                keys = col.apply(lambda s: [validate_kv(kv) for kv in s.split(item_delim)])
+                for k in sorted(compat.reduce(lambda a, b: set(a) | set(b), keys, set())):
+                    app_col_names.append('%s_%s' % (col.name, k))
+                    kv_slot_map[col.name][k] = len(app_col_names) - 1
+
+            type_adapter = None
+            if isinstance(expr._column_type, types.Float):
+                type_adapter = float
+            elif isinstance(expr._column_type, types.Integer):
+                type_adapter = int
+
+            append_grid = [[default] * len(app_col_names) for _ in compat.irange(len(_input))]
+            for col in columns:
+                series = getattr(_input, col.name)
+                for idx, v in enumerate(series):
+                    for kv_item in v.split(item_delim):
+                        k, v = kv_item.split(kv_delim)
+                        if type_adapter:
+                            v = type_adapter(v)
+                        append_grid[idx][kv_slot_map[col.name][k]] = v
+
+            intact_names = [c.name for c in expr._intact]
+            intact_types = [c.dtype for c in expr._intact]
+            intact_df = _input[intact_names]
+            append_df = pd.DataFrame(append_grid, columns=app_col_names)
+            expr._schema = Schema.from_lists(
+                intact_names + app_col_names,
+                intact_types + [expr._column_type] * len(app_col_names),
+            )
+
+            res = pd.concat([intact_df, append_df], axis=1)
+            to_sub = CollectionExpr(_source_data=res, _schema=expr._schema)
+            self._expr_dag.substitute(expr, to_sub)
+
+            # trigger refresh of dynamic operations
+            def func(expr):
+                for c in expr.traverse(unique=True):
+                    if c not in self._expr_to_dag_node:
+                        c.accept(self)
+
+            refresh_dynamic(to_sub, self._expr_dag, func=func)
+
+            return to_sub, res
+
+        self._add_node(expr, handle)
+
     def visit_union(self, expr):
         if expr._distinct:
             raise CompileError("Distinct union is not supported here.")
@@ -1136,5 +1212,47 @@ class PandasCompiler(Backend):
 
             merged = pd.concat([left, right])
             return merged[expr.schema.names]
+
+        self._add_node(expr, handle)
+
+    def visit_concat(self, expr):
+        def handle(kw):
+            left = kw.get(expr._lhs)
+            right = kw.get(expr._rhs)
+
+            merged = pd.concat([left, right], axis=1)
+            return merged[expr.schema.names]
+
+        self._add_node(expr, handle)
+
+    def visit_append_id(self, expr):
+        def handle(kw):
+            _input = kw.get(expr._input)
+            id_col = kw.get(expr._id_col)
+
+            id_seq = pd.DataFrame(compat.lrange(len(_input)), columns=[id_col])
+            return pd.concat([id_seq, _input], axis=1)
+
+        self._add_node(expr, handle)
+
+    def visit_split(self, expr):
+        def handle(kw):
+            _input = kw.get(expr._input)
+            frac = kw.get(expr._frac)
+            seed = kw.get(expr._seed) if expr._seed else None
+            split_id = kw.get(expr._split_id)
+
+            if seed is not None:
+                np.random.seed(seed)
+
+            cols = list(_input.columns)
+            factor_col = 'rand_factor_%d' % int(time.time())
+            factor_df = pd.DataFrame(np.random.rand(len(_input)), columns=[factor_col])
+            concated_df = pd.concat([factor_df, _input], axis=1)
+
+            if split_id == 0:
+                return concated_df[concated_df[factor_col] <= frac][cols]
+            else:
+                return concated_df[concated_df[factor_col] > frac][cols]
 
         self._add_node(expr, handle)

@@ -177,8 +177,16 @@ class DAG(object):
     def ancestors(self, start_nodes, cond=None):
         return list(self.bfs(start_nodes, self.predecessors, cond))
 
+    def iter_ancestors(self, start_nodes, cond=None):
+        for it in self.bfs(start_nodes, self.predecessors, cond=cond):
+            yield it
+
     def descendants(self, start_nodes, cond=None):
         return list(self.bfs(start_nodes, cond=cond))
+
+    def iter_descendants(self, start_nodes, cond=None):
+        for it in self.bfs(start_nodes, cond=cond):
+            yield it
 
     def topological_sort(self, graph=None, reversed_graph=None):
         graph = graph or self._graph

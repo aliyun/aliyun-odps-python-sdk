@@ -23,6 +23,11 @@ from ..core import Backend
 from ...expr.expressions import *
 from ...expr.merge import JoinCollectionExpr
 
+try:
+    import numpy as np
+except ImportError:
+    pass
+
 
 class Analyzer(Backend):
     def __init__(self, dag, traversed=None, on_sub=None):
@@ -58,3 +63,25 @@ class Analyzer(Backend):
             node.accept(self)
         except NotImplementedError:
             return
+
+    def _sub(self, expr, sub, parents=None):
+        self._dag.substitute(expr, sub, parents=parents)
+        if self._on_sub:
+            self._on_sub(expr, sub)
+
+    def visit_builtin_function(self, expr):
+        try:
+            collection = six.next(iter(n for n in self._dag.iter_descendants(expr)
+                                       if isinstance(n, CollectionExpr))).input
+        except StopIteration:
+            raise NotImplementedError
+
+        if isinstance(expr, RandomScalar):
+            seed = expr._func_args[0] if len(expr._func_args) >= 1 else None
+            if seed is not None:
+                np.random.seed(seed)
+
+            col = getattr(collection, collection.schema.names[0])
+            self._sub(expr, col.map(lambda v: np.random.rand()).astype('float'))
+        else:
+            raise NotImplementedError

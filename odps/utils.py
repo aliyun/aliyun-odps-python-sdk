@@ -520,7 +520,13 @@ def gen_repr_object(**kwargs):
 
 
 def build_pyodps_dir(*args):
-    home_dir = os.environ.get('PYODPS_DIR') or os.path.join(os.path.expanduser('~'), '.pyodps')
+    default_dir = os.path.join(os.path.expanduser('~'), '.pyodps')
+    if sys.platform == 'win32' and 'APPDATA' in os.environ:
+        win_default_dir = os.path.join(os.environ['APPDATA'], 'pyodps')
+        if os.path.exists(default_dir):
+            shutil.move(default_dir, win_default_dir)
+        default_dir = win_default_dir
+    home_dir = os.environ.get('PYODPS_DIR') or default_dir
     return os.path.join(home_dir, *args)
 
 
@@ -567,3 +573,8 @@ def write_log(msg):
     from . import options
     if options.verbose:
         (options.verbose_log or print)(msg)
+
+
+def split_quoted(s, delimiter=',', maxsplit=0):
+    pattern = r"""((?:[^""" + delimiter + r""""']|"[^"]*"|'[^']*')+)"""
+    return re.split(pattern, s, maxsplit=maxsplit)[1::2]

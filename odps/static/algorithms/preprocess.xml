@@ -22,11 +22,13 @@
                 <outputName>output</outputName>
             </param>
             <param name="IDColName">
+                <alias>idCol</alias>
                 <value>append_id</value>
             </param>
             <param name="selectedColNames">
                 <exporter>$package_root.preprocess._customize.get_append_id_selected_cols</exporter>
-                <outputName>input</outputName>
+                <alias>selectedCols</alias>
+                <inputName>input</inputName>
             </param>
         </params>
         <ports>
@@ -40,8 +42,7 @@
                 <sequence>1</sequence>
                 <type>DATA</type>
                 <schema>
-                    <schema>$package_root.preprocess._customize.append_id_output</schema>
-                    <dynamic>true</dynamic>
+                    <schema>{selectedColNames}, {IDColName}: bigint:</schema>
                 </schema>
             </port>
         </ports>
@@ -80,6 +81,7 @@
                 <outputName>output2</outputName>
             </param>
             <param name="fraction" />
+            <param name="randomSeed" />
         </params>
         <ports>
             <port name="input">
@@ -217,7 +219,7 @@
             </port>
         </ports>
         <metas>
-            <meta name="xflowName" value="WeightedSample"/>
+            <meta name="xflowName" value="StratifiedSample"/>
             <meta name="xflowProjectName" value="algo_public"/>
         </metas>
     </algorithm>
@@ -436,7 +438,6 @@
                 <type>DATA</type>
                 <schema>
                     <schema>{metaColNames}, prediction_score: double, prediction_prob: double, prediction_detail: string</schema>
-                    <dynamic>true</dynamic>
                 </schema>
             </port>
         </ports>

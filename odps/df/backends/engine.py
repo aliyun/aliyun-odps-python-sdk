@@ -164,7 +164,8 @@ class MixedEngine(Engine):
         self._add_node(dag, src_seq, func, seq)
         callbacks.append(cb)
 
-    def _compile_cache_node(self, node, src_node, node_dag, dag, callbacks):
+    def _compile_cache_node(self, op_dag, src_node, node_dag, dag, callbacks):
+        node = op_dag.root
         engines = list(available_engines(node.data_source()))
         if len(engines) == 1:
             executor = self._odpssql_engine if engines[0] == Engines.ODPS \
@@ -205,23 +206,24 @@ class MixedEngine(Engine):
                 sub = Scalar(_value=None, _value_type=node.dtype)
 
         def func(**kwargs):
+            to_exec = op_dag.root
             kwargs['src_expr'] = src_node
             kwargs['dag'] = node_dag
             if executor is self._odpssql_engine:
-                if isinstance(node, (CollectionExpr, SequenceExpr)):
+                if isinstance(to_exec, (CollectionExpr, SequenceExpr)):
                     tmp_table_name = sub._source_data.name
                     if 'lifecycle' not in kwargs:
                         kwargs['lifecycle'] = options.temp_lifecycle
-                    executor.persist(node, tmp_table_name, **kwargs)
+                    executor.persist(to_exec, tmp_table_name, **kwargs)
                 else:
-                    val = executor.execute(node, **kwargs)
+                    val = executor.execute(to_exec, **kwargs)
                     sub._value = val
             else:
-                if isinstance(node, (CollectionExpr, SequenceExpr)):
-                    data = executor.execute(node, **kwargs).values
+                if isinstance(to_exec, (CollectionExpr, SequenceExpr)):
+                    data = executor.execute(to_exec, **kwargs).values
                     sub._source_data = data
                 else:
-                    sub._value = executor.execute(node, **kwargs)
+                    sub._value = executor.execute(to_exec, **kwargs)
 
         self._sub(node, sub, node_dag)
         self._add_node(dag, src_node, func, node)
@@ -385,9 +387,9 @@ class MixedEngine(Engine):
             for p, val in six.iteritems(need_cache):
                 src_node = p()
                 node, func = val
-                func(node, src_node, node_dag, dag, callbacks)
-                # we do optimize here
                 op_dag = context.build_dag(None, node, dag=node_dag)
+                func(op_dag, src_node, node_dag, dag, callbacks)
+                # we do optimize here
                 self._analyze(op_dag, dag)
 
             # handle the node which comes from different data sources

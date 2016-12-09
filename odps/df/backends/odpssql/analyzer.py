@@ -33,6 +33,7 @@ from ...utils import output
 from ..errors import CompileError
 from ..utils import refresh_dynamic
 from ... import types
+from .... import compat
 
 
 class Analyzer(Backend):
@@ -314,6 +315,87 @@ class Analyzer(Backend):
         else:
             self._visit_pivot_table(expr)
 
+    def visit_extract_kv(self, expr):
+        kv_delimiter = expr._kv_delimiter.value
+        item_delimiter = expr._item_delimiter.value
+        default = expr._default.value if expr._default else None
+
+        class KeyAgg(object):
+            def buffer(self):
+                return set()
+
+            def __call__(self, buf, val):
+                if not val:
+                    return
+
+                def validate_kv(v):
+                    parts = v.split(kv_delimiter)
+                    if len(parts) != 2:
+                        raise ValueError('Malformed KV pair: %s' % v)
+                    return parts[0]
+
+                buf.update([validate_kv(item) for item in val.split(item_delimiter)])
+
+            def merge(self, buf, pbuffer):
+                buf.update(pbuffer)
+
+            def getvalue(self, buf):
+                return item_delimiter.join(sorted(buf))
+
+        columns_expr = expr.input.exclude(expr._intact).apply(KeyAgg, names=[c.name for c in expr._columns])
+
+        intact_names = [g.name for g in expr._intact]
+        intact_types = [g.dtype for g in expr._intact]
+        exprs = [expr]
+
+        def callback(result, new_expr):
+            expr = exprs[0]
+
+            names = list(intact_names)
+            tps = list(intact_types)
+            kv_slot_map = dict()
+
+            for col, key_str in compat.izip(result.columns, result[0]):
+                kv_slot_map[col.name] = dict()
+                for k in key_str.split(item_delimiter):
+                    names.append('%s_%s' % (col.name, k))
+                    tps.append(expr._column_type)
+                    kv_slot_map[col.name][k] = len(names) - 1
+            kv_slot_names = list(kv_slot_map.keys())
+
+            type_adapter = None
+            if isinstance(expr._column_type, types.Float):
+                type_adapter = float
+            elif isinstance(expr._column_type, types.Integer):
+                type_adapter = int
+
+            @output(names, tps)
+            def mapper(row):
+                ret = [default, ] * len(names)
+                ret[:len(intact_names)] = [getattr(row, col) for col in intact_names]
+                for col in kv_slot_names:
+                    kv_val = getattr(row, col)
+                    if not kv_val:
+                        continue
+                    for kv_item in kv_val.split(item_delimiter):
+                        k, v = kv_item.split(kv_delimiter)
+                        if type_adapter:
+                            v = type_adapter(v)
+                        ret[kv_slot_map[col][k]] = v
+                return tuple(ret)
+
+            new_expr._schema = Schema.from_lists(names, tps)
+
+            extracted = expr.input.map_reduce(mapper)
+            self._sub(new_expr, extracted)
+
+            # trigger refresh of dynamic operations
+            refresh_dynamic(extracted, self._dag)
+
+        sub = CollectionExpr(_schema=DynamicSchema.from_lists(intact_names, intact_types),
+                             _deps=[(columns_expr, callback)])
+        self._sub(expr, sub)
+
     def visit_value_counts(self, expr):
         collection = expr.input
         by = expr._by
@@ -474,26 +556,11 @@ class Analyzer(Backend):
                 flags = re.I
             if expr.flags > 0:
                 flags = flags | expr.flags
-            pat = expr.pat
+            pat = re.escape(expr.pat)
 
             def func(x):
                 r = re.compile(pat, flags)
                 return r.search(x) is not None
-        elif isinstance(expr, Extract) and expr.flags > 0:
-            pat = expr.pat
-            flags = expr.flags
-            group = expr.group
-
-            def func(x):
-                r = re.compile(pat, flags)
-                if group is None:
-                    match = r.search(x)
-                    if match:
-                        return match.group()
-                else:
-                    match = r.search(x)
-                    if match:
-                        return match.group(group)
         elif isinstance(expr, Find) and expr.end is not None:
             start = expr.start
             end = expr.end
@@ -508,6 +575,21 @@ class Analyzer(Backend):
 
             def func(x):
                 return x.rfind(substr, start, end)
+        elif isinstance(expr, Extract):
+            def func(x, pat, flags, group):
+                regex = re.compile(pat, flags=flags)
+                m = regex.search(x)
+                if m:
+                    if group is None:
+                        return m.group()
+                    return m.group(group)
+
+            pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._pat._value is None \
+                else Scalar(re.escape(expr.pat))
+            inputs = expr.input, pat, expr._flags, expr._group
+            sub = self._gen_mapped_expr(expr, inputs, func,
+                                        expr.name, multiple=False)
+            self._sub(expr, sub)
         elif isinstance(expr, Replace):
             def func(x, pat, repl, n, case, flags):
                 use_re = not case or len(pat) > 1 or flags
@@ -522,7 +604,9 @@ class Analyzer(Backend):
                 else:
                     return x.replace(pat, repl, n)
 
-            inputs = expr.input, expr._pat, expr._repl, expr._n, \
+            pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._value is None \
+                else Scalar(re.escape(expr.pat))
+            inputs = expr.input, pat, expr._repl, expr._n, \
                      expr._case, expr._flags
             sub = self._gen_mapped_expr(expr, inputs, func,
                                         expr.name, multiple=False)

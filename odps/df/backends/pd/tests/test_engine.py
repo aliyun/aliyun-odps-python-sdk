@@ -20,6 +20,8 @@
 from datetime import timedelta, datetime
 from random import randint
 from decimal import Decimal
+import functools
+import re
 
 from odps.df.backends.tests.core import TestBase, to_str, tn, pandas_case
 from odps.compat import unittest, irange as xrange, OrderedDict
@@ -134,6 +136,11 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         self.assertEqual(len(res), 0)
 
+        expr = self.expr.exclude('scale').describe()
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertSequenceEqual(result[0][1:], [10, 10])
+
     def testChinese(self):
         data = [
             ['中文', 4, 5.3, None, None, None],
@@ -167,7 +174,9 @@ class Test(TestBase):
             self.expr.name.fillna('test').switch('test', 1, 'test2', 2).rename('name5'),
             self.expr.id.cut([100, 200, 300],
                              labels=['xsmall', 'small', 'large', 'xlarge'],
-                             include_under=True, include_over=True).rename('id6')
+                             include_under=True, include_over=True).rename('id6'),
+            (Scalar(10) * 2).rename('const1'),
+            (RandomScalar() * 10).rename('rand1'),
         ]
 
         expr = self.expr[fields]
@@ -218,6 +227,11 @@ class Test(TestBase):
             else:
                 return 'xlarge'
         self.assertEqual([to_str(get_val(it[1])) for it in data], [to_str(it[10]) for it in result])
+
+        self.assertEqual([20] * len(data), [it[11] for it in result])
+
+        for it in result:
+            self.assertTrue(0 <= it[12] <= 10)
 
     def testArithmetic(self):
         data = self._gen_data(5, value_range=(-1000, 1000))
@@ -338,12 +352,19 @@ class Test(TestBase):
     def testString(self):
         data = self._gen_data(5)
 
+        def extract(x, pat, group):
+            regex = re.compile(pat)
+            m = regex.match(x)
+            if m:
+                return m.group(group)
+
         methods_to_fields = [
             (lambda s: s.capitalize(), self.expr.name.capitalize()),
             (lambda s: data[0][0] in s, self.expr.name.contains(data[0][0], regex=False)),
             (lambda s: s.count(data[0][0]), self.expr.name.count(data[0][0])),
             (lambda s: s.endswith(data[0][0]), self.expr.name.endswith(data[0][0])),
             (lambda s: s.startswith(data[0][0]), self.expr.name.startswith(data[0][0])),
+            (lambda s: extract('123' + s, '[^a-z]*(\w+)', group=1), ('123' + self.expr.name).extract('[^a-z]*(\w+)', group=1)),
             (lambda s: s.find(data[0][0]), self.expr.name.find(data[0][0])),
             (lambda s: s.rfind(data[0][0]), self.expr.name.rfind(data[0][0])),
             (lambda s: s.replace(data[0][0], 'test'), self.expr.name.replace(data[0][0], 'test')),
@@ -354,6 +375,8 @@ class Test(TestBase):
             (lambda s: s.rjust(10), self.expr.name.rjust(10)),
             (lambda s: s.rjust(20, '*'), self.expr.name.rjust(20, fillchar='*')),
             (lambda s: s * 4, self.expr.name.repeat(4)),
+            (lambda s: s[1:], self.expr.name.slice(1)),
+            (lambda s: s[1: 6], self.expr.name.slice(1, 6)),
             (lambda s: s[2: 10: 2], self.expr.name.slice(2, 10, 2)),
             (lambda s: s[-5: -1], self.expr.name.slice(-5, -1)),
             (lambda s: s.title(), self.expr.name.title()),
@@ -435,6 +458,13 @@ class Test(TestBase):
         result = self._get_result(res)
 
         self.assertEqual(result, [[r[1] + 1] for r in data])
+
+        expr = self.expr['id'].map(functools.partial(lambda v, x: x + v, 10))
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(result, [[r[1] + 10] for r in data])
 
         expr = self.expr['id'].mean().map(lambda x: x + 1)
 
@@ -639,6 +669,36 @@ class Test(TestBase):
         expr = self.expr['name', ].apply(
             mapper, axis=1, names=['word', 'count'], types=['string', 'int'])
         expr = expr.groupby('word').sort('word').apply(
+            reducer, names=['word', 'count'], types=['string', 'int'])
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [['key', 3], ['name', 4]]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        class reducer(object):
+            def __init__(self):
+                self._curr = None
+                self._cnt = 0
+
+            def __call__(self, row):
+                if self._curr is None:
+                    self._curr = row.word
+                elif self._curr != row.word:
+                    assert self._curr > row.word
+                    yield (self._curr, self._cnt)
+                    self._curr = row.word
+                    self._cnt = 0
+                self._cnt += row.count
+
+            def close(self):
+                if self._curr is not None:
+                    yield (self._curr, self._cnt)
+
+        expr = self.expr['name',].apply(
+            mapper, axis=1, names=['word', 'count'], types=['string', 'int'])
+        expr = expr.groupby('word').sort('word', ascending=False).apply(
             reducer, names=['word', 'count'], types=['string', 'int'])
 
         res = self.engine.execute(expr)
@@ -952,6 +1012,34 @@ class Test(TestBase):
         self.assertEqual(res.schema.names, ['id', 'name1_fid_my_sum', 'name2_fid_my_sum',
                                             'name1_fid_mean', 'name2_fid_mean'])
         self.assertEqual(result, expected)
+
+    def testMelt(self):
+        import pandas as pd
+        data = [
+            ['name1', 1.0, 3.0, 10.0],
+            ['name1', None, 3.0, 5.1],
+            ['name1', 7.1, None, 8.2],
+            ['name2', None, 1.2, 1.5],
+            ['name2', None, 1.0, 1.1],
+        ]
+        schema = Schema.from_lists(['name', 'k1', 'k2', 'k3'],
+                                   [types.string, types.float64, types.float64, types.float64])
+        expr_input = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
+                                    _schema=schema)
+        expr = expr_input.melt('name')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 'k1', 1.0], ['name1', 'k2', 3.0], ['name1', 'k3', 10.0],
+            ['name1', 'k1', None], ['name1', 'k2', 3.0], ['name1', 'k3', 5.1],
+            ['name1', 'k1', 7.1], ['name1', 'k2', None], ['name1', 'k3', 8.2],
+            ['name2', 'k1', None], ['name2', 'k2', 1.2], ['name2', 'k3', 1.5],
+            ['name2', 'k1', None], ['name2', 'k2', 1.0], ['name2', 'k3', 1.1]
+        ]
+
+        self.assertListEqual(result, expected)
 
     def testGroupbyAggregation(self):
         data = [
@@ -1628,6 +1716,166 @@ class Test(TestBase):
             self.assertEqual([to_str(t) for t in e],
                              [to_str(t) for t in r])
 
+    def testConcat(self):
+        import pandas as pd
+        data = [
+            ['name1', 4, 5.3],
+            ['name2', 2, 3.5],
+            ['name1', 4, 4.2],
+            ['name1', 3, 2.2],
+            ['name1', 3, 4.1],
+        ]
+        schema = Schema.from_lists(['name', 'id', 'fid'],
+                                    [types.string, types.int64, types.float64])
+        expr1 = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
+                               _schema=schema)
+        data2 = [
+            [7.4, 1.5],
+            [2.3, 1.7],
+            [9.8, 5.4],
+            [1.9, 2.2],
+            [7.1, 6.2],
+        ]
+        schema2 = Schema.from_lists(['fid2', 'fid3'],
+                                    [types.float64, types.float64])
+        expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
+                               _schema=schema2)
+
+        expr = expr1.concat(expr2, axis=1)
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 4, 5.3, 7.4, 1.5],
+            ['name2', 2, 3.5, 2.3, 1.7],
+            ['name1', 4, 4.2, 9.8, 5.4],
+            ['name1', 3, 2.2, 1.9, 2.2],
+            ['name1', 3, 4.1, 7.1, 6.2]
+        ]
+
+        result = sorted(result)
+        expected = sorted(expected)
+
+        self.assertEqual(len(result), len(expected))
+        for e, r in zip(result, expected):
+            self.assertEqual([to_str(t) for t in e],
+                             [to_str(t) for t in r])
+
+    def testScaleValue(self):
+        import pandas as pd
+        data = [
+            ['name1', 4, 5.3],
+            ['name2', 2, 3.5],
+            ['name1', 4, 4.2],
+            ['name1', 3, 2.2],
+            ['name1', 3, 4.1],
+        ]
+        schema = Schema.from_lists(['name', 'id', 'fid'],
+                                   [types.string, types.int64, types.float64])
+        expr_input = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
+                                    _schema=schema)
+        expr = expr_input.min_max_scale(columns=['fid'])
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 4, 1.0],
+            ['name2', 2, 0.41935483870967744],
+            ['name1', 4, 0.6451612903225807],
+            ['name1', 3, 0.0],
+            ['name1', 3, 0.6129032258064515]
+        ]
+
+        result = sorted(result)
+        expected = sorted(expected)
+
+        for first, second in zip(result, expected):
+            self.assertEqual(len(first), len(second))
+            for it1, it2 in zip(first, second):
+                self.assertAlmostEqual(it1, it2)
+
+        expr = expr_input.std_scale(columns=['fid'])
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        print(result)
+
+        expected = [
+            ['name1', 4, 1.4213602653434203],
+            ['name2', 2, -0.3553400663358544],
+            ['name1', 4, 0.3355989515394193],
+            ['name1', 3, -1.6385125281042194],
+            ['name1', 3, 0.23689337755723686]
+        ]
+
+        result = sorted(result)
+        expected = sorted(expected)
+
+        for first, second in zip(result, expected):
+            self.assertEqual(len(first), len(second))
+            for it1, it2 in zip(first, second):
+                self.assertAlmostEqual(it1, it2)
+
+    def testExtractKV(self):
+        import pandas as pd
+        data = [
+            ['name1', 'k1=1,k2=3,k5=10'],
+            ['name1', 'k2=3,k3=5.1'],
+            ['name1', 'k1=7.1,k7=8.2'],
+            ['name2', 'k2=1.2,k3=1.5'],
+            ['name2', 'k9=1.1,k2=1'],
+        ]
+        schema = Schema.from_lists(['name', 'kv'],
+                                   [types.string, types.string])
+        expr_input = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
+                                    _schema=schema)
+        expr = expr_input.extract_kv(columns=['kv'], kv_delim='=', fill_value=0)
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected_cols = ['name', 'kv_k1', 'kv_k2', 'kv_k3', 'kv_k5', 'kv_k7', 'kv_k9']
+        expected = [
+            ['name1', 1.0, 3.0, 0, 10.0, 0, 0],
+            ['name1', 0, 3.0, 5.1, 0, 0, 0],
+            ['name1', 7.1, 0, 0, 0, 8.2, 0],
+            ['name2', 0, 1.2, 1.5, 0, 0, 0],
+            ['name2', 0, 1.0, 0, 0, 0, 1.1],
+        ]
+
+        self.assertListEqual([c.name for c in res.columns], expected_cols)
+        self.assertListEqual(result, expected)
+
+    def testMakeKV(self):
+        import pandas as pd
+        data = [
+            ['name1', 1.0, 3.0, None, 10.0, None, None],
+            ['name1', None, 3.0, 5.1, None, None, None],
+            ['name1', 7.1, None, None, None, 8.2, None],
+            ['name2', None, 1.2, 1.5, None, None, None],
+            ['name2', None, 1.0, None, None, None, 1.1],
+        ]
+        kv_cols = ['k1', 'k2', 'k3', 'k5', 'k7', 'k9']
+        schema = Schema.from_lists(['name'] + kv_cols,
+                                   [types.string] + [types.float64] * 6)
+        expr_input = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
+                                    _schema=schema)
+        expr = expr_input.to_kv(columns=kv_cols, kv_delim='=')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 'k1=1.0,k2=3.0,k5=10.0'],
+            ['name1', 'k2=3.0,k3=5.1'],
+            ['name1', 'k1=7.1,k7=8.2'],
+            ['name2', 'k2=1.2,k3=1.5'],
+            ['name2', 'k2=1.0,k9=1.1'],
+        ]
+
+        self.assertListEqual(result, expected)
+
     def testHllc(self):
         names = [randint(0, 100000) for _ in xrange(100000)]
         data = [[n] + [None] * 5 for n in names]
@@ -1716,6 +1964,56 @@ class Test(TestBase):
                 self.assertEqual(1, r.count)
         finally:
             self.odps.delete_table(table_name, if_exists=True)
+
+    def testAppendID(self):
+        import pandas as pd
+        data = [
+            ['name1', 4, 5.3],
+            ['name2', 2, 3.5],
+            ['name1', 4, 4.2],
+            ['name1', 3, 2.2],
+            ['name1', 3, 4.1],
+        ]
+        schema = Schema.from_lists(['name', 'id', 'fid'],
+                                   [types.string, types.int64, types.float64])
+        expr1 = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
+                               _schema=schema)
+
+        expr = expr1.append_id()
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [0, 'name1', 4, 5.3],
+            [1, 'name2', 2, 3.5],
+            [2, 'name1', 4, 4.2],
+            [3, 'name1', 3, 2.2],
+            [4, 'name1', 3, 4.1],
+        ]
+        self.assertListEqual(result, expected)
+
+    def testSplit(self):
+        import pandas as pd
+        data = [
+            [0, 'name1', 4, 5.3],
+            [1, 'name2', 2, 3.5],
+            [2, 'name1', 4, 4.2],
+            [3, 'name1', 3, 2.2],
+            [4, 'name1', 3, 4.1],
+        ]
+        schema = Schema.from_lists(['rid', 'name', 'id', 'fid'],
+                                   [types.int64, types.string, types.int64, types.float64])
+        expr1 = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
+                               _schema=schema)
+
+        expr1, expr2 = expr1.split(0.6)
+        res1 = self.engine.execute(expr1)
+        result1 = self._get_result(res1)
+        res2 = self.engine.execute(expr2)
+        result2 = self._get_result(res2)
+
+        merged = sorted(result1 + result2, key=lambda r: r[0])
+        self.assertListEqual(data, merged)
 
 
 if __name__ == '__main__':

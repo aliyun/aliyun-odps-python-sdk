@@ -329,7 +329,7 @@ def _startswith(expr, pat):
     return _string_op(expr, Startswith, output_type=types.boolean, _pat=pat)
 
 
-def _extract(expr, pat, flags=0, group=None):
+def _extract(expr, pat, flags=0, group=0):
     """
     Find group in each string in the Series using passed regular expression.
 

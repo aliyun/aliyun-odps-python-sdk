@@ -746,6 +746,7 @@ class ProgressBar(six.Iterator):
                 else:
                     from ipywidgets import widgets
                 from IPython.display import display
+                ipython_widget = is_widgets_available()
             except ImportError:
                 ipython_widget = False
 

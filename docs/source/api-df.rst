@@ -3,17 +3,21 @@
 DataFrame Reference
 ===================
 
-.. autoclass:: odps.df.core.DataFrame
+.. autoclass:: odps.df.DataFrame
     :members:
 
-.. autoclass:: odps.df.expr.expressions.CollectionExpr
-    :members:
-    :inherited-members:
-
-.. autoclass:: odps.df.expr.expressions.SequenceExpr
+.. autoclass:: odps.df.CollectionExpr
     :members:
     :inherited-members:
 
-.. autoclass:: odps.df.expr.expressions.Scalar
+.. autoclass:: odps.df.SequenceExpr
+    :members:
+    :inherited-members:
+
+.. autoclass:: odps.df.Scalar
+    :members:
+    :inherited-members:
+
+.. autoclass:: odps.df.RandomScalar
     :members:
     :inherited-members:

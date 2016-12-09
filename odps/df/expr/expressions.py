@@ -25,9 +25,9 @@ import functools
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
-from .utils import get_attrs, is_called_by_inspector
+from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type
 from .. import types
-from ...compat import reduce, isvalidattr, dir2
+from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys
 from ...config import options
 from ...utils import TEMP_TABLE_PREFIX
 from ...models import Schema
@@ -110,7 +110,7 @@ class Expr(Node):
         """
         _deps is used for common dependencies.
         When a expr depend on other exprs, and the expr is not calculated from the others,
-        the _deps are specified to indentify the dependencies.
+        the _deps are specified to identify the dependencies.
         """
         self._init_attr('_deps', None)
 
@@ -796,6 +796,46 @@ class CollectionExpr(Expr):
         kv = dict((attr, getattr(self, attr)) for attr in get_attrs(self))
         return type(self)(**kv)
 
+    def describe(self):
+        from .. import output
+
+        methods = OrderedDict([
+            ('count', lambda f: f.notnull().sum().rename(col.name + '_count')),
+            ('mean', lambda f: f.mean()),
+            ('std(ddof=0)', lambda f: f.std(ddof=0)),
+            ('min', lambda f: f.min()),
+            ('max', lambda f: f.max()),
+        ])
+
+        aggs = []
+        output_names = []
+        output_types = []
+        for col in self.schema.columns:
+            if types.is_number(col.type):
+                output_names.append(col.name)
+                fields = []
+                tps = []
+                for func in six.itervalues(methods):
+                    field = func(self[col.name])
+                    fields.append(field)
+                    tps.append(field.dtype)
+                t = highest_precedence_data_type(*tps)
+                output_types.append(t)
+                aggs.extend([f.astype(t) if t == types.decimal else f for f in fields])
+
+        summary = self[aggs]
+        methods_names = lkeys(methods)
+
+        @output(['type'] + output_names, ['string'] + output_types)
+        def to_methods(row):
+            for method in methods_names:
+                values = [None] * len(output_names)
+                for i, field_name in enumerate(output_names):
+                    values[i] = getattr(row, '%s_%s' % (field_name, method.split('(', 1)[0]))
+                yield [method, ] + values
+
+        return summary.apply(to_methods, axis=1)
+
     def accept(self, visitor):
         if self._source_data is not None:
             visitor.visit_source_collection(self)
@@ -1192,6 +1232,12 @@ class Column(SequenceExpr):
 class Scalar(TypedExpr):
     """
     Represent for the scalar type.
+
+    :param _value: value of the scalar
+    :param _value_type: value type of the scalar
+
+    :Example:
+    >>> df[df, Scalar(4).rename('append_const')]
     """
 
     __slots__ = '_value', '_value_type', '_source_value_type'
@@ -1440,6 +1486,26 @@ class BuiltinFunction(Scalar):
         visitor.visit_builtin_function(self)
 
 
+class RandomScalar(BuiltinFunction):
+    """
+    Represent for the random scalar type.
+
+    :param seed: random seed, None by default
+
+    :Example:
+    >>> df[df, RandomScalar().rename('append_random')]
+    """
+    def __new__(cls, seed=None, **kw):
+        args = (seed, ) if seed is not None else kw.get('_func_args', ())
+        kw.update(dict(_func_name='rand', _value_type='float', _func_args=args))
+        return BuiltinFunction.__new__(cls, **kw)
+
+    def __init__(self, seed=None, **kw):
+        args = (seed, ) if seed is not None else kw.get('_func_args', ())
+        kw.update(dict(_func_name='rand', _value_type='float', _func_args=args))
+        super(RandomScalar, self).__init__(**kw)
+
+
 class FilterCollectionExpr(CollectionExpr):
     _args = '_input', '_predicate'
     node_name = 'Filter'
@@ -1599,7 +1665,7 @@ class SliceCollectionExpr(CollectionExpr):
         visitor.visit_slice_collection(self)
 
 
-class Summary(Expr):
+class Summary(CollectionExpr):
     __slots__ = '_schema',
     _args = '_input', '_fields'
 

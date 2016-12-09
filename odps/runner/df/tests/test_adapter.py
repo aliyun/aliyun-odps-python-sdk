@@ -21,7 +21,7 @@ from odps.tests.core import TestBase
 from odps.runner import adapter_from_df
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.merge import *
-from odps.df import types
+from odps.df import DataFrame, types
 
 
 class Test(TestBase):

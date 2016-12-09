@@ -128,7 +128,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
                 yield n
 
     def traverse(self, top_down=False, unique=False, traversed=None,
-                 args_attrs=None):
+                 args_attrs=None, stop_cond=None):
         traversed = traversed if traversed is not None else set()
 
         def is_trav(n):
@@ -150,9 +150,10 @@ class Node(six.with_metaclass(NodeMetaclass)):
             curr = q.popleft()
             if top_down:
                 yield curr
-                children = [c for c in curr.children(args_attr=args_attrs)
-                            if not is_trav(c)]
-                q.extendleft(children[::-1])
+                if stop_cond is None or not stop_cond(curr):
+                    children = [c for c in curr.children(args_attr=args_attrs)
+                                if not is_trav(c)]
+                    q.extendleft(children[::-1])
             else:
                 if id(curr) not in checked:
                     children = curr.children(args_attr=args_attrs)
@@ -160,8 +161,9 @@ class Node(six.with_metaclass(NodeMetaclass)):
                         yield curr
                     else:
                         q.appendleft(curr)
-                        q.extendleft([c for c in children
-                                      if not is_trav(c) or id(c) not in checked][::-1])
+                        if stop_cond is None or not stop_cond(curr):
+                            q.extendleft([c for c in children
+                                          if not is_trav(c) or id(c) not in checked][::-1])
                     checked.add(id(curr))
                 else:
                     if id(curr) not in yields:
@@ -227,6 +229,9 @@ class Node(six.with_metaclass(NodeMetaclass)):
             pos = node_poses[id(curr)]
             if len(children) == 0 or pos >= len(children):
                 q.pop()
+                # TODO: add this in the future
+                # if pos >= len(children):
+                #     node_poses[id(curr)] = 0
                 continue
 
             n = children[pos]
@@ -403,9 +408,10 @@ class ExprDAG(DAG):
     def root(self, root):
         self._root = weakref.ref(root)
 
-    def traverse(self, root=None, top_down=False, traversed=None):
+    def traverse(self, root=None, top_down=False, traversed=None, stop_cond=None):
         root = root or self.root
-        return root.traverse(top_down=top_down, unique=True, traversed=traversed)
+        return root.traverse(top_down=top_down, unique=True,
+                             traversed=traversed, stop_cond=stop_cond)
 
     def substitute(self, expr, new_expr, parents=None):
         if expr is self.root:

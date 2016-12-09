@@ -172,6 +172,22 @@ class Test(TestBase):
                    "WHERE (t4.`id_x` + t4.`id_y`) < 10"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.outer_join(self.expr3, on='name')
+        expr = expr[(expr.id_x + expr.id_y < 10) & (expr.id_x > 3)]
+
+        expected = "SELECT * \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`name` AS `name_x`, t1.`id` AS `id_x`, t1.`fid` AS `fid_x`, " \
+                   "t1.`isMale`, t1.`scale`, t1.`birth`, t1.`ds`, t2.`name` AS `name_y`, " \
+                   "t2.`id` AS `id_y`, t2.`fid` AS `fid_y`, t2.`part1`, t2.`part2` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "  FULL OUTER JOIN \n" \
+                   "    mocked_project.`pyodps_test_expr_table2` t2\n" \
+                   "  ON t1.`name` == t2.`name` \n" \
+                   ") t3 \n" \
+                   "WHERE ((t3.`id_x` + t3.`id_y`) < 10) AND (t3.`id_x` > 3)"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
         expr = self.expr.join(self.expr3, on=['name', self.expr.id == self.expr3.id,
                                               self.expr.id < 10, self.expr3.name == 'name1',
                                               self.expr.id > 5])
@@ -190,6 +206,19 @@ class Test(TestBase):
                    '    WHERE t3.`name` == \'name1\'\n' \
                    '  ) t4\n' \
                    'ON (t2.`name` == t4.`name`) AND (t2.`id` == t4.`id`)'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.left_join(self.expr3, on=['name', self.expr.id == self.expr3.id,
+                                                   self.expr.id < 10, self.expr3.name == 'name1',
+                                                   self.expr.id > 5])
+        expected = 'SELECT t1.`name` AS `name_x`, t1.`id` AS `id_x`, t1.`fid` AS `fid_x`, t1.`isMale`, ' \
+                   't1.`scale`, t1.`birth`, t1.`ds`, t2.`name` AS `name_y`, t2.`id` AS `id_y`, ' \
+                   't2.`fid` AS `fid_y`, t2.`part1`, t2.`part2` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'LEFT OUTER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table2` t2\n' \
+                   'ON ((((t1.`name` == t2.`name`) AND (t1.`id` == t2.`id`)) ' \
+                   "AND (t1.`id` < 10)) AND (t2.`name` == 'name1')) AND (t1.`id` > 5)"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
     def testFilterPushdownThroughUnion(self):

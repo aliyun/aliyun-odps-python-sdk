@@ -33,6 +33,21 @@ var pyodps_init_time = new Date();
 define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], function ($, IPython) {
     "use strict";
 
+    var entityMap = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': '&quot;',
+        "'": '&#39;',
+        "/": '&#x2F;'
+    };
+
+    function escape_html(string) {
+        return String(string).replace(/[&<>"'\/]/g, function (s) {
+            return entityMap[s];
+        });
+    }
+
     var view_prompts = {};
 
     var register_css = function (url) {
@@ -60,23 +75,30 @@ define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], f
         var cell_element = $(_widget.$el.closest('.cell'));
         var view_name = _widget.model.get('_view_name');
         if (undefined == view_prompts[view_name]) {
-            view_prompts[view_name] = -1;
-        }
+            view_prompts[view_name] = {
+                prompt_num: -1,
+                func: func,
+            };
 
-        var notifier = function () {
-            // only display notifications when the cell stops running.
-            if (cell_element.hasClass('running'))
-                window.setTimeout(notifier, 100);
-            else {
-                // ensure that notifications for a cell appear only once.
-                var prompt_num = cell_element.data('cell').input_prompt_number;
-                if (prompt_num !== view_prompts[view_name]) {
-                    view_prompts[view_name] = prompt_num;
-                    func.apply(_widget);
+            var notifier = function () {
+                // only display notifications when the cell stops running.
+                if (cell_element.hasClass('running'))
+                    window.setTimeout(notifier, 100);
+                else {
+                    // make sure that notification will reoccur when rerun this cell.
+                    view_prompts[view_name] = undefined;
+                    // ensure that notifications for a cell appear only once.
+                    var prompt_num = cell_element.data('cell').input_prompt_number;
+                    if (prompt_num !== view_prompts[view_name].prompt_num) {
+                        view_prompts[view_name].prompt_num = prompt_num;
+                        view_prompts[view_name].func.apply(_widget);
+                    }
                 }
-            }
-        };
-        window.setTimeout(notifier, 100);
+            };
+            window.setTimeout(notifier, 100);
+        } else {
+            view_prompts[view_name].func = func
+        }
     };
     $([IPython.events]).on('kernel_restarting.Kernel', function () {
         view_prompts = {};
@@ -88,5 +110,6 @@ define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], f
         init_time: pyodps_init_time,
         register_css: register_css,
         call_on_executed: call_on_executed,
+        escape_html: escape_html,
     }
 });

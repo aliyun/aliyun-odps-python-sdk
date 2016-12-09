@@ -306,8 +306,8 @@ class PandasEngine(Engine):
                 filters = []
                 for k in partition.keys:
                     filters.append(lambda x: x[k] == partition[k])
-                return DataFrame(odps.get_table(name)).filter(*filters)
-            return DataFrame(odps.get_table(name))
+                return DataFrame(odps.get_table(name, project=project)).filter(*filters)
+            return DataFrame(odps.get_table(name, project=project))
 
         finally:
             if close_ui:

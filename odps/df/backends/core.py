@@ -127,6 +127,18 @@ class Backend(object):
     def visit_union(self, expr):
         raise NotImplementedError
 
+    def visit_concat(self, expr):
+        raise NotImplementedError
+
+    def visit_append_id(self, expr):
+        raise NotImplementedError
+
+    def visit_split(self, expr):
+        raise NotImplementedError
+
+    def visit_extract_kv(self, expr):
+        raise NotImplementedError
+
 
 class Engine(object):
     def _convert_table(self, expr):

@@ -157,6 +157,14 @@ class Test(TestBase):
         self.assertSequenceEqual([by.name for by in lag._partition_by], ['string', ])
         self.assertSequenceEqual([by.name for by in lag._order_by], ['int8', ])
 
+        lag = self.expr.groupby('string').sort('int8').decimal.lag(1)
+
+        self.assertIsInstance(lag, Lag)
+        self.assertIsInstance(lag, DecimalSequenceExpr)
+        self.assertEqual(lag._offset, 1)
+        self.assertSequenceEqual([by.name for by in lag._partition_by], ['string', ])
+        self.assertSequenceEqual([by.name for by in lag._order_by], ['int8', ])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -363,10 +363,10 @@ def row_number(expr, sort=None, ascending=True):
 
 def _shift_op(expr, op_cls, offset, default=None, sort=None, ascending=True):
     if isinstance(expr, SequenceGroupBy):
-        if sort is None:
-            sort = expr.name
-        groupby = expr._input.sort(sort, ascending=ascending)
-        expr = groupby[expr._name]
+        if object_getattr(expr._input, '_sorted_fields', None) is None:
+            sort = sort or expr.name
+            groupby = expr._input.sort(sort, ascending=ascending)
+            expr = groupby[expr._name]
 
         collection = expr._input._input
         column = collection[expr._name]

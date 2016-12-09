@@ -19,8 +19,8 @@
 
 import inspect
 
-from .core import DataFrame
-from .expr.expressions import Scalar, BuiltinFunction
+from .core import DataFrame, CollectionExpr
+from .expr.expressions import SequenceExpr, Scalar, BuiltinFunction, RandomScalar
 from .expr.element import switch
 from .expr.datetimes import year, month, day, hour, minute, second, millisecond
 from .expr.reduction import aggregate, agg

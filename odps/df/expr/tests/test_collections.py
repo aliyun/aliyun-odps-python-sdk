@@ -21,7 +21,7 @@ from odps.tests.core import TestBase
 from odps.compat import unittest, OrderedDict
 from odps.models import Schema
 from odps.df.expr.expressions import CollectionExpr, ExpressionError
-from odps.df.expr.collections import SampledCollectionExpr
+from odps.df.expr.collections import SampledCollectionExpr, AppendIDCollectionExpr, SplitCollectionExpr
 from odps.df import DataFrame, output, types
 
 
@@ -110,6 +110,16 @@ class Test(TestBase):
         self.assertEqual(len(expr._sort_fields), 3)
         self.assertTrue(expr._sort_fields[0]._ascending)
         self.assertFalse(expr._sort_fields[1]._ascending)
+        self.assertFalse(expr._sort_fields[2]._ascending)
+
+        expr = self.expr.map_reduce(mapper, reducer, group='name',
+                                    sort=['name', 'rating', 'id'],
+                                    ascending=[False, True, False])
+
+        self.assertEqual(expr.schema.names, ['name', 'rating'])
+        self.assertEqual(len(expr._sort_fields), 3)
+        self.assertFalse(expr._sort_fields[0]._ascending)
+        self.assertTrue(expr._sort_fields[1]._ascending)
         self.assertFalse(expr._sort_fields[2]._ascending)
 
     def testSample(self):
@@ -210,6 +220,56 @@ class Test(TestBase):
 
         expr = self.expr.pivot_table(values='int16', columns='boolean', rows='string')
         self.assertIsInstance(expr, DynamicMixin)
+
+    def testScaleValues(self):
+        expr = self.expr.min_max_scale()
+        self.assertIsInstance(expr, CollectionExpr)
+        self.assertListEqual(expr.dtypes.names, self.expr.dtypes.names)
+
+        expr = self.expr.min_max_scale(preserve=True)
+        self.assertIsInstance(expr, CollectionExpr)
+        self.assertListEqual(expr.dtypes.names, self.expr.dtypes.names +
+                             [n + '_scaled' for n in self.expr.dtypes.names
+                              if n.startswith('int') or n.startswith('float')])
+
+        expr = self.expr.std_scale()
+        self.assertIsInstance(expr, CollectionExpr)
+        self.assertListEqual(expr.dtypes.names, self.expr.dtypes.names)
+
+        expr = self.expr.std_scale(preserve=True)
+        self.assertIsInstance(expr, CollectionExpr)
+        self.assertListEqual(expr.dtypes.names, self.expr.dtypes.names +
+                             [n + '_scaled' for n in self.expr.dtypes.names
+                              if n.startswith('int') or n.startswith('float')])
+
+    def testAppendId(self):
+        expr = self.expr.append_id(id_col='id_col')
+        try:
+            import pandas
+        except ImportError:
+            # No pandas: go for XFlow
+            self.assertIsInstance(expr, DataFrame)
+        else:
+            # Otherwise: go for Pandas
+            self.assertIsInstance(expr, AppendIDCollectionExpr)
+        self.assertIn('id_col', expr.schema)
+
+        self.assertIsInstance(self.sourced_expr.append_id(), DataFrame)
+
+    def testSplit(self):
+        expr1, expr2 = self.expr.split(0.6)
+        try:
+            import pandas
+        except ImportError:
+            # No pandas: go for XFlow
+            self.assertIsInstance(expr1, DataFrame)
+            self.assertIsInstance(expr2, DataFrame)
+        else:
+            # Otherwise: go for Pandas
+            self.assertIsInstance(expr1, SplitCollectionExpr)
+            self.assertIsInstance(expr2, SplitCollectionExpr)
+            self.assertTupleEqual((expr1._split_id, expr2._split_id), (0, 1))
+
 
 if __name__ == '__main__':
     unittest.main()

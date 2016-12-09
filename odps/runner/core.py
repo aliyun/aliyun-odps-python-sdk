@@ -45,6 +45,7 @@ class BaseRunnerNode(object):
 
     def __init__(self, code_name, engine=EngineType.XFLOW):
         self.parameters = OrderedDict()
+        self.engine_args = dict()
         self.metas = dict()
         self.inputs = OrderedDict()
         self.outputs = OrderedDict()

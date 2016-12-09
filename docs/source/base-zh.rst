@@ -16,4 +16,4 @@ PyODPS 提供直接针对 ODPS 对象的基本操作接口，可通过符合 Pyt
     base-resources-zh
     base-functions-zh
     base-volume-int-zh
-    base-models-int-zh
+    base-models-zh

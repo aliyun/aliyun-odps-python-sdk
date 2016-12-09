@@ -20,16 +20,17 @@
 from __future__ import absolute_import
 
 import json
+import time
 from collections import namedtuple
 
 from .expressions import *
 from .dynamic import DynamicCollectionExpr
+from .arithmetic import Negate
 from . import utils
 from ...models import Schema
-from ..expr.arithmetic import Negate
 from ..types import validate_data_type, string, DynamicSchema
-from ..utils import FunctionWrapper
-from ...compat import OrderedDict, six, lkeys, lvalues
+from ..utils import FunctionWrapper, output
+from ...compat import OrderedDict, six, lkeys, lvalues, reduce
 from ...utils import str_to_kv
 
 
@@ -555,6 +556,17 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
     >>> words_df.map_reduce(mapper, reducer, group='word')
     """
 
+    def _adjust_partial(fun):
+        if isinstance(fun, functools.partial) and isinstance(fun.func, FunctionWrapper):
+            wrapped_fun = fun.func
+            partial_fun = functools.partial(wrapped_fun._func, *fun.args, **fun.keywords)
+            ret_fun = FunctionWrapper(partial_fun)
+            ret_fun.output_names = wrapped_fun.output_names
+            ret_fun.output_types = wrapped_fun.output_types
+            return ret_fun
+        else:
+            return fun
+
     def conv(l):
         if l is None:
             return
@@ -722,6 +734,10 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
 
         return CombinedMapper
 
+    mapper = _adjust_partial(mapper)
+    reducer = _adjust_partial(reducer)
+    combiner = _adjust_partial(combiner)
+
     if isinstance(mapper, FunctionWrapper):
         mapper_output_names = mapper_output_names or mapper.output_names
         mapper_output_types = mapper_output_types or mapper.output_types
@@ -741,7 +757,8 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
     if len(sort) > len(group):
         ascending = [ascending, ] * (len(sort) - len(group)) \
             if isinstance(ascending, bool) else list(ascending)
-        ascending = [True] * len(group) + ascending
+        if len(ascending) != len(sort):
+            ascending = [True] * len(group) + ascending
 
     if not set(group + sort).issubset(mapper_output_names):
         raise ValueError('group and sort have to be the column names of mapper')
@@ -857,6 +874,55 @@ def pivot(expr, rows, columns, values=None):
 
     return PivotCollectionExpr(_input=expr, _group=rows,
                                _columns=columns, _values=values)
+
+
+def melt(expr, id_vars=None, value_vars=None, var_name='variable', value_name='value', ignore_nan=False):
+    """
+    “Unpivots” a DataFrame from wide format to long format, optionally leaving identifier variables set.
+
+    This function is useful to massage a DataFrame into a format where one or more columns are identifier
+    variables (id_vars), while all other columns, considered measured variables (value_vars), are “unpivoted”
+    to the row axis, leaving just two non-identifier columns, ‘variable’ and ‘value’.
+
+    :param expr: collection
+    :param id_vars: column(s) to use as identifier variables.
+    :param value_vars: column(s) to unpivot. If not specified, uses all columns that are not set as id_vars.
+    :param var_name: name to use for the ‘variable’ column. If None it uses frame.columns.name or ‘variable’.
+    :param value_name: name to use for the ‘value’ column.
+    :param ignore_nan: whether to ignore NaN values in data.
+    :return: collection
+
+    :Example:
+
+    >>> df.melt(id_vars='id', value_vars=['col1', 'col2'])
+    >>> df.melt(id_vars=['id', 'id2'], value_vars=['col1', 'col2'], var_name='variable')
+    """
+    id_vars = id_vars or []
+    id_vars = [expr._get_field(r) for r in utils.to_list(id_vars)]
+    if not value_vars:
+        id_names = set([c.name for c in id_vars])
+        value_vars = [expr._get_field(c) for c in expr.schema.names if c not in id_names]
+    else:
+        value_vars = [expr._get_field(c) for c in value_vars]
+
+    col_type = utils.highest_precedence_data_type(*[c.dtype for c in value_vars])
+
+    col_names = [c.name for c in value_vars]
+    id_names = [r.name for r in id_vars]
+
+    names = id_names + [var_name, value_name]
+    dtypes = [r.dtype for r in id_vars] + [types.string, col_type]
+
+    @output(names, dtypes)
+    def mapper(row):
+        for cn in col_names:
+            col_value = getattr(row, cn)
+            if ignore_nan and col_value is None:
+                continue
+            vals = [getattr(row, rn) for rn in id_names]
+            yield tuple(vals + [cn, col_value])
+
+    return expr.map_reduce(mapper)
 
 
 class PivotTableCollectionExpr(CollectionExpr):
@@ -1001,6 +1067,305 @@ def pivot_table(expr, values=None, rows=None, columns=None, aggfunc='mean',
                   _agg_func_names=agg_func_names)
 
 
+def _scale_values(expr, columns, agg_fun, scale_fun, preserve=False, suffix='_scaled'):
+    from ..types import Float, Integer
+    time_suffix = str(int(time.time()))
+
+    if columns is None:
+        columns = expr.schema.names
+    else:
+        columns = utils.to_list(columns)
+    columns = [expr._get_field(v) for v in columns]
+
+    numerical_cols = [col.name for col in columns if isinstance(col.data_type, (Float, Integer))]
+
+    cols = []
+    for col_name in numerical_cols:
+        cols.extend(agg_fun(expr, col_name))
+
+    stats_df = expr.__getitem__([Scalar(1).rename('idx_col_' + time_suffix)] + cols)
+
+    mapped = expr[expr, Scalar(1).rename('idx_col_' + time_suffix)]
+    join_expr = getattr(mapped, 'idx_col_' + time_suffix) == getattr(stats_df, 'idx_col_' + time_suffix)
+    joined = mapped.join(stats_df, join_expr, mapjoin=True).exclude('idx_col_' + time_suffix)
+    if preserve:
+        norm_cols = [dt.name for dt in expr.dtypes]
+        norm_cols.extend([scale_fun(joined, dt.name).rename(dt.name + suffix)
+                          for dt in expr.dtypes if dt.name in numerical_cols])
+    else:
+        norm_cols = [scale_fun(joined, dt.name).rename(dt.name)
+                     if dt.name in numerical_cols else getattr(joined, dt.name)
+                     for dt in expr.dtypes]
+    return joined.__getitem__(norm_cols)
+
+
+def min_max_scale(expr, columns=None, feature_range=(0, 1), preserve=False, suffix='_scaled'):
+    """
+    Resize a data frame by max / min values, i.e., (X - min(X)) / (max(X) - min(X))
+
+    :param DataFrame expr: Input data set
+    :param feature_range: the target range to resize the value into, i.e., v * (b - a) + a
+    :param bool preserve: Determine whether input data should be kept. If True, scaled input data will be appended to the data frame with `suffix`
+    :param columns: Columns names to resize. If set to None, float or int-typed columns will be normalized.
+    :param str suffix: column suffix to be appended to the scaled columns.
+
+    :return: resized data frame
+    :rtype: DataFrame
+    """
+    time_suffix = str(int(time.time()))
+
+    def calc_agg(expr, col):
+        return [
+            getattr(expr, col).min().rename(col + '_min_' + time_suffix),
+            getattr(expr, col).max().rename(col + '_max_' + time_suffix),
+        ]
+
+    def do_scale(expr, col):
+        f_min, f_max = feature_range
+        r = getattr(expr, col + '_max_' + time_suffix) - getattr(expr, col + '_min_' + time_suffix)
+        scaled = (getattr(expr, col) - getattr(expr, col + '_min_' + time_suffix)) / r
+        return scaled * (f_max - f_min) + f_min
+
+    return _scale_values(expr, columns, calc_agg, do_scale, preserve=preserve, suffix=suffix)
+
+
+def std_scale(expr, columns=None, with_means=True, with_std=True, preserve=False, suffix='_scaled'):
+    """
+    Resize a data frame by mean and standard error.
+
+    :param DataFrame expr: Input data set
+    :param bool with_means: Determine whether the output will be subtracted by means
+    :param bool with_std: Determine whether the output will be divided by standard deviations
+    :param bool preserve: Determine whether input data should be kept. If True, scaled input data will be appended to the data frame with `suffix`
+    :param columns: Columns names to resize. If set to None, float or int-typed columns will be normalized.
+    :param str suffix: column suffix to be appended to the scaled columns.
+
+    :return: resized data frame
+    :rtype: DataFrame
+    """
+    time_suffix = str(int(time.time()))
+
+    def calc_agg(expr, col):
+        return [
+            getattr(expr, col).mean().rename(col + '_mean_' + time_suffix),
+            getattr(expr, col).std(ddof=0).rename(col + '_std_' + time_suffix),
+        ]
+
+    def do_scale(expr, col):
+        c = getattr(expr, col)
+        if with_means:
+            c = c - getattr(expr, col + '_mean_' + time_suffix)
+        if with_std:
+            c = c / getattr(expr, col + '_std_' + time_suffix)
+        return c
+
+    return _scale_values(expr, columns, calc_agg, do_scale, preserve=preserve, suffix=suffix)
+
+
+class ExtractKVCollectionExpr(DynamicCollectionExpr):
+    __slots__ = '_column_type',
+    _args = '_input', '_columns', '_intact', '_kv_delimiter', '_item_delimiter', '_default'
+    node_name = 'ExtractKV'
+
+    def _init(self, *args, **kwargs):
+        from .element import _scalar
+        for attr in self._args[1:]:
+            self._init_attr(attr, None)
+        super(ExtractKVCollectionExpr, self)._init(*args, **kwargs)
+        self._kv_delimiter = _scalar(self._kv_delimiter)
+        self._item_delimiter = _scalar(self._item_delimiter)
+        self._default = _scalar(self._default)
+
+    @property
+    def input(self):
+        return self._input
+
+    def accept(self, visitor):
+        visitor.visit_extract_kv(self)
+
+
+def extract_kv(expr, columns=None, kv_delim=':', item_delim=',', dtype='float', fill_value=None):
+    """
+    Extract values in key-value represented columns into standalone columns. New column names will
+    be the name of the key-value column followed by an underscore and the key.
+
+    :param DataFrame expr: input data set
+    :param columns: the key-value columns to be extracted.
+    :param str kv_delim: delimiter between key and value.
+    :param str item_delim: delimiter between key-value pairs.
+    :param str dtype: type of value columns to generate.
+    :param fill_value: default value for missing key-value pairs.
+
+    :return: extracted data frame
+    :rtype: DataFrame
+
+    :Example:
+    >>> df
+        name   kv
+    0  name1  k1=1.0,k2=3.0,k5=10.0
+    1  name2  k2=3.0,k3=5.1
+    2  name3  k1=7.1,k7=8.2
+    3  name4  k2=1.2,k3=1.5
+    4  name5  k2=1.0,k9=1.1
+    >>> table = df.extract_kv(columns=['A', 'B'], kv_delim='=')
+    >>> table
+        name   kv_k1   kv_k2   kv_k3   kv_k5   kv_k7   kv_k9
+    0  name1  1.0     3.0     Nan     10.0    Nan     Nan
+    1  name2  Nan     3.0     5.1     Nan     Nan     Nan
+    2  name3  7.1     Nan     Nan     Nan     8.2     Nan
+    3  name4  Nan     1.2     1.5     Nan     Nan     Nan
+    4  name5  Nan     1.0     Nan     Nan     Nan     1.1
+    """
+    if columns is None:
+        columns = [expr._get_field(c) for c in expr.schema.names]
+        intact_cols = []
+    else:
+        columns = [expr._get_field(c) for c in utils.to_list(columns)]
+        name_set = set([c.name for c in columns])
+        intact_cols = [expr._get_field(c) for c in expr.schema.names if c not in name_set]
+
+    column_type = types.validate_data_type(dtype)
+    if any(not isinstance(c.dtype, types.String) for c in columns):
+        raise ExpressionError('Key-value columns must be strings.')
+
+    schema = DynamicSchema.from_lists([c.name for c in intact_cols], [c.dtype for c in intact_cols])
+    return ExtractKVCollectionExpr(_input=expr, _columns=columns, _intact=intact_cols, _schema=schema,
+                                   _column_type=column_type, _default=fill_value,
+                                   _kv_delimiter=kv_delim, _item_delimiter=item_delim)
+
+
+def to_kv(expr, columns=None, kv_delim=':', item_delim=',', kv_name='kv_col'):
+    """
+    Merge values in specified columns into a key-value represented column.
+
+    :param DataFrame expr: input data set.
+    :param columns: the columns to be merged.
+    :param str kv_delim: delimiter between key and value.
+    :param str item_delim: delimiter between key-value pairs.
+    :param str kv_col: name of the new key-value column
+
+    :return: converted data frame
+    :rtype: DataFrame
+
+    :Example:
+    >>> df
+        name   k1   k2   k3   k5    k7   k9
+    0  name1  1.0  3.0  Nan  10.0  Nan  Nan
+    1  name2  Nan  3.0  5.1  Nan   Nan  Nan
+    2  name3  7.1  Nan  Nan  Nan   8.2  Nan
+    3  name4  Nan  1.2  1.5  Nan   Nan  Nan
+    4  name5  Nan  1.0  Nan  Nan   Nan  1.1
+    >>> table = df.to_kv(columns=['A', 'B'], kv_delim='=')
+    >>> table
+        name   kv_col
+    0  name1  k1=1.0,k2=3.0,k5=10.0
+    1  name2  k2=3.0,k3=5.1
+    2  name3  k1=7.1,k7=8.2
+    3  name4  k2=1.2,k3=1.5
+    4  name5  k2=1.0,k9=1.1
+    """
+    if columns is None:
+        columns = [expr._get_field(c) for c in expr.schema.names]
+        intact_cols = []
+    else:
+        columns = [expr._get_field(c) for c in utils.to_list(columns)]
+        name_set = set([c.name for c in columns])
+        intact_cols = [expr._get_field(c) for c in expr.schema.names if c not in name_set]
+
+    mapped_cols = [c.isnull().ifelse(Scalar(''), c.name + kv_delim + c.astype('string')) for c in columns]
+    reduced_col = reduce(lambda a, b: (b == '').ifelse(a, (a == '').ifelse(b, a + item_delim + b)), mapped_cols)
+    return expr.__getitem__(intact_cols + [reduced_col.rename(kv_name)])
+
+
+class AppendIDCollectionExpr(CollectionExpr):
+    _args = '_input', '_id_col'
+    node_name = 'AppendID'
+
+    def _init(self, *args, **kwargs):
+        from .element import _scalar
+        for attr in self._args[1:]:
+            self._init_attr(attr, None)
+        super(AppendIDCollectionExpr, self)._init(*args, **kwargs)
+        self._validate()
+        self._id_col = _scalar(self._id_col)
+        self._schema = Schema.from_lists(self._input.schema.names + [self._id_col.value],
+                                         self._input.schema.types + [types.int64])
+
+    def _validate(self):
+        if self._id_col in self._input.schema:
+            raise ExpressionError('ID column already exists in current data frame.')
+
+    @property
+    def input(self):
+        return self._input
+
+    def accept(self, visitor):
+        return visitor.visit_append_id(self)
+
+
+def _append_id(expr, id_col='append_id'):
+    return AppendIDCollectionExpr(_input=expr, _id_col=id_col)
+
+
+def append_id(expr, id_col='append_id'):
+    """
+    Append an ID column to current column to form a new DataFrame.
+
+    :param str id_col: name of appended ID field.
+
+    :return: DataFrame with ID field
+    :rtype: DataFrame
+    """
+    if hasattr(expr, '_xflow_append_id'):
+        return expr._xflow_append_id(id_col)
+    else:
+        return _append_id(expr, id_col)
+
+
+class SplitCollectionExpr(CollectionExpr):
+    _args = '_input', '_frac', '_seed', '_split_id'
+    node_name = 'Split'
+
+    def _init(self, *args, **kwargs):
+        from .element import _scalar
+        for attr in self._args[1:]:
+            self._init_attr(attr, None)
+        super(SplitCollectionExpr, self)._init(*args, **kwargs)
+        self._frac = _scalar(self._frac)
+        self._seed = _scalar(self._seed, types.int32)
+        self._split_id = _scalar(self._split_id, types.int32)
+        self._schema = self._input.schema
+
+    @property
+    def input(self):
+        return self._input
+
+    def accept(self, visitor):
+        return visitor.visit_split(self)
+
+
+def _split(expr, frac, seed=None):
+    seed = seed or int(time.time())
+    return (
+        SplitCollectionExpr(_input=expr, _frac=frac, _seed=seed, _split_id=0),
+        SplitCollectionExpr(_input=expr, _frac=frac, _seed=seed, _split_id=1),
+    )
+
+
+def split(expr, frac, seed=None):
+    """
+    Split the current column into two column objects with certain ratio.
+
+    :param float frac: Split ratio
+
+    :return: two split data set objects
+    """
+    if hasattr(expr, '_xflow_split'):
+        return expr._xflow_split(frac, seed=seed)
+    else:
+        return _split(expr, frac, seed=seed)
+
+
 _collection_methods = dict(
     sort_values=sort_values,
     sort=sort_values,
@@ -1010,7 +1375,16 @@ _collection_methods = dict(
     sample=sample,
     __sample=__df_sample,
     pivot=pivot,
-    pivot_table=pivot_table
+    melt=melt,
+    pivot_table=pivot_table,
+    extract_kv=extract_kv,
+    to_kv=to_kv,
+    min_max_scale=min_max_scale,
+    std_scale=std_scale,
+    _append_id=_append_id,
+    append_id=append_id,
+    _split=_split,
+    split=split,
 )
 
 _sequence_methods = dict(

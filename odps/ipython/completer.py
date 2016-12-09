@@ -85,24 +85,33 @@ class BaseCompleter(object):
 
 
 class ObjectCompleter(BaseCompleter):
+    @staticmethod
+    def iter_methods():
+        odps_methods = [m_name for m_name in dir(ODPS) if callable(getattr(ODPS, m_name))
+                        and not m_name.startswith('_')]
+        odps_listers = [m_name for m_name in odps_methods if m_name.startswith('list_')]
+
+        for m_name in odps_methods:
+            for prefix in ('get_', 'delete_', 'write_', 'read_'):
+                if m_name.startswith(prefix):
+                    lister = None
+                    lister_prefix = m_name.replace(prefix, 'list_')
+                    for l in odps_listers:
+                        if l.startswith(lister_prefix):
+                            lister = l
+                            break
+                    if lister:
+                        yield m_name, lister
+                    break
+
     def build_regex(self):
         self._methods = {}
         method_type = namedtuple('MethodType', 'use_prefix list_method')
 
-        odps_methods = [m_name for m_name in dir(ODPS) if callable(getattr(ODPS, m_name))]
-        odps_listers = [m_name for m_name in odps_methods if m_name.startswith('list_')]
-        for m_name in (n for n in odps_methods if n.startswith('get_')):
-            lister = None
-            lister_prefix = m_name.replace('get_', 'list_')
-            for l in odps_listers:
-                if l.startswith(lister_prefix):
-                    lister = l
-                    break
-
-            if lister:
-                arg_tuple = getargspec(getattr(ODPS, lister))
-                use_prefix = 'prefix' in arg_tuple[0]
-                self._methods[m_name] = method_type(use_prefix=use_prefix, list_method=lister)
+        for m_name, lister in self.iter_methods():
+            arg_tuple = getargspec(getattr(ODPS, lister))
+            use_prefix = 'prefix' in arg_tuple[0]
+            self._methods[m_name] = method_type(use_prefix=use_prefix, list_method=lister)
 
         _regex_str = '(^|.*[\(\)\s,=]+)(?P<odps>[^\(\)\s,]+)\.(?P<getfn>' + '|'.join(six.iterkeys(self._methods)) + ')\('
         self._regex = re.compile(_regex_str + '(?P<args>[^\(\)]*)$')

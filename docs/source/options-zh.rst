@@ -30,7 +30,7 @@ read_timeout           读取超时                  120
 table_read_limit       表下载条数限制             None
 completion_size        对象补全列举条数限制        10
 notebook_repr_widget   使用交互式图表             True
-sql.settings           ODPS oSQL运行全局hints      None
+sql.settings           ODPS SQL运行全局hints      None
 runner.parallel_num    最多并行执行作业数         5
 runner.retry_times     最大重试次数               3
 ===================== ========================= =======

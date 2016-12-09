@@ -128,6 +128,7 @@ full_requirements = [
     'numpy>=1.6.0',
     'pandas>=0.17.0',
     'matplotlib>=1.4',
+    'graphviz>=0.4',
 ]
 if sys.platform != 'win32':
     full_requirements.append('cython>=0.20')

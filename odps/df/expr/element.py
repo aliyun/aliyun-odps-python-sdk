@@ -372,7 +372,7 @@ def _map(expr, func, rtype=None, resources=None, args=(), **kwargs):
         pass
     elif inspect.isclass(func):
         pass
-    elif not inspect.isfunction(func):
+    elif not callable(func):
         raise ValueError('`func` must be a function or a callable class')
 
     collection_resources = utils.get_collection_resources(resources)

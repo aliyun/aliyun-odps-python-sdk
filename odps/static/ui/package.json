@@ -1,7 +1,7 @@
 {
   "name": "pyodps",
   "description": "Front-end module of PyODPS",
-  "version": "0.6.0",
+  "version": "0.6.5",
   "author": "Alibaba, Inc.",
   "repository": {
     "type": "git",

@@ -35,6 +35,7 @@ from .xflows import XFlows
 from .xflow import XFlow
 from .tasks import *
 from .record import Record
+from .worker import Worker
 
 Column = Schema.TableColumn
 Partition = Schema.TablePartition

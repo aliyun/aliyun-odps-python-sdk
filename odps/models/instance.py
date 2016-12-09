@@ -25,6 +25,7 @@ import contextlib
 
 from .core import LazyLoad, XMLRemoteModel
 from .job import Job
+from .worker import WorkerDetail2
 from .. import serializers, utils, errors, compat, readers, options
 from ..compat import ElementTree, Enum, six, OrderedDict
 
@@ -173,6 +174,13 @@ class Instance(LazyLoad):
 
                 return buf.getvalue()
 
+    class TaskInfo(serializers.XMLSerializableModel):
+        _root = 'Instance'
+        __slots__ = 'key', 'value'
+
+        key = serializers.XMLNodeField('Key')
+        value = serializers.XMLNodeField('Value')
+
     name = serializers.XMLNodeField('Name')
     owner = serializers.XMLNodeField('Owner')
     start_time = serializers.XMLNodeField('StartTime', parse_callback=utils.parse_rfc822)
@@ -297,6 +305,45 @@ class Instance(LazyLoad):
 
         return compat.lkeys(self.get_task_statuses())
 
+    def get_task_info(self, task_name, key):
+        """
+        Get task related information.
+
+        :param task_name: name of the task
+        :param key: key of the information item
+        :return: a string of the task information
+        """
+        params = OrderedDict([('info', ''), ('taskname', task_name), ('key', key)])
+
+        resp = self._client.get(self.resource(), params=params)
+        return resp.text
+
+    def put_task_info(self, task_name, key, value):
+        """
+        Put information into a task.
+
+        :param task_name: name of the task
+        :param key: key of the information item
+        :param value: value of the information item
+        """
+        params = OrderedDict([('info', ''), ('taskname', task_name)])
+        headers = {'Content-Type': 'application/xml'}
+        body = self.TaskInfo(key=key, value=value).serialize()
+
+        self._client.put(self.resource(), params=params, headers=headers, data=body)
+
+    def get_task_quota(self, task_name):
+        """
+        Get queueing info of the task.
+        Note that time between two calls should larger than 30 seconds, otherwise empty dict is returned.
+
+        :param task_name: name of the task
+        :return: quota info in dict format
+        """
+        params = OrderedDict([('instancequota', ''), ('taskname', task_name)])
+        resp = self._client.get(self.resource(), params=params)
+        return json.loads(resp.text)
+
     @property
     def status(self):
         if self._status != Instance.Status.TERMINATED:
@@ -385,15 +432,23 @@ class Instance(LazyLoad):
         :return: the task's detail
         :rtype: list or dict according to the JSON
         """
+        def _get_detail():
+            from ..compat import json  # fix object_pairs_hook parameter for Py2.6
 
-        from ..compat import json  # fix object_pairs_hook parameter for Py2.6
+            params = {'instancedetail': '',
+                      'taskname': task_name}
 
-        params = {'instancedetail': '',
-                  'taskname': task_name}
+            resp = self._client.get(self.resource(), params=params)
+            return json.loads(resp.text if six.PY3 else resp.content,
+                              object_pairs_hook=OrderedDict)
 
-        resp = self._client.get(self.resource(), params=params)
-        return json.loads(resp.text if six.PY3 else resp.content,
-                          object_pairs_hook=OrderedDict)
+        result = _get_detail()
+        if not result:
+            # todo: this is a workaround for the bug that get_task_detail returns nothing.
+            self.get_task_detail2(task_name)
+            return _get_detail()
+        else:
+            return result
 
     def get_task_detail2(self, task_name):
         """
@@ -415,6 +470,17 @@ class Instance(LazyLoad):
             return json.loads(res, object_pairs_hook=OrderedDict)
         except ValueError:
             return res
+
+    def get_task_workers(self, task_name):
+        """
+        Get workers from task
+        :param task_name: task name
+        :return: list of workers
+
+        .. seealso:: :class:`odps.models.Worker`
+        """
+        json_obj = self.get_task_detail2(task_name)
+        return WorkerDetail2.extract_from_json(json_obj, client=self._client, parent=self)
 
     def get_logview_address(self, hours=None):
         """

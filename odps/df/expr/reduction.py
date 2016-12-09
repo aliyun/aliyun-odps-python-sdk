@@ -506,24 +506,6 @@ def nunique(expr):
     return _reduction(expr, NUnique, output_type)
 
 
-def describe(expr):
-    methods = ['min', 'max', 'mean', 'std']
-
-    if isinstance(expr, CollectionExpr):
-        fields = []
-
-        for col in expr.schema.columns:
-            if types.is_number(col.type):
-                fields.append(expr[col.name].notnull().sum().rename(col.name + '_count'))
-                for method in methods:
-                    kwargs = dict()
-                    if method == 'std':
-                        kwargs['ddof'] = 0
-                    fields.append(getattr(expr[col.name], method)(**kwargs))
-
-        return expr[fields]
-
-
 def aggregate(exprs, aggregator, rtype=None, resources=None, args=(), **kwargs):
     name = None
     if isinstance(aggregator, FunctionWrapper):
@@ -632,5 +614,3 @@ utils.add_method(GroupBy, _sequence_methods)
 GroupBy.size = count
 GroupBy.any = any_
 GroupBy.all = all_
-
-CollectionExpr.describe = describe

@@ -45,4 +45,7 @@ Definitions
 .. autoclass:: odps.models.Function
     :members:
 
+.. autoclass:: odps.models.Worker
+    :members:
+
 .. intinclude:: api-def-int.rst

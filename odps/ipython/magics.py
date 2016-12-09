@@ -206,7 +206,12 @@ else:
 
                             try:
                                 res = pd.read_csv(StringIO(reader.raw))
-                                res = ResultFrame(res.values, schema=DataFrame(res).schema)
+                                if len(res.values) > 0:
+                                    schema = DataFrame(res).schema
+                                else:
+                                    cols = res.columns.tolist()
+                                    schema = Schema.from_lists(cols, ['string' for _ in cols])
+                                res = ResultFrame(res.values, schema=schema)
                             except (ValueError, CParserError):
                                 res = reader.raw
                         except ImportError:

@@ -31,11 +31,11 @@ class Test(TestBase):
         self.assertTupleEqual(completer.get_list_call(', o2_a.get_table('),
                               ('o2_a.list_tables(project=None)', None))
         self.assertIsNone(completer.get_list_call('o3.get_table(abc'))
-        self.assertTupleEqual(completer.get_list_call('(o4.get_table(" def'),
+        self.assertTupleEqual(completer.get_list_call('(o4.delete_table(" def'),
                               ('o4.list_tables(prefix=" def", project=None)', '"'))
         self.assertTupleEqual(completer.get_list_call('( o5.get_table( \'ghi'),
                               ('o5.list_tables(prefix="ghi", project=None)', "'"))
-        self.assertTupleEqual(completer.get_list_call('obj.o6.get_table( \'ghi'),
+        self.assertTupleEqual(completer.get_list_call('obj.o6.write_table( \'ghi'),
                               ('obj.o6.list_tables(prefix="ghi", project=None)', "'"))
         self.assertTupleEqual(completer.get_list_call('obj.o7.get_table(project= "another_proj", name= \'ghi'),
                               ('obj.o7.list_tables(prefix="ghi", project="another_proj")', "'"))

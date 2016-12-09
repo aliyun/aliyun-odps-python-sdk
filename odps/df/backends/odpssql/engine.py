@@ -423,7 +423,7 @@ class ODPSEngine(Engine):
         sql = self._compile(expr, libraries=libraries)
 
         cache_data = None
-        if not no_permission and isinstance(expr, CollectionExpr):
+        if not no_permission and isinstance(expr, CollectionExpr) and not isinstance(expr, Summary):
             # When tunnel cannot handle, we will try to create a table
             tmp_table_name = '%s%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))
             register_temp_table(self._odps, tmp_table_name)

@@ -59,7 +59,7 @@ def highest_precedence_data_type(*data_types):
 
     type_precedences = [(precedences[data_type], data_type) for data_type in data_types]
     highest_data_type = sorted(type_precedences)[-1][1]
-    for data_type in data_types :
+    for data_type in data_types:
         if data_type != highest_data_type and not highest_data_type.can_implicit_cast(data_type):
             raise TypeError(
                 'Type cast error: %s cannot implicitly cast to %s' % (data_type, highest_data_type))

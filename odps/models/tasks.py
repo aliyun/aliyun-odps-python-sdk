@@ -14,6 +14,8 @@
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 
+import json  # don't remove
+
 from .core import AbstractXMLRemoteModel
 from .. import serializers, errors, compat
 from ..compat import six
@@ -60,20 +62,69 @@ class Task(AbstractXMLRemoteModel):
         return super(Task, self).serialize()
 
     @property
+    def instance(self):
+        return self.parent.parent
+
+    @property
     def progress(self):
-        return self.parent.parent.get_task_progress(self.name)
+        """
+        Get progress of a task.
+        """
+        return self.instance.get_task_progress(self.name)
+
+    @property
+    def stages(self):
+        """
+        Get execution stages of a task.
+        """
+        return self.instance.get_task_progress(self.name).stages
 
     @property
     def result(self):
-        return self.parent.parent.get_task_result(self.name)
+        """
+        Get execution result of the task.
+        """
+        return self.instance.get_task_result(self.name)
 
     @property
     def summary(self):
-        return self.parent.parent.get_task_summary(self.name)
+        """
+        Get execution summary of the task.
+        """
+        return self.instance.get_task_summary(self.name)
 
     @property
     def detail(self):
-        return self.parent.parent.get_task_detail(self.name)
+        """
+        Get execution details of the task.
+        """
+        return self.instance.get_task_detail(self.name)
+
+    @property
+    def quota(self):
+        """
+        Get quota json of the task.
+        """
+        return self.instance.get_task_quota(self.name)
+
+    @property
+    def workers(self):
+        """
+        Get workers of the task.
+        """
+        return self.instance.get_task_workers(self.name)
+
+    def get_info(self, key):
+        """
+        Get associated information of the task.
+        """
+        return self.instance.get_task_info(self.name, key)
+
+    def put_info(self, key, value):
+        """
+        Put associated information of the task.
+        """
+        return self.instance.put_task_info(self.name, key, value)
 
 
 def format_cdata(query):
@@ -105,6 +156,10 @@ class SQLTask(Task):
             self.properties[key] = '{"odps.sql.udf.strict.mode": "true"}'
 
         return super(SQLTask, self).serial()
+
+    @property
+    def warnings(self):
+        return json.loads(self.get_info('warnings')).get('warnings')
 
 try:
     from ..internal.models.tasks import *

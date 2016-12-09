@@ -62,12 +62,13 @@ class ResultFrame(six.Iterator):
             columns = schema.columns
 
         self._columns = columns
+        self._names = [c.name for c in self._columns]
+        self._types = [c.type for c in self._columns]
         self._index = index
 
         if has_pandas and pandas:
             self._values = pd.DataFrame([self._get_values(r) for r in data],
-                                        columns=[col.name for col in self._columns],
-                                        index=index)
+                                        columns=self._names, index=index)
             self._index = self._values.index
             self._pandas = True
         else:
@@ -88,9 +89,20 @@ class ResultFrame(six.Iterator):
             return r.values
         return r
 
+    def __len__(self):
+        return len(self.values)
+
     @property
     def columns(self):
         return self._columns
+
+    @property
+    def names(self):
+        return self._names
+
+    @property
+    def types(self):
+        return self._types
 
     @property
     def schema(self):
@@ -104,6 +116,21 @@ class ResultFrame(six.Iterator):
     @property
     def values(self):
         return self._values
+
+    def get_column_data(self, item):
+        if item not in self.names:
+            return None
+        if self._pandas:
+            return getattr(self.values, item)
+        else:
+            col_id = list(idx for idx, c in self.names if c == item)[0]
+            return [r[col_id] for r in self.values]
+
+    def __getattr__(self, item):
+        col = self.get_column_data(item)
+        if col is None:
+            raise AttributeError
+        return col
 
     def __getitem__(self, item):
         if isinstance(item, six.integer_types):

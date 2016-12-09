@@ -72,6 +72,7 @@ def create_engine(node, context, runner):
     return cls(node, context, runner)
 
 _DIRECT_RAISE_CODES = [
+    'ODPS-0130071',  # SQL syntax error
     'ODPS-0420061',  # XFlow not exists
     'ODPS-0130211',  # table already exists
 ]

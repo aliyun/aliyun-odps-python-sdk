@@ -395,6 +395,47 @@ class Test(TestBase):
         finally:
             table.drop()
 
+    def testExtractKV(self):
+        data = [
+            ['name1', 'k1=1,k2=3,k5=10', '1=5,3=7,2=1'],
+            ['name1', '', '3=1,4=2'],
+            ['name1', 'k1=7.1,k7=8.2', '1=1,5=6'],
+            ['name2', 'k2=1.2,k3=1.5', None],
+            ['name2', 'k9=1.1,k2=1', '4=2']
+        ]
+
+        table_name = tn('pyodps_test_mixed_engine_extract_kv')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(
+            name=table_name,
+            schema=Schema.from_lists(['name', 'kv', 'kv2'],
+                                     ['string', 'string', 'string']))
+        expr = DataFrame(table)
+        try:
+            self.odps.write_table(table, 0, data)
+
+            expr1 = expr.extract_kv(columns=['kv', 'kv2'], kv_delim='=')
+            res = self.engine.execute(expr1)
+            result = self._get_result(res)
+
+            expected_cols = [
+                'name',
+                'kv_k1', 'kv_k2', 'kv_k3', 'kv_k5', 'kv_k7', 'kv_k9',
+                'kv2_1', 'kv2_2', 'kv2_3', 'kv2_4', 'kv2_5'
+            ]
+            expected = [
+                ['name1', 1.0, 3.0, None, 10.0, None, None, 5.0, 1.0, 7.0, None, None],
+                ['name1', None, None, None, None, None, None, None, None, 1.0, 2.0, None],
+                ['name1', 7.1, None, None, None, 8.2, None, 1.0, None, None, None, 6.0],
+                ['name2', None, 1.2, 1.5, None, None, None, None, None, None, None, None],
+                ['name2', None, 1.0, None, None, None, 1.1, None, None, None, 2.0, None]
+            ]
+
+            self.assertListEqual([c.name for c in res.columns], expected_cols)
+            self.assertEqual(result, expected)
+        finally:
+            table.drop()
+
     def testHeadAndTail(self):
         res = self.odps_df.head(2)
         self.assertEqual(len(res), 2)

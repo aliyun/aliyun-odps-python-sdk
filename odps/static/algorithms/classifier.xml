@@ -828,7 +828,6 @@
                     <copyParams>method</copyParams>
                     <!--<schemas>-->
                         <!--<schema name="model">-->
-                            <!--<dynamic>true</dynamic>-->
                             <!--<schema>$package_root.classifiers._customize.discriminant_model_table</schema>-->
                         <!--</schema>-->
                     <!--</schemas>-->

@@ -1,0 +1,350 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<algorithms baseClass="BaseMetricsAlgorithm">
+    <algorithm codeName="ConfusionMatrix">
+        <exportFunction>true</exportFunction>
+        <public>false</public>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_table_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <alias>labelCol</alias>
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="predictionColName" required="true">
+                <alias>predictCol</alias>
+                <exporter>get_predicted_class_column</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="confusionmatrix"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.metrics._customize.get_confusion_matrix_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="ROC">
+        <exportFunction>true</exportFunction>
+        <public>false</public>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_table_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <alias>labelCol</alias>
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="goodValue">
+            </param>
+            <param name="predictionColName" required="true">
+                <alias>predictCol</alias>
+                <exporter>get_predicted_class_column</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="predictionScoreName" required="true">
+                <alias>scoreCol</alias>
+                <exporter>get_predicted_score_column</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="roc"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.metrics._customize.get_roc_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="EvalRegression">
+        <exportFunction>true</exportFunction>
+        <public>false</public>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_table_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="yColName" required="true">
+                <alias>labelCol</alias>
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="predictionColName" required="true">
+                <alias>predictCol</alias>
+                <exporter>get_predicted_class_column</exporter>
+                <inputName>model</inputName>
+            </param>
+            <param name="indexOutputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>index</outputName>
+            </param>
+            <param name="residualOutputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>residual</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="index">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+            <port name="residual">
+                <ioType>OUTPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="regression_evaluation"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.metrics._customize.get_regression_eval_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="EvalBinaryClass">
+        <exportFunction>true</exportFunction>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_table_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <alias>labelCol</alias>
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="scoreColName" required="true">
+                <alias>scoreCol</alias>
+                <exporter>get_predicted_score_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="groupColName">
+                <alias>groupCol</alias>
+                <inputName>input</inputName>
+            </param>
+            <param name="binCount">
+            </param>
+            <param name="outputMetricTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>metric</outputName>
+            </param>
+            <param name="outputDetailTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>detail</outputName>
+            </param>
+            <param name="positiveLabel">
+                <alias>goodValue</alias>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="metric">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+            <port name="detail">
+                <ioType>OUTPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="evaluate"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.metrics._customize.get_binary_class_eval_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="EvalMultiClass">
+        <exportFunction>true</exportFunction>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_table_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="labelColName" required="true">
+                <alias>labelCol</alias>
+                <exporter>get_label_column</exporter>
+                <inputName>input</inputName>
+                <docs>name of label column in input table</docs>
+            </param>
+            <param name="predictionColName" required="true">
+                <alias>predictCol</alias>
+                <exporter>get_predicted_class_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="predictionDetailColName" required="true">
+                <alias>detailCol</alias>
+                <exporter>get_predicted_detail_column</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="MultiClassEvaluation"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.metrics._customize.get_multi_class_eval_result"/>
+        </metas>
+    </algorithm>
+    <algorithm codeName="EvalClustering">
+        <exportFunction>true</exportFunction>
+        <public>false</public>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_table_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="selectedColNames" required="true">
+                <alias>cols</alias>
+                <exporter>get_feature_columns</exporter>
+                <inputName>input</inputName>
+                <docs>name of feature columns in input table</docs>
+            </param>
+            <param name="outputTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>output</outputName>
+            </param>
+            <param name="itemDelimiter">
+                <exporter>get_item_delimiter</exporter>
+                <inputName>input</inputName>
+                <docs>item(key value对)之间的分隔符</docs>
+            </param>
+            <param name="kvDelimiter">
+                <exporter>get_kv_delimiter</exporter>
+                <inputName>input</inputName>
+                <docs>表中每个item的key和value之间的分隔符</docs>
+            </param>
+            <param name="enableSparse">
+                <exporter>get_enable_sparse</exporter>
+                <inputName>input</inputName>
+                <docs>是否稀疏数据</docs>
+            </param>
+            <param name="modelName">
+                <exporter>get_input_model_name</exporter>
+                <inputName>model</inputName>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>train set with defined label</docs>
+            </port>
+            <port name="model">
+                <ioType>INPUT</ioType>
+                <sequence>2</sequence>
+                <type>MODEL</type>
+                <docs>model</docs>
+            </port>
+            <port name="output">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>trained model which can be used in prediction</docs>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="cluster_evaluation"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+            <meta name="calculator" value="$package_root.metrics._customize.get_clustering_eval_result"/>
+        </metas>
+    </algorithm>
+</algorithms>

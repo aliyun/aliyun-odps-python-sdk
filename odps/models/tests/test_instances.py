@@ -83,12 +83,17 @@ class Test(TestBase):
 
         delay_udf = textwrap.dedent("""
         from odps.udf import annotate
+        import sys
         import time
 
         @annotate("bigint->bigint")
         class Delayer(object):
            def evaluate(self, arg0):
+               print('Start Logging')
+               sys.stdout.flush()
                time.sleep(45)
+               print('End Logging')
+               sys.stdout.flush()
                return arg0
         """)
         resource_name = tn('test_delayer_function_resource')
@@ -107,7 +112,8 @@ class Test(TestBase):
         t = self.odps.create_table(test_table, Schema.from_lists(['num'], ['bigint']))
         self.odps.write_table(t, data)
 
-        instance = self.odps.run_sql('select sum({0}(num)) from {1} group by num'.format(function_name, test_table))
+        instance = self.odps.run_sql("select sum({0}(num)), 1 + '1' as warn_col from {1} group by num"
+                                     .format(function_name, test_table))
 
         try:
             self.assertEqual(instance.status, Instance.Status.RUNNING)
@@ -115,6 +121,14 @@ class Test(TestBase):
                 status=Instance.Status.RUNNING,
                 from_time=datetime.now()-timedelta(days=2),
                 end_time=datetime.now()+timedelta(days=1), max_items=20)])
+
+            self.waitContainerFilled(lambda: instance.tasks)
+            task = instance.tasks[0]
+            task.put_info('testInfo', 'TestInfo')
+            self.assertIsNotNone(task.warnings)
+
+            self.waitContainerFilled(lambda: task.workers, 30)
+            self.assertIsNotNone(task.workers[0].get_log('stdout'))
         finally:
             try:
                 instance.stop()
@@ -123,7 +137,6 @@ class Test(TestBase):
             res.drop()
             fun.drop()
             t.drop()
-
 
     def testInstanceExists(self):
         non_exists_instance = 'a_non_exists_instance'

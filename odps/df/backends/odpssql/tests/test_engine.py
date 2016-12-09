@@ -26,6 +26,8 @@ import uuid
 import os
 import zipfile
 import tarfile
+import re
+import functools
 
 from odps.df.backends.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, irange as xrange, six, BytesIO
@@ -306,10 +308,13 @@ class Test(TestBase):
         result = self._get_result(res.values)
         self.assertEqual(sorted(data, key=lambda it: it[1])[:5], result)
 
-        expr = self.expr.scale.map(lambda x: x + 1)
-        res = self.engine.execute(expr)
+        exp = self.expr[
+            self.expr.scale.map(lambda x: x + 1).rename('scale1'),
+            self.expr.scale.map(functools.partial(lambda v, x: x + v, 10)).rename('scale2'),
+        ]
+        res = self.engine.execute(exp)
         result = self._get_result(res.values)
-        self.assertEqual([[r[4]+1, ] for r in data], result)
+        self.assertEqual([[r[4] + 1, r[4] + 10] for r in data], result)
 
         if six.PY2:  # Skip in Python 3, as hash() behaves randomly.
             expr = self.expr.name.hash()
@@ -328,6 +333,11 @@ class Test(TestBase):
         expr = self.expr[:1].filter(lambda x: x.name == data[1][0])
         res = self.engine.execute(expr)
         self.assertEqual(len(res), 0)
+
+        expr = self.expr.exclude('scale').describe()
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertSequenceEqual(result[0][1:], [10, 10])
 
     def testChinese(self):
         data = [
@@ -552,12 +562,19 @@ class Test(TestBase):
     def testString(self):
         data = self._gen_data(5)
 
+        def extract(x, pat, group):
+            regex = re.compile(pat)
+            m = regex.match(x)
+            if m:
+                return m.group(group)
+
         methods_to_fields = [
             (lambda s: s.capitalize(), self.expr.name.capitalize()),
             (lambda s: data[0][0] in s, self.expr.name.contains(data[0][0], regex=False)),
             (lambda s: s.count(data[0][0]), self.expr.name.count(data[0][0])),
             (lambda s: s.endswith(data[0][0]), self.expr.name.endswith(data[0][0])),
             (lambda s: s.startswith(data[0][0]), self.expr.name.startswith(data[0][0])),
+            (lambda s: extract('123'+s, r'[^a-z]*(\w+)', group=1), ('123'+self.expr.name).extract(r'[^a-z]*(\w+)', group=1)),
             (lambda s: s.find(data[0][0]), self.expr.name.find(data[0][0])),
             (lambda s: s.rfind(data[0][0]), self.expr.name.rfind(data[0][0])),
             (lambda s: s.replace(data[0][0], 'test'), self.expr.name.replace(data[0][0], 'test')),
@@ -568,6 +585,8 @@ class Test(TestBase):
             (lambda s: s.rjust(10), self.expr.name.rjust(10)),
             (lambda s: s.rjust(20, '*'), self.expr.name.rjust(20, fillchar='*')),
             (lambda s: s * 4, self.expr.name.repeat(4)),
+            (lambda s: s[1:], self.expr.name.slice(1)),
+            (lambda s: s[1: 6], self.expr.name.slice(1, 6)),
             (lambda s: s[2: 10: 2], self.expr.name.slice(2, 10, 2)),
             (lambda s: s[1: s.find('a')], self.expr.name[1: self.expr.name.find('a')]),
             (lambda s: s[-5: -1], self.expr.name.slice(-5, -1)),
@@ -902,7 +921,7 @@ class Test(TestBase):
             ['name1', 4],
             ['name2', 3]
         ]
-        self.assertEqual(expected, result)
+        self.assertEqual(sorted(expected), sorted(result))
 
     def testGroupbyAggregation(self):
         data = [
@@ -1485,9 +1504,9 @@ class Test(TestBase):
         self._gen_data(data=data)
 
         @output(['word', 'cnt'], ['string', 'int'])
-        def mapper(row):
+        def mapper(row, mul=1):
             for word in row[0].split():
-                yield word, 1
+                yield word, mul
 
         @output(['word', 'cnt'], ['string', 'int'])
         def reducer(keys):
@@ -1500,12 +1519,12 @@ class Test(TestBase):
 
             return h
 
-        expr = self.expr['name', ].map_reduce(mapper, reducer, group='word')
+        expr = self.expr['name', ].map_reduce(functools.partial(mapper, mul=2), reducer, group='word')
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
-        expected = [['key', 3], ['name', 4]]
+        expected = [['key', 6], ['name', 8]]
         self.assertEqual(sorted(result), sorted(expected))
 
         @output(['word', 'cnt'], ['string', 'int'])
@@ -1753,6 +1772,64 @@ class Test(TestBase):
         finally:
             table2.drop()
 
+    def testScaleValue(self):
+        data = [
+            ['name1', 4, 5.3],
+            ['name2', 2, 3.5],
+            ['name1', 4, 4.2],
+            ['name1', 3, 2.2],
+            ['name1', 3, 4.1],
+        ]
+        schema = Schema.from_lists(['name', 'id', 'fid'],
+                                   [types.string, types.bigint, types.double])
+        table_name = tn('pyodps_test_engine_scale_table')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(name=table_name, schema=schema)
+        self.odps.write_table(table_name, 0, data)
+        expr_input = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
+
+        expr = expr_input.min_max_scale(columns=['fid'])
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 4, 1.0],
+            ['name2', 2, 0.41935483870967744],
+            ['name1', 4, 0.6451612903225807],
+            ['name1', 3, 0.0],
+            ['name1', 3, 0.6129032258064515]
+        ]
+
+        result = sorted(result)
+        expected = sorted(expected)
+
+        for first, second in zip(result, expected):
+            self.assertEqual(len(first), len(second))
+            for it1, it2 in zip(first, second):
+                self.assertAlmostEqual(it1, it2)
+
+        expr = expr_input.std_scale(columns=['fid'])
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 4, 1.4213602653434203],
+            ['name2', 2, -0.3553400663358544],
+            ['name1', 4, 0.3355989515394193],
+            ['name1', 3, -1.6385125281042194],
+            ['name1', 3, 0.23689337755723686]
+        ]
+
+        result = sorted(result)
+        expected = sorted(expected)
+
+        for first, second in zip(result, expected):
+            self.assertEqual(len(first), len(second))
+            for it1, it2 in zip(first, second):
+                self.assertAlmostEqual(it1, it2)
+
     def testHllc(self):
         names = [randint(0, 100000) for _ in xrange(100000)]
         data = [[n] + [None] * 5 for n in names]
@@ -1847,6 +1924,74 @@ class Test(TestBase):
                 self.assertEqual(1, r.count)
         finally:
             self.odps.delete_table(table_name, if_exists=True)
+
+    def testMakeKV(self):
+        from odps import types as odps_types
+        data = [
+            ['name1', 1.0, 3.0, None, 10.0, None, None],
+            ['name1', None, 3.0, 5.1, None, None, None],
+            ['name1', 7.1, None, None, None, 8.2, None],
+            ['name2', None, 1.2, 1.5, None, None, None],
+            ['name2', None, 1.0, None, None, None, 1.1],
+        ]
+        kv_cols = ['k1', 'k2', 'k3', 'k5', 'k7', 'k9']
+        schema = Schema.from_lists(['name'] + kv_cols,
+                                   [odps_types.string] + [odps_types.double] * 6)
+        table_name = tn('pyodps_test_mixed_engine_make_kv')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(name=table_name, schema=schema)
+        expr = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
+        try:
+            self.odps.write_table(table, 0, data)
+            expr1 = expr.to_kv(columns=kv_cols, kv_delim='=')
+
+            res = self.engine.execute(expr1)
+            result = self._get_result(res)
+
+            expected = [
+                ['name1', 'k1=1.0,k2=3.0,k5=10.0'],
+                ['name1', 'k2=3.0,k3=5.1'],
+                ['name1', 'k1=7.1,k7=8.2'],
+                ['name2', 'k2=1.2,k3=1.5'],
+                ['name2', 'k2=1.0,k9=1.1'],
+            ]
+
+            self.assertListEqual(result, expected)
+        finally:
+            table.drop()
+
+    def testMelt(self):
+        data = [
+            ['name1', 1.0, 3.0, 10.0],
+            ['name1', None, 3.0, 5.1],
+            ['name1', 7.1, None, 8.2],
+            ['name2', None, 1.2, 1.5],
+            ['name2', None, 1.0, 1.1],
+        ]
+        schema = Schema.from_lists(['name', 'k1', 'k2', 'k3'],
+                                   [types.string, types.double, types.double, types.double])
+        table_name = tn('pyodps_test_mixed_engine_make_kv')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(name=table_name, schema=schema)
+        expr = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
+        try:
+            self.odps.write_table(table, 0, data)
+            expr1 = expr.melt('name')
+
+            res = self.engine.execute(expr1)
+            result = self._get_result(res)
+
+            expected = [
+                ['name1', 'k1', 1.0], ['name1', 'k2', 3.0], ['name1', 'k3', 10.0],
+                ['name1', 'k1', None], ['name1', 'k2', 3.0], ['name1', 'k3', 5.1],
+                ['name1', 'k1', 7.1], ['name1', 'k2', None], ['name1', 'k3', 8.2],
+                ['name2', 'k1', None], ['name2', 'k2', 1.2], ['name2', 'k3', 1.5],
+                ['name2', 'k1', None], ['name2', 'k2', 1.0], ['name2', 'k3', 1.1]
+            ]
+
+            self.assertListEqual(result, expected)
+        finally:
+            table.drop()
 
     def teardown(self):
         self.table.drop()

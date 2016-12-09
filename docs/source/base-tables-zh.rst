@@ -148,6 +148,9 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> for record in t.head(3):
    >>>     # 处理每个Record对象
 
+
+.. _table_open_reader:
+
 其次，在table上可以执行 ``open_reader`` 操作来打一个reader来读取数据。记住这里需要使用 **with表达式**。
 
 .. code-block:: python

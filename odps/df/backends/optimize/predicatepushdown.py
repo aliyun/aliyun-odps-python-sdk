@@ -22,7 +22,7 @@ import itertools
 
 from ..core import Backend
 from ...expr.expressions import ProjectCollectionExpr, FilterCollectionExpr, Column
-from ...expr.merge import JoinCollectionExpr
+from ...expr.merge import InnerJoin
 from ...expr.arithmetic import And
 from ...expr.reduction import SequenceReduction
 from ...expr.window import Window
@@ -63,7 +63,7 @@ class PredicatePushdown(Backend):
                 return
             self._push_down_through_projection(expr.predicate, expr, input)
             self._dag.substitute(expr, expr.input)
-        elif isinstance(input, JoinCollectionExpr):
+        elif isinstance(input, InnerJoin):
             remains = []
             for i, predicate in enumerate(predicates):
                 collection = self._predicate_on_same_collection(
@@ -83,6 +83,9 @@ class PredicatePushdown(Backend):
             self._dag.substitute(expr, expr.input)
 
     def visit_join(self, expr):
+        if not isinstance(expr, InnerJoin):
+            return
+
         predicates = expr._predicate
         if predicates is None:
             return

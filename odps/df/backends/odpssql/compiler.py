@@ -38,7 +38,6 @@ from .... import utils
 from ....models import Function
 from ..errors import CompileError
 
-GROUPBY_LIMIT = 10000
 
 BINARY_OP_COMPILE_DIC = {
     'Add': '+',
@@ -299,10 +298,11 @@ class OdpsSQLCompiler(Backend):
             if self._having_clause:
                 lines.append('HAVING {0} '.format(self._having_clause))
         if self._order_by_clause:
-            if self._order_by_clause.startswith('ORDER BY') and not self._limit:
+            if self._order_by_clause.startswith('ORDER BY') and not self._limit and \
+                    options.df.odps.sort.limit:
                 # for `order by`, limit is required
                 # for `sort by`, limit is unnecessary
-                self._limit = GROUPBY_LIMIT
+                self._limit = options.df.odps.sort.limit
             lines.append(self._order_by_clause)
         if self._limit is not None:
             lines.append('LIMIT {0}'.format(self._limit))
@@ -342,8 +342,8 @@ class OdpsSQLCompiler(Backend):
         for select_idx in reg.findall(sql):
             s_regex_str = '//{{_i{0}}}(.+?){{_i{0}}}//'.format(select_idx)
             regex_str = '\n?( *)/{{_i{0}}}({1})+/'.format(select_idx, s_regex_str)
-            regex = re.compile(regex_str, re.M)
-            s_regex = re.compile(s_regex_str, re.M)
+            regex = re.compile(regex_str, (re.M | re.DOTALL))
+            s_regex = re.compile(s_regex_str, (re.M | re.DOTALL))
 
             def repl(matched):
                 space = len(matched.group(1))
@@ -391,6 +391,10 @@ class OdpsSQLCompiler(Backend):
 
     def add_select_clause(self, expr, select_clause):
         if self._select_clause is not None:
+            self.sub_sql_to_from_clause(expr.input)
+        if self._order_by_clause is not None:
+            self.sub_sql_to_from_clause(expr.input)
+        if isinstance(expr, Summary) and self._limit is not None:
             self.sub_sql_to_from_clause(expr.input)
         if isinstance(expr, (GroupByCollectionExpr, MutateCollectionExpr)) and \
                 self._limit is not None:
@@ -751,12 +755,6 @@ class OdpsSQLCompiler(Backend):
                 input, self._ctx.get_expr_compiled(expr._pat))
         elif isinstance(expr, strings.Startswith):
             compiled = 'INSTR(%s, %s) == 1' % (input, self._ctx.get_expr_compiled(expr._pat))
-        elif isinstance(expr, strings.Extract):
-            if expr.flags > 0:
-                raise NotImplementedError
-            group = self._ctx.get_expr_compiled(expr._group) if expr.group is not None else 0
-            compiled = 'REGEXP_EXTRACT(%s, %s, %s)' % (
-                input, self._ctx.get_expr_compiled(expr._pat), group)
         elif isinstance(expr, strings.Find):
             if isinstance(expr.start, six.integer_types):
                 start = expr.start + 1 if expr.start >= 0 else expr.start
@@ -791,11 +789,11 @@ class OdpsSQLCompiler(Backend):
             # 1) start is not None
             # 2) positive start and end
             if expr.end is None and expr.step is None:
-                compiled = 'SUBSTR(%s, %s)' % (input, self._ctx.get_expr_compiled(expr._start))
+                compiled = 'SUBSTR(%s, %s)' % (input, expr.start + 1)
             else:
+                # expr.start and expr.end
                 length = expr.end - expr.start
-                compiled = 'SUBSTR(%s, %s, %s)' % (
-                    input, self._ctx.get_expr_compiled(expr._start), length)
+                compiled = 'SUBSTR(%s, %s, %s)' % (input, expr.start + 1, length)
         elif isinstance(expr, strings.Repeat):
             compiled = 'REPEAT(%s, %s)' % (
                 input, self._ctx.get_expr_compiled(expr._repeats))

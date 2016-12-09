@@ -268,3 +268,12 @@ class TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
             assert len(w) == 0
 
             return ret_val
+
+    @staticmethod
+    def waitContainerFilled(container_fun, countdown=10):
+        while len(container_fun()) == 0:
+            time.sleep(1)
+            countdown -= 1
+            if countdown <= 0:
+                raise SystemError('Waiting for container content time out.')
+

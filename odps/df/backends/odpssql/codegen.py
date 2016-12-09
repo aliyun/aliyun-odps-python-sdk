@@ -116,14 +116,14 @@ class %(func_cls_name)s(object):
         f_str = base64.b64decode(encoded)
         self.f = loads(f_str, **unpickler_kw)
 
-        if inspect.isfunction(self.f):
-            if resources:
-                self.f = self.f(resources)
-        else:
+        if inspect.isclass(self.f):
             if resources:
                 self.f = self.f(resources)
             else:
                 self.f = self.f()
+        else:
+            if resources:
+                self.f = self.f(resources)
 
         self.names = tuple(it for it in '%(names_str)s'.split(',') if it)
 
@@ -196,6 +196,7 @@ UDTF_TMPL = '''\
 %(readlib)s
 
 import base64
+import functools
 import inspect
 import time
 from collections import namedtuple
@@ -228,14 +229,7 @@ class %(func_cls_name)s(BaseUDTF):
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
         self.f = loads(f_str, **unpickler_kw)
-        if inspect.isfunction(self.f):
-            if resources:
-                self.f = self.f(resources)
-
-            self.is_f_generator = inspect.isgeneratorfunction(self.f)
-            self.close_f = None
-            self.is_close_f_generator = False
-        else:
+        if inspect.isclass(self.f):
             if not resources:
                 self.f = self.f()
             else:
@@ -243,6 +237,16 @@ class %(func_cls_name)s(BaseUDTF):
             self.is_f_generator = inspect.isgeneratorfunction(self.f.__call__)
             self.close_f = getattr(self.f, 'close', None)
             self.is_close_f_generator = inspect.isgeneratorfunction(self.close_f)
+        else:
+            if resources:
+                self.f = self.f(resources)
+
+            if isinstance(self.f, functools.partial):
+                self.is_f_generator = inspect.isgeneratorfunction(self.f.func)
+            else:
+                self.is_f_generator = inspect.isgeneratorfunction(self.f)
+            self.close_f = None
+            self.is_close_f_generator = False
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
@@ -286,7 +290,7 @@ class %(func_cls_name)s(BaseUDTF):
         from decimal import Decimal
 
         if len(self.to_types) != len(args):
-            raise ValueError('Function ouput size should be ' + str(len(self.to_types)))
+            raise ValueError('Function output size should be ' + str(len(self.to_types)))
 
         res = []
         for t, arg in zip(self.to_types, args):
@@ -505,7 +509,7 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
                 'readlib': READ_LIB,
                 'raw_from_type': raw_from_type,
                 'from_type':  from_type,
-                'to_type': df_type_to_odps_type(node.data_type).name,
+                'to_type': df_type_to_odps_type(node.dtype).name,
                 'func_cls_name': func_cls_name,
                 'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
                 'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),

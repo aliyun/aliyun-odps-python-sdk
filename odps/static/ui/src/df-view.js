@@ -609,7 +609,7 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
             // write table headers
             table_html += '<thead><tr>';
             for (i = 0; i < records.columns.length; i++) {
-                table_html += '<th>' + records.columns[i] + '</th>';
+                table_html += '<th>' + pyodps.escape_html(records.columns[i]) + '</th>';
             }
             table_html += '</tr></thead>';
             // write table body
@@ -617,7 +617,7 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
             for (i = 0; i < records.data.length; i++) {
                 table_html += '<tr>';
                 for (j = 0; j < records.data[i].length; j++) {
-                    table_html += '<td>' + records.data[i][j] + '</td>';
+                    table_html += '<td>' + pyodps.escape_html(records.data[i][j]) + '</td>';
                 }
                 table_html += '</tr>';
             }

@@ -31,6 +31,7 @@ six.exec_("""
 import base64
 from collections import namedtuple
 import inspect
+import functools
 from odps.lib.cloudpickle import *
 from odps.lib.importer import *
 """, globals(), locals())

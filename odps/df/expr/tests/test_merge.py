@@ -23,8 +23,7 @@ from odps.tests.core import TestBase
 from odps.compat import unittest, reduce
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.merge import *
-from odps.df import types
-from odps.df import Scalar
+from odps.df import types, Scalar, DataFrame
 
 
 class Test(TestBase):
@@ -172,6 +171,22 @@ class Test(TestBase):
         self.assertIsInstance(project, ProjectCollectionExpr)
         self.assertIs(next(f for f in project._fields if f.name == 'name2').input, joined)
 
+    def testComplexJoin(self):
+        df = None
+        for i in range(30):
+            if df is None:
+                df = self.expr
+            else:
+                viewed = self.expr.view()[
+                    'id',
+                    lambda x: x.name.rename('name%d' % i),
+                    lambda x: x.fid.rename('fid%d' % i)
+                ]
+                df = df.outer_join(viewed, on='id', suffixes=('', '_x'))[
+                    df, viewed.exclude('id')]
+
+        self.assertFalse(any(field.endswith('_x') for field in df.schema.names))
+
     def testUnion(self):
         df = self.expr
         df1 = self.expr1
@@ -208,6 +223,45 @@ class Test(TestBase):
         self.assertIsInstance(expr, UnionCollectionExpr)
         self.assertIsInstance(expr._lhs, ProjectCollectionExpr)
         self.assertIsInstance(expr._rhs, ProjectCollectionExpr)
+
+    def testConcat(self):
+        schema = Schema.from_lists(['name', 'id'], [types.string, types.int64])
+        df = CollectionExpr(_source_data=None, _schema=schema)
+        df1 = CollectionExpr(_source_data=None, _schema=schema)
+        df2 = CollectionExpr(_source_data=None, _schema=schema)
+
+        schema = Schema.from_lists(['fid', 'fid2'], [types.int64, types.float64])
+        df3 = CollectionExpr(_source_data=None, _schema=schema)
+
+        schema = Schema.from_lists(['fid', 'fid2'], [types.int64, types.float64])
+        table = MockTable(name='pyodps_test_expr_table2', schema=schema)
+        table._client = self.config.odps.rest
+        df4 = CollectionExpr(_source_data=table, _schema=schema)
+
+        expr = df.concat([df1, df2])
+        self.assertIsInstance(expr, UnionCollectionExpr)
+        self.assertIsInstance(expr._lhs, CollectionExpr)
+        self.assertIsInstance(expr._rhs, CollectionExpr)
+
+        expr = df.concat(df3, axis=1)
+        try:
+            import pandas as pd
+            self.assertIsInstance(expr, ConcatCollectionExpr)
+            self.assertIsInstance(expr._lhs, CollectionExpr)
+            self.assertIsInstance(expr._rhs, CollectionExpr)
+        except ImportError:
+            self.assertIsInstance(expr, DataFrame)
+        self.assertIn('name', expr.schema.names)
+        self.assertIn('id', expr.schema.names)
+        self.assertIn('fid', expr.schema.names)
+        self.assertIn('fid2', expr.schema.names)
+
+        expr = df.concat(df4, axis=1)
+        self.assertIsInstance(expr, DataFrame)
+        self.assertIn('name', expr.schema.names)
+        self.assertIn('id', expr.schema.names)
+        self.assertIn('fid', expr.schema.names)
+        self.assertIn('fid2', expr.schema.names)
 
 if __name__ == '__main__':
     unittest.main()

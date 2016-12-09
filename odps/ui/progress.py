@@ -37,7 +37,7 @@ PROGRESS_REPO = dict()
 
 class _StageProgressJSON(JSONSerializableModel):
     name = JSONNodeField('name')
-    backup_workers = JSONNodeField('backup_workers', parse_callback=int)
+    backup_workers = JSONNodeField('backup_workers', parse_callback=int, default=0)
     terminated_workers = JSONNodeField('terminated_workers', parse_callback=int, default=0)
     running_workers = JSONNodeField('running_workers', parse_callback=int, default=0)
     total_workers = JSONNodeField('total_workers', parse_callback=int, default=0)

@@ -26,7 +26,7 @@ class SecurityConfiguration(LazyLoad):
 
     class ProjectProtection(serializers.XMLSerializableModel):
         _root = 'ProjectProtection'
-        protected = serializers.XMLNodeField('Protected')
+        protected = serializers.XMLNodeAttributeField(attr='Protected', type='bool')
         exception = serializers.XMLNodeField('Exceptions')
 
     check_permission_using_acl = serializers.XMLNodeField('CheckPermissionUsingAcl', type='bool')
