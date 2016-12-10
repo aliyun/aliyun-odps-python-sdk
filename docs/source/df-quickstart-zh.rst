@@ -79,12 +79,12 @@
 .. code:: python
 
     >>> users.select(users.exclude('zip_code', 'sex'), sex_bool=users.sex == 'M').head(5)
-   user_id  age  occupation  sex_bool
-0        1   24  technician      True
-1        2   53       other     False
-2        3   23      writer      True
-3        4   24  technician      True
-4        5   33       other     False
+       user_id  age  occupation  sex_bool
+    0        1   24  technician      True
+    1        2   53       other     False
+    2        3   23      writer      True
+    3        4   24  technician      True
+    4        5   33       other     False
 
 现在，让我们看看年龄在20到25岁之间的人有多少个
 
