@@ -36,7 +36,7 @@ class StringOp(ElementWise):
 
         for attr in self._args[1:]:
             val = getattr(self, attr)
-            if val is not None and not isinstance(val, Expr):
+            if val is not None and not isinstance(val, (Expr, list, tuple)):
                 setattr(self, attr, Scalar(_value=val))
 
     def __getattribute__(self, attr):
@@ -63,6 +63,15 @@ class StringOp(ElementWise):
 
 class Capitalize(StringOp):
     __slots__ = ()
+
+
+class CatStr(StringOp):
+    _args = '_input', '_others', '_sep', '_na_rep'
+    _add_args_slots = False
+
+    @property
+    def node_name(self):
+        return 'Cat'
 
 
 class Contains(StringOp):
@@ -271,6 +280,12 @@ def _capitalize(expr):
     """
 
     return _string_op(expr, Capitalize)
+
+
+def _cat(expr, others, sep=None, na_rep=None):
+    if isinstance(others, six.string_types):
+        raise ValueError('Did you mean to supply a `sep` keyword?')
+    return _string_op(expr, CatStr, _others=others, _sep=sep, _na_rep=na_rep)
 
 
 def _contains(expr, pat, case=True, flags=0, regex=True):
@@ -809,3 +824,4 @@ _string_methods = dict(
 
 utils.add_method(StringSequenceExpr, _string_methods)
 utils.add_method(StringScalar, _string_methods)
+utils.add_method(StringScalar, {'cat': _cat})

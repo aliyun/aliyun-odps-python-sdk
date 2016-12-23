@@ -26,6 +26,8 @@ def main():
                         'default is ","')
     parser.add_argument('-N', metavar='null', type=str, default='NULL',
                         help='NULL indicator')
+    parser.add_argument('-I', metavar='stdin', type=str, default='sys.stdin',
+                        help='standard input, sys.stdin as default')
     parser.add_argument('clz', metavar='your_script.class_name', type=str, help='The full import path of your UDF class')
     args = parser.parse_args()
     delim = _chr_if_necessary(args.D)
@@ -35,7 +37,13 @@ def main():
     pkg, name = args.clz.rsplit('.', 1)
     usermod = __import__(pkg, globals(), locals(), [name,], -1)
     clz = getattr(usermod, name)
-    udf_runner = runners.get_default_runner(clz, delim, null_indicator)
+
+    # get stdin
+    pkg, name = args.I.rsplit('.', 1)
+    usermod = __import__(pkg, globals(), locals(), [name,], -1)
+    stdin = getattr(usermod, name)
+
+    udf_runner = runners.get_default_runner(clz, delim, null_indicator, stdin)
     udf_runner.run()
 
 

@@ -25,7 +25,6 @@ import uuid
 from .types import df_type_to_odps_type
 from ...expr.collections import RowAppliedCollectionExpr
 from ...expr.element import MappedExpr
-from ...expr.groupby import GroupbyAppliedCollectionExpr
 from ...expr.reduction import Aggregation, GroupedAggregation
 from ...expr.utils import get_executed_collection_table_name
 from ...utils import make_copy
@@ -104,9 +103,9 @@ class %(func_cls_name)s(object):
         resources = []
         for t, n, fields in rs:
             if t == 'file':
-                resources.append(get_cache_file(n))
+                resources.append(get_cache_file(str(n)))
             else:
-                tb = get_cache_table(n)
+                tb = get_cache_table(str(n))
                 if fields:
                     named_args = namedtuple('NamedArgs', fields)
                     tb = (named_args(*args) for args in tb)
@@ -195,6 +194,7 @@ UDTF_TMPL = '''\
 
 %(readlib)s
 
+import sys
 import base64
 import functools
 import inspect
@@ -210,6 +210,13 @@ from odps.udf import annotate
 from odps.udf import BaseUDTF
 from odps.distcache import get_cache_file, get_cache_table
 
+PY2 = sys.version_info[0] == 2
+
+if PY2:
+    string_type = unicode
+else:
+    string_type = str
+
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(BaseUDTF):
     def __init__(self):
@@ -218,9 +225,9 @@ class %(func_cls_name)s(BaseUDTF):
         resources = []
         for t, n, fields in rs:
             if t == 'file':
-                resources.append(get_cache_file(n))
+                resources.append(get_cache_file(str(n)))
             else:
-                tb = get_cache_table(n)
+                tb = get_cache_table(str(n))
                 if fields:
                     named_args = namedtuple('NamedArgs', fields)
                     tb = (named_args(*args) for args in tb)
@@ -257,6 +264,8 @@ class %(func_cls_name)s(BaseUDTF):
         self.kwargs = loads(func_kwargs_str, **unpickler_kw) or dict()
 
         self.names = tuple(it for it in '%(names_str)s'.split(',') if it)
+        if self.names:
+            self.name_args = namedtuple('NamedArgs', self.names)
 
         self.from_types = '%(raw_from_type)s'.split(',')
         self.to_types = '%(to_type)s'.split(',')
@@ -298,6 +307,8 @@ class %(func_cls_name)s(BaseUDTF):
                 res.append(self._to_milliseconds(arg))
             elif t == 'string' and isinstance(arg, Decimal):
                 res.append(str(arg))
+            elif PY2 and t == 'string' and isinstance(arg, string_type):
+                res.append(arg.encode('utf-8'))
             else:
                 res.append(arg)
         return res
@@ -308,8 +319,7 @@ class %(func_cls_name)s(BaseUDTF):
         if not self.names:
             args = tuple(args) + tuple(self.args)
         else:
-            named_args = namedtuple('NamedArgs', self.names)
-            args = (named_args(*args), ) + tuple(self.args)
+            args = (self.name_args(*args), ) + tuple(self.args)
 
         if self.is_f_generator:
             for r in self.f(*args, **self.kwargs):
@@ -368,9 +378,9 @@ class %(func_cls_name)s(BaseUDAF):
         resources = []
         for t, n, fields in rs:
             if t == 'file':
-                resources.append(get_cache_file(n))
+                resources.append(get_cache_file(str(n)))
             else:
-                tb = get_cache_table(n)
+                tb = get_cache_table(str(n))
                 if fields:
                     named_args = namedtuple('NamedArgs', fields)
                     tb = (named_args(*args) for args in tb)
@@ -524,7 +534,7 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
             }
             if resources:
                 func_to_resources[func] = resources
-        elif isinstance(node, (RowAppliedCollectionExpr, GroupbyAppliedCollectionExpr)):
+        elif isinstance(node, RowAppliedCollectionExpr):
             names_str = ','.join(f.name for f in node.fields)
             from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
             raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)

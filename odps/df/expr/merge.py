@@ -368,8 +368,7 @@ def _make_different_sources(left, right, predicate=None):
     subs = ExprDictionary()
 
     dag = right.to_dag(copy=False)
-    need_cache = lambda x: hasattr(x, '_need_cache') and x._need_cache
-    for n in dag.traverse(stop_cond=need_cache):
+    for n in dag.traverse():
         if n in exprs:
             copied = subs.get(n, n.copy())
             for p in dag.successors(n):

@@ -85,7 +85,8 @@ class Node(six.with_metaclass(NodeMetaclass)):
         yield None
 
     def data_source(self):
-        for n in self.traverse(top_down=True, unique=True):
+        stop_cond = lambda x: hasattr(x, '_source_data') and x._source_data is not None
+        for n in self.traverse(top_down=True, unique=True, stop_cond=stop_cond):
             for ds in n._data_source():
                 if ds is not None:
                     yield ds
@@ -303,17 +304,18 @@ class Node(six.with_metaclass(NodeMetaclass)):
 
         return expr_id_to_copied[id(self)]
 
-    def to_dag(self, copy=True):
+    def to_dag(self, copy=True, on_copy=None, dag=None, validate=True):
         if copy:
-            expr = self.copy_tree()
+            expr = self.copy_tree(on_copy=on_copy)
         else:
             expr = self
 
-        dag = ExprDAG(expr)
-        dag.add_node(expr)
-
+        dag = dag or ExprDAG(expr)
         queue = Queue()
-        queue.put(expr)
+
+        if not dag.contains_node(expr):
+            dag.add_node(expr)
+            queue.put(expr)
 
         traversed = set()
         traversed.add(id(expr))
@@ -332,7 +334,8 @@ class Node(six.with_metaclass(NodeMetaclass)):
                 traversed.add(id(child))
                 queue.put(child)
 
-        dag._validate()  # validate the DAG
+        if validate:
+            dag._validate()  # validate the DAG
         return dag
 
     def __getstate__(self):
@@ -408,6 +411,9 @@ class ExprDAG(DAG):
     def root(self, root):
         self._root = weakref.ref(root)
 
+    def ensure_all_nodes_in_dag(self):
+        self.root.to_dag(copy=False, dag=self, validate=False)
+
     def traverse(self, root=None, top_down=False, traversed=None, stop_cond=None):
         root = root or self.root
         return root.traverse(top_down=top_down, unique=True,
@@ -480,7 +486,7 @@ class ExprDictionary(dict):
 
     def __iter__(self):
         for k in dict.__iter__(self):
-            return k()
+            yield k()
 
     def __delitem__(self, key):
         if key is None:

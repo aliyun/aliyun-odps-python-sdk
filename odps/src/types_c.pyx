@@ -31,8 +31,6 @@ from .compat import six, decimal
 cdef int64_t bigint_min = types.bigint._bounds[0]
 cdef int64_t bigint_max = types.bigint._bounds[1]
 cdef int string_len_max = types.string._max_length
-cdef double ticks_min = types.datetime._ticks_bound[0]
-cdef double ticks_max = types.datetime._ticks_bound[1]
 cdef int decimal_int_len_max = 36
 cdef int decimal_scale_max = 18
 cdef object to_scale = decimal.Decimal(str(10 ** -decimal_scale_max))
@@ -53,18 +51,14 @@ cdef unicode _validate_string(bytes val):
         (val, string_len_max / (1024 ** 2)))
 
 
-cdef double _to_timestamp(object val):
-    return time.mktime(val.timetuple())
-
-
 cdef object _validate_datetime(object val):
     if isinstance(val, (bytes, unicode)):
         val = datetime.strptime(val, '%Y-%m-%d %H:%M:%S')
 
-    cdef double ts = _to_timestamp(val)
-    if ticks_min <= ts <= ticks_max:
-        return val
-    raise ValueError('InvalidData: Datetime(%s) out of range' % val)
+    if not isinstance(val, datetime):
+        raise TypeError("Invalid data type: expect datetime, got %s" % type(val))
+
+    return val
 
 
 cdef object _validate_decimal(object val):

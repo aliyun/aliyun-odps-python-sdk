@@ -24,12 +24,6 @@ version = sys.version_info
 if version[0] == 2 and version[:2] < (2, 6):
     raise Exception('pyodps supports python 2.6+ (including python 3+).')
 
-try:
-    import pkg_resources
-    pkg_resources.declare_namespace(__name__)
-except ImportError:
-    pass
-
 from .config import options
 from .core import ODPS
 from .df import DataFrame, Scalar, NullScalar

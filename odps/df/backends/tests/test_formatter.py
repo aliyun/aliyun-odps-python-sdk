@@ -24,8 +24,9 @@ except ImportError:
     from string import ascii_letters as letters
 import itertools
 
-from odps.tests.core import TestBase, to_str
+from odps.tests.core import to_str
 from odps.compat import unittest
+from odps.df.backends.tests.core import TestBase
 from odps.df.backends.frame import ResultFrame
 from odps.df.types import validate_data_type, int64
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema
@@ -40,27 +41,18 @@ from odps.models import Schema, Record
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        self.schema = Schema.from_lists(['name', 'id', 'fid'],
-                                        datatypes('string', 'int64', 'float64'))
+        self.schema = Schema.from_lists(['name', 'id', 'fid', 'dt'],
+                                        datatypes('string', 'int64', 'float64', 'datetime'))
 
     def _random_values(self):
-        values = [self._gen_random_str(), self._gen_random_int64(),
-                  self._gen_random_float64()]
+        values = [self._gen_random_string(), self._gen_random_bigint(),
+                  self._gen_random_double(), self._gen_random_datetime()]
         schema = df_schema_to_odps_schema(self.schema)
         return Record(schema=schema, values=values)
 
-    def _gen_random_str(self):
-        gen_letter = lambda: letters[random.randint(0, 51)]
-        return to_str(''.join([gen_letter() for _ in range(random.randint(1, 15))]))
-
-    def _gen_random_int64(self):
-        return random.randint(*int64._bounds)
-
-    def _gen_random_float64(self):
-        return random.uniform(-2**32, 2**32)
-
     def testSmallRowsFormatter(self):
         data = [self._random_values() for _ in range(10)]
+        data[-1][0] = None
         pd = ResultFrame(data=data, schema=self.schema, pandas=True)
         result = ResultFrame(data=data, schema=self.schema, pandas=False)
         self.assertEqual(to_str(repr(pd)), to_str(repr(result)))
@@ -97,17 +89,22 @@ class Test(TestBase):
         expr2 = expr1['name', expr1.id + 3]
 
         engine = MixedEngine(self.odps)
-        dag, expr3, _ = engine._compile(expr2)
+        dag = engine.compile(expr2)
+        nodes = dag.nodes()
+        self.assertEqual(len(nodes), 1)
+        expr3 = nodes[0].expr
         self.assertIsInstance(expr3, GroupByCollectionExpr)
-        dot = ExprExecutionGraphFormatter(expr3, dag)._to_dot()
+        dot = ExprExecutionGraphFormatter(dag)._to_dot()
         self.assertNotIn('Projection', dot)
 
         expr1 = expr.groupby('name').agg(id=expr['id'].sum()).cache()
         expr2 = expr1['name', expr1.id + 3]
 
         engine = MixedEngine(self.odps)
-        dag, expr3, _ = engine._compile(expr2)
-        dot = ExprExecutionGraphFormatter(expr3, dag)._to_dot()
+        dag = engine.compile(expr2)
+        nodes = dag.nodes()
+        self.assertEqual(len(nodes), 2)
+        dot = ExprExecutionGraphFormatter(dag)._to_dot()
         self.assertIn('Projection', dot)
 
 

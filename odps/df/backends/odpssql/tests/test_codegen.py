@@ -22,19 +22,37 @@ from odps.compat import unittest, six
 from odps.models import Schema
 from odps.udf.tools import runners
 from odps.df.types import validate_data_type
-from odps.df.backends.odpssql.engine import ODPSEngine, UDF_CLASS_NAME
+from odps.df.backends.odpssql.engine import ODPSSQLEngine, UDF_CLASS_NAME
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.expr.tests.core import MockTable
 
 # required by cloudpickle tests
 six.exec_("""
+import sys
 import base64
 from collections import namedtuple
 import inspect
 import functools
 from odps.lib.cloudpickle import *
 from odps.lib.importer import *
+
+PY2 = sys.version_info[0] == 2
+
+if PY2:
+    string_type = unicode
+else:
+    string_type = str
 """, globals(), locals())
+
+
+class ODPSEngine(ODPSSQLEngine):
+
+    def compile(self, expr, prettify=True, libraries=None):
+        expr = self._convert_table(expr)
+        expr_dag = expr.to_dag()
+        self._analyze(expr_dag, expr)
+        new_expr = self._rewrite(expr_dag)
+        return self._compile(new_expr, prettify=prettify, libraries=libraries)
 
 
 class Test(TestBase):

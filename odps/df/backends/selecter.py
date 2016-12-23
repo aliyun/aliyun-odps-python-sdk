@@ -74,11 +74,7 @@ class EngineSelecter(object):
         if len(engines) == 1:
             self._node_engines[node] = engines.pop()
         else:
-            # Now if we do an operation like join
-            # which comes from different data sources
-            # we just use ODPS to caculate
-            # in the future, we will choose according to the scale of data
-            self._node_engines[node] = Engines.ODPS
+            self._node_engines[node] = self._choose(node)
 
         return self._node_engines[node]
 
@@ -104,54 +100,20 @@ class EngineSelecter(object):
     def has_odps_data_source(self, node):
         return self._has_data_source(node, Engines.ODPS)
 
+    def _choose(self, node):
+        # Now if we do an operation like join
+        # which comes from different data sources
+        # we just use ODPS to caculate.
+        # In the future, we will choose according to the scale of data
 
-class Analyzer(Backend):
-    """
-    Analyze each node, and do two things:
+        return Engines.ODPS
 
-    1) decide the backend for the specified expr
-    2) use the backend's analyzer to analyze the expr
-    """
+    def select(self, node):
+        if not self.has_diff_data_sources(node):
+            return self.choose_backend(node)
 
-    def __init__(self, selecter, dag, traversed=None, on_sub=None):
-        self._selecter = selecter
-        self._expr = dag.root
-        self._dag = dag
-        self._traversed = traversed or set()
+        engines = available_engines(node.data_source())
+        if len(engines) > 1:
+            return self._choose(node)
+        return engines.pop()
 
-        self._pandas_analyzer = PandasAnalyzer(
-            dag, traversed=traversed, on_sub=on_sub)
-        self._odps_analyzer = ODPSAnalyzer(
-            dag, traversed=traversed, on_sub=on_sub)
-
-    def analyze(self):
-        for node in self._iter():
-            self._traversed.add(id(node))
-            self._visit_node(node)
-
-        return self._dag.root
-
-    def _iter(self):
-        for node in self._expr.traverse(top_down=True, unique=True,
-                                        traversed=self._traversed):
-            yield node
-
-        while True:
-            all_traversed = True
-            for node in self._expr.traverse(top_down=True, unique=True):
-                if id(node) not in self._traversed:
-                    all_traversed = False
-                    yield node
-            if all_traversed:
-                break
-
-    def _visit_node(self, node):
-        try:
-            node.accept(self._get_analyzer(node))
-        except NotImplementedError:
-            return
-
-    def _get_analyzer(self, node):
-        backend = self._selecter.choose_backend(node)
-        return self._pandas_analyzer if backend == Engines.PANDAS \
-            else self._odps_analyzer

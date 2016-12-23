@@ -90,37 +90,37 @@ class Test(TestBase):
         expr = self.expr.map_reduce(mapper, reducer, group='name',
                                     sort='rating', ascending=False)
         self.assertEqual(expr.schema.names, ['name', 'rating'])
-        self.assertEqual(len(expr._sort_fields), 2)
-        self.assertTrue(expr._sort_fields[0]._ascending)
-        self.assertFalse(expr._sort_fields[1]._ascending)
+        self.assertEqual(len(expr.input._sort_fields), 2)
+        self.assertTrue(expr.input._sort_fields[0]._ascending)
+        self.assertFalse(expr.input._sort_fields[1]._ascending)
 
         expr = self.expr.map_reduce(mapper, reducer, group='name',
                                     sort=['rating', 'id'], ascending=[False, True])
 
         self.assertEqual(expr.schema.names, ['name', 'rating'])
-        self.assertEqual(len(expr._sort_fields), 3)
-        self.assertTrue(expr._sort_fields[0]._ascending)
-        self.assertFalse(expr._sort_fields[1]._ascending)
-        self.assertTrue(expr._sort_fields[2]._ascending)
+        self.assertEqual(len(expr.input._sort_fields), 3)
+        self.assertTrue(expr.input._sort_fields[0]._ascending)
+        self.assertFalse(expr.input._sort_fields[1]._ascending)
+        self.assertTrue(expr.input._sort_fields[2]._ascending)
 
         expr = self.expr.map_reduce(mapper, reducer, group='name',
                                     sort=['rating', 'id'], ascending=False)
 
         self.assertEqual(expr.schema.names, ['name', 'rating'])
-        self.assertEqual(len(expr._sort_fields), 3)
-        self.assertTrue(expr._sort_fields[0]._ascending)
-        self.assertFalse(expr._sort_fields[1]._ascending)
-        self.assertFalse(expr._sort_fields[2]._ascending)
+        self.assertEqual(len(expr.input._sort_fields), 3)
+        self.assertTrue(expr.input._sort_fields[0]._ascending)
+        self.assertFalse(expr.input._sort_fields[1]._ascending)
+        self.assertFalse(expr.input._sort_fields[2]._ascending)
 
         expr = self.expr.map_reduce(mapper, reducer, group='name',
                                     sort=['name', 'rating', 'id'],
                                     ascending=[False, True, False])
 
         self.assertEqual(expr.schema.names, ['name', 'rating'])
-        self.assertEqual(len(expr._sort_fields), 3)
-        self.assertFalse(expr._sort_fields[0]._ascending)
-        self.assertTrue(expr._sort_fields[1]._ascending)
-        self.assertFalse(expr._sort_fields[2]._ascending)
+        self.assertEqual(len(expr.input._sort_fields), 3)
+        self.assertFalse(expr.input._sort_fields[0]._ascending)
+        self.assertTrue(expr.input._sort_fields[1]._ascending)
+        self.assertFalse(expr.input._sort_fields[2]._ascending)
 
     def testSample(self):
         self.assertIsInstance(self.expr.sample(100), SampledCollectionExpr)

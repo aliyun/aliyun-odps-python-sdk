@@ -46,31 +46,31 @@ class Test(TestBase):
         self.engine = MixedEngine(self.odps)
 
     def testMixedCompile(self):
-        dag, e, callbacks = self.engine._compile(self.expr)
+        dag = self.engine.compile(self.expr)
 
         self.assertEqual(len(dag._graph), 2)
 
         topos = dag.topological_sort()
-        root_node = root, _, _ = topos[0]
-        expr_node = expr, _, _ = topos[1]
+        root_node, expr_node = topos[0], topos[1]
+        root = root_node.expr
+        expr = expr_node.expr
 
         self.assertTrue(expr.is_ancestor(root))
         self.assertIn(id(expr_node), dag._graph[id(root_node)])
-        self.assertEqual(len(available_engines(e.data_source())), 1)
+        self.assertEqual(len(available_engines(expr.data_source())), 1)
 
     def testCacheCompile(self):
         expr = self.tb['name', 'id'].cache()
         expr = expr.groupby('name').agg(expr.id.mean()).cache()
         expr = expr.distinct()
 
-        dag, expr, callbacks = self.engine._compile(expr)
+        dag = self.engine.compile(expr)
 
         self.assertEqual(len(dag._graph), 3)
 
         topos = dag.topological_sort()
-        project_node = projected, _, _ = topos[0]
-        groupby_node = grouped, _, _ = topos[1]
-        distinct_node = distincted, _, _ = topos[2]
+        project_node, groupby_node, distinct_node = topos[0], topos[1], topos[2]
+        distincted = distinct_node.expr
 
         self.assertIn(id(groupby_node), dag._graph[id(project_node)])
         self.assertIn(id(distinct_node), dag._graph[id(groupby_node)])
@@ -79,7 +79,7 @@ class Test(TestBase):
     def testDep(self):
         expr = self.tb.pivot_table(rows='id', columns='name', values='fid')
 
-        dag, expr, callbacks = self.engine._compile(expr)
+        dag = self.engine.compile(expr)
 
         self.assertEqual(len(dag._graph), 2)
         self.assertEqual(sum(len(v) for v in dag._graph.values()), 1)

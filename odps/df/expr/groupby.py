@@ -22,7 +22,7 @@ import operator
 from ...models import Schema
 from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
     Column, SequenceExpr, Scalar, repr_obj
-from .collections import SortedExpr
+from .collections import SortedExpr, ReshuffledCollectionExpr, RowAppliedCollectionExpr
 from .errors import ExpressionError
 from . import utils
 from ...compat import reduce, six
@@ -135,25 +135,9 @@ class BaseGroupBy(Expr):
                                     _schema=Schema.from_lists(names, types))
 
     def apply(self, func, names=None, types=None, resources=None, args=(), **kwargs):
-        if isinstance(func, FunctionWrapper):
-            names = names or func.output_names
-            types = types or func.output_types
-            func = func._func
-
-        if names is None:
-            raise ValueError('Apply on rows should provide column names')
-        tps = (string, ) * len(names) if types is None else tuple(validate_data_type(t) for t in types)
-        schema = Schema.from_lists(names, tps)
-
-        if hasattr(self, '_having') and self._having is not None:
-            raise ExpressionError('Cannot apply function to GroupBy with `having`')
-
-        collection_resources = utils.get_collection_resources(resources)
-
-        return GroupbyAppliedCollectionExpr(_input=self, _func=func, _func_args=args,
-                                            _func_kwargs=kwargs, _schema=schema,
-                                            _resources=resources,
-                                            _collection_resources=collection_resources)
+        reshuffled = ReshuffledCollectionExpr(_input=self, _schema=self._input._schema)
+        return reshuffled.apply(axis=1, func=func, names=names, types=types,
+                                resources=resources, args=args, **kwargs)
 
 
 class GroupBy(BaseGroupBy):
@@ -489,64 +473,6 @@ class MutateCollectionExpr(CollectionExpr):
 
     def accept(self, visitor):
         return visitor.visit_mutate(self)
-
-
-class GroupbyAppliedCollectionExpr(CollectionExpr):
-    __slots__ = '_func', '_func_args', '_func_kwargs', '_resources', '_raw_inputs'
-    _args = '_input', '_by', '_sort_fields', '_fields', '_collection_resources'
-    node_name = 'Apply'
-
-    def _init(self, *args, **kwargs):
-        self._init_attr('_sort_fields', None)
-        self._init_attr('_raw_inputs', None)
-
-        super(GroupbyAppliedCollectionExpr, self)._init(*args, **kwargs)
-
-        if isinstance(self._input, BaseGroupBy):
-            if isinstance(self._input, SortedGroupBy):
-                self._sort_fields = self._input._sorted_fields
-            self._by = self._input._by
-            self._fields = self._input._to_agg.names
-            self._input = self._input._input
-
-        self._fields = sorted(
-            [self._input[f] if isinstance(f, six.string_types) else f
-             for f in self._fields], key=lambda f: self._input._schema._name_indexes[f.name]
-        )
-
-    @property
-    def fields(self):
-        return self._fields
-
-    @property
-    def input(self):
-        return self._input
-
-    @property
-    def input_types(self):
-        return [f.dtype for f in self._fields]
-
-    @property
-    def raw_input_types(self):
-        if self._raw_inputs:
-            return [f.dtype for f in self._raw_inputs]
-        return self.input_types
-
-    @property
-    def func(self):
-        return self._func
-
-    @func.setter
-    def func(self, f):
-        self._func = f
-
-    def iter_args(self):
-        arg_names = ['collection', 'bys', 'sort', 'fields']
-        for it in zip(arg_names, self.args):
-            yield it
-
-    def accept(self, visitor):
-        return visitor.visit_apply_collection(self)
 
 
 def groupby(expr, by, *bys):

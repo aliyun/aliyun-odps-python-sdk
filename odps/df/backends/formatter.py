@@ -24,13 +24,13 @@ import cgi
 
 from ...config import options
 from ... import compat
-from ...compat import u, izip, six
+from ...compat import u, izip
 from ...console import get_terminal_size
 from ...utils import to_text, to_str, indent, require_package
-from ...models import Table, Schema
+from ...models import Table
 from ..types import *
 from ..expr.expressions import CollectionExpr, Scalar
-from ..utils import is_source_collection
+from ..utils import is_source_collection, traverse_until_source
 
 
 def is_integer(val):
@@ -1207,8 +1207,7 @@ class Datetime64Formatter(GenericArrayFormatter):
         """ we by definition have DO NOT have a TZ """
 
         values = self.values
-
-        raise NotImplementedError
+        return [val.strftime('%Y-%m-%d %H:%M:%S') for val in values]
 
 
 def _has_names(index):
@@ -1277,8 +1276,7 @@ def _trim_zeros(str_floats, na_rep='NaN'):
 
 
 class ExprExecutionGraphFormatter(object):
-    def __init__(self, expr, dag):
-        self._expr = expr
+    def __init__(self, dag):
         self._dag = dag
 
     @require_package('graphviz')
@@ -1303,28 +1301,15 @@ class ExprExecutionGraphFormatter(object):
                 return '{%s[%s]|name: %s|type: %s}' % (
                     node_name.capitalize(), t, expr.name, expr.dtype)
 
-    def _compile(self, expr):
-        from .odpssql.engine import ODPSEngine
-
-        source = next(expr.data_source())
-        if isinstance(source, Table):
-            return ODPSEngine(source.odps, global_optimize=False).compile(expr)
-
     def _to_str(self):
         buffer = six.StringIO()
 
         nodes = self._dag.topological_sort()
         for i, node in enumerate(nodes):
             sid = i + 1
-            _, _, expr_node = node
 
             buffer.write('Stage {0}: \n\n'.format(sid))
-            compiled = self._compile(expr_node)
-            if compiled:
-                buffer.write('SQL compiled: \n\n')
-                buffer.write(compiled)
-            else:
-                buffer.write('Local execution')
+            buffer.write(repr(node))
             if i < len(nodes) - 1:
                 buffer.write('\n\n')
 
@@ -1335,15 +1320,9 @@ class ExprExecutionGraphFormatter(object):
 
         for i, node in enumerate(self._dag.topological_sort()):
             sid = i + 1
-            _, _, expr_node = node
 
             buffer.write('<h3>Stage {0}</h3>'.format(sid))
-            compiled = self._compile(expr_node)
-            if compiled:
-                buffer.write('<h4>SQL compiled</h4>')
-                buffer.write('<code>{0}</code>'.format(compiled))
-            else:
-                buffer.write('<p>Local execution</p>')
+            buffer.write(node._repr_html_())
 
         return to_str(buffer.getvalue())
 
@@ -1361,16 +1340,16 @@ class ExprExecutionGraphFormatter(object):
         nodes = self._dag.topological_sort()
         traversed = dict()
         for sid, node in izip(itertools.count(1), nodes):
-            _, _, expr_node = node
+            expr_node = node.expr
             traversed[id(node)] = sid
 
             pres = self._dag.predecessors(node)
             write_indent_newline('subgraph clusterSTAGE{0} {{'.format(sid))
             write_indent_newline('label = "Stage {0}"'.format(sid), ind=2)
 
-            compiled = self._compile(expr_node)
+            compiled = node._sql() if hasattr(node, '_sql') else None
 
-            for expr in expr_node.traverse(unique=True):
+            for expr in traverse_until_source(expr_node, unique=True):
                 if id(expr) not in traversed:
                     eid = next(nid)
                     traversed[id(expr)] = eid
@@ -1412,7 +1391,7 @@ class ExprExecutionGraphFormatter(object):
                             write_indent_newline('START -> EXPR{0};'.format(eid), ind=2)
                     else:
                         for pre in pres:
-                            _, _, pre_expr = pre
+                            pre_expr = pre.expr
                             pid = traversed[id(pre_expr)]
                             if (isinstance(pre_expr, Scalar) and isinstance(expr, Scalar)) or \
                                     (isinstance(pre_expr, CollectionExpr) and isinstance(expr, CollectionExpr)):

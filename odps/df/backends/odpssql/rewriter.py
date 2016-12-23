@@ -21,18 +21,18 @@ import itertools
 
 from ..core import Backend
 from ...expr.expressions import Summary
-from ...expr.reduction import SequenceReduction
+from ...expr.reduction import SequenceReduction, Cat, GroupedCat
 from ...expr.window import *
 from ...expr.merge import *
 from ...expr.utils import get_attrs
+from ...utils import traverse_until_source
 from ....errors import NoSuchObject
 from ...utils import is_source_collection
 
 
 class Rewriter(Backend):
-    def __init__(self, dag, traversed=None):
-        self._expr = dag.root
-        self._dag = dag
+    def __init__(self, expr_dag, traversed=None):
+        self._dag = expr_dag
         self._indexer = itertools.count(0)
         self._traversed = traversed or set()
 
@@ -44,13 +44,13 @@ class Rewriter(Backend):
         return self._dag.root
 
     def _iter(self):
-        for node in self._expr.traverse(top_down=True, unique=True,
-                                        traversed=self._traversed):
+        for node in traverse_until_source(self._dag, top_down=True,
+                                          traversed=self._traversed):
             yield node
 
         while True:
             all_traversed = True
-            for node in self._expr.traverse(top_down=True, unique=True):
+            for node in traverse_until_source(self._dag, top_down=True):
                 if id(node) not in self._traversed:
                     all_traversed = False
                     yield node
@@ -292,7 +292,7 @@ class Rewriter(Backend):
     def visit_function(self, expr):
         self._handle_function(expr, expr._inputs)
 
-    def _handle_groupby_applied_collection(self, expr):
+    def visit_reshuffle(self, expr):
         if isinstance(expr.input, JoinCollectionExpr):
             sub = JoinProjectCollectionExpr(
                 _input=expr.input, _schema=expr.input.schema,
@@ -300,8 +300,6 @@ class Rewriter(Backend):
             self._sub(expr.input, sub)
 
     def visit_apply_collection(self, expr):
-        if isinstance(expr, GroupbyAppliedCollectionExpr):
-            self._handle_groupby_applied_collection(expr)
         self._handle_function(expr, expr._fields)
 
     def visit_user_defined_aggregator(self, expr):
@@ -315,3 +313,34 @@ class Rewriter(Backend):
                     expr._source_data_type = types.string
             except NoSuchObject:
                 return
+
+    def visit_reduction(self, expr):
+        if isinstance(expr, (Cat, GroupedCat)):
+            if expr._na_rep is not None:
+                input = expr.input.fillna(expr._na_rep)
+                self._sub(expr.input, input, parents=(expr, ))
+            else:
+                sep = expr._sep.value if isinstance(expr._sep, Scalar) else expr._sep
+                class Agg(object):
+                    def buffer(self):
+                        return ['']
+
+                    def __call__(self, buffer, val):
+                        if val is None:
+                            return
+                        if len(buffer[0]) == 0:
+                            buffer[0] += val
+                        else:
+                            buffer[0] += sep + val
+
+                    def merge(self, buffer, pbuffer):
+                        if len(buffer[0]) == 0:
+                            buffer[0] += pbuffer[0]
+                        else:
+                            buffer[0] += sep + pbuffer[0]
+
+                    def getvalue(self, buffer):
+                        return buffer[0]
+
+                sub = expr.input.agg(Agg)
+                self._sub(expr, sub)

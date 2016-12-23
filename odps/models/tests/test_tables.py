@@ -145,7 +145,7 @@ class Test(TestBase):
         data = [[111, 'aaa', True],
                 [222, 'bbb', False],
                 [333, 'ccc', True],
-                [444, '中文', False]]
+                [5940813139082772990, '中文', False]]
         length = len(data)
         records = [Record(schema=schema, values=values) for values in data]
 

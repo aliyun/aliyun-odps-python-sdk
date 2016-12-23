@@ -54,18 +54,24 @@ class Instances(Iterable):
     def __iter__(self):
         return self.iterate()
 
-    def iterate(self, from_time=None, end_time=None, status=None, only_owner=None,
-                max_items=None, job_name=None):
+    def iterate(self, start_time=None, end_time=None, status=None, only_owner=None,
+                max_items=None, job_name=None, **kw):
+        if 'from_time' in kw:
+            start_time = kw['from_time']
+
+        if isinstance(status, six.string_types):
+            status = Instance.Status(status.capitalize())
+
         params = dict()
         if status is not None:
             params['status'] = status.value
-        if from_time is not None or end_time is not None:
+        if start_time is not None or end_time is not None:
             daterange = six.StringIO()
-            if from_time is not None:
-                if isinstance(from_time, datetime):
-                    daterange.write(str(utils.to_timestamp(from_time)))
+            if start_time is not None:
+                if isinstance(start_time, datetime):
+                    daterange.write(str(utils.to_timestamp(start_time)))
                 else:
-                    daterange.write(str(int(from_time)))
+                    daterange.write(str(int(start_time)))
             daterange.write(':')
             if end_time is not None:
                 if isinstance(end_time, datetime):

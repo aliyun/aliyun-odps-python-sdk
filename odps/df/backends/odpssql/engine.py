@@ -17,26 +17,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import absolute_import
+
 import time
 import sys
-import itertools
 import uuid  # don't remove
-from contextlib import contextmanager
 import warnings
+import types as tps
 
 from ....errors import ODPSError, NoPermission
-from ....utils import init_progress_ui, write_log as log
+from ....utils import write_log as log
 from ....models import Partition, Resource
 from ....tempobj import register_temp_table
 from ....types import PartitionSpec
-from ....compat import izip
-from ....tunnel.tabletunnel.downloadsession import TableDownloadSession
 from ....ui import reload_instance_status, fetch_instance_group
 from ...core import DataFrame
 from ...expr.reduction import *
-from ...expr.arithmetic import And, Equal
-from ...utils import is_source_collection
-from ..core import Engine
+from ...expr.core import ExprDAG
+from ...utils import is_source_collection, is_constant_scalar
+from ..core import Engine, ExecuteNode
 from ..frame import ResultFrame
 from ..context import context
 from . import types
@@ -46,14 +45,62 @@ from ..errors import CompileError
 from .context import ODPSContext, UDF_CLASS_NAME
 from .compiler import OdpsSQLCompiler
 from .codegen import gen_udf
+from .tunnel import TunnelEngine
 
 
-class ODPSEngine(Engine):
-    def __init__(self, odps, global_optimize=True):
+class SQLExecuteNode(ExecuteNode):
+    def _sql(self):
+        raise NotImplementedError
+
+    def __repr__(self):
+        buf = six.StringIO()
+
+        sql = self._sql()
+
+        if sql:
+            buf.write('SQL compiled: \n\n')
+            buf.write(sql)
+        else:
+            buf.write('Use tunnel to download data')
+
+        return buf.getvalue()
+
+    def _repr_html_(self):
+        buf = six.StringIO()
+
+        sql = self._sql()
+
+        if sql:
+            buf.write('<h4>SQL compiled</h4>')
+            buf.write('<code>%s</code>' % sql)
+        else:
+            buf.write('<p>Use tunnel to download data</p>')
+
+        return buf.getvalue()
+
+
+class ODPSSQLEngine(Engine):
+    def __init__(self, odps):
         self._odps = odps
         self._ctx = ODPSContext(self._odps)
+        self._instances = []
 
-        self._global_optimize = global_optimize
+    def stop(self):
+        for inst_id in self._instances:
+            try:
+                self._odps.stop_instance(inst_id)
+            except ODPSError:
+                pass
+        self._ctx.close()
+
+    def _new_execute_node(self, expr_dag):
+        node = SQLExecuteNode(expr_dag)
+
+        def _sql(*_):
+            return self._compile_sql(node.expr_dag)
+
+        node._sql = tps.MethodType(_sql, node)
+        return node
 
     @staticmethod
     def _get_task_percent(task_progress):
@@ -84,324 +131,129 @@ class ODPSEngine(Engine):
             return
         return list(set(libraries))
 
-    def _run(self, sql, ui, start_progress=0, max_progress=1, async=False,
-             hints=None, priority=None, group=None, libraries=None):
+    def _run(self, sql, ui, progress_proportion=1, hints=None, priority=None,
+             group=None, libraries=None):
         self._ctx.create_udfs(libraries=self._get_libraries(libraries))
         instance = self._odps.run_sql(sql, hints=hints, priority=priority)
 
+        self._instances.append(instance.id)
         log('Instance ID: ' + instance.id)
         log('  Log view: ' + instance.get_logview_address())
         ui.status('Executing', 'execution details')
 
-        if async:
-            return instance
+        percent = 0
+        while not instance.is_terminated():
+            inst_progress = self._reload_ui(group, instance, ui)
 
-        try:
-            percent = 0
-            while not instance.is_terminated():
-                inst_progress = self._reload_ui(group, instance, ui)
+            if inst_progress:
+                last_percent = percent
+                if inst_progress is not None and len(inst_progress.tasks) > 0:
+                    percent = sum(self._get_task_percent(task)
+                                  for task in six.itervalues(inst_progress.tasks)) \
+                              / len(inst_progress.tasks)
+                else:
+                    percent = 0
+                percent = min(1, max(percent, last_percent))
+                ui.inc((percent - last_percent) * progress_proportion)
 
-                if inst_progress:
-                    last_percent = percent
-                    if inst_progress is not None and len(inst_progress.tasks) > 0:
-                        percent = sum(self._get_task_percent(task)
-                                      for task in six.itervalues(inst_progress.tasks)) / len(inst_progress.tasks)
-                    else:
-                        percent = 0
-                    percent = min(1, max(percent, last_percent))
-                    ui.update(start_progress + percent * max_progress)
+            time.sleep(1)
 
-                time.sleep(1)
+        instance.wait_for_success()
 
-            instance.wait_for_success()
-            self._reload_ui(group, instance, ui)
-            ui.update(start_progress + max_progress)
-        except KeyboardInterrupt:
-            instance.stop()
-            self._ctx.close()
-            sys.exit(1)
+        self._reload_ui(group, instance, ui)
+        if percent < 1:
+            ui.inc((1 - percent) * progress_proportion)
 
         return instance
 
-    @classmethod
-    def _is_source_column(cls, expr, table):
-        if not isinstance(expr, Column):
-            return False
+    def _handle_cases(self, *args, **kwargs):
+        tunnel_engine = TunnelEngine(self._odps)
+        return tunnel_engine.execute(*args, **kwargs)
 
-        odps_schema = table.schema
-        if odps_schema.is_partition(expr.source_name):
-            return False
+    def _gen_table_name(self):
+        table_name = '%s%s_%s' % (TEMP_TABLE_PREFIX, int(time.time()),
+                                  str(uuid.uuid4()).replace('-', '_'))
+        register_temp_table(self._odps, table_name)
+        return table_name
 
-        return True
+    def _new_analyzer(self, expr_dag, on_sub=None):
+        return ana.Analyzer(expr_dag, on_sub=on_sub)
 
-    @classmethod
-    def _is_source_partition(cls, expr, table):
-        if not isinstance(expr, Column):
-            return False
+    def _new_rewriter(self, expr_dag):
+        return rwr.Rewriter(expr_dag)
 
-        odps_schema = table.schema
-        if not odps_schema.is_partition(expr.source_name):
-            return False
+    def _compile_sql(self, expr_dag, prettify=True):
+        self._rewrite(expr_dag)
 
-        return True
+        return self._compile(expr_dag.root, prettify=prettify)
 
-    @classmethod
-    def _can_propagate(cls, collection, no_filter=False, no_projection=False):
-        if not isinstance(collection, CollectionExpr):
-            return False
+    def _compile(self, expr, prettify=False, libraries=None):
+        backend = OdpsSQLCompiler(self._ctx, beautify=prettify)
 
-        if is_source_collection(collection):
-            return True
-        if not no_filter and cls._filter_on_partition(collection):
-            return True
-        if not no_projection and cls._projection_on_source(collection):
-            return True
-        return False
+        self._ctx.register_udfs(*gen_udf(expr, UDF_CLASS_NAME,
+                                         libraries=self._get_libraries(libraries)))
 
-    @classmethod
-    def _projection_on_source(cls, expr):
-        cols = []
+        return backend.compile(expr)
 
-        if isinstance(expr, ProjectCollectionExpr) and \
-                cls._can_propagate(expr.input, no_projection=True):
-            for col in expr.fields:
-                source = next(expr.data_source())
-                if not cls._is_source_column(col, source):
-                    return False
-                cols.append(col.source_name)
-            return cols
-        return False
+    def _cache(self, expr_dag, dag, expr, **kwargs):
+        # prevent the `partition` and `partitions` kwargs come from `persist`
+        kwargs.pop('partition', None)
+        kwargs.pop('partitions', None)
 
-    @classmethod
-    def _filter_on_partition(cls, expr):
-        if not isinstance(expr, FilterCollectionExpr) or \
-                not cls._can_propagate(expr.input, no_filter=True):
-            return False
-
-        cols = []
-        values = []
-
-        def extract(expr):
-            if isinstance(expr, Column):
-                if cls._is_source_partition(expr, next(expr.data_source())):
-                    cols.append(expr.source_name)
-                    return True
-                else:
-                    return False
-
-            if isinstance(expr, And):
-                for child in expr.args:
-                    if not extract(child):
-                        return False
-            elif isinstance(expr, Equal) and isinstance(expr._rhs, Scalar):
-                if extract(expr._lhs):
-                    values.append(expr._rhs.value)
-                    return True
-                else:
-                    return False
-            else:
-                return False
-
-            return True
-
-        if not extract(expr.predicate):
-            return False
-
-        if len(cols) == len(values):
-            return list(zip(cols, values))
-        return False
-
-    @contextmanager
-    def _open_reader(self, t, **kwargs):
-        try:
-            with t.open_reader(**kwargs) as reader:
-                if reader.status == TableDownloadSession.Status.Normal:
-                    yield reader
-                    return
-        except ODPSError:
-            # ignore the error when reusing the tunnel before
-            pass
-
-        # reopen
-        with t.open_reader(reopen=True, **kwargs) as reader:
-            yield reader
-
-    @classmethod
-    def _to_partition_spec(cls, kv):
-        spec = PartitionSpec()
-        for k, v in kv:
-            spec[k] = v
-        return spec
-
-    @classmethod
-    def _partition_prefix(cls, all_partitions, filtered_partitions):
-        filtered_partitions = sorted(six.iteritems(filtered_partitions.kv),
-                                     key=lambda x: all_partitions.index(x[0]))
-        if len(filtered_partitions) > len(all_partitions):
-            return
-        if not all(zip(l == r for l, r in zip(all_partitions, filtered_partitions))):
+        if is_source_collection(expr_dag.root) or \
+                is_constant_scalar(expr_dag.root):
             return
 
-        return cls._to_partition_spec(filtered_partitions)
+        execute_dag = ExprDAG(expr_dag.root, dag=expr_dag)
 
-    def _handle_cases(self, expr, ui=None, start_progress=0, max_progress=1,
-                      head=None, tail=None):
-        if ui is None:
-            ui = init_progress_ui()
+        if isinstance(expr, CollectionExpr):
+            table_name = self._gen_table_name()
+            table = self._odps.get_table(table_name)
+            root = expr_dag.root
+            sub = CollectionExpr(_source_data=table, _schema=expr.schema)
+            sub.add_deps(root)
+            expr_dag.substitute(root, sub)
 
-        if isinstance(expr, (ProjectCollectionExpr, Summary)) and \
-                len(expr.fields) == 1 and \
-                isinstance(expr.fields[0], Count):
-            expr = expr.fields[0]
+            kw = dict(kwargs)
+            kw['lifecycle'] = options.temp_lifecycle
 
-        columns, partitions, count = (None, ) * 3
-        pkv = None
-        if isinstance(expr, Count):
-            if isinstance(expr.input, Column):
-                input = expr.input.input
-            else:
-                input = expr.input
-        elif isinstance(expr, SliceCollectionExpr):
-            input = expr.input
+            self._persist(table_name, execute_dag, dag, expr, **kw)
         else:
-            input = expr
+            assert isinstance(expr, Scalar)  # sequence is not cache-able
 
-        if not self._can_propagate(input):
-            return
+            class ValueHolder(object): pass
+            sub = Scalar(_value_type=expr.dtype)
+            sub._value = ValueHolder()
 
-        while True:
-            ret = self._filter_on_partition(input)
-            if ret:
-                pkv = dict((k, v) for k, v in ret)
-                partitions = self._to_partition_spec(ret)
-                input = input.input
-                continue
+            execute_node = self._execute(execute_dag, dag, expr, **kwargs)
 
-            ret = self._projection_on_source(input)
-            if ret:
-                columns = ret
-                input = input.input
-                continue
-            break
+            def callback(res):
+                sub._value = res
+            execute_node.callback = callback
 
-        table = next(expr.data_source())
-        partition, filter_all_partitions = None, True
-        if table.schema.partitions:
-            if partitions is not None:
-                partition = self._partition_prefix(
-                    [p.name for p in table.schema.partitions], partitions)
-                if partition is None:
-                    return
-                if len(table.schema.partitions) != len(partitions):
-                    filter_all_partitions = False
-            else:
-                filter_all_partitions = False
+        return sub
 
-        if isinstance(expr, Count):
-            if not filter_all_partitions:
-                # if not filter all partitions, fall back to ODPS SQL to calculate count
-                return
-            try:
-                with self._open_reader(table, partition=partition) as reader:
-                    ui.update(start_progress + max_progress)
-                    return reader.count
-            except ODPSError:
-                return
-        else:
-            log('Try to fetch data from tunnel')
-            ui.status('Try to download data with tunnel...')
-            if isinstance(expr, SliceCollectionExpr):
-                if expr.start:
-                    raise ExpressionError('For ODPS backend, slice\'s start cannot be specified')
-                count = expr.stop
-            try:
-                fetch_partitions = [partition] if filter_all_partitions else \
-                    (p.name for p in table.iterate_partitions(partition))
-                if tail is not None:
-                    fetch_partitions = list(fetch_partitions)[::-1]
-
-                data = []
-
-                start, size, step = None, None, None
-                if head is not None:
-                    size = min(head, count) if count is not None else head
-                elif tail is not None:
-                    if filter_all_partitions:
-                        start = None if count is None else max(count - tail, 0)
-                        size = tail if count is None else min(count, tail)
-                    else:
-                        # tail on multi partitions, just fall back to SQL
-                        return
-                else:
-                    size = count
-
-                if size is None and tail is not None:
-                    fetch_partitions = list(fetch_partitions)
-
-                cum = 0
-                for curr_part, partition in izip(itertools.count(1), fetch_partitions):
-                    rest = size - cum if size is not None else None
-                    finished = False
-
-                    with self._open_reader(table, partition=partition) as reader:
-                        if tail is not None and start is None:
-                            s = max(reader.count - tail, 0)
-                            start = s if start is None else max(s, start)
-
-                        for i, r in izip(itertools.count(1),
-                                         reader.read(start=start, count=rest, columns=columns)):
-                            if size is not None and cum > size - 1:
-                                finished = True
-                                break
-                            cum += 1
-                            if cum % 50 == 0:
-                                if size is not None:
-                                    ui.update(start_progress + float(cum) / size * max_progress)
-                                else:
-                                    p = float(i) / reader.count * curr_part / len(fetch_partitions)
-                                    ui.update(start_progress + p * max_progress)
-
-                            if pkv:
-                                self._fill_back_partition_values(r, table, pkv)
-                            data.append(r.values)
-
-                    if finished:
-                        break
-
-                ui.update(start_progress + max_progress)
-                return ResultFrame(data, schema=expr._schema)
-            except NoPermission:
-                raise
-            except ODPSError:
-                return
-
-    @classmethod
-    def _fill_back_partition_values(cls, record, table, pkv):
-        if pkv:
-            for k, v in six.iteritems(pkv):
-                if k in record and record[k] is None:
-                    # fill back the partition data which is lost in the tunnel
-                    record[k] = types.odps_types.validate_value(v, table.schema.get_type(k))
-
-    def execute(self, expr, ui=None, async=False, start_progress=0,
-                max_progress=1, lifecycle=None, head=None, tail=None,
-                hints=None, priority=None, **kw):
-        close_ui = ui is None
-        ui = ui or init_progress_ui()
+    def _do_execute(self, expr_dag, expr, ui=None, progress_proportion=1,
+                    lifecycle=None, head=None, tail=None,
+                    hints=None, priority=None, **kw):
         lifecycle = lifecycle or options.temp_lifecycle
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
         use_tunnel = kw.get('use_tunnel', True)
 
-        if isinstance(expr, Scalar) and expr.value is not None:
-            ui.update(start_progress+max_progress)
-            return expr.value
+        expr_dag = self._convert_table(expr_dag)
+        self._rewrite(expr_dag)
 
-        src_expr = kw.get('src_expr', expr)
-        expr = self._pre_process(expr, src_expr, dag=kw.get('dag'))
+        src_expr = expr
+        expr = expr_dag.root
+
+        if isinstance(expr, Scalar) and expr.value is not None:
+            ui.inc(progress_proportion)
+            return expr.value
 
         no_permission = False
         if options.df.optimizes.tunnel:
+            force_tunnel = kw.get('_force_tunnel', False)
             try:
                 result = self._handle_cases(expr, ui, head=head, tail=tail)
             except KeyboardInterrupt:
@@ -413,12 +265,8 @@ class ODPSEngine(Engine):
                 if head:
                     expr = expr[:head]
                 warnings.warn('Fail to download data by tunnel, 10000 records will be limited')
-            if result is not None:
-                try:
-                    return result
-                finally:
-                    if close_ui:
-                        ui.close()
+            if force_tunnel or result is not None:
+                return result
 
         sql = self._compile(expr, libraries=libraries)
 
@@ -435,47 +283,22 @@ class ODPSEngine(Engine):
         log('Sql compiled:')
         log(sql)
 
-        instance = self._run(sql, ui, start_progress=start_progress,
-                             max_progress=0.9*max_progress, async=async,
+        instance = self._run(sql, ui, progress_proportion=progress_proportion*0.9,
                              hints=hints, priority=priority,
                              group=group, libraries=libraries)
 
-        if async:
-            engine = self
+        self._ctx.close()  # clear udfs and resources generated
+        res = self._fetch(expr, src_expr, instance, ui,
+                          cache_data=cache_data, head=head, tail=tail,
+                          use_tunnel=use_tunnel, group=group,
+                          progress_proportion=progress_proportion*.1,
+                          finish=kw.get('finish', True))
+        if kw.get('ret_instance', False) is True:
+            return instance, res
+        return res
 
-            global_head, global_tail = head, tail
-
-            class AsyncResult(object):
-                @property
-                def instance(self):
-                    return instance
-
-                def wait(self):
-                    instance.wait_for_completion()
-
-                def is_done(self):
-                    return instance.is_terminated()
-
-                def fetch(self, head=None, tail=None):
-                    head = head or global_head
-                    tail = tail or global_tail
-                    return engine._fetch(expr, src_expr, instance, ui,
-                                         finish_progress=start_progress+max_progress,
-                                         close_ui=close_ui, cache_data=cache_data,
-                                         head=head, tail=tail, use_tunnel=use_tunnel,
-                                         group=group)
-
-            return AsyncResult()
-        else:
-            self._ctx.close()  # clear udfs and resources generated
-            return self._fetch(expr, src_expr, instance, ui, close_ui=close_ui,
-                               cache_data=cache_data, head=head, tail=tail,
-                               use_tunnel=use_tunnel, group=group,
-                               finish_progress=start_progress+max_progress,
-                               finish=kw.get('finish', True))
-
-    def _fetch(self, expr, src_expr, instance, ui, finish_progress=1,
-               close_ui=True, cache_data=None, head=None, tail=None, use_tunnel=True,
+    def _fetch(self, expr, src_expr, instance, ui, progress_proportion=1,
+               cache_data=None, head=None, tail=None, use_tunnel=True,
                group=None, finish=True):
         if isinstance(expr, (CollectionExpr, Summary)):
             df_schema = expr._schema
@@ -486,136 +309,88 @@ class ODPSEngine(Engine):
         else:
             df_schema = None
             schema = None
-        try:
-            if cache_data is not None:
-                if group and finish:
-                    ui.remove_keys(group)
-                if use_tunnel:
-                    try:
-                        if finish:
-                            ui.status('Start to use tunnel to download results...')
-                        with cache_data.open_reader(reopen=True) as reader:
-                            if head:
-                                reader = reader[:head]
-                            elif tail:
-                                start = max(reader.count - tail, 0)
-                                reader = reader[start: ]
-                            try:
-                                return ResultFrame([r.values for r in reader], schema=df_schema)
-                            finally:
-                                src_expr._cache_data = cache_data
-                                ui.update(finish_progress)
-                    except ODPSError:
-                        # some project has closed the tunnel download
-                        # we just ignore the error
-                        warnings.warn('Fail to download data by tunnel, 10000 records will be limited')
-                        pass
 
-                if tail:
-                    raise NotImplementedError
-
+        if cache_data is not None:
+            if group and finish:
+                ui.remove_keys(group)
+            if use_tunnel:
                 try:
                     if finish:
-                        ui.status('Start to use head to download results...')
-                    return ResultFrame(cache_data.head(head or 10000), schema=df_schema)
+                        ui.status('Start to use tunnel to download results...')
+                    with cache_data.open_reader(reopen=True) as reader:
+                        if head:
+                            reader = reader[:head]
+                        elif tail:
+                            start = max(reader.count - tail, 0)
+                            reader = reader[start: ]
+                        try:
+                            return ResultFrame([r.values for r in reader], schema=df_schema)
+                        finally:
+                            context.cache(src_expr, cache_data)
+                            ui.inc(progress_proportion)
+                except ODPSError:
+                    # some project has closed the tunnel download
+                    # we just ignore the error
+                    warnings.warn('Fail to download data by tunnel, 10000 records will be limited')
+                    pass
+
+            if tail:
+                raise NotImplementedError
+
+            try:
+                if finish:
+                    ui.status('Start to use head to download results...')
+                return ResultFrame(cache_data.head(head or 10000), schema=df_schema)
+            finally:
+                context.cache(src_expr, cache_data)
+                ui.inc(progress_proportion)
+
+        with instance.open_reader(schema=schema) as reader:
+            ui.status('Start to read instance results...')
+            if not isinstance(src_expr, Scalar):
+                if head:
+                    reader = reader[:head]
+                elif tail:
+                    start = max(reader.count - tail, 0)
+                    reader = reader[start: ]
+                try:
+                    return ResultFrame([r.values for r in reader], schema=df_schema)
                 finally:
-                    src_expr._cache_data = cache_data
-                    ui.update(finish_progress)
+                    context.cache(src_expr, cache_data)
+                    ui.inc(progress_proportion)
+            else:
+                ui.inc(progress_proportion)
+                odps_type = types.df_type_to_odps_type(src_expr._value_type)
+                res = types.odps_types.validate_value(reader[0][0], odps_type)
+                context.cache(src_expr, res)
+                return res
 
-            with instance.open_reader(schema=schema) as reader:
-                ui.status('Start to read instance results...')
-                if not isinstance(src_expr, Scalar):
-                    if head:
-                        reader = reader[:head]
-                    elif tail:
-                        start = max(reader.count - tail, 0)
-                        reader = reader[start: ]
-                    try:
-                        return ResultFrame([r.values for r in reader], schema=df_schema)
-                    finally:
-                        src_expr._cache_data = cache_data
-                        ui.update(finish_progress)
-                else:
-                    ui.update(finish_progress)
-                    odps_type = types.df_type_to_odps_type(src_expr._value_type)
-                    res = types.odps_types.validate_value(reader[0][0], odps_type)
-                    src_expr._cache_data = res
-                    return res
-        finally:
-            if close_ui:
-                ui.close()
-
-    def _optimize(self, expr, src_expr, dag=None):
-        if self._global_optimize:
-            # we copy the entire ast,
-            # and all the modification will be applied to the copied ast.
-            if dag is None:
-                # the expr is already copied one
-                expr = context.register_to_copy_expr(src_expr, expr)
-            dag = context.build_dag(src_expr, expr, dag=dag)
-
-            # analyze first
-            ana.Analyzer(dag).analyze()
-
-            from ..optimize import Optimizer
-            Optimizer(dag).optimize()
-        else:
-            dag = context.build_dag(src_expr, expr, dag=dag)
-
-        expr = rwr.Rewriter(dag).rewrite()
-        return expr
-
-    def _pre_process(self, expr, src_expr=None, dag=None):
-        src_expr = src_expr or expr
-
-        if isinstance(expr, Scalar) and expr.value is not None:
-            return expr.value
-
-        replaced = self._ctx.get_replaced_expr(src_expr)
-        if replaced is not None:
-            return replaced
-
-        if isinstance(expr, (Scalar, SequenceExpr)):
-            expr = self._convert_table(expr)
-
-        expr = self._optimize(expr, src_expr, dag=dag)
-        self._ctx.add_replaced_expr(src_expr, expr)
-        return expr
-
-    def compile(self, expr, prettify=True, libraries=None):
-        expr = self._pre_process(expr)
-
-        return self._compile(expr, prettify=prettify, libraries=libraries)
-
-    def _compile(self, expr, prettify=False, libraries=None):
-        backend = OdpsSQLCompiler(self._ctx, beautify=prettify)
-
-        self._ctx.register_udfs(*gen_udf(expr, UDF_CLASS_NAME,
-                                         libraries=self._get_libraries(libraries)))
-
-        return backend.compile(expr)
-
-    def persist(self, expr, name, partitions=None, partition=None, project=None, ui=None,
-                start_progress=0, max_progress=1, lifecycle=None, hints=None, priority=None,
-                create_table=True, drop_partition=False, create_partition=False, **kw):
-        close_ui = ui is None
-        ui = ui or init_progress_ui()
+    def _do_persist(self, expr_dag, expr, name, partitions=None, partition=None, project=None, ui=None,
+                    progress_proportion=1, lifecycle=None, hints=None, priority=None,
+                    drop_table=False, create_table=True, drop_partition=False, create_partition=False, **kw):
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
 
-        src_expr = kw.pop('src_expr', expr)
+        expr_dag = self._convert_table(expr_dag)
+        self._rewrite(expr_dag)
+
+        src_expr = expr
+        expr = expr_dag.root
 
         should_cache = False
 
         table_name = name if project is None else '%s.`%s`' % (project, name)
         if partitions is None and partition is None:
-            sql = self.compile(expr, prettify=False)
+            if drop_table:
+                self._odps.delete_table(name, project=project, if_exists=True)
+
+            sql = self._compile(expr, prettify=False)
             lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
             sql = 'CREATE TABLE {0} {1}AS \n{2}'.format(table_name, lifecycle_str, sql)
 
             should_cache = True
         elif partition is not None:
-            sql = self.compile(expr, prettify=False)
+            sql = self._compile(expr, prettify=False)
             t = self._odps.get_table(name, project=project)
 
             for col in expr.schema.columns:
@@ -651,15 +426,17 @@ class ODPSEngine(Engine):
             for p in partitions:
                 if p not in schema:
                     raise ValueError(
-                            'Partition field(%s) does not exist in DataFrame schema' % p)
+                        'Partition field(%s) does not exist in DataFrame schema' % p)
 
             columns = [c for c in schema.columns if c.name not in partitions]
             ps = [Partition(name=t, type=schema.get_type(t)) for t in partitions]
+            if drop_table:
+                self._odps.delete_table(name, project=project, if_exists=True)
             if create_table:
                 self._odps.create_table(name, Schema(columns=columns, partitions=ps), project=project)
             expr = expr[[c.name for c in expr.schema if c.name not in partitions] + partitions]
 
-            sql = self.compile(expr, prettify=False)
+            sql = self._compile(expr, prettify=False)
 
             sql = 'INSERT OVERWRITE TABLE {0} PARTITION({1}) \n{2}'.format(
                 name, ', '.join(partitions), sql
@@ -668,19 +445,16 @@ class ODPSEngine(Engine):
         log('Sql compiled:')
         log(sql)
 
-        try:
-            self._run(sql, ui, start_progress=start_progress, max_progress=max_progress,
-                      hints=hints, priority=priority, group=group, libraries=libraries)
-            t = self._odps.get_table(name, project=project)
-            if should_cache:
-                src_expr._cache_data = t
-            if partition:
-                filters = []
-                for k in partition.keys:
-                    filters.append(lambda x: x[k] == partition[k])
-                return DataFrame(t).filter(*filters)
-            return DataFrame(t)
-        finally:
-            if close_ui:
-                ui.close()
-
+        self._run(sql, ui, progress_proportion=progress_proportion,
+                  hints=hints, priority=priority, group=group, libraries=libraries)
+        self._ctx.close()  # clear udfs and resources generated
+        t = self._odps.get_table(name, project=project)
+        if should_cache and not is_source_collection(src_expr):
+            # TODO: support cache partition
+            context.cache(src_expr, t)
+        if partition:
+            filters = []
+            for k in partition.keys:
+                filters.append(lambda x: x[k] == partition[k])
+            return DataFrame(t).filter(*filters)
+        return DataFrame(t)

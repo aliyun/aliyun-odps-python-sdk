@@ -69,7 +69,9 @@ cdef class Decoder:
         cdef char * read_bytes
         cdef double retval
 
-        read_bytes = read_stream(self, sizeof(double))
+        cdef bytes input_bytes = self._stream.read(sizeof(double))
+
+        read_bytes = input_bytes
         self._pos += sizeof(double)
         memcpy(&retval, read_bytes, sizeof(double))
         return retval
@@ -78,7 +80,9 @@ cdef class Decoder:
         cdef char * read_bytes
         cdef float retval
 
-        read_bytes = read_stream(self, sizeof(float))
+        cdef bytes input_bytes = self._stream.read(sizeof(float))
+
+        read_bytes = input_bytes
         self._pos += sizeof(float)
         memcpy(&retval, read_bytes, sizeof(float))
         return retval

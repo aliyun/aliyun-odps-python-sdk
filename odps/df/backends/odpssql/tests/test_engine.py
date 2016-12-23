@@ -28,18 +28,28 @@ import zipfile
 import tarfile
 import re
 import functools
+import time
 
 from odps.df.backends.tests.core import TestBase, to_str, tn
-from odps.compat import unittest, irange as xrange, six, BytesIO
-from odps.models import Schema, Instance
+from odps.compat import unittest, irange as xrange, six, OrderedDict, futures
+from odps.models import Schema
 from odps import types
 from odps.df.types import validate_data_type
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema, \
     odps_schema_to_df_schema
+from odps.df.backends.context import context
 from odps.df.expr.expressions import CollectionExpr
-from odps.df.backends.odpssql.engine import ODPSEngine
+from odps.df.backends.odpssql.engine import ODPSSQLEngine
 from odps.df import Scalar, output_names, output_types, output, day, millisecond, agg
 from odps import options
+
+
+class ODPSEngine(ODPSSQLEngine):
+
+    def _pre_process(self, expr):
+        src_expr = expr
+        expr = self._convert_table(expr)
+        return self._analyze(expr.to_dag(), src_expr)
 
 
 class Test(TestBase):
@@ -58,6 +68,9 @@ class Test(TestBase):
 
         class FakeBar(object):
             def update(self, *args, **kwargs):
+                pass
+
+            def inc(self, *args, **kwargs):
                 pass
 
             def status(self, *args, **kwargs):
@@ -200,7 +213,7 @@ class Test(TestBase):
             self.assertEqual(res, 3)
 
             expr = df
-            res = self.engine._handle_cases(expr, self.faked_bar)
+            res = self.engine._handle_cases(expr, self.faked_bar, update_progress_count=1)
             self.assertEqual(len(res), 9)
 
             expr = df[df.name == 'a']
@@ -242,12 +255,12 @@ class Test(TestBase):
 
         expr = self.expr.id.sum()
 
-        res = self.engine.execute(expr, async=True, priority=4)
-        self.assertNotEqual(res.instance.status, Instance.Status.TERMINATED)
-        res.wait()
+        future = self.engine.execute(expr, async=True, priority=4, ret_instance=True)
+        self.assertFalse(future.done())
+        inst, res = future.result()
 
-        self.assertEqual(sum(it[1] for it in data), res.fetch())
-        self.assertEqual(res.instance.priority, 4)
+        self.assertEqual(sum(it[1] for it in data), res)
+        self.assertEqual(inst.priority, 4)
 
     def testNoPermission(self):
         class NoPermissionEngine(ODPSEngine):
@@ -279,6 +292,67 @@ class Test(TestBase):
             self.assertEqual(data, result)
         finally:
             options.df.optimizes.tunnel = True
+
+    def testCache(self):
+        data = self._gen_data(10, value_range=(-1000, 1000))
+
+        expr = self.expr[self.expr.id < 10].cache()
+        cnt = expr.count()
+
+        dag = self.engine.compile(expr)
+        self.assertEqual(len(dag.nodes()), 2)
+
+        res = self.engine.execute(cnt)
+        self.assertEqual(len([it for it in data if it[1] < 10]), res)
+        self.assertTrue(context.is_cached(expr))
+
+        expr2 = expr['id']
+        res = self.engine.execute(expr2, _force_tunnel=True)
+        result = self._get_result(res)
+        self.assertEqual([[it[1]] for it in data if it[1] < 10], result)
+
+        expr3 = self.expr.sample(parts=10)
+        expr3.cache()
+        self.assertIsNotNone(self.engine.execute(expr3.id.sum()))
+
+    def testBatch(self):
+        data = self._gen_data(10, value_range=(-1000, 1000))
+
+        expr = self.expr[self.expr.id < 10].cache()
+        expr1 = expr.id.sum()
+        expr2 = expr.id.mean()
+
+        dag = self.engine.compile([expr1, expr2])
+        self.assertEqual(len(dag.nodes()), 3)
+        self.assertEqual(sum(len(v) for v in dag._graph.values()), 2)
+
+        expect1 = sum(d[1] for d in data if d[1] < 10)
+        length = len([d[1] for d in data if d[1] < 10])
+        expect2 = (expect1 / float(length)) if length > 0 else 0.0
+
+        res = self.engine.execute([expr1, expr2], n_parallel=2)
+        self.assertEqual(res[0], expect1)
+        self.assertAlmostEqual(res[1], expect2)
+        self.assertTrue(context.is_cached(expr))
+
+        # test async and timeout
+        expr = self.expr[self.expr.id < 10]
+        expr1 = expr.id.sum()
+        expr2 = expr.id.mean()
+
+        fs = self.engine.execute([expr, expr1, expr2], n_parallel=2, async=True, timeout=1)
+        self.assertEqual(len(fs), 3)
+
+        self.assertTrue(fs[0].running())
+        futures.wait((fs[0], ))
+        time.sleep(.5)
+        self.assertTrue(fs[1].running())
+        time.sleep(.5)
+        self.assertTrue(fs[2].running() or fs[2].done())
+
+        self.assertEqual(fs[1].result(), expect1)
+        self.assertAlmostEqual(fs[2].result(), expect2)
+        self.assertTrue(context.is_cached(expr))
 
     def testBase(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
@@ -571,6 +645,7 @@ class Test(TestBase):
         methods_to_fields = [
             (lambda s: s.capitalize(), self.expr.name.capitalize()),
             (lambda s: data[0][0] in s, self.expr.name.contains(data[0][0], regex=False)),
+            (lambda s: s[0] + '|' + str(s[1]), self.expr.name.cat(self.expr.id.astype('string'), sep='|')),
             (lambda s: s.count(data[0][0]), self.expr.name.count(data[0][0])),
             (lambda s: s.endswith(data[0][0]), self.expr.name.endswith(data[0][0])),
             (lambda s: s.startswith(data[0][0]), self.expr.name.startswith(data[0][0])),
@@ -612,7 +687,11 @@ class Test(TestBase):
         for i, it in enumerate(methods_to_fields):
             method = it[0]
 
-            first = [method(it[0]) for it in data]
+            if i != 2:
+                first = [method(it[0]) for it in data]
+            else:
+                # cat
+                first = [method(it) for it in data]
             second = [it[i] for it in result]
             self.assertEqual(first, second)
 
@@ -922,6 +1001,233 @@ class Test(TestBase):
             ['name2', 3]
         ]
         self.assertEqual(sorted(expected), sorted(result))
+
+    def testPivot(self):
+        data = [
+            ['name1', 1, 1.0, True, None, None],
+            ['name1', 2, 2.0, True, None, None],
+            ['name2', 1, 3.0, False, None, None],
+            ['name2', 3, 4.0, False, None, None]
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr
+
+        expr1 = expr.pivot(rows='id', columns='name', values='fid').distinct()
+        res = self.engine.execute(expr1)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 1.0, 3.0],
+            [2, 2.0, None],
+            [3, None, 4.0]
+        ]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr2 = expr.pivot(rows='id', columns='name', values=['fid', 'isMale'])
+        res = self.engine.execute(expr2)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 1.0, 3.0, True, False],
+            [2, 2.0, None, True, None],
+            [3, None, 4.0, None, False]
+        ]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr3 = expr.pivot(rows='id', columns='name', values='fid')['name3']
+        with self.assertRaises(ValueError) as cm:
+            self.engine.execute(expr3)
+        self.assertIn('name3', str(cm.exception))
+
+        expr4 = expr.pivot(rows='id', columns='name', values='fid')['id', 'name1']
+        res = self.engine.execute(expr4)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 1.0],
+            [2, 2.0],
+            [3, None]
+        ]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr5 = expr.pivot(rows='id', columns='name', values='fid')
+        expr5 = expr5[expr5, (expr5['name1'].astype('int') + 1).rename('new_name')]
+        res = self.engine.execute(expr5)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 1.0, 3.0, 2.0],
+            [2, 2.0, None, 3.0],
+            [3, None, 4.0, None]
+        ]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        odps_data = [
+            ['name1', 1],
+            ['name2', 2],
+            ['name1', 3],
+        ]
+
+        names = ['name', 'id']
+        types = ['string', 'bigint']
+
+        table = tn('pyodps_df_pivot_to_join')
+        self.odps.delete_table(table, if_exists=True)
+        t = self.odps.create_table(table, Schema.from_lists(names, types))
+        with t.open_writer() as w:
+            w.write([t.new_record(r) for r in odps_data])
+
+        from odps.df import DataFrame
+        self.odps_df = DataFrame(t)
+
+        try:
+            expr6 = expr.pivot(rows='id', columns='name', values='fid')
+            expr6 = expr6.join(self.odps_df, on='id')[expr6, 'name']
+            res = self.engine.execute(expr6)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 1.0, 3.0, 'name1'],
+                [2, 2.0, None, 'name2'],
+                [3, None, 4.0, 'name1']
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+        finally:
+            t.drop()
+
+    def testPivotTable(self):
+        data = [
+            ['name1', 1, 1.0, True, None, None],
+            ['name1', 1, 5.0, True, None, None],
+            ['name1', 2, 2.0, True, None, None],
+            ['name2', 1, 3.0, False, None, None],
+            ['name2', 3, 4.0, False, None, None]
+        ]
+
+        self._gen_data(data=data)
+
+        expr = self.expr
+
+        expr1 = expr.pivot_table(rows='name', values='fid')
+        res = self.engine.execute(expr1)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 8.0 / 3],
+            ['name2', 3.5],
+        ]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr2 = expr.pivot_table(rows='name', values='fid', aggfunc=['mean', 'sum'])
+        res = self.engine.execute(expr2)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 8.0 / 3, 8.0],
+            ['name2', 3.5, 7.0],
+        ]
+        self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum'])
+        self.assertEqual(sorted(result), sorted(expected))
+
+        expr5 = expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum'])
+        expr6 = expr5['name1_fid_mean',
+                      expr5.groupby(Scalar(1)).sort('name1_fid_mean').name1_fid_mean.astype('float').cumsum()]
+
+        k = lambda x: list(0 if it is None else it for it in x)
+
+        # TODO: fix this situation, act different compared to pandas
+        expected = [
+            [2, 2], [3, 5], [None, None]
+        ]
+        res = self.engine.execute(expr6)
+        result = self._get_result(res)
+        self.assertEqual(sorted(result, key=k), sorted(expected, key=k))
+
+        expr3 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0).distinct()
+        res = self.engine.execute(expr3)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 3.0, 3.0],
+            [2, 2.0, 0],
+            [3, 0, 4.0]
+        ]
+
+        self.assertEqual(res.schema.names, ['id', 'name1_fid_mean', 'name2_fid_mean'])
+        self.assertEqual(result, expected)
+
+        class Agg(object):
+            def buffer(self):
+                return [0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+
+            def getvalue(self, buffer):
+                return buffer[0]
+
+        aggfuncs = OrderedDict([('my_sum', Agg), ('mean', 'mean')])
+        expr4 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0,
+                                 aggfunc=aggfuncs)
+        res = self.engine.execute(expr4)
+        result = self._get_result(res)
+
+        expected = [
+            [1, 6.0, 3.0, 3.0, 3.0],
+            [2, 2.0, 0, 2.0, 0],
+            [3, 0, 4.0, 0, 4.0]
+        ]
+
+        self.assertEqual(res.schema.names, ['id', 'name1_fid_my_sum', 'name2_fid_my_sum',
+                                            'name1_fid_mean', 'name2_fid_mean'])
+        self.assertEqual(result, expected)
+
+    def testExtractKV(self):
+        from odps.df import DataFrame
+
+        data = [
+            ['name1', 'k1=1,k2=3,k5=10', '1=5,3=7,2=1'],
+            ['name1', '', '3=1,4=2'],
+            ['name1', 'k1=7.1,k7=8.2', '1=1,5=6'],
+            ['name2', 'k2=1.2,k3=1.5', None],
+            ['name2', 'k9=1.1,k2=1', '4=2']
+        ]
+
+        table_name = tn('pyodps_test_mixed_engine_extract_kv')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(
+            name=table_name,
+            schema=Schema.from_lists(['name', 'kv', 'kv2'],
+                                     ['string', 'string', 'string']))
+        expr = DataFrame(table)
+        try:
+            self.odps.write_table(table, 0, data)
+
+            expr1 = expr.extract_kv(columns=['kv', 'kv2'], kv_delim='=')
+            res = self.engine.execute(expr1)
+            result = self._get_result(res)
+
+            expected_cols = [
+                'name',
+                'kv_k1', 'kv_k2', 'kv_k3', 'kv_k5', 'kv_k7', 'kv_k9',
+                'kv2_1', 'kv2_2', 'kv2_3', 'kv2_4', 'kv2_5'
+            ]
+            expected = [
+                ['name1', 1.0, 3.0, None, 10.0, None, None, 5.0, 1.0, 7.0, None, None],
+                ['name1', None, None, None, None, None, None, None, None, 1.0, 2.0, None],
+                ['name1', 7.1, None, None, None, 8.2, None, 1.0, None, None, None, 6.0],
+                ['name2', None, 1.2, 1.5, None, None, None, None, None, None, None, None],
+                ['name2', None, 1.0, None, None, None, 1.1, None, None, None, 2.0, None]
+            ]
+
+            self.assertListEqual([c.name for c in res.columns], expected_cols)
+            self.assertEqual(result, expected)
+        finally:
+            table.drop()
 
     def testGroupbyAggregation(self):
         data = [
@@ -1257,13 +1563,32 @@ class Test(TestBase):
                 return (sorted_lst[index] + sorted_lst[index + 1]) / 2.0
 
         def var(vct, ddof=0):
-            meanv = sum(vct) * 1.0 / (len(vct) - ddof)
-            meanv2 = sum([v ** 2 for v in vct]) * 1.0 / (len(vct) - ddof)
-            return meanv2 - meanv ** 2
+            meanv = mean(vct)
+            meanv2 = mean([v ** 2 for v in vct])
+            return (meanv2 - meanv ** 2) * len(vct) / (len(vct) - ddof)
+
+        def moment(vct, order, central=False, absolute=False):
+            abs_fun = abs if absolute else lambda x: x
+            if central:
+                m = mean(vct)
+                return mean([abs_fun(v - m) ** order for v in vct])
+            else:
+                return mean([abs_fun(v) ** order for v in vct])
+
+        def skew(vct):
+            n = len(vct)
+            return moment(vct, 3, central=True) / (std(vct, 1) ** 3) * (n ** 2) / (n - 1) / (n - 2)
+
+        def kurtosis(vct):
+            n = len(vct)
+            m4 = moment(vct, 4, central=True)
+            m2 = var(vct, 0)
+            return 1.0 / (n - 2) / (n - 3) * ((n * n - 1.0) * m4 / m2 ** 2 - 3 * (n - 1) ** 2)
 
         mean = lambda v: sum(v) * 1.0 / len(v)
         std = lambda v, ddof=0: math.sqrt(var(v, ddof))
         nunique = lambda v: len(set(v))
+        cat = lambda v: len([it for it in v if it is not None])
 
         class Agg(object):
             def buffer(self):
@@ -1290,7 +1615,11 @@ class Test(TestBase):
             (partial(stats, 'id', mean), self.expr.id.mean()),
             (partial(len, data), self.expr.count()),
             (partial(stats, 'id', var), self.expr.id.var(ddof=0)),
+            (partial(stats, 'id', lambda x: var(x, 1)), self.expr.id.var(ddof=1)),
             (partial(stats, 'id', std), self.expr.id.std(ddof=0)),
+            (partial(stats, 'id', lambda x: moment(x, 3, central=True)), self.expr.id.moment(3, central=True)),
+            (partial(stats, 'id', skew), self.expr.id.skew()),
+            (partial(stats, 'id', kurtosis), self.expr.id.kurtosis()),
             (partial(stats, 'id', median), self.expr.id.median()),
             (partial(stats, 'id', sum), self.expr.id.sum()),
             (partial(stats, 'id', min), self.expr.id.min()),
@@ -1302,6 +1631,7 @@ class Test(TestBase):
             (partial(stats, 'isMale', any), self.expr.isMale.any()),
             (partial(stats, 'isMale', all), self.expr.isMale.all()),
             (partial(stats, 'name', nunique), self.expr.name.nunique()),
+            (partial(stats, 'name', cat), self.expr.name.cat(sep='|').map(lambda x: len(x.split('|')), rtype='int')),
             (partial(stats, 'id', mean), self.expr.id.agg(Agg, rtype='float')),
             (partial(stats, 'id', lambda x: len(x)), self.expr.id.count()),
         ]
@@ -1321,6 +1651,8 @@ class Test(TestBase):
             if isinstance(first, float):
                 self.assertAlmostEqual(first, second)
             else:
+                if first != second:
+                    pass
                 self.assertEqual(first, second)
 
         expr = self.expr['id', 'fid'].apply(Agg, types=['float'] * 2)
@@ -1553,6 +1885,31 @@ class Test(TestBase):
 
         self.assertEqual(sorted(result), sorted(expected))
 
+    def testReduceOnly(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+
+        data = self._gen_data(data=data)
+
+        df = self.expr[(self.expr.id < 10) & (self.expr.name.startswith('n'))]
+        df = df['name', 'id']
+
+        @output(['name', 'id'], ['string', 'int'])
+        def reducer(keys):
+            def h(row, done):
+                yield row
+            return h
+
+        df2 = df.map_reduce(reducer=reducer, group='name')
+        res = self.engine.execute(df2)
+        result = self._get_result(res)
+        self.assertEqual(sorted([r[:2] for r in data]), sorted(result))
+
     def testJoinMapReduce(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -1719,6 +2076,8 @@ class Test(TestBase):
             self.assertEqual(len(result), 6)
             self.assertTrue(all(it in expected for it in result))
 
+            grouped = self.expr.groupby('name').agg(new_id=self.expr.id.sum()).cache()
+            self.engine.execute(self.expr.join(grouped, on='name'))
         finally:
             table2.drop()
 

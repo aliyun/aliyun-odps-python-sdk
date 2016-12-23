@@ -18,8 +18,6 @@
 
 from libc.stdint cimport *
 
-cdef char * read_stream(object input, int size)
-
 cdef int32_t get_varint32(object input)
 
 cdef int64_t get_varint64(object input)

@@ -608,8 +608,6 @@ class Bigint(OdpsPrimitive):
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
 
-        if isinstance(value, six.string_types):
-            return int(float(value))
         return int(value)
 
 
@@ -664,8 +662,6 @@ class String(OdpsPrimitive):
 class Datetime(OdpsPrimitive):
     __slots__ = ()
 
-    _ticks_bound = (-6213579840.00, 2534022719.99)
-
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
@@ -673,16 +669,6 @@ class Datetime(OdpsPrimitive):
         if isinstance(other, String):
             return True
         return super(Datetime, self).can_implicit_cast(other)
-
-    def validate_value(self, val):
-        if val is None and self.nullable:
-            return True
-
-        timestamp = utils.to_timestamp(val)
-        smallest, largest = self._ticks_bound
-        if smallest <= timestamp <= largest:
-            return True
-        raise ValueError('InvalidData: Datetime(%s) out of range' % val)
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)

@@ -26,11 +26,12 @@ import time
 
 from ..core import Backend
 from ...expr.expressions import *
-from ...expr.reduction import GroupedSequenceReduction, GroupedCount, Count
+from ...expr.reduction import GroupedSequenceReduction, GroupedCount, Count, GroupedCat, Cat
 from ...expr.merge import JoinCollectionExpr
 from ...expr.datetimes import DTScalar
 from ...expr.collections import PivotCollectionExpr
 from ...expr import arithmetic, element
+from ...utils import traverse_until_source
 from ....dag import DAG
 from ..errors import CompileError
 from ..utils import refresh_dynamic
@@ -74,7 +75,7 @@ UNARY_OP_TO_PANDAS = {
 
 if pd:
     SORT_CUM_WINDOW_OP_TO_PANDAS = {
-        'CumSum': pd.expanding_sum,
+        'CumSum': lambda s: s.expanding(min_periods=1).sum(),
         'CumMean': lambda s: s.expanding(min_periods=1).mean(),
         'CumMedian': pd.expanding_median,
         'CumStd': pd.expanding_std,
@@ -135,7 +136,7 @@ class PandasCompiler(Backend):
             self._compile_join_node(root, traversed)
             traversed.add(id(root))
 
-        for node in expr.traverse():
+        for node in traverse_until_source(expr):
             if id(node) not in traversed:
                 node.accept(self)
                 traversed.add(id(node))
@@ -171,7 +172,7 @@ class PandasCompiler(Backend):
 
     @classmethod
     def _retrieve_until_find_root(cls, expr):
-        for node in expr.traverse(top_down=True, unique=True):
+        for node in traverse_until_source(expr, top_down=True, unique=True):
             if isinstance(node, JoinCollectionExpr):
                 return node
 
@@ -182,8 +183,9 @@ class PandasCompiler(Backend):
         self._dag.add_node(node)
         self._expr_to_dag_node[expr] = node
 
-        predecessors = [self._expr_to_dag_node[child]
-                        for child in children]
+        # the dependencies do not exist in self._expr_to_dag_node
+        predecessors = [self._expr_to_dag_node[child] for child in children
+                        if child in self._expr_to_dag_node]
         [self._dag.add_edge(p, node) for p in predecessors]
 
     def visit_source_collection(self, expr):
@@ -597,7 +599,7 @@ class PandasCompiler(Backend):
 
             # trigger refresh of dynamic operations
             def func(expr):
-                for c in expr.traverse(unique=True):
+                for c in traverse_until_source(expr, unique=True):
                     if c not in self._expr_to_dag_node:
                         c.accept(self)
             refresh_dynamic(to_sub, self._expr_dag, func=func)
@@ -655,7 +657,7 @@ class PandasCompiler(Backend):
 
             # trigger refresh of dynamic operations
             def func(expr):
-                for c in expr.traverse(unique=True):
+                for c in traverse_until_source(expr, unique=True):
                     if c not in self._expr_to_dag_node:
                         c.accept(self)
 
@@ -720,12 +722,18 @@ class PandasCompiler(Backend):
             kv = dict()
             if hasattr(expr, '_ddof'):
                 kv['ddof'] = expr._ddof
+
             op = expr.node_name.lower()
             op = 'size' if op == 'count' else op
 
             input = children_vals[0]
             if isinstance(expr, Count) and isinstance(expr.input, (CollectionExpr, SequenceExpr)):
                 return len(input)
+            elif isinstance(expr, (Cat, GroupedCat)):
+                kv['sep'] = expr._sep.value if isinstance(expr._sep, Scalar) else expr._sep
+                kv['na_rep'] = expr._na_rep.value \
+                    if isinstance(expr._na_rep, Scalar) else expr._na_rep
+                return getattr(getattr(input, 'str'), 'cat')(**kv)
             return getattr(input, op)(**kv)
 
         self._add_node(expr, handle)
@@ -874,6 +882,22 @@ class PandasCompiler(Backend):
 
         self._add_node(expr, handle)
 
+    def visit_reshuffle(self, expr):
+        def handle(kw):
+            if expr._sort_fields is not None:
+                input = kw.get(expr._input)
+                names = []
+                for sort in expr._sort_fields:
+                    name = str(uuid.uuid4())
+                    input[name] = kw.get(sort)
+                    names.append(name)
+                input = input.sort_values(
+                    names, ascending=[f._ascending for f in expr._sort_fields])
+                return input[expr.schema.names]
+            return kw.get(expr._input)
+
+        self._add_node(expr, handle)
+
     def visit_apply_collection(self, expr):
         def conv(l):
             if isinstance(l, tuple):
@@ -908,10 +932,6 @@ class PandasCompiler(Backend):
                 is_close_generator_function = inspect.isgeneratorfunction(close_func)
             else:
                 raise NotImplementedError
-
-            if hasattr(expr, '_sort_fields') and expr._sort_fields is not None:
-                input = input.sort_values([f.name for f in expr._sort_fields],
-                                          ascending=[f._ascending for f in expr._sort_fields])
 
             rows = []
             for s in input.iterrows():
@@ -1081,7 +1101,7 @@ class PandasCompiler(Backend):
 
     @classmethod
     def _find_all_equalizations(cls, predicate, lhs, rhs):
-        return [eq for eq in predicate.traverse(top_down=True, unique=True)
+        return [eq for eq in traverse_until_source(predicate, top_down=True, unique=True)
                 if isinstance(eq, arithmetic.Equal) and
                 eq.is_ancestor(lhs) and eq.is_ancestor(rhs)]
 
@@ -1192,7 +1212,7 @@ class PandasCompiler(Backend):
 
             # trigger refresh of dynamic operations
             def func(expr):
-                for c in expr.traverse(unique=True):
+                for c in traverse_until_source(expr, unique=True):
                     if c not in self._expr_to_dag_node:
                         c.accept(self)
 

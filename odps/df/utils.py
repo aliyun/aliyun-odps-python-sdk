@@ -97,6 +97,12 @@ def is_source_collection(expr):
     return isinstance(expr, CollectionExpr) and expr._source_data is not None
 
 
+def is_constant_scalar(expr):
+    from .expr.expressions import Scalar
+
+    return isinstance(expr, Scalar) and expr._value is not None
+
+
 def to_collection(seq_or_scalar):
     from .expr.expressions import CollectionExpr, Column, SequenceExpr
     from .expr.reduction import GroupedSequenceReduction, Count
@@ -130,3 +136,9 @@ def is_project_expr(collection):
                                DistinctCollectionExpr)):
         return True
     return False
+
+
+def traverse_until_source(expr_or_dag, *args, **kwargs):
+    if 'stop_cond' not in kwargs:
+        kwargs['stop_cond'] = lambda e: is_source_collection(e) or is_constant_scalar(e)
+    return expr_or_dag.traverse(*args, **kwargs)

@@ -39,7 +39,7 @@ class Test(TestBase):
         expr = expr['a', 'b']
         ctx = ExecuteContext()
 
-        compiler = PandasCompiler(ctx.build_dag(expr, expr))
+        compiler = PandasCompiler(expr.to_dag())
         dag = compiler.compile(expr)
 
         self.assertEqual(len(dag._graph), 4)

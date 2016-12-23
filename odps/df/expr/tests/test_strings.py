@@ -46,6 +46,13 @@ class Test(TestBase):
         self.assertIsInstance(self.expr.name.capitalize(), StringSequenceExpr)
         self.assertIsInstance(self.expr.name.sum().capitalize(), StringScalar)
 
+        expr = self.expr.name.cat(self.expr.id.astype('string'), sep=',')
+        self.assertIsInstance(expr, CatStr)
+        self.assertIsInstance(expr, StringSequenceExpr)
+        self.assertIsInstance(self.expr.name.sum().cat(self.expr.id.sum().astype('string')), StringScalar)
+
+        self.assertRaises(ValueError, lambda: self.expr.name.cat(','))
+
         self.assertIsInstance(self.expr.name.contains('test'), Contains)
         self.assertIsInstance(self.expr.name.contains('test'), BooleanSequenceExpr)
         self.assertIsInstance(self.expr.name.sum().contains('test'), BooleanScalar)

@@ -97,11 +97,11 @@ JYTHON = platform.python_implementation().lower() == 'jython'
 
 #relevant opcodes
 BUILD_CLASS = opcode.opmap.get('BUILD_CLASS')
-BUILD_LIST_FROM_ARG = opcode.opmap.get('BUILD_LIST_FROM_ARG')
+BUILD_LIST_FROM_ARG_PYPY = 203
 BUILD_LIST = opcode.opmap['BUILD_LIST']
 BUILD_MAP = opcode.opmap.get('BUILD_MAP')
 CALL_FUNCTION = opcode.opmap['CALL_FUNCTION']
-CALL_METHOD = opcode.opmap.get('CALL_METHOD')
+CALL_METHOD_PYPY = 202
 COMPARE_OP = opcode.opmap.get('COMPARE_OP')
 DUP_TOP = dis.opmap.get('DUP_TOP')
 DUP_TOPX = dis.opmap.get('DUP_TOPX')
@@ -114,7 +114,7 @@ IMPORT_NAME = opcode.opmap.get('IMPORT_NAME')
 JUMP_ABSOLUTE = opcode.opmap['JUMP_ABSOLUTE']
 JUMP_FORWARD = opcode.opmap['JUMP_FORWARD']
 JUMP_IF_FALSE_OR_POP = opcode.opmap.get('JUMP_IF_FALSE_OR_POP')
-JUMP_IF_NOT_DEBUG = opcode.opmap.get('JUMP_IF_NOT_DEBUG')
+JUMP_IF_NOT_DEBUG_PYPY = 204
 JUMP_IF_TRUE_OR_POP = opcode.opmap.get('JUMP_IF_TRUE_OR_POP')
 LIST_APPEND = opcode.opmap['LIST_APPEND']
 LIST_APPEND_PY26 = 18
@@ -123,7 +123,7 @@ LOAD_BUILD_CLASS_PY3 = 71
 LOAD_CONST = opcode.opmap['LOAD_CONST']
 LOAD_FAST = opcode.opmap['LOAD_FAST']
 LOAD_LOCALS = opcode.opmap.get('LOAD_LOCALS')
-LOOKUP_METHOD = opcode.opmap.get('LOOKUP_METHOD')
+LOOKUP_METHOD_PYPY = 201
 MAKE_CLOSURE = opcode.opmap.get('MAKE_CLOSURE')
 MAKE_FUNCTION = opcode.opmap['MAKE_FUNCTION']
 NOP = opcode.opmap['NOP']
@@ -156,42 +156,17 @@ def _builtin_type(name):
     return getattr(types, name)
 
 
-def _pypy_to_cpython(code):
-    if not PYPY:
-        return code
-
-    code = [ord(c) for c in code]
-    i = 0
-    while i < len(code):
-        if code[i] == LOOKUP_METHOD:
-            code[i] = LOAD_ATTR
-        elif code[i] == CALL_METHOD:
-            code[i] = CALL_FUNCTION
-        elif code[i] == BUILD_LIST_FROM_ARG:
-            code[i: i+3] = [JUMP_ABSOLUTE, len(code) % 256, len(code) // 256]
-            code.extend([BUILD_LIST, 0, 0, ROT_TWO,
-                         JUMP_ABSOLUTE, (i + 3) % 256, (i + 3) // 256])
-        elif code[i] == JUMP_IF_NOT_DEBUG:
-            if __debug__:
-                code[i: i+3] = [NOP, NOP, NOP]
-            else:
-                code[i] = JUMP_FORWARD
-        i += (3 if code[i] >= HAVE_ARGUMENT else 1)
-
-    return ''.join(chr(c) for c in code)
-
-
 def _extract_code_args(obj):
     if PY3:
         return (
             obj.co_argcount, obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
-            obj.co_flags, _pypy_to_cpython(obj.co_code), obj.co_consts, obj.co_names, obj.co_varnames,
+            obj.co_flags, obj.co_code, obj.co_consts, obj.co_names, obj.co_varnames,
             obj.co_filename, obj.co_name, obj.co_firstlineno, obj.co_lnotab, obj.co_freevars,
             obj.co_cellvars
         )
     else:
         return (
-            obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags, _pypy_to_cpython(obj.co_code),
+            obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags, obj.co_code,
             obj.co_consts, obj.co_names, obj.co_varnames, obj.co_filename, obj.co_name,
             obj.co_firstlineno, obj.co_lnotab, obj.co_freevars, obj.co_cellvars
         )
@@ -348,7 +323,7 @@ class CloudPickler(Pickler):
         """
         Find all globals names read or written to by codeblock co
         """
-        code = _pypy_to_cpython(co.co_code)
+        code = co.co_code
         if not PY3:
             code = [ord(c) for c in code]
         names = co.co_names
@@ -839,6 +814,67 @@ class CloudUnpickler(Unpickler):
         return sio.getvalue()
 
     @classmethod
+    def _code_compat_pypy2_to_cp27(cls, code_args):
+        # only works under Python 2.7
+        code_args = list(code_args)
+
+        # translate byte codes
+        byte_code = code_args[4]
+        # build line mappings, extra space for new_to_old mapping, as code could be longer
+        new_to_old = [0, ] * (2 + 2 * len(byte_code))
+        old_to_new = [0, ] * (1 + len(byte_code))
+        remapped = False
+        i, ni = 0, 0
+        sio = StringIO()
+        while i < len(byte_code):
+            opcode_ord = ord(byte_code[i])
+            if opcode_ord == LOOKUP_METHOD_PYPY:
+                sio.write(chr(LOAD_ATTR))
+                sio.write(byte_code[i + 1:i + 3])
+                i += 3
+                ni += 3
+            elif opcode_ord == CALL_METHOD_PYPY:
+                sio.write(chr(CALL_FUNCTION))
+                sio.write(byte_code[i + 1:i + 3])
+                i += 3
+                ni += 3
+            elif opcode_ord == BUILD_LIST_FROM_ARG_PYPY:
+                sio.write(chr(BUILD_LIST))
+                sio.write(chr(0))
+                sio.write(chr(0))
+                sio.write(chr(ROT_TWO))
+                i += 3
+                ni += 4
+            elif opcode_ord == JUMP_IF_NOT_DEBUG_PYPY:
+                if not __debug__:
+                    sio.write(chr(JUMP_FORWARD))
+                    sio.write(byte_code[i + 1:i + 3])
+                    ni += 3
+                i += 3
+            elif ord(byte_code[i]) >= HAVE_ARGUMENT:
+                sio.write(byte_code[i:i + 3])
+                i += 3
+                ni += 3
+            else:
+                sio.write(byte_code[i])
+                i += 1
+                ni += 1
+
+            if len(new_to_old) <= ni:
+                new_to_old.extend([0, ] * len(byte_code))
+            if i != ni:
+                remapped = True
+            new_to_old[ni] = i
+            old_to_new[i] = ni
+        byte_code = sio.getvalue()
+
+        if not remapped:
+            code_args[4] = byte_code
+        else:
+            code_args[4] = cls._realign_opcode(byte_code, new_to_old, old_to_new)
+        return code_args
+
+    @classmethod
     def _code_compat_3_to_27(cls, code_args):
         # only works under Python 2.7
         code_args = list(code_args)
@@ -997,6 +1033,8 @@ class CloudUnpickler(Unpickler):
                 args = self._code_compat_3_to_27(args)
             elif PY27 and self._src_impl == 'CP26':  # src PY26, dest PY27
                 args = self._code_compat_26_to_27(args)
+            elif PY27 and not PYPY and self._src_impl == 'PYPY2':
+                args = self._code_compat_pypy2_to_cp27(args)
 
             if self._dump_code:
                 print(args[9 if not PY3 else 10])

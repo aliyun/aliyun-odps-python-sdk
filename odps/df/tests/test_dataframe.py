@@ -20,6 +20,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from odps.tests.core import TestBase, tn, pandas_case, global_locked
+from odps.df.backends.context import context
 from odps.compat import unittest
 from odps.models import Schema
 from odps.df import DataFrame
@@ -45,7 +46,7 @@ class Test(TestBase):
         df = DataFrame(self.table)
 
         self.assertEqual(3, df.count().execute())
-        self.assertEqual(1, df[df.name == 'name1'].count())
+        self.assertEqual(1, df[df.name == 'name1'].count().execute())
 
     @pandas_case
     def testDataFrameFromPandas(self):
@@ -147,7 +148,7 @@ class Test(TestBase):
 
         df2 = df.groupby('id').agg(df.fid.sum())
         df2.execute()
-        self.assertIsNotNone(df2._cache_data)
+        self.assertTrue(context.is_cached(df2))
         df3 = df2[df2.id == 2003]
 
         self.assertEqual(df3.execute().values.values.tolist(), expected)

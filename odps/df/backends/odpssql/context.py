@@ -30,8 +30,6 @@ from ...expr.core import ExprProxy
 
 UDF_CLASS_NAME = 'PyOdpsFunc'
 
-_replaced_exprs = dict()
-
 
 class ODPSContext(object):
     def __init__(self, odps, indent_size=2):
@@ -80,6 +78,10 @@ class ODPSContext(object):
                 return self.register_collection(expr), True
             if not silent:
                 raise e
+
+    def remove_collection_alias(self, expr):
+        if id(expr) in self._expr_alias:
+            del self._expr_alias[id(expr)]
 
     def add_expr_compiled(self, expr, compiled):
         self._compiled_exprs[id(expr)] = compiled
@@ -133,12 +135,6 @@ class ODPSContext(object):
 
             self._func_to_functions[func] = function
             self._to_drops.append(function)
-
-    def add_replaced_expr(self, expr, to_replace):
-        _replaced_exprs[ExprProxy(expr, _replaced_exprs)] = to_replace
-
-    def get_replaced_expr(self, expr):
-        return _replaced_exprs.get(ExprProxy(expr))
 
     def add_need_alias_column(self, column):
         if id(column) in self._need_alias_column_indexes:

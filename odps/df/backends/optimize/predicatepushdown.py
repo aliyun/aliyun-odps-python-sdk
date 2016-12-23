@@ -27,6 +27,7 @@ from ...expr.arithmetic import And
 from ...expr.reduction import SequenceReduction
 from ...expr.window import Window
 from ...expr.merge import UnionCollectionExpr
+from ...utils import traverse_until_source
 from .utils import change_input, copy_sequence
 from ....compat import reduce
 
@@ -36,7 +37,7 @@ class PredicatePushdown(Backend):
         self._dag = dag
 
     def pushdown(self):
-        for node in self._dag.traverse(top_down=True):
+        for node in traverse_until_source(self._dag, top_down=True):
             try:
                 node.accept(self)
             except NotImplementedError:

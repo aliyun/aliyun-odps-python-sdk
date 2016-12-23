@@ -23,7 +23,7 @@ from ...expr.expressions import Column, CollectionExpr, FilterCollectionExpr
 from ...expr.collections import SortedCollectionExpr, SliceCollectionExpr
 from ...expr.merge import JoinCollectionExpr, UnionCollectionExpr
 from ....models import Schema
-from ...utils import is_project_expr
+from ...utils import is_project_expr, traverse_until_source
 
 
 class ColumnPruning(Backend):
@@ -37,7 +37,7 @@ class ColumnPruning(Backend):
         self._remain_columns = dict()
 
     def prune(self):
-        for node in self._dag.traverse(top_down=True):
+        for node in traverse_until_source(self._dag, top_down=True):
             try:
                 node.accept(self)
             except NotImplementedError:
@@ -168,6 +168,9 @@ class ColumnPruning(Backend):
 
     def visit_mutate(self, expr):
         self._visit_grouped(expr)
+
+    def visit_reshuffle(self, expr):
+        self._visit_all_columns_project_collection(expr)
 
     def visit_value_counts(self, expr):
         # skip, by and count cannot be pruned

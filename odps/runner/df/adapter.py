@@ -28,6 +28,7 @@ from ...df.expr.core import ExprDictionary
 from ...df.expr.dynamic import DynamicMixin
 from ...df.expr.expressions import SequenceExpr, Scalar
 from ...df.expr.expressions import FilterPartitionCollectionExpr
+from ...df.backends.context import context
 from ...compat import six, reduce
 from ...config import options
 from ..core import BaseRunnerNode, RunnerObject, ObjectDescription, EngineType, PortType
@@ -72,7 +73,7 @@ class DFNode(BaseRunnerNode):
             obj = inp.obj
             if not hasattr(obj, 'df'):
                 continue
-            if obj.df is None or obj.df._cache_data is None:
+            if obj.df is None or not context.is_cached(obj.df):
                 continue
             for edge in self.input_edges[nm]:
                 src_output = edge.from_node.outputs[edge.from_arg]
@@ -100,9 +101,9 @@ class DFNode(BaseRunnerNode):
                 ep.table = data_sources[0].name
                 ep.partitions = ep.df.predicate_string
                 return True, None
-        elif isinstance(df._cache_data, Table):
+        elif context.is_cached(df):
             # cached data input
-            ep.table = df._cache_data.name
+            ep.table = context.get_cached(df).name
             return True, None
         return False, None
 

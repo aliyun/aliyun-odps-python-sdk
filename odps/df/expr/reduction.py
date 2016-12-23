@@ -19,12 +19,11 @@
 
 from __future__ import absolute_import
 
-from collections import Iterable
-
 from .expressions import *
 from .groupby import *
 from . import utils
 from .. import types
+from ... import compat
 
 
 class SequenceReduction(Scalar):
@@ -191,6 +190,32 @@ class GroupedMean(GroupedSequenceReduction):
     node_name = 'mean'
 
 
+class Moment(SequenceReduction):
+    __slots__ = '_order', '_center'
+
+
+class GroupedMoment(GroupedSequenceReduction):
+    __slots__ = '_order', '_center'
+    node_name = 'moment'
+
+
+class Skewness(SequenceReduction):
+    __slots__ = ()
+    node_name = 'skew'
+
+
+class GroupedSkewness(GroupedSequenceReduction):
+    node_name = 'skew'
+
+
+class Kurtosis(SequenceReduction):
+    __slots__ = ()
+
+
+class GroupedKurtosis(GroupedSequenceReduction):
+    node_name = 'kurtosis'
+
+
 class Median(SequenceReduction):
     __slots__ = ()
 
@@ -221,6 +246,33 @@ class NUnique(SequenceReduction):
 
 class GroupedNUnique(GroupedSequenceReduction):
     node_name = 'nunique'
+
+
+class Cat(SequenceReduction):
+    _args = '_input', '_by', '_sep', '_na_rep'
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_sep', None)
+        self._init_attr('_na_rep', None)
+        super(Cat, self)._init(*args, **kwargs)
+        if self._sep is not None and not isinstance(self._sep, Scalar):
+            self._sep = Scalar(_value=self._sep)
+        if self._na_rep is not None and not isinstance(self._na_rep, Scalar):
+            self._na_rep = Scalar(_value=self._na_rep)
+
+
+class GroupedCat(GroupedSequenceReduction):
+    _args = '_input', '_by', '_sep', '_na_rep'
+    node_name = 'cat'
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_sep', None)
+        self._init_attr('_na_rep', None)
+        super(GroupedCat, self)._init(*args, **kwargs)
+        if self._sep is not None and not isinstance(self._sep, Scalar):
+            self._sep = Scalar(_value=self._sep)
+        if self._na_rep is not None and not isinstance(self._na_rep, Scalar):
+            self._na_rep = Scalar(_value=self._na_rep)
 
 
 class Aggregation(SequenceReduction):
@@ -506,6 +558,69 @@ def nunique(expr):
     return _reduction(expr, NUnique, output_type)
 
 
+def _cat(expr, sep=None, na_rep=None):
+    output_type = types.string
+    return _reduction(expr, Cat, output_type, _sep=sep, _na_rep=na_rep)
+
+
+def cat(expr, others=None, sep=None, na_rep=None):
+    """
+    Concatenate strings in sequence with given separator
+
+    :param expr:
+    :param others: other sequences
+    :param sep: string or None, default None
+    :param na_rep: string or None default None, if None, NA in the sequence are ignored
+    :return:
+    """
+
+    if others is not None:
+        from .strings import _cat as cat_str
+
+        return cat_str(expr, others, sep=sep, na_rep=na_rep)
+
+    return _cat(expr, sep=sep, na_rep=na_rep)
+
+
+def moment(expr, order, central=False):
+    """
+    Calculate the n-th order moment of the sequence
+
+    :param expr:
+    :param order: moment order, must be an integer
+    :param central: if central moments are to be computed.
+    :return:
+    """
+    if not isinstance(order, six.integer_types):
+        raise ValueError('Only integer-ordered moments are supported.')
+    if order < 0:
+        raise ValueError('Only non-negative orders are supported.')
+    output_type = _stats_type(expr)
+    return _reduction(expr, Moment, output_type, _order=order, _center=central)
+
+
+def skew(expr):
+    """
+    Calculate skewness of the sequence
+
+    :param expr:
+    :return:
+    """
+    output_type = _stats_type(expr)
+    return _reduction(expr, Skewness, output_type)
+
+
+def kurtosis(expr):
+    """
+    Calculate kurtosis of the sequence
+
+    :param expr:
+    :return:
+    """
+    output_type = _stats_type(expr)
+    return _reduction(expr, Kurtosis, output_type)
+
+
 def aggregate(exprs, aggregator, rtype=None, resources=None, args=(), **kwargs):
     name = None
     if isinstance(aggregator, FunctionWrapper):
@@ -559,6 +674,10 @@ _number_sequence_methods = dict(
     var=var,
     std=std,
     mean=mean,
+    moment=moment,
+    skew=skew,
+    kurtosis=kurtosis,
+    kurt=kurtosis,
     median=median,
     sum=sum_,
 )
@@ -580,6 +699,7 @@ for number_sequence in number_sequences:
 utils.add_method(SequenceExpr, _sequence_methods)
 
 StringSequenceExpr.sum = sum_
+StringSequenceExpr.cat = cat
 BooleanSequenceExpr.sum = sum_
 BooleanSequenceExpr.any = any_
 BooleanSequenceExpr.all = all_
@@ -595,6 +715,7 @@ for number_sequence_groupby in number_sequences_groupby:
 utils.add_method(SequenceGroupBy, _sequence_methods)
 
 StringSequenceGroupBy.sum = sum_
+StringSequenceGroupBy.cat = _cat
 BooleanSequenceGroupBy.sum = sum_
 BooleanSequenceGroupBy.any = any_
 BooleanSequenceGroupBy.all = all_

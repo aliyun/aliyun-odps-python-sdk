@@ -25,7 +25,7 @@ from .expressions import *
 from .collections import SortedColumn
 from .reduction import Count, GroupedCount
 from .window import Window
-from .merge import JoinCollectionExpr
+from .merge import JoinCollectionExpr, UnionCollectionExpr
 
 
 class ExprFormatter(object):
@@ -72,7 +72,7 @@ class ExprFormatter(object):
             return self._cache[expr_id]
 
         table_aliases = dict()
-        if isinstance(expr, JoinCollectionExpr):
+        if isinstance(expr, (JoinCollectionExpr, UnionCollectionExpr)):
             lhs, rhs = expr.lhs, expr.rhs
             for s in (lhs, rhs):
                 ref_id, _ = self._format_collection(s)

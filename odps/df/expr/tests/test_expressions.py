@@ -23,6 +23,7 @@ from odps.config import option_context
 from odps.compat import unittest
 from odps.models import Schema
 from odps.df.expr.expressions import *
+from odps.df.expr.core import ExprDictionary
 from odps.df.expr import errors
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.arithmetic import Add
@@ -48,6 +49,8 @@ class Test(TestBase):
 
         new_df = self.expr[self.expr.id, self.expr.fid, self.expr.name.rename('if')]
         self.assertNotIn('if', dir(new_df))
+
+        self.assertEqual(self.expr._id, self.expr.copy()._id)
 
     def testProjection(self):
         projected = self.expr['name', self.expr.id.rename('new_id')]

@@ -33,7 +33,7 @@ from odps.utils import to_timestamp, to_milliseconds
 from odps.df import output
 from odps.df.types import validate_data_type
 from odps.df.expr.expressions import CollectionExpr, BuiltinFunction, RandomScalar
-from odps.df.backends.odpssql.engine import ODPSEngine, UDF_CLASS_NAME
+from odps.df.backends.odpssql.engine import ODPSSQLEngine, UDF_CLASS_NAME
 from odps.df.backends.odpssql.compiler import BINARY_OP_COMPILE_DIC, \
     MATH_COMPILE_DIC, DATE_PARTS_DIC
 from odps.df.backends.errors import CompileError
@@ -51,6 +51,16 @@ from odps.lib.importer import *
 
 
 ENABLE_PROFILE = False
+
+
+class ODPSEngine(ODPSSQLEngine):
+
+    def compile(self, expr, prettify=True, libraries=None):
+        expr = self._convert_table(expr)
+        expr_dag = expr.to_dag()
+        self._analyze(expr_dag, expr)
+        new_expr = self._rewrite(expr_dag)
+        return self._compile(new_expr, prettify=prettify, libraries=libraries)
 
 
 class Test(TestBase):
@@ -507,6 +517,22 @@ class Test(TestBase):
         self.assertEqual(to_str(expect),
                          to_str(ODPSEngine(self.odps).compile(self.expr.name.capitalize(), prettify=False)))
 
+        expr = self.expr[
+            self.expr.name.cat(self.expr.id.astype('string')).rename('name1'),
+            self.expr.name.cat(self.expr.id.astype('string'), sep=',').rename('name2'),
+            self.expr.name.cat([self.expr.id.astype('string'),
+                                self.expr.fid.astype('string')], sep=',', na_rep='?').rename('name3')
+        ]
+        expect = "SELECT IF(CAST(t1.`id` AS STRING) IS NULL, t1.`name`, " \
+                 "CONCAT(t1.`name`, CAST(t1.`id` AS STRING))) AS `name1`, " \
+                 "IF(CAST(t1.`id` AS STRING) IS NULL, t1.`name`, " \
+                 "CONCAT(CONCAT(t1.`name`, ','), CAST(t1.`id` AS STRING))) AS `name2`, " \
+                 "CONCAT(IF(t1.`name` IS NULL, '?', t1.`name`), ',', IF(CAST(t1.`id` AS STRING) IS NULL, '?', " \
+                 "CAST(t1.`id` AS STRING)), ',', IF(CAST(t1.`fid` AS STRING) IS NULL, '?', " \
+                 "CAST(t1.`fid` AS STRING))) AS `name3` \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
         expect = 'SELECT REGEXP_INSTR(t1.`name`, \'test\') > 0 AS `name` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expect),
@@ -913,6 +939,28 @@ class Test(TestBase):
                    ') t2'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+    def testReshuffle(self):
+        expr = self.expr.reshuffle(RandomScalar())
+
+        expected = 'SELECT * \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'DISTRIBUTE BY rand()'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.reshuffle()
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.reshuffle(self.expr.name, sort='id', ascending=False)[lambda x: x.id + 1, ]
+
+        expected = 'SELECT t2.`id` + 1 AS `id` \n' \
+                   'FROM (\n' \
+                   '  SELECT * \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  DISTRIBUTE BY name \n' \
+                   '  SORT BY id DESC\n' \
+                   ') t2'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testFilterGroupbySinkFilterCompilation(self):
         # to test the sinking of filter to `having` clause
         expr = self.expr.groupby(['name']).agg(id=self.expr.id.max())[lambda x: x.id < 10]
@@ -979,7 +1027,6 @@ class Test(TestBase):
     def testReductionCompilation(self):
         # TODO test all the reductions
         expr = self.expr.groupby(['id']).id.std(ddof=0) + 1
-
         expected = 'SELECT STDDEV(t1.`id`) + 1 AS `id_std` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    'GROUP BY t1.`id`'
@@ -988,6 +1035,57 @@ class Test(TestBase):
         expr = self.expr.fid.mean()
         expected = 'SELECT AVG(t1.`fid`) AS `fid_mean` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['id']).id.std() + 1
+        expected = 'SELECT STDDEV_SAMP(t1.`id`) + 1 AS `id_std` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`id`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['id']).id.var() + 1
+        expected = 'SELECT (POW(STDDEV_SAMP(t1.`id`), 2)) + 1 AS `id_var` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`id`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['id']).fid.moment(3, central=True) + 1
+        expected = 'SELECT (((AVG(POW(t1.`fid`, 3))' \
+                   ' - ((3 * AVG(POW(t1.`fid`, 2))) * AVG(t1.`fid`)))' \
+                   ' + ((3 * AVG(t1.`fid`)) * (POW(AVG(t1.`fid`), 2))))' \
+                   ' - (POW(AVG(t1.`fid`), 3))) + 1 AS `fid_moment` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`id`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['id']).fid.skew() + 1
+        expected = 'SELECT (((((AVG(POW(t1.`fid`, 3))' \
+                   ' - ((3 * AVG(POW(t1.`fid`, 2))) * AVG(t1.`fid`)))' \
+                   ' + ((3 * AVG(t1.`fid`)) * (POW(AVG(t1.`fid`), 2))))' \
+                   ' - (POW(AVG(t1.`fid`), 3))) / (POW(STDDEV_SAMP(t1.`fid`), 3)))' \
+                   ' * (((CAST(POW(COUNT(t1.`fid`), 2) AS BIGINT))' \
+                   ' / (COUNT(t1.`fid`) - 1)) / (COUNT(t1.`fid`) - 2))) + 1 AS `fid_skew` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`id`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['id']).fid.kurtosis() + 1
+        expected = 'SELECT (((1.0 / (COUNT(t1.`fid`) - 2)) / (COUNT(t1.`fid`) - 3))' \
+                   ' * (((((COUNT(t1.`fid`) * COUNT(t1.`fid`)) - 1) * ((((AVG(POW(t1.`fid`, 4))' \
+                   ' - ((4 * AVG(POW(t1.`fid`, 3))) * AVG(t1.`fid`)))' \
+                   ' + ((6 * AVG(POW(t1.`fid`, 2))) * (POW(AVG(t1.`fid`), 2))))' \
+                   ' - ((4 * AVG(t1.`fid`)) * (POW(AVG(t1.`fid`), 3))))' \
+                   ' + (POW(AVG(t1.`fid`), 4))))' \
+                   ' / (POW(STDDEV(t1.`fid`), 4)))' \
+                   ' - (3 * (CAST(POW(COUNT(t1.`fid`) - 1, 2) AS BIGINT))))) + 1 AS `fid_kurtosis` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`id`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['id']).fid.moment(3) + 1
+        expected = 'SELECT AVG(POW(t1.`fid`, 3)) + 1 AS `fid_moment` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`id`'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
         expr = self.expr.count()
@@ -1008,6 +1106,11 @@ class Test(TestBase):
         expr = self.expr.id.nunique()
         expected = 'SELECT COUNT(DISTINCT t1.`id`) AS `id_nunique` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.name.cat(sep=',', na_rep='')
+        expected = "SELECT WM_CONCAT(',', IF(t1.`name` IS NULL, '', t1.`name`)) AS `name_cat` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
         expr = self.expr.groupby(['id']).agg(name=self.expr.name.sum()).count()
@@ -1139,21 +1242,21 @@ class Test(TestBase):
             lambda x: x, names=self.expr.schema.names)['id', 'name']
 
         expected = 'SELECT \n' \
-                   '  t2.`id`,\n' \
-                   '  t2.`name` \n' \
+                   '  t3.`id`,\n' \
+                   '  t3.`name` \n' \
                    'FROM (\n' \
-                   '  SELECT {0}(t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, ' \
-                   'CAST(t1.`scale` AS STRING), t1.`birth`) AS (name, id, fid, isMale, scale, birth) \n' \
+                   '  SELECT {0}(t2.`name`, t2.`id`, t2.`fid`, t2.`isMale`, ' \
+                   'CAST(t2.`scale` AS STRING), t2.`birth`) AS (name, id, fid, isMale, scale, birth) \n' \
                    '  FROM (\n' \
-                   '    SELECT *  \n' \
+                   '    SELECT * \n' \
                    '    FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    '    DISTRIBUTE BY \n' \
                    '      name \n' \
                    '    SORT BY \n' \
                    '      name,\n' \
                    '      id\n' \
-                   '  ) t1 \n' \
-                   ') t2'
+                   '  ) t2 \n' \
+                   ') t3'
         engine = ODPSEngine(self.odps)
         res = engine.compile(expr)
         fun_name = list(engine._ctx._registered_funcs.values())[0]
@@ -1610,19 +1713,16 @@ class Test(TestBase):
                    "t4.`name`, t4.`id`, t4.`fid`, t4.`isMale`, CAST(t4.`scale` AS STRING), " \
                    "t4.`birth`, t4.`new_id`) AS (name, id, fid, isMale, scale, birth, new_id) \n" \
                    "  FROM (\n" \
-                   "    SELECT *  \n" \
-                   "    FROM (\n" \
-                   "      SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, " \
+                   "    SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, " \
                    "t1.`scale`, t1.`birth`, t3.`new_id` \n" \
-                   "      FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
-                   "      LEFT OUTER JOIN \n" \
-                   "        (\n" \
-                   "          SELECT t2.`id` AS `new_id` \n" \
-                   "          FROM mocked_project.`pyodps_test_expr_table2` t2\n" \
-                   "        ) t3\n" \
-                   "      ON t1.`id` == t3.`new_id` \n" \
-                   "    ) t4 \n" \
-                   "    DISTRIBUTE BY t4.`name` \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "    LEFT OUTER JOIN \n" \
+                   "      (\n" \
+                   "        SELECT t2.`id` AS `new_id` \n" \
+                   "        FROM mocked_project.`pyodps_test_expr_table2` t2\n" \
+                   "      ) t3\n" \
+                   "    ON t1.`id` == t3.`new_id` \n" \
+                   "    DISTRIBUTE BY t1.`name` \n" \
                    "    SORT BY name\n" \
                    "  ) t4 \n" \
                    ") t5"

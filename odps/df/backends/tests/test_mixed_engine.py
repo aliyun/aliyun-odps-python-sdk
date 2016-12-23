@@ -17,15 +17,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import time
+
 from odps.tests.core import tn, pandas_case
 from odps.df.backends.tests.core import TestBase
-from odps.compat import unittest, OrderedDict
-from odps.models import Schema
+from odps.compat import unittest
+from odps.models import Schema, Instance
 from odps.errors import ODPSError
 from odps.df.backends.engine import MixedEngine
-from odps.df.backends.odpssql.engine import ODPSEngine
+from odps.df.backends.odpssql.engine import ODPSSQLEngine
 from odps.df.backends.pd.engine import PandasEngine
-from odps.df import DataFrame, output, Scalar
+from odps.df.backends.context import context
+from odps.df.utils import is_source_collection
+from odps.df import DataFrame, output
 
 
 @pandas_case
@@ -153,13 +157,12 @@ class Test(TestBase):
         df = self.odps_df[self.odps_df.name == 'name1']
         result = df.execute().values
         self.assertEqual(len(result), 2)
-        self.assertIsNotNone(df._cache_data)
+        self.assertTrue(context.is_cached(df))
 
-        _, new_df, cbs = self.engine._compile(df)
-        try:
-            self.assertIsNotNone(new_df._source_data)
-        finally:
-            [cb() for cb in cbs]
+        dag = self.engine.compile(df)
+        calls = dag.topological_sort()
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(is_source_collection(calls[0].expr))
 
         df2 = df[:5]
         result = df2.execute()
@@ -168,20 +171,28 @@ class Test(TestBase):
     def testHandleCache(self):
         df = self.pd_df['name', self.pd_df.id + 1]
         df.execute()
-        self.assertIsNotNone(df._cache_data)
+        self.assertTrue(context.is_cached(df))
 
         df2 = df[df.id < 10]
-        _, new_df2, cbs = self.engine._compile(df2)
-        try:
-            self.assertIsNotNone(new_df2.input._source_data)
-        finally:
-            [cb() for cb in cbs]
+        dag = self.engine.compile(df2)
+        self.assertEqual(len(dag.nodes()), 1)
+        self.assertTrue(is_source_collection(dag.nodes()[0].expr.input))
+
+        df3 = self.pd_df[self.pd_df.id < 10].count()
+        i = df3.execute()
+        self.assertTrue(context.is_cached(df3))
+
+        df4 = df3 + 1
+        dag = self.engine.compile(df4)
+        self.assertEqual(len(dag.nodes()), 1)
+        self.assertIsNotNone(dag.nodes()[0].expr._fields[0].lhs.value)
+        self.assertEqual(df4.execute(), i + 1)
 
     def testCacheTable(self):
         df = self.odps_df.join(self.pd_df, 'name').cache()
         df2 = df.sort('id_x')
 
-        dag = self.engine._compile_dag(df2)
+        dag = self.engine.compile(df2)
         self.assertEqual(len(dag.nodes()), 3)
 
         result = self.engine.execute(df2).values
@@ -192,249 +203,28 @@ class Test(TestBase):
 
         self.assertEqual(len(self.engine._generated_table_names), 2)
 
-        table = df._cache_data
+        table = context.get_cached(df)
         self.assertEqual(len(df.execute()), len(expected))
 
-        self.assertIs(df._cache_data, table)
+        self.assertIs(context.get_cached(df), table)
 
         df4 = df[df.id_x < 3].count()
         result = self.engine.execute(df4)
         self.assertEqual(result, 2)
 
-        self.assertEqual(df4._cache_data, 2)
+        self.assertEqual(context.get_cached(df4), 2)
 
     def testUseCache(self):
         df = self.odps_df[self.odps_df['name'] == 'name1']
         self.assertEqual(len(df.head(10)), 2)
 
-        df._cache_data.drop()
+        context.get_cached(df).drop()
 
         self.assertRaises(ODPSError, lambda: self.engine.execute(df['name', 'id']))
 
         def plot(**_):
             pass
         self.assertRaises(ODPSError, lambda: df.plot(x='id', plot_func=plot))
-
-    def testPivot(self):
-        data = [
-            ['name1', 1, 1.0, True],
-            ['name1', 2, 2.0, True],
-            ['name2', 1, 3.0, False],
-            ['name2', 3, 4.0, False]
-        ]
-
-        table_name = tn('pyodps_test_mixed_engine_pivot')
-        self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(
-            name=table_name,
-            schema=Schema.from_lists(['name', 'id', 'fid', 'ismale'],
-                                     ['string', 'bigint', 'double', 'boolean']))
-        expr = DataFrame(table)
-        try:
-            self.odps.write_table(table, 0, data)
-
-            expr1 = expr.pivot(rows='id', columns='name', values='fid').distinct()
-            res = self.engine.execute(expr1)
-            result = self._get_result(res)
-
-            expected = [
-                [1, 1.0, 3.0],
-                [2, 2.0, None],
-                [3, None, 4.0]
-            ]
-            self.assertEqual(sorted(result), sorted(expected))
-
-            expr2 = expr.pivot(rows='id', columns='name', values=['fid', 'ismale'])
-            res = self.engine.execute(expr2)
-            result = self._get_result(res)
-
-            expected = [
-                [1, 1.0, 3.0, True, False],
-                [2, 2.0, None, True, None],
-                [3, None, 4.0, None, False]
-            ]
-            self.assertEqual(sorted(result), sorted(expected))
-
-            expr3 = expr.pivot(rows='id', columns='name', values='fid')['name3']
-            with self.assertRaises(ValueError) as cm:
-                self.engine.execute(expr3)
-            self.assertIn('name3', str(cm.exception))
-
-            expr4 = expr.pivot(rows='id', columns='name', values='fid')['id', 'name1']
-            res = self.engine.execute(expr4)
-            result = self._get_result(res)
-
-            expected = [
-                [1, 1.0],
-                [2, 2.0],
-                [3, None]
-            ]
-            self.assertEqual(sorted(result), sorted(expected))
-
-            expr5 = expr.pivot(rows='id', columns='name', values='fid')
-            expr5 = expr5[expr5, (expr5['name1'].astype('int') + 1).rename('new_name')]
-            res = self.engine.execute(expr5)
-            result = self._get_result(res)
-
-            expected = [
-                [1, 1.0, 3.0, 2.0],
-                [2, 2.0, None, 3.0],
-                [3, None, 4.0, None]
-            ]
-            self.assertEqual(sorted(result), sorted(expected))
-
-            expr6 = expr.pivot(rows='id', columns='name', values='fid')
-            expr6 = expr6.join(self.odps_df, on='id')[expr6, 'name']
-            res = self.engine.execute(expr6)
-            result = self._get_result(res)
-
-            expected = [
-                [1, 1.0, 3.0, 'name1'],
-                [2, 2.0, None, 'name2'],
-                [3, None, 4.0, 'name1']
-            ]
-            self.assertEqual(sorted(result), sorted(expected))
-        finally:
-            table.drop()
-
-    def testPivotTable(self):
-        data = [
-            ['name1', 1, 1.0, True],
-            ['name1', 1, 5.0, True],
-            ['name1', 2, 2.0, True],
-            ['name2', 1, 3.0, False],
-            ['name2', 3, 4.0, False]
-        ]
-
-        table_name = tn('pyodps_test_mixed_engine_pivot_table')
-        self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(
-            name=table_name,
-            schema=Schema.from_lists(['name', 'id', 'fid', 'ismale'],
-                                     ['string', 'bigint', 'double', 'boolean']))
-        expr = DataFrame(table)
-        try:
-            self.odps.write_table(table, 0, data)
-
-            expr1 = expr.pivot_table(rows='name', values='fid')
-            res = self.engine.execute(expr1)
-            result = self._get_result(res)
-
-            expected = [
-                ['name1', 8.0 / 3],
-                ['name2', 3.5],
-            ]
-            self.assertEqual(sorted(result), sorted(expected))
-
-            expr2 = expr.pivot_table(rows='name', values='fid', aggfunc=['mean', 'sum'])
-            res = self.engine.execute(expr2)
-            result = self._get_result(res)
-
-            expected = [
-                ['name1', 8.0 / 3, 8.0],
-                ['name2', 3.5, 7.0],
-            ]
-            self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum'])
-            self.assertEqual(sorted(result), sorted(expected))
-
-            expr5 = expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum'])
-            expr6 = expr5['name1_fid_mean',
-                          expr5.groupby(Scalar(1)).sort('name1_fid_mean').name1_fid_mean.astype('float').cumsum()]
-
-            k = lambda x: list(0 if it is None else it for it in x)
-
-            # TODO: fix this situation, act different compared to pandas
-            expected = [
-                [2, 2], [3, 5], [None, None]
-            ]
-            res = self.engine.execute(expr6)
-            result = self._get_result(res)
-            self.assertEqual(sorted(result, key=k), sorted(expected, key=k))
-
-            expr3 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0).distinct()
-            res = self.engine.execute(expr3)
-            result = self._get_result(res)
-
-            expected = [
-                [1, 3.0, 3.0],
-                [2, 2.0, 0],
-                [3, 0, 4.0]
-            ]
-
-            self.assertEqual(res.schema.names, ['id', 'name1_fid_mean', 'name2_fid_mean'])
-            self.assertEqual(result, expected)
-
-            class Agg(object):
-                def buffer(self):
-                    return [0]
-
-                def __call__(self, buffer, val):
-                    buffer[0] += val
-
-                def merge(self, buffer, pbuffer):
-                    buffer[0] += pbuffer[0]
-
-                def getvalue(self, buffer):
-                    return buffer[0]
-
-            aggfuncs = OrderedDict([('my_sum', Agg), ('mean', 'mean')])
-            expr4 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0,
-                                     aggfunc=aggfuncs)
-            res = self.engine.execute(expr4)
-            result = self._get_result(res)
-
-            expected = [
-                [1, 6.0, 3.0, 3.0, 3.0],
-                [2, 2.0, 0, 2.0, 0],
-                [3, 0, 4.0, 0, 4.0]
-            ]
-
-            self.assertEqual(res.schema.names, ['id', 'name1_fid_my_sum', 'name2_fid_my_sum',
-                                                'name1_fid_mean', 'name2_fid_mean'])
-            self.assertEqual(result, expected)
-        finally:
-            table.drop()
-
-    def testExtractKV(self):
-        data = [
-            ['name1', 'k1=1,k2=3,k5=10', '1=5,3=7,2=1'],
-            ['name1', '', '3=1,4=2'],
-            ['name1', 'k1=7.1,k7=8.2', '1=1,5=6'],
-            ['name2', 'k2=1.2,k3=1.5', None],
-            ['name2', 'k9=1.1,k2=1', '4=2']
-        ]
-
-        table_name = tn('pyodps_test_mixed_engine_extract_kv')
-        self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(
-            name=table_name,
-            schema=Schema.from_lists(['name', 'kv', 'kv2'],
-                                     ['string', 'string', 'string']))
-        expr = DataFrame(table)
-        try:
-            self.odps.write_table(table, 0, data)
-
-            expr1 = expr.extract_kv(columns=['kv', 'kv2'], kv_delim='=')
-            res = self.engine.execute(expr1)
-            result = self._get_result(res)
-
-            expected_cols = [
-                'name',
-                'kv_k1', 'kv_k2', 'kv_k3', 'kv_k5', 'kv_k7', 'kv_k9',
-                'kv2_1', 'kv2_2', 'kv2_3', 'kv2_4', 'kv2_5'
-            ]
-            expected = [
-                ['name1', 1.0, 3.0, None, 10.0, None, None, 5.0, 1.0, 7.0, None, None],
-                ['name1', None, None, None, None, None, None, None, None, 1.0, 2.0, None],
-                ['name1', 7.1, None, None, None, 8.2, None, 1.0, None, None, None, 6.0],
-                ['name2', None, 1.2, 1.5, None, None, None, None, None, None, None, None],
-                ['name2', None, 1.0, None, None, None, 1.1, None, None, None, 2.0, None]
-            ]
-
-            self.assertListEqual([c.name for c in res.columns], expected_cols)
-            self.assertEqual(result, expected)
-        finally:
-            table.drop()
 
     def testHeadAndTail(self):
         res = self.odps_df.head(2)
@@ -443,7 +233,7 @@ class Test(TestBase):
         df = self.odps_df[self.odps_df['name'] == 'name1']
         res = df.head(1)
         self.assertEqual(len(res), 1)
-        self.assertIsNotNone(df._cache_data)
+        self.assertTrue(context.is_cached(df))
 
         res = self.odps_df.tail(2)
         self.assertEqual(len(res), 2)
@@ -458,7 +248,7 @@ class Test(TestBase):
         df = self.pd_df[self.pd_df['name'] == 'name1']
         res = df.head(1)
         self.assertEqual(len(res), 1)
-        self.assertIsNotNone(df._cache_data)
+        self.assertTrue(context.is_cached(df))
 
         res = self.pd_df.tail(1)
         self.assertEqual(len(res), 1)
@@ -467,14 +257,13 @@ class Test(TestBase):
         self.assertEqual(len(self.pd_df.name.head(1)), 1)
         self.assertEqual(len(self.pd_df.name.tail(1)), 1)
 
-        class TunnelOnlyODPSEngine(ODPSEngine):
-            def execute(self, expr, **kw):
-                expr = self._pre_process(expr)
-                head = kw.get('head')
-                return self._handle_cases(expr, head=head)
+        class TunnelOnlyODPSEngine(ODPSSQLEngine):
+            def _do_execute(self, *args, **kwargs):
+                kwargs['_force_tunnel'] = True
+                return super(TunnelOnlyODPSEngine, self)._do_execute(*args, **kwargs)
 
         engine = MixedEngine(self.odps)
-        engine._odpssql_engine = TunnelOnlyODPSEngine(self.odps, global_optimize=False)
+        engine._odpssql_engine = TunnelOnlyODPSEngine(self.odps)
 
         res = engine.execute(self.odps_df['id'], head=3)
         self.assertIsNotNone(res)
@@ -608,6 +397,53 @@ class Test(TestBase):
         res = self.engine.execute(new_expr)
         self.assertEqual(len(res), 3)
 
+    def testAsync(self):
+        expr = self.odps_df[self.odps_df.name == 'name1']
+        future = self.engine.execute(expr, async=True)
+        self.assertFalse(future.done())
+        res = future.result()
+        self.assertEqual(len(res), 2)
+
+    def testBatch(self):
+        odps_expr = self.odps_df[self.odps_df.id < 4].cache()
+        expr = odps_expr.join(self.pd_df, 'name').sort('id_x')
+
+        dag = self.engine.compile(expr)
+        self.assertEqual(len(dag.nodes()), 3)
+
+        f = self.engine.execute(expr, async=True, n_parallel=2)
+
+        result = f.result().values
+
+        df = DataFrame(self.odps_df.to_pandas())
+        expected = self.pd_engine.execute(df.join(self.pd_df, 'name').sort('id_x')).values
+        self.assertTrue(result.equals(expected))
+
+    def testBatchStop(self):
+        expr1 = self.odps_df[self.odps_df.id < 3].cache()
+        expr2 = self.odps_df[self.odps_df.id > 3].cache()
+        expr3 = expr1.union(expr2)
+
+        self.engine.execute([expr1, expr2, expr3], n_parallel=2, async=True)
+        time.sleep(2)
+
+        instance_ids = self.engine._odpssql_engine._instances
+        self.assertEqual(len(instance_ids), 2)
+
+        self.engine.stop()
+        instances = [self.odps.get_instance(i) for i in instance_ids]
+        [i.wait_for_completion() for i in instances]
+        self.assertEqual(list(instances[0].get_task_statuses().values())[0].status,
+                         Instance.Task.TaskStatus.CANCELLED)
+        self.assertEqual(list(instances[1].get_task_statuses().values())[0].status,
+                         Instance.Task.TaskStatus.CANCELLED)
+
+    def testFailure(self):
+        expr1 = self.odps_df[self.odps_df.id / 0 < 0].cache()
+        expr2 = expr1.count()
+
+        fs = self.engine.execute(expr2, async=True)
+        self.assertRaises(RuntimeError, fs.result)
 
 if __name__ == '__main__':
     unittest.main()

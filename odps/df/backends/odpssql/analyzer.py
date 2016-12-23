@@ -29,7 +29,7 @@ from ...expr.element import *
 from ...expr.reduction import *
 from ...expr.collections import *
 from ...expr.merge import *
-from ...utils import output
+from ...utils import output, traverse_until_source
 from ..errors import CompileError
 from ..utils import refresh_dynamic
 from ... import types
@@ -42,9 +42,8 @@ class Analyzer(Backend):
     which analyze some operation that is not supported for this execution backend.
     """
 
-    def __init__(self, dag, traversed=None, on_sub=None):
-        self._expr = dag.root
-        self._dag = dag
+    def __init__(self, expr_dag, traversed=None, on_sub=None):
+        self._dag = expr_dag
         self._indexer = itertools.count(0)
         self._traversed = traversed or set()
         self._on_sub = on_sub
@@ -57,13 +56,13 @@ class Analyzer(Backend):
         return self._dag.root
 
     def _iter(self):
-        for node in self._expr.traverse(top_down=True, unique=True,
-                                        traversed=self._traversed):
+        for node in traverse_until_source(self._dag, top_down=True,
+                                          traversed=self._traversed):
             yield node
 
         while True:
             all_traversed = True
-            for node in self._expr.traverse(top_down=True, unique=True):
+            for node in traverse_until_source(self._dag, top_down=True):
                 if id(node) not in self._traversed:
                     all_traversed = False
                     yield node
@@ -545,6 +544,21 @@ class Analyzer(Backend):
             sub = (rest >= 0).ifelse(fillchar.repeat(rest), '') + expr.input
             self._sub(expr, sub.rename(expr.name))
             return
+        elif isinstance(expr, CatStr):
+            input = expr.input
+            others = expr._others if isinstance(expr._others, Iterable) else (expr._others, )
+            for other in others:
+                if expr.na_rep is not None:
+                    for e in (input, ) + tuple(others):
+                        self._sub(e, e.fillna(expr.na_rep), parents=(expr, ))
+                    return
+                else:
+                    if expr._sep is not None:
+                        input = other.isnull().ifelse(input, input + expr._sep + other)
+                    else:
+                        input = other.isnull().ifelse(input, input + other)
+            self._sub(expr, input.rename(expr.name))
+            return
 
         if not options.df.analyze:
             raise NotImplementedError
@@ -714,9 +728,87 @@ class Analyzer(Backend):
 
         raise NotImplementedError
 
+    @staticmethod
+    def _get_moment_sub_expr(expr, _input, order, center):
+        def _group_mean(e):
+            m = e.mean()
+            if isinstance(expr, GroupedSequenceReduction):
+                m = m.to_grouped_reduction(expr._grouped)
+            return m
+
+        def _order(e, o):
+            if o == 1:
+                return e
+            else:
+                return e ** o
+
+        if not center:
+            if order == 0:
+                sub = Scalar(1)
+            else:
+                sub = _group_mean(_input ** order)
+        else:
+            if order == 0:
+                sub = Scalar(1)
+            elif order == 1:
+                sub = Scalar(0)
+            else:
+                sub = _group_mean(_input ** order)
+                divided = 1
+                divisor = 1
+                for o in compat.irange(1, order):
+                    divided *= order - o + 1
+                    divisor *= o
+                    part_item = divided // divisor * _group_mean(_order(_input, order - o)) \
+                                * (_order(_group_mean(_input), o))
+                    if o & 1:
+                        sub -= part_item
+                    else:
+                        sub += part_item
+                part_item = _group_mean(_input) ** order
+                if order & 1:
+                    sub -= part_item
+                else:
+                    sub += part_item
+        return sub
+
     def visit_reduction(self, expr):
         if isinstance(expr, (Var, GroupedVar)):
-            sub = expr.input.std(ddof=expr._ddof) ** 2
+            std = expr.input.std(ddof=expr._ddof)
+            if isinstance(expr, GroupedVar):
+                std = std.to_grouped_reduction(expr._grouped)
+            sub = (std ** 2).rename(expr.name)
+            self._sub(expr, sub)
+            return
+        elif isinstance(expr, (Moment, GroupedMoment)):
+            order = expr._order
+            center = expr._center
+
+            sub = self._get_moment_sub_expr(expr, expr.input, order, center)
+            sub = sub.rename(expr.name)
+            self._sub(expr, sub)
+            return
+        elif isinstance(expr, (Skewness, GroupedSkewness)):
+            std = expr.input.std(ddof=1)
+            if isinstance(expr, GroupedSequenceReduction):
+                std = std.to_grouped_reduction(expr._grouped)
+            cnt = expr.input.count()
+            if isinstance(expr, GroupedSequenceReduction):
+                cnt = cnt.to_grouped_reduction(expr._grouped)
+            sub = self._get_moment_sub_expr(expr, expr.input, 3, True) / (std ** 3)
+            sub *= (cnt ** 2) / (cnt - 1) / (cnt - 2)
+            sub = sub.rename(expr.name)
+            self._sub(expr, sub)
+        elif isinstance(expr, (Kurtosis, GroupedKurtosis)):
+            std = expr.input.std(ddof=0)
+            if isinstance(expr, GroupedSequenceReduction):
+                std = std.to_grouped_reduction(expr._grouped)
+            cnt = expr.input.count()
+            if isinstance(expr, GroupedSequenceReduction):
+                cnt = cnt.to_grouped_reduction(expr._grouped)
+            m4 = self._get_moment_sub_expr(expr, expr.input, 4, True)
+            sub = 1.0 / (cnt - 2) / (cnt - 3) * ((cnt * cnt - 1) * m4 / (std ** 4) - 3 * (cnt - 1) ** 2)
+            sub = sub.rename(expr.name)
             self._sub(expr, sub)
 
         raise NotImplementedError

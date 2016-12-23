@@ -18,6 +18,7 @@
 import os
 import json
 import re
+import warnings
 from collections import Iterable
 
 from .rest import RestClient
@@ -554,28 +555,30 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.functions.delete(name)
 
-    def list_instances(self, project=None, from_time=None, end_time=None,
-                       status=None, only_owner=None):
+    def list_instances(self, project=None, start_time=None, end_time=None,
+                       status=None, only_owner=None, **kw):
         """
         List instances of a project by given optional conditions
         including start time, end time, status and if only the owner.
 
         :param project: project name, if not provided, will be the default project
-        :param from_time: the start time of filtered instances
-        :type from_time: datetime, int or float
+        :param start_time: the start time of filtered instances
+        :type start_time: datetime, int or float
         :param end_time: the end time of filtered instances
         :type end_time: datetime, int or float
-        :param status: including ``odps.models.Instance.Status.Running``,
-                       ``odps.models.Instance.Status.Suspended``,
-                       ``odps.models.Instance.Status.Terminated``
+        :param status: including 'Running', 'Suspended', 'Terminated'
         :param only_owner: True will filter the instances created by current user
         :type only_owner: bool
         :return: instances
         :rtype: list
         """
+        if 'from_time' in kw:
+            start_time = kw['from_time']
+            warnings.warn('The keyword argument `from_time` has been replaced by `start_time`.')
+
         project = self.get_project(name=project)
         return project.instances.iterate(
-            from_time=from_time, end_time=end_time,
+            start_time=start_time, end_time=end_time,
             status=status, only_owner=only_owner)
 
     def get_instance(self, id_, project=None):
@@ -685,6 +688,7 @@ class ODPS(object):
         priority = priority or options.priority
         if priority is None and options.get_priority is not None:
             priority = options.get_priority(self)
+        on_instance_create = kwargs.pop('on_instance_create', None)
 
         def update(kv, dest):
             if not kv:
@@ -725,7 +729,8 @@ class ODPS(object):
 
         project = self.get_project(name=project)
         return project.instances.create(task=task, priority=priority,
-                                        running_cluster=running_cluster)
+                                        running_cluster=running_cluster,
+                                        create_callback=on_instance_create)
 
     def list_volumes(self, project=None, owner=None):
         """

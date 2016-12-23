@@ -23,7 +23,7 @@ from odps.models import Schema
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.expressions import CollectionExpr
-from odps.df.backends.odpssql.engine import ODPSEngine
+from odps.df.backends.odpssql.tests.test_compiler import ODPSEngine
 
 
 class Test(TestBase):

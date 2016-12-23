@@ -25,7 +25,7 @@ import functools
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
-from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type
+from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type, new_id
 from .. import types
 from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys
 from ...config import options
@@ -104,7 +104,7 @@ def repr_obj(obj):
 
 
 class Expr(Node):
-    __slots__ = '_deps', '_ban_optimize', '_engine', '_cache_data', '_need_cache', '__execution'
+    __slots__ = '_deps', '_ban_optimize', '_engine', '_need_cache', '__execution', '_id'
 
     def _init(self, *args, **kwargs):
         """
@@ -118,8 +118,10 @@ class Expr(Node):
         self._init_attr('_engine', None)
         self._init_attr('_Expr__execution', None)
 
-        self._init_attr('_cache_data', None)
         self._init_attr('_need_cache', False)
+
+        if '_id' not in kwargs:
+            kwargs['_id'] = new_id()
 
         super(Expr, self)._init(*args, **kwargs)
 
@@ -224,6 +226,12 @@ class Expr(Node):
         self._ban_optimize = True
         return self
 
+    def uncache(self):
+        self._need_cache = False
+
+        from ..backends.context import context
+        context.uncache(self)
+
     def verify(self):
         """
         Verify if this expression can be compiled into ODPS SQL.
@@ -289,6 +297,8 @@ class Expr(Node):
 
     @property
     def deps(self):
+        if self._deps is None:
+            return
         return tuple(dep if not isinstance(dep, tuple) else dep[0]
                      for dep in self._deps)
 
@@ -1552,6 +1562,8 @@ class ProjectCollectionExpr(CollectionExpr):
 
     @property
     def _dag_args(self):
+        # _raw_fields can be substituted in the dag,
+        # but will not be traversed in backends.
         return self._args + ('_raw_fields', )
 
     @property

@@ -20,13 +20,14 @@
 import itertools
 
 from ..core import Backend
-from ....models import Schema
 from ...expr.expressions import *
-from ...expr.groupby import GroupByCollectionExpr, GroupbyAppliedCollectionExpr, MutateCollectionExpr
+from ...expr.groupby import GroupByCollectionExpr, MutateCollectionExpr
 from ...expr.reduction import SequenceReduction, GroupedSequenceReduction
-from ...expr.collections import DistinctCollectionExpr, RowAppliedCollectionExpr
+from ...expr.collections import DistinctCollectionExpr, RowAppliedCollectionExpr, \
+    ReshuffledCollectionExpr
 from ...expr.merge import JoinCollectionExpr
 from ...expr.window import Window
+from ...utils import traverse_until_source
 from .columnpruning import ColumnPruning
 from .predicatepushdown import PredicatePushdown
 from .utils import change_input
@@ -43,14 +44,14 @@ class Optimizer(Backend):
             if options.df.optimizes.pp:
                 PredicatePushdown(self._dag).pushdown()
 
-        for node in self._dag.traverse(top_down=True):
+        for node in traverse_until_source(self._dag, top_down=True):
             try:
                 node.accept(self)
             except NotImplementedError:
                 continue
 
         # from down up do again
-        for node in self._dag.traverse():
+        for node in traverse_until_source(self._dag):
             try:
                 node.accept(self)
             except NotImplementedError:
@@ -155,6 +156,11 @@ class Optimizer(Backend):
             return
         self._visit_need_compact_collection(expr)
 
+    def visit_reshuffle(self, expr):
+        if not options.df.optimize:
+            return
+        self._visit_need_compact_collection(expr)
+
     def _visit_need_compact_collection(self, expr):
         compacted = self._compact(expr)
         if compacted is None:
@@ -166,7 +172,7 @@ class Optimizer(Backend):
     def _compact(self, expr):
         to_compact = [expr, ]
 
-        for node in expr.traverse(top_down=True, unique=True):
+        for node in traverse_until_source(expr, top_down=True, unique=True):
             if node is expr:
                 continue
             if not isinstance(node, CollectionExpr):
@@ -245,7 +251,9 @@ class Optimizer(Backend):
             return collection.unique_fields
         elif isinstance(collection, (GroupByCollectionExpr, MutateCollectionExpr)):
             return collection.fields
-        elif isinstance(collection, (RowAppliedCollectionExpr, GroupbyAppliedCollectionExpr)):
+        elif isinstance(collection, RowAppliedCollectionExpr):
+            return collection.fields
+        elif isinstance(collection, ReshuffledCollectionExpr):
             return collection.fields
 
     def _get_field(self, collection, name):

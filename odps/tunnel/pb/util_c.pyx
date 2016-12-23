@@ -19,8 +19,10 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-cdef char * read_stream(object input, int size):
-    return input.read(size)
+cdef char read_input_byte(object input):
+    cdef bytes input_bytes = input.read(1)
+    cdef char *ptr = input_bytes
+    return ptr[0]
 
 cdef int32_t get_varint32(object input):
     """
@@ -33,7 +35,7 @@ cdef int32_t get_varint32(object input):
     cdef int val_byte
 
     while True:
-        val_byte = read_stream(input, 1)[0]
+        val_byte = read_input_byte(input)
         value += (val_byte & 0x7F) * base
         if (val_byte & 0x80):
             base *= 128
@@ -54,7 +56,7 @@ cdef int64_t get_varint64(object input):
     cdef int val_byte
 
     while True:
-        val_byte = read_stream(input, 1)[0]
+        val_byte = read_input_byte(input)
         value += (val_byte & 0x7F) * base
         if (val_byte & 0x80):
             base *= 128
@@ -75,7 +77,7 @@ cdef int32_t get_signed_varint32(object input):
     cdef int val_byte
 
     while True:
-        val_byte = read_stream(input, 1)[0]
+        val_byte = read_input_byte(input)
         value += (val_byte & 0x7F) * base
         if (val_byte & 0x80):
             base *= 128
@@ -96,7 +98,7 @@ cdef int64_t get_signed_varint64(object input):
     cdef int val_byte
 
     while True:
-        val_byte = read_stream(input, 1)[0]
+        val_byte = read_input_byte(input)
         value += (val_byte & 0x7F) * base
         if (val_byte & 0x80):
             base *= 128

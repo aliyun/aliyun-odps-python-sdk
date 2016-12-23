@@ -69,7 +69,7 @@ class TestBase(Base):
                 except TypeError:
                     pass
                 if isinstance(t, pandas.Timestamp):
-                    t = t.to_datetime()
+                    t = t.to_pydatetime()
                 elif pandas.isnull(t):
                     t = None
                 return t

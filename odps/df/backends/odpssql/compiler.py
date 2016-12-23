@@ -30,7 +30,7 @@ from ...expr.datetimes import DTScalar
 from ...expr import element
 from ...expr import strings
 from ...expr import datetimes
-from ...utils import is_source_collection
+from ...utils import is_source_collection, traverse_until_source
 from ... import types as df_types
 from . import types
 from ..core import Backend
@@ -146,7 +146,7 @@ class OdpsSQLCompiler(Backend):
 
     @classmethod
     def _retrieve_until_find_root(cls, expr):
-        for node in expr.traverse(top_down=True, unique=True):
+        for node in traverse_until_source(expr, top_down=True, unique=True):
             if isinstance(node, (JoinCollectionExpr, UnionCollectionExpr)) and \
                     not all(n is None for n in node.args):
                 yield node
@@ -261,7 +261,7 @@ class OdpsSQLCompiler(Backend):
                 root.accept(self)
                 traversed.add(id(root))
 
-        for node in expr.traverse():
+        for node in traverse_until_source(expr):
             if id(node) not in traversed:
                 node.accept(self)
                 traversed.add(id(node))
@@ -392,12 +392,14 @@ class OdpsSQLCompiler(Backend):
     def add_select_clause(self, expr, select_clause):
         if self._select_clause is not None:
             self.sub_sql_to_from_clause(expr.input)
-        if self._order_by_clause is not None:
+        elif self._order_by_clause is not None:
             self.sub_sql_to_from_clause(expr.input)
-        if isinstance(expr, Summary) and self._limit is not None:
+        elif isinstance(expr, Summary) and self._limit is not None:
             self.sub_sql_to_from_clause(expr.input)
-        if isinstance(expr, (GroupByCollectionExpr, MutateCollectionExpr)) and \
+        elif isinstance(expr, (GroupByCollectionExpr, MutateCollectionExpr)) and \
                 self._limit is not None:
+            self.sub_sql_to_from_clause(expr.input)
+        elif isinstance(expr.input, ReshuffledCollectionExpr):
             self.sub_sql_to_from_clause(expr.input)
 
         self._select_clause = select_clause
@@ -419,6 +421,9 @@ class OdpsSQLCompiler(Backend):
 
     def add_group_by_clause(self, expr, group_by_clause):
         if self._group_by_clause is not None:
+            self.sub_sql_to_from_clause(expr.input)
+        elif isinstance(expr, ReshuffledCollectionExpr) and \
+                isinstance(expr.input, RowAppliedCollectionExpr):
             self.sub_sql_to_from_clause(expr.input)
 
         self._group_by_clause = group_by_clause
@@ -742,6 +747,16 @@ class OdpsSQLCompiler(Backend):
             compiled = 'CONCAT(TOUPPER(SUBSTR(%(input)s, 1, 1)), TOLOWER(SUBSTR(%(input)s, 2)))' % {
                 'input': input
             }
+        elif isinstance(expr, strings.CatStr):
+            nodes = [expr._input]
+            if expr._others is not None:
+                others = (expr._others, ) if not isinstance(expr._others, Iterable) else expr._others
+                for other in others:
+                    if expr._sep is not None:
+                        nodes.extend([expr._sep, other])
+                    else:
+                        nodes.append(other)
+            compiled = 'CONCAT(%s)' % ', '.join(self._ctx.get_expr_compiled(e) for e in nodes)
         elif isinstance(expr, strings.Contains):
             if not expr.case or expr.flags > 0:
                 raise NotImplementedError
@@ -885,8 +900,8 @@ class OdpsSQLCompiler(Backend):
             self._ctx.add_expr_compiled(expr, compiled)
             return
 
-        if isinstance(expr, (Var, GroupedVar, Std, GroupedStd)):
-            if expr._ddof != 0:
+        if isinstance(expr, (Std, GroupedStd)):
+            if expr._ddof not in (0, 1):
                 raise CompileError('Does not support %s with ddof=%s' % (
                     expr.node_name, expr._ddof))
 
@@ -895,7 +910,7 @@ class OdpsSQLCompiler(Backend):
         if isinstance(expr, (Mean, GroupedMean)):
             node_name = 'avg'
         elif isinstance(expr, (Std, GroupedStd)):
-            node_name = 'stddev'
+            node_name = 'stddev' if expr._ddof == 0 else 'stddev_samp'
         elif isinstance(expr, (Sum, GroupedSum)) and expr.input.dtype == df_types.string:
             compiled = 'WM_CONCAT(\'\', %s)' % self._ctx.get_expr_compiled(expr.input)
         elif isinstance(expr, (Sum, GroupedSum)) and expr.input.dtype == df_types.boolean:
@@ -910,6 +925,9 @@ class OdpsSQLCompiler(Backend):
             compiled = 'MIN(IF(%s, 1, 0)) == 1' % self._ctx.get_expr_compiled(expr.args[0])
         elif isinstance(expr, (NUnique, GroupedNUnique)):
             compiled = 'COUNT(DISTINCT %s)' % self._ctx.get_expr_compiled(expr.args[0])
+        elif isinstance(expr, (Cat, GroupedCat)):
+            compiled = 'WM_CONCAT(%s, %s)' % (self._ctx.get_expr_compiled(expr._sep),
+                                              self._ctx.get_expr_compiled(expr.input))
         else:
             node_name = expr.node_name
 
@@ -997,6 +1015,21 @@ class OdpsSQLCompiler(Backend):
             return matched.group(1)
         return compiled
 
+    def visit_reshuffle(self, expr):
+        bys, sorts = expr._by, expr._sort_fields
+
+        by_fields = [self._unquote(self._ctx.get_expr_compiled(by)) for by in bys]
+        distribute_by_clause = 'DISTRIBUTE BY {0} '.format(
+            self._join_compiled_fields(by_fields))
+
+        self.add_group_by_clause(expr, distribute_by_clause)
+
+        if sorts:
+            sort_fields = [self._ctx.get_expr_compiled(sort) for sort in sorts]
+            sort_by_clause = 'SORT BY {0}'.format(self._join_compiled_fields(sort_fields))
+
+            self.add_order_by_clause(expr, sort_by_clause)
+
     def visit_apply_collection(self, expr):
         is_func_created = False
         if isinstance(expr._func, six.string_types):
@@ -1014,24 +1047,6 @@ class OdpsSQLCompiler(Backend):
             args.extend(func_args)
         compiled = '{0}({1}) AS ({2})'.format(
             func_name, ', '.join(args), ', '.join(expr.schema.names))
-
-        if isinstance(expr, GroupbyAppliedCollectionExpr):
-            # Hack for ODPS SQL
-            self.add_select_clause(expr, '* ')
-
-            bys, sorts, fields = tuple(expr.args[1: 4])
-
-            by_fields = [self._unquote(self._ctx.get_expr_compiled(by)) for by in bys]
-            distribute_by_clause = 'DISTRIBUTE BY {0} '.format(
-                self._join_compiled_fields(by_fields))
-
-            self.add_group_by_clause(expr, distribute_by_clause)
-
-            if sorts:
-                sort_fields = [self._ctx.get_expr_compiled(sort) for sort in sorts]
-                sort_by_clause = 'SORT BY {0}'.format(self._join_compiled_fields(sort_fields))
-
-                self.add_order_by_clause(expr, sort_by_clause)
 
         self._ctx.add_expr_compiled(expr, compiled)
         self.add_select_clause(expr, compiled)

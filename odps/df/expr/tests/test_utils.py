@@ -34,8 +34,8 @@ class Test(TestBase):
         expr = CollectionExpr(_source_data=table, _schema=schema)
 
         expected = ('_lhs', '_rhs', '_data_type', '_source_data_type', '_name',
-                    '_source_name', '_deps', '_ban_optimize', '_engine', '_cache_data',
-                    '_need_cache', '_args_indexes')
+                    '_source_name', '_deps', '_ban_optimize', '_engine',
+                    '_need_cache', '_id', '_args_indexes')
         self.assertSequenceEqual(expected, get_attrs(expr.id + 1))
 
 if __name__ == '__main__':

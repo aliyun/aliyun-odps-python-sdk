@@ -20,17 +20,16 @@
 from datetime import timedelta, datetime
 from random import randint
 from decimal import Decimal
-import functools
 import re
 
 from odps.df.backends.tests.core import TestBase, to_str, tn, pandas_case
 from odps.compat import unittest, irange as xrange, OrderedDict
-from odps.models import Schema
 from odps.df.types import validate_data_type
 from odps.df.expr.expressions import *
 from odps.df.backends.pd.engine import PandasEngine
-from odps.df.backends.odpssql.engine import ODPSEngine
+from odps.df.backends.odpssql.engine import ODPSSQLEngine
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema
+from odps.df.backends.context import context
 from odps.df import output_types, output_names, output, day, millisecond, agg
 
 TEMP_FILE_RESOURCE = tn('pyodps_tmp_file_resource')
@@ -51,7 +50,7 @@ class Test(TestBase):
         self.expr = CollectionExpr(_source_data=self.df, _schema=schema)
 
         self.engine = PandasEngine(self.odps)
-        self.odps_engine = ODPSEngine(self.odps)
+        self.odps_engine = ODPSSQLEngine(self.odps)
 
         class FakeBar(object):
             def update(self, *args, **kwargs):
@@ -80,6 +79,48 @@ class Test(TestBase):
         import pandas as pd
         self.expr._source_data = pd.DataFrame(data, columns=self.schema.names)
         return data
+
+    def testCache(self):
+        data = self._gen_data(10, value_range=(-1000, 1000))
+
+        expr = self.expr[self.expr.id < 10].cache()
+        cnt = expr.count()
+
+        dag = self.engine.compile(expr)
+        self.assertEqual(len(dag.nodes()), 2)
+
+        res = self.engine.execute(cnt)
+        self.assertEqual(len([it for it in data if it[1] < 10]), res)
+        self.assertTrue(context.is_cached(expr))
+
+        expr2 = expr['id']
+        res = self.engine.execute(expr2, _force_tunnel=True)
+        result = self._get_result(res)
+        self.assertEqual([[it[1]] for it in data if it[1] < 10], result)
+
+        expr3 = self.expr.sample(parts=10)
+        expr3.cache()
+        self.assertIsNotNone(self.engine.execute(expr3.id.sum()))
+
+    def testBatch(self):
+        data = self._gen_data(10, value_range=(-1000, 1000))
+
+        expr = self.expr[self.expr.id < 10].cache()
+        expr1 = expr.id.sum()
+        expr2 = expr.id.mean()
+
+        dag = self.engine.compile([expr1, expr2])
+        self.assertEqual(len(dag.nodes()), 3)
+        self.assertEqual(sum(len(v) for v in dag._graph.values()), 2)
+
+        expect1 = sum(d[1] for d in data if d[1] < 10)
+        length = len([d[1] for d in data if d[1] < 10])
+        expect2 = (expect1 / float(length)) if length > 0 else 0.0
+
+        res = self.engine.execute([expr1, expr2], n_parallel=2)
+        self.assertEqual(res[0], expect1)
+        self.assertAlmostEqual(res[1], expect2)
+        self.assertTrue(context.is_cached(expr))
 
     def testBase(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
@@ -361,6 +402,7 @@ class Test(TestBase):
         methods_to_fields = [
             (lambda s: s.capitalize(), self.expr.name.capitalize()),
             (lambda s: data[0][0] in s, self.expr.name.contains(data[0][0], regex=False)),
+            (lambda s: s[0] + '|' + str(s[1]), self.expr.name.cat(self.expr.id.astype('string'), sep='|')),
             (lambda s: s.count(data[0][0]), self.expr.name.count(data[0][0])),
             (lambda s: s.endswith(data[0][0]), self.expr.name.endswith(data[0][0])),
             (lambda s: s.startswith(data[0][0]), self.expr.name.startswith(data[0][0])),
@@ -401,7 +443,11 @@ class Test(TestBase):
         for i, it in enumerate(methods_to_fields):
             method = it[0]
 
-            first = [method(it[0]) for it in data]
+            if i != 2:
+                first = [method(it[0]) for it in data]
+            else:
+                # cat
+                first = [method(it) for it in data]
             second = [it[i] for it in result]
             self.assertEqual(first, second)
 
@@ -790,6 +836,31 @@ class Test(TestBase):
         result = self._get_result(res)
 
         self.assertEqual(sorted(result), sorted(expected))
+
+    def testReduceOnly(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+
+        data = self._gen_data(data=data)
+
+        df = self.expr[(self.expr.id < 10) & (self.expr.name.startswith('n'))]
+        df = df['name', 'id']
+
+        @output(['name', 'id'], ['string', 'int'])
+        def reducer(keys):
+            def h(row, done):
+                yield row
+            return h
+
+        df2 = df.map_reduce(reducer=reducer, group='name')
+        res = self.engine.execute(df2)
+        result = self._get_result(res)
+        self.assertEqual(sorted([r[:2] for r in data]), sorted(result))
 
     def testJoinMapReduce(self):
         data = [
@@ -1429,6 +1500,10 @@ class Test(TestBase):
             (lambda s: df.id.std(ddof=0), self.expr.id.std(ddof=0)),
             (lambda s: df.id.median(), self.expr.id.median()),
             (lambda s: df.id.sum(), self.expr.id.sum()),
+            (lambda s: (df.id ** 3).mean(), self.expr.id.moment(3)),
+            (lambda s: df.id.var(ddof=0), self.expr.id.moment(2, central=True)),
+            (lambda s: df.id.skew(), self.expr.id.skew()),
+            (lambda s: df.id.kurtosis(), self.expr.id.kurtosis()),
             (lambda s: df.id.min(), self.expr.id.min()),
             (lambda s: df.id.max(), self.expr.id.max()),
             (lambda s: df.isMale.min(), self.expr.isMale.min()),
@@ -1439,6 +1514,8 @@ class Test(TestBase):
             (lambda s: df.isMale.any(), self.expr.isMale.any()),
             (lambda s: df.isMale.all(), self.expr.isMale.all()),
             (lambda s: df.name.nunique(), self.expr.name.nunique()),
+            (lambda s: len(df.name.str.cat(sep='|').split('|')),
+             self.expr.name.cat(sep='|').map(lambda x: len(x.split('|')), rtype='int')),
             (lambda s: df.id.mean(), self.expr.id.agg(Agg, rtype='float')),
             (lambda s: df.id.count(), self.expr.id.count()),
         ]

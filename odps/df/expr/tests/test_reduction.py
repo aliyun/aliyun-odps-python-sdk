@@ -164,6 +164,13 @@ class Test(TestBase):
         self.assertLessEqual(len(expr.fields), len(types._data_types))
         self.assertTrue(all(isinstance(node, All) for node in expr.fields))
 
+    def testCat(self):
+        self.assertRaises(AttributeError, lambda: self.expr.int64.cat(sep=','))
+        self.assertRaises(AttributeError, lambda: self.expr.float.cat(sep=','))
+        self.assertRaises(AttributeError, lambda: self.expr.cat(sep=','))
+
+        cat = self.expr.string.cat(sep=',')
+        self.assertIsInstance(cat, StringScalar)
 
 if __name__ == '__main__':
     unittest.main()

@@ -23,6 +23,7 @@ import itertools
 import inspect
 import traceback
 import collections
+import threading
 
 from .. import types
 from ... import compat
@@ -120,3 +121,12 @@ def to_list(field):
     if isinstance(field, collections.Iterable):
         return list(field)
     return [field, ]
+
+
+_lock = threading.Lock()
+_index = itertools.count(1)
+
+
+def new_id():
+    with _lock:
+        return next(_index)

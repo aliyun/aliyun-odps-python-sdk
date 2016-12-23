@@ -304,7 +304,7 @@ class Table(LazyLoad):
 
         >>> with table.open_reader() as reader:
         >>>     count = reader.count  # How many records of a table or its partition
-        >>>     for record in record[0: count]:
+        >>>     for record in reader[0: count]:
         >>>         # read all data, actually better to split into reading for many times
         """
 

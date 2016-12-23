@@ -19,6 +19,7 @@
 """
 
 import sys
+import csv
 from datetime import datetime
 
 from ... import udf
@@ -30,14 +31,14 @@ from . import utils
 __all__ = ['get_default_runner']
 
 
-def get_default_runner(udf_class, input_col_delim=',', null_indicator='NULL'):
+def get_default_runner(udf_class, input_col_delim=',', null_indicator='NULL', stdin=None):
     """Create a default runner with specified udf class.
     """
     proto = udf.get_annotation(udf_class)
     in_types, out_types = parse_proto(proto)
-    arg_parser = ArgParser(in_types, input_col_delim, null_indicator)
-    raw_feed = make_file_raw_feed(sys.stdin)
-    stdin_feed = make_feed(raw_feed, arg_parser)
+    stdin = stdin or sys.stdin
+    arg_parser = ArgParser(in_types, stdin, input_col_delim, null_indicator)
+    stdin_feed = make_feed(arg_parser)
     collector = StdoutCollector(out_types)
     ctor = _get_runner_class(udf_class)
     return ctor(udf_class, stdin_feed, collector)
@@ -95,15 +96,9 @@ def parse_proto(proto):
     return _get_in_types(tokens[0].strip()), _get_types(tokens[1].strip())
 
 
-def make_file_raw_feed(fp):
-    for line in fp:
-        line = line.rstrip('\n') # discard \n
-        yield line
-        
-
-def make_feed(raw_feed, arg_parser):
-    for line in raw_feed:
-        yield arg_parser.parse(line)
+def make_feed(arg_parser):
+    for r in arg_parser.parse():
+        yield r
 
 
 def direct_feed(args):
@@ -115,26 +110,31 @@ class ArgParser(object):
 
     NULL_INDICATOR = 'NULL'
 
-    def __init__(self, types, delim=',', null_indicator='NULL'):
+    def __init__(self, types, fileobj, delim=',', null_indicator='NULL'):
         self.types = types
         self.delim = delim
         self.null_indicator = null_indicator
 
-    def parse(self, line):
-        tokens = []
-        for token in map(lambda s: s.strip(), line.split(self.delim)):
-            if token == self.null_indicator:
-                tokens.append(None)
-            else:
-                tokens.append(token)
-        if len(self.types) == 1 and self.types[0].typestr == '*':
-            return tokens
-        if len(self.types) == 0 and line.strip() == '':
-            return ''
+        self.reader = csv.reader(fileobj, delimiter=delim)
 
-        if len(tokens) != len(self.types):
-            raise Exception('Schema error: ' + line)
-        return map(lambda tp, data: tp.converter(data), self.types, tokens)
+    def parse(self):
+        for record in self.reader:
+            tokens = []
+            for token in record:
+                if token == self.null_indicator:
+                    tokens.append(None)
+                else:
+                    tokens.append(token)
+            if len(self.types) == 1 and self.types[0].typestr == '*':
+                yield tokens
+                continue
+            if len(self.types) == 0 and len(tokens) == 0:
+                yield ''
+                continue
+
+            if len(tokens) != len(self.types):
+                raise Exception('Schema error: %r' % record)
+            yield map(lambda tp, data: tp.converter(data), self.types, tokens)
 
 
 class ArgFormater(object):

@@ -17,43 +17,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from ..expr.core import ExprProxy, ExprDAG
-
 
 class ExecuteContext(object):
     def __init__(self):
-        self._expr_to_dag = dict()
-        self._expr_to_copied = dict()
+        self._expr_id_cached_data = dict()
 
-    def register_to_copy_expr(self, src_expr, expr=None, rebuilt=False, on_copy=None):
-        if not rebuilt and ExprProxy(src_expr) in self._expr_to_copied:
-            return self._expr_to_copied[ExprProxy(src_expr)]
+    def cache(self, expr, data):
+        self._expr_id_cached_data[expr._id] = data
 
-        if expr is None:
-            copied = src_expr.copy_tree(on_copy=on_copy)
-        else:
-            copied = expr.copy_tree(on_copy=on_copy)
+    def is_cached(self, expr):
+        return expr._id in self._expr_id_cached_data
 
-        proxy = ExprProxy(src_expr, self._expr_to_copied)
-        self._expr_to_copied[proxy] = copied
+    def get_cached(self, expr):
+        return self._expr_id_cached_data[expr._id]
 
-        return copied
-
-    def is_dag_built(self, expr):
-        return ExprProxy(expr) in self._expr_to_dag
-
-    def build_dag(self, src_expr, expr, rebuilt=False, dag=None):
-        if dag is not None:
-            return ExprDAG(expr, dag)
-        if not rebuilt and self.is_dag_built(src_expr):
-            return self.get_dag(src_expr)
-
-        dag = expr.to_dag(copy=False)
-        self._expr_to_dag[ExprProxy(src_expr, self._expr_to_dag)] = dag
-
-        return dag
-
-    def get_dag(self, expr):
-        return self._expr_to_dag[ExprProxy(expr)]
+    def uncache(self, expr):
+        if expr._id in self._expr_id_cached_data:
+            del self._expr_id_cached_data[expr._id]
 
 context = ExecuteContext()

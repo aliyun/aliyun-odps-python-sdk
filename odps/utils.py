@@ -382,7 +382,7 @@ def init_progress_bar(val=1):
     return bar
 
 
-def init_progress_ui(val=1):
+def init_progress_ui(val=1, lock=False):
     from .ui import ProgressGroupUI, html_notify
 
     progress_group = None
@@ -395,31 +395,55 @@ def init_progress_ui(val=1):
             except:
                 pass
 
+    _lock = threading.Lock() if lock else None
+
+    def lk(func):
+        def inner(*args, **kwargs):
+            if _lock:
+                with _lock:
+                    return func(*args, **kwargs)
+            else:
+                return func(*args, **kwargs)
+        return inner
+
     class ProgressUI(object):
+        @lk
         def update(self, value=None):
             if bar:
                 bar.update(value=value)
 
+        @lk
+        def inc(self, value):
+            if bar and hasattr(bar, '_current_value'):
+                current_val = bar._current_value
+                bar.update(current_val + value)
+
+        @lk
         def status(self, prefix, suffix=''):
             if progress_group:
                 progress_group.prefix = prefix
                 progress_group.suffix = suffix
 
+        @lk
         def add_keys(self, keys):
             if progress_group:
                 progress_group.add_keys(keys)
 
+        @lk
         def remove_keys(self, keys):
             if progress_group:
                 progress_group.remove_keys(keys)
 
+        @lk
         def update_group(self):
             if progress_group:
                 progress_group.update()
 
+        @lk
         def notify(self, msg):
             html_notify(msg)
 
+        @lk
         def close(self):
             if bar:
                 bar.close()

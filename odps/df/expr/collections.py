@@ -398,6 +398,34 @@ class RowAppliedCollectionExpr(CollectionExpr):
         return visitor.visit_apply_collection(self)
 
 
+def _apply_horizontal(expr, func, names=None, types=None,
+                      resources=None, collection_resources=None,
+                      args=(), **kwargs):
+    if isinstance(func, FunctionWrapper):
+        names = names or func.output_names
+        types = types or func.output_types
+        func = func._func
+
+    if names is not None:
+        if isinstance(names, list):
+            names = tuple(names)
+        elif isinstance(names, six.string_types):
+            names = (names,)
+
+    if names is None:
+        raise ValueError('Apply on rows should provide column names')
+    tps = (string,) * len(names) if types is None else tuple(validate_data_type(t) for t in types)
+    schema = Schema.from_lists(names, tps)
+
+    collection_resources = collection_resources or \
+                           utils.get_collection_resources(resources)
+    return RowAppliedCollectionExpr(_input=expr, _func=func, _func_args=args,
+                                    _func_kwargs=kwargs, _schema=schema,
+                                    _fields=[expr[n] for n in expr.schema.names],
+                                    _resources=resources,
+                                    _collection_resources=collection_resources)
+
+
 def apply(expr, func, axis=0, names=None, types=None, reduce=False,
           resources=None, args=(), **kwargs):
     """
@@ -471,12 +499,6 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
             names = [f.name for f in fields]
         return Summary(_input=expr, _fields=fields, _schema=Schema.from_lists(names, types))
     else:
-        if names is not None:
-            if isinstance(names, list):
-                names = tuple(names)
-            elif isinstance(names, six.string_types):
-                names = (names, )
-
         collection_resources = utils.get_collection_resources(resources)
 
         if types is not None:
@@ -500,16 +522,63 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
                               _inputs=inputs, _multiple=True,
                               _resources=resources, _collection_resources=collection_resources)
         else:
-            if names is None:
-                raise ValueError('Apply on rows should provide column names')
-            tps = (string, ) * len(names) if types is None else (validate_data_type(t) for t in types)
-            schema = Schema.from_lists(names, tps)
-            return RowAppliedCollectionExpr(_func=func, _func_args=args,
-                                            _func_kwargs=kwargs, _schema=schema,
-                                            _input=expr,
-                                            _fields=[expr[n] for n in expr.schema.names],
-                                            _resources=resources,
-                                            _collection_resources=collection_resources)
+            return _apply_horizontal(expr, func, names=names, types=types, resources=resources,
+                                     collection_resources=collection_resources,
+                                     args=args, **kwargs)
+
+
+class ReshuffledCollectionExpr(CollectionExpr):
+    _args = '_input', '_by', '_sort_fields'
+    node_name = 'Reshuffle'
+
+    def _init(self, *args, **kwargs):
+        from .groupby import BaseGroupBy, SortedGroupBy
+
+        self._init_attr('_sort_fields', None)
+
+        super(ReshuffledCollectionExpr, self)._init(*args, **kwargs)
+
+        if isinstance(self._input, BaseGroupBy):
+            if isinstance(self._input, SortedGroupBy):
+                self._sort_fields = self._input._sorted_fields
+            self._by = self._input._by
+            self._input = self._input._input
+
+    @property
+    def fields(self):
+        return self._by + (self._sort_fields or list())
+
+    @property
+    def input(self):
+        return self._input
+
+    def iter_args(self):
+        arg_names = ['collection', 'bys', 'sort']
+        for it in zip(arg_names, self.args):
+            yield it
+
+    def accept(self, visitor):
+        return visitor.visit_reshuffle(self)
+
+
+def reshuffle(expr, by=None, sort=None, ascending=True):
+    """
+    Reshuffle data.
+
+    :param expr:
+    :param by: the sequence or scalar to shuffle by. RandomScalar as default
+    :param sort: the sequence or scalar to sort.
+    :param ascending: True if ascending else False
+    :return: collection
+    """
+
+    by = by or RandomScalar()
+
+    grouped = expr.groupby(by)
+    if sort:
+        grouped = grouped.sort_values(sort, ascending=ascending)
+
+    return ReshuffledCollectionExpr(_input=grouped, _schema=expr._schema)
 
 
 def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending=True,
@@ -1371,6 +1440,7 @@ _collection_methods = dict(
     sort=sort_values,
     distinct=distinct,
     apply=apply,
+    reshuffle=reshuffle,
     map_reduce=map_reduce,
     sample=sample,
     __sample=__df_sample,

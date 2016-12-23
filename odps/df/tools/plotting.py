@@ -212,13 +212,13 @@ def _boxplot_collection(expr, **kwargs):
     if isinstance(column, six.string_types):
         fields.add(column)
     elif column is not None:
-        fields = fields.union(column)
+        fields = fields.union([column])
 
     by = kwargs.get('by')
     if isinstance(by, six.string_types):
         fields.add(by)
     elif by is not None:
-        fields = fields.union(by)
+        fields = fields.union([by])
 
     fields = list(fields)
     to_replace = dict()
