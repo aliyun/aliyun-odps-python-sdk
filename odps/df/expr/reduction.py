@@ -23,7 +23,7 @@ from .expressions import *
 from .groupby import *
 from . import utils
 from .. import types
-from ... import compat
+from ..utils import FunctionWrapper
 
 
 class SequenceReduction(Scalar):

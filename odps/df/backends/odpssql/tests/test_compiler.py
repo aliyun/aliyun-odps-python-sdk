@@ -246,6 +246,93 @@ class Test(TestBase):
                    "WHERE t2.`count` > 10"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.dropna(thresh=2)
+        expected = "SELECT * \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "WHERE (((((IF(t1.`name` IS NOT NULL, 1, 0) + IF(t1.`id` IS NOT NULL, 1, 0)) + IF(t1.`fid` IS NOT NULL, 1, 0)) + IF(t1.`isMale` IS NOT NULL, 1, 0)) + IF(t1.`scale` IS NOT NULL, 1, 0)) + IF(t1.`birth` IS NOT NULL, 1, 0)) >= 2"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.dropna(how='all')
+        expected = "SELECT * \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "WHERE (((((IF(t1.`name` IS NOT NULL, 1, 0) + IF(t1.`id` IS NOT NULL, 1, 0)) + IF(t1.`fid` IS NOT NULL, 1, 0)) + IF(t1.`isMale` IS NOT NULL, 1, 0)) + IF(t1.`scale` IS NOT NULL, 1, 0)) + IF(t1.`birth` IS NOT NULL, 1, 0)) >= 1"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.fillna(0, subset=['id', 'fid'])
+        expected = "SELECT t1.`name`, IF(t1.`id` IS NULL, 0, t1.`id`) AS `id`, IF(t1.`fid` IS NULL, 0, t1.`fid`) AS `fid`, t1.`isMale`, t1.`scale`, t1.`birth` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+    def testMemCacheCompilation(self):
+        cached = self.expr['name', self.expr.id + 1].cache(mem=True)
+        expr = cached.groupby('name').agg(cached.id.sum())
+
+        expected = '@c1 := CACHE ON SELECT t1.`name`, t1.`id` + 1 AS `id` ' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1;\n' \
+                   'SELECT \n' \
+                   '  t2.`name`,\n' \
+                   '  SUM(t2.`id`) AS `id_sum` \n' \
+                   'FROM @c1 t2 \n' \
+                   'GROUP BY \n' \
+                   '  t2.`name`'
+        self.assertIn(expected, repr(ODPSSQLEngine(self.odps).compile(expr).nodes()[0]))
+
+        cached = self.expr.cache(mem=True)
+        cached2 = cached['name', 'id'].cache(mem=True)
+        expr = cached2.id.sum()
+
+        expected = '@c1 := CACHE ON SELECT * FROM mocked_project.`pyodps_test_expr_table` t1;\n' \
+                   '@c2 := CACHE ON SELECT t2.`name`, t2.`id` FROM @c1 t2;\n' \
+                   'SELECT \n' \
+                   '  SUM(t3.`id`) AS `id_sum` \n' \
+                   'FROM @c2 t3'
+
+        self.assertIn(expected, repr(ODPSSQLEngine(self.odps).compile(expr).nodes()[0]))
+
+        expr2 = self.expr.view().cache(mem=True)
+        expr = self.expr.cache(mem=True).join(expr2)
+
+        expected = '@c1 := CACHE ON SELECT * FROM mocked_project.`pyodps_test_expr_table` t1;\n' \
+                   'SELECT \n' \
+                   '  t1.`name`,\n' \
+                   '  t1.`id`,\n' \
+                   '  t1.`fid`,\n' \
+                   '  t1.`isMale`,\n' \
+                   '  t1.`scale`,\n' \
+                   '  t1.`birth` \n' \
+                   'FROM @c1 t1 \n' \
+                   'INNER JOIN \n' \
+                   '  @c1 t2\n' \
+                   'ON (((((t1.`name` == t2.`name`) AND (t1.`id` == t2.`id`)) ' \
+                   'AND (t1.`fid` == t2.`fid`)) AND (t1.`isMale` == t2.`isMale`)) ' \
+                   'AND (t1.`scale` == t2.`scale`)) AND (t1.`birth` == t2.`birth`)'
+
+        self.assertIn(expected, repr(ODPSSQLEngine(self.odps).compile(expr).nodes()[0]))
+
+        expr2 = self.expr.cache(mem=True)
+        expr = self.expr.join(expr2)
+
+        self.assertIn(expected, repr(ODPSSQLEngine(self.odps).compile(expr).nodes()[0]))
+
+        expr2 = self.expr[self.expr.id + 1, ].cache(mem=True)
+        expr = self.expr.join(expr2)
+
+        expected = '@c1 := CACHE ON SELECT * FROM mocked_project.`pyodps_test_expr_table` t1;\n' \
+                   '@c3 := CACHE ON SELECT t1.`id` + 1 AS `id` FROM @c1 t1;\n' \
+                   'SELECT \n' \
+                   '  t2.`name`,\n' \
+                   '  t2.`id`,\n' \
+                   '  t2.`fid`,\n' \
+                   '  t2.`isMale`,\n' \
+                   '  t2.`scale`,\n' \
+                   '  t2.`birth` \n' \
+                   'FROM @c1 t2 \n' \
+                   'INNER JOIN \n' \
+                   '  @c3 t3\n' \
+                   'ON t2.`id` == t3.`id`'
+
+        self.assertIn(expected, repr(ODPSSQLEngine(self.odps).compile(expr).nodes()[0]))
+
     def testElementCompilation(self):
         expect = 'SELECT t1.`id` IS NULL AS `id` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
@@ -889,7 +976,7 @@ class Test(TestBase):
         expr = self.expr.groupby(['name']).mutate(lambda x: x.row_number(sort='id'))
 
         expected = 'SELECT t1.`name`, ' \
-                   'ROW_NUMBER() OVER (PARTITION BY t1.`name` ORDER BY id) AS `row_number` \n' \
+                   'ROW_NUMBER() OVER (PARTITION BY t1.`name` ORDER BY t1.`id`) AS `row_number` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
@@ -1229,11 +1316,11 @@ class Test(TestBase):
         expected = 'SELECT \n' \
                    '  LAG(\n' \
                    '      t1.`id`,\n' \
-                   '      1) OVER (PARTITION BY t1.`name` ORDER BY fid) AS `id` \n' \
+                   '      1) OVER (PARTITION BY t1.`name` ORDER BY t1.`fid`) AS `id` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr)))
 
-        expected = 'SELECT LAG(t1.`id`, 1) OVER (PARTITION BY t1.`name` ORDER BY fid) AS `id` \n' \
+        expected = 'SELECT LAG(t1.`id`, 1) OVER (PARTITION BY t1.`name` ORDER BY t1.`fid`) AS `id` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
@@ -1246,7 +1333,8 @@ class Test(TestBase):
                    '  t3.`name` \n' \
                    'FROM (\n' \
                    '  SELECT {0}(t2.`name`, t2.`id`, t2.`fid`, t2.`isMale`, ' \
-                   'CAST(t2.`scale` AS STRING), t2.`birth`) AS (name, id, fid, isMale, scale, birth) \n' \
+                   'CAST(t2.`scale` AS STRING), t2.`birth`) AS (`name`, `id`, `fid`, ' \
+                   '`isMale`, `scale`, `birth`) \n' \
                    '  FROM (\n' \
                    '    SELECT * \n' \
                    '    FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
@@ -1261,6 +1349,10 @@ class Test(TestBase):
         res = engine.compile(expr)
         fun_name = list(engine._ctx._registered_funcs.values())[0]
         self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
+
+        expr2 = expr.join(expr.view())
+        engine.compile(expr2)
+        self.assertEqual(len(engine._ctx._registered_funcs.values()), 1)
 
         from odps.config import options
         options.df.quote = False
@@ -1711,7 +1803,7 @@ class Test(TestBase):
                    "FROM (\n" \
                    "  SELECT {0}(" \
                    "t4.`name`, t4.`id`, t4.`fid`, t4.`isMale`, CAST(t4.`scale` AS STRING), " \
-                   "t4.`birth`, t4.`new_id`) AS (name, id, fid, isMale, scale, birth, new_id) \n" \
+                   "t4.`birth`, t4.`new_id`) AS (`name`, `id`, `fid`, `isMale`, `scale`, `birth`, `new_id`) \n" \
                    "  FROM (\n" \
                    "    SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, " \
                    "t1.`scale`, t1.`birth`, t3.`new_id` \n" \

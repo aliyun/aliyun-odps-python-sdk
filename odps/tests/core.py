@@ -24,6 +24,7 @@ import warnings
 
 from .. import compat, utils
 from .. import ODPS
+from ..errors import InternalServerError
 from ..tunnel import TableTunnel
 from ..compat import six, ConfigParser
 
@@ -277,3 +278,14 @@ class TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
             if countdown <= 0:
                 raise SystemError('Waiting for container content time out.')
 
+
+try:
+    from flaky import flaky
+
+    def is_internal_error(err, *args):
+        return issubclass(err[0], InternalServerError)
+
+    TestBase = flaky(max_runs=3, rerun_filter=is_internal_error)(TestBase)
+
+except ImportError:
+    pass

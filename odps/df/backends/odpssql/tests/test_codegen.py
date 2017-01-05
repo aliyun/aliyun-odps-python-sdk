@@ -18,7 +18,7 @@
 # under the License.
 
 from odps.tests.core import TestBase
-from odps.compat import unittest, six
+from odps.compat import unittest, six, PY26
 from odps.models import Schema
 from odps.udf.tools import runners
 from odps.df.types import validate_data_type
@@ -33,6 +33,7 @@ import base64
 from collections import namedtuple
 import inspect
 import functools
+from odps.compat import OrderedDict
 from odps.lib.cloudpickle import *
 from odps.lib.importer import *
 
@@ -43,6 +44,9 @@ if PY2:
 else:
     string_type = str
 """, globals(), locals())
+
+from odps.df.backends.odpssql.codegen import X_NAMED_TUPLE
+six.exec_(X_NAMED_TUPLE, globals(), locals())
 
 
 class ODPSEngine(ODPSSQLEngine):
@@ -173,6 +177,25 @@ class Test(TestBase):
         udtf = locals()[UDF_CLASS_NAME]
         self.assertEqual(['name1', 'name2', 'name3', 'name4'],
                          runners.simple_run(udtf, [('name1,name2', 1, None), ('name3,name4', 2, None)]))
+
+    @unittest.skipIf(PY26, 'Ignored under Python 2.6')
+    def testBizarreField(self):
+        def my_func(row):
+            return getattr(row, '012') * 2.0
+
+        datatypes = lambda *types: [validate_data_type(t) for t in types]
+        schema = Schema.from_lists(['name', 'id', 'fid', '012'],
+                                   datatypes('string', 'int64', 'float64', 'float64'))
+
+        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        expr = CollectionExpr(_source_data=table, _schema=schema)
+
+        self.engine.compile(expr.apply(my_func, axis=1, names=['out_col'], types=['float64']))
+        udtf = list(self.engine._ctx._func_to_udfs.values())[0]
+        six.exec_(udtf, globals(), locals())
+        udtf = locals()[UDF_CLASS_NAME]
+        self.assertEqual([20, 40],
+                         runners.simple_run(udtf, [('name1', 1, None, 10), ('name2', 2, None, 20)]))
 
 if __name__ == '__main__':
     unittest.main()

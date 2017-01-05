@@ -21,6 +21,7 @@ import time
 
 from odps.tests.core import tn, pandas_case
 from odps.df.backends.tests.core import TestBase
+from odps.config import options
 from odps.compat import unittest
 from odps.models import Schema, Instance
 from odps.errors import ODPSError
@@ -444,6 +445,28 @@ class Test(TestBase):
 
         fs = self.engine.execute(expr2, async=True)
         self.assertRaises(RuntimeError, fs.result)
+
+    def testAppendIDCache(self):
+        options.runner.dry_run = False
+
+        @output(self.odps_df.schema.names + ['id1'], self.odps_df.schema.types + ['int'])
+        def h(row):
+            yield row
+
+        expr1 = self.odps_df.append_id(id_col='id1').apply(h, axis=1)
+        expr2 = self.odps_df.append_id(id_col='id2')
+        expr3 = expr1.join(expr2, on='id')['id1', 'id2']
+        self.assertEqual(len(expr3.execute()), 3)
+
+    def testAppendId(self):
+        options.runner.dry_run = False
+
+        expr = self.odps_df['name',].distinct()
+        expr = expr.append_id(id_col='id2')
+        expr = expr.join(self.odps_df, on=['name'])
+        tablename = tn('pyodps_test_append_id_persist')
+        self.odps.delete_table(tablename, if_exists=True)
+        expr.persist(tablename, partitions=['name'])
 
 if __name__ == '__main__':
     unittest.main()

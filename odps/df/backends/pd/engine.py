@@ -20,13 +20,16 @@
 import itertools
 
 from .compiler import PandasCompiler
+from .types import pd_to_df_schema
 from ..core import Engine, ExecuteNode, ExprDAG
 from ..frame import ResultFrame
 from ... import DataFrame
 from ...expr.core import ExprDictionary
 from ...expr.expressions import *
+from ...expr.dynamic import DynamicMixin
 from ...backends.odpssql.types import df_schema_to_odps_schema, df_type_to_odps_type
 from ..errors import CompileError
+from ..utils import refresh_dynamic
 from ...utils import is_source_collection, is_constant_scalar
 from ....models import Schema, Partition
 from ....errors import ODPSError
@@ -113,6 +116,9 @@ class PandasEngine(Engine):
 
             def callback(res):
                 sub._source_data = res
+                if isinstance(expr, DynamicMixin):
+                    sub._schema = pd_to_df_schema(res)
+                    refresh_dynamic(sub, expr_dag)
 
             execute_node.callback = callback
         else:
@@ -129,7 +135,7 @@ class PandasEngine(Engine):
 
             execute_node.callback = callback
 
-        return sub
+        return sub, execute_node
 
     def _do_execute(self, expr_dag, expr, ui=None, progress_proportion=1,
                     head=None, tail=None, **kw):

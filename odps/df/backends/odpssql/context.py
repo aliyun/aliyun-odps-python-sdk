@@ -25,10 +25,13 @@ from .... import tempobj
 from ....compat import OrderedDict, six
 from ....utils import TEMP_TABLE_PREFIX
 from ....errors import ODPSError
-from ...expr.core import ExprProxy
 
 
 UDF_CLASS_NAME = 'PyOdpsFunc'
+
+expr_to_sql = dict()
+expr_deps = dict()
+expr_ref_name = dict()
 
 
 class ODPSContext(object):
@@ -45,6 +48,7 @@ class ODPSContext(object):
         self._need_alias_column_indexes = dict()
 
         self._select_index = itertools.count(1)
+        self._expr_ref_index = itertools.count(1)
 
         self._func_to_udfs = OrderedDict()
         self._registered_funcs = OrderedDict()
@@ -61,6 +65,9 @@ class ODPSContext(object):
 
     def new_alias_table_name(self):
         return 't%s' % next(self._index)
+
+    def new_ref_name(self):
+        return '@c%d' % next(self._expr_ref_index)
 
     def register_collection(self, expr):
         expr_id = id(expr)
@@ -148,6 +155,55 @@ class ODPSContext(object):
         for col_id, column in six.iteritems(self._need_alias_columns):
             symbol = self._need_alias_column_indexes[col_id]
             yield symbol, column
+
+
+    #####################################
+    # mem cache relatives
+    #####################################
+
+    def register_mem_cache_sql(self, expr, sql):
+        expr_to_sql[expr._id] = sql
+
+    def is_expr_mem_cached(self, expr):
+        return expr._id in expr_to_sql
+
+    def get_mem_cached_sql(self, expr):
+        return expr_to_sql[expr._id]
+
+    def register_mem_cache_dep(self, expr, dep):
+        if expr._id not in expr_deps:
+            expr_deps[expr._id] = set()
+        expr_deps[expr._id].add(dep._id)
+
+    def get_mem_cache_ref_name(self, expr, create=True):
+        if not create:
+            return expr_ref_name[expr._id]
+        ref_name = expr_ref_name.get(expr._id, self.new_ref_name())
+        if expr._id not in expr_ref_name:
+            expr_ref_name[expr._id] = ref_name
+        return ref_name
+
+    def get_mem_cache_dep_sqls(self, *expr_ids):
+        sqls = []
+        fetched = dict()
+
+        def h(eid):
+            if eid in expr_deps:
+                for dep_id in expr_deps[eid]:
+                    if dep_id not in fetched:
+                        h(dep_id)
+
+            if eid not in fetched:
+                origin_sql = expr_to_sql[eid]
+                sql = '{0} := CACHE ON {1}'.format(
+                    expr_ref_name[eid], origin_sql
+                )
+                sqls.append(sql)
+                fetched[eid] = True
+
+        for expr_id in expr_ids:
+            h(expr_id)
+        return sqls
 
     def _drop_silent(self, obj):
         try:

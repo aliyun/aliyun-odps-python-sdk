@@ -432,6 +432,33 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         self.assertEqual(len(res), 1)
 
+    def testFunctions(self):
+        data = self._gen_data(5, value_range=(-1000, 1000))
+
+        f = lambda x: x + 1
+
+        expr = self.expr[self.expr.id.map(f).rename('id1'),
+                         self.expr.fid.map(f).rename('id2'),
+                         (self.expr.id + 1).map(f).rename('id3')]
+        expected = [[r[1] + 1, r[2] + 1, r[1] + 2] for r in data]
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual(expected, result)
+        self.assertEqual(len(self.engine._ctx._registered_funcs.values()), 2)
+
+        self.engine._ctx._registered_funcs.clear()
+
+        def h(row):
+            yield row
+
+        expr1 = self.expr['name', 'id'].apply(h, axis=1, names=['name', 'id'], types=['string', 'int'])
+        expr2 = self.expr['id', 'name'].apply(h, axis=1, names=['id', 'name'], types=['int', 'string'])
+        expr3 = expr1.join(expr2)
+        self.assertEqual(len(self.engine.execute(expr3)), 5)
+
+        self.assertEqual(len(self.engine._ctx._registered_funcs.values()), 2)
+
     def testElement(self):
         data = self._gen_data(5, nullable_field='name')
 
@@ -1185,6 +1212,19 @@ class Test(TestBase):
         self.assertEqual(res.schema.names, ['id', 'name1_fid_my_sum', 'name2_fid_my_sum',
                                             'name1_fid_mean', 'name2_fid_mean'])
         self.assertEqual(result, expected)
+
+        expr7 = expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum']).cache()
+        self.assertEqual(len(self.engine.execute(expr7)), 3)
+
+        expr5 = self.expr.pivot_table(rows='id', values='fid', columns='name').cache()
+        expr6 = expr5[expr5['name1_fid_mean'].rename('tname1'), expr5['name2_fid_mean'].rename('tname2')]
+
+        @output(['tname1', 'tname2'], ['float', 'float'])
+        def h(row):
+            yield row.tname1, row.tname2
+
+        expr6 = expr6.map_reduce(mapper=h)
+        self.assertEqual(len(self.engine.execute(expr6)), 3)
 
     def testExtractKV(self):
         from odps.df import DataFrame
@@ -1955,6 +1995,26 @@ class Test(TestBase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], 14)
 
+    def testScaleMapReduce(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        scaled = self.expr.min_max_scale()
+
+        @output(scaled.schema.names, scaled.schema.types)
+        def h(row):
+            yield row
+
+        df = scaled.map_reduce(mapper=h)
+
+        self.assertEqual(len(self.engine.execute(df)), 5)
+
     def testDistributeSort(self):
         data = [
             ['name', 4, 5.3, None, None, None],
@@ -2078,6 +2138,10 @@ class Test(TestBase):
 
             grouped = self.expr.groupby('name').agg(new_id=self.expr.id.sum()).cache()
             self.engine.execute(self.expr.join(grouped, on='name'))
+
+            expr = self.expr.join(expr2, on=['name', ('id', 'id2')])[
+                lambda x: x.groupby(Scalar(1)).sort('name').row_number(), ]
+            self.engine.execute(expr)
         finally:
             table2.drop()
 
@@ -2296,7 +2360,7 @@ class Test(TestBase):
         kv_cols = ['k1', 'k2', 'k3', 'k5', 'k7', 'k9']
         schema = Schema.from_lists(['name'] + kv_cols,
                                    [odps_types.string] + [odps_types.double] * 6)
-        table_name = tn('pyodps_test_mixed_engine_make_kv')
+        table_name = tn('pyodps_test_engine_make_kv')
         self.odps.delete_table(table_name, if_exists=True)
         table = self.odps.create_table(name=table_name, schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
@@ -2329,7 +2393,7 @@ class Test(TestBase):
         ]
         schema = Schema.from_lists(['name', 'k1', 'k2', 'k3'],
                                    [types.string, types.double, types.double, types.double])
-        table_name = tn('pyodps_test_mixed_engine_make_kv')
+        table_name = tn('pyodps_test_engine_melt')
         self.odps.delete_table(table_name, if_exists=True)
         table = self.odps.create_table(name=table_name, schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
@@ -2349,6 +2413,97 @@ class Test(TestBase):
             ]
 
             self.assertListEqual(result, expected)
+        finally:
+            table.drop()
+
+    def testCollectionNa(self):
+        from odps.compat import reduce
+
+        data = [
+            [0, 'name1', 1.0, None, 3.0, 4.0],
+            [1, 'name1', 2.0, None, None, 1.0],
+            [2, 'name1', 3.0, 4.0, 1.0, None],
+            [3, 'name1', None, 1.0, 2.0, 3.0],
+            [4, 'name1', 1.0, None, 3.0, 4.0],
+            [5, 'name1', 1.0, 2.0, 3.0, 4.0],
+            [6, 'name1', None, None, None, None],
+        ]
+
+        schema = Schema.from_lists(['rid', 'name', 'f1', 'f2', 'f3', 'f4'],
+                                   [types.bigint, types.string] + [types.double] * 4)
+
+        table_name = tn('pyodps_test_engine_collection_na')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(name=table_name, schema=schema)
+        expr = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
+
+        try:
+            self.odps.write_table(table, 0, data)
+
+            exprs = [
+                expr[Scalar(0).rename('gidx'), expr].fillna(100, subset=['f1', 'f2', 'f3', 'f4']),
+                expr[Scalar(1).rename('gidx'), expr].fillna(expr.f3, subset=['f1', 'f2', 'f3', 'f4']),
+                expr[Scalar(2).rename('gidx'), expr].fillna(method='ffill', subset=['f1', 'f2', 'f3', 'f4']),
+                expr[Scalar(3).rename('gidx'), expr].fillna(method='bfill', subset=['f1', 'f2', 'f3', 'f4']),
+                expr[Scalar(4).rename('gidx'), expr].dropna(thresh=3, subset=['f1', 'f2', 'f3', 'f4']),
+                expr[Scalar(5).rename('gidx'), expr].dropna(how='any', subset=['f1', 'f2', 'f3', 'f4']),
+                expr[Scalar(6).rename('gidx'), expr].dropna(how='all', subset=['f1', 'f2', 'f3', 'f4']),
+            ]
+
+            uexpr = reduce(lambda a, b: a.union(b), exprs).sort(['gidx', 'rid'])
+
+            ures = self.engine.execute(uexpr)
+            uresult = self._get_result(ures)
+
+            expected = [
+                [0, 0, 'name1', 1.0, 100.0, 3.0, 4.0],
+                [0, 1, 'name1', 2.0, 100.0, 100.0, 1.0],
+                [0, 2, 'name1', 3.0, 4.0, 1.0, 100.0],
+                [0, 3, 'name1', 100.0, 1.0, 2.0, 3.0],
+                [0, 4, 'name1', 1.0, 100.0, 3.0, 4.0],
+                [0, 5, 'name1', 1.0, 2.0, 3.0, 4.0],
+                [0, 6, 'name1', 100.0, 100.0, 100.0, 100.0],
+
+                [1, 0, 'name1', 1.0, 3.0, 3.0, 4.0],
+                [1, 1, 'name1', 2.0, None, None, 1.0],
+                [1, 2, 'name1', 3.0, 4.0, 1.0, 1.0],
+                [1, 3, 'name1', 2.0, 1.0, 2.0, 3.0],
+                [1, 4, 'name1', 1.0, 3.0, 3.0, 4.0],
+                [1, 5, 'name1', 1.0, 2.0, 3.0, 4.0],
+                [1, 6, 'name1', None, None, None, None],
+
+                [2, 0, 'name1', 1.0, 1.0, 3.0, 4.0],
+                [2, 1, 'name1', 2.0, 2.0, 2.0, 1.0],
+                [2, 2, 'name1', 3.0, 4.0, 1.0, 1.0],
+                [2, 3, 'name1', None, 1.0, 2.0, 3.0],
+                [2, 4, 'name1', 1.0, 1.0, 3.0, 4.0],
+                [2, 5, 'name1', 1.0, 2.0, 3.0, 4.0],
+                [2, 6, 'name1', None, None, None, None],
+
+                [3, 0, 'name1', 1.0, 3.0, 3.0, 4.0],
+                [3, 1, 'name1', 2.0, 1.0, 1.0, 1.0],
+                [3, 2, 'name1', 3.0, 4.0, 1.0, None],
+                [3, 3, 'name1', 1.0, 1.0, 2.0, 3.0],
+                [3, 4, 'name1', 1.0, 3.0, 3.0, 4.0],
+                [3, 5, 'name1', 1.0, 2.0, 3.0, 4.0],
+                [3, 6, 'name1', None, None, None, None],
+
+                [4, 0, 'name1', 1.0, None, 3.0, 4.0],
+                [4, 2, 'name1', 3.0, 4.0, 1.0, None],
+                [4, 3, 'name1', None, 1.0, 2.0, 3.0],
+                [4, 4, 'name1', 1.0, None, 3.0, 4.0],
+                [4, 5, 'name1', 1.0, 2.0, 3.0, 4.0],
+
+                [5, 5, 'name1', 1.0, 2.0, 3.0, 4.0],
+
+                [6, 0, 'name1', 1.0, None, 3.0, 4.0],
+                [6, 1, 'name1', 2.0, None, None, 1.0],
+                [6, 2, 'name1', 3.0, 4.0, 1.0, None],
+                [6, 3, 'name1', None, 1.0, 2.0, 3.0],
+                [6, 4, 'name1', 1.0, None, 3.0, 4.0],
+                [6, 5, 'name1', 1.0, 2.0, 3.0, 4.0],
+            ]
+            self.assertListEqual(uresult, expected)
         finally:
             table.drop()
 

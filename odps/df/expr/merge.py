@@ -124,7 +124,7 @@ class JoinCollectionExpr(CollectionExpr):
         has_path = False
 
         for expr in root.traverse(top_down=True, unique=True,
-                                  stop_cond=lambda x: isinstance(x, Column)):
+                                  stop_cond=lambda x: isinstance(x, Column) or x is self):
             if isinstance(expr, Column):
                 if self._is_column(expr, self):
                     has_path = True

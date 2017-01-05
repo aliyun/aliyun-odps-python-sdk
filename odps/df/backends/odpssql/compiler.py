@@ -27,12 +27,14 @@ from ...expr.merge import JoinCollectionExpr, UnionCollectionExpr
 from ...expr.element import MappedExpr
 from ...expr.window import CumSum
 from ...expr.datetimes import DTScalar
+from ...expr.collections import RowAppliedCollectionExpr
 from ...expr import element
 from ...expr import strings
 from ...expr import datetimes
 from ...utils import is_source_collection, traverse_until_source
 from ... import types as df_types
 from . import types
+from .models import MemCacheReference
 from ..core import Backend
 from .... import utils
 from ....models import Function
@@ -120,6 +122,9 @@ class OdpsSQLCompiler(Backend):
         # When everything are done, we use the callbacks to substitute back the original children
         # of the `join` or `union` node.
         self._callbacks = list()
+
+        # store the expr ids to do mem cache
+        self._mem_ref_caches = set()
 
         self._re_init()
 
@@ -281,6 +286,13 @@ class OdpsSQLCompiler(Backend):
             symbol_columns = dict(self._ctx.get_all_need_alias_column_symbols())
             sql = self._fill_back_columns(sql, symbol_columns)
             sql = self._re_join_select_fields(sql, symbol_columns)
+
+            if self._mem_ref_caches:
+                dep_sqls = self._ctx.get_mem_cache_dep_sqls(*self._mem_ref_caches)
+                dep_sqls = [dep_sql if dep_sql.endswith(';') else dep_sql + ';'
+                            for dep_sql in dep_sqls]
+                return '\n'.join(dep_sqls + [sql,])
+
             return sql
         finally:
             self._cleanup()
@@ -447,17 +459,22 @@ class OdpsSQLCompiler(Backend):
         self._limit = limit
 
     def visit_source_collection(self, expr):
-        alias = self._ctx.register_collection(expr)
-
         source_data = expr._source_data
-        if options.df.quote:
-            name = '%s.`%s`' % (source_data.project.name, source_data.name)
+        alias = self._ctx.register_collection(expr)
+        if isinstance(source_data, MemCacheReference):
+            from_clause = '{0} {1}'.format(source_data.ref_name, alias)
+            self.add_from_clause(expr, from_clause)
+            self._ctx.add_expr_compiled(expr, from_clause)
+            self._mem_ref_caches.add(source_data.expr_id)
         else:
-            name = '.'.join((source_data.project.name, source_data.name))
+            if options.df.quote:
+                name = '%s.`%s`' % (source_data.project.name, source_data.name)
+            else:
+                name = '.'.join((source_data.project.name, source_data.name))
 
-        from_clause = '{0} {1}'.format(name, alias)
-        self.add_from_clause(expr, from_clause)
-        self._ctx.add_expr_compiled(expr, from_clause)
+            from_clause = '{0} {1}'.format(name, alias)
+            self.add_from_clause(expr, from_clause)
+            self._ctx.add_expr_compiled(expr, from_clause)
 
     def _compile_select_field(self, field):
         compiled = self._ctx.get_expr_compiled(field)
@@ -1046,7 +1063,8 @@ class OdpsSQLCompiler(Backend):
             func_args = [repr(arg) for arg in expr._func_args]
             args.extend(func_args)
         compiled = '{0}({1}) AS ({2})'.format(
-            func_name, ', '.join(args), ', '.join(expr.schema.names))
+            func_name, ', '.join(args),
+            ', '.join(self._quote(n) for n in expr.schema.names))
 
         self._ctx.add_expr_compiled(expr, compiled)
         self.add_select_clause(expr, compiled)
@@ -1063,6 +1081,13 @@ class OdpsSQLCompiler(Backend):
         compiled = self._wrap_typed(expr, compiled)
 
         self._ctx.add_expr_compiled(expr, compiled)
+
+    def _compile_window_order_by(self, expr):
+        if isinstance(expr.input, SequenceExpr):
+            compiled = self._ctx.get_expr_compiled(expr.input)
+            return '%s DESC' % compiled if not expr._ascending else compiled
+        else:
+            return self._ctx.get_expr_compiled(expr)
 
     def _compile_window_function(self, func, args, partition_by=None,
                                  order_by=None, preceding=None, following=None):
@@ -1099,7 +1124,7 @@ class OdpsSQLCompiler(Backend):
 
         partition_by = ', '.join(self._ctx.get_expr_compiled(by)
                                  for by in expr._partition_by) if expr._partition_by else None
-        order_by = ', '.join(self._ctx.get_expr_compiled(by)
+        order_by = ', '.join(self._compile_window_order_by(by)
                              for by in expr._order_by) if expr._order_by else None
 
         func_name = WINDOW_COMPILE_DIC[expr.node_name].upper()
@@ -1114,7 +1139,7 @@ class OdpsSQLCompiler(Backend):
 
         partition_by = ', '.join(self._ctx.get_expr_compiled(by)
                                  for by in expr._partition_by) if expr._partition_by else None
-        order_by = ', '.join(self._ctx.get_expr_compiled(by)
+        order_by = ', '.join(self._compile_window_order_by(by)
                              for by in expr._order_by) if expr._order_by else None
 
         compiled = self._compile_window_function(func_name, '', partition_by=partition_by,
@@ -1135,7 +1160,7 @@ class OdpsSQLCompiler(Backend):
 
         partition_by = ', '.join(self._ctx.get_expr_compiled(by)
                                  for by in expr._partition_by) if expr._partition_by else None
-        order_by = ', '.join(self._ctx.get_expr_compiled(by)
+        order_by = ', '.join(self._compile_window_order_by(by)
                              for by in expr._order_by) if expr._order_by else None
 
         compiled = self._compile_window_function(func_name, col_compiled, partition_by=partition_by,

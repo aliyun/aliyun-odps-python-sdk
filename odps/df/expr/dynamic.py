@@ -86,6 +86,9 @@ def to_dynamic(func):
             return new_res
         return res
 
+    inner.__name__ = func.__name__
+    inner.__doc__ = func.__doc__
+
     return inner
 
 

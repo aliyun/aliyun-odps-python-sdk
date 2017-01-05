@@ -85,14 +85,14 @@ define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], f
                 if (cell_element.hasClass('running'))
                     window.setTimeout(notifier, 100);
                 else {
-                    // make sure that notification will reoccur when rerun this cell.
-                    view_prompts[view_name] = undefined;
                     // ensure that notifications for a cell appear only once.
                     var prompt_num = cell_element.data('cell').input_prompt_number;
                     if (prompt_num !== view_prompts[view_name].prompt_num) {
                         view_prompts[view_name].prompt_num = prompt_num;
                         view_prompts[view_name].func.apply(_widget);
                     }
+                    // make sure that notification will reoccur when rerun this cell.
+                    view_prompts[view_name] = undefined;
                 }
             };
             window.setTimeout(notifier, 100);

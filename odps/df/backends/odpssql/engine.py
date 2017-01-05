@@ -34,7 +34,9 @@ from ....ui import reload_instance_status, fetch_instance_group
 from ...core import DataFrame
 from ...expr.reduction import *
 from ...expr.core import ExprDAG
+from ...expr.dynamic import DynamicMixin
 from ...utils import is_source_collection, is_constant_scalar
+from ..utils import refresh_dynamic
 from ..core import Engine, ExecuteNode
 from ..frame import ResultFrame
 from ..context import context
@@ -46,6 +48,7 @@ from .context import ODPSContext, UDF_CLASS_NAME
 from .compiler import OdpsSQLCompiler
 from .codegen import gen_udf
 from .tunnel import TunnelEngine
+from .models import MemCacheReference
 
 
 class SQLExecuteNode(ExecuteNode):
@@ -195,7 +198,46 @@ class ODPSSQLEngine(Engine):
 
         return backend.compile(expr)
 
+    def _mem_cache(self, expr_dag, expr):
+        engine = self
+        root = expr
+
+        def _sub():
+            ref_name = self._ctx.get_mem_cache_ref_name(root)
+            sub = CollectionExpr(_source_data=MemCacheReference(root._id, ref_name),
+                                 _schema=expr_dag.root.schema, _id=expr_dag.root._id)
+            expr_dag.substitute(expr_dag.root, sub)
+            return sub
+
+        if self._ctx.is_expr_mem_cached(expr):
+            if is_source_collection(expr) and \
+                    isinstance(expr._source_data, MemCacheReference):
+                return
+            _sub()
+            return
+
+        class MemCacheCompiler(OdpsSQLCompiler):
+            def visit_source_collection(self, expr):
+                if isinstance(expr._source_data, MemCacheReference):
+                    alias = self._ctx.register_collection(expr)
+                    from_clause = '{0} {1}'.format(expr._source_data.ref_name, alias)
+                    self.add_from_clause(expr, from_clause)
+                    self._ctx.add_expr_compiled(expr, from_clause)
+                    engine._ctx.register_mem_cache_dep(root, expr)
+                else:
+                    super(MemCacheCompiler, self).visit_source_collection(expr)
+
+        compiler = MemCacheCompiler(self._ctx, indent_size=0)
+        sql = compiler.compile(expr_dag.root).replace('\n', '')
+        self._ctx.register_mem_cache_sql(root, sql)
+        sub = _sub()
+
+        return sub, None
+
     def _cache(self, expr_dag, dag, expr, **kwargs):
+        if isinstance(expr, CollectionExpr) and expr._mem_cache:
+            return self._mem_cache(expr_dag, expr)
+
         # prevent the `partition` and `partitions` kwargs come from `persist`
         kwargs.pop('partition', None)
         kwargs.pop('partitions', None)
@@ -217,7 +259,14 @@ class ODPSSQLEngine(Engine):
             kw = dict(kwargs)
             kw['lifecycle'] = options.temp_lifecycle
 
-            self._persist(table_name, execute_dag, dag, expr, **kw)
+            execute_node = self._persist(table_name, execute_dag, dag, expr, **kw)
+
+            def callback(_):
+                if isinstance(expr, DynamicMixin):
+                    sub._schema = types.odps_schema_to_df_schema(table.schema)
+                    refresh_dynamic(sub, expr_dag)
+
+            execute_node.callback = callback
         else:
             assert isinstance(expr, Scalar)  # sequence is not cache-able
 
@@ -231,7 +280,7 @@ class ODPSSQLEngine(Engine):
                 sub._value = res
             execute_node.callback = callback
 
-        return sub
+        return sub, execute_node
 
     def _do_execute(self, expr_dag, expr, ui=None, progress_proportion=1,
                     lifecycle=None, head=None, tail=None,

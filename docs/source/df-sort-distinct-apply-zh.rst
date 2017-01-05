@@ -185,7 +185,7 @@
 数据缩放
 --------
 
-DataFrame 支持通过最大/最小值或平均值/标准差对数据进行缩放。例如，
+DataFrame 支持通过最大/最小值或平均值/标准差对数据进行缩放。例如，对数据
 
 .. code:: python
 
@@ -247,6 +247,118 @@ std_scale 可依照标准正态分布对数据进行调整。例如，
     4  name1   3  0.236893
 
 std_scale 同样支持 preserve 参数保留原始列，具体请参考 min_max_scale，此处不再赘述。
+
+空值处理
+--------
+
+DataFrame 支持筛去空值以及填充空值的功能。例如，对数据
+
+.. code:: python
+
+       id   name   f1   f2   f3   f4
+    0   0  name1  1.0  NaN  3.0  4.0
+    1   1  name1  2.0  NaN  NaN  1.0
+    2   2  name1  3.0  4.0  1.0  NaN
+    3   3  name1  NaN  1.0  2.0  3.0
+    4   4  name1  1.0  NaN  3.0  4.0
+    5   5  name1  1.0  2.0  3.0  4.0
+    6   6  name1  NaN  NaN  NaN  NaN
+
+使用 dropna 可删除 subset 中包含空值的行：
+
+.. code:: python
+
+    >>> df.dropna(subset=['f1', 'f2', 'f3', 'f4'])
+       id   name   f1   f2   f3   f4
+    0   5  name1  1.0  2.0  3.0  4.0
+
+如果行中包含非空值则不删除，可以使用 how='all'：
+
+.. code:: python
+
+    >>> df.dropna(how='all', subset=['f1', 'f2', 'f3', 'f4'])
+       id   name   f1   f2   f3   f4
+    0   0  name1  1.0  NaN  3.0  4.0
+    1   1  name1  2.0  NaN  NaN  1.0
+    2   2  name1  3.0  4.0  1.0  NaN
+    3   3  name1  NaN  1.0  2.0  3.0
+    4   4  name1  1.0  NaN  3.0  4.0
+    5   5  name1  1.0  2.0  3.0  4.0
+
+你也可以使用 thresh 参数来指定行中至少要有多少个非空值。例如：
+
+.. code:: python
+
+    >>> df.dropna(thresh=3, subset=['f1', 'f2', 'f3', 'f4'])
+       id   name   f1   f2   f3   f4
+    0   0  name1  1.0  NaN  3.0  4.0
+    2   2  name1  3.0  4.0  1.0  NaN
+    3   3  name1  NaN  1.0  2.0  3.0
+    4   4  name1  1.0  NaN  3.0  4.0
+    5   5  name1  1.0  2.0  3.0  4.0
+
+使用 fillna 可使用常数或已有的列填充未知值。下面给出了使用常数填充的例子：
+
+.. code:: python
+
+    >>> df.fillna(100, subset=['f1', 'f2', 'f3', 'f4'])
+       id   name     f1     f2     f3     f4
+    0   0  name1    1.0  100.0    3.0    4.0
+    1   1  name1    2.0  100.0  100.0    1.0
+    2   2  name1    3.0    4.0    1.0  100.0
+    3   3  name1  100.0    1.0    2.0    3.0
+    4   4  name1    1.0  100.0    3.0    4.0
+    5   5  name1    1.0    2.0    3.0    4.0
+    6   6  name1  100.0  100.0  100.0  100.0
+
+你也可以使用一个已有的列来填充未知值。例如：
+
+.. code:: python
+
+    >>> df.fillna(df.f2, subset=['f1', 'f2', 'f3', 'f4'])
+       id   name   f1   f2   f3   f4
+    0   0  name1  1.0  NaN  3.0  4.0
+    1   1  name1  2.0  NaN  NaN  1.0
+    2   2  name1  3.0  4.0  1.0  4.0
+    3   3  name1  1.0  1.0  2.0  3.0
+    4   4  name1  1.0  NaN  3.0  4.0
+    5   5  name1  1.0  2.0  3.0  4.0
+    6   6  name1  NaN  NaN  NaN  NaN
+
+特别地，DataFrame 提供了向前 / 向后填充的功能。通过指定 method 参数为下列值可以达到目的：
+
+================== ==============
+ 取值               含义
+================== ==============
+ bfill / backfill   向前填充
+ ffill / pad        向后填充
+================== ==============
+
+例如：
+
+.. code:: python
+
+    >>> df.fillna(method='bfill', subset=['f1', 'f2', 'f3', 'f4'])
+       id   name   f1   f2   f3   f4
+    0   0  name1  1.0  3.0  3.0  4.0
+    1   1  name1  2.0  1.0  1.0  1.0
+    2   2  name1  3.0  4.0  1.0  NaN
+    3   3  name1  1.0  1.0  2.0  3.0
+    4   4  name1  1.0  3.0  3.0  4.0
+    5   5  name1  1.0  2.0  3.0  4.0
+    6   6  name1  NaN  NaN  NaN  NaN
+    >>> df.fillna(method='ffill', subset=['f1', 'f2', 'f3', 'f4'])
+       id   name   f1   f2   f3   f4
+    0   0  name1  1.0  1.0  3.0  4.0
+    1   1  name1  2.0  2.0  2.0  1.0
+    2   2  name1  3.0  4.0  1.0  1.0
+    3   3  name1  NaN  1.0  2.0  3.0
+    4   4  name1  1.0  1.0  3.0  4.0
+    5   5  name1  1.0  2.0  3.0  4.0
+    6   6  name1  NaN  NaN  NaN  NaN
+
+你也可以使用 ffill / bfill 函数来简化代码。ffill 等价于 fillna(method='ffill')，
+bfill 等价于 fillna(method='bfill')
 
 对所有行/列调用自定义函数
 ------------------------

@@ -73,15 +73,19 @@ def read_lib(lib, f):
         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
 '''
 
+X_NAMED_TUPLE_FILE = os.path.join(dirname, 'xnamedtuple.py')
+with open(X_NAMED_TUPLE_FILE) as f:
+    X_NAMED_TUPLE = f.read()
+
 
 UDF_TMPL = '''\
 %(cloudpickle)s
 %(memimport)s
 
 %(readlib)s
+%(xnamedtuple)s
 
 import base64
-from collections import namedtuple
 import time
 import inspect
 import sys
@@ -107,7 +111,7 @@ class %(func_cls_name)s(object):
             else:
                 tb = get_cache_table(str(n))
                 if fields:
-                    named_args = namedtuple('NamedArgs', fields)
+                    named_args = xnamedtuple('NamedArgs', fields)
                     tb = (named_args(*args) for args in tb)
                 resources.append(tb)
 
@@ -182,7 +186,7 @@ class %(func_cls_name)s(object):
             res = self.f(*args, **self.kwargs)
             return self._handle_output(res)
         else:
-            named_args = namedtuple('NamedArgs', self.names)
+            named_args = xnamedtuple('NamedArgs', self.names)
             res = self.f(named_args(*args), *self.args, **self.kwargs)
             return self._handle_output(res)
 '''
@@ -193,13 +197,13 @@ UDTF_TMPL = '''\
 %(memimport)s
 
 %(readlib)s
+%(xnamedtuple)s
 
 import sys
 import base64
 import functools
 import inspect
 import time
-from collections import namedtuple
 
 try:
     import numpy
@@ -229,7 +233,7 @@ class %(func_cls_name)s(BaseUDTF):
             else:
                 tb = get_cache_table(str(n))
                 if fields:
-                    named_args = namedtuple('NamedArgs', fields)
+                    named_args = xnamedtuple('NamedArgs', fields)
                     tb = (named_args(*args) for args in tb)
                 resources.append(tb)
 
@@ -265,7 +269,7 @@ class %(func_cls_name)s(BaseUDTF):
 
         self.names = tuple(it for it in '%(names_str)s'.split(',') if it)
         if self.names:
-            self.name_args = namedtuple('NamedArgs', self.names)
+            self.name_args = xnamedtuple('NamedArgs', self.names)
 
         self.from_types = '%(raw_from_type)s'.split(',')
         self.to_types = '%(to_type)s'.split(',')
@@ -299,7 +303,8 @@ class %(func_cls_name)s(BaseUDTF):
         from decimal import Decimal
 
         if len(self.to_types) != len(args):
-            raise ValueError('Function output size should be ' + str(len(self.to_types)))
+            raise ValueError('Function output size should be ' + str(len(self.to_types))
+                + ', got ' + str(args))
 
         res = []
         for t, arg in zip(self.to_types, args):
@@ -355,11 +360,11 @@ UDAF_TMPL = '''\
 %(memimport)s
 
 %(readlib)s
+%(xnamedtuple)s
 
 import base64
 import inspect
 import time
-from collections import namedtuple
 
 try:
     import numpy
@@ -382,7 +387,7 @@ class %(func_cls_name)s(BaseUDAF):
             else:
                 tb = get_cache_table(str(n))
                 if fields:
-                    named_args = namedtuple('NamedArgs', fields)
+                    named_args = xnamedtuple('NamedArgs', fields)
                     tb = (named_args(*args) for args in tb)
                 resources.append(tb)
 
@@ -463,9 +468,138 @@ class %(func_cls_name)s(BaseUDAF):
 '''
 
 
+def _gen_map_udf(node, func_cls_name, libraries, func, resources,
+                 func_to_udfs, func_to_resources, func_params):
+    names_str = ''
+    if isinstance(node, MappedExpr) and node._multiple and \
+            all(f.name is not None for f in node.inputs):
+        names_str = ','.join(f.name for f in node.inputs)
+    from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
+    to_type = df_type_to_odps_type(node.dtype).name
+    raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
+
+    key = (from_type, to_type, func, tuple(resources), names_str)
+    if key in func_params:
+        return
+    else:
+        if func in func_to_udfs:
+            func = make_copy(func)
+            node.func = func
+
+        func_params.add(key)
+
+    func_to_udfs[func] = UDF_TMPL % {
+        'cloudpickle': CLOUD_PICKLE,
+        'readlib': READ_LIB,
+        'xnamedtuple': X_NAMED_TUPLE,
+        'raw_from_type': raw_from_type,
+        'from_type': from_type,
+        'to_type': to_type,
+        'func_cls_name': func_cls_name,
+        'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
+        'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
+        'func_kwargs_str': to_str(
+            base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
+        'names_str': names_str,
+        'resources': to_str(
+            base64.b64encode(cloudpickle.dumps([r[:3] for r in resources], dump_code=options.df.dump_udf))),
+        'implementation': CLIENT_IMPL,
+        'dump_code': options.df.dump_udf,
+        'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
+        'memimport': MEM_IMPORT,
+        'libraries': ','.join(libraries if libraries is not None else []),
+    }
+    if resources:
+        func_to_resources[func] = resources
+
+
+def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
+                   func_to_udfs, func_to_resources, func_params):
+    names_str = ','.join(f.name for f in node.fields)
+    from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
+    raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
+    to_type = ','.join(df_type_to_odps_type(t).name for t in node.schema.types)
+
+    key = (from_type, to_type, func, tuple(resources), names_str)
+    if key in func_params:
+        return
+    else:
+        if func in func_to_udfs:
+            func = make_copy(func)
+            node.func = func
+
+        func_params.add(key)
+
+    func_to_udfs[func] = UDTF_TMPL % {
+        'cloudpickle': CLOUD_PICKLE,
+        'readlib': READ_LIB,
+        'xnamedtuple': X_NAMED_TUPLE,
+        'raw_from_type': raw_from_type,
+        'from_type': from_type,
+        'to_type': to_type,
+        'func_cls_name': func_cls_name,
+        'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
+        'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
+        'func_kwargs_str': to_str(
+            base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
+        'close_func_str': to_str(
+            base64.b64encode(cloudpickle.dumps(getattr(node, '_close_func', None), dump_code=options.df.dump_udf))),
+        'names_str': names_str,
+        'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources]))),
+        'implementation': CLIENT_IMPL,
+        'dump_code': options.df.dump_udf,
+        'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
+        'memimport': MEM_IMPORT,
+        'libraries': ','.join(libraries if libraries is not None else []),
+    }
+    if resources:
+        func_to_resources[func] = resources
+
+
+def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
+                 func_to_udfs, func_to_resources, func_params):
+    from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
+    raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
+    to_type = df_type_to_odps_type(node.dtype).name
+
+    key = (from_type, to_type, func, tuple(resources))
+    if key in func_params:
+        return
+    else:
+        if func in func_to_udfs:
+            func = make_copy(func)
+            node.func = func
+
+        func_params.add(key)
+
+    func_to_udfs[func] = UDAF_TMPL % {
+        'cloudpickle': CLOUD_PICKLE,
+        'readlib': READ_LIB,
+        'xnamedtuple': X_NAMED_TUPLE,
+        'raw_from_type': raw_from_type,
+        'from_type': from_type,
+        'to_type': to_type,
+        'func_cls_name': func_cls_name,
+        'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
+        'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
+        'func_kwargs_str': to_str(
+            base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
+        'resources': to_str(
+            base64.b64encode(cloudpickle.dumps([r[:3] for r in resources], dump_code=options.df.dump_udf))),
+        'implementation': CLIENT_IMPL,
+        'dump_code': options.df.dump_udf,
+        'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
+        'memimport': MEM_IMPORT,
+        'libraries': ','.join(libraries if libraries is not None else []),
+    }
+    if resources:
+        func_to_resources[func] = resources
+
+
 def gen_udf(expr, func_cls_name=None, libraries=None):
     func_to_udfs = OrderedDict()
     func_to_resources = OrderedDict()
+    func_params = set()
     if libraries is not None:
         libraries = [lib if isinstance(lib, six.string_types) else lib.name
                      for lib in libraries]
@@ -476,9 +610,6 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
             continue
         if isinstance(func, six.string_types):
             continue
-        if func in func_to_udfs:
-            func = make_copy(func)
-            node.func = func
 
         resources = []
         collection_idx = 0
@@ -493,7 +624,7 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
                 elif isinstance(res, TableResource):
                     tp = 'table'
                     name = res.name
-                    fields = [col.name for col in res.get_source_table().schema.columns]
+                    fields = tuple(col.name for col in res.get_source_table().schema.columns)
                     create = False
                     table_name = None
                 else:
@@ -502,85 +633,19 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
 
                     tp = 'table'
                     name = 'tmp_pyodps_resource_%s' % (uuid.uuid4())
-                    fields = res.schema.names
+                    fields = tuple(res.schema.names)
                     create = True
                     table_name = get_executed_collection_table_name(res)
                 resources.append((tp, name, fields, create, table_name))
 
         if isinstance(node, MappedExpr):
-            names_str = ''
-            if isinstance(node, MappedExpr) and node._multiple and \
-                    all(f.name is not None for f in node.inputs):
-                names_str = ','.join(f.name for f in node.inputs)
-            from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
-            raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
-            func_to_udfs[func] = UDF_TMPL % {
-                'cloudpickle': CLOUD_PICKLE,
-                'readlib': READ_LIB,
-                'raw_from_type': raw_from_type,
-                'from_type':  from_type,
-                'to_type': df_type_to_odps_type(node.dtype).name,
-                'func_cls_name': func_cls_name,
-                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
-                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
-                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
-                'names_str': names_str,
-                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources], dump_code=options.df.dump_udf))),
-                'implementation': CLIENT_IMPL,
-                'dump_code': options.df.dump_udf,
-                'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
-                'memimport': MEM_IMPORT,
-                'libraries': ','.join(libraries if libraries is not None else []),
-            }
-            if resources:
-                func_to_resources[func] = resources
+            _gen_map_udf(node, func_cls_name, libraries, func, resources,
+                         func_to_udfs, func_to_resources, func_params)
         elif isinstance(node, RowAppliedCollectionExpr):
-            names_str = ','.join(f.name for f in node.fields)
-            from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
-            raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
-            to_type = ','.join(df_type_to_odps_type(t).name for t in node.schema.types)
-            func_to_udfs[func] = UDTF_TMPL % {
-                'cloudpickle': CLOUD_PICKLE,
-                'readlib': READ_LIB,
-                'raw_from_type': raw_from_type,
-                'from_type': from_type,
-                'to_type': to_type,
-                'func_cls_name': func_cls_name,
-                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
-                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
-                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
-                'close_func_str': to_str(base64.b64encode(cloudpickle.dumps(getattr(node, '_close_func', None), dump_code=options.df.dump_udf))),
-                'names_str': names_str,
-                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources]))),
-                'implementation': CLIENT_IMPL,
-                'dump_code': options.df.dump_udf,
-                'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
-                'memimport': MEM_IMPORT,
-                'libraries': ','.join(libraries if libraries is not None else []),
-            }
-            if resources:
-                func_to_resources[func] = resources
+            _gen_apply_udf(node, func_cls_name, libraries, func, resources,
+                           func_to_udfs, func_to_resources, func_params)
         elif isinstance(node, (Aggregation, GroupedAggregation)):
-            from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
-            raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
-            func_to_udfs[func] = UDAF_TMPL % {
-                'cloudpickle': CLOUD_PICKLE,
-                'readlib': READ_LIB,
-                'raw_from_type': raw_from_type,
-                'from_type': from_type,
-                'to_type': df_type_to_odps_type(node.dtype).name,
-                'func_cls_name': func_cls_name,
-                'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
-                'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
-                'func_kwargs_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
-                'resources': to_str(base64.b64encode(cloudpickle.dumps([r[:3] for r in resources], dump_code=options.df.dump_udf))),
-                'implementation': CLIENT_IMPL,
-                'dump_code': options.df.dump_udf,
-                'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
-                'memimport': MEM_IMPORT,
-                'libraries': ','.join(libraries if libraries is not None else []),
-            }
-            if resources:
-                func_to_resources[func] = resources
+            _gen_agg_udf(node, func_cls_name, libraries, func, resources,
+                         func_to_udfs, func_to_resources, func_params)
 
     return func_to_udfs, func_to_resources

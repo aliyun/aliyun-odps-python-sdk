@@ -25,7 +25,7 @@ from . import DataFrame, Scalar
 from ..ui.common import build_trait
 from ..console import in_ipython_frontend, is_widgets_available
 from ..compat import six, long_type
-from ..utils import to_str
+from ..utils import to_text
 
 MAX_TABLE_FETCH_SIZE = 10
 
@@ -46,7 +46,7 @@ else:
         elif isinstance(v, decimal.Decimal):
             return float(v)
         else:
-            return to_str(v)
+            return to_text(v)
 
     def _rv_list(l):
         return [_rv(v) for v in l]
@@ -58,7 +58,7 @@ else:
         @staticmethod
         def _render_results(df, **kw):
 
-            return dict(columns=[c for c in df.columns], data=_rv_table(df.values), **kw)
+            return dict(columns=[to_text(c) for c in df.columns], data=_rv_table(df.values), **kw)
 
         @staticmethod
         def _render_graph(pd_df, group_cols, key_cols, **kw):
@@ -112,7 +112,7 @@ else:
                     agg_funcs = dict()
                     for field, methods in six.iteritems(values):
                         for method in methods:
-                            func_key = '{}__{}'.format(field, method)
+                            func_key = u'{}__{}'.format(field, method)
                             agg_funcs[func_key] = getattr(df[field], method)()
                     return agg_funcs
 
@@ -121,7 +121,7 @@ else:
                                    if col.name in group_by_keys and col.type.name == 'string']
                     other_keys = [col.name for col in self.df.schema
                                   if col.name not in group_by_keys or col.name not in string_keys]
-                    col_list = [self.df[col].map(lambda v: to_str(v)) for col in string_keys] +\
+                    col_list = [self.df[col].map(lambda v: to_text(v)) for col in string_keys] +\
                                [self.df[col] for col in other_keys]
                     trans_df = self.df.select(col_list)
                     pd_results = trans_df.groupby(group_by_keys).agg(**_gen_agg_func(trans_df)).to_pandas()

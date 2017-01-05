@@ -24,8 +24,9 @@ import itertools
 import time
 import types
 import sys
+import threading
 
-from ...compat import Enum
+from ...compat import six, Enum
 from ...dag import DAG
 from ...utils import init_progress_ui
 from ...ui.progress import create_instance_group
@@ -200,38 +201,64 @@ class ExecuteDAG(DAG):
         return [results[result_idx[idx]] for idx in sorted(result_idx)]
 
     def _run_in_parallel(self, ui, n_parallel, async=False, timeout=None):
+        submits_lock = threading.RLock()
         submits = dict()
+        user_wait = dict()
         results = dict()
 
         calls = self.topological_sort()
 
         def close_ui(*_):
-            if all(call in submits and results[call] is not None for call in calls):
-                ui.close()
+            with submits_lock:
+                if all(call in submits and results[call] is not None for call in calls):
+                    ui.close()
 
         executor = futures.ThreadPoolExecutor(max_workers=n_parallel)
 
         for call in calls:
-            def run(func):
-                prevs = self.predecessors(func)
-                if prevs:
-                    fs = [submits[p] for p in prevs]
-                    futures.wait(fs)
-                    for f in fs:
-                        if f.exception():
-                            raise RuntimeError('Node execution failed due to failure '
-                                               'of previous node, exception: %s' % f.exception())
-                res = func(ui=ui, progress_proportion=1.0 / len(calls))
-                results[func] = res
-                return res
-
-            future = executor.submit(run, call)
+            future = futures.Future()
             if call.result_index is not None:
                 future.add_done_callback(close_ui)
-            submits[call] = future
+            user_wait[call] = future
+
+        for call in calls:
+            def run(func):
+                try:
+                    prevs = self.predecessors(func)
+                    if prevs:
+                        fs = [user_wait[p] for p in prevs]
+                        for f in fs:
+                            if f.exception():
+                                raise RuntimeError('Node execution failed due to failure '
+                                                   'of previous node, exception: %s' % f.exception())
+
+                    user_wait[func].set_running_or_notify_cancel()
+                    res = func(ui=ui, progress_proportion=1.0 / len(calls))
+                    results[func] = res
+                    user_wait[func].set_result(res)
+                    return res
+                except:
+                    e, tb = sys.exc_info()[1:]
+                    if six.PY2:
+                        user_wait[func].set_exception_info(e, tb)
+                    else:
+                        user_wait[func].set_exception(e)
+                    raise
+                finally:
+                    with submits_lock:
+                        for f in self.successors(func):
+                            if f in submits:
+                                continue
+                            prevs = self.predecessors(f)
+                            if all(p in submits and user_wait[p].done() for p in prevs):
+                                submits[f] = executor.submit(run, f)
+
+            if not self.predecessors(call):
+                with submits_lock:
+                    submits[call] = executor.submit(run, call)
 
         if not async:
-            dones, _ = futures.wait(submits.values())
+            dones, _ = futures.wait(user_wait.values())
             for done in dones:
                 done.result()
             return [results[c] for c in
@@ -239,8 +266,8 @@ class ExecuteDAG(DAG):
                            key=lambda x: x.result_index)]
 
         if timeout:
-            futures.wait(submits.values(), timeout=timeout)
-        return [submits[c] for c in
+            futures.wait(user_wait.values(), timeout=timeout)
+        return [user_wait[c] for c in
                 sorted([c for c in calls if c.result_index is not None],
                        key=lambda x: x.result_index)]
 
@@ -307,14 +334,19 @@ class Engine(object):
             if not ctx.is_cached(expr):
                 def h():
                     def inner(*args, **kwargs):
-                        data = self._cache(*args, **kwargs)
-                        if data:
+                        ret = self._cache(*args, **kwargs)
+                        if ret:
+                            data, node = ret
                             ctx.cache(expr, data)
+                            return node
                     return inner
                 return h()
             else:
-                expr_dag.substitute(expr, ctx.get_cached(expr))
-        elif expr._deps is not None:
+                cached = ctx.get_cached(expr)
+                expr_dag.substitute(expr, cached,
+                                    parents=[e for e in expr_dag.successors(expr)
+                                             if e is not cached])
+        elif expr._deps:
             return self._handle_dep
 
     def _new_analyzer(self, expr_dag, on_sub=None):
@@ -348,6 +380,7 @@ class Engine(object):
     def _handle_dep(self, expr_dag, dag, expr, **kwargs):
         root = expr_dag.root
 
+        execute_nodes = []
         for dep in root._deps:
             if isinstance(dep, tuple):
                 if len(dep) == 3:
@@ -367,6 +400,9 @@ class Engine(object):
             execute_node = getattr(self, action)(ExprDAG(node, dag=expr_dag), dag, node,
                                                  analyze=False, **kwargs)
             execute_node.callback = dep_callback
+            execute_nodes.append(execute_node)
+
+        return execute_nodes
 
     def compile(self, *expr_args_kwargs):
         ctx = ExecuteContext()  # expr -> new_expr
@@ -572,10 +608,10 @@ class Engine(object):
         dag.add_node(dag_node)
         for node in nodes:
             node_expr = node.expr
-            if node_expr.is_ancestor(dag_node.expr):
-                dag.add_edge(dag_node, node)
-            elif dag_node.expr.is_ancestor(node_expr):
+            if dag_node.expr.is_ancestor(node_expr):
                 dag.add_edge(node, dag_node)
+            elif node_expr.is_ancestor(dag_node.expr):
+                dag.add_edge(dag_node, node)
 
     @classmethod
     def _execute_dag(cls, dag, ui=None, async=False, n_parallel=1, timeout=None):

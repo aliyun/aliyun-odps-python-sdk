@@ -22,13 +22,11 @@ import operator
 from ...models import Schema
 from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
     Column, SequenceExpr, Scalar, repr_obj
-from .collections import SortedExpr, ReshuffledCollectionExpr, RowAppliedCollectionExpr
+from .collections import SortedExpr, ReshuffledCollectionExpr
 from .errors import ExpressionError
 from . import utils
 from ...compat import reduce, six
-from ..utils import FunctionWrapper
 from .. import types
-from ..types import string, validate_data_type
 from ...utils import object_getattr
 
 

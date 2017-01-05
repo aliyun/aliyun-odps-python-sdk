@@ -154,6 +154,8 @@ class Optimizer(Backend):
     def visit_apply_collection(self, expr):
         if not options.df.optimize:
             return
+        if isinstance(expr.input, JoinCollectionExpr) and expr.input._mapjoin:
+            return
         self._visit_need_compact_collection(expr)
 
     def visit_reshuffle(self, expr):

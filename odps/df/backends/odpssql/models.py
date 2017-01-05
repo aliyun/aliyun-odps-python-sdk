@@ -17,27 +17,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from collections import deque
 
-from ..expr.dynamic import DynamicMixin
+class MemCacheReference(object):
+    __slots__ = 'expr_id', 'ref_name'
 
-
-def refresh_dynamic(executed, dag, func=None):
-    q = deque()
-    q.append(executed)
-
-    while len(q) > 0:
-        curr = q.popleft()
-
-        for p in dag.successors(curr):
-            if isinstance(p, DynamicMixin):
-                q.append(p)
-
-        if isinstance(curr, DynamicMixin):
-            deps = set([id(d) for d in curr.deps or []])
-            if any(id(c) not in deps and isinstance(c, DynamicMixin) for c in curr.children()):
-                continue
-            sub = curr.to_static()
-            dag.substitute(curr, sub)
-            if func:
-                func(sub)
+    def __init__(self, expr_id, ref_name):
+        self.expr_id = expr_id
+        self.ref_name = ref_name

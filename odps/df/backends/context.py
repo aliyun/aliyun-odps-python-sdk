@@ -23,7 +23,8 @@ class ExecuteContext(object):
         self._expr_id_cached_data = dict()
 
     def cache(self, expr, data):
-        self._expr_id_cached_data[expr._id] = data
+        if data is not None:
+            self._expr_id_cached_data[expr._id] = data
 
     def is_cached(self, expr):
         return expr._id in self._expr_id_cached_data

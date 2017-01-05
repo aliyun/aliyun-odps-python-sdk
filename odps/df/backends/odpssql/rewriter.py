@@ -28,6 +28,7 @@ from ...expr.utils import get_attrs
 from ...utils import traverse_until_source
 from ....errors import NoSuchObject
 from ...utils import is_source_collection
+from ....models import Table
 
 
 class Rewriter(Backend):
@@ -300,13 +301,19 @@ class Rewriter(Backend):
             self._sub(expr.input, sub)
 
     def visit_apply_collection(self, expr):
+        if isinstance(expr._input, JoinCollectionExpr) and expr._input._mapjoin:
+            node = expr._input
+            projection = JoinProjectCollectionExpr(
+                _input=node, _schema=node.schema,
+                _fields=node._fetch_fields())
+            self._sub(node, projection)
         self._handle_function(expr, expr._fields)
 
     def visit_user_defined_aggregator(self, expr):
         self._handle_function(expr, [expr.input, ])
 
     def visit_column(self, expr):
-        if is_source_collection(expr.input):
+        if is_source_collection(expr.input) and isinstance(expr._input._source_data, Table):
             try:
                 if expr.input._source_data.schema.is_partition(expr.source_name) and \
                                 expr.dtype != types.string:

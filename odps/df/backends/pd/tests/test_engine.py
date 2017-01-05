@@ -55,6 +55,7 @@ class Test(TestBase):
         class FakeBar(object):
             def update(self, *args, **kwargs):
                 pass
+
         self.faked_bar = FakeBar()
 
     def _gen_data(self, rows=None, data=None, nullable_field=None, value_range=None):
@@ -141,7 +142,7 @@ class Test(TestBase):
         self.assertEqual([c.name for c in res.columns], ['const', 'id', 'id2'])
         self.assertTrue(all(it[0] == 3 for it in result))
         self.assertEqual(len(data), len(result))
-        self.assertEqual([it[1]+1 for it in data], [it[2] for it in result])
+        self.assertEqual([it[1] + 1 for it in data], [it[2] for it in result])
 
         expr = self.expr.sort('id')[1:5:2]
         res = self.engine.execute(expr)
@@ -267,6 +268,7 @@ class Test(TestBase):
                 return 'large'
             else:
                 return 'xlarge'
+
         self.assertEqual([to_str(get_val(it[1])) for it in data], [to_str(it[10]) for it in result])
 
         self.assertEqual([20] * len(data), [it[11] for it in result])
@@ -372,7 +374,7 @@ class Test(TestBase):
             (np.trunc, self.expr.id.trunc()),
         ]
 
-        fields = [it[1].rename('id'+str(i)) for i, it in enumerate(methods_to_fields)]
+        fields = [it[1].rename('id' + str(i)) for i, it in enumerate(methods_to_fields)]
 
         expr = self.expr[fields]
 
@@ -406,7 +408,8 @@ class Test(TestBase):
             (lambda s: s.count(data[0][0]), self.expr.name.count(data[0][0])),
             (lambda s: s.endswith(data[0][0]), self.expr.name.endswith(data[0][0])),
             (lambda s: s.startswith(data[0][0]), self.expr.name.startswith(data[0][0])),
-            (lambda s: extract('123' + s, '[^a-z]*(\w+)', group=1), ('123' + self.expr.name).extract('[^a-z]*(\w+)', group=1)),
+            (lambda s: extract('123' + s, '[^a-z]*(\w+)', group=1),
+             ('123' + self.expr.name).extract('[^a-z]*(\w+)', group=1)),
             (lambda s: s.find(data[0][0]), self.expr.name.find(data[0][0])),
             (lambda s: s.rfind(data[0][0]), self.expr.name.rfind(data[0][0])),
             (lambda s: s.replace(data[0][0], 'test'), self.expr.name.replace(data[0][0], 'test')),
@@ -433,7 +436,7 @@ class Test(TestBase):
             (lambda s: to_str(s).isdecimal(), self.expr.name.isdecimal()),
         ]
 
-        fields = [it[1].rename('id'+str(i)) for i, it in enumerate(methods_to_fields)]
+        fields = [it[1].rename('id' + str(i)) for i, it in enumerate(methods_to_fields)]
 
         expr = self.expr[fields]
 
@@ -472,7 +475,7 @@ class Test(TestBase):
              self.expr.birth.strftime('%Y%d').strptime('%Y%d')),
         ]
 
-        fields = [it[1].rename('birth'+str(i)) for i, it in enumerate(methods_to_fields)]
+        fields = [it[1].rename('birth' + str(i)) for i, it in enumerate(methods_to_fields)]
 
         expr = self.expr[fields]
 
@@ -712,7 +715,7 @@ class Test(TestBase):
                 if self._curr is not None:
                     yield (self._curr, self._cnt)
 
-        expr = self.expr['name', ].apply(
+        expr = self.expr['name',].apply(
             mapper, axis=1, names=['word', 'count'], types=['string', 'int'])
         expr = expr.groupby('word').sort('word').apply(
             reducer, names=['word', 'count'], types=['string', 'int'])
@@ -779,7 +782,7 @@ class Test(TestBase):
 
             return h
 
-        expr = self.expr['name', ].map_reduce(mapper, reducer, group='word')
+        expr = self.expr['name',].map_reduce(mapper, reducer, group='word')
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
@@ -797,7 +800,7 @@ class Test(TestBase):
                 if done:
                     yield row.word, self.cnt
 
-        expr = self.expr['name', ].map_reduce(mapper, reducer2, group='word')
+        expr = self.expr['name',].map_reduce(mapper, reducer2, group='word')
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
@@ -855,6 +858,7 @@ class Test(TestBase):
         def reducer(keys):
             def h(row, done):
                 yield row
+
             return h
 
         df2 = df.map_reduce(reducer=reducer, group='name')
@@ -934,7 +938,7 @@ class Test(TestBase):
                 if self._curr is not None:
                     yield (self._curr, self._cnt)
 
-        expr = self.expr['name', ].groupby('name').sort('name').apply(reducer)
+        expr = self.expr['name',].groupby('name').sort('name').apply(reducer)
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
@@ -1013,7 +1017,7 @@ class Test(TestBase):
         result = self._get_result(res)
 
         expected = [
-            ['name1', 8.0/3],
+            ['name1', 8.0 / 3],
             ['name2', 3.5],
         ]
         self.assertEqual(sorted(result), sorted(expected))
@@ -1023,7 +1027,7 @@ class Test(TestBase):
         result = self._get_result(res)
 
         expected = [
-            ['name1', 8.0/3, 8.0],
+            ['name1', 8.0 / 3, 8.0],
             ['name2', 3.5, 7.0],
         ]
         self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum'])
@@ -1083,6 +1087,19 @@ class Test(TestBase):
         self.assertEqual(res.schema.names, ['id', 'name1_fid_my_sum', 'name2_fid_my_sum',
                                             'name1_fid_mean', 'name2_fid_mean'])
         self.assertEqual(result, expected)
+
+        expr7 = self.expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum']).cache()
+        self.assertEqual(len(self.engine.execute(expr7)), 3)
+
+        expr5 = self.expr.pivot_table(rows='id', values='fid', columns='name').cache()
+        expr6 = expr5[expr5['name1_fid_mean'].rename('tname1'), expr5['name2_fid_mean'].rename('tname2')]
+
+        @output(['tname1', 'tname2'], ['float', 'float'])
+        def h(row):
+            yield row.tname1, row.tname2
+
+        expr6 = expr6.map_reduce(mapper=h)
+        self.assertEqual(len(self.engine.execute(expr6)), 3)
 
     def testMelt(self):
         import pandas as pd
@@ -1231,7 +1248,7 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
-        expr = self.expr.groupby('name', Scalar(1).rename('constant'))\
+        expr = self.expr.groupby('name', Scalar(1).rename('constant')) \
             .agg(id=self.expr.id.sum())
 
         expected = [
@@ -1341,7 +1358,7 @@ class Test(TestBase):
         self._gen_data(data=data)
 
         expr = self.expr.groupby('name').agg(id=self.expr.id.max())[
-            lambda x: 't'+x.name, lambda x: x.id + 1]
+            lambda x: 't' + x.name, lambda x: x.id + 1]
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
@@ -1520,7 +1537,7 @@ class Test(TestBase):
             (lambda s: df.id.count(), self.expr.id.count()),
         ]
 
-        fields = [it[1].rename('f'+str(i)) for i, it in enumerate(methods_to_fields)]
+        fields = [it[1].rename('f' + str(i)) for i, it in enumerate(methods_to_fields)]
 
         expr = self.expr[fields]
 
@@ -1608,7 +1625,7 @@ class Test(TestBase):
         result = self._get_result(res)
 
         expected = [
-            ['name1', float(14)/4],
+            ['name1', float(14) / 4],
             ['name2', 2]
         ]
         for expect_r, actual_r in zip(expected, result):
@@ -1803,7 +1820,7 @@ class Test(TestBase):
             ['name1', 3, 4.1],
         ]
         schema = Schema.from_lists(['name', 'id', 'fid'],
-                                    [types.string, types.int64, types.float64])
+                                   [types.string, types.int64, types.float64])
         expr1 = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
                                _schema=schema)
         data2 = [
@@ -1965,7 +1982,7 @@ class Test(TestBase):
         result = self._get_result(res)
 
         expect = len(set(names))
-        self.assertAlmostEqual(expect, result, delta=result*0.1)
+        self.assertAlmostEqual(expect, result, delta=result * 0.1)
 
     def testBloomFilter(self):
         data = [
@@ -2091,6 +2108,92 @@ class Test(TestBase):
 
         merged = sorted(result1 + result2, key=lambda r: r[0])
         self.assertListEqual(data, merged)
+
+    def testCollectionNa(self):
+        import pandas as pd
+        import numpy as np
+
+        from odps.compat import reduce
+
+        data = [
+            [0, 'name1', 1.0, None, 3.0, 4.0],
+            [1, 'name1', 2.0, None, None, 1.0],
+            [2, 'name1', 3.0, 4.0, 1.0, None],
+            [3, 'name1', None, 1.0, 2.0, 3.0],
+            [4, 'name1', 1.0, np.nan, 3.0, 4.0],
+            [5, 'name1', 1.0, 2.0, 3.0, 4.0],
+            [6, 'name1', None, None, np.nan, None],
+        ]
+
+        schema = Schema.from_lists(['rid', 'name', 'f1', 'f2', 'f3', 'f4'],
+                                   [types.int64, types.string] + [types.float64] * 4)
+        expr = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
+                              _schema=schema)
+
+        exprs = [
+            expr.fillna(100, subset=['f1', 'f2', 'f3', 'f4']),
+            expr.fillna(expr.f3, subset=['f1', 'f2', 'f3', 'f4']),
+            expr.fillna(method='ffill', subset=['f1', 'f2', 'f3', 'f4']),
+            expr.fillna(method='bfill', subset=['f1', 'f2', 'f3', 'f4']),
+            expr.dropna(thresh=3, subset=['f1', 'f2', 'f3', 'f4']),
+            expr.dropna(how='any', subset=['f1', 'f2', 'f3', 'f4']),
+            expr.dropna(how='all', subset=['f1', 'f2', 'f3', 'f4']),
+        ]
+
+        uexpr = reduce(lambda a, b: a.union(b), exprs)
+
+        ures = self.engine.execute(uexpr)
+        uresult = self._get_result(ures)
+
+        expected = [
+            [0, 'name1', 1.0, 100.0, 3.0, 4.0],
+            [1, 'name1', 2.0, 100.0, 100.0, 1.0],
+            [2, 'name1', 3.0, 4.0, 1.0, 100.0],
+            [3, 'name1', 100.0, 1.0, 2.0, 3.0],
+            [4, 'name1', 1.0, 100.0, 3.0, 4.0],
+            [5, 'name1', 1.0, 2.0, 3.0, 4.0],
+            [6, 'name1', 100.0, 100.0, 100.0, 100.0],
+
+            [0, 'name1', 1.0, 3.0, 3.0, 4.0],
+            [1, 'name1', 2.0, None, None, 1.0],
+            [2, 'name1', 3.0, 4.0, 1.0, 1.0],
+            [3, 'name1', 2.0, 1.0, 2.0, 3.0],
+            [4, 'name1', 1.0, 3.0, 3.0, 4.0],
+            [5, 'name1', 1.0, 2.0, 3.0, 4.0],
+            [6, 'name1', None, None, None, None],
+
+            [0, 'name1', 1.0, 1.0, 3.0, 4.0],
+            [1, 'name1', 2.0, 2.0, 2.0, 1.0],
+            [2, 'name1', 3.0, 4.0, 1.0, 1.0],
+            [3, 'name1', None, 1.0, 2.0, 3.0],
+            [4, 'name1', 1.0, 1.0, 3.0, 4.0],
+            [5, 'name1', 1.0, 2.0, 3.0, 4.0],
+            [6, 'name1', None, None, None, None],
+
+            [0, 'name1', 1.0, 3.0, 3.0, 4.0],
+            [1, 'name1', 2.0, 1.0, 1.0, 1.0],
+            [2, 'name1', 3.0, 4.0, 1.0, None],
+            [3, 'name1', 1.0, 1.0, 2.0, 3.0],
+            [4, 'name1', 1.0, 3.0, 3.0, 4.0],
+            [5, 'name1', 1.0, 2.0, 3.0, 4.0],
+            [6, 'name1', None, None, None, None],
+
+            [0, 'name1', 1.0, None, 3.0, 4.0],
+            [2, 'name1', 3.0, 4.0, 1.0, None],
+            [3, 'name1', None, 1.0, 2.0, 3.0],
+            [4, 'name1', 1.0, None, 3.0, 4.0],
+            [5, 'name1', 1.0, 2.0, 3.0, 4.0],
+
+            [5, 'name1', 1.0, 2.0, 3.0, 4.0],
+
+            [0, 'name1', 1.0, None, 3.0, 4.0],
+            [1, 'name1', 2.0, None, None, 1.0],
+            [2, 'name1', 3.0, 4.0, 1.0, None],
+            [3, 'name1', None, 1.0, 2.0, 3.0],
+            [4, 'name1', 1.0, None, 3.0, 4.0],
+            [5, 'name1', 1.0, 2.0, 3.0, 4.0],
+        ]
+        self.assertListEqual(uresult, expected)
 
 
 if __name__ == '__main__':

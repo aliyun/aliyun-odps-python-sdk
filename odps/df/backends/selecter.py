@@ -26,9 +26,8 @@ except ImportError:
 from ...models import Table
 from ..expr.expressions import CollectionExpr
 from ..expr.core import ExprDictionary
+from .odpssql.models import MemCacheReference
 from .core import Backend, EngineTypes as Engines
-from .pd.analyzer import Analyzer as PandasAnalyzer
-from .odpssql.analyzer import Analyzer as ODPSAnalyzer
 from .errors import NoBackendFound
 
 
@@ -36,7 +35,7 @@ def available_engines(sources):
     engines = set()
 
     for src in sources:
-        if isinstance(src, Table):
+        if isinstance(src, (Table, MemCacheReference)):
             engines.add(Engines.ODPS)
         elif has_pandas and isinstance(src, pd.DataFrame):
             engines.add(Engines.PANDAS)

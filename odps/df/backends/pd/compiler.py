@@ -19,7 +19,6 @@
 
 import itertools
 import json
-from collections import namedtuple
 from datetime import datetime
 import re
 import time
@@ -39,6 +38,7 @@ from . import types
 from ... import types as df_types
 from ....models import FileResource, TableResource, Schema
 from .... import compat
+from ....lib.xnamedtuple import xnamedtuple
 
 try:
     import numpy as np
@@ -804,7 +804,7 @@ class PandasCompiler(Backend):
             elif isinstance(resource, TableResource):
                 def gen():
                     table = resource.get_source_table()
-                    named_args = namedtuple('NamedArgs', table.schema.names)
+                    named_args = xnamedtuple('NamedArgs', table.schema.names)
                     partition = resource.get_source_table_partition()
                     with table.open_reader(partition=partition) as reader:
                         for r in reader:
@@ -817,7 +817,7 @@ class PandasCompiler(Backend):
                 df = kw.get(resource)
 
                 def gen():
-                    named_args = namedtuple('NamedArgs', resource.schema.names)
+                    named_args = xnamedtuple('NamedArgs', resource.schema.names)
                     for r in df.iterrows():
                         yield named_args(*r[1])
                 res.append(gen())
@@ -859,7 +859,7 @@ class PandasCompiler(Backend):
 
                 def func(s):
                     names = [f.name for f in expr.inputs]
-                    t = namedtuple('NamedArgs', names)
+                    t = xnamedtuple('NamedArgs', names)
                     row = t(*s.tolist())
                     if not inspect.isfunction(expr._func):
                         if resources:
@@ -912,7 +912,7 @@ class PandasCompiler(Backend):
             input = self._merge_values(expr.fields, kw)
 
             names = [f.name for f in expr.fields]
-            t = namedtuple('NamedArgs', names)
+            t = xnamedtuple('NamedArgs', names)
 
             func = expr._func
             if inspect.isfunction(func):

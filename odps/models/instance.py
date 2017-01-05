@@ -406,7 +406,7 @@ class Instance(LazyLoad):
         if not self.is_successful():
             for task_name, task in six.iteritems(self.get_task_statuses()):
                 if task.status == Instance.Task.TaskStatus.FAILED:
-                    raise errors.ODPSError(self.get_task_result(task_name))
+                    raise errors.parse_result_error(self.get_task_result(task_name))
                 elif task.status != Instance.Task.TaskStatus.SUCCESS:
                     raise errors.ODPSError('%s, status=%s' % (task_name, task.status.value))
 

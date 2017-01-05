@@ -82,7 +82,13 @@ def output(names, types):
 
 def make_copy(f):
     if inspect.isfunction(f):
-        return lambda *args, **kwargs: f(*args, **kwargs)
+        if not inspect.isgeneratorfunction(f):
+            return lambda *args, **kwargs: f(*args, **kwargs)
+        else:
+            def new_f(*args, **kwargs):
+                for it in f(*args, **kwargs):
+                    yield it
+            return new_f
     elif inspect.isclass(f):
         class NewCls(f):
             pass
@@ -94,7 +100,8 @@ def make_copy(f):
 def is_source_collection(expr):
     from .expr.expressions import CollectionExpr
 
-    return isinstance(expr, CollectionExpr) and expr._source_data is not None
+    return (isinstance(expr, CollectionExpr) and expr._source_data is not None) or \
+           (type(expr) is CollectionExpr and expr._deps is not None)
 
 
 def is_constant_scalar(expr):

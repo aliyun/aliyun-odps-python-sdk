@@ -18,6 +18,7 @@
 
 import collections
 import itertools
+import uuid
 
 from ...models.table import TableSchema
 from ...df import DataFrame
@@ -565,7 +566,8 @@ class DFAdapterMLMixin(object):
             )
             if dynamic:
                 schema = DynamicSchema.from_schema(schema)
-            mock_table = self._build_mock_table('pyodps_intermediate_df_table', schema)
+            mock_table = self._build_mock_table(
+                'pyodps_intermediate_df_table_%s' % str(uuid.uuid4()).replace('-', '_'), schema)
             # todo deal with the case when odps object is not defined
             if self._odps:
                 mock_table._client = self._odps.rest

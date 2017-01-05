@@ -104,7 +104,7 @@ def repr_obj(obj):
 
 
 class Expr(Node):
-    __slots__ = '_deps', '_ban_optimize', '_engine', '_need_cache', '__execution', '_id'
+    __slots__ = '_deps', '_ban_optimize', '_engine', '_need_cache', '_mem_cache', '__execution', '_id'
 
     def _init(self, *args, **kwargs):
         """
@@ -119,6 +119,7 @@ class Expr(Node):
         self._init_attr('_Expr__execution', None)
 
         self._init_attr('_need_cache', False)
+        self._init_attr('_mem_cache', False)
 
         if '_id' not in kwargs:
             kwargs['_id'] = new_id()
@@ -221,13 +222,15 @@ class Expr(Node):
         return engine.persist(self, name, partitions=partitions, partition=partition,
                               lifecycle=lifecycle, project=project, **kwargs)
 
-    def cache(self):
+    def cache(self, mem=False):
         self._need_cache = True
+        self._mem_cache = mem
         self._ban_optimize = True
         return self
 
     def uncache(self):
         self._need_cache = False
+        self._mem_cache = False
 
         from ..backends.context import context
         context.uncache(self)
@@ -314,6 +317,26 @@ class Expr(Node):
             self._deps = dependencies
         else:
             self._deps.extend(dependencies)
+
+    def substitute(self, old_arg, new_arg, dag=None):
+        super(Expr, self).substitute(old_arg, new_arg, dag=dag)
+
+        new_deps = []
+        if self._deps is not None:
+            for dep in self._deps:
+                if isinstance(dep, tuple):
+                    node = dep[0]
+                    if node is old_arg:
+                        new_deps.append((new_arg, ) + dep[1:])
+                    else:
+                        new_deps.append(dep)
+                else:
+                    if dep is old_arg:
+                        new_deps.append(new_arg)
+                    else:
+                        new_deps.append(dep)
+
+        self._deps = new_deps
 
     def rebuild(self):
         # used in the dynamic setting, do nothing by default

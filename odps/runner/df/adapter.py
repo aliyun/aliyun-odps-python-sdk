@@ -32,7 +32,7 @@ from ...df.backends.context import context
 from ...compat import six, reduce
 from ...config import options
 from ..core import BaseRunnerNode, RunnerObject, ObjectDescription, EngineType, PortType
-from ..utils import gen_table_name
+from ..utils import gen_table_name, hashable
 
 _df_endpoint_dict = ExprDictionary()
 _df_link_maintainer = ExprDictionary()
@@ -77,8 +77,8 @@ class DFNode(BaseRunnerNode):
                 continue
             for edge in self.input_edges[nm]:
                 src_output = edge.from_node.outputs[edge.from_arg]
-                if src_output.obj and src_output.obj.df._cache_data is None:
-                    src_output.obj.df._cache_data = obj.df._cache_data
+                if src_output.obj and not context.is_cached(src_output.obj.df):
+                    context.cache(src_output.obj.df, context.get_cached(obj.df))
 
         if len(self.outputs) != 1:
             return False, None
@@ -476,7 +476,7 @@ def df_run_hook(*args, **kwargs):
     if not input_eps:
         return func(*args, **kwargs)
 
-    node = DFExecNode(self, len(input_eps), func, args, kwargs)
+    node = DFExecNode(self, len(input_eps), func, hashable(args), hashable(kwargs))
     for idx, input_ep in enumerate(input_eps):
         input_ep._link_node(node, 'input%d' % (1 + idx))
 

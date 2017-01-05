@@ -98,6 +98,7 @@ def get_collection_resources(resources):
 def get_executed_collection_table_name(collection):
     from .expressions import CollectionExpr
     from ...models import Table
+    from ..backends.context import context
 
     if not isinstance(collection, CollectionExpr):
         return
@@ -106,9 +107,9 @@ def get_executed_collection_table_name(collection):
             isinstance(collection._source_data, Table):
         return collection._source_data.name
 
-    if collection._cache_data is not None and \
-            isinstance(collection._cache_data, Table):
-        return collection._cache_data.name
+    if context.is_cached(collection) and \
+            isinstance(context.get_cached(collection), Table):
+        return context.get_cached(collection).name
 
 
 def is_called_by_inspector():

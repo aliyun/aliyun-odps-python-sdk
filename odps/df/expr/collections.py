@@ -27,9 +27,9 @@ from .expressions import *
 from .dynamic import DynamicCollectionExpr
 from .arithmetic import Negate
 from . import utils
-from ...models import Schema
 from ..types import validate_data_type, string, DynamicSchema
 from ..utils import FunctionWrapper, output
+from ...models import Schema
 from ...compat import OrderedDict, six, lkeys, lvalues, reduce
 from ...utils import str_to_kv
 
@@ -1346,6 +1346,115 @@ def to_kv(expr, columns=None, kv_delim=':', item_delim=',', kv_name='kv_col'):
     return expr.__getitem__(intact_cols + [reduced_col.rename(kv_name)])
 
 
+def dropna(expr, how='any', thresh=None, subset=None):
+    """
+    Return object with labels on given axis omitted where alternately any or all of the data are missing
+
+    :param DataFrame expr: input data set.
+    :param how: can be ‘any’ or ‘all’. If 'any' is specified any NA values are present, drop that label. If 'all' is specified and all values are NA, drop that label.
+    :param thresh: require that many non-NA values
+    :param subset: Labels along other axis to consider, e.g. if you are dropping rows these would be a list of columns to include
+    :return: DataFrame
+    """
+    if subset is None:
+        subset = [expr._get_field(c) for c in expr.schema.names]
+    else:
+        subset = [expr._get_field(c) for c in utils.to_list(subset)]
+
+    if not subset:
+        raise ValueError('Illegal subset is provided.')
+
+    if thresh is None:
+        thresh = len(subset) if how == 'any' else 1
+
+    sum_exprs = reduce(operator.add, (s.notnull().ifelse(1, 0) for s in subset))
+    return expr.filter(sum_exprs >= thresh)
+
+
+def fillna(expr, value=None, method=None, subset=None):
+    """
+    Fill NA/NaN values using the specified method
+
+    :param DataFrame expr: input data set.
+    :param method: can be ‘backfill’, ‘bfill’, ‘pad’, ‘ffill’ or None
+    :param value: value to fill into
+    :param subset: Labels along other axis to consider.
+    :return: DataFrame
+    """
+    col_dict = OrderedDict([(c, expr._get_field(c)) for c in expr.schema.names])
+    if subset is None:
+        sel_col_names = expr.schema.names
+    else:
+        sel_col_names = [expr._get_field(c).name for c in utils.to_list(subset)]
+
+    if method is not None and value is not None:
+        raise ValueError('The argument `method` is not compatible with `value`.')
+    if method is None and value is None:
+        raise ValueError('You should supply at least one argument in `method` and `value`.')
+    if method is not None and method not in ('backfill', 'bfill', 'pad', 'ffill'):
+        raise ValueError('Method value %s is illegal.' % str(method))
+
+    if method in ('backfill', 'bfill'):
+        sel_cols = list(reversed(sel_col_names))
+    else:
+        sel_cols = sel_col_names
+
+    if method is None:
+        for n in sel_col_names:
+            e = col_dict[n]
+            col_dict[n] = e.isnull().ifelse(value, e).rename(n)
+        return expr.select(list(col_dict.values()))
+
+    else:
+        names = list(col_dict.keys())
+        typs = list(c.dtype.name for c in col_dict.values())
+
+        @output(names, typs)
+        def mapper(row):
+            last_valid = None
+            update_dict = dict()
+
+            try:
+                import numpy as np
+                isnan = np.isnan
+            except ImportError:
+                isnan = lambda v: False
+
+            for n in sel_cols:
+                old_val = getattr(row, n)
+                if old_val is None or isnan(old_val):
+                    if last_valid is not None:
+                        update_dict[n] = last_valid
+                else:
+                    last_valid = old_val
+
+            yield row.replace(**update_dict)
+
+        return expr.map_reduce(mapper)
+
+
+def ffill(expr, subset=None):
+    """
+    Fill NA/NaN values with the forward method. Equivalent to fillna(method='ffill').
+
+    :param DataFrame expr: input data set.
+    :param subset: Labels along other axis to consider.
+    :return: DataFrame
+    """
+    return expr.fillna(method='ffill', subset=subset)
+
+
+def bfill(expr, subset=None):
+    """
+    Fill NA/NaN values with the backward method. Equivalent to fillna(method='bfill').
+
+    :param DataFrame expr: input data set.
+    :param subset: Labels along other axis to consider.
+    :return: DataFrame
+    """
+    return expr.fillna(method='bfill', subset=subset)
+
+
 class AppendIDCollectionExpr(CollectionExpr):
     _args = '_input', '_id_col'
     node_name = 'AppendID'
@@ -1449,6 +1558,10 @@ _collection_methods = dict(
     pivot_table=pivot_table,
     extract_kv=extract_kv,
     to_kv=to_kv,
+    dropna=dropna,
+    fillna=fillna,
+    ffill=ffill,
+    bfill=bfill,
     min_max_scale=min_max_scale,
     std_scale=std_scale,
     _append_id=_append_id,

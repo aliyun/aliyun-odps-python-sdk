@@ -18,9 +18,11 @@
 
 import time
 from json import JSONEncoder
+import collections
 
 from ..config import options
 from ..utils import TEMP_TABLE_PREFIX as GLOBAL_TEMP_PREFIX, camel_to_underline
+from ..compat import six
 
 TABLE_MODEL_PREFIX = 'otm_'
 TABLE_MODEL_SEPARATOR = '__'
@@ -63,3 +65,16 @@ def gen_table_name(code_name, ts=None, node_id=None, seq=None, suffix=None):
     if suffix:
         table_name += '_' + suffix
     return table_name
+
+
+def hashable(obj):
+    if isinstance(obj, collections.Hashable):
+        items = obj
+    elif isinstance(obj, collections.Mapping):
+        items = type(obj)((k, hashable(v)) for k, v in six.iteritems(obj))
+    elif isinstance(obj, collections.Iterable):
+        items = tuple(hashable(item) for item in obj)
+    else:
+        raise TypeError(type(obj))
+
+    return items

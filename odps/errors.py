@@ -87,6 +87,23 @@ def throw_if_parsable(resp):
             raise ODPSError(str(resp.status_code))
 
 
+CODE_MAPPING = {
+    'ODPS-0010000': 'InternalServerError',
+}
+
+
+def parse_result_error(msg):
+    msg_parts = [pt.strip() for pt in msg.split(':')]
+    try:
+        msg_code = next(p for p in msg_parts if p in CODE_MAPPING)
+        cls = globals().get(CODE_MAPPING[msg_code], ODPSError)
+    except StopIteration:
+        cls = ODPSError
+        msg_code = None
+
+    return cls(msg, code=msg_code)
+
+
 class ODPSError(RuntimeError):
     """
     """
@@ -164,4 +181,8 @@ class NoPermission(ServerDefinedException):
 
 
 class NoSuchPath(ServerDefinedException):
+    pass
+
+
+class InternalServerError(ServerDefinedException):
     pass
