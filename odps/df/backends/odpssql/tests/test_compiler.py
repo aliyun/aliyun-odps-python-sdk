@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # for performance
 import cProfile
@@ -26,7 +23,7 @@ from datetime import datetime, timedelta
 
 from odps import options
 from odps.tests.core import TestBase, to_str
-from odps.compat import unittest, six
+from odps.compat import unittest, six, total_seconds
 from odps.udf.tools import runners
 from odps.models import Schema
 from odps.utils import to_timestamp, to_milliseconds
@@ -60,7 +57,10 @@ class ODPSEngine(ODPSSQLEngine):
         expr_dag = expr.to_dag()
         self._analyze(expr_dag, expr)
         new_expr = self._rewrite(expr_dag)
-        return self._compile(new_expr, prettify=prettify, libraries=libraries)
+        sql = self._compile(new_expr, prettify=prettify, libraries=libraries)
+        if isinstance(sql, list):
+            return '\n'.join(sql)
+        return sql
 
 
 class Test(TestBase):
@@ -430,6 +430,11 @@ class Test(TestBase):
                  "FROM mocked_project.`pyodps_test_expr_table` t1"
         self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.birth.unix_timestamp.to_datetime()
+        expect = "SELECT FROM_UNIXTIME(UNIX_TIMESTAMP(t1.`birth`)) AS `birth` \n" \
+                 "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
         expr = self.expr.scale.map(lambda x: x + 1)
         engine = ODPSEngine(self.odps)
         engine.compile(expr)
@@ -510,7 +515,7 @@ class Test(TestBase):
         engine = ODPSEngine(self.odps)
         engine.compile(expr)
         now = datetime.now()
-        self._testify_udf([(d - now).microseconds // 1000 for d in data],
+        self._testify_udf([int(total_seconds(d - now) * 1000) for d in data],
                           [(d, now, '-') for d in data], engine)
 
         expr = self.expr.scale < Decimal('3.14')
@@ -874,6 +879,11 @@ class Test(TestBase):
                          to_str(ODPSEngine(self.odps).compile(self.expr.birth.dayofweek, prettify=False)))
         self.assertEqual(to_str(expect),
                          to_str(ODPSEngine(self.odps).compile(self.expr.birth.weekday, prettify=False)))
+
+        expect = 'SELECT UNIX_TIMESTAMP(t1.`birth`) AS `birth` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr.birth.unix_timestamp, prettify=False)))
 
         self.assertRaises(NotImplementedError,
                           lambda: ODPSEngine(self.odps).compile(self.expr.birth.dayofyear))
@@ -1567,7 +1577,7 @@ class Test(TestBase):
                    '    FROM mocked_project.`pyodps_test_expr_table1` t2\n' \
                    '  ) t3\n' \
                    'ON t1.`id` == t3.`id2` \n' \
-                   'WHERE (t3.`name2` IS NULL) AND (t1.`id` IS NOT NULL)'
+                   'WHERE (t1.`id` IS NOT NULL) AND (t3.`name2` IS NULL)'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
         expected = 'SELECT * \n' \
@@ -1580,7 +1590,7 @@ class Test(TestBase):
                    '    FROM mocked_project.`pyodps_test_expr_table1` t2\n' \
                    '  ) t3\n' \
                    'ON t1.`id` == t3.`id2` \n' \
-                   'WHERE (t3.`name2` IS NULL) AND (t1.`id` IS NOT NULL)'
+                   'WHERE (t1.`id` IS NOT NULL) AND (t3.`name2` IS NULL)'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr)))
 
     def testSelfJoin(self):

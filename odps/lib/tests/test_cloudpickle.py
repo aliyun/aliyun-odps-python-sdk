@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from __future__ import print_function
 
@@ -23,10 +20,12 @@ import base64
 import json
 import multiprocessing
 import os
+import pickle
 import subprocess
 import sys
 import tempfile
 import textwrap
+import traceback
 import uuid
 
 from odps.compat import six, unittest, PY27
@@ -38,7 +37,9 @@ CROSS_VAR_PICKLE_CODE = """
 import base64
 import json
 import sys
+import platform
 import os
+import pickle
 
 try:
     os.unlink(os.path.realpath(__file__))
@@ -53,24 +54,38 @@ sys.path.extend(import_paths)
 from odps.lib.cloudpickle import dumps
 from odps.utils import to_str
 from {module_name} import {method_ref}
+
+client_impl = (sys.version_info[0],
+               sys.version_info[1],
+               platform.python_implementation().lower())
+result_obj = {method_ref}()
+result_tuple = (
+    base64.b64encode(dumps(result_obj)),
+    client_impl,
+)
 with open(r'{pickled_file}', 'w') as f:
-    f.write(to_str(base64.b64encode(dumps({method_ref}()))))
+    f.write(to_str(base64.b64encode(pickle.dumps(result_tuple, protocol=0))))
     f.close()
 """.replace('{module_name}', __name__)
 
 
 def pickled_runner(q, pickled, args, kwargs, **kw):
-    wrapper = kw.pop('wrapper', None)
-    impl = kwargs.pop('impl', 'CP3')
-    if wrapper:
-        wrapper = loads(wrapper)
-    else:
-        wrapper = lambda v, a, kw: v(*a, **kw)
-    deserial = loads(base64.b64decode(pickled), impl=impl)
-    q.put(wrapper(deserial, args, kwargs))
+    try:
+        wrapper = kw.pop('wrapper', None)
+        impl = kwargs.pop('impl', (3, 5, 'cpython'))
+        if wrapper:
+            wrapper = loads(wrapper)
+        else:
+            wrapper = lambda v, a, kw: v(*a, **kw)
+        deserial = loads(base64.b64decode(pickled), impl=impl)
+        q.put(wrapper(deserial, args, kwargs))
+    except:
+        traceback.print_exc()
+        raise
 
 
 def run_pickled(pickled, *args, **kwargs):
+    pickled, kwargs['impl'] = pickle.loads(base64.b64decode(pickled))
     wrapper_kw = {}
     if 'wrapper' in kwargs:
         wrapper_kw['wrapper'] = dumps(kwargs.pop('wrapper'))
@@ -151,6 +166,28 @@ else:
     six.exec_(py3_code, globals(), my_locs)
     _gen_class_builder_func = my_locs.get('_gen_class_builder_func')
 
+if sys.version_info[:2] < (3, 6):
+    def _gen_format_string_func():
+        out_closure = 4.0
+
+        def _format_fun(arg):
+            return 'Formatted stuff {0}: {1:>5}'.format(arg, out_closure)
+
+        return _format_fun
+else:
+    py36_code = textwrap.dedent("""
+    def _gen_format_string_func():
+        out_closure = 4.0
+
+        def _format_fun(arg):
+            return f'Formatted stuff {arg}: {out_closure:>5}'
+
+        return _format_fun
+    """)
+    my_locs = locals().copy()
+    six.exec_(py36_code, globals(), my_locs)
+    _gen_format_string_func = my_locs.get('_gen_format_string_func')
+
 
 def _gen_nested_fun():
     out_closure = 10
@@ -162,7 +199,7 @@ def _gen_nested_fun():
 
         return nested_method
 
-    return lambda v: _gen_nested_obj()(v)
+    return lambda v: _gen_nested_obj()(*(v, ))
 
 
 class Test(TestBase):
@@ -199,6 +236,15 @@ class Test(TestBase):
         self.assertEqual(deserial(20), func(20))
 
     @unittest.skipIf(not PY27, 'Ignored under Python 3')
+    def test3to2FormatString(self):
+        executable = self.config.get('test', 'py3_executable')
+        if not executable:
+            return
+        func = _gen_format_string_func()
+        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_format_string_func))
+        self.assertEqual(run_pickled(py3_serial, 20), func(20))
+
+    @unittest.skipIf(not PY27, 'Ignored under Python 3')
     def test3to2NestedFunc(self):
         executable = self.config.get('test', 'py3_executable')
         if not executable:
@@ -223,7 +269,7 @@ class Test(TestBase):
             return
         func = _gen_nested_yield_obj()
         py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_yield_obj))
-        self.assertEqual(run_pickled(py3_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw)), impl='CP3'),
+        self.assertEqual(run_pickled(py3_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw))),
                          sum(func()(20)))
 
     @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
@@ -236,7 +282,7 @@ class Test(TestBase):
             return
         func = _gen_nested_yield_obj()
         py26_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_yield_obj))
-        self.assertEqual(run_pickled(py26_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw)), impl='CP26'),
+        self.assertEqual(run_pickled(py26_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw))),
                          sum(func()(20)))
 
     @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
@@ -249,5 +295,5 @@ class Test(TestBase):
             return
         cls = _gen_class_builder_func()()
         py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_class_builder_func))
-        self.assertEqual(run_pickled(py3_serial, 5, wrapper=lambda cls, a, kw: cls()().b(*a, **kw), impl='CP3'),
+        self.assertEqual(run_pickled(py3_serial, 5, wrapper=lambda cls, a, kw: cls()().b(*a, **kw)),
                          cls().b(5))

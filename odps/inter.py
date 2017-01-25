@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from __future__ import absolute_import
 
@@ -31,6 +28,7 @@ from .errors import InteractiveError
 from .models import Schema
 from .utils import to_binary, build_pyodps_dir
 from .df.backends.frame import ResultFrame
+from .df.backends.odpssql.types import odps_schema_to_df_schema
 
 
 DEFAULT_ROOM_NAME = 'default'
@@ -99,10 +97,10 @@ class Room(object):
 
         os.makedirs(path)
         with open(os.path.join(path, INFO_FILE_NAME), 'wb') as f:
-            pickle.dump((name, desc), f)
+            pickle.dump((name, desc), f, protocol=0)
 
         with open(os.path.join(path, OBJECT_FILE_NAME), 'wb') as f:
-            pickle.dump(obj, f, protocol=1)
+            pickle.dump(obj, f, protocol=0)
 
     def fetch(self, name):
         path = self._obj_store_dir(name)
@@ -131,6 +129,7 @@ class Room(object):
 
     def display(self):
         schema = Schema.from_lists(['name', 'desc'], ['string'] * 2)
+        schema = odps_schema_to_df_schema(schema)
         frame = ResultFrame(self.list_stores(), schema=schema)
         try:
             import pandas as pd
@@ -178,7 +177,7 @@ def setup(access_id, access_key, default_project,
            endpoint, tunnel_endpoint)
 
     with open(odps_file, 'wb') as f:
-        pickle.dump(obj, f)
+        pickle.dump(obj, f, protocol=0)
 
     with open(os.path.join(room_dir, INFO_FILE_NAME), 'wb') as f:
         f.write(to_binary(room))

@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import re
 from datetime import datetime
@@ -291,7 +288,7 @@ class OdpsSQLCompiler(Backend):
                 dep_sqls = self._ctx.get_mem_cache_dep_sqls(*self._mem_ref_caches)
                 dep_sqls = [dep_sql if dep_sql.endswith(';') else dep_sql + ';'
                             for dep_sql in dep_sqls]
-                return '\n'.join(dep_sqls + [sql,])
+                return dep_sqls + [sql,]
 
             return sql
         finally:
@@ -576,9 +573,9 @@ class OdpsSQLCompiler(Backend):
             compiled = '{0} IS NOT NULL'.format(
                 self._ctx.get_expr_compiled(expr.input))
         elif isinstance(expr, element.FillNa):
-            compiled = 'IF(%(input)s IS NULL, %(value)r, %(input)s)' % {
+            compiled = 'IF(%(input)s IS NULL, %(value)s, %(input)s)' % {
                 'input': self._ctx.get_expr_compiled(expr.input),
-                'value': expr.fill_value
+                'value': self._ctx.get_expr_compiled(expr._fill_value),
             }
         elif isinstance(expr, element.IsIn):
             if expr.values is not None:
@@ -624,6 +621,10 @@ class OdpsSQLCompiler(Backend):
                 compiled = '\n'.join(lines)
             else:
                 compiled = ''.join(lines)
+        elif isinstance(expr, element.IntToDatetime):
+            compiled = 'FROM_UNIXTIME({0})'.format(
+                self._ctx.get_expr_compiled(expr._input),
+            )
         else:
             raise NotImplementedError
 
@@ -849,6 +850,8 @@ class OdpsSQLCompiler(Backend):
             compiled = 'WEEKDAY(%s)' % input
         elif isinstance(expr, datetimes.Date):
             compiled = 'DATETRUNC(%s, %r)' % (input, 'dd')
+        elif isinstance(expr, datetimes.UnixTimestamp):
+            compiled = 'UNIX_TIMESTAMP(%s)' % input
 
         if compiled is not None:
             self._ctx.add_expr_compiled(expr, compiled)
@@ -1179,7 +1182,7 @@ class OdpsSQLCompiler(Backend):
                 compiled = 'true' if expr._value else 'false'
             elif isinstance(expr._value, datetime):
                 # FIXME: just ignore shorter than second
-                compiled= 'FROM_UNIXTIME({0})'.format(utils.to_timestamp(expr._value))
+                compiled = 'FROM_UNIXTIME({0})'.format(utils.to_timestamp(expr._value))
             elif isinstance(expr._value, Decimal):
                 compiled = 'CAST({0} AS DECIMAL)'.format(repr(str(expr._value)))
         else:

@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import itertools
 
@@ -29,7 +26,7 @@ from ...compat import u, six, izip as zip
 from ...config import options
 from ...console import get_console_size, in_interactive_session, \
     in_ipython_frontend, in_qtconsole
-from ...utils import to_str
+from ...utils import to_str, to_text
 from ...models import Schema
 from ...types import Partition
 from . import formatter as fmt
@@ -62,7 +59,7 @@ class ResultFrame(six.Iterator):
             columns = schema.columns
 
         self._columns = columns
-        self._names = [c.name for c in self._columns]
+        self._names = [to_text(c.name) for c in self._columns]
         self._types = [c.type for c in self._columns]
         self._index = index
 
@@ -118,10 +115,14 @@ class ResultFrame(six.Iterator):
         return self._values
 
     def get_column_data(self, item):
+        item = to_text(item)
         if item not in self.names:
             return None
         if self._pandas:
-            return getattr(self.values, item)
+            if item in self.values.index.names:
+                return self.values.index.get_level_values(item)
+            else:
+                return self.values[item]
         else:
             col_id = list(idx for idx, c in self.names if c == item)[0]
             return [r[col_id] for r in self.values]
@@ -271,7 +272,7 @@ class ResultFrame(six.Iterator):
         Return a string representation for a particular DataFrame
         """
         if self._pandas:
-            return repr(self._values)
+            return to_text(repr(self._values))
 
         buf = six.StringIO(u(""))
 

@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import re
 from datetime import datetime as _datetime
@@ -23,7 +20,7 @@ import decimal as _builtin_decimal
 
 from . import utils
 from . import compat
-from .compat import six, DECIMAL_TYPES, decimal as _decimal
+from .compat import six, DECIMAL_TYPES, decimal as _decimal, east_asian_len
 from .config import options
 
 force_py = options.force_py
@@ -38,7 +35,7 @@ class Column(object):
         self.label = label
 
     def __repr__(self):
-        return '<column {0}, type {1}>'.format(self.name, self.type.name.lower())
+        return '<column {0}, type {1}>'.format(utils.to_str(self.name), self.type.name.lower())
 
     def __hash__(self):
         return hash((type(self), self.name, self.type, self.comment, self.label))
@@ -46,7 +43,7 @@ class Column(object):
 
 class Partition(Column):
     def __repr__(self):
-        return '<partition {0}, type {1}>'.format(self.name, self.type.name.lower())
+        return '<partition {0}, type {1}>'.format(utils.to_str(self.name), self.type.name.lower())
 
 
 class PartitionSpec(object):
@@ -232,7 +229,9 @@ class OdpsSchema(Schema):
         buf = six.StringIO()
 
         name_dict = dict([(col.name, utils.str_to_printable(col.name)) for col in self.columns])
-        name_space = 2 * max(len(n) for n in six.itervalues(name_dict))
+        name_display_lens = dict([(k, east_asian_len(utils.to_text(v), encoding=options.display.encoding))
+                                  for k, v in six.iteritems(name_dict)])
+        name_space = 2 * max(six.itervalues(name_display_lens))
         type_space = 2 * max(len(repr(col.type)) for col in self.columns)
 
         not_empty = lambda field: field is not None and len(field.strip()) > 0
@@ -240,10 +239,11 @@ class OdpsSchema(Schema):
         buf.write('odps.Schema {\n')
         cols_strs = []
         for col in self._columns:
+            pad_spaces = name_space - name_display_lens[col.name]
             cols_strs.append('{0}{1}{2}'.format(
-                name_dict[col.name].ljust(name_space),
+                utils.to_str(name_dict[col.name] + ' ' * pad_spaces),
                 repr(col.type).ljust(type_space),
-                '# {0}'.format(col.comment) if not_empty(col.comment) else ''
+                '# {0}'.format(utils.to_str(col.comment)) if not_empty(col.comment) else ''
             ))
         buf.write(utils.indent('\n'.join(cols_strs), 2))
         buf.write('\n')
@@ -255,9 +255,9 @@ class OdpsSchema(Schema):
             partition_strs = []
             for partition in self._partitions:
                 partition_strs.append('{0}{1}{2}'.format(
-                    name_dict[partition.name].ljust(name_space),
+                    utils.to_str(name_dict[partition.name].ljust(name_space)),
                     repr(partition.type).ljust(type_space),
-                    '# {0}'.format(partition.comment) if not_empty(partition.comment) else ''
+                    '# {0}'.format(utils.to_str(partition.comment)) if not_empty(partition.comment) else ''
                 ))
             buf.write(utils.indent('\n'.join(partition_strs), 2))
             buf.write('\n')
@@ -666,7 +666,7 @@ class Datetime(OdpsPrimitive):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
-        if isinstance(other, String):
+        if isinstance(other, (Datetime, String)):
             return True
         return super(Datetime, self).can_implicit_cast(other)
 

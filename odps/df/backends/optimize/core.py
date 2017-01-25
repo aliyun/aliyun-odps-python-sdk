@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import itertools
 
@@ -28,6 +25,7 @@ from ...expr.collections import DistinctCollectionExpr, RowAppliedCollectionExpr
 from ...expr.merge import JoinCollectionExpr
 from ...expr.window import Window
 from ...utils import traverse_until_source
+from .... import utils
 from .columnpruning import ColumnPruning
 from .predicatepushdown import PredicatePushdown
 from .utils import change_input
@@ -91,15 +89,19 @@ class Optimizer(Backend):
 
         raise NotImplementedError
 
-    def _compact_filters(self, *filters):
+    @classmethod
+    def get_compact_filters(cls, dag, *filters):
         input = filters[-1].input
 
         get_field = lambda n, col: input[col]
         for filter in filters:
-            change_input(filter, filter.input, input, get_field, self._dag)
+            change_input(filter, filter.input, input, get_field, dag)
 
-        predicate = reduce(operator.and_, [f.predicate for f in filters])
-        new_filter = FilterCollectionExpr(input, predicate, _schema=input.schema)
+        predicate = reduce(operator.and_, [f.predicate for f in filters[::-1]])
+        return FilterCollectionExpr(input, predicate, _schema=input.schema)
+
+    def _compact_filters(self, *filters):
+        new_filter = self.get_compact_filters(self._dag, *filters)
         self._sub(filters[0], new_filter)
 
     def visit_project_collection(self, expr):
@@ -260,6 +262,8 @@ class Optimizer(Backend):
 
     def _get_field(self, collection, name):
         # FIXME: consider name with upper letters
+        name = utils.to_str(name)
+
         if isinstance(collection, GroupByCollectionExpr):
             return collection._name_to_exprs()[name]
 

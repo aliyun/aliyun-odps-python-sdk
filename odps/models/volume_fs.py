@@ -1,28 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import contextlib
 
 from .core import LazyLoad, cache, Iterable
 from .cache import cache_parent
 from .volumes import Volume
-from .. import serializers, errors
+from .. import serializers, errors, utils
 from ..compat import six, long_type
 
 
@@ -64,6 +61,7 @@ class VolumeFSObject(LazyLoad):
         isdir = kwargs.get('_isdir')
         return isdir is not None and isdir != 'UNKNOWN'
 
+    @utils.experimental('Volume2 is still experimental. Usage in production environment is strongly opposed.')
     @cache
     def __new__(cls, *args, **kwargs):
         isdir = kwargs.get('_isdir')
@@ -200,6 +198,7 @@ class VolumeFSDir(VolumeFSObject):
     >>> # get a file/directory object
     >>> file_obj = fs_dir[file_name]
     """
+    @utils.experimental('Volume2 is still experimental. Usage in production environment is strongly opposed.')
     def __init__(self, **kw):
         super(VolumeFSDir, self).__init__(**kw)
         self._isdir = True
@@ -287,6 +286,7 @@ class VolumeFSDir(VolumeFSObject):
 
 @cache_parent
 class VolumeFSFile(VolumeFSObject):
+    @utils.experimental('Volume2 is still experimental. Usage in production environment is strongly opposed.')
     def __init__(self, **kw):
         super(VolumeFSFile, self).__init__(**kw)
         self._isdir = False

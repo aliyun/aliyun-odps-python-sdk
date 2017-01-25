@@ -1,28 +1,26 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from datetime import datetime
 import itertools
+import textwrap
 
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
-from odps.models import Schema, Record
+from odps.models import Schema, Record, Column, Partition
 
 
 class Test(TestBase):
@@ -126,13 +124,40 @@ class Test(TestBase):
 
     def testCreateTableWithChineseColumn(self):
         test_table_name = tn('pyodps_t_tmp_create_table_with_chinese_columns')
-        schema = Schema.from_lists(['序列', '值'], ['bigint', 'string'], ['ds', ], ['string',])
+        columns = [
+            Column(name='序列', type='bigint', comment='注释'),
+            Column(name=u'值', type=u'string', comment=u'注释2'),
+        ]
+        partitions = [
+            Partition(name='ds', type='string', comment='分区注释'),
+            Partition(name=u'ds2', type=u'string', comment=u'分区注释2'),
+        ]
+        schema = Schema(columns=columns, partitions=partitions)
+
+        columns_repr = "[<column 序列, type bigint>, <column 值, type string>]"
+        partitions_repr = "[<partition ds, type string>, <partition ds2, type string>]"
+        schema_repr = textwrap.dedent("""
+        odps.Schema {
+          序列    bigint      # 注释
+          值      string      # 注释2
+        }
+        Partitions {
+          ds      string      # 分区注释
+          ds2     string      # 分区注释2
+        }
+        """).strip()
+
+        self.assertEqual(repr(columns), columns_repr)
+        self.assertEqual(repr(partitions), partitions_repr)
+        self.assertEqual(repr(schema).strip(), schema_repr)
 
         self.odps.delete_table(test_table_name, if_exists=True)
 
         table = self.odps.create_table(test_table_name, schema)
-        self.assertSequenceEqual([col.name for col in table.schema.columns],
-                                 [col.name for col in schema.columns])
+        self.assertSequenceEqual([to_str(col.name) for col in table.schema.columns],
+                                 [to_str(col.name) for col in schema.columns])
+        self.assertSequenceEqual([to_str(col.comment) for col in table.schema.columns],
+                                 [to_str(col.comment) for col in schema.columns])
 
     def testRecordReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_read_write_table')

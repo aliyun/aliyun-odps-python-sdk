@@ -1,19 +1,16 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import sys
 import logging.config
@@ -105,6 +102,9 @@ if six.PY3:
 
     import builtins
     from concurrent import futures  # don't remove
+
+    from datetime import timedelta
+    total_seconds = timedelta.total_seconds
 else:
     lrange = range
     lzip = zip
@@ -168,11 +168,16 @@ else:
         except ImportError:
             raise
 
+        def total_seconds(self):
+            return self.days * 86400.0 + self.seconds + self.microseconds * 1.0e-6
     else:
         import unittest
         from collections import OrderedDict
 
         dictconfig = lambda config: logging.config.dictConfig(config)
+
+        from datetime import timedelta
+        total_seconds = timedelta.total_seconds
 
     import __builtin__ as builtins  # don't remove
     from .lib import futures  # don't remove

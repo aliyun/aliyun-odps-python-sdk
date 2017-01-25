@@ -97,7 +97,7 @@
 
 .. code:: python
 
-    >>> users.groupby(users.sex).count()
+    >>> users.groupby(users.sex).agg(count=users.count())
        sex  count
     0    F    273
     1    M    670

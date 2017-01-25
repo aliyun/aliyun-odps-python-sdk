@@ -1,23 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import re
+import sys
 import itertools
 
 from ..core import Backend
@@ -444,6 +442,14 @@ class Analyzer(Backend):
             else:
                 return
 
+            if sys.version_info[:2] <= (2, 6):
+                def total_seconds(self):
+                    return self.days * 86400.0 + self.seconds + self.microseconds * 1.0e-6
+            else:
+                from datetime import timedelta
+                def total_seconds(self):
+                    return self.total_seconds()
+
             def func(l, r, method):
                 from datetime import datetime, timedelta
                 if not isinstance(l, datetime):
@@ -456,7 +462,7 @@ class Analyzer(Backend):
                 else:
                     res = l - r
                 if isinstance(res, timedelta):
-                    return int(res.microseconds / 1000)
+                    return int(total_seconds(res) * 1000)
                 return res
 
             inputs = expr.lhs, expr.rhs, Scalar('+') if isinstance(expr, Add) else Scalar('-')

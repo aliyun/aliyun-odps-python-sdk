@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import math
 import itertools
@@ -34,7 +31,7 @@ from odps.df.backends.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, irange as xrange, six, OrderedDict, futures
 from odps.models import Schema
 from odps import types
-from odps.df.types import validate_data_type
+from odps.df.types import validate_data_type, DynamicSchema
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema, \
     odps_schema_to_df_schema
 from odps.df.backends.context import context
@@ -215,6 +212,8 @@ class Test(TestBase):
             expr = df
             res = self.engine._handle_cases(expr, self.faked_bar, update_progress_count=1)
             self.assertEqual(len(res), 9)
+            self.assertIsNotNone(res[0][-1])
+            self.assertIsNotNone(res[0][-2])
 
             expr = df[df.name == 'a']
             res = self.engine._handle_cases(expr, self.faked_bar)
@@ -305,6 +304,10 @@ class Test(TestBase):
         res = self.engine.execute(cnt)
         self.assertEqual(len([it for it in data if it[1] < 10]), res)
         self.assertTrue(context.is_cached(expr))
+
+        table = context.get_cached(expr)
+        table.reload()
+        self.assertEqual(table.lifecycle, 1)
 
         expr2 = expr['id']
         res = self.engine.execute(expr2, _force_tunnel=True)
@@ -477,7 +480,8 @@ class Test(TestBase):
             self.expr.name.fillna('test').switch('test', 1, 'test2', 2).rename('name5'),
             self.expr.id.cut([100, 200, 300],
                              labels=['xsmall', 'small', 'large', 'xlarge'],
-                             include_under=True, include_over=True).rename('id6')
+                             include_under=True, include_over=True).rename('id6'),
+            self.expr.birth.unix_timestamp.to_datetime().rename('birth1'),
         ]
 
         expr = self.expr[fields]
@@ -517,6 +521,9 @@ class Test(TestBase):
 
         self.assertEqual([to_str(1 if it[0] is None else None) for it in data],
                          [to_str(it[9]) for it in result])
+
+        self.assertListEqual([it[5] for it in data],
+                             [it[11] for it in result])
 
         def get_val(val):
             if val <= 100:
@@ -975,6 +982,7 @@ class Test(TestBase):
             (partial(date_value, lambda d: d.isocalendar()[1]), self.expr.birth.weekofyear),
             (partial(date_value, lambda d: d.weekday()), self.expr.birth.dayofweek),
             (partial(date_value, lambda d: d.weekday()), self.expr.birth.weekday),
+            (partial(date_value, lambda d: time.mktime(d.timetuple())), self.expr.birth.unix_timestamp),
             (partial(date_value, lambda d: datetime.combine(d.date(), datetime.min.time())), self.expr.birth.date),
             (partial(date_value, lambda d: d.strftime('%Y%d')), self.expr.birth.strftime('%Y%d')),
             (partial(date_value, lambda d: datetime.strptime(d.strftime('%Y%d'), '%Y%d')), self.expr.birth.strftime('%Y%d').strptime('%Y%d')),
@@ -1225,6 +1233,14 @@ class Test(TestBase):
 
         expr6 = expr6.map_reduce(mapper=h)
         self.assertEqual(len(self.engine.execute(expr6)), 3)
+
+        expr8 = self.expr.pivot_table(rows='id', values='fid', columns='name')
+        self.assertEqual(len(self.engine.execute(expr8)), 3)
+        self.assertNotIsInstance(expr8.schema, DynamicSchema)
+        expr9 =(expr8['name1_fid_mean'] - expr8['name2_fid_mean']).rename('substract')
+        self.assertEqual(len(self.engine.execute(expr9)), 3)
+        expr10 = expr8.distinct()
+        self.assertEqual(len(self.engine.execute(expr10)), 3)
 
     def testExtractKV(self):
         from odps.df import DataFrame
@@ -2333,6 +2349,14 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(len(result), 5)
             self.assertEqual(data, [d[:-1] for d in result])
+
+            df2 = self.engine.persist(self.expr[self.expr.id.astype('float'), 'name'], table_name,
+                                      partition='ds=today2', create_partition=True, cast=True)
+
+            res = self.engine.execute(df2)
+            result = self._get_result(res)
+            self.assertEqual(len(result), 5)
+            self.assertEqual([d[:2] + [None] * (len(d) - 2) for d in data], [d[:-1] for d in result])
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 
@@ -2504,6 +2528,24 @@ class Test(TestBase):
                 [6, 5, 'name1', 1.0, 2.0, 3.0, 4.0],
             ]
             self.assertListEqual(uresult, expected)
+        finally:
+            table.drop()
+
+    def testFilterOrder(self):
+        table_name = tn('pyodps_test_division_error')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(table_name, 'divided bigint, divisor bigint', lifecycle=1)
+
+        try:
+            self.odps.write_table(table_name, [[2, 0], [1, 1], [1, 2], [5, 1], [5, 0]])
+            df = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(table.schema))
+            fdf = df[df.divisor > 0]
+            ddf = fdf[(fdf.divided / fdf.divisor).rename('result'),]
+            expr = ddf[ddf.result > 1]
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, [[5, ]])
         finally:
             table.drop()
 

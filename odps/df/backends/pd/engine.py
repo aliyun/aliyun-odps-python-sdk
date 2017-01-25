@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import itertools
 
@@ -31,6 +28,7 @@ from ...backends.odpssql.types import df_schema_to_odps_schema, df_type_to_odps_
 from ..errors import CompileError
 from ..utils import refresh_dynamic
 from ...utils import is_source_collection, is_constant_scalar
+from ...types import DynamicSchema, Unknown
 from ....models import Schema, Partition
 from ....errors import ODPSError
 from ....types import PartitionSpec
@@ -152,6 +150,11 @@ class PandasEngine(Engine):
 
         if not isinstance(src_expr, Scalar):
             context.cache(src_expr, df)
+            # reset schema
+            if isinstance(src_expr, CollectionExpr) and \
+                    (isinstance(src_expr._schema, DynamicSchema) or
+                         any(isinstance(col.type, Unknown) for col in src_expr._schema.columns)):
+                src_expr._schema = expr_dag.root.schema
             if head:
                 df = df[:head]
             elif tail:

@@ -1,30 +1,28 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from datetime import timedelta, datetime
 from random import randint
 from decimal import Decimal
 import re
+import time
 
 from odps.df.backends.tests.core import TestBase, to_str, tn, pandas_case
 from odps.compat import unittest, irange as xrange, OrderedDict
-from odps.df.types import validate_data_type
+from odps.df.types import validate_data_type, DynamicSchema
 from odps.df.expr.expressions import *
 from odps.df.backends.pd.engine import PandasEngine
 from odps.df.backends.odpssql.engine import ODPSSQLEngine
@@ -217,6 +215,7 @@ class Test(TestBase):
             self.expr.id.cut([100, 200, 300],
                              labels=['xsmall', 'small', 'large', 'xlarge'],
                              include_under=True, include_over=True).rename('id6'),
+            self.expr.birth.unix_timestamp.to_datetime().rename('birth1'),
             (Scalar(10) * 2).rename('const1'),
             (RandomScalar() * 10).rename('rand1'),
         ]
@@ -271,10 +270,12 @@ class Test(TestBase):
 
         self.assertEqual([to_str(get_val(it[1])) for it in data], [to_str(it[10]) for it in result])
 
-        self.assertEqual([20] * len(data), [it[11] for it in result])
+        self.assertListEqual([it[5] for it in data], [it[11] for it in result])
+
+        self.assertEqual([20] * len(data), [it[12] for it in result])
 
         for it in result:
-            self.assertTrue(0 <= it[12] <= 10)
+            self.assertTrue(0 <= it[13] <= 10)
 
     def testArithmetic(self):
         data = self._gen_data(5, value_range=(-1000, 1000))
@@ -371,7 +372,7 @@ class Test(TestBase):
             (np.abs, self.expr.id.abs()),
             (np.ceil, self.expr.id.ceil()),
             (np.floor, self.expr.id.floor()),
-            (np.trunc, self.expr.id.trunc()),
+            (lambda v: np.trunc(v * 10.0) / 10.0, self.expr.id.trunc(1)),
         ]
 
         fields = [it[1].rename('id' + str(i)) for i, it in enumerate(methods_to_fields)]
@@ -470,6 +471,8 @@ class Test(TestBase):
             (lambda s: list(s.birth.dt.dayofweek.values), self.expr.birth.dayofweek),
             (lambda s: list(s.birth.dt.weekday.values), self.expr.birth.weekday),
             (lambda s: list(s.birth.dt.date.values), self.expr.birth.date),
+            (lambda s: list(s.birth.map(lambda x: time.mktime(x.timetuple()))),
+             self.expr.birth.unix_timestamp),
             (lambda s: list(s.birth.dt.strftime('%Y%d')), self.expr.birth.strftime('%Y%d')),
             (lambda s: list(s.birth.dt.strftime('%Y%d').map(lambda x: datetime.strptime(x, '%Y%d'))),
              self.expr.birth.strftime('%Y%d').strptime('%Y%d')),
@@ -1100,6 +1103,14 @@ class Test(TestBase):
 
         expr6 = expr6.map_reduce(mapper=h)
         self.assertEqual(len(self.engine.execute(expr6)), 3)
+
+        expr8 = self.expr.pivot_table(rows='id', values='fid', columns='name')
+        self.assertEqual(len(self.engine.execute(expr8)), 3)
+        self.assertNotIsInstance(expr8.schema, DynamicSchema)
+        expr9 = (expr8['name1_fid_mean'] - expr8['name2_fid_mean']).rename('substract')
+        self.assertEqual(len(self.engine.execute(expr9)), 3)
+        expr10 = expr8.distinct()
+        self.assertEqual(len(self.engine.execute(expr10)), 3)
 
     def testMelt(self):
         import pandas as pd
@@ -2194,6 +2205,20 @@ class Test(TestBase):
             [5, 'name1', 1.0, 2.0, 3.0, 4.0],
         ]
         self.assertListEqual(uresult, expected)
+
+    def testFilterOrder(self):
+        import pandas as pd
+
+        schema = Schema.from_lists(['divided', 'divisor'], [types.int64, types.int64])
+        pd_df = pd.DataFrame([[2, 0], [1, 1], [1, 2], [5, 1], [5, 0]], columns=schema.names)
+        df = CollectionExpr(_source_data=pd_df, _schema=schema)
+        fdf = df[df.divisor > 0]
+        ddf = fdf[(fdf.divided / fdf.divisor).rename('result'),]
+        expr = ddf[ddf.result > 1]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertEqual(result, [[5, ]])
 
 
 if __name__ == '__main__':

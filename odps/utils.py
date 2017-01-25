@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from __future__ import absolute_import, print_function
 
@@ -62,6 +59,39 @@ def deprecated(msg, cond=None):
             return func(*args, **kwargs)
         _new_func.__name__ = func.__name__
         _new_func.__doc__ = func.__doc__
+        _new_func.__dict__.update(func.__dict__)
+        return _new_func
+
+    if isinstance(msg, (types.FunctionType, types.MethodType)):
+        return _decorator(msg)
+    return _decorator
+
+
+class ExperimentalNotAllowed(Exception):
+    pass
+
+
+def experimental(msg, cond=None):
+    def _decorator(func):
+        def _new_func(*args, **kwargs):
+            warn_msg = "Call to experimental function %s." % func.__name__
+            if isinstance(msg, six.string_types):
+                warn_msg += ' ' + msg
+
+            if not str_to_bool(os.environ.get('PYODPS_EXPERIMENTAL', 'true')):
+                err_msg = "Calling to experimental method %s is denied." % func.__name__
+                if isinstance(msg, six.string_types):
+                    err_msg += ' ' + msg
+                raise ExperimentalNotAllowed(err_msg)
+
+            if cond is None or cond():
+                warnings.warn(warn_msg, category=FutureWarning)
+            return func(*args, **kwargs)
+        _new_func.__name__ = func.__name__
+
+        # intentionally eliminate __doc__ for Volume 2
+        _new_func.__doc__ = None
+
         _new_func.__dict__.update(func.__dict__)
         return _new_func
 
@@ -271,6 +301,22 @@ def to_text(binary, encoding='utf-8'):
 
 def to_str(text, encoding='utf-8'):
     return to_text(text, encoding=encoding) if six.PY3 else to_binary(text, encoding=encoding)
+
+
+# fix encoding conversion problem under windows
+if sys.platform == 'win32':
+    def _replace_default_encoding(func):
+        def _fun(s, encoding=None):
+            encoding = encoding or sys.stdout.encoding or 'mbcs'
+            return func(s, encoding=encoding)
+
+        _fun.__name__ = func.__name__
+        _fun.__doc__ = func.__doc__
+        return _fun
+
+    to_binary = _replace_default_encoding(to_binary)
+    to_text = _replace_default_encoding(to_text)
+    to_str = _replace_default_encoding(to_str)
 
 
 def is_lambda(f):

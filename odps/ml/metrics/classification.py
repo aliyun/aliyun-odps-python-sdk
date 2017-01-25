@@ -1,20 +1,17 @@
 # encoding: utf-8
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import logging
 from collections import namedtuple
@@ -50,7 +47,7 @@ def _run_cm_node(df, col_true, col_pred):
             eval_result = eval_fun(df, label_col=col_true, predict_col=col_pred)
             return eval_result.confusion_matrix
         except errors.ODPSError as ex:
-            if 'ODPS-0420061' not in ex:
+            if 'ODPS-0420061' not in str(ex):
                 raise
     cm_fun = getattr(_customize, '_confusion_matrix')
     return cm_fun(df, label_col=col_true, predict_col=col_pred)
@@ -63,7 +60,7 @@ def _run_roc_node(df, pos_label, col_true, col_pred, col_scores):
             eval_result = eval_fun(df, good_value=pos_label, label_col=col_true, score_col=col_scores)
             return eval_result.thresh, eval_result.tp, eval_result.fn, eval_result.tn, eval_result.fp
         except errors.ODPSError as ex:
-            if 'ODPS-0420061' not in ex:
+            if 'ODPS-0420061' not in str(ex):
                 raise
     roc_fun = getattr(_customize, '_roc')
     return roc_fun(df, good_value=pos_label, label_col=col_true, predict_col=col_pred,

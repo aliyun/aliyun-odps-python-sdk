@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from __future__ import absolute_import
 
@@ -25,17 +22,19 @@ import uuid  # don't remove
 import warnings
 import types as tps
 
-from ....errors import ODPSError, NoPermission
+from ....errors import ODPSError, NoPermission, ConnectTimeout
 from ....utils import write_log as log
 from ....models import Partition, Resource
 from ....tempobj import register_temp_table
 from ....types import PartitionSpec
 from ....ui import reload_instance_status, fetch_instance_group
 from ...core import DataFrame
+from ... import NullScalar
 from ...expr.reduction import *
 from ...expr.core import ExprDAG
 from ...expr.dynamic import DynamicMixin
 from ...utils import is_source_collection, is_constant_scalar
+from ...types import DynamicSchema, Unknown
 from ..utils import refresh_dynamic
 from ..core import Engine, ExecuteNode
 from ..frame import ResultFrame
@@ -61,6 +60,8 @@ class SQLExecuteNode(ExecuteNode):
         sql = self._sql()
 
         if sql:
+            if isinstance(sql, list):
+                sql = '\n'.join(sql)
             buf.write('SQL compiled: \n\n')
             buf.write(sql)
         else:
@@ -74,6 +75,8 @@ class SQLExecuteNode(ExecuteNode):
         sql = self._sql()
 
         if sql:
+            if isinstance(sql, list):
+                sql = '\n'.join(sql)
             buf.write('<h4>SQL compiled</h4>')
             buf.write('<code>%s</code>' % sql)
         else:
@@ -282,6 +285,12 @@ class ODPSSQLEngine(Engine):
 
         return sub, execute_node
 
+    @classmethod
+    def _join_sql(cls, sql):
+        if isinstance(sql, list):
+            return '\n'.join(sql)
+        return sql
+
     def _do_execute(self, expr_dag, expr, ui=None, progress_proportion=1,
                     lifecycle=None, head=None, tail=None,
                     hints=None, priority=None, **kw):
@@ -304,11 +313,12 @@ class ODPSSQLEngine(Engine):
         if options.df.optimizes.tunnel:
             force_tunnel = kw.get('_force_tunnel', False)
             try:
-                result = self._handle_cases(expr, ui, head=head, tail=tail)
+                result = self._handle_cases(expr, ui, progress_proportion=progress_proportion,
+                                            head=head, tail=tail)
             except KeyboardInterrupt:
                 ui.status('Halt by interruption')
                 sys.exit(1)
-            except NoPermission:
+            except (NoPermission, ConnectTimeout):
                 result = None
                 no_permission = True
                 if head:
@@ -327,7 +337,13 @@ class ODPSSQLEngine(Engine):
             cache_data = self._odps.get_table(tmp_table_name)
 
             lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
-            sql = 'CREATE TABLE {0} {1}AS \n{2}'.format(tmp_table_name, lifecycle_str, sql)
+            format_sql = lambda s: 'CREATE TABLE {0} {1}AS \n{2}'.format(tmp_table_name, lifecycle_str, s)
+            if isinstance(sql, list):
+                sql[-1] = format_sql(sql[-1])
+            else:
+                sql = format_sql(sql)
+
+        sql = self._join_sql(sql)
 
         log('Sql compiled:')
         log(sql)
@@ -376,6 +392,11 @@ class ODPSSQLEngine(Engine):
                             return ResultFrame([r.values for r in reader], schema=df_schema)
                         finally:
                             context.cache(src_expr, cache_data)
+                            # reset schema
+                            if isinstance(src_expr, CollectionExpr) and \
+                                    (isinstance(src_expr._schema, DynamicSchema) or
+                                     any(isinstance(col.type, Unknown) for col in src_expr._schema.columns)):
+                                src_expr._schema = df_schema
                             ui.inc(progress_proportion)
                 except ODPSError:
                     # some project has closed the tunnel download
@@ -414,9 +435,26 @@ class ODPSSQLEngine(Engine):
                 context.cache(src_expr, res)
                 return res
 
+    @classmethod
+    def _reorder(cls, expr, table, cast=False):
+        df_schema = types.odps_schema_to_df_schema(table.schema)
+        expr_schema = expr.schema.to_ignorecase_schema()
+
+        if table.schema.names == expr_schema.names and \
+                df_schema.types[:len(table.schema.names)] == expr_schema.types:
+            return expr
+
+        def field(name):
+            if expr[name].dtype != df_schema[name].type and cast:
+                return expr[name].astype(df_schema[name].type)
+            return expr[name]
+        return expr[[field(name) if name in expr_schema else NullScalar(df_schema[name].type).rename(name)
+                     for name in table.schema.names]]
+
     def _do_persist(self, expr_dag, expr, name, partitions=None, partition=None, project=None, ui=None,
                     progress_proportion=1, lifecycle=None, hints=None, priority=None,
-                    drop_table=False, create_table=True, drop_partition=False, create_partition=False, **kw):
+                    drop_table=False, create_table=True, drop_partition=False, create_partition=False,
+                    cast=False, **kw):
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
 
@@ -435,18 +473,21 @@ class ODPSSQLEngine(Engine):
 
             sql = self._compile(expr, prettify=False)
             lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
-            sql = 'CREATE TABLE {0} {1}AS \n{2}'.format(table_name, lifecycle_str, sql)
+            format_sql = lambda s: 'CREATE TABLE {0} {1}AS \n{2}'.format(table_name, lifecycle_str, s)
+            if isinstance(sql, list):
+                sql[-1] = format_sql(sql[-1])
+            else:
+                sql = format_sql(sql)
 
             should_cache = True
         elif partition is not None:
-            sql = self._compile(expr, prettify=False)
             t = self._odps.get_table(name, project=project)
 
             for col in expr.schema.columns:
                 if col.name.lower() not in t.schema:
                     raise CompileError('Column %s does not exist in table' % col.name)
                 t_col = t.schema[col.name.lower()]
-                if types.df_type_to_odps_type(col.type) != t_col.type:
+                if not cast and types.df_type_to_odps_type(col.type) != t_col.type:
                     raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
                         col.name, t_col.type, col.type))
 
@@ -455,10 +496,17 @@ class ODPSSQLEngine(Engine):
             if create_partition:
                 t.create_partition(partition, if_not_exists=True)
 
+            expr = self._reorder(expr, t, cast=cast)
+            sql = self._compile(expr, prettify=False)
+
             partition = PartitionSpec(partition)
-            sql = 'INSERT OVERWRITE TABLE {0} PARTITION({1}) \n{2}'.format(
-                name, partition, sql
+            format_sql = lambda s: 'INSERT OVERWRITE TABLE {0} PARTITION({1}) \n{2}'.format(
+                table_name, partition, s
             )
+            if isinstance(sql, list):
+                sql[-1] = format_sql(sql[-1])
+            else:
+                sql = format_sql(sql)
         else:
             if isinstance(partitions, tuple):
                 partitions = list(partitions)
@@ -487,9 +535,15 @@ class ODPSSQLEngine(Engine):
 
             sql = self._compile(expr, prettify=False)
 
-            sql = 'INSERT OVERWRITE TABLE {0} PARTITION({1}) \n{2}'.format(
-                name, ', '.join(partitions), sql
+            format_sql = lambda s: 'INSERT OVERWRITE TABLE {0} PARTITION({1}) \n{2}'.format(
+                table_name, ', '.join(partitions), s
             )
+            if isinstance(sql, list):
+                sql[-1] = format_sql(sql[-1])
+            else:
+                sql = format_sql(sql)
+
+        sql = self._join_sql(sql)
 
         log('Sql compiled:')
         log(sql)

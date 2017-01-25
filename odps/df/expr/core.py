@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from __future__ import absolute_import
 
@@ -46,7 +43,8 @@ class NodeMetaclass(type):
 
 class Node(six.with_metaclass(NodeMetaclass)):
     __slots__ = '_args_indexes', '__weakref__'
-    _args = ()
+    _args = ()  # the child(ren) of the current node
+    _extra_args = ()
 
     def __init__(self, *args, **kwargs):
         self._args_indexes = dict((name, i) for i, name in enumerate(self._args))
@@ -72,14 +70,15 @@ class Node(six.with_metaclass(NodeMetaclass)):
             yield name, arg
 
     @property
-    def _dag_args(self):
-        # _dag_args is the Nodes which will be added to the dag
-        # and may be substituted during the optimization
-        return self._args
+    def extra_args(self):
+        return tuple(getattr(self, extra_arg, None)
+                     for extra_arg in self._extra_args)
 
-    @property
-    def dag_args(self):
-        return tuple(getattr(self, arg, None) for arg in self._dag_args)
+    def arg_name_values(self, extra=False):
+        arg_names = self._args if not extra else self._args + self._extra_args
+        arg_values = self.args if not extra else self.args + self.extra_args
+        for arg_name, arg in zip(arg_names, arg_values):
+            yield arg_name, arg
 
     def _data_source(self):
         yield None
@@ -100,7 +99,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
                         new_arg._name is None:
             new_arg._name = old_arg._name
 
-        for arg_name, arg in zip(self._dag_args, self.dag_args):
+        for arg_name, arg in self.arg_name_values(extra=True):
             if not isinstance(arg, (list, tuple)):
                 if arg is old_arg:
                     setattr(self, arg_name, new_arg)
@@ -111,11 +110,11 @@ class Node(six.with_metaclass(NodeMetaclass)):
                         subs[i] = new_arg
                 setattr(self, arg_name, type(arg)(subs))
 
-    def children(self, args_attr=None):
+    def children(self, extra=False):
         args = []
 
-        args_attr = args_attr or 'args'
-        for arg in getattr(self, args_attr):
+        all_args = self.args if not extra else self.args + self.extra_args
+        for arg in all_args:
             if isinstance(arg, (list, tuple)):
                 args.extend(arg)
             else:
@@ -129,7 +128,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
                 yield n
 
     def traverse(self, top_down=False, unique=False, traversed=None,
-                 args_attrs=None, stop_cond=None):
+                 extra=False, stop_cond=None):
         traversed = traversed if traversed is not None else set()
 
         def is_trav(n):
@@ -152,12 +151,12 @@ class Node(six.with_metaclass(NodeMetaclass)):
             if top_down:
                 yield curr
                 if stop_cond is None or not stop_cond(curr):
-                    children = [c for c in curr.children(args_attr=args_attrs)
+                    children = [c for c in curr.children(extra=extra)
                                 if not is_trav(c)]
                     q.extendleft(children[::-1])
             else:
                 if id(curr) not in checked:
-                    children = curr.children(args_attr=args_attrs)
+                    children = curr.children(extra=extra)
                     if len(children) == 0:
                         yield curr
                     else:
@@ -274,7 +273,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
             if hasattr(self, attr):
                 setattr(target, attr, getattr(self, attr, None))
 
-    def copy_tree(self, on_copy=None):
+    def copy_tree(self, on_copy=None, extra=False):
         if on_copy is not None and not isinstance(on_copy, Iterable):
             on_copy = [on_copy, ]
 
@@ -288,10 +287,10 @@ class Node(six.with_metaclass(NodeMetaclass)):
             except KeyError:
                 raise
 
-        for node in self.traverse(unique=True, args_attrs='dag_args'):
+        for node in self.traverse(unique=True, extra=extra):
             attr_dict = node._attr_dict()
 
-            for arg_name, arg in zip(node._dag_args, node.dag_args):
+            for arg_name, arg in node.arg_name_values(extra=extra):
                 if isinstance(arg, (tuple, list)):
                     attr_dict[arg_name] = type(arg)(get(it) for it in arg)
                 else:
@@ -306,7 +305,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
 
     def to_dag(self, copy=True, on_copy=None, dag=None, validate=True):
         if copy:
-            expr = self.copy_tree(on_copy=on_copy)
+            expr = self.copy_tree(on_copy=on_copy, extra=True)
         else:
             expr = self
 
@@ -323,7 +322,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
         while not queue.empty():
             node = queue.get()
 
-            for child in node.children(args_attr='dag_args'):
+            for child in node.children(extra=True):
                 if not dag.contains_node(child):
                     dag.add_node(child)
                 if not dag.contains_edge(child, node):

@@ -1,26 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+import datetime
+import time
 import itertools
 
 from ..core import Backend
 from ...expr.expressions import *
+from ...expr.element import IntToDatetime
+from ...expr.datetimes import UnixTimestamp
 from ...expr.reduction import GroupedSequenceReduction, \
     Moment, GroupedMoment, Kurtosis, GroupedKurtosis
 from ...utils import traverse_until_source
@@ -88,6 +89,20 @@ class Analyzer(Backend):
         else:
             raise NotImplementedError
 
+    def visit_element_op(self, expr):
+        if isinstance(expr, IntToDatetime):
+            sub = expr.input.map(lambda n: datetime.datetime.fromtimestamp(n))
+            self._sub(expr, sub)
+        else:
+            raise NotImplementedError
+
+    def visit_datetime_op(self, expr):
+        if isinstance(expr, UnixTimestamp):
+            sub = expr.input.map(lambda d: time.mktime(d.timetuple()))
+            self._sub(expr, sub)
+        else:
+            raise NotImplementedError
+
     @staticmethod
     def _get_moment_sub_expr(expr, _input, order, center):
         def _group_mean(e):
@@ -152,5 +167,6 @@ class Analyzer(Backend):
             sub = 1.0 / (cnt - 2) / (cnt - 3) * ((cnt * cnt - 1) * m4 / (std ** 4) - 3 * (cnt - 1) ** 2)
             sub = sub.rename(expr.name)
             self._sub(expr, sub)
+            return
 
         raise NotImplementedError

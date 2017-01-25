@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """
 This class is defined to override standard pickle functionality
@@ -686,7 +683,9 @@ else:
 
 class CloudUnpickler(Unpickler):
     def __init__(self, *args, **kwargs):
-        self._src_impl = kwargs.pop('impl', 'CP27')
+        self._src_major, self._src_minor, self._src_impl = kwargs.pop('impl', None) or (2, 7, 'cpython')
+        self._src_version = (self._src_major, self._src_minor)
+
         self._dump_code = kwargs.pop('dump_code', False)
         Unpickler.__init__(self, *args, **kwargs)
 
@@ -1029,11 +1028,11 @@ class CloudUnpickler(Unpickler):
         args = stack.pop()
         func = stack[-1]
         if func.__name__ == 'code':
-            if PY27 and self._src_impl == 'CP3':  # src PY3, dest PY27
+            if PY27 and self._src_major == 3:  # src PY3, dest PY27
                 args = self._code_compat_3_to_27(args)
-            elif PY27 and self._src_impl == 'CP26':  # src PY26, dest PY27
+            elif PY27 and self._src_version == (2, 6):  # src PY26, dest PY27
                 args = self._code_compat_26_to_27(args)
-            elif PY27 and not PYPY and self._src_impl == 'PYPY2':
+            elif PY27 and not PYPY and self._src_impl == 'pypy':
                 args = self._code_compat_pypy2_to_cp27(args)
 
             if self._dump_code:
@@ -1055,11 +1054,11 @@ class CloudUnpickler(Unpickler):
         stack[-1] = value
 
 
-def load(file, impl='CP27', dump_code=False):
+def load(file, impl=None, dump_code=False):
     return CloudUnpickler(file, impl=impl, dump_code=dump_code).load()
 
 
-def loads(str, impl='CP27', dump_code=False):
+def loads(str, impl=None, dump_code=False):
     file = StringIO(str)
     return CloudUnpickler(file, impl=impl, dump_code=dump_code).load()
 

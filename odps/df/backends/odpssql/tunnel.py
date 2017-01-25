@@ -1,29 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import itertools
 from contextlib import contextmanager
 
 from ....errors import ODPSError, NoPermission
-from ....utils import init_progress_ui, write_log as log
+from ....utils import write_log as log
 from ....types import PartitionSpec
 from ....compat import izip
+from ....models import Table
 from ....tunnel.tabletunnel.downloadsession import TableDownloadSession
 from ...expr.arithmetic import And, Equal
 from ...expr.reduction import *
@@ -79,7 +77,8 @@ class TunnelEngine(object):
         if not isinstance(collection, CollectionExpr):
             return False
 
-        if is_source_collection(collection):
+        if is_source_collection(collection) and \
+                isinstance(collection._source_data, Table):
             return True
         if not no_filter and cls._filter_on_partition(collection):
             return True
@@ -166,7 +165,6 @@ class TunnelEngine(object):
             expr = expr.fields[0]
 
         columns, partitions, count = (None, ) * 3
-        pkv = None
         if isinstance(expr, Count):
             if isinstance(expr.input, Column):
                 input = expr.input.input
@@ -185,7 +183,6 @@ class TunnelEngine(object):
         while True:
             ret = self._filter_on_partition(input)
             if ret:
-                pkv = dict((k, v) for k, v in ret)
                 partitions = self._to_partition_spec(ret)
                 input = input.input
                 continue
@@ -277,8 +274,10 @@ class TunnelEngine(object):
                                          float(i) / reader.count / len(fetch_partitions)) * progress_proportion
                                     ui.inc(p - last_percent)
                                     last_percent = p
-                            if pkv:
-                                self._fill_back_partition_values(r, table, pkv)
+                            if partition:
+                                spec = PartitionSpec(partition) if not isinstance(partition, PartitionSpec) \
+                                    else partition
+                                self._fill_back_partition_values(r, table, spec.kv)
                             data.append(r.values)
 
                     if finished:

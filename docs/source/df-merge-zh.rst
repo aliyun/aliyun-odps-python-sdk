@@ -115,11 +115,16 @@ self-join的时候，可以调用\ ``view``\ 方法，这样就可以分别取�
 .. code:: python
 
     >>> movies2 = movies.view()
-    >>> movies.join(movies2, movies.movie_id == movies2.movie_id)[movies, movies2.movie_id].head(3)
-       movie_id_x            title_x  release_date_x  video_release_date_x                                         imdb_url_x  movie_id_y
-    0           1   Toy Story (1995)     01-Jan-1995                        http://us.imdb.com/M/title-exact?Toy%20Story%2...           1
-    1           2   GoldenEye (1995)     01-Jan-1995                        http://us.imdb.com/M/title-exact?GoldenEye%20(...           2
-    2           3  Four Rooms (1995)     01-Jan-1995                        http://us.imdb.com/M/title-exact?Four%20Rooms%...           3
+    >>> movies.join(movies2, movies.movie_id == movies2.movie_id)[movies, movies2.movie_id.rename('movie_id2')].head(3)
+       movie_id            title_x release_date_x video_release_date_x  \
+    0         2   GoldenEye (1995)    01-Jan-1995                 True
+    1         3  Four Rooms (1995)    01-Jan-1995                 True
+    2         4  Get Shorty (1995)    01-Jan-1995                 True
+
+                                              imdb_url_x  movie_id2
+    0  http://us.imdb.com/M/title-exact?GoldenEye%20(...          2
+    1  http://us.imdb.com/M/title-exact?Four%20Rooms%...          3
+    2  http://us.imdb.com/M/title-exact?Get%20Shorty%...          4
 
 除了\ ``join``\ 以外，DataFrame还支持\ ``left_join``\ ，\ ``right_join``\ ，和\ ``outer_join``\ 。
 

@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#      http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import operator
 import itertools
@@ -46,6 +43,8 @@ class PredicatePushdown(Backend):
         return self._dag.root
 
     def visit_filter_collection(self, expr):
+        from .core import Optimizer
+
         predicates = self._split_filter_into_predicates(expr)
 
         if any(isinstance(seq, (Window, SequenceReduction))
@@ -53,19 +52,29 @@ class PredicatePushdown(Backend):
             # if any reduction like sum or window op exists, skip
             return
 
+        filters = [expr]
         input = expr.input
         while isinstance(input, FilterCollectionExpr):
+            filters.append(input)
             input = input.input
+
+        def sub():
+            if len(filters) > 1:
+                new_expr = Optimizer.get_compact_filters(self._dag, *filters)
+                expr._predicate = new_expr.predicate
 
         if isinstance(input, ProjectCollectionExpr):
             if any(isinstance(seq, (Window, SequenceReduction))
                    for seq in itertools.chain(*input.all_path(input.input, strict=True))):
                 # if any reduction like sum or window op exists, skip
                 return
+            sub()
             self._push_down_through_projection(expr.predicate, expr, input)
             self._dag.substitute(expr, expr.input)
         elif isinstance(input, InnerJoin):
+            sub()
             remains = []
+            predicates = predicates[::-1]
             for i, predicate in enumerate(predicates):
                 collection = self._predicate_on_same_collection(
                     predicate, expr.input, input)
@@ -80,6 +89,7 @@ class PredicatePushdown(Backend):
                                 reduce(operator.and_, [predicates[i] for i in remains]),
                                 dag=self._dag)
         elif isinstance(input, UnionCollectionExpr):
+            sub()
             self._push_down_through_union(expr.predicate, expr, input)
             self._dag.substitute(expr, expr.input)
 
