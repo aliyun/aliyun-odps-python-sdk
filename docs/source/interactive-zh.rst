@@ -17,7 +17,7 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
 
 .. code:: python
 
-    setup('**your-access_id**', '**your-access-key**', '**your-project**', endpoint='**your-endpoint**)
+    setup('**your-access_id**', '**your-access-key**', '**your-project**', endpoint='**your-endpoint**')
 
 在不指定\ ``room``\ 这个参数时，会被配置到叫做\ ``default``\ 的room里。
 

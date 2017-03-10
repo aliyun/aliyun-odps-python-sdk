@@ -11,11 +11,12 @@
 创建 DataFrame
 --------------
 
-通常情况下，你唯一需要直接创建的 Collection 对象是 :class:`DataFrame`，这一对象用于引用数据源，可能是一个 ODPS 表或
-Pandas DataFrame。使用这两种数据源时，相关的操作相同，这意味着你可以不更改数据处理的代码，仅仅修改输入/输出的指向，
+通常情况下，你唯一需要直接创建的 Collection 对象是 :class:`DataFrame`，这一对象用于引用数据源，可能是一个 ODPS 表，
+Pandas DataFrame，或sqlalchemy.Table（数据库表）。
+使用这两种数据源时，相关的操作相同，这意味着你可以不更改数据处理的代码，仅仅修改输入/输出的指向，
 便可以简单地将小数据量上本地测试运行的代码迁移到 ODPS 上，而迁移的正确性由 PyODPS 来保证。
 
-创建 DataFrame 非常简单，只需将 Table 对象传入，或者传入 pandas DataFrame 对象即可。
+创建 DataFrame 非常简单，只需将 Table 对象、 pandas DataFrame 对象或者 sqlalchemy Table 对象传入即可。
 
 .. code:: python
 
@@ -26,6 +27,11 @@ Pandas DataFrame。使用这两种数据源时，相关的操作相同，这意�
     >>> import pandas as pd
     >>> import numpy as np
     >>> df = DataFrame(pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc')))
+    >>> # 从 sqlalchemy Table 创建
+    >>> engine = sqlalchemy.create_engine('mysql://root:chinekingseu@localhost/movielens')
+    >>> metadata = sqlalchemy.MetaData(bind=engine) # 需要绑定到engine
+    >>> table = sqlalchemy.Table('top_users', metadata, extend_existing=True, autoload=True)
+    >>> users = DataFrame(table)
 
 在用pandas DataFrame初始化时，对于numpy object类型（string也是），PyODPS DataFrame会尝试推断类型，
 如果一整列都为空，则会报错。
@@ -726,4 +732,8 @@ DataFrame的计算过程中，一些Collection被多处使用，或者用户需�
     0          4.9  Iris-setosa
     1          4.7  Iris-setosa
     2          4.6  Iris-setosa
+
+.. intinclude:: df-seahawks-int-zh.rst
+
+
 
