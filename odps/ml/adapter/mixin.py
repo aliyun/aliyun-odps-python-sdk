@@ -336,11 +336,16 @@ class MLCollectionMixin(Node):
             algo_obj = algo_cls(sample_size=n, sample_ratio=frac, prob_col=_get_field_name(weights),
                                 replace=replace, random_seed=random_state)
         elif strata is not None:
+            def dict_to_kv(d):
+                if not isinstance(d, dict):
+                    return d
+                return ','.join('{0}:{1}'.format(k, v) for k, v in six.iteritems(d))
+
             if replace:
                 raise ValueError('Stratified sampling with replacement is not supported.')
             algo_cls = getattr(preprocess, '_StratifiedSample')
-            algo_obj = algo_cls(sample_size=n, sample_ratio=frac, strata_col_name=_get_field_name(strata),
-                                random_seed=random_state)
+            algo_obj = algo_cls(sample_size=dict_to_kv(n), sample_ratio=dict_to_kv(frac),
+                                strata_col_name=_get_field_name(strata), random_seed=random_state)
         else:
             algo_cls = getattr(preprocess, '_RandomSample')
             algo_obj = algo_cls(sample_size=n, sample_ratio=frac, replace=replace,

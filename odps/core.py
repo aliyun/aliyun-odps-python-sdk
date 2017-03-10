@@ -94,12 +94,18 @@ class ODPS(object):
         self._predict_endpoint = kw.pop('predict_endpoint', None)
         options.predict_endpoint = self._predict_endpoint
 
+        self._seahawks_url = None
+        if kw.get('seahawks_url'):
+            self._seahawks_url = kw.pop('seahawks_url', None)
+            options.seahawks_url = self._seahawks_url
+
         clean_stored_objects(self)
 
     @classmethod
-    def _from_account(cls, account, project, endpoint=DEFAULT_ENDPOINT, tunnel_endpoint=None):
+    def _from_account(cls, account, project, endpoint=DEFAULT_ENDPOINT,
+                      tunnel_endpoint=None, seahawks_url=None):
         return cls(None, None, project, endpoint=endpoint, tunnel_endpoint=tunnel_endpoint,
-                   account=account)
+                   account=account, seahawks_url=seahawks_url)
 
     def get_project(self, name=None):
         """
@@ -688,37 +694,18 @@ class ODPS(object):
             priority = options.get_priority(self)
         on_instance_create = kwargs.pop('on_instance_create', None)
 
-        def update(kv, dest):
-            if not kv:
-                return
-            for k, v in six.iteritems(kv):
-                if isinstance(v, bool):
-                    dest[k] = 'true' if v else 'false'
-                else:
-                    dest[k] = str(v)
-
         drop_table_match = DROP_TABLE_REGEX.match(sql)
         if drop_table_match:
             drop_table_name = drop_table_match.group('table_name').strip('`')
             del self.get_project(project).tables[drop_table_name]
 
         task = models.SQLTask(query=sql, **kwargs)
-        if hints or options.sql.settings:
-            if task.properties is None:
-                task.properties = dict()
-            settings = dict()
-
-            update(options.sql.settings, settings)
-            update(hints, settings)
-            task.properties['settings'] = json.dumps(settings)
-
+        if options.sql.settings:
+            task.update_settings(options.sql.settings)
+        if hints:
+            task.update_settings(hints)
         if aliases:
-            if task.properties is None:
-                task.properties = dict()
-
-            d = dict()
-            update(aliases, d)
-            task.properties['aliases'] = json.dumps(d)
+            task.update_aliases(aliases)
 
         if options.biz_id:
             if task.properties is None:

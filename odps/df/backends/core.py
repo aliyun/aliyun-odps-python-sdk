@@ -38,6 +38,8 @@ from .formatter import ExprExecutionGraphFormatter
 class EngineTypes(Enum):
     ODPS = 'ODPS'
     PANDAS = 'PANDAS'
+    SEAHAWKS = 'SEAHAWKS'
+    SQLALCHEMY = 'SQLALCHEMY'
 
 
 class Backend(object):
@@ -268,7 +270,8 @@ class ExecuteDAG(DAG):
                 sorted([c for c in calls if c.result_index is not None],
                        key=lambda x: x.result_index)]
 
-    def execute(self, ui=None, async=False, n_parallel=1, timeout=None):
+    def execute(self, ui=None, async=False, n_parallel=1, timeout=None,
+                close_and_notify=True):
         ui = ui or init_progress_ui(lock=async)
         succeeded = False
         if not async:
@@ -280,12 +283,13 @@ class ExecuteDAG(DAG):
                 succeeded = True
                 return results
             finally:
-                ui.close()
+                if close_and_notify or succeeded:
+                    ui.close()
 
-                if succeeded:
-                    ui.notify('DataFrame execution succeeded')
-                else:
-                    ui.notify('DataFrame execution failed')
+                    if succeeded:
+                        ui.notify('DataFrame execution succeeded')
+                    else:
+                        ui.notify('DataFrame execution failed')
         else:
             try:
                 fs = self._run_in_parallel(ui, n_parallel, async=async, timeout=timeout)
@@ -340,9 +344,9 @@ class Engine(object):
                 return h()
             else:
                 cached = ctx.get_cached(expr)
-                expr_dag.substitute(expr, cached,
-                                    parents=[e for e in expr_dag.successors(expr)
-                                             if e is not cached])
+                if isinstance(expr, CollectionExpr):
+                    cached = cached.copy()
+                expr_dag.substitute(expr, cached)
         elif expr._deps:
             return self._handle_dep
 
@@ -359,6 +363,8 @@ class Engine(object):
             if sub._deps is not None:
                 kw = dict(kwargs)
                 kw['finish'] = False
+                kw.pop('head', None)
+                kw.pop('tail', None)
                 self._handle_dep(ExprDAG(sub, dag=expr_dag), dag, sub, **kw)
 
         # analyze first
@@ -403,15 +409,17 @@ class Engine(object):
 
         return execute_nodes
 
-    def compile(self, *expr_args_kwargs):
-        ctx = ExecuteContext()  # expr -> new_expr
-        dag = ExecuteDAG()
-
+    def _handle_expr_args_kwargs(self, expr_args_kwargs):
         if len(expr_args_kwargs) == 1 and not isinstance(expr_args_kwargs[0], Expr) and \
                 all(isinstance(it, Expr) for it in expr_args_kwargs[0]):
             expr_args_kwargs = expr_args_kwargs[0]
         if all(isinstance(it, Expr) for it in expr_args_kwargs):
             expr_args_kwargs = [('_execute', it, (), {}) for it in expr_args_kwargs]
+
+        return expr_args_kwargs
+
+    def _process(self, *expr_args_kwargs):
+        expr_args_kwargs = self._handle_expr_args_kwargs(expr_args_kwargs)
 
         def rename(e):
             if isinstance(e, Scalar) and e.name is None:
@@ -420,6 +428,13 @@ class Engine(object):
 
         src_exprs = [rename(it[1]) for it in expr_args_kwargs]
         exprs_dags = self._build_expr_dag([self._convert_table(e) for e in src_exprs])
+
+        return exprs_dags, expr_args_kwargs
+
+    def _compile_dag(self, expr_args_kwargs, exprs_dags):
+        ctx = ExecuteContext()  # expr -> new_expr
+        dag = ExecuteDAG()
+
         for idx, it, expr_dag in zip(itertools.count(0), expr_args_kwargs, exprs_dags):
             action, src_expr, args, kwargs = it
 
@@ -439,6 +454,10 @@ class Engine(object):
             n.result_index = idx
 
         return dag
+
+    def compile(self, *expr_args_kwargs):
+        exprs_dags, expr_args_kwargs = self._process(*expr_args_kwargs)
+        return self._compile_dag(expr_args_kwargs, exprs_dags)
 
     def _action(self, *exprs_args_kwargs, **kwargs):
         ui = kwargs.pop('ui', None)
@@ -479,7 +498,9 @@ class Engine(object):
         # analyze first
         analyze = kwargs.pop('analyze', True)
         if analyze:
-            self._analyze(expr_dag, dag, **kwargs)
+            kw = dict(kwargs)
+            kw.pop('execute_kw', None)
+            self._analyze(expr_dag, dag, **kw)
 
         engine = self
 
@@ -487,6 +508,7 @@ class Engine(object):
 
         def run(s, **execute_kw):
             kw = dict(kwargs)
+            kw.update(kw.pop('execute_kw', dict()))
             kw.update(execute_kw)
             return engine._do_execute(expr_dag, expr, **kw)
 
@@ -565,8 +587,7 @@ class Engine(object):
             args.append((action, ) + tuple(others))
         return self._action(*args, **kwargs)
 
-    @classmethod
-    def _get_cached_sub_expr(cls, cached_expr, ctx=None):
+    def _get_cached_sub_expr(self, cached_expr, ctx=None):
         ctx = ctx or context
         data = ctx.get_cached(cached_expr)
         if isinstance(cached_expr, CollectionExpr):
@@ -576,8 +597,7 @@ class Engine(object):
             assert isinstance(cached_expr, Scalar)
             return Scalar(_value=data, _value_type=cached_expr.dtype)
 
-    @classmethod
-    def _build_expr_dag(cls, exprs, on_copy=None):
+    def _build_expr_dag(self, exprs, on_copy=None):
         cached_exprs = ExprDictionary()
 
         def find_cached(_, n):
@@ -595,10 +615,11 @@ class Engine(object):
 
         res = tuple(expr.to_dag(copy=True, on_copy=on_copy) for expr in exprs)
         for cached in cached_exprs:
-            sub = cls._get_cached_sub_expr(cached)
-            for dag in res:
-                if dag.contains_node(cached):
-                    dag.substitute(cached, sub)
+            sub = self._get_cached_sub_expr(cached)
+            if sub is not None:
+                for dag in res:
+                    if dag.contains_node(cached):
+                        dag.substitute(cached, sub)
 
         return res
 
@@ -613,5 +634,6 @@ class Engine(object):
                 dag.add_edge(dag_node, node)
 
     @classmethod
-    def _execute_dag(cls, dag, ui=None, async=False, n_parallel=1, timeout=None):
-        return dag.execute(ui=ui, async=async, n_parallel=n_parallel, timeout=timeout)
+    def _execute_dag(cls, dag, ui=None, async=False, n_parallel=1, timeout=None, close_and_notify=True):
+        return dag.execute(ui=ui, async=async, n_parallel=n_parallel, timeout=timeout,
+                           close_and_notify=close_and_notify)

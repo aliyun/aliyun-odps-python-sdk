@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import time
+import uuid
 
 from odps.tests.core import tn, pandas_case
 from odps.df.backends.tests.core import TestBase
@@ -25,9 +26,10 @@ from odps.errors import ODPSError
 from odps.df.backends.engine import MixedEngine
 from odps.df.backends.odpssql.engine import ODPSSQLEngine
 from odps.df.backends.pd.engine import PandasEngine
+from odps.df.backends.seahawks.models import SeahawksTable
 from odps.df.backends.context import context
 from odps.df.utils import is_source_collection
-from odps.df import DataFrame, output
+from odps.df import DataFrame, output, func
 
 
 @pandas_case
@@ -63,6 +65,7 @@ class Test(TestBase):
 
     def teardown(self):
         self.t.drop()
+        self.engine._selecter.force_odps = False
 
     def testGroupReduction(self):
         expr = self.odps_df.select(self.odps_df, id2=self.odps_df.id.map(lambda x: x + 1))
@@ -108,6 +111,18 @@ class Test(TestBase):
         expected = self.pd_engine.execute(df.union(self.pd_df).sort(['id', 'name'])).values
         self.assertTrue(result.equals(expected))
 
+        schema = Schema.from_lists([c.name for c in self.t.schema.columns if c.name != 'name'],
+                                   [c.type for c in self.t.schema.columns if c.name != 'name'],
+                                   ['name'], ['string'])
+        t = self.odps.create_table('tmp_pyodps_%s' % str(uuid.uuid4()).replace('-', '_'), schema)
+        try:
+            expr = self.odps_df.union(self.pd_df)
+            expr.persist(t.name, create_table=False, partitions=['name'])
+
+            self.assertEqual(self.engine.execute(DataFrame(t).count()), 5)
+        finally:
+            t.drop()
+
     def testIsIn(self):
         expr = self.odps_df['name'].isin(self.pd_df['name']).rename('isin')
         result = self.engine.execute(expr).values
@@ -123,7 +138,8 @@ class Test(TestBase):
                 lambda x: x.id_x.rename('id')
             ]).sort(['name', 'id'])
         expr = expr[expr['name'].isin(self.pd_df['name'])]
-        result = self.engine.execute(expr).values
+        expr = expr[expr, func.rand(rtype='float').rename('rand')]
+        result = self.engine.execute(expr).values[['name', 'id']]
 
         df = DataFrame(self.odps_df.to_pandas())
         test_expr = df.union(
@@ -187,6 +203,8 @@ class Test(TestBase):
         self.assertEqual(df4.execute(), i + 1)
 
     def testCacheTable(self):
+        self.engine._selecter.force_odps = True
+
         df = self.odps_df.join(self.pd_df, 'name').cache()
         df2 = df.sort('id_x')
 
@@ -202,10 +220,11 @@ class Test(TestBase):
         self.assertEqual(len(self.engine._generated_table_names), 2)
 
         table = context.get_cached(df)
-        self.assertEqual(len(df.execute()), len(expected))
+        self.assertEqual(len(self.engine.execute(df)), len(expected))
 
         self.assertIs(context.get_cached(df), table)
-        self.assertEqual(context.get_cached(df).lifecycle, 1)
+        if not isinstance(table, SeahawksTable):
+            self.assertEqual(context.get_cached(df).lifecycle, 1)
 
         df4 = df[df.id_x < 3].count()
         result = self.engine.execute(df4)
@@ -214,8 +233,10 @@ class Test(TestBase):
         self.assertEqual(context.get_cached(df4), 2)
 
     def testUseCache(self):
+        self.engine._selecter.force_odps = True
+
         df = self.odps_df[self.odps_df['name'] == 'name1']
-        self.assertEqual(len(df.head(10)), 2)
+        self.assertEqual(len(self.engine.execute(df, head=10)), 2)
 
         context.get_cached(df).drop()
 
@@ -379,6 +400,9 @@ class Test(TestBase):
         t = joined.persist(output_table, partition='ds=today', create_partition=True)
         self.assertEqual(len(t.execute()), 2)
 
+        # test seahawks fallback
+        self.assertEqual(t.input.count().execute(), 2)
+
         output_t.drop()
 
     def testBigintPartitionedCache(self):
@@ -419,6 +443,8 @@ class Test(TestBase):
         self.assertTrue(result.equals(expected))
 
     def testBatchStop(self):
+        self.engine._selecter.force_odps = True
+
         expr1 = self.odps_df[self.odps_df.id < 3].cache()
         expr2 = self.odps_df[self.odps_df.id > 3].cache()
         expr3 = expr1.union(expr2)
@@ -465,6 +491,22 @@ class Test(TestBase):
         tablename = tn('pyodps_test_append_id_persist')
         self.odps.delete_table(tablename, if_exists=True)
         expr.persist(tablename, partitions=['name'])
+
+    def testAsTypeMapReduce(self):
+        options.verbose = True
+
+        expr = self.odps_df[self.odps_df.exclude('id'), self.odps_df.id.astype('float')]
+        expr = expr.filter(expr.id < 10)['id', 'name']
+
+        @output(['id', 'name'], ['float', 'string'])
+        def h(group):
+            def inn(row, done):
+                yield row
+
+            return inn
+
+        expr = expr.map_reduce(reducer=h)
+        expr.execute()
 
 if __name__ == '__main__':
     unittest.main()

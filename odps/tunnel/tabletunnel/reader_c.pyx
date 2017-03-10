@@ -38,6 +38,7 @@ cdef class BaseTableTunnelReader:
         self._crccrc = Checksum()
         self._curr_cursor = 0
         self._read_limit = options.table_read_limit
+        self._to_datetime = utils.build_to_datetime()
 
     def _mode(self):
         return 'c'
@@ -109,7 +110,7 @@ cdef class BaseTableTunnelReader:
 
         val = self._reader.read_sint64()
         self._crc.update_long(val)
-        return utils.to_datetime(val)
+        return self._to_datetime(val)
 
     cdef _set_string(self, object record, int i):
         cdef bytes val = self._read_string()

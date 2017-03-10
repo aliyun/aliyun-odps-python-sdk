@@ -30,7 +30,7 @@ from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
 from ..io import CompressOption, SnappyOutputStream, DeflateOutputStream, RequestsIO
 from ... import types, compat, utils, errors, options
-from ...compat import six
+from ...compat import six, raise_exc
 
 
 if BaseRecordWriter is None:
@@ -115,6 +115,7 @@ if BaseRecordWriter is None:
             self._crc = Checksum()
             self._crccrc = Checksum()
             self._curr_cursor = 0
+            self._to_milliseconds = utils.build_to_milliseconds()
 
             super(BaseRecordWriter, self).__init__(out)
 
@@ -141,7 +142,7 @@ if BaseRecordWriter is None:
                     self._write_tag(pb_index, WIRETYPE_VARINT)
                     self._write_bool(val)
                 elif data_type == types.datetime:
-                    val = utils.to_milliseconds(val)
+                    val = self._to_milliseconds(val)
                     self._write_tag(pb_index, WIRETYPE_VARINT)
                     self._write_long(val)
                 elif data_type == types.string:
@@ -267,7 +268,8 @@ class RecordWriter(BaseRecordWriter):
     def write(self, record):
         self._start_upload()
         if self._req_io._async_err:
-            raise IOError("writer abort since an async error occurs")
+            ex_type, ex_value, tb = self._req_io._async_err
+            raise_exc(ex_type, ex_value, tb)
         super(RecordWriter, self).write(record)
 
     def close(self):

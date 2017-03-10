@@ -112,6 +112,7 @@ class Test(TestBase):
         res = self.engine._handle_cases(self.expr, self.faked_bar)
         result = self._get_result(res)
         self.assertEqual(data, result)
+        self.assertIsNotNone(next(res)['name'])
 
         expr = self.expr['name', self.expr.id.rename('new_id')]
         res = self.engine._handle_cases(expr, self.faked_bar)
@@ -318,6 +319,12 @@ class Test(TestBase):
         expr3.cache()
         self.assertIsNotNone(self.engine.execute(expr3.id.sum()))
 
+        expr4 = self.expr['id', 'name', 'fid'].cache()
+        expr5 = expr4[expr4.id < 0]['id', 'name']
+        expr6 = expr4[expr4.id >= 0]['name', 'id']
+        expr7 = expr5.union(expr6).union(expr4['name', 'id'])
+        self.assertGreater(self.engine.execute(expr7.count()), 0)
+
     def testBatch(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
 
@@ -360,7 +367,7 @@ class Test(TestBase):
     def testBase(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
 
-        expr = self.expr[self.expr.id < 10]['name', lambda x: x.id]
+        expr = self.expr[self.expr.id < 10]['name', lambda x: x.id, ]
         result = self._get_result(self.engine.execute(expr).values)
         self.assertEqual(len([it for it in data if it[1] < 10]), len(result))
         if len(result) > 0:
@@ -2215,6 +2222,7 @@ class Test(TestBase):
         data = [
             ['name1', 4, 5.3],
             ['name2', 2, 3.5],
+            ['name2', 3, 1.5],
             ['name1', 4, 4.2],
             ['name1', 3, 2.2],
             ['name1', 3, 4.1],
@@ -2227,6 +2235,7 @@ class Test(TestBase):
         self.odps.write_table(table_name, 0, data)
         expr_input = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
 
+        # test simple min_max_scale
         expr = expr_input.min_max_scale(columns=['fid'])
 
         res = self.engine.execute(expr)
@@ -2234,10 +2243,11 @@ class Test(TestBase):
 
         expected = [
             ['name1', 4, 1.0],
-            ['name2', 2, 0.41935483870967744],
-            ['name1', 4, 0.6451612903225807],
-            ['name1', 3, 0.0],
-            ['name1', 3, 0.6129032258064515]
+            ['name2', 2, 0.5263157894736842],
+            ['name2', 3, 0.0],
+            ['name1', 4, 0.7105263157894738],
+            ['name1', 3, 0.18421052631578952],
+            ['name1', 3, 0.6842105263157894]
         ]
 
         result = sorted(result)
@@ -2248,17 +2258,65 @@ class Test(TestBase):
             for it1, it2 in zip(first, second):
                 self.assertAlmostEqual(it1, it2)
 
+        # test grouped min_max_scale
+        expr = expr_input.min_max_scale(columns=['fid'], group=['name'])
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 4, 1.0],
+            ['name1', 4, 0.6451612903225807],
+            ['name1', 3, 0.0],
+            ['name1', 3, 0.6129032258064515],
+            ['name2', 2, 1.0],
+            ['name2', 3, 0.0]
+        ]
+
+        result = sorted(result)
+        expected = sorted(expected)
+
+        for first, second in zip(result, expected):
+            self.assertEqual(len(first), len(second))
+            for it1, it2 in zip(first, second):
+                self.assertAlmostEqual(it1, it2)
+
+        # test simple std_scale
         expr = expr_input.std_scale(columns=['fid'])
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
         expected = [
-            ['name1', 4, 1.4213602653434203],
-            ['name2', 2, -0.3553400663358544],
-            ['name1', 4, 0.3355989515394193],
-            ['name1', 3, -1.6385125281042194],
-            ['name1', 3, 0.23689337755723686]
+            ['name1', 4, 1.436467168552818],
+            ['name2', 2, 0.026117584882778763],
+            ['name2', 3, -1.5409375080839316],
+            ['name1', 4, 0.5745868674211275],
+            ['name1', 3, -0.9924682255455829],
+            ['name1', 3, 0.4962341127727916]
+        ]
+
+        result = sorted(result)
+        expected = sorted(expected)
+
+        for first, second in zip(result, expected):
+            self.assertEqual(len(first), len(second))
+            for it1, it2 in zip(first, second):
+                self.assertAlmostEqual(it1, it2)
+
+        # test grouped std_scale
+        expr = expr_input.std_scale(columns=['fid'], group=['name'])
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 4, 1.211115520843893],
+            ['name1', 4, 0.22428065200812874],
+            ['name1', 3, -1.569964564056898],
+            ['name1', 3, 0.13456839120487693],
+            ['name2', 2, 1.0],
+            ['name2', 3, -1.0]
         ]
 
         result = sorted(result)

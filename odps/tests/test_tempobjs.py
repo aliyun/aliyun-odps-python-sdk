@@ -29,6 +29,7 @@ from odps.tests.core import TestBase, tn, in_coverage_mode
 TEMP_TABLE_NAME = tn('pyodps_test_tempobj_cleanup')
 
 SECONDARY_PROCESS_CODE = """
+#-*- coding:utf-8 -*-
 from odps.tests.core import start_coverage
 start_coverage()
 
@@ -55,28 +56,26 @@ from odps import ODPS, tempobj
 
 odps = ODPS(**tempobj.compat_kwargs(odps_info))
 sleep(5)
-"""
+""".lstrip()
 
 
-PLENTY_CREATE_CODE = """
+PLENTY_CREATE_CODE = u"""
+#-*- coding:utf-8 -*-
 from odps.tests.core import start_coverage
 start_coverage()
 
 import os
 import sys
 import json
+import tempfile
 
 try:
     os.unlink(os.path.realpath(__file__))
 except Exception:
     pass
 
-import_paths = json.loads(r\"\"\"
-{import_paths}
-\"\"\".strip())
-odps_info = json.loads(\"\"\"
-{odps_info}
-\"\"\".strip())
+import_paths = json.loads({import_paths!r})
+odps_info = json.loads({odps_info!r})
 
 sys.path.extend(import_paths)
 
@@ -91,7 +90,7 @@ for tid in range(10):
     insts.append(odps.run_sql('create table {{0}} (col1 string) lifecycle 1'.format(table_name)))
 for inst in insts:
     inst.wait_for_completion()
-"""
+""".lstrip()
 
 
 class TestTempObjs(TestBase):
@@ -179,11 +178,14 @@ class TestTempObjs(TestBase):
         del_insts = [self.odps.run_sql('drop table {0}'.format(tn('tmp_pyodps_create_temp_%d' % n))) for n in range(10)]
         [inst.wait_for_completion() for inst in del_insts]
 
-        script = PLENTY_CREATE_CODE.format(odps_info=self._get_odps_json(), import_paths=json.dumps(sys.path))
+        script = PLENTY_CREATE_CODE.format(
+            odps_info=self._get_odps_json(),
+            import_paths=utils.to_text(json.dumps(sys.path)),
+        )
 
         script_name = tempfile.gettempdir() + os.sep + 'tmp_' + str(os.getpid()) + '_plenty_script.py'
-        with open(script_name, 'w') as script_file:
-            script_file.write(script)
+        with open(script_name, 'wb') as script_file:
+            script_file.write(script.encode())
             script_file.close()
         env = copy.deepcopy(os.environ)
         env.update({'WAIT_CLEANUP': '1'})

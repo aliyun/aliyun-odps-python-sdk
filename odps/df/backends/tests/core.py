@@ -78,4 +78,19 @@ class TestBase(Base):
         except ImportError:
             return res
 
+    def assertListAlmostEqual(self, first, second, **kw):
+        self.assertEqual(len(first), len(second))
+        only_float = kw.pop('only_float', True)
+        for f, s in zip(first, second):
+            if only_float:
+                self.assertAlmostEqual(f, s, **kw)
+            else:
+                if isinstance(f, float) and isinstance(s, float):
+                    self.assertAlmostEqual(f, s, **kw)
+                elif isinstance(f, list) and isinstance(s, list):
+                    self.assertListAlmostEqual(f, s, only_float=True, **kw)
+                else:
+                    self.assertEqual(f, s)
+
+
 __all__ = ['TestBase', 'to_str', 'tn', 'pandas_case']

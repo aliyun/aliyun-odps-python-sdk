@@ -36,7 +36,7 @@ class ResultFrame(six.Iterator):
     class ResultRecord(list):
         def __init__(self, columns, values):
             self._columns = columns
-            self._column_id_by_name = dict([(v, k) for k, v in enumerate(columns)])
+            self._column_id_by_name = dict([(v.name, k) for k, v in enumerate(columns)])
             super(ResultFrame.ResultRecord, self).__init__(values)
 
         def __getitem__(self, item):
@@ -126,6 +126,10 @@ class ResultFrame(six.Iterator):
         else:
             col_id = list(idx for idx, c in self.names if c == item)[0]
             return [r[col_id] for r in self.values]
+
+    if has_pandas:
+        def to_pandas(self):
+            return self.values
 
     def __getattr__(self, item):
         col = self.get_column_data(item)

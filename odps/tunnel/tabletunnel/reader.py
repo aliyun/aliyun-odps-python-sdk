@@ -48,6 +48,7 @@ if TableTunnelReader is None:
             self._crccrc = Checksum()
             self._curr_cursor = 0
             self._read_limit = options.table_read_limit
+            self._to_datetime = utils.build_to_datetime()
 
         def _mode(self):
             return 'py'
@@ -142,7 +143,7 @@ if TableTunnelReader is None:
                 elif data_type == types.datetime:
                     val = self._reader.read_sint64()
                     self._crc.update_long(val)
-                    record[i] = utils.to_datetime(val)
+                    record[i] = self._to_datetime(val)
                 elif data_type == types.decimal:
                     val = self._reader.read_string()
                     self._crc.update(val)

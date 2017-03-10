@@ -21,7 +21,7 @@ from decimal import Decimal
 from ...expr.reduction import *
 from ...expr.arithmetic import BinOp, Add, Substract, Power, Invert, Negate, Abs
 from ...expr.merge import JoinCollectionExpr, UnionCollectionExpr
-from ...expr.element import MappedExpr
+from ...expr.element import MappedExpr, Func
 from ...expr.window import CumSum
 from ...expr.datetimes import DTScalar
 from ...expr.collections import RowAppliedCollectionExpr
@@ -432,7 +432,7 @@ class OdpsSQLCompiler(Backend):
         if self._group_by_clause is not None:
             self.sub_sql_to_from_clause(expr.input)
         elif isinstance(expr, ReshuffledCollectionExpr) and \
-                isinstance(expr.input, RowAppliedCollectionExpr):
+                isinstance(expr.input, (RowAppliedCollectionExpr, ProjectCollectionExpr)):
             self.sub_sql_to_from_clause(expr.input)
 
         self._group_by_clause = group_by_clause
@@ -648,7 +648,7 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, (Add, Substract)) and expr.dtype == df_types.datetime:
             if isinstance(expr, Add) and \
                     all(child.dtype == df_types.datetime for child in (expr.lhs, expr.rhs)):
-                raise CompileError('Cannot ad two datetimes')
+                raise CompileError('Cannot add two datetimes')
             if isinstance(expr.rhs, DTScalar) or (isinstance(expr, Add) and expr.lhs, DTScalar):
                 if isinstance(expr.rhs, DTScalar):
                     dt, scalar = expr.lhs, expr.rhs
@@ -741,7 +741,7 @@ class OdpsSQLCompiler(Backend):
                 )
             elif expr.node_name == 'Trunc':
                 if expr._decimals is None:
-                    op = 'trunc'
+                    op = 'TRUNC'
                 else:
                     compiled = 'TRUNC({0}, {1})'.format(
                         self._ctx.get_expr_compiled(expr.input),
@@ -776,12 +776,9 @@ class OdpsSQLCompiler(Backend):
                         nodes.append(other)
             compiled = 'CONCAT(%s)' % ', '.join(self._ctx.get_expr_compiled(e) for e in nodes)
         elif isinstance(expr, strings.Contains):
-            if not expr.case or expr.flags > 0:
+            if expr.regex:
                 raise NotImplementedError
-            func = 'INSTR' if not expr.regex else 'REGEXP_INSTR'
-            compiled = '%s(%s, %s) > 0' % (func, input, self._ctx.get_expr_compiled(expr._pat))
-        elif isinstance(expr, strings.Count):
-            compiled = 'REGEXP_COUNT(%s, %s)' % (input, self._ctx.get_expr_compiled(expr._pat))
+            compiled = 'INSTR(%s, %s) > 0' % (input, self._ctx.get_expr_compiled(expr._pat))
         elif isinstance(expr, strings.Endswith):
             # TODO: any better solution?
             compiled = 'INSTR(REVERSE(%s), REVERSE(%s)) == 1' % (
@@ -994,15 +991,18 @@ class OdpsSQLCompiler(Backend):
 
     def visit_function(self, expr):
         is_func_created = False
-        if isinstance(expr._func, six.string_types):
-            func_name = expr._func
-        elif isinstance(expr._func, Function):
-            func_name = expr._func.name
+        if isinstance(expr, Func):
+            func_name = expr._func_name
         else:
-            func_name = self._ctx.get_udf(expr._func)
-            is_func_created = True
+            if isinstance(expr._func, six.string_types):
+                func_name = expr._func
+            elif isinstance(expr._func, Function):
+                func_name = expr._func.name
+            else:
+                func_name = self._ctx.get_udf(expr._func)
+                is_func_created = True
 
-        if isinstance(expr, MappedExpr):
+        if isinstance(expr, (MappedExpr, Func)):
             args = [self._ctx.get_expr_compiled(f) for f in expr.inputs]
         else:
             raise NotImplementedError

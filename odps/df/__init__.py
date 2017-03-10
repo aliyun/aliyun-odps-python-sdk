@@ -18,7 +18,7 @@ import inspect
 
 from .core import DataFrame, CollectionExpr
 from .expr.expressions import SequenceExpr, Scalar, BuiltinFunction, RandomScalar
-from .expr.element import switch
+from .expr.element import switch, FuncFactory
 from .expr.datetimes import year, month, day, hour, minute, second, millisecond
 from .expr.reduction import aggregate, agg
 from .utils import output_types, output_names, output
@@ -27,6 +27,8 @@ from ..compat import six
 
 def NullScalar(tp):
     return Scalar(_value_type=tp)
+
+func = FuncFactory()
 
 try:
     import pandas as pd

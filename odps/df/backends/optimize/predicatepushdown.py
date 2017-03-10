@@ -18,7 +18,9 @@ import operator
 import itertools
 
 from ..core import Backend
-from ...expr.expressions import ProjectCollectionExpr, FilterCollectionExpr, Column
+from ...expr.expressions import ProjectCollectionExpr, FilterCollectionExpr, \
+    Column, SequenceExpr
+from ...expr.element import IsIn
 from ...expr.merge import InnerJoin
 from ...expr.arithmetic import And
 from ...expr.reduction import SequenceReduction
@@ -50,6 +52,11 @@ class PredicatePushdown(Backend):
         if any(isinstance(seq, (Window, SequenceReduction))
                for seq in itertools.chain(*expr.all_path(expr.input, strict=True))):
             # if any reduction like sum or window op exists, skip
+            return
+        if any(isinstance(p, IsIn) and
+                (p._values is None or
+                 (len(p._values) == 1 and isinstance(p._values[0], SequenceExpr)))
+               for p in predicates):
             return
 
         filters = [expr]
@@ -177,7 +184,13 @@ class PredicatePushdown(Backend):
         def get_project_field(n, col):
             field = projection._fields[projection.schema._name_indexes[col]]
             return copy_sequence(field, projection.input, self._dag)
-        change_input(predicate, expr.input, projection.input, get_project_field, self._dag)
+        if isinstance(predicate, Column) and predicate.input is expr.input:
+            # filter on column
+            predicate = get_project_field(projection.input, predicate.source_name)
+            if predicate.is_renamed():
+                predicate = predicate.rename(predicate.name)
+        else:
+            change_input(predicate, expr.input, projection.input, get_project_field, self._dag)
 
         filter_expr = FilterCollectionExpr(
             projection.input, predicate, _schema=projection.input.schema)

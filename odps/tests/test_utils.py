@@ -14,11 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import calendar
+import datetime
 import os
+import time
+from collections import namedtuple
 
 from odps.tests.core import TestBase
-from odps.compat import unittest
-from odps.utils import replace_sql_parameters, experimental, ExperimentalNotAllowed
+from odps.compat import unittest, long_type
+from odps.utils import replace_sql_parameters, experimental, ExperimentalNotAllowed, \
+    to_milliseconds, to_datetime
+
+try:
+    import pytz
+except ImportError:
+    pytz = None
+
+mytimetuple = namedtuple(
+    'TimeTuple',
+    [s for s in dir(datetime.datetime.now().timetuple()) if s.startswith('tm_')]
+)
 
 
 class Test(TestBase):
@@ -41,6 +56,71 @@ class Test(TestBase):
             self.assertRaises(ExperimentalNotAllowed, fun)
         finally:
             del os.environ['PYODPS_EXPERIMENTAL']
+
+    def testTimeConvertNative(self):
+        class GMT8(datetime.tzinfo):
+            def utcoffset(self, dt):
+                return datetime.timedelta(hours=8)
+
+            def dst(self, date_time):
+                return datetime.timedelta(0)
+
+            def tzname(self, dt):
+                return "GMT +8"
+
+        class UTC(datetime.tzinfo):
+            def utcoffset(self, dt):
+                return datetime.timedelta(hours=0)
+
+            def dst(self, date_time):
+                return datetime.timedelta(0)
+
+            def tzname(self, dt):
+                return "UTC"
+
+        base_time = datetime.datetime.now().replace(microsecond=0)
+        base_time_utc = datetime.datetime.utcfromtimestamp(time.mktime(base_time.timetuple()))
+        milliseconds = long_type(time.mktime(base_time.timetuple())) * 1000
+
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=True))
+        self.assertEqual(milliseconds, to_milliseconds(base_time_utc, local_tz=False))
+
+        self.assertEqual(to_datetime(milliseconds, local_tz=True), base_time)
+        self.assertEqual(to_datetime(milliseconds, local_tz=False), base_time_utc)
+
+        base_time = datetime.datetime.now(tz=GMT8()).replace(microsecond=0)
+        milliseconds = long_type(calendar.timegm(base_time.astimezone(UTC()).timetuple())) * 1000
+
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=True))
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=False))
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=UTC()))
+
+        self.assertEqual(to_datetime(milliseconds, local_tz=GMT8()), base_time)
+
+        base_time = base_time.replace(tzinfo=None)
+
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=GMT8()))
+
+    @unittest.skipIf(pytz is None, 'Skipped because pytz is not installed.')
+    def testTimeConvertPytz(self):
+        base_time = datetime.datetime.now(tz=pytz.timezone('Etc/GMT-8')).replace(microsecond=0)
+        milliseconds = long_type(calendar.timegm(base_time.astimezone(pytz.utc).timetuple())) * 1000
+
+        self.assertEqual(to_datetime(milliseconds, local_tz='Etc/GMT-8'), base_time)
+
+        base_time = base_time.replace(tzinfo=None)
+
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz='Etc/GMT-8'))
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=pytz.timezone('Etc/GMT-8')))
+
+        base_time = datetime.datetime.now(tz=pytz.timezone('Etc/GMT-8')).replace(microsecond=0)
+        milliseconds = time.mktime(base_time.timetuple()) * 1000
+
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=True))
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=False))
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz='Etc/GMT-1'))
+        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=pytz.timezone('Etc/GMT-1')))
+
 
 if __name__ == '__main__':
     unittest.main()

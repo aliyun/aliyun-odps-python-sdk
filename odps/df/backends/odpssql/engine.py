@@ -35,7 +35,7 @@ from ...expr.core import ExprDAG
 from ...expr.dynamic import DynamicMixin
 from ...utils import is_source_collection, is_constant_scalar
 from ...types import DynamicSchema, Unknown
-from ..utils import refresh_dynamic
+from ..utils import refresh_dynamic, process_persist_kwargs
 from ..core import Engine, ExecuteNode
 from ..frame import ResultFrame
 from ..context import context
@@ -241,9 +241,8 @@ class ODPSSQLEngine(Engine):
         if isinstance(expr, CollectionExpr) and expr._mem_cache:
             return self._mem_cache(expr_dag, expr)
 
-        # prevent the `partition` and `partitions` kwargs come from `persist`
-        kwargs.pop('partition', None)
-        kwargs.pop('partitions', None)
+        # prevent the kwargs come from `persist`
+        process_persist_kwargs(kwargs)
 
         if is_source_collection(expr_dag.root) or \
                 is_constant_scalar(expr_dag.root):
@@ -318,12 +317,13 @@ class ODPSSQLEngine(Engine):
             except KeyboardInterrupt:
                 ui.status('Halt by interruption')
                 sys.exit(1)
-            except (NoPermission, ConnectTimeout):
+            except (NoPermission, ConnectTimeout) as ex:
                 result = None
                 no_permission = True
                 if head:
                     expr = expr[:head]
-                warnings.warn('Fail to download data by tunnel, 10000 records will be limited')
+                warnings.warn('Fail to download data by tunnel, 10000 records will be limited.\n' +
+                              'Cause: ' + str(ex))
             if force_tunnel or result is not None:
                 return result
 
@@ -398,10 +398,11 @@ class ODPSSQLEngine(Engine):
                                      any(isinstance(col.type, Unknown) for col in src_expr._schema.columns)):
                                 src_expr._schema = df_schema
                             ui.inc(progress_proportion)
-                except ODPSError:
+                except ODPSError as ex:
                     # some project has closed the tunnel download
                     # we just ignore the error
-                    warnings.warn('Fail to download data by tunnel, 10000 records will be limited')
+                    warnings.warn('Fail to download data by tunnel, 10000 records will be limited.\n' +
+                                  'Cause: ' + str(ex))
                     pass
 
             if tail:

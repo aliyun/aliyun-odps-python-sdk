@@ -263,7 +263,6 @@ class VolumeFSDir(VolumeFSObject):
         path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/') + '/' + path.lstrip('/')
         return tunnel.open_reader(self.parent, path, **kw)
 
-    @contextlib.contextmanager
     def open_writer(self, path, replication=None, **kw):
         """
         Open a volume file and write contents into it.
@@ -280,8 +279,7 @@ class VolumeFSDir(VolumeFSObject):
         endpoint = kw.pop('endpoint', None)
         tunnel = self._create_volume_fs_tunnel(endpoint=endpoint)
         vol_path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/') + '/' + path.lstrip('/')
-        with tunnel.open_writer(self.parent, vol_path, replication=replication, **kw) as writer:
-            yield writer
+        return tunnel.open_writer(self.parent, vol_path, replication=replication, **kw)
 
 
 @cache_parent
@@ -336,14 +334,11 @@ class VolumeFSFile(VolumeFSObject):
         path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/')
         return tunnel.open_reader(self.parent, path, **kw)
 
-    @contextlib.contextmanager
     def open_writer(self, replication=None, **kw):
         endpoint = kw.pop('endpoint', None)
         tunnel = self._create_volume_fs_tunnel(endpoint=endpoint)
         path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/')
-        with tunnel.open_writer(self.parent, path, replication=replication, **kw) as writer:
-            yield writer
-        self.reload()
+        return tunnel.open_writer(self.parent, path, replication=replication, **kw)
 
 
 class VolumeFSObjects(Iterable):

@@ -166,7 +166,6 @@ class VolumePartition(LazyLoad):
                                            endpoint=endpoint or self.project._tunnel_endpoint)
         return self._volume_tunnel
 
-    @contextlib.contextmanager
     def open_reader(self, file_name, reopen=False, endpoint=None, start=None, length=None, **kwargs):
         """
         Open a volume file for read. A file-like object will be returned which can be used to read contents from
@@ -195,9 +194,8 @@ class VolumePartition(LazyLoad):
             open_args['start'] = start
         if length is not None:
             open_args['length'] = length
-        yield download_session.open(**open_args)
+        return download_session.open(**open_args)
 
-    @contextlib.contextmanager
     def open_writer(self, reopen=False, endpoint=None, **kwargs):
         """
         Open a volume partition to write to. You can use `open` method to open a file inside the volume and write to it,
@@ -236,12 +234,20 @@ class VolumePartition(LazyLoad):
                 writer = FilesWriter.open(file_name, **kwargs)
                 writer.write(buf)
 
-        yield FilesWriter()
+            @staticmethod
+            def close():
+                for w in six.itervalues(file_dict):
+                    w.close()
 
-        for w in six.itervalues(file_dict):
-            w.close()
+                upload_session.commit(list(six.iterkeys(file_dict)))
 
-        upload_session.commit(list(six.iterkeys(file_dict)))
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                self.close()
+
+        return FilesWriter()
 
 
 @cache_parent

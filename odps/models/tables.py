@@ -94,8 +94,8 @@ class Tables(Iterable):
             buf.write('IF NOT EXISTS ')
         buf.write('%s.`%s` ' % (project_name, table_name))
 
-        for i, arr in enumerate([table_schema.get_columns(),
-                                 table_schema.get_partitions()]):
+        for i, arr in enumerate([table_schema.simple_columns,
+                                 table_schema.partitions]):
             if i == 1 and not arr:
                 continue
             if i == 1:

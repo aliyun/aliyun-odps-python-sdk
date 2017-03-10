@@ -357,6 +357,7 @@ _join_dict = {
 
 
 def _make_different_sources(left, right, predicate=None):
+    # TODO: move to analyzer, do it before analyze and optimize
     exprs = ExprDictionary()
 
     for n in left.traverse(unique=True):

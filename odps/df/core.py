@@ -23,12 +23,19 @@ from .expr.expressions import CollectionExpr
 from .types import validate_data_type
 from .backends.odpssql.types import odps_schema_to_df_schema
 from .backends.pd.types import pd_to_df_schema,  df_type_to_np_type
+from .backends.sqlalchemy.types import sqlalchemy_to_df_schema
 
 try:
     import pandas as pd
     has_pandas = True
 except ImportError:
     has_pandas = False
+
+try:
+    import sqlalchemy
+    has_sqlalchemy = True
+except ImportError:
+    has_sqlalchemy = False
 
 
 class DataFrame(CollectionExpr):
@@ -109,6 +116,10 @@ class DataFrame(CollectionExpr):
                 schema = pd_to_df_schema(data, as_type=as_type,
                                          unknown_as_string=unknown_as_string)
             super(DataFrame, self).__init__(_source_data=data, _schema=schema, **kwargs)
+        elif has_sqlalchemy and isinstance(data, sqlalchemy.Table):
+            if '_schema' not in kwargs:
+                kwargs['_schema'] = sqlalchemy_to_df_schema(data.c)
+            super(DataFrame, self).__init__(_source_data=data, **kwargs)
         else:
             raise ValueError('Unknown type: %s' % data)
 

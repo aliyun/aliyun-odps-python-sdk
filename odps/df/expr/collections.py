@@ -1133,27 +1133,45 @@ def pivot_table(expr, values=None, rows=None, columns=None, aggfunc='mean',
                   _agg_func_names=agg_func_names)
 
 
-def _scale_values(expr, columns, agg_fun, scale_fun, preserve=False, suffix='_scaled'):
+def _scale_values(expr, columns, agg_fun, scale_fun, preserve=False, suffix='_scaled', group=None):
     from ..types import Float, Integer
     time_suffix = str(int(time.time()))
 
+    if group is not None:
+        group = utils.to_list(group)
+        group = [expr._get_field(c).name if isinstance(c, Column) else c for c in group]
+
     if columns is None:
-        columns = expr.schema.names
+        if group is None:
+            columns = expr.schema.names
+        else:
+            columns = [n for n in expr.schema.names if n not in group]
     else:
         columns = utils.to_list(columns)
     columns = [expr._get_field(v) for v in columns]
 
     numerical_cols = [col.name for col in columns if isinstance(col.data_type, (Float, Integer))]
 
-    cols = []
+    agg_cols = []
     for col_name in numerical_cols:
-        cols.extend(agg_fun(expr, col_name))
+        agg_cols.extend(agg_fun(expr, col_name))
 
-    stats_df = expr.__getitem__([Scalar(1).rename('idx_col_' + time_suffix)] + cols)
+    if group is None:
+        # make a fake constant column to join
+        extra_col = 'idx_col_' + time_suffix
+        join_cols = [extra_col]
+        stats_df = expr.__getitem__([Scalar(1).rename(extra_col)] + agg_cols)
+        mapped = expr[expr, Scalar(1).rename(extra_col)]
+    else:
+        extra_col = None
+        join_cols = group
+        stats_df = expr.groupby(join_cols).agg(*agg_cols)
+        mapped = expr
 
-    mapped = expr[expr, Scalar(1).rename('idx_col_' + time_suffix)]
-    join_expr = getattr(mapped, 'idx_col_' + time_suffix) == getattr(stats_df, 'idx_col_' + time_suffix)
-    joined = mapped.join(stats_df, join_expr, mapjoin=True).exclude('idx_col_' + time_suffix)
+    joined = mapped.join(stats_df, on=join_cols, mapjoin=True)
+    if extra_col is not None:
+        joined = joined.exclude(extra_col)
+
     if preserve:
         norm_cols = [dt.name for dt in expr.dtypes]
         norm_cols.extend([scale_fun(joined, dt.name).rename(dt.name + suffix)
@@ -1165,14 +1183,15 @@ def _scale_values(expr, columns, agg_fun, scale_fun, preserve=False, suffix='_sc
     return joined.__getitem__(norm_cols)
 
 
-def min_max_scale(expr, columns=None, feature_range=(0, 1), preserve=False, suffix='_scaled'):
+def min_max_scale(expr, columns=None, feature_range=(0, 1), preserve=False, suffix='_scaled', group=None):
     """
     Resize a data frame by max / min values, i.e., (X - min(X)) / (max(X) - min(X))
 
-    :param DataFrame expr: Input data set
+    :param DataFrame expr: input data set
     :param feature_range: the target range to resize the value into, i.e., v * (b - a) + a
-    :param bool preserve: Determine whether input data should be kept. If True, scaled input data will be appended to the data frame with `suffix`
-    :param columns: Columns names to resize. If set to None, float or int-typed columns will be normalized.
+    :param bool preserve: determine whether input data should be kept. If True, scaled input data will be appended to the data frame with `suffix`
+    :param columns: columns names to resize. If set to None, float or int-typed columns will be normalized if the column is not specified as a group column.
+    :param group: determine scale groups. Scaling will be done in each group separately.
     :param str suffix: column suffix to be appended to the scaled columns.
 
     :return: resized data frame
@@ -1192,10 +1211,10 @@ def min_max_scale(expr, columns=None, feature_range=(0, 1), preserve=False, suff
         scaled = (getattr(expr, col) - getattr(expr, col + '_min_' + time_suffix)) / r
         return scaled * (f_max - f_min) + f_min
 
-    return _scale_values(expr, columns, calc_agg, do_scale, preserve=preserve, suffix=suffix)
+    return _scale_values(expr, columns, calc_agg, do_scale, preserve=preserve, suffix=suffix, group=group)
 
 
-def std_scale(expr, columns=None, with_means=True, with_std=True, preserve=False, suffix='_scaled'):
+def std_scale(expr, columns=None, with_means=True, with_std=True, preserve=False, suffix='_scaled', group=None):
     """
     Resize a data frame by mean and standard error.
 
@@ -1203,7 +1222,8 @@ def std_scale(expr, columns=None, with_means=True, with_std=True, preserve=False
     :param bool with_means: Determine whether the output will be subtracted by means
     :param bool with_std: Determine whether the output will be divided by standard deviations
     :param bool preserve: Determine whether input data should be kept. If True, scaled input data will be appended to the data frame with `suffix`
-    :param columns: Columns names to resize. If set to None, float or int-typed columns will be normalized.
+    :param columns: Columns names to resize. If set to None, float or int-typed columns will be normalized if the column is not specified as a group column.
+    :param group: determine scale groups. Scaling will be done in each group separately.
     :param str suffix: column suffix to be appended to the scaled columns.
 
     :return: resized data frame
@@ -1225,7 +1245,7 @@ def std_scale(expr, columns=None, with_means=True, with_std=True, preserve=False
             c = c / getattr(expr, col + '_std_' + time_suffix)
         return c
 
-    return _scale_values(expr, columns, calc_agg, do_scale, preserve=preserve, suffix=suffix)
+    return _scale_values(expr, columns, calc_agg, do_scale, preserve=preserve, suffix=suffix, group=group)
 
 
 class ExtractKVCollectionExpr(DynamicCollectionExpr):

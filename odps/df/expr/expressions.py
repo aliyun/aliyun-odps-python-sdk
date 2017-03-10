@@ -563,7 +563,7 @@ class CollectionExpr(Expr):
             return part_col == field_value
 
         if isinstance(predicate, list):
-            predicate = ','.join(str(s) for s in list)
+            predicate = ','.join(str(s) for s in predicate)
         elif not isinstance(predicate, six.string_types):
             raise ExpressionError('Only accept string predicates.')
 
@@ -832,7 +832,7 @@ class CollectionExpr(Expr):
         methods = OrderedDict([
             ('count', lambda f: f.notnull().sum().rename(col.name + '_count')),
             ('mean', lambda f: f.mean()),
-            ('std(ddof=0)', lambda f: f.std(ddof=0)),
+            ('std', lambda f: f.std()),
             ('min', lambda f: f.min()),
             ('max', lambda f: f.max()),
         ])

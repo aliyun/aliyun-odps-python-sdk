@@ -27,7 +27,7 @@ from odps.compat import unittest, six, total_seconds
 from odps.udf.tools import runners
 from odps.models import Schema
 from odps.utils import to_timestamp, to_milliseconds
-from odps.df import output
+from odps.df import output, func
 from odps.df.types import validate_data_type
 from odps.df.expr.expressions import CollectionExpr, BuiltinFunction, RandomScalar
 from odps.df.backends.odpssql.engine import ODPSSQLEngine, UDF_CLASS_NAME
@@ -263,6 +263,12 @@ class Test(TestBase):
                    "FROM mocked_project.`pyodps_test_expr_table` t1"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.filter(func.sample(5, 1, 'name', 'id', rtype='boolean'))
+        expected = "SELECT * \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "WHERE sample(5, 1, 'name', 'id')"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testMemCacheCompilation(self):
         cached = self.expr['name', self.expr.id + 1].cache(mem=True)
         expr = cached.groupby('name').agg(cached.id.sum())
@@ -356,7 +362,7 @@ class Test(TestBase):
 
         expr = self.expr.id.isin(self.expr.fid.astype('int')).rename('id')
         expect = 'SELECT t1.`id` IN ' \
-                 '(SELECT CAST(t1.`fid` AS BIGINT) AS `fid` FROM mocked_project.`pyodps_test_expr_table` t1) ' \
+                 '(SELECT CAST(t2.`fid` AS BIGINT) AS `fid` FROM mocked_project.`pyodps_test_expr_table` t2) ' \
                  'AS `id` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
@@ -625,22 +631,21 @@ class Test(TestBase):
                  "FROM mocked_project.`pyodps_test_expr_table` t1"
         self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
-        expect = 'SELECT REGEXP_INSTR(t1.`name`, \'test\') > 0 AS `name` \n' \
-                 'FROM mocked_project.`pyodps_test_expr_table` t1'
-        self.assertEqual(to_str(expect),
-                         to_str(ODPSEngine(self.odps).compile(self.expr.name.contains('test'), prettify=False)))
+        engine = ODPSEngine(self.odps)
+        engine.compile(self.expr.name.contains('test'))
+        self._testify_udf([True, False], [('test', 'test', True, 0), ('tes', 'test', True, 0)], engine)
         expect = 'SELECT INSTR(t1.`name`, \'test\') > 0 AS `name` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expect),
                          to_str(ODPSEngine(self.odps).compile(self.expr.name.contains('test', regex=False), prettify=False)))
         engine = ODPSEngine(self.odps)
         engine.compile(self.expr.name.contains('test', flags=re.I))
-        self._testify_udf([True, False, True], [('Test',), ('tes',), ('ToTEst',)], engine)
+        self._testify_udf([True, False, True], [('Test', 'test', True, re.I), ('tes', 'test', True, re.I),
+                                                ('ToTEst', 'test', True, re.I)], engine)
 
-        expect = 'SELECT REGEXP_COUNT(t1.`name`, \'test\') AS `name` \n' \
-                 'FROM mocked_project.`pyodps_test_expr_table` t1'
-        self.assertEqual(to_str(expect),
-                         to_str(ODPSEngine(self.odps).compile(self.expr.name.count('test'), prettify=False)))
+        engine = ODPSEngine(self.odps)
+        engine.compile(self.expr.name.count('test', re.I))
+        self._testify_udf([1, 2], [('testTst', 'test', re.I), ('testTest', 'test', re.I)], engine)
 
         expect = 'SELECT INSTR(REVERSE(t1.`name`), REVERSE(\'test\')) == 1 AS `name` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
@@ -1808,26 +1813,29 @@ class Test(TestBase):
 
         expr=expr.map_reduce(reducer=reducer, group='name')
 
-        expected = "SELECT t5.`name`, t5.`id`, t5.`fid`, t5.`isMale`, " \
-                   "CAST(t5.`scale` AS DECIMAL) AS `scale`, t5.`birth`, t5.`new_id` \n" \
+        expected = "SELECT t6.`name`, t6.`id`, t6.`fid`, t6.`isMale`, " \
+                   "CAST(t6.`scale` AS DECIMAL) AS `scale`, t6.`birth`, t6.`new_id` \n" \
                    "FROM (\n" \
                    "  SELECT {0}(" \
-                   "t4.`name`, t4.`id`, t4.`fid`, t4.`isMale`, CAST(t4.`scale` AS STRING), " \
-                   "t4.`birth`, t4.`new_id`) AS (`name`, `id`, `fid`, `isMale`, `scale`, `birth`, `new_id`) \n" \
+                   "t5.`name`, t5.`id`, t5.`fid`, t5.`isMale`, CAST(t5.`scale` AS STRING), " \
+                   "t5.`birth`, t5.`new_id`) AS (`name`, `id`, `fid`, `isMale`, `scale`, `birth`, `new_id`) \n" \
                    "  FROM (\n" \
-                   "    SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, " \
+                   "    SELECT * \n" \
+                   "    FROM (\n" \
+                   "      SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, " \
                    "t1.`scale`, t1.`birth`, t3.`new_id` \n" \
-                   "    FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
-                   "    LEFT OUTER JOIN \n" \
-                   "      (\n" \
-                   "        SELECT t2.`id` AS `new_id` \n" \
-                   "        FROM mocked_project.`pyodps_test_expr_table2` t2\n" \
-                   "      ) t3\n" \
-                   "    ON t1.`id` == t3.`new_id` \n" \
-                   "    DISTRIBUTE BY t1.`name` \n" \
+                   "      FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "      LEFT OUTER JOIN \n" \
+                   "        (\n" \
+                   "          SELECT t2.`id` AS `new_id` \n" \
+                   "          FROM mocked_project.`pyodps_test_expr_table2` t2\n" \
+                   "        ) t3\n" \
+                   "      ON t1.`id` == t3.`new_id` \n" \
+                   "    ) t4 \n" \
+                   "    DISTRIBUTE BY t4.`name` \n" \
                    "    SORT BY name\n" \
-                   "  ) t4 \n" \
-                   ") t5"
+                   "  ) t5 \n" \
+                   ") t6"
         engine = ODPSEngine(self.odps)
         res = engine.compile(expr, prettify=False)
         fun_name = list(engine._ctx._registered_funcs.values())[0]

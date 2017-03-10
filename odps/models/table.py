@@ -280,7 +280,6 @@ class Table(LazyLoad):
                                          endpoint=endpoint or self.project._tunnel_endpoint)
         return self._table_tunnel
 
-    @contextlib.contextmanager
     def open_reader(self, partition=None, **kw):
         """
         Open the reader to read the entire records from this table or its partition.
@@ -358,9 +357,14 @@ class Table(LazyLoad):
                     for record in reader[::step]:
                         yield record
 
-        yield RecordReader()
+            def __enter__(self):
+                return self
 
-    @contextlib.contextmanager
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        return RecordReader()
+
     def open_writer(self, partition=None, blocks=None, **kw):
         """
         Open the writer to write records into this table or its partition.
@@ -369,6 +373,8 @@ class Table(LazyLoad):
         :param blocks: block ids to open
         :param reopen: the reader will reuse last one, reopen is true means open a new reader.
         :type reopen: bool
+        :param create_partition: if true, the partition will be created if not exist
+        :type create_partition: bool
         :param endpoint: the tunnel service URL
         :param compress_option: compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
@@ -392,10 +398,13 @@ class Table(LazyLoad):
 
         reopen = kw.pop('reopen', False)
         commit = kw.pop('commit', True)
+        create_partition = kw.pop('create_partition', False)
         endpoint = kw.pop('endpoint', None)
 
         if partition and not isinstance(partition, odps_types.PartitionSpec):
             partition = odps_types.PartitionSpec(partition)
+        if create_partition and not self.exist_partition(create_partition):
+            self.create_partition(partition, if_not_exists=True)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint)
         upload_id = self._upload_ids.get(partition) if not reopen else None
@@ -417,14 +426,20 @@ class Table(LazyLoad):
                 blocks_writes[blocks.index(block)] = True
 
         class RecordWriter(object):
+            def __init__(self, table):
+                self._table = table
+                self._closed = False
+
             @property
             def status(self):
                 return upload_session.status
 
-            @classmethod
-            def write(cls, *args, **kwargs):
+            def write(self, *args, **kwargs):
                 from types import GeneratorType
                 from itertools import chain
+
+                if self._closed:
+                    raise IOError('Cannot write to a closed writer.')
 
                 block_id = kwargs.get('block_id')
                 if block_id is None:
@@ -474,14 +489,23 @@ class Table(LazyLoad):
                     writer.write(record)
                 blocks_writes[idx] = True
 
-        yield RecordWriter()
+            def close(self):
+                [writer.close() for writer in blocks_writers if writer is not None]
 
-        [writer.close() for writer in blocks_writers if writer is not None]
+                if commit:
+                    written_blocks = [block for block, block_write in zip(blocks, blocks_writes) if block_write]
+                    upload_session.commit(written_blocks)
+                    self._table._upload_ids[partition] = None
 
-        if commit:
-            blocks = [block for block, block_write in zip(blocks, blocks_writes) if block_write]
-            upload_session.commit(blocks)
-            self._upload_ids[partition] = None
+                self._closed = True
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                self.close()
+
+        return RecordWriter(self)
 
     @property
     def project(self):
@@ -535,3 +559,8 @@ class Table(LazyLoad):
         .. seealso:: :class:`odps.models.Record`
         """
         return Record(schema=self.schema, values=values)
+
+    def to_df(self):
+        from ..df import DataFrame
+
+        return DataFrame(self)

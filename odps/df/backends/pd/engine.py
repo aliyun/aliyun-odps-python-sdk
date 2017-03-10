@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 
 from .compiler import PandasCompiler
 from .types import pd_to_df_schema
@@ -26,7 +25,7 @@ from ...expr.expressions import *
 from ...expr.dynamic import DynamicMixin
 from ...backends.odpssql.types import df_schema_to_odps_schema, df_type_to_odps_type
 from ..errors import CompileError
-from ..utils import refresh_dynamic
+from ..utils import refresh_dynamic, write_table
 from ...utils import is_source_collection, is_constant_scalar
 from ...types import DynamicSchema, Unknown
 from ....models import Schema, Partition
@@ -113,7 +112,8 @@ class PandasEngine(Engine):
             execute_node = self._execute(execute_dag, dag, expr, ret_df=True, **kwargs)
 
             def callback(res):
-                sub._source_data = res
+                for col in res.columns:
+                    sub._source_data[col] = res[col]
                 if isinstance(expr, DynamicMixin):
                     sub._schema = pd_to_df_schema(res)
                     refresh_dynamic(sub, expr_dag)
@@ -166,82 +166,6 @@ class PandasEngine(Engine):
             res = df.values[0][0]
             context.cache(src_expr, res)
             return res
-
-    @classmethod
-    def _convert_pd_type(cls, values, table):
-        import pandas as pd
-
-        retvals = []
-        for val, t in compat.izip(values, table.schema.types):
-            if pd.isnull(val):
-                retvals.append(None)
-            else:
-                retvals.append(val)
-
-        return retvals
-
-    def _write_table_no_partitions(self, frame, table, ui, partition=None,
-                                   progress_proportion=1):
-        def gen():
-            df = frame.values
-            size = len(df)
-
-            last_percent = 0
-            for i, row in zip(itertools.count(), df.values):
-                if i % 50 == 0:
-                    percent = float(i) / size * progress_proportion
-                    ui.inc(percent - last_percent)
-                    last_percent = percent
-
-                yield table.new_record(self._convert_pd_type(row, table))
-
-            if last_percent < progress_proportion:
-                ui.inc(progress_proportion - last_percent)
-
-        with table.open_writer(partition=partition) as writer:
-            writer.write(gen())
-
-    def _write_table_with_partitions(self, frame, table, partitions, ui,
-                                     progress_proportion=1):
-        df = frame.values
-        vals_to_partitions = dict()
-        for ps in df[partitions].drop_duplicates().values:
-            p = ','.join('='.join([str(n), str(v)]) for n, v in zip(partitions, ps))
-            table.create_partition(p)
-            vals_to_partitions[tuple(ps)] = p
-
-        size = len(df)
-        curr = [0]
-        last_percent = [0]
-        for name, group in df.groupby(partitions):
-            name = name if isinstance(name, tuple) else (name, )
-            group = group[[it for it in group.columns.tolist() if it not in partitions]]
-
-            def gen():
-                for i, row in zip(itertools.count(), group.values):
-                    curr[0] += i
-                    if curr[0] % 50 == 0:
-                        percent = float(curr[0]) / size * progress_proportion
-                        ui.inc(percent - last_percent[0])
-                        last_percent[0] = percent
-
-                    yield table.new_record(self._convert_pd_type(row, table))
-
-            with table.open_writer(partition=vals_to_partitions[name]) as writer:
-                writer.write(gen())
-
-        if last_percent[0] < progress_proportion:
-            ui.inc(progress_proportion - last_percent[0])
-
-    def _write_table(self, frame, table, ui, partitions=None, partition=None,
-                     progress_proportion=1):
-        ui.status('Try to upload to ODPS with tunnel...')
-        if partitions is None:
-            self._write_table_no_partitions(frame, table, ui, partition=partition,
-                                            progress_proportion=progress_proportion)
-        else:
-            self._write_table_with_partitions(frame, table, partitions, ui,
-                                              progress_proportion=progress_proportion)
 
     def _do_persist(self, expr_dag, expr, name, ui=None, project=None,
                     partitions=None, partition=None, odps=None, lifecycle=None,
@@ -300,8 +224,8 @@ class PandasEngine(Engine):
                 table = odps.get_table(name, project=project)
         else:
             table = odps.get_table(name, project=project)
-        self._write_table(df, table, ui=ui, partitions=partitions, partition=partition,
-                          progress_proportion=progress_proportion*(1-execute_percent))
+        write_table(df, table, ui=ui, partitions=partitions, partition=partition,
+                    progress_proportion=progress_proportion*(1-execute_percent))
 
         if partition:
             partition = PartitionSpec(partition)

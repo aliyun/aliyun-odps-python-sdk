@@ -56,8 +56,10 @@ class Room(object):
 
         with open(odps_file, 'rb') as f:
             try:
+                obj = pickle.load(f)
                 access_id, access_key, default_project, \
-                    endpoint, tunnel_endpoint = pickle.load(f)
+                    endpoint, tunnel_endpoint = obj[:5]
+                seahawks_url = obj[5] if len(obj) > 5 else None
             except pickle.UnpicklingError:
                 raise InteractiveError(
                     'Failed to enter a room: %s' % self._room_name)
@@ -65,13 +67,15 @@ class Room(object):
             options.end_point = endpoint
             options.default_project = default_project
             options.tunnel_endpoint = tunnel_endpoint
+            options.seahawks_url = seahawks_url
 
         self._inited = True
 
     @property
     def odps(self):
         return ODPS._from_account(options.account, options.default_project,
-                                  endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint)
+                                  endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint,
+                                  seahawks_url=options.seahawks_url)
 
     def __getattr__(self, attr):
         try:
@@ -163,7 +167,7 @@ def _get_room_dir(room_name, mkdir=False):
 
 
 def setup(access_id, access_key, default_project,
-          endpoint=None, tunnel_endpoint=None,
+          endpoint=None, tunnel_endpoint=None, seahawks_url=None,
           room=DEFAULT_ROOM_NAME):
     room_dir = _get_room_dir(room, mkdir=True)
     odps_file = os.path.join(room_dir, ODPS_FILE_NAME)
@@ -174,7 +178,7 @@ def setup(access_id, access_key, default_project,
             'you can teardown it first' % room)
 
     obj = (access_id, access_key, default_project,
-           endpoint, tunnel_endpoint)
+           endpoint, tunnel_endpoint, seahawks_url)
 
     with open(odps_file, 'wb') as f:
         pickle.dump(obj, f, protocol=0)

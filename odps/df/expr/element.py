@@ -339,6 +339,32 @@ class IntToDatetime(ElementOp):
     __slots__ = ()
 
 
+class Func(AnyOp):
+    _slots = '_func_name', '_rtype'
+    _args = '_inputs',
+
+    def accept(self, visitor):
+        visitor.visit_function(self)
+
+
+class FuncFactory(object):
+    def __getattr__(self, item):
+        if not isinstance(item, six.string_types):
+            raise TypeError('Function name should be provided, expect str, got %s' % type(item))
+
+        def gen_func(*args, **kwargs):
+            rtype = kwargs.pop('rtype', types.string)
+            rtype = types.validate_data_type(rtype)
+            is_seq = kwargs.pop('seq', None)
+
+            args = tuple(arg if isinstance(arg, Expr) else Scalar(_value=arg) for arg in args)
+            is_seq = is_seq if is_seq is not None else any(isinstance(arg, SequenceExpr) for arg in args)
+            kw = {'_value_type': rtype} if not is_seq else {'_data_type': rtype}
+            return Func(_func_name=item, _inputs=args, **kw)
+
+        return gen_func
+
+
 def _map(expr, func, rtype=None, resources=None, args=(), **kwargs):
     """
     Call func on each element of this sequence.
@@ -456,6 +482,11 @@ def _isin(expr, values):
     :param values: `list` object or sequence
     :return: boolean sequence or scalar
     """
+
+    from .merge import _make_different_sources
+
+    if isinstance(values, SequenceExpr):
+        expr, values = _make_different_sources(expr, values)
 
     if isinstance(expr, SequenceExpr):
         return IsIn(_input=expr, _values=values, _data_type=types.boolean)

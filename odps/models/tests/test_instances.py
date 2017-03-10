@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import itertools
+import json
 import time
 import random
 import textwrap
@@ -239,7 +240,7 @@ class Test(TestBase):
         with instance.open_reader(table.schema) as reader:
             self.assertEqual(len(list(reader[1::2])), 1)
 
-        hints = {'odps.sql.mapper.split.size': 16}
+        hints = {'odps.sql.mapper.split.size': '16'}
         instance = self.odps.run_sql('select sum(size) as count from %s' % test_table, hints=hints)
 
         while len(instance.get_task_names()) == 0 or \
@@ -254,6 +255,7 @@ class Test(TestBase):
             break
 
         instance.wait_for_success()
+        self.assertEqual(json.loads(instance.tasks[0].properties['settings']), hints)
 
         with instance.open_reader(Schema.from_lists(['count'], ['bigint'])) as reader:
             records = list(reader)

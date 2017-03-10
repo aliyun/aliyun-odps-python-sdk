@@ -25,7 +25,7 @@ from ....models import Table
 from ....tunnel.tabletunnel.downloadsession import TableDownloadSession
 from ...expr.arithmetic import And, Equal
 from ...expr.reduction import *
-from ...utils import is_source_collection
+from ...utils import is_source_collection, is_source_partition
 from ..frame import ResultFrame
 from . import types
 
@@ -57,17 +57,6 @@ class TunnelEngine(object):
 
         odps_schema = table.schema
         if odps_schema.is_partition(expr.source_name):
-            return False
-
-        return True
-
-    @classmethod
-    def _is_source_partition(cls, expr, table):
-        if not isinstance(expr, Column):
-            return False
-
-        odps_schema = table.schema
-        if not odps_schema.is_partition(expr.source_name):
             return False
 
         return True
@@ -111,7 +100,7 @@ class TunnelEngine(object):
 
         def extract(expr):
             if isinstance(expr, Column):
-                if cls._is_source_partition(expr, next(expr.data_source())):
+                if is_source_partition(expr, next(expr.data_source())):
                     cols.append(expr.source_name)
                     return True
                 else:

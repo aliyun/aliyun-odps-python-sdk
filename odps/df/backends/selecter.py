@@ -14,28 +14,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+
 try:
     import pandas as pd
     has_pandas = True
 except ImportError:
     has_pandas = False
 
+try:
+    import sqlalchemy
+    has_sqlalchemy = True
+except ImportError:
+    has_sqlalchemy = False
+
 from ...models import Table
 from ..expr.expressions import CollectionExpr
 from ..expr.core import ExprDictionary
 from .odpssql.models import MemCacheReference
-from .core import Backend, EngineTypes as Engines
+from .seahawks.models import SeahawksTable
+from .core import EngineTypes as Engines
 from .errors import NoBackendFound
+from .utils import fetch_data_source_size
+from ...config import options
 
 
 def available_engines(sources):
     engines = set()
 
     for src in sources:
-        if isinstance(src, (Table, MemCacheReference)):
+        if isinstance(src, SeahawksTable):
+            engines.add(Engines.SEAHAWKS)
+        elif isinstance(src, (Table, MemCacheReference)):
             engines.add(Engines.ODPS)
         elif has_pandas and isinstance(src, pd.DataFrame):
             engines.add(Engines.PANDAS)
+        elif has_sqlalchemy and isinstance(src, sqlalchemy.Table):
+            engines.add(Engines.SQLALCHEMY)
         else:
             raise NoBackendFound('No backend found for data source: %s' % src)
 
@@ -45,8 +60,9 @@ def available_engines(sources):
 class EngineSelecter(object):
     def __init__(self):
         self._node_engines = ExprDictionary()
+        self.force_odps = False
 
-    def choose_backend(self, node):
+    def _choose_backend(self, node):
         if node in self._node_engines:
             return self._node_engines[node]
 
@@ -61,7 +77,7 @@ class EngineSelecter(object):
             engines.update(available_engines(node._data_source()))
         else:
             for n in children:
-                e = self.choose_backend(n)
+                e = self._choose_backend(n)
                 if e and e not in engines:
                     engines.add(e)
                 if len(engines) == available_engine_size:
@@ -82,13 +98,13 @@ class EngineSelecter(object):
         if len(children) == 0:
             return False
         return len(set(filter(lambda x: x is not None,
-                              (self.choose_backend(c) for c in children)))) > 1
+                              (self._choose_backend(c) for c in children)))) > 1
 
     def _has_data_source(self, node, src):
         children = node.children()
         if len(children) == 0:
-            return src == self.choose_backend(node)
-        return src in set(self.choose_backend(c) for c in node.children())
+            return src == self._choose_backend(node)
+        return src in set(self._choose_backend(c) for c in node.children())
 
     def has_pandas_data_source(self, node):
         return self._has_data_source(node, Engines.PANDAS)
@@ -104,12 +120,42 @@ class EngineSelecter(object):
 
         return Engines.ODPS
 
-    def select(self, node):
+    def _choose_odps_backend(self, node_dag):
+        node = node_dag.root
+
+        sizes = 0
+        for n in node.traverse(top_down=True, unique=True):
+            for ds in n._data_source():
+                if isinstance(ds, MemCacheReference):
+                    return Engines.ODPS  # if use mem cache, directly return ODPSSQL backend
+                if not isinstance(ds, Table) or isinstance(ds, SeahawksTable):
+                    continue
+                if isinstance(ds, Table) and n._deps is not None:
+                    # the cached collection, the table has not been calculated yet
+                    continue
+                size = fetch_data_source_size(node_dag, n, ds)
+                if size is None:
+                    return Engines.ODPS
+                sizes += size
+
+        if has_sqlalchemy and options.seahawks_url and sizes <= options.df.seahawks.max_size:
+            return Engines.SEAHAWKS
+
+        return Engines.ODPS
+
+    def select(self, expr_dag):
+        node = expr_dag.root
         if not self.has_diff_data_sources(node):
-            return self.choose_backend(node)
+            engine = self._choose_backend(node)
+            if engine == Engines.ODPS and not self.force_odps:
+                return self._choose_odps_backend(expr_dag)
+            return engine
 
         engines = available_engines(node.data_source())
-        if len(engines) > 1:
-            return self._choose(node)
+        if len(engines) > 1 or (len(engines) == 1 and list(engines)[0] == Engines.ODPS):
+            if not self.force_odps:
+                return self._choose_odps_backend(expr_dag)
+            else:
+                return Engines.ODPS
         return engines.pop()
 

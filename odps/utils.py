@@ -17,6 +17,7 @@
 from __future__ import absolute_import, print_function
 
 import bisect
+import calendar
 import codecs
 import copy
 import glob
@@ -33,6 +34,7 @@ import time
 import traceback
 import types
 import warnings
+import uuid
 import xml.dom.minidom
 from hashlib import sha1, md5
 from base64 import b64encode
@@ -41,6 +43,11 @@ from email.utils import parsedate_tz, formatdate
 
 from . import compat
 from .compat import six, getargspec
+
+try:
+    import pytz
+except ImportError:
+    pytz = None
 
 TEMP_TABLE_PREFIX = 'tmp_pyodps_'
 
@@ -263,18 +270,89 @@ def gen_rfc822(dt=None, localtime=False, usegmt=False):
     return formatdate(t, localtime=localtime, usegmt=usegmt)
 
 
-def to_timestamp(dt):
-    return int(time.mktime(dt.timetuple()))
+def to_timestamp(dt, local_tz=None, is_dst=False):
+    return int(to_milliseconds(dt, local_tz=local_tz) / 1000.0)
 
 
-def to_milliseconds(dt):
-    return int((time.mktime(dt.timetuple()) + dt.microsecond/1000000.0) * 1000)
+def build_to_milliseconds(local_tz=None, is_dst=False):
+    from . import options
+    utc = compat.utc
+    local_tz = local_tz if local_tz is not None else options.local_timezone
+    if isinstance(local_tz, bool):
+        if local_tz:
+            _mktime = time.mktime
+        else:
+            _mktime = calendar.timegm
+
+        def to_milliseconds(dt):
+            if dt.tzinfo is not None:
+                return int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
+            else:
+                return int((_mktime(dt.timetuple()) + dt.microsecond / 1000000.0) * 1000)
+
+        return to_milliseconds
+    else:
+        if isinstance(local_tz, six.string_types):
+            if pytz is None:
+                raise RuntimeError('Package `pytz` is needed when specifying string-format time zone.')
+            tz = pytz.timezone(local_tz)
+        else:
+            tz = local_tz
+
+        if hasattr(tz, 'localize'):
+            localize = lambda dt: tz.localize(dt, is_dst=is_dst)
+        else:
+            localize = lambda dt: dt.replace(tzinfo=tz)
+
+        def to_milliseconds(dt):
+            if dt.tzinfo is None:
+                dt = localize(dt)
+            return int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
+
+        return to_milliseconds
 
 
-def to_datetime(milliseconds):
-    seconds = int(milliseconds / 1000)
-    microseconds = milliseconds % 1000 * 1000
-    return datetime.fromtimestamp(seconds).replace(microsecond=microseconds)
+def to_milliseconds(dt, local_tz=None, is_dst=False):
+    f = build_to_milliseconds(local_tz, is_dst=is_dst)
+    return f(dt)
+
+
+def build_to_datetime(local_tz=None):
+    from . import options
+    utc = compat.utc
+    long_type = compat.long_type
+    local_tz = local_tz if local_tz is not None else options.local_timezone
+    if isinstance(local_tz, bool):
+        if local_tz:
+            _fromtimestamp = datetime.fromtimestamp
+        else:
+            _fromtimestamp = datetime.utcfromtimestamp
+
+        def to_datetime(milliseconds):
+            seconds = long_type(milliseconds / 1000)
+            microseconds = long_type(milliseconds) % 1000 * 1000
+            return _fromtimestamp(seconds).replace(microsecond=microseconds)
+
+        return to_datetime
+    else:
+        if isinstance(local_tz, six.string_types):
+            if pytz is None:
+                raise RuntimeError('Package `pytz` is needed when specifying string-format time zone.')
+            tz = pytz.timezone(local_tz)
+        else:
+            tz = local_tz
+
+        def to_datetime(milliseconds):
+            seconds = int(milliseconds / 1000)
+            microseconds = milliseconds % 1000 * 1000
+            return datetime.utcfromtimestamp(seconds).replace(microsecond=microseconds, tzinfo=utc).astimezone(tz)
+
+        return to_datetime
+
+
+def to_datetime(milliseconds, local_tz=None):
+    f = build_to_datetime(local_tz)
+    return f(milliseconds)
 
 
 def to_binary(text, encoding='utf-8'):
@@ -307,7 +385,7 @@ def to_str(text, encoding='utf-8'):
 if sys.platform == 'win32':
     def _replace_default_encoding(func):
         def _fun(s, encoding=None):
-            encoding = encoding or sys.stdout.encoding or 'mbcs'
+            encoding = encoding or getattr(sys.__stdout__, 'encoding', None) or 'mbcs'
             return func(s, encoding=encoding)
 
         _fun.__name__ = func.__name__
@@ -433,7 +511,7 @@ def init_progress_ui(val=1, lock=False):
 
     progress_group = None
     bar = None
-    if not is_exec_thread():
+    if is_main_thread():
         bar = init_progress_bar(val=val)
         if bar._ipython_widget:
             try:
@@ -457,6 +535,11 @@ def init_progress_ui(val=1, lock=False):
         def update(self, value=None):
             if bar:
                 bar.update(value=value)
+
+        @lk
+        def current_progress(self):
+            if bar and hasattr(bar, '_current_value'):
+                return bar._current_value
 
         @lk
         def inc(self, value):
@@ -635,8 +718,12 @@ def attach_internal(cls):
         return cls
 
 
-def is_exec_thread():
-    return threading.current_thread().name.startswith('PyODPSExecutionThread')
+_main_thread_local = threading.local()
+_main_thread_local.is_main = True
+
+
+def is_main_thread():
+    return hasattr(_main_thread_local, 'is_main') and _main_thread_local.is_main
 
 
 def write_log(msg):
@@ -648,3 +735,7 @@ def write_log(msg):
 def split_quoted(s, delimiter=',', maxsplit=0):
     pattern = r"""((?:[^""" + delimiter + r""""']|"[^"]*"|'[^']*')+)"""
     return re.split(pattern, s, maxsplit=maxsplit)[1::2]
+
+
+def gen_temp_table():
+    return '%s%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))

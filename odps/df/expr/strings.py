@@ -107,7 +107,7 @@ class RFind(StringOp):
 
 
 class Replace(StringOp):
-    _args = '_input', '_pat', '_repl', '_n', '_case', '_flags'
+    _args = '_input', '_pat', '_repl', '_n', '_case', '_flags', '_regex'
     _add_args_slots = False
 
 
@@ -389,7 +389,7 @@ def _rfind(expr, sub, start=0, end=None):
                       _sub=sub, _start=start, _end=end)
 
 
-def _replace(expr, pat, repl, n=-1, case=True, flags=0):
+def _replace(expr, pat, repl, n=-1, case=True, flags=0, regex=True):
     """
     Replace occurrence of pattern/regex in the sequence or scalar with some other string.
     Equivalent to str.replace()
@@ -404,7 +404,7 @@ def _replace(expr, pat, repl, n=-1, case=True, flags=0):
     """
 
     return _string_op(expr, Replace, _pat=pat, _repl=repl,
-                      _n=n, _case=case, _flags=flags)
+                      _n=n, _case=case, _flags=flags, _regex=regex)
 
 
 def _get(expr, index):

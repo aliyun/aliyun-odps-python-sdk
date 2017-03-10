@@ -266,6 +266,10 @@ class OdpsSchema(Schema):
         return buf.getvalue()
 
     @property
+    def simple_columns(self):
+        return self._columns
+
+    @property
     def columns(self):
         partitions = self._partitions or []
         return self._columns + partitions
@@ -274,6 +278,7 @@ class OdpsSchema(Schema):
     def partitions(self):
         return self._partitions
 
+    @utils.deprecated('use simple_columns property instead')
     def get_columns(self):
         return self._columns
 

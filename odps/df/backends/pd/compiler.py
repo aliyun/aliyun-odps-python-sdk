@@ -22,6 +22,7 @@ import time
 
 from ..core import Backend
 from ...expr.expressions import *
+from ...expr.arithmetic import Power
 from ...expr.reduction import GroupedSequenceReduction, GroupedCount, Count, GroupedCat, Cat
 from ...expr.merge import JoinCollectionExpr
 from ...expr.datetimes import DTScalar
@@ -331,6 +332,8 @@ class PandasCompiler(Backend):
                         np.timedelta64(1, 'ms')).astype(np.int64)
 
             op = BINARY_OP_TO_PANDAS[expr.node_name]
+            if isinstance(expr, Power) and isinstance(expr.dtype, df_types.Integer):
+                return op(*children_vals).astype(types.df_type_to_np_type(expr.dtype))
             return op(*children_vals)
 
         self._add_node(expr, handle)
@@ -387,6 +390,13 @@ class PandasCompiler(Backend):
             else:
                 if op == 'slice':
                     kv['stop'] = kv.pop('end', None)
+                elif op == 'replace':
+                    assert 'regex' in kv
+                    if kv['regex']:
+                        kv.pop('regex')
+                    else:
+                        kv['pat'] = re.escape(kv['pat'])
+                        kv.pop('regex')
                 res = getattr(getattr(input, 'str'), op)(**kv)
             if isinstance(expr.input, Scalar):
                 return res[0]
@@ -1096,6 +1106,8 @@ class PandasCompiler(Backend):
         def handle(kw):
             dtype = types.df_type_to_np_type(expr.dtype)
             input = self._get_children_vals(kw, expr)[0]
+            if isinstance(expr._input, Scalar):
+                return pd.Series([input]).astype(dtype)[0]
             return input.astype(dtype)
 
         self._add_node(expr, handle)

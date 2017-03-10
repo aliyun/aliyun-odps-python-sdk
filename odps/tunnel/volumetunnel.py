@@ -63,7 +63,6 @@ class VolumeTunnel(BaseTunnel):
 
 
 class VolumeFSTunnel(BaseTunnel):
-    @contextlib.contextmanager
     def open_reader(self, volume, path, start=None, length=None, compress_option=None, compress_algo=None,
                     compress_level=None, compress_strategy=None):
         if not isinstance(volume, six.string_types):
@@ -104,7 +103,7 @@ class VolumeFSTunnel(BaseTunnel):
             compress = False
 
         option = compress_option if compress else None
-        yield VolumeReader(self.tunnel_rest, resp, option)
+        return VolumeReader(self.tunnel_rest, resp, option)
 
     def open_writer(self, volume, path, replication=None, compress_option=None, compress_algo=None,
                     compress_level=None, compress_strategy=None):
@@ -399,6 +398,12 @@ class VolumeReader(object):
 
     def __iter__(self):
         return self._it()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 
 class VolumeUploadSession(serializers.JSONSerializableModel):

@@ -60,9 +60,13 @@ class BaseTunnel(object):
         if self._tunnel_rest is not None:
             return self._tunnel_rest
 
+        kw = dict()
+        if options.tunnel_proxy is not None:
+            kw['proxy'] = options.tunnel_proxy
+
         endpoint = self._endpoint
         if endpoint is None:
             scheme = urlparse(self._client.endpoint).scheme
             endpoint = self._get_tunnel_server(self._project, scheme)
-        self._tunnel_rest = RestClient(self._account, endpoint, self._client.project)
+        self._tunnel_rest = RestClient(self._account, endpoint, self._client.project, **kw)
         return self._tunnel_rest

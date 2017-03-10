@@ -102,6 +102,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._curr_cursor = 0
+        self._to_milliseconds = utils.build_to_milliseconds()
 
         super(BaseRecordWriter, self).__init__(out)
 
@@ -111,7 +112,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             self._write_bool(val)
 
         def write_datetime(pb_index, val):
-            val = utils.to_milliseconds(val)
+            val = self._to_milliseconds(val)
             self._write_tag(pb_index, WIRETYPE_VARINT)
             self._write_long(val)
 

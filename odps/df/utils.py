@@ -107,6 +107,19 @@ def is_constant_scalar(expr):
     return isinstance(expr, Scalar) and expr._value is not None
 
 
+def is_source_partition(expr, table):
+    from .expr.expressions import Column
+
+    if not isinstance(expr, Column):
+        return False
+
+    odps_schema = table.schema
+    if not odps_schema.is_partition(expr.source_name):
+        return False
+
+    return True
+
+
 def to_collection(seq_or_scalar):
     from .expr.expressions import CollectionExpr, Column, SequenceExpr
     from .expr.reduction import GroupedSequenceReduction, Count

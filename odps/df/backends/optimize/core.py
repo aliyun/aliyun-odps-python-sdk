@@ -160,11 +160,6 @@ class Optimizer(Backend):
             return
         self._visit_need_compact_collection(expr)
 
-    def visit_reshuffle(self, expr):
-        if not options.df.optimize:
-            return
-        self._visit_need_compact_collection(expr)
-
     def _visit_need_compact_collection(self, expr):
         compacted = self._compact(expr)
         if compacted is None:

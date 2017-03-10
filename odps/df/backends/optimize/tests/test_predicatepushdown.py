@@ -53,6 +53,13 @@ class Test(TestBase):
                    'WHERE (t1.`id` + 1) < 10'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr[self.expr.id + 1, 'name', self.expr.name.isnull().rename('is_null')][lambda x: x.is_null]
+
+        expected = 'SELECT t1.`id` + 1 AS `id`, t1.`name`, t1.`name` IS NULL AS `is_null` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'WHERE t1.`name` IS NULL'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
         expr = self.expr['name', self.expr.id ** 2]\
             .filter(lambda x: x.name == 'name1').filter(lambda x: x.id < 3)
         expected = "SELECT t1.`name`, CAST(POW(t1.`id`, 2) AS BIGINT) AS `id` \n" \

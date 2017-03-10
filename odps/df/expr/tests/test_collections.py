@@ -218,7 +218,7 @@ class Test(TestBase):
         expr = self.expr.pivot_table(values='int16', columns='boolean', rows='string')
         self.assertIsInstance(expr, DynamicMixin)
 
-    def testScaleValues(self):
+    def testScaleValue(self):
         expr = self.expr.min_max_scale()
         self.assertIsInstance(expr, CollectionExpr)
         self.assertListEqual(expr.dtypes.names, self.expr.dtypes.names)

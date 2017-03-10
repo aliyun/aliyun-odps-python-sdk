@@ -1344,7 +1344,7 @@ class ExprExecutionGraphFormatter(object):
             write_indent_newline('subgraph clusterSTAGE{0} {{'.format(sid))
             write_indent_newline('label = "Stage {0}"'.format(sid), ind=2)
 
-            compiled = node._sql() if hasattr(node, '_sql') else None
+            compiled = str(node._sql()) if hasattr(node, '_sql') else None
 
             for expr in traverse_until_source(expr_node, unique=True):
                 if id(expr) not in traversed:

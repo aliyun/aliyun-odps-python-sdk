@@ -78,6 +78,10 @@ def get_config():
         project = config.get("odps", "project")
         endpoint = config.get("odps", "endpoint")
         try:
+            seahawks_url = config.get("odps", "seahawks_url")
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            seahawks_url = None
+        try:
             tunnel_endpoint = config.get("tunnel", "endpoint")
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             tunnel_endpoint = None
@@ -92,7 +96,8 @@ def get_config():
             datahub_endpoint = None
 
         config.odps = ODPS(access_id, secret_access_key, project, endpoint,
-                           tunnel_endpoint=tunnel_endpoint, predict_endpoint=predict_endpoint)
+                           tunnel_endpoint=tunnel_endpoint, predict_endpoint=predict_endpoint,
+                           seahawks_url=seahawks_url)
         config.tunnel = TableTunnel(config.odps, endpoint=tunnel_endpoint)
         config.datahub_endpoint = datahub_endpoint
         logging_level = config.get('test', 'logging_level')
@@ -172,6 +177,14 @@ def snappy_case(obj):
         return obj
     except ImportError:
         return ignore_case(obj, 'Skipped due to absence of snappy.')
+
+
+def sqlalchemy_case(obj):
+    try:
+        import sqlalchemy
+        return obj
+    except ImportError:
+        return ignore_case(obj, 'Skipped due to absence of sqlalchemy.')
 
 
 def global_locked(lock_key):

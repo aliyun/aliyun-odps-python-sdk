@@ -541,7 +541,6 @@ class Instance(LazyLoad):
         job = self._get_job()
         return job.priority
 
-    @contextlib.contextmanager
     def open_reader(self, schema=None, task_name=None):
         if not self.is_successful():
             raise errors.ODPSError(
@@ -563,5 +562,4 @@ class Instance(LazyLoad):
                 'Cannot open reader, job has no sql task')
 
         result = self.get_task_result(task_name)
-        with readers.RecordReader(schema, result) as reader:
-            yield reader
+        return readers.RecordReader(schema, result)

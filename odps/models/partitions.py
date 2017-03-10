@@ -113,7 +113,7 @@ class Partitions(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLAddPartitionTask', query=buf.getvalue())
-        instance = self.project.instances.create(task=task)
+        instance = self.project.parent[self._client.project].instances.create(task=task)
 
         if not async:
             instance.wait_for_success()
@@ -137,7 +137,7 @@ class Partitions(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLDropPartitionTask', query=buf.getvalue())
-        instance = self.project.instances.create(task=task)
+        instance = self.project.parent[self._client.project].instances.create(task=task)
 
         if not async:
             instance.wait_for_success()

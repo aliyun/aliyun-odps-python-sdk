@@ -56,6 +56,28 @@ class Task(AbstractXMLRemoteModel):
             self.properties = compat.OrderedDict()
         self.properties[key] = value
 
+    def _update_property_json(self, field, value):
+        def update(kv, dest):
+            if not kv:
+                return
+            for k, v in six.iteritems(kv):
+                if isinstance(v, bool):
+                    dest[k] = 'true' if v else 'false'
+                else:
+                    dest[k] = str(v)
+
+        if self.properties is None:
+            self.properties = compat.OrderedDict()
+        if field in self.properties:
+            settings = json.loads(self.properties[field])
+        else:
+            settings = compat.OrderedDict()
+        update(value, settings)
+        self.properties[field] = json.dumps(settings)
+
+    def update_settings(self, value):
+        self._update_property_json('settings', value)
+
     def serialize(self):
         if type(self) is Task:
             raise errors.ODPSError('Unknown task type')
@@ -156,6 +178,9 @@ class SQLTask(Task):
             self.properties[key] = '{"odps.sql.udf.strict.mode": "true"}'
 
         return super(SQLTask, self).serial()
+
+    def update_aliases(self, value):
+        self._update_property_json('aliases', value)
 
     @property
     def warnings(self):

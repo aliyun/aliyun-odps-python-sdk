@@ -38,7 +38,8 @@ SESSION_KEY = '%d_%s' % (int(time.time()), uuid.uuid4())
 CLEANER_THREADS = 100
 USER_FILE_RIGHTS = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
 
-CLEANUP_SCRIPT_TMPL = """
+CLEANUP_SCRIPT_TMPL = u"""
+#-*- coding:utf-8 -*-
 import os
 import sys
 import json
@@ -48,15 +49,12 @@ try:
 except Exception:
     pass
 
-temp_codes = json.loads(r\"\"\"
-{odps_info}
-\"\"\".strip())
-import_paths = json.loads(r\"\"\"
-{import_paths}
-\"\"\".strip())
-biz_ids = json.loads(r\"\"\"
-{biz_ids}
-\"\"\".strip())
+temp_codes = json.loads({odps_info!r})
+import_paths = json.loads({import_paths!r})
+biz_ids = json.loads({biz_ids!r})
+
+if sys.platform == 'win32':
+    import_paths = [p.encode('mbcs') for p in import_paths]
 
 sys.path.extend(import_paths)
 from odps import ODPS, tempobj
@@ -72,7 +70,7 @@ tempobj.ObjectRepositoryLib.biz_ids = set(biz_ids)
 for o_desc in temp_codes:
     ODPS(**tempobj.compat_kwargs(o_desc))
 os._exit(0)
-"""
+""".lstrip()
 
 
 cleanup_mode = False
@@ -83,6 +81,7 @@ host_pid = os.getpid()
 class ExecutionEnv(object):
     def __init__(self, **kwargs):
         self.os = os
+        self.sys = sys
         self._g_env = copy.copy(globals())
         self.is_windows = 'windows' in platform.platform().lower()
         self.pid = os.getpid()
@@ -94,11 +93,16 @@ class ExecutionEnv(object):
         package_root = os.path.dirname(__file__)
         if package_root not in import_paths:
             import_paths.append(package_root)
-        self.import_path_json = json.dumps(import_paths, ensure_ascii=False)
+        self.import_path_json = utils.to_text(json.dumps(import_paths, ensure_ascii=False))
 
         self.builtins = builtins
         self.io = __import__('io', fromlist=[''])
-        self.conv_bytes = (lambda s: s.encode()) if six.PY3 else (lambda s: s)
+        if six.PY3:
+            self.conv_bytes = (lambda s: s.encode() if isinstance(s, str) else s)
+            self.conv_unicode = (lambda s: s if isinstance(s, str) else s.decode())
+        else:
+            self.conv_bytes = (lambda s: s.encode() if isinstance(s, unicode) else s)
+            self.conv_unicode = (lambda s: s if isinstance(s, unicode) else s.decode())
         self.subprocess = subprocess
         self.temp_dir = tempfile.gettempdir()
         self.template = CLEANUP_SCRIPT_TMPL

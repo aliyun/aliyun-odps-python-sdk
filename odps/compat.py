@@ -228,7 +228,27 @@ from .lib.six.moves.urllib.parse import urlencode, urlparse, unquote, quote, quo
 from .lib.six.moves import configparser as ConfigParser
 
 
+try:
+    import pytz
+    utc = pytz.utc
+except ImportError:
+    import datetime
+    _ZERO_TIMEDELTA = datetime.timedelta(0)
+
+    class _UTC(datetime.tzinfo):
+        def utcoffset(self, dt):
+            return _ZERO_TIMEDELTA
+
+        def tzname(self, dt):
+            return "UTC"
+
+        def dst(self, dt):
+            return _ZERO_TIMEDELTA
+
+    utc = _UTC()
+
+
 __all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress',
            'reduce', 'reload_module', 'Queue', 'Empty',
            'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
-           'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES']
+           'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'utc']

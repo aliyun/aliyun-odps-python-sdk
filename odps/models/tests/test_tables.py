@@ -20,6 +20,7 @@ import textwrap
 
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
+from odps.errors import NoSuchObject
 from odps.models import Schema, Record, Column, Partition
 
 
@@ -80,8 +81,8 @@ class Test(TestBase):
         self.assertGreaterEqual(table.file_num, 0)
         self.assertIsInstance(table.creation_time, datetime)
         self.assertIsInstance(table.schema, Schema)
-        self.assertGreater(len(table.schema.get_columns()), 0)
-        self.assertGreaterEqual(len(table.schema.get_partitions()), 0)
+        self.assertGreater(len(table.schema.simple_columns), 0)
+        self.assertGreaterEqual(len(table.schema.partitions), 0)
         self.assertIsInstance(table.owner, six.string_types)
         self.assertIsInstance(table.table_label, six.string_types)
         self.assertIsInstance(table.last_modified_time, datetime)
@@ -271,6 +272,20 @@ class Test(TestBase):
         table.create_partition(partition)
 
         with table.open_writer(partition) as writer:
+            record = table.new_record()
+            record[0] = '1'
+            writer.write(record)
+
+        with table.open_reader(partition) as reader:
+            self.assertEqual(reader.count, 1)
+            record = next(reader)
+            self.assertEqual(record[0], '1')
+            self.assertEqual(record.num, '1')
+
+        partition = 'pt=20151123'
+        self.assertRaises(NoSuchObject, lambda: table.open_writer(partition, create_partition=False))
+
+        with table.open_writer(partition, create_partition=True) as writer:
             record = table.new_record()
             record[0] = '1'
             writer.write(record)

@@ -52,13 +52,16 @@ def default_user_agent():
 
 
 class RestClient(object):
-    def __init__(self, account, endpoint, project=None, user_agent=None):
+    def __init__(self, account, endpoint, project=None, user_agent=None, **kwargs):
         if endpoint.endswith('/'):
             endpoint = endpoint[:-1]
         self._account = account
         self._endpoint = endpoint
         self._user_agent = user_agent or default_user_agent()
         self.project = project
+        self._proxy = kwargs.get('proxy')
+        if isinstance(self._proxy, six.string_types):
+            self._proxy = dict(http=self._proxy, https=self._proxy)
 
     @property
     def endpoint(self):
@@ -100,7 +103,8 @@ class RestClient(object):
         try:
             res = session.send(prepared_req, stream=stream,
                                timeout=(options.connect_timeout, options.read_timeout),
-                               verify=False)
+                               verify=False,
+                               proxies=self._proxy)
         except requests.ConnectTimeout:
             raise errors.ConnectTimeout('Connecting to endpoint %s timeout.' % self._endpoint)
 

@@ -160,6 +160,12 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>>     for record in reader[5:10]  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
    >>>         # 处理一条记录
 
+更简单的调用方法是使用 ODPS 对象的 ``read_table`` 方法，例如
+
+.. code-block:: python
+
+   >>> for record in odps.read_table('test_table', partition='pt=test'):
+   >>>     # 处理一条记录
 向表写数据
 ----------
 
@@ -183,6 +189,27 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> with t.open_writer(partition='pt=test', blocks=[0, 1]) as writer:  # 这里同是打开两个block
    >>>     writer.write(0, gen_records(block=0))
    >>>     writer.write(1, gen_records(block=1))  # 这里两个写操作可以多线程并行，各个block间是独立的
+
+如果分区不存在，可以使用 ``create_partition`` 参数指定创建分区，如
+
+.. code-block:: python
+
+   >>> with t.open_writer(partition='pt=test', create_partition=True) as writer:
+   >>>     records = [[111, 'aaa', True],                 # 这里可以是list
+   >>>                [222, 'bbb', False],
+   >>>                [333, 'ccc', True],
+   >>>                [444, '中文', False]]
+   >>>     writer.write(records)  # 这里records可以是可迭代对象
+
+更简单的写数据方法是使用 ODPS 对象的 write_table 方法，例如
+
+.. code-block:: python
+
+   >>> records = [[111, 'aaa', True],                 # 这里可以是list
+   >>>            [222, 'bbb', False],
+   >>>            [333, 'ccc', True],
+   >>>            [444, '中文', False]]
+   >>> odps.write_table('test_table', records, partition='pt=test', create_partition=True)
 
 删除表
 -------

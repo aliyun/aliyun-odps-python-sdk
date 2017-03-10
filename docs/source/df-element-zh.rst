@@ -549,13 +549,16 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
 logview 的 JSONSummary 中即可找到计数器值。
 
 
+调用ODPS内建或者已定义函数
+------------------------------------
 
-要想调用ODPS上的无参或者常数参的内建函数，我们可以使用 ``BuiltinFunction`` 类来完成。
+
+要想调用ODPS上的内建或者已定义函数，我们可以使用 ``func`` 接口。
 
 
 .. code:: python
 
-    >>> from odps.df import BuiltinFunction
+    >>> from odps.df import func
     >>>
-    >>> iris[iris.name, BuiltinFunction('rand', rtype='float').rename('rand')][:4]
-    >>> iris[iris.name, BuiltinFunction('rand', rtype='float', args=(10, )).rename('rand')][:4]
+    >>> iris[iris.name, func.rand(rtype='float').rename('rand')][:4]
+    >>> iris[iris.name, func.rand(10, rtype='float').rename('rand')][:4]

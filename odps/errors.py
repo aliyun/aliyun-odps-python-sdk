@@ -161,6 +161,10 @@ class NoSuchObject(ServerDefinedException):
     pass
 
 
+class NoSuchPartition(NoSuchObject):
+    pass
+
+
 class InvalidArgument(ServerDefinedException):
     pass
 
