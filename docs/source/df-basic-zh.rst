@@ -138,7 +138,7 @@ ODPS的字段和DataFrame的类型映射关系如下：
 
 在 DataFrame 的计算过程中，一个 Sequence 必须要有列名。在很多情况下，DataFrame 会起一个名字。比如：
 
-.. ipython:: python
+.. code:: python
 
     >>> iris.groupby('name').sepalwidth.max()
        sepalwidth_max
