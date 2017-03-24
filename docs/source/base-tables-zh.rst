@@ -229,6 +229,18 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> odps.delete_table('my_table_name', if_exists=True)  #  只有表存在时删除
    >>> t.drop()  # Table对象存在的时候可以直接执行drop函数
 
+
+创建DataFrame
+-----------------
+
+PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询和操作ODPS数据。
+使用 ``to_df`` 方法，即可转化为 DataFrame 对象。
+
+.. code-block:: python
+
+   >>> table = odps.get_table('my_table_name')
+   >>> df = table.to_df()
+
 表分区
 -------
 

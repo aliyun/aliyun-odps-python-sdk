@@ -13,7 +13,7 @@
 
 通常情况下，你唯一需要直接创建的 Collection 对象是 :class:`DataFrame`，这一对象用于引用数据源，可能是一个 ODPS 表，
 Pandas DataFrame，或sqlalchemy.Table（数据库表）。
-使用这两种数据源时，相关的操作相同，这意味着你可以不更改数据处理的代码，仅仅修改输入/输出的指向，
+使用这几种数据源时，相关的操作相同，这意味着你可以不更改数据处理的代码，仅仅修改输入/输出的指向，
 便可以简单地将小数据量上本地测试运行的代码迁移到 ODPS 上，而迁移的正确性由 PyODPS 来保证。
 
 创建 DataFrame 非常简单，只需将 Table 对象、 pandas DataFrame 对象或者 sqlalchemy Table 对象传入即可。
@@ -23,6 +23,7 @@ Pandas DataFrame，或sqlalchemy.Table（数据库表）。
     >>> # 从 ODPS 表创建
     >>> from odps.df import DataFrame
     >>> iris = DataFrame(o.get_table('pyodps_iris'))
+    >>> iris2 = o.get_table('pyodps_iris').to_df()  # 使用表的to_df方法
     >>> # 从 Pandas DataFrame 创建
     >>> import pandas as pd
     >>> import numpy as np
@@ -736,4 +737,60 @@ DataFrame的计算过程中，一些Collection被多处使用，或者用户需�
 .. intinclude:: df-seahawks-int-zh.rst
 
 
+异步执行
+~~~~~~~~~~~
 
+DataFrame 支持异步操作，对于立即执行的方法，包括 ``execute``、``persist``、``head``、``tail`` （其他方法不支持），
+传入 ``async`` 参数，即可以将一个操作异步执行，``timeout`` 参数指定超时时间，
+异步返回的是 `Future <https://docs.python.org/3/library/concurrent.futures.html#future-objects>`_ 对象。
+
+.. code-block:: python
+
+    >>> future = iris[iris.sepal_width < 10].head(10, async=True)
+    >>> future.done()
+    True
+    >>> future.result()
+       sepal_length  sepal_width  petal_length  petal_width     category
+    0           5.1          3.5           1.4          0.2  Iris-setosa
+    1           4.9          3.0           1.4          0.2  Iris-setosa
+    2           4.7          3.2           1.3          0.2  Iris-setosa
+    3           4.6          3.1           1.5          0.2  Iris-setosa
+    4           5.0          3.6           1.4          0.2  Iris-setosa
+    5           5.4          3.9           1.7          0.4  Iris-setosa
+    6           4.6          3.4           1.4          0.3  Iris-setosa
+    7           5.0          3.4           1.5          0.2  Iris-setosa
+    8           4.4          2.9           1.4          0.2  Iris-setosa
+    9           4.9          3.1           1.5          0.1  Iris-setosa
+
+
+并行执行
+~~~~~~~~~~~
+
+DataFrame 的并行执行可以使用多线程来并行，但会带来一个问题，比如两个 DataFrame 有共同的依赖，这个依赖将会被执行两遍。
+
+现在我们提供了新的 ``Delay API``，
+来将立即执行的操作（包括 ``execute``、``persist``、``head``、``tail``，其他方法不支持）变成延迟操作，
+并返回 `Future <https://docs.python.org/3/library/concurrent.futures.html#future-objects>`_ 对象。
+当用户触发delay执行的时候，会去寻找共同依赖，按用户给定的并发度执行，并支持异步执行。
+
+.. code-block:: python
+
+    >>> from odps.df import Delay
+    >>> delay = Delay()  # 创建Delay对象
+    >>>
+    >>> df = iris[iris.sepal_width < 5].cache()  # 有一个共同的依赖
+    >>> future1 = df.sepal_width.sum().execute(delay=delay)  # 立即返回future对象，此时并没有执行
+    >>> future2 = df.sepal_width.mean().execute(delay=delay)
+    >>> future3 = df.sepal_length.max().execute(delay=delay)
+    >>> delay.execute(n_parallels=3)  # 并发度是3，此时才真正执行。
+    |==========================================|   1 /  1  (100.00%)        21s
+    >>> future1.result()
+    458.10000000000014
+    >>> future2.result()
+    3.0540000000000007
+
+
+可以看到上面的例子里，共同依赖的对象会先执行，然后再以并发度为3分别执行future1到future3。
+当 ``n_parallel`` 为1时，执行时间会达到37s。
+
+``delay.execute`` 也接受 ``async`` 操作来指定是否异步执行，当异步的时候，也可以指定 ``timeout`` 参数来指定超时时间。
