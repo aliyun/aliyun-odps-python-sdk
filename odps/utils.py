@@ -36,6 +36,7 @@ import types
 import warnings
 import uuid
 import xml.dom.minidom
+import collections
 from hashlib import sha1, md5
 from base64 import b64encode
 from datetime import datetime
@@ -271,7 +272,7 @@ def gen_rfc822(dt=None, localtime=False, usegmt=False):
 
 
 def to_timestamp(dt, local_tz=None, is_dst=False):
-    return int(to_milliseconds(dt, local_tz=local_tz) / 1000.0)
+    return int(to_milliseconds(dt, local_tz=local_tz, is_dst=is_dst) / 1000.0)
 
 
 def build_to_milliseconds(local_tz=None, is_dst=False):
@@ -683,17 +684,6 @@ def build_pyodps_dir(*args):
     return os.path.join(home_dir, *args)
 
 
-def gen_is_secret_mode():
-    is_secret_mode = 'PYODPS_SECRET_MODE' in os.environ
-
-    def _secret_func():
-        return is_secret_mode
-
-    return _secret_func
-
-is_secret_mode = gen_is_secret_mode()
-
-
 def object_getattr(obj, attr, default=None):
     try:
         return object.__getattribute__(obj, attr)
@@ -739,3 +729,16 @@ def split_quoted(s, delimiter=',', maxsplit=0):
 
 def gen_temp_table():
     return '%s%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))
+
+
+def hashable(obj):
+    if isinstance(obj, collections.Hashable):
+        items = obj
+    elif isinstance(obj, collections.Mapping):
+        items = type(obj)((k, hashable(v)) for k, v in six.iteritems(obj))
+    elif isinstance(obj, collections.Iterable):
+        items = tuple(hashable(item) for item in obj)
+    else:
+        raise TypeError(type(obj))
+
+    return items

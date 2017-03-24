@@ -18,12 +18,11 @@ import itertools
 
 from ..core import Backend
 from ...expr.expressions import *
-from ...expr.groupby import GroupByCollectionExpr, MutateCollectionExpr
+from ...expr.groupby import GroupByCollectionExpr
 from ...expr.reduction import SequenceReduction, GroupedSequenceReduction
-from ...expr.collections import DistinctCollectionExpr, RowAppliedCollectionExpr, \
-    ReshuffledCollectionExpr
 from ...expr.merge import JoinCollectionExpr
 from ...expr.window import Window
+from ...expr.utils import select_fields
 from ...utils import traverse_until_source
 from .... import utils
 from .columnpruning import ColumnPruning
@@ -244,16 +243,7 @@ class Optimizer(Backend):
             return retval
 
     def _get_fields(self, collection):
-        if isinstance(collection, (ProjectCollectionExpr, Summary)):
-            return collection.fields
-        elif isinstance(collection, DistinctCollectionExpr):
-            return collection.unique_fields
-        elif isinstance(collection, (GroupByCollectionExpr, MutateCollectionExpr)):
-            return collection.fields
-        elif isinstance(collection, RowAppliedCollectionExpr):
-            return collection.fields
-        elif isinstance(collection, ReshuffledCollectionExpr):
-            return collection.fields
+        return select_fields(collection)
 
     def _get_field(self, collection, name):
         # FIXME: consider name with upper letters

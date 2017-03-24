@@ -28,7 +28,7 @@ Pandas DataFrame，或sqlalchemy.Table（数据库表）。
     >>> import numpy as np
     >>> df = DataFrame(pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc')))
     >>> # 从 sqlalchemy Table 创建
-    >>> engine = sqlalchemy.create_engine('mysql://root:chinekingseu@localhost/movielens')
+    >>> engine = sqlalchemy.create_engine('mysql://root:123456@localhost/movielens')
     >>> metadata = sqlalchemy.MetaData(bind=engine) # 需要绑定到engine
     >>> table = sqlalchemy.Table('top_users', metadata, extend_existing=True, autoload=True)
     >>> users = DataFrame(table)

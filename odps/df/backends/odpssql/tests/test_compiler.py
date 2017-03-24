@@ -269,6 +269,12 @@ class Test(TestBase):
                    "WHERE sample(5, 1, 'name', 'id')"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.filter(self.expr.id < 10)[self.expr.name, self.expr.id]
+        expected = "SELECT t1.`name`, t1.`id` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "WHERE t1.`id` < 10"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testMemCacheCompilation(self):
         cached = self.expr['name', self.expr.id + 1].cache(mem=True)
         expr = cached.groupby('name').agg(cached.id.sum())

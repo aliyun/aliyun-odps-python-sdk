@@ -23,6 +23,7 @@ import collections
 import threading
 
 from .. import types
+from ..utils import is_source_collection
 from ... import compat
 from ...models import FileResource, TableResource
 from ...compat import six
@@ -128,3 +129,53 @@ _index = itertools.count(1)
 def new_id():
     with _lock:
         return next(_index)
+
+
+def select_fields(collection):
+    from .expressions import ProjectCollectionExpr, Summary
+    from .collections import DistinctCollectionExpr, RowAppliedCollectionExpr
+    from .groupby import GroupByCollectionExpr, MutateCollectionExpr
+
+    if isinstance(collection, (ProjectCollectionExpr, Summary)):
+        return collection.fields
+    elif isinstance(collection, DistinctCollectionExpr):
+        return collection.unique_fields
+    elif isinstance(collection, (GroupByCollectionExpr, MutateCollectionExpr)):
+        return collection.fields
+    elif isinstance(collection, RowAppliedCollectionExpr):
+        return collection.fields
+
+
+def is_changed(collection, column):
+    # if the column is changed before the generated collection
+    from .expressions import CollectionExpr, Column
+
+    column_name = column.source_name
+    src_collection = column.input
+
+    if src_collection is collection:
+        return False
+
+    dag = collection.to_dag(copy=False)
+    coll = src_collection
+    colls = [src_collection,]
+    while coll is not collection:
+        try:
+            parents = [p for p in dag.successors(coll) if isinstance(p, CollectionExpr)]
+        except KeyError:
+            return
+        assert len(parents) == 1
+        coll = parents[0]
+        colls.append(coll)
+
+    name = column_name
+    for coll in colls:
+        fields = select_fields(coll)
+        if fields:
+            col_names = dict((field.source_name, field) for field in fields if isinstance(field, Column))
+            if name in col_names:
+                name = col_names[name].name
+            else:
+                return True
+
+    return False

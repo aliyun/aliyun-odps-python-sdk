@@ -34,23 +34,19 @@ class Test(RunnerTestBase):
         self.df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
 
     def test_construct(self):
-        if utils.is_secret_mode():
-            get_odps_tuple = lambda o: (o.account.access_id, o.project, o.endpoint)
-        else:
-            get_odps_tuple = lambda o: (o.account.access_id, o.account.secret_access_key, o.project, o.endpoint)
+        get_odps_tuple = lambda o: (o.account.access_id, o.account.secret_access_key, o.project, o.endpoint)
 
         with_odps = RunnerContext(self.odps)
         self.assertTupleEqual(get_odps_tuple(self.odps), get_odps_tuple(with_odps._odps))
 
-        if not utils.is_secret_mode():
-            inter.teardown(TEST_CONTEXT_ROOM)
-            inter.setup(*get_odps_tuple(self.odps), room=TEST_CONTEXT_ROOM)
-            inter.enter(TEST_CONTEXT_ROOM)
+        inter.teardown(TEST_CONTEXT_ROOM)
+        inter.setup(*get_odps_tuple(self.odps), room=TEST_CONTEXT_ROOM)
+        inter.enter(TEST_CONTEXT_ROOM)
 
-            without_odps = RunnerContext()
-            self.assertTupleEqual(get_odps_tuple(self.odps), get_odps_tuple(without_odps._odps))
+        without_odps = RunnerContext()
+        self.assertTupleEqual(get_odps_tuple(self.odps), get_odps_tuple(without_odps._odps))
 
-            inter.teardown(TEST_CONTEXT_ROOM)
+        inter.teardown(TEST_CONTEXT_ROOM)
 
     def test_batch_run(self):
         options.runner.dry_run = False

@@ -123,6 +123,9 @@ class EngineSelecter(object):
     def _choose_odps_backend(self, node_dag):
         node = node_dag.root
 
+        if not has_sqlalchemy or not options.seahawks_url:
+            return Engines.ODPS
+
         sizes = 0
         for n in node.traverse(top_down=True, unique=True):
             for ds in n._data_source():
@@ -138,7 +141,7 @@ class EngineSelecter(object):
                     return Engines.ODPS
                 sizes += size
 
-        if has_sqlalchemy and options.seahawks_url and sizes <= options.df.seahawks.max_size:
+        if sizes <= options.df.seahawks.max_size:
             return Engines.SEAHAWKS
 
         return Engines.ODPS

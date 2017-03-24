@@ -19,6 +19,7 @@ from __future__ import absolute_import
 import time
 import sys
 import uuid  # don't remove
+import threading
 import warnings
 import types as tps
 
@@ -88,8 +89,14 @@ class SQLExecuteNode(ExecuteNode):
 class ODPSSQLEngine(Engine):
     def __init__(self, odps):
         self._odps = odps
-        self._ctx = ODPSContext(self._odps)
+        self._ctx_local = threading.local()
         self._instances = []
+
+    @property
+    def _ctx(self):
+        if not hasattr(self._ctx_local, '_ctx'):
+            self._ctx_local._ctx = ODPSContext(self._odps)
+        return self._ctx_local._ctx
 
     def stop(self):
         for inst_id in self._instances:

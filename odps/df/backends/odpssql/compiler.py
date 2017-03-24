@@ -432,7 +432,7 @@ class OdpsSQLCompiler(Backend):
         if self._group_by_clause is not None:
             self.sub_sql_to_from_clause(expr.input)
         elif isinstance(expr, ReshuffledCollectionExpr) and \
-                isinstance(expr.input, (RowAppliedCollectionExpr, ProjectCollectionExpr)):
+                self._select_clause is not None:
             self.sub_sql_to_from_clause(expr.input)
 
         self._group_by_clause = group_by_clause

@@ -23,7 +23,6 @@ import json
 from time import sleep
 
 from odps import tempobj, utils
-from odps.compat import unittest
 from odps.tests.core import TestBase, tn, in_coverage_mode
 
 TEMP_TABLE_NAME = tn('pyodps_test_tempobj_cleanup')
@@ -141,7 +140,6 @@ class TestTempObjs(TestBase):
         sleep(10)
         assert not self.odps.exist_table(TEMP_TABLE_NAME)
 
-    @unittest.skipIf(utils.is_secret_mode(), 'Skipped under restricted mode.')
     def test_cleanup_script(self):
         self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
         self.odps.execute_sql('create table {0} (col1 string) lifecycle 1'.format(TEMP_TABLE_NAME))
@@ -151,7 +149,6 @@ class TestTempObjs(TestBase):
         sleep(10)
         assert not self.odps.exist_table(TEMP_TABLE_NAME)
 
-    @unittest.skipIf(utils.is_secret_mode(), 'Skipped under restricted mode.')
     def test_multi_process(self):
         self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
 
@@ -173,7 +170,6 @@ class TestTempObjs(TestBase):
         assert self.odps.exist_table(TEMP_TABLE_NAME)
         self.odps.run_sql('drop table {0}'.format(TEMP_TABLE_NAME))
 
-    @unittest.skipIf(utils.is_secret_mode(), 'Skipped under restricted mode.')
     def test_plenty_create(self):
         del_insts = [self.odps.run_sql('drop table {0}'.format(tn('tmp_pyodps_create_temp_%d' % n))) for n in range(10)]
         [inst.wait_for_completion() for inst in del_insts]

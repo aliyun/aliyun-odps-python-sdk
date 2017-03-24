@@ -110,7 +110,7 @@ class ExprFormatter(object):
             return buf.getvalue()
 
     def _format_collection(self, expr, buf=None, indent=0):
-        if is_source_collection(expr):
+        if is_source_collection(expr) or type(expr) is CollectionExpr:
             return self._format_source_collection(expr, buf=buf, indent=indent)
         else:
             return self._format_transformed_collection(expr, buf=buf, indent=indent)

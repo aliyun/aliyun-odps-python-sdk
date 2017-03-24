@@ -30,7 +30,7 @@ from ....config import options
 from ....lib import cloudpickle
 from ....compat import OrderedDict, six, PY26, PY27
 from ....models import FileResource, TableResource
-from ....utils import to_str
+from ....utils import to_str, hashable
 
 dirname = os.path.dirname(os.path.abspath(cloudpickle.__file__))
 CLOUD_PICKLE_FILE = os.path.join(dirname, 'cloudpickle.py')
@@ -465,8 +465,10 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
     from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
     to_type = df_type_to_odps_type(node.dtype).name
     raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
+    func_args, func_kwargs = \
+        hashable(node._func_args), tuple((hashable(node._func_kwargs) or {}).items())
 
-    key = (from_type, to_type, func, tuple(resources), names_str)
+    key = (from_type, to_type, func, tuple(resources), names_str, func_args, func_kwargs)
     if key in func_params:
         return
     else:
@@ -507,8 +509,10 @@ def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
     from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
     raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
     to_type = ','.join(df_type_to_odps_type(t).name for t in node.schema.types)
+    func_args, func_kwargs = \
+        hashable(node._func_args), tuple((hashable(node._func_kwargs) or {}).items())
 
-    key = (from_type, to_type, func, tuple(resources), names_str)
+    key = (from_type, to_type, func, tuple(resources), names_str, func_args, func_kwargs)
     if key in func_params:
         return
     else:
@@ -549,8 +553,10 @@ def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
     from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
     raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
     to_type = df_type_to_odps_type(node.dtype).name
+    func_args, func_kwargs = \
+        hashable(node._func_args), tuple((hashable(node._func_kwargs) or {}).items())
 
-    key = (from_type, to_type, func, tuple(resources))
+    key = (from_type, to_type, func, tuple(resources), func_args, func_kwargs)
     if key in func_params:
         return
     else:

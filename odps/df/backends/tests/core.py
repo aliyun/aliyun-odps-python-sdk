@@ -52,32 +52,6 @@ class TestBase(Base):
     def _gen_random_decimal(self):
         return Decimal(str(self._gen_random_double()))
 
-    def _get_result(self, res):
-        if isinstance(res, ResultFrame):
-            res = res.values
-        try:
-            import pandas
-            import numpy
-
-            def conv(t):
-                try:
-                    if numpy.isnan(t):
-                        return None
-                except TypeError:
-                    pass
-                if isinstance(t, pandas.Timestamp):
-                    t = t.to_pydatetime()
-                elif pandas.isnull(t):
-                    t = None
-                return t
-
-            if isinstance(res, pandas.DataFrame):
-                return [list(conv(i) for i in it) for it in res.values]
-            else:
-                return res
-        except ImportError:
-            return res
-
     def assertListAlmostEqual(self, first, second, **kw):
         self.assertEqual(len(first), len(second))
         only_float = kw.pop('only_float', True)

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import copy
 import glob
 import hashlib
@@ -32,6 +33,7 @@ from .compat import PY26, pickle, six, builtins, futures
 from .config import options
 from .errors import NoSuchObject
 from . import utils
+from .accounts import AliyunAccount
 
 TEMP_ROOT = utils.build_pyodps_dir('tempobjs')
 SESSION_KEY = '%d_%s' % (int(time.time()), uuid.uuid4())
@@ -80,6 +82,7 @@ host_pid = os.getpid()
 
 class ExecutionEnv(object):
     def __init__(self, **kwargs):
+        self.cleaned = False
         self.os = os
         self.sys = sys
         self._g_env = copy.copy(globals())
@@ -108,7 +111,6 @@ class ExecutionEnv(object):
         self.template = CLEANUP_SCRIPT_TMPL
         self.file_right = USER_FILE_RIGHTS
         self.is_main_process = utils.is_main_process()
-        self.is_secret_mode = utils.is_secret_mode()
         for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
 
@@ -237,7 +239,7 @@ class ObjectRepository(object):
                 os.unlink(self._file_name)
             except OSError:
                 pass
-        elif not utils.is_secret_mode():
+        else:
             self.dump()
 
     def dump(self):
@@ -269,9 +271,6 @@ class ObjectRepositoryLib(dict):
         self._env = ExecutionEnv()
 
     def __del__(self):
-        global cleanup_mode
-        if cleanup_mode or not self._env.is_main_process or self._env.is_secret_mode:
-            return
         self._exec_cleanup_script()
 
     @classmethod
@@ -282,15 +281,23 @@ class ObjectRepositoryLib(dict):
     @classmethod
     def add_odps_info(cls, odps):
         odps_key = _gen_repository_key(odps)
-        cls.odps_info[odps_key] = dict(access_id=odps.account.access_id, secret_access_key=odps.account.secret_access_key,
-                                       project=odps.project, endpoint=odps.endpoint)
+        cls.odps_info[odps_key] = dict(
+            access_id=odps.account.access_id, secret_access_key=odps.account.secret_access_key,
+            project=odps.project, endpoint=odps.endpoint
+        )
         cls.odps_info_json = json.dumps([v for v in six.itervalues(cls.odps_info)])
 
     def _exec_cleanup_script(self):
+        global cleanup_mode
+
         if not self:
             return
 
         env = self._env
+        if cleanup_mode or not env.is_main_process or env.cleaned:
+            return
+        env.cleaned = True
+
         script = env.template.format(import_paths=env.import_path_json, odps_info=self.odps_info_json,
                                      host_pid=env.pid, biz_ids=self.biz_ids_json)
 
@@ -316,6 +323,7 @@ class ObjectRepositoryLib(dict):
 
 _cleaned_keys = set()
 _obj_repos = ObjectRepositoryLib()  # this line should be put last due to initialization dependency
+atexit.register(_obj_repos._exec_cleanup_script)
 
 
 def _is_pid_running(pid):
@@ -389,7 +397,7 @@ def _put_objects(odps, objs):
     biz_id = options.biz_id if options.biz_id else 'default'
     ObjectRepositoryLib.add_biz_id(biz_id)
     if odps_key not in _obj_repos:
-        if not utils.is_secret_mode():
+        if isinstance(odps.account, AliyunAccount):
             ObjectRepositoryLib.add_odps_info(odps)
         file_dir = os.path.join(TEMP_ROOT, biz_id, odps_key)
         if not os.path.exists(file_dir):

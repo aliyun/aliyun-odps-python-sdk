@@ -62,7 +62,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'PyODPS'
-copyright = u'2014-2016, The Alibaba Group Holding Ltd.'
+copyright = u'2014-2017, The Alibaba Group Holding Ltd.'
 author = u'Qin Xuye'
 
 # The version info for the project you're documenting, acts as replacement for

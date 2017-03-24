@@ -112,8 +112,9 @@ def fetch_data_source_size(expr_dag, node, table):
                     return (left_size or 0) + (right_size or 0)
                 elif isinstance(predicate, (And, Equal)):
                     partition_spec = gen(predicate)
-                    curr_size = _fetch_partition_size(partition_spec, table)
-                    if curr_size:
+                    curr_size = _fetch_partition_size(partition_spec, table) \
+                        if partition_spec is not None else None
+                    if curr_size is not None:
                         return curr_size
 
             filter_size = walk(parent._predicate)

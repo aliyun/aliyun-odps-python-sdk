@@ -18,7 +18,6 @@ import tempfile
 
 from odps.compat import unittest, StringIO
 from odps.inter import *
-from odps.utils import is_secret_mode
 from odps.config import options
 from odps.errors import InteractiveError
 from odps.inter import *
@@ -33,7 +32,6 @@ class Test(TestBase):
         # install CloudUnpickler
         cloudpickle.CloudUnpickler(StringIO('abcdefg'))
 
-    @unittest.skipIf(is_secret_mode(), 'Skipped under restricted mode.')
     def testRoom(self):
         access_id = 'test_access_id'
         access_key = 'test_access_key'
@@ -64,7 +62,6 @@ class Test(TestBase):
             InteractiveError, lambda: enter(test_room)
         )
 
-    @unittest.skipIf(is_secret_mode(), 'Skipped under restricted mode.')
     def testRoomStores(self):
         class FakeRoom(Room):
             def _init(self):

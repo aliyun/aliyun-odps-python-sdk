@@ -21,3 +21,7 @@ class CompileError(Exception):
 
 class NoBackendFound(Exception):
     pass
+
+
+class DagDependencyError(Exception):
+    pass

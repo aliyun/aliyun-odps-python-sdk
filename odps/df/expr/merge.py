@@ -365,7 +365,7 @@ def _make_different_sources(left, right, predicate=None):
 
     subs = ExprDictionary()
 
-    dag = right.to_dag(copy=False)
+    dag = right.to_dag(copy=False, validate=False)
     for n in dag.traverse():
         if n in exprs:
             copied = subs.get(n, n.copy())
@@ -379,7 +379,7 @@ def _make_different_sources(left, right, predicate=None):
                 for p in predicate:
                     if not isinstance(p, Expr):
                         continue
-                    p_dag = p.to_dag(copy=False)
+                    p_dag = p.to_dag(copy=False, validate=False)
                     for p_n in p_dag.traverse(top_down=True):
                         if p_n is right:
                             p_dag.substitute(right, copied)

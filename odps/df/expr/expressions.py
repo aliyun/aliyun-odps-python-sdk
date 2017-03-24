@@ -22,7 +22,7 @@ import functools
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
-from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type, new_id
+from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type, new_id, is_changed
 from .. import types
 from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys
 from ...config import options
@@ -165,6 +165,18 @@ class Expr(Node):
         :return: execution result
         :rtype: :class:`odps.df.backends.frame.ResultFrame`
         """
+        if kwargs.get('delay') is not None:
+            delay = kwargs.pop('delay')
+            future = delay.register_item('execute', self, **kwargs)
+
+            def _ret_exec():
+                try:
+                    self.__execution = future.result()
+                except:
+                    pass
+
+            future.add_done_callback(_ret_exec)
+            return future
 
         from ..engines import get_default_engine
 
@@ -207,7 +219,6 @@ class Expr(Node):
         >>> df.persist('odps_new_table', partition='pt=test')
         >>> df.persist('odps_new_table', partitions=['ds'])
         """
-
         from ..engines import get_default_engine
 
         engine = get_default_engine(self)
@@ -216,8 +227,15 @@ class Expr(Node):
             lifecycle = \
                 options.lifecycle if not name.startswith(TEMP_TABLE_PREFIX) \
                     else options.temp_lifecycle
-        return engine.persist(self, name, partitions=partitions, partition=partition,
-                              lifecycle=lifecycle, project=project, **kwargs)
+
+        if kwargs.get('delay') is not None:
+            delay = kwargs.pop('delay')
+            future = delay.register_item('persist', self, name, partitions=partitions, partition=partition,
+                                         lifecycle=lifecycle, project=project, **kwargs)
+            return future
+        else:
+            return engine.persist(self, name, partitions=partitions, partition=partition,
+                                  lifecycle=lifecycle, project=project, **kwargs)
 
     def cache(self, mem=False):
         self._need_cache = True
@@ -598,7 +616,23 @@ class CollectionExpr(Expr):
                 return False
         return True
 
+    def _backtrack_field(self, field, collection):
+        for col in field.traverse(top_down=True, unique=True,
+                                  stop_cond=lambda x: isinstance(x, Column)):
+            if isinstance(col, Column):
+                changed = is_changed(collection, col)
+                if changed or changed is None:
+                    return
+                elif col.source_name not in collection.schema:
+                    return
+                else:
+                    col.substitute(col._input, collection)
+
+        return field
+
     def _get_field(self, field):
+        from .reduction import GroupedSequenceReduction
+
         field = self._defunc(field)
 
         if isinstance(field, six.string_types):
@@ -607,7 +641,13 @@ class CollectionExpr(Expr):
             return Column(self, _name=field, _data_type=self._schema[field].type)
 
         if not self._validate_field(field):
-            raise ExpressionError('Cannot support projection on %s' % repr_obj(field))
+            new_field = None
+            if not isinstance(field, GroupedSequenceReduction):
+                # the reduction is not allowed
+                new_field = self._backtrack_field(field, self)
+            if new_field is None:
+                raise ExpressionError('Cannot support projection on %s' % repr_obj(field))
+            field = new_field
 
         return field
 

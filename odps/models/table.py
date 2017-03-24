@@ -98,6 +98,16 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
         'PhysicalSize', parse_callback=int, set_to_parent=True)
     file_num = serializers.JSONNodeField(
         'FileNum', parse_callback=int, set_to_parent=True)
+    location = serializers.JSONNodeField(
+        'location', set_to_parent=True)
+    storage_handler = serializers.JSONNodeField(
+        'storageHandler', set_to_parent=True)
+    resources = serializers.JSONNodeField(
+        'resources', set_to_parent=True)
+    serde_properties = serializers.JSONNodeField(
+        'serDeProperties', type='json', set_to_parent=True)
+    reserved = serializers.JSONNodeField(
+        'reserved', type='json', set_to_parent=True)
     shard = serializers.JSONNodeReferenceField(
         Shard, 'shardInfo', check_before=['shardExist'], set_to_parent=True)
     table_label = serializers.JSONNodeField(
@@ -146,11 +156,13 @@ class Table(LazyLoad):
     >>>     writer.write(0, gen_records(block=0))
     >>>     writer.write(1, gen_records(block=1))  # we can do this parallel
     """
-
+    _extend_args = 'is_archived', 'physical_size', 'file_num', 'location', \
+                   'storage_handler', 'resources', 'serde_properties', \
+                   'reserved'
     __slots__ = '_is_extend_info_loaded', 'last_meta_modified_time', 'is_virtual_view', \
-                'lifecycle', 'view_text', 'size', \
-                'is_archived', 'physical_size', 'file_num', 'shard', \
+                'lifecycle', 'view_text', 'size', 'shard', \
                 '_table_tunnel', '_download_ids', '_upload_ids'
+    __slots__ += _extend_args
 
     name = serializers.XMLNodeField('Name')
     table_id = serializers.XMLNodeField('TableId')
@@ -190,7 +202,7 @@ class Table(LazyLoad):
             self.schema = None
 
     def __getattribute__(self, attr):
-        if attr in ('is_archived', 'physical_size', 'file_num'):
+        if attr in type(self)._extend_args:
             if not self._is_extend_info_loaded:
                 self.reload_extend_info()
                 return object.__getattribute__(self, attr)

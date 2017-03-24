@@ -90,9 +90,11 @@
 
 .. code-block:: python
 
-   >>> schema = Schema.from_lists(['num'], ['bigint'], ['pt'], ['string'])
+   >>> schema = Schema.from_lists(['num', 'num2'], ['bigint', 'double'], ['pt'], ['string'])
    >>> schema.columns
-   [<column num, type bigint>, <partition pt, type string>]
+   [<column num, type bigint>,
+    <column num2, type double>,
+    <partition pt, type string>]
 
 创建表
 ------
@@ -137,6 +139,9 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> print(record[0, 2, 3])  # 取多个位置的值
    >>> print(record['c_int_a', 'c_double_a'])  # 通过多个字段取值
 
+
+.. _table_read:
+
 获取表数据
 ----------
 
@@ -166,6 +171,11 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
    >>> for record in odps.read_table('test_table', partition='pt=test'):
    >>>     # 处理一条记录
+
+
+.. _table_write:
+
+
 向表写数据
 ----------
 
@@ -269,6 +279,12 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 数据上传下载通道
 ----------------
+
+
+.. note::
+
+    不推荐直接使用tunnel接口（难用且复杂），推荐直接使用表的 :ref:`写 <table_write>` 和 :ref:`读 <table_read>` 接口。
+
 
 
 ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据。

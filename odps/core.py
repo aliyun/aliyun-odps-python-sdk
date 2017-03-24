@@ -1474,6 +1474,12 @@ class ODPS(object):
         options.end_point = self.endpoint
         options.tunnel_endpoint = self._tunnel_endpoint
 
+    @classmethod
+    def from_global(cls):
+        if options.account is not None and options.default_project is not None:
+            return cls._from_account(options.account, options.default_project, endpoint=options.end_point)
+        else:
+            return None
 
 
 def _get_odps_from_model(self):

@@ -80,7 +80,10 @@ def serialize_ndarray(array):
 
 _serialize_types = dict()
 _serialize_types['bool'] = (utils.str_to_bool, utils.bool_to_str)
-_serialize_types['json'] = (json.loads, json.dumps)
+_serialize_types['json'] = (
+    lambda s: json.loads(s) if s is not None else None,
+    lambda s: json.dumps(s) if s is not None else None,
+)
 _serialize_types['rfc822'] = (utils.parse_rfc822, utils.gen_rfc822)
 _serialize_types['rfc822l'] = (utils.parse_rfc822, lambda s: utils.gen_rfc822(s, localtime=True))
 _serialize_types['ndarray'] = (parse_ndarray, serialize_ndarray)

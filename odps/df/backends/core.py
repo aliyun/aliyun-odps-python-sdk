@@ -22,6 +22,7 @@ import time
 import types
 import sys
 import threading
+from operator import itemgetter
 
 from ...compat import six, Enum
 from ...dag import DAG
@@ -32,6 +33,7 @@ from .. import utils
 from ..expr.expressions import Expr, CollectionExpr, Scalar
 from ..expr.core import ExprDictionary, ExprDAG
 from .context import context, ExecuteContext
+from .errors import DagDependencyError
 from .formatter import ExprExecutionGraphFormatter
 
 
@@ -187,88 +189,128 @@ class ExecuteNode(object):
 
 class ExecuteDAG(DAG):
     def _run(self, ui):
-        calls = self.topological_sort()
-        results = [None] * len(calls)
+        curr_progress = ui.current_progress() or 0
+        try:
+            calls = self.topological_sort()
+            results = [None] * len(calls)
 
-        result_idx = dict()
-        for i, call in enumerate(calls):
-            res = call(ui=ui, progress_proportion=1.0 / len(calls))
-            results[i] = res
-            if call.result_index is not None:
-                result_idx[call.result_index] = i
+            result_idx = dict()
+            for i, call in enumerate(calls):
+                res = call(ui=ui, progress_proportion=1.0 / len(calls))
+                results[i] = res
+                if call.result_index is not None:
+                    result_idx[call.result_index] = i
 
-        return [results[result_idx[idx]] for idx in sorted(result_idx)]
+            return [results[result_idx[idx]] for idx in sorted(result_idx)]
+        except Exception as e:
+            if self._can_fallback() and self._need_fallback(e):
+                ui.update(curr_progress)
+                return self.fallback()._run(ui)
+
+            raise
 
     def _run_in_parallel(self, ui, n_parallel, async=False, timeout=None):
         submits_lock = threading.RLock()
         submits = dict()
         user_wait = dict()
+        result_wait = dict()
         results = dict()
 
-        calls = self.topological_sort()
+        curr_progress = ui.current_progress() or 0
 
-        def close_ui(*_):
-            with submits_lock:
-                if all(call in submits and results[call] is not None for call in calls):
-                    ui.close()
+        def actual_run(dag=None, is_fallback=False):
+            dag = dag or self
+            calls = dag.topological_sort()
+            result_calls = sorted([c for c in calls if c.result_index is not None],
+                                  key=lambda x: x.result_index)
+            fallback = threading.Event()
 
-        executor = futures.ThreadPoolExecutor(max_workers=n_parallel)
+            if is_fallback:
+                ui.update(curr_progress)
 
-        for call in calls:
-            future = futures.Future()
-            if call.result_index is not None:
-                future.add_done_callback(close_ui)
-            user_wait[call] = future
-
-        for call in calls:
-            def run(func):
-                try:
-                    prevs = self.predecessors(func)
-                    if prevs:
-                        fs = [user_wait[p] for p in prevs]
-                        for f in fs:
-                            if f.exception():
-                                raise RuntimeError('Node execution failed due to failure '
-                                                   'of previous node, exception: %s' % f.exception())
-
-                    user_wait[func].set_running_or_notify_cancel()
-                    res = func(ui=ui, progress_proportion=1.0 / len(calls))
-                    results[func] = res
-                    user_wait[func].set_result(res)
-                    return res
-                except:
-                    e, tb = sys.exc_info()[1:]
-                    if six.PY2:
-                        user_wait[func].set_exception_info(e, tb)
-                    else:
-                        user_wait[func].set_exception(e)
-                    raise
-                finally:
-                    with submits_lock:
-                        for f in self.successors(func):
-                            if f in submits:
-                                continue
-                            prevs = self.predecessors(f)
-                            if all(p in submits and user_wait[p].done() for p in prevs):
-                                submits[f] = executor.submit(run, f)
-
-            if not self.predecessors(call):
+            def close_ui(*_):
                 with submits_lock:
-                    submits[call] = executor.submit(run, call)
+                    if all(call in submits and results[call] is not None for call in result_calls):
+                        ui.close()
 
+            executor = futures.ThreadPoolExecutor(max_workers=n_parallel)
+
+            for call in calls:
+                if call.result_index is not None and is_fallback:
+                    # if is fallback, we do not create new future
+                    # cause the future objects have been passed to user
+                    future = result_wait[call.result_index]
+                else:
+                    future = futures.Future()
+                user_wait[call] = future
+                if call.result_index is not None:
+                    future.add_done_callback(close_ui)
+                    if not is_fallback:
+                        result_wait[call.result_index] = future
+
+            for call in calls:
+                def run(func):
+                    try:
+                        if fallback.is_set():
+                            raise DagDependencyError('Node execution failed due to callback')
+
+                        if call.result_index is None or not is_fallback:
+                            user_wait[func].set_running_or_notify_cancel()
+
+                        prevs = dag.predecessors(func)
+                        if prevs:
+                            fs = [user_wait[p] for p in prevs]
+                            for f in fs:
+                                if f.exception():
+                                    raise DagDependencyError('Node execution failed due to failure of '
+                                                             'previous node, exception: %s' % f.exception())
+
+                        res = func(ui=ui, progress_proportion=1.0 / len(calls))
+                        results[func] = res
+                        user_wait[func].set_result(res)
+                        return res
+                    except:
+                        e, tb = sys.exc_info()[1:]
+                        if not is_fallback and self._can_fallback() and self._need_fallback(e):
+                            if not fallback.is_set():
+                                fallback.set()
+                                new_dag = dag.fallback()
+                                actual_run(new_dag, True)
+                        if not fallback.is_set():
+                            if six.PY2:
+                                user_wait[func].set_exception_info(e, tb)
+                            else:
+                                user_wait[func].set_exception(e)
+                        raise
+                    finally:
+                        with submits_lock:
+                            for f in dag.successors(func):
+                                if f in submits:
+                                    continue
+                                prevs = dag.predecessors(f)
+                                if all(p in submits and user_wait[p].done() for p in prevs):
+                                    submits[f] = executor.submit(run, f)
+
+                if not dag.predecessors(call):
+                    with submits_lock:
+                        submits[call] = executor.submit(run, call)
+
+            if not async:
+                dones, _ = futures.wait(user_wait.values())
+                for done in dones:
+                    done.result()
+                return [results[c] for c in
+                        sorted([c for c in calls if c.result_index is not None],
+                               key=lambda x: x.result_index)]
+
+            if timeout:
+                futures.wait(user_wait.values(), timeout=timeout)
+
+        actual_run()
         if not async:
-            dones, _ = futures.wait(user_wait.values())
-            for done in dones:
-                done.result()
-            return [results[c] for c in
-                    sorted([c for c in calls if c.result_index is not None],
-                           key=lambda x: x.result_index)]
-
-        if timeout:
-            futures.wait(user_wait.values(), timeout=timeout)
-        return [user_wait[c] for c in
-                sorted([c for c in calls if c.result_index is not None],
-                       key=lambda x: x.result_index)]
+            return [it[1].result() for it in sorted(result_wait.items(), key=itemgetter(0))]
+        else:
+            return [it[1] for it in sorted(result_wait.items(), key=itemgetter(0))]
 
     def execute(self, ui=None, async=False, n_parallel=1, timeout=None,
                 close_and_notify=True):
@@ -300,6 +342,12 @@ class ExecuteDAG(DAG):
                     ui.notify('DataFrame execution submitted')
                 else:
                     ui.notify('DataFrame execution failed to summit')
+
+    def _can_fallback(self):
+        return hasattr(self, 'fallback') and self.fallback is not None
+
+    def _need_fallback(self, e):
+        return hasattr(self, 'need_fallback') and self.need_fallback(e)
 
     def __repr__(self):
         return ExprExecutionGraphFormatter(self)._to_str()
@@ -585,6 +633,8 @@ class Engine(object):
             action, others = action_expr_args_kwargs[0], action_expr_args_kwargs[1:]
             action = '_%s' % action if not action.startswith('_') else action
             args.append((action, ) + tuple(others))
+        kwargs = kwargs.copy()
+        kwargs['batch'] = True
         return self._action(*args, **kwargs)
 
     def _get_cached_sub_expr(self, cached_expr, ctx=None):
@@ -613,7 +663,8 @@ class Engine(object):
         else:
             on_copy = find_cached
 
-        res = tuple(expr.to_dag(copy=True, on_copy=on_copy) for expr in exprs)
+        res = tuple(expr.to_dag(copy=True, on_copy=on_copy, validate=False)
+                    for expr in exprs)
         for cached in cached_exprs:
             sub = self._get_cached_sub_expr(cached)
             if sub is not None:

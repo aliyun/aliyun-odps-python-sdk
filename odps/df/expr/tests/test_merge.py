@@ -168,6 +168,13 @@ class Test(TestBase):
         self.assertIsInstance(project, ProjectCollectionExpr)
         self.assertIs(next(f for f in project._fields if f.name == 'name2').input, joined)
 
+        with self.assertRaises(ExpressionError):
+            self.expr.join(self.expr1, on=self.expr.id == self.expr2.id)
+
+        with self.assertRaises(ExpressionError):
+            expr = self.expr.join(self.expr1, on='id')
+            self.expr.join(expr, on=self.expr.id == self.expr.id)
+
     def testComplexJoin(self):
         df = None
         for i in range(30):

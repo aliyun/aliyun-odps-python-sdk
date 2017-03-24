@@ -44,14 +44,6 @@ def bothPyAndC(func):
 
 
 class Test(TestBase):
-    def setUp(self):
-        super(Test, self).setUp()
-        from odps.utils import is_secret_mode
-        from odps import options
-
-        if is_secret_mode():
-            options.account = None
-
     @bothPyAndC
     def testCrc32c(self):
         crc = _crc.Crc32c()

@@ -22,6 +22,7 @@ from .expr.element import switch, FuncFactory
 from .expr.datetimes import year, month, day, hour, minute, second, millisecond
 from .expr.reduction import aggregate, agg
 from .utils import output_types, output_names, output
+from .delay import Delay
 from ..compat import six
 
 

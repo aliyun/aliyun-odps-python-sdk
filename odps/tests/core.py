@@ -237,7 +237,26 @@ class TestMeta(type):
         super(TestMeta, cls).__init__(what, bases, d)
 
 
-class TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
+try:
+    from flaky import flaky
+
+    def is_internal_error(err, *args):
+        if issubclass(err[0], InternalServerError):
+            return True
+        elif 'Faithfully yours, tengine.' in str(err[0]):
+            return True
+        return False
+
+    @flaky(max_runs=3, rerun_filter=is_internal_error)
+    class _TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
+        pass
+
+except ImportError:
+    class _TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
+        pass
+
+
+class TestBase(_TestBase):
 
     def setUp(self):
         gc.collect()
@@ -256,6 +275,33 @@ class TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
 
     def teardown(self):
         pass
+
+    def _get_result(self, res):
+        from odps.df.backends.frame import ResultFrame
+        if isinstance(res, ResultFrame):
+            res = res.values
+        try:
+            import pandas
+            import numpy
+
+            def conv(t):
+                try:
+                    if numpy.isnan(t):
+                        return None
+                except TypeError:
+                    pass
+                if isinstance(t, pandas.Timestamp):
+                    t = t.to_pydatetime()
+                elif pandas.isnull(t):
+                    t = None
+                return t
+
+            if isinstance(res, pandas.DataFrame):
+                return [list(conv(i) for i in it) for it in res.values]
+            else:
+                return res
+        except ImportError:
+            return res
 
     def assertWarns(self, func, warn_type=Warning):
         with warnings.catch_warnings(record=True) as w:
@@ -287,19 +333,3 @@ class TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
             countdown -= 1
             if countdown <= 0:
                 raise SystemError('Waiting for container content time out.')
-
-
-try:
-    from flaky import flaky
-
-    def is_internal_error(err, *args):
-        if issubclass(err[0], InternalServerError):
-            return True
-        elif 'Faithfully yours, tengine.' in str(err[0]):
-            return True
-        return False
-
-    TestBase = flaky(max_runs=3, rerun_filter=is_internal_error)(TestBase)
-
-except ImportError:
-    pass

@@ -346,17 +346,16 @@ class Test(TestBase):
         self.assertTrue(context.is_cached(expr))
 
         # test async and timeout
-        expr = self.expr[self.expr.id < 10]
+        expr = self.expr[self.expr.id < 10].cache()
         expr1 = expr.id.sum()
         expr2 = expr.id.mean()
 
         fs = self.engine.execute([expr, expr1, expr2], n_parallel=2, async=True, timeout=1)
         self.assertEqual(len(fs), 3)
 
-        self.assertTrue(fs[0].running())
-        futures.wait((fs[0], ))
+        futures.wait((fs[0], ), timeout=120)
         time.sleep(.5)
-        self.assertTrue(fs[1].running())
+        self.assertTrue(fs[1].running() and fs[2].running())
         time.sleep(.5)
         self.assertTrue(fs[2].running() or fs[2].done())
 
@@ -611,6 +610,20 @@ class Test(TestBase):
 
         self.assertEqual([it[1] % 2 for it in data],
                          [it[14] for it in result])
+
+    def testGenFunc(self):
+        data = self._gen_data(5, value_range=(1, 1))
+
+        def func(x, val):
+            return x + val
+
+        expr = self.expr[self.expr.id.map(func, args=(1,)),
+                         self.expr.id.map(func, args=(2,)).rename('id2')]
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertTrue(all(r[0] == 2 for r in result))
+        self.assertTrue(all(r[1] == 3 for r in result))
 
     def testMath(self):
         data = self._gen_data(5, value_range=(1, 90))

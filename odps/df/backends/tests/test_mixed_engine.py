@@ -120,6 +120,11 @@ class Test(TestBase):
             expr.persist(t.name, create_table=False, partitions=['name'])
 
             self.assertEqual(self.engine.execute(DataFrame(t).count()), 5)
+
+            self.engine._selecter.force_odps = False
+            df = DataFrame(t)
+            self.assertGreaterEqual(
+                len(self.engine.execute(df.filter(df.name > 'a', df.name < 'b'))), 0)
         finally:
             t.drop()
 
@@ -464,11 +469,13 @@ class Test(TestBase):
                          Instance.Task.TaskStatus.CANCELLED)
 
     def testFailure(self):
+        from odps.df.backends.errors import DagDependencyError
+
         expr1 = self.odps_df[self.odps_df.id / 0 < 0].cache()
         expr2 = expr1.count()
 
         fs = self.engine.execute(expr2, async=True)
-        self.assertRaises(RuntimeError, fs.result)
+        self.assertRaises(DagDependencyError, fs.result)
 
     def testAppendIDCache(self):
         options.runner.dry_run = False
@@ -493,10 +500,21 @@ class Test(TestBase):
         expr.persist(tablename, partitions=['name'])
 
     def testAsTypeMapReduce(self):
-        options.verbose = True
-
         expr = self.odps_df[self.odps_df.exclude('id'), self.odps_df.id.astype('float')]
         expr = expr.filter(expr.id < 10)['id', 'name']
+
+        @output(['id', 'name'], ['float', 'string'])
+        def h(group):
+            def inn(row, done):
+                yield row
+
+            return inn
+
+        expr = expr.map_reduce(reducer=h)
+        expr.execute()
+
+        expr = self.odps_df[self.odps_df.exclude('id'), self.odps_df.id.astype('float')]
+        expr = expr.filter(expr.id < 10).distinct('id', 'name')
 
         @output(['id', 'name'], ['float', 'string'])
         def h(group):

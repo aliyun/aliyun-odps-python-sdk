@@ -42,33 +42,40 @@ from ... import options
 from ...utils import gen_repr_object
 
 
-def get_default_engine(expr):
-    if expr._engine:
-        return expr._engine
+def get_default_engine(*exprs):
+    odps = None
+    engines = set()
 
-    srcs = list(expr.data_source())
-    engines = list(available_engines(srcs))
+    for expr in exprs:
+        if expr._engine:
+            return expr._engine
 
-    if len(engines) == 1:
-        engine = engines[0]
-        src = srcs[0]
-        if engine == Engines.ODPS:
-            odps = src.odps
-        elif engine in (Engines.PANDAS, Engines.SQLALCHEMY):
-            if options.account is not None and \
-                    options.end_point is not None and options.default_project is not None:
-                odps = ODPS._from_account(options.account, options.default_project,
-                                          endpoint=options.end_point,
-                                          tunnel_endpoint=options.tunnel_endpoint)
+        srcs = list(expr.data_source())
+        expr_engines = list(available_engines(srcs))
+        engines.update(set(expr_engines))
+
+        if len(expr_engines) == 1:
+            engine = expr_engines[0]
+            src = srcs[0]
+            if engine == Engines.ODPS:
+                expr_odps = src.odps
+            elif engine in (Engines.PANDAS, Engines.SQLALCHEMY):
+                expr_odps = None
             else:
-                odps = None
+                raise NotImplementedError
         else:
-            raise NotImplementedError
-    else:
-        table_src = next(it for it in srcs if isinstance(it, Table))
-        odps = table_src.odps
+            table_src = next(it for it in srcs if isinstance(it, Table))
+            expr_odps = table_src.odps
+        if expr_odps is not None:
+            odps = expr_odps
 
-    return MixedEngine(odps, engines)
+    if odps is None and options.account is not None and \
+                    options.end_point is not None and options.default_project is not None:
+        odps = ODPS._from_account(options.account, options.default_project,
+                                  endpoint=options.end_point,
+                                  tunnel_endpoint=options.tunnel_endpoint)
+
+    return MixedEngine(odps, list(engines))
 
 
 class MixedEngine(Engine):
@@ -249,6 +256,7 @@ class MixedEngine(Engine):
 
         if not self._selecter.force_odps and any(it[0] == '_persist' for it in expr_args_kwargs):
             self._selecter.force_odps = True
+            return self.compile(*src_expr_args_kwargs)
 
         engine_types = [self._selecter.select(expr_dag) for expr_dag in exprs_dags]
         if any(engine_type == Engines.ODPS for engine_type in engine_types):
@@ -267,38 +275,26 @@ class MixedEngine(Engine):
                 self._selecter.force_odps = True
                 return self.compile(*src_expr_args_kwargs)
 
+            def need_fallback(e):
+                try:
+                    import sqlalchemy
+                    exceptions = (NotImplementedError, sqlalchemy.exc.DatabaseError)
+                except ImportError:
+                    exceptions = (NotImplementedError,)
+
+                if not isinstance(e, exceptions):
+                    return False
+                if not isinstance(e, NotImplementedError) and \
+                        'AXF Exception' not in str(e):
+                    # the seahawks error
+                    return False
+                return True
+
             if not all(not hasattr(n, 'verify') or n.verify()
                        for n in dag.indep_nodes()):
                 # we only verify the independent nodes
                 dag = fallback()
 
             dag.fallback = fallback
+            dag.need_fallback = need_fallback
         return dag
-
-    @classmethod
-    def _execute_dag(cls, dag, **kwargs):
-        try:
-            import sqlalchemy
-            exceptions = (NotImplementedError, sqlalchemy.exc.DatabaseError)
-        except ImportError:
-            exceptions = (NotImplementedError,)
-
-        if hasattr(dag, 'fallback') and dag.fallback:
-            ui = kwargs.get('ui')
-            curr_progress = ui.current_progress() or 0
-
-            try:
-                return super(MixedEngine, cls)._execute_dag(dag, close_and_notify=False,
-                                                            **kwargs)
-            except exceptions as e:
-                if not isinstance(e, NotImplementedError) and \
-                        'AXF Exception' not in str(e):
-                    # the seahawks error
-                    raise
-
-                if ui:
-                    ui.update(curr_progress)
-                dag = dag.fallback()
-                return super(MixedEngine, cls)._execute_dag(dag, **kwargs)
-
-        return super(MixedEngine, cls)._execute_dag(dag, **kwargs)

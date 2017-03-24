@@ -82,10 +82,13 @@ class Test(TestBase):
         with option_context() as options:
             options.interactive = True
 
-            self.assertRaises(ExpressionError, lambda: self.expr['name', 'id'][[self.expr.name, ]])
+            self.expr['name', 'id'][[self.expr.name, ]]
 
         self.assertRaises(ExpressionError, lambda: self.expr[self.expr.name])
         self.assertRaises(ExpressionError, lambda: self.expr['name', self.expr.groupby('name').id.sum()])
+
+        expr = self.expr.filter(self.expr.id < 0)
+        expr[self.expr.name, self.expr.id]
 
     def testFilter(self):
         filtered = self.expr[(self.expr.id < 10) & (self.expr.name == 'test')]
@@ -252,6 +255,23 @@ class Test(TestBase):
         expr2.add_deps(expr1)
 
         self.assertIn(expr1, expr2.deps)
+
+    def testBacktrackField(self):
+        expr = self.expr.filter(self.expr.id < 3)[self.expr.id + 1, self.expr.name.rename('name2')]
+
+        self.assertIs(expr._fields[0].lhs.input, expr.input)
+        self.assertIs(expr._fields[1].input, expr.input)
+        self.assertEqual(expr._fields[1].name, 'name2')
+
+        with self.assertRaises(ExpressionError):
+            self.expr[self.expr.id + 1, self.expr.name][self.expr.name, self.expr.id]
+
+        expr = self.expr[self.expr.id + 1, 'name'].filter(self.expr.name == 'a')
+
+        self.assertIs(expr._predicate.lhs.input, expr.input)
+
+        with self.assertRaises(ExpressionError):
+            self.expr[self.expr.id + 1, self.expr.name][self.expr2.name,]
 
 if __name__ == '__main__':
     unittest.main()
