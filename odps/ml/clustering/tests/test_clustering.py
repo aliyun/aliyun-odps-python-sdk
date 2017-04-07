@@ -47,14 +47,14 @@ class TestMLClustering(MLTestBase):
         print(eresult)
 
     def test_mock_kmeans(self):
-        options.runner.dry_run = True
+        options.ml.dry_run = True
         self.maxDiff = None
 
         df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
         labeled, model = KMeans(center_count=3).transform(df.exclude_fields('class'))
         labeled._add_case(self.gen_check_params_case(
             {'inputTableName': IONOSPHERE_TABLE, 'centerCount': '3', 'distanceType': 'euclidean',
-             'idxTableName': IONOSPHERE_CLUSTER_LABEL_TABLE, 'initCentersMethod': 'sample',
-             'modelName': 'pm_k_means_0_2', 'appendColsIndex': ','.join('%d' % i for i in range(0, 35)),
+             'idxTableName': 'test_project_name.' + IONOSPHERE_CLUSTER_LABEL_TABLE, 'initCentersMethod': 'sample',
+             'modelName': 'tmp_pyodps__k_means', 'appendColsIndex': ','.join('%d' % i for i in range(0, 35)),
              'selectedColNames': ','.join('a%02d' % i for i in range(1, 35)), 'loop': '100', 'accuracy': '0.0'}))
-        labeled.persist(IONOSPHERE_CLUSTER_LABEL_TABLE)
+        labeled.persist(IONOSPHERE_CLUSTER_LABEL_TABLE, project='test_project_name')

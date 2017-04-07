@@ -245,6 +245,8 @@ try:
             return True
         elif 'Faithfully yours, tengine.' in str(err[0]):
             return True
+        elif 'status=CANCELLED' in str(err[0]):
+            return True
         return False
 
     @flaky(max_runs=3, rerun_filter=is_internal_error)

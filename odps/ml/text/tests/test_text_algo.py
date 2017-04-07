@@ -35,6 +35,7 @@ FILTERED_WORDS_TABLE = tn('pyodps_test_ml_filtered_words_result')
 KW_EXTRACTED_TABLE = tn('pyodps_test_ml_kw_extracted_result')
 TEXT_SUMMARIZED_TABLE = tn('pyodps_test_ml_text_summarized_result')
 COUNT_NGRAM_TABLE = tn('pyodps_test_ml_count_ngram_result')
+DOC2VEC_DOC_TABLE = tn('pyodps_test_ml_doc2vec_doc_result')
 
 
 class Test(MLTestBase):
@@ -43,7 +44,7 @@ class Test(MLTestBase):
         self.create_corpus(CORPUS_TABLE)
         self.df = DataFrame(self.odps.get_table(CORPUS_TABLE)).roles(doc_id='id', doc_content='content')
 
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
     def _create_str_compare_table(self, table_name):
         data_rows = [
@@ -72,7 +73,7 @@ class Test(MLTestBase):
         freq, _ = DocWordStat().transform(splited)
         tf_set = TFIDF().transform(freq)
         tf_set._add_case(self.gen_check_params_case({
-            'docIdCol': 'id', 'inputTableName': TEMP_TABLE_PREFIX + '0_doc_word_stat_3_1', 'countCol': 'count',
+            'docIdCol': 'id', 'inputTableName': TEMP_TABLE_PREFIX + '_doc_word_stat', 'countCol': 'count',
             'outputTableName': TFIDF_TABLE, 'wordCol': 'word'}))
         tf_set.persist(TFIDF_TABLE)
 
@@ -138,3 +139,13 @@ class Test(MLTestBase):
             'outputTableName': COUNT_NGRAM_TABLE, 'inputSelectedColNames': 'word', 'order': '3',
             'inputTableName': WORD_TRIPLE_TABLE}))
         counted.persist(COUNT_NGRAM_TABLE)
+
+    def test_doc2vec(self):
+        word_df, doc_df, _ = Doc2Vec().transform(self.df)
+        doc_df._add_case(self.gen_check_params_case(
+            {'minCount': '5', 'docColName': 'content', 'hs': '1', 'inputTableName': tn('pyodps_test_ml_corpus'),
+             'negative': '0', 'layerSize': '100', 'sample': '0', 'randomWindow': '1', 'window': '5',
+             'docIdColName': 'id', 'iterTrain': '1', 'alpha': '0.025', 'cbow': '0',
+             'outVocabularyTableName': 'tmp_pyodps__doc2_vec', 'outputWordTableName': 'tmp_pyodps__doc2_vec',
+             'outputDocTableName': tn('pyodps_test_ml_doc2vec_doc_result')}))
+        doc_df.persist(DOC2VEC_DOC_TABLE)

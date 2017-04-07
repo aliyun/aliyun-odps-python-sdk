@@ -168,28 +168,3 @@ class Rewriter(BaseRewriter):
             if expr._na_rep is not None:
                 input = expr.input.fillna(expr._na_rep)
                 self._sub(expr.input, input, parents=(expr, ))
-            else:
-                sep = expr._sep.value if isinstance(expr._sep, Scalar) else expr._sep
-                class Agg(object):
-                    def buffer(self):
-                        return ['']
-
-                    def __call__(self, buffer, val):
-                        if val is None:
-                            return
-                        if len(buffer[0]) == 0:
-                            buffer[0] += val
-                        else:
-                            buffer[0] += sep + val
-
-                    def merge(self, buffer, pbuffer):
-                        if len(buffer[0]) == 0:
-                            buffer[0] += pbuffer[0]
-                        else:
-                            buffer[0] += sep + pbuffer[0]
-
-                    def getvalue(self, buffer):
-                        return buffer[0]
-
-                sub = expr.input.agg(Agg)
-                self._sub(expr, sub)

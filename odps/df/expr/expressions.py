@@ -26,31 +26,13 @@ from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_ty
 from .. import types
 from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys
 from ...config import options
-from ...utils import TEMP_TABLE_PREFIX
+from ...utils import TEMP_TABLE_PREFIX, to_binary
 from ...models import Schema
-
-_df_exec_hook = None
-
-
-def register_exec_hook(hook):
-    global _df_exec_hook
-    _df_exec_hook = hook
 
 
 def run_at_once(func):
-    global _df_exec_hook
-
-    def _decorator(*args, **kwargs):
-        if callable(_df_exec_hook):
-            return _df_exec_hook(*args, _df_call=func, **kwargs)
-        else:
-            return func(*args, **kwargs)
-
-    _decorator.__name__ = func.__name__
-    _decorator.__doc__ = func.__doc__
-    _decorator.__dict__.update(func.__dict__)
-    _decorator.run_at_once = True
-    return _decorator
+    func.run_at_once = True
+    return func
 
 
 class ReprWrapper(object):
@@ -494,11 +476,20 @@ class CollectionExpr(Expr):
     }
     """
 
-    __slots__ = '_schema', '_source_data'
+    __slots__ = (
+        '_schema', '_source_data', '_proxy',
+        '_ml_fields_cache', '_ml_uplink', '_ml_operations',
+    )
     node_name = 'Collection'
 
     def _init(self, *args, **kwargs):
         self._init_attr('_source_data', None)
+        self._init_attr('_proxy', None)
+
+        self._init_attr('_ml_fields_cache', None)
+        self._init_attr('_ml_uplink', [])
+        self._init_attr('_ml_operations', [])
+
         super(CollectionExpr, self)._init(*args, **kwargs)
 
         if hasattr(self, '_schema') and any(it is None for it in self._schema.names):
@@ -534,6 +525,66 @@ class CollectionExpr(Expr):
             raise ExpressionError('No boolean sequence found for filtering, '
                                   'a tuple or list is required for projection')
         raise ExpressionError('Not supported projection: collection[%s]' % repr_obj(item))
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, Expr):
+            value = Scalar(value)
+        value = value.rename(key)
+
+        expr = self.copy() if self._proxy is None else self._proxy._input
+
+        dag = value.to_dag(copy=False, validate=False)
+        if dag.contains_node(self):
+            dag.substitute(self, expr)
+            value = dag.root
+
+        if self._proxy is not None:
+            return self._proxy._setitem(value, value_dag=dag)
+
+        fields = [f if f != key else value for f in self._schema.names]
+        if key not in self._schema:
+            fields.append(value)
+        # make the isinstance to check the proxy type
+        self.__class__ = type(self.__class__.__name__, (self.__class__,), {})
+        self._proxy = expr.select(fields)
+
+    def __delitem__(self, key):
+        if key not in self.schema:
+            raise KeyError('Field({0}) does not exist'.format(key))
+
+        if self._proxy is not None:
+            return self._proxy._delitem(key)
+
+        fields = [n for n in self._schema.names if n != key]
+        # make the instance to check the proxy type
+        self.__class__ = type(self.__class__.__name__, (self.__class__,), {})
+        self._proxy = self.copy().select(fields)
+
+    def __delattr__(self, item):
+        if item in self._schema:
+            return self.__delitem__(item)
+
+        super(CollectionExpr, self).__delattr__(item)
+
+    def __setattr__(self, key, value):
+        try:
+            if key != '_proxy' and object.__getattribute__(self, '_proxy'):
+                return setattr(self._proxy, key, value)
+        except AttributeError:
+            pass
+
+        Expr.__setattr__(self, key, value)
+
+    def __getattribute__(self, attr):
+        proxy = object.__getattribute__(self, '_proxy')
+        if attr == '_proxy':
+            return proxy
+
+        if proxy:
+            # delegate everything to proxy object
+            return getattr(proxy, attr)
+
+        return super(CollectionExpr, self).__getattribute__(attr)
 
     def filter(self, *predicates):
         """
@@ -572,7 +623,8 @@ class CollectionExpr(Expr):
                 raise ExpressionError('Partition specifications should not be applied on common columns.')
             part_col = self[field_name]
             if field_value.startswith('\'') or field_value.startswith('\"'):
-                field_value = field_value.strip('"\'').decode('string-escape')
+                encoding = 'string-escape' if six.PY2 else 'unicode-escape'
+                field_value = to_binary(field_value.strip('"\'')).decode(encoding)
 
             if isinstance(part_col.data_type, types.Integer):
                 field_value = int(field_value)
@@ -912,6 +964,9 @@ class CollectionExpr(Expr):
         else:
             raise NotImplementedError
 
+    def get_cached(self, data):
+        return CollectionExpr(_source_data=data, _schema=self._schema)
+
 
 _cached_typed_expr = dict()
 
@@ -1034,7 +1089,10 @@ class SequenceExpr(TypedExpr):
     Sequence represents for 1-dimension data.
     """
 
-    __slots__ = '_data_type', '_source_data_type'
+    __slots__ = (
+        '_data_type', '_source_data_type',
+        '_ml_fields_cache', '_ml_uplink', '_ml_operations',
+    )
 
     @classmethod
     def _get_type(cls, *args, **kwargs):
@@ -1050,6 +1108,10 @@ class SequenceExpr(TypedExpr):
 
     def _init(self, *args, **kwargs):
         self._init_attr('_name', None)
+
+        self._init_attr('_ml_fields_cache', None)
+        self._init_attr('_ml_uplink', [])
+        self._init_attr('_ml_operations', [])
         super(SequenceExpr, self)._init(*args, **kwargs)
 
         if '_data_type' in kwargs:
@@ -1434,6 +1496,9 @@ class Scalar(TypedExpr):
     def accept(self, visitor):
         visitor.visit_scalar(self)
 
+    def get_cached(self, data):
+        return Scalar(_value=data, _value_type=self.dtype)
+
 
 class AsTypedScalar(Scalar):
     _args = '_input',
@@ -1632,6 +1697,59 @@ class ProjectCollectionExpr(CollectionExpr):
 
         self._init_attr('_raw_fields', None)
         super(ProjectCollectionExpr, self)._init(*args, **kwargs)
+
+    def _setitem(self, value, value_dag=None):
+        from ..backends.context import context
+
+        if context.is_cached(self):
+            super(ProjectCollectionExpr, self).__setitem__(value.name, value)
+            return
+
+        if value_dag is None:
+            value_dag = value.to_dag(copy=False, validate=False)
+
+        for n in value.traverse(top_down=True, unique=True,
+                                stop_cond=lambda x: isinstance(x, Column)):
+            if isinstance(n, Column) and n.input is self:
+                source_name = n.source_name
+                idx = self._schema._name_indexes[source_name]
+                field = self._fields[idx]
+                if field.name != n.name:
+                    field = field.rename(n.name)
+                value_dag.substitute(n, field)
+
+        value = value_dag.root
+        fields = [field if field.name != value.name else value for field in self._fields]
+        if value.name not in self._schema:
+            fields.append(value)
+
+        self._schema = Schema.from_lists([f.name for f in fields],
+                                         [f.dtype for f in fields])
+        self._fields = fields
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, Expr):
+            value = Scalar(value)
+        value = value.rename(key)
+
+        self._setitem(value)
+
+    def _delitem(self, key):
+        from ..backends.context import context
+
+        if context.is_cached(self):
+            return super(ProjectCollectionExpr, self).__delitem__(key)
+
+        fields = [f for f in self._fields if f.name != key]
+        self._schema = Schema.from_lists([f.name for f in fields],
+                                         [f.dtype for f in fields])
+        self._fields = fields
+
+    def __delitem__(self, key):
+        if key not in self._schema:
+            raise KeyError('Field({0}) does not exist'.format(key))
+
+        self._delitem(key)
 
     @property
     def _project_fields(self):

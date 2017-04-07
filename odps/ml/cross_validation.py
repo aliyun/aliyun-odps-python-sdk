@@ -14,11 +14,9 @@
 # limitations under the License.
 
 import time
-from copy import deepcopy
 
-from ..df import RandomScalar
-from ..compat import OrderedDict, six
-from ..runner import RunnerContext, adapter_from_df
+from ..df import RandomScalar, Delay
+from ..compat import six
 from .utils import get_function_args
 from .metrics import SCORERS
 
@@ -34,7 +32,7 @@ def k_fold(n_folds=3):
         seed = int(time.time())
         rand_col = '_rand_key_%s' % seed
         old_columns = df.schema.names
-        rand_df = df[df, RandomScalar(seed).rename(rand_col)]
+        rand_df = df[df, RandomScalar(seed).rename(rand_col)].cache()
 
         for idx in range(n_folds):
             left_df = rand_df[idx * 1.0 / n_folds < getattr(rand_df, rand_col) <= (idx + 1) * 1.0 / n_folds].__getitem__(old_columns)
@@ -63,7 +61,8 @@ def train_test(train_size=None, test_size=None):
 
 
 def cross_val_score(trainer, df, col_true=None, col_pred=None, col_score=None, scoring=None, cv=None,
-                    fit_params=None):
+                    fit_params=None, ui=None, async=False, n_parallel=1, timeout=None,
+                    close_and_notify=True):
     if cv is None:
         cv = k_fold()
     elif isinstance(cv, six.integer_types):
@@ -74,30 +73,21 @@ def cross_val_score(trainer, df, col_true=None, col_pred=None, col_score=None, s
     if fit_params:
         [setattr(trainer, param, val) for param, val in six.iteritems(fit_params)]
 
-    predictions = []
-    for train_df, test_df in cv(df):
-        model = trainer.train(train_df)
-        predictions.append(model.predict(test_df))
-
-    results = OrderedDict([(ds, None) for ds in predictions])
     kwargs = dict(col_true=col_true, col_pred=col_pred)
     if 'col_score' in get_function_args(scoring):
         kwargs['col_score'] = col_score
 
-    def _build_metrics_calc(predicted_ds):
-        loc_args = deepcopy(kwargs)
-        loc_args['df'] = predicted_ds
+    delay = Delay()
+    futures = []
+    for train_df, test_df in cv(df):
+        model = trainer.train(train_df)
+        predicted = model.predict(test_df)
+        metrics_expr = scoring(df=predicted, execute_now=False, **kwargs)
+        futures.append(metrics_expr.execute(delay=delay))
 
-        def _calc():
-            results[predicted_ds] = scoring(**loc_args)
+    delay.execute(ui=ui, async=async, n_parallel=n_parallel, timeout=timeout, close_and_notify=close_and_notify)
 
-        return _calc
-
-    func_list = [_build_metrics_calc(ds) for ds in predictions]
-
-    RunnerContext.instance()._batch_run_actions(func_list, adapter_from_df(df)._odps)
-
-    results = list(six.itervalues(results))
+    results = [f.result() for f in futures]
     if _has_numpy:
         return np.array(results)
     else:

@@ -15,7 +15,6 @@
 # limitations under the License.
 
 from datetime import datetime
-import contextlib
 
 from .core import LazyLoad, JSONRemoteModel
 from .record import Record
@@ -542,14 +541,14 @@ class Table(LazyLoad):
     def get_partition(self, partition_spec):
         return self.partitions[partition_spec]
 
-    def drop(self, async=False):
+    def drop(self, async=False, if_exists=False):
         """
         drop this table.
 
         :param async: run asynchronously if True
         :return: None
         """
-        return self.parent.delete(self, async=async)
+        return self.parent.delete(self, async=async, if_exists=if_exists)
 
     def new_record(self, values=None):
         """

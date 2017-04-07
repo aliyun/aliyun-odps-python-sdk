@@ -33,7 +33,7 @@ SVDCF_RECOMMEND_TABLE = tn('pyodps_test_ml_svd_cf_rec')
 class TestRecommend(MLTestBase):
     def setUp(self):
         super(TestRecommend, self).setUp()
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
     def test_etrec(self):
         self.create_user_item_table(USER_ITEM_PAYLOAD_TABLE, mode='agg')

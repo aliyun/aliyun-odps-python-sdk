@@ -45,7 +45,7 @@ class TestSparseClassifiers(MLTestBase):
 
     @ci_skip_case
     def test_logistic_regression(self):
-        options.runner.dry_run = False
+        options.ml.dry_run = False
         self.delete_table(LR_TEST_TABLE)
         self.delete_offline_model(MODEL_NAME)
 
@@ -63,7 +63,7 @@ class TestSparseClassifiers(MLTestBase):
         assert len(fpr) == len(tpr) and len(thresh) == len(fpr)
 
     def test_mock_xgboost(self):
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
         splited = self.df.split(0.6)
 
@@ -71,14 +71,14 @@ class TestSparseClassifiers(MLTestBase):
         model = lr.train(splited[0])._add_case(self.gen_check_params_case(
                 {'labelColName': 'category', 'modelName': MODEL_NAME, 'colsample_bytree': '1', 'silent': '1',
                  'eval_metric': 'error', 'eta': '0.3', 'itemDelimiter': ',', 'kvDelimiter': ':',
-                 'inputTableName': TEMP_TABLE_PREFIX + '0_split_2_1', 'max_delta_step': '0', 'enableSparse': 'true',
+                 'inputTableName': TEMP_TABLE_PREFIX + '_split', 'max_delta_step': '0', 'enableSparse': 'true',
                  'base_score': '0.5', 'seed': '0', 'min_child_weight': '1', 'objective': 'binary:logistic',
                  'featureColNames': 'content', 'max_depth': '6', 'gamma': '0', 'booster': 'gbtree'}))
         model.persist(MODEL_NAME)
 
         predicted = model.predict(splited[1])._add_case(self.gen_check_params_case(
                 {'itemDelimiter': ',', 'modelName': MODEL_NAME, 'appendColNames': 'content,category',
-                 'inputTableName': TEMP_TABLE_PREFIX + '0_split_2_2', 'enableSparse': 'true',
+                 'inputTableName': TEMP_TABLE_PREFIX + '_split', 'enableSparse': 'true',
                  'outputTableName': XGBOOST_TEST_TABLE, 'kvDelimiter': ':', 'featureColNames': 'content'}))
         # persist operational node which will trigger execution of the flow
         predicted.persist(XGBOOST_TEST_TABLE)

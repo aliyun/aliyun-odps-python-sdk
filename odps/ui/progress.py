@@ -143,6 +143,10 @@ def fetch_instance_group(group_id):
     return PROGRESS_REPO[group_id]
 
 
+def exist_instance_group(group_id):
+    return group_id in PROGRESS_REPO
+
+
 """
 User Interface
 """
@@ -178,15 +182,24 @@ else:
             def update_group(self, group_jsons):
                 if isinstance(group_jsons, six.string_types):
                     group_jsons = [group_jsons, ]
-                self.send(json.dumps(dict(action='update', content=group_jsons)))
+                try:
+                    self.send(json.dumps(dict(action='update', content=group_jsons)))
+                except:
+                    pass
 
             def delete_group(self, group_keys):
                 if isinstance(group_keys, six.string_types):
                     group_keys = [group_keys, ]
-                self.send(json.dumps(dict(action='delete', content=group_keys)))
+                try:
+                    self.send(json.dumps(dict(action='delete', content=group_keys)))
+                except:
+                    pass
 
             def clear_groups(self):
-                self.send(json.dumps(dict(action='clear')))
+                try:
+                    self.send(json.dumps(dict(action='clear')))
+                except:
+                    pass
     else:
         InstancesProgress = None
 
@@ -216,6 +229,11 @@ class ProgressGroupUI(object):
     def suffix(self, value):
         self._suffix = value
         self._update_text()
+
+    def has_keys(self, keys):
+        if isinstance(keys, six.string_types):
+            keys = [keys, ]
+        return all(k in self._group_keys for k in keys)
 
     def add_keys(self, keys):
         if isinstance(keys, six.string_types):
@@ -251,12 +269,12 @@ class ProgressGroupUI(object):
                     display(self._widget)
         if isinstance(keys, six.string_types):
             keys = [keys, ]
-        data = [fetch_instance_group(key).serialize() for key in keys]
+        data = [fetch_instance_group(key).serialize() for key in keys if exist_instance_group(key)]
         self._widget.update_group(data)
 
     def update(self):
         self._update_text()
-        data = [fetch_instance_group(key).serialize() for key in self._group_keys]
+        data = [fetch_instance_group(key).serialize() for key in self._group_keys if exist_instance_group(key)]
         self._widget.update_group(data)
 
     def close(self):

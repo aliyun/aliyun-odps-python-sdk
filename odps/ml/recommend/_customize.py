@@ -15,8 +15,8 @@
 
 from functools import partial
 
-from ..adapter import ml_collection_mixin
-from ..nodes.exporters import get_enable_sparse, get_input_field_names
+from ..expr.exporters import get_enable_sparse, get_input_field_names
+from ..expr.mixin import ml_collection_mixin
 from ...compat import Enum
 
 
@@ -29,6 +29,8 @@ class RecommendFieldRole(Enum):
 
 @ml_collection_mixin
 class RecommendMLMixIn(object):
+    __slots__ = ()
+
     field_role_enum = RecommendFieldRole
     non_feature_roles = set([RecommendFieldRole.REC_ITEM, ])
 
@@ -42,18 +44,18 @@ get_rec_sequence_column = partial(get_input_field_names, field_role=RecommendFie
 get_rec_payload_column = partial(get_input_field_names, field_role=RecommendFieldRole.REC_PAYLOAD)
 
 
-def get_etrec_table_format(node, param_name, input_name):
-    if node.parameters.get(param_name, None):
-        return node.parameters[param_name]
-    return 'user-item' if not get_enable_sparse(node, param_name, input_name) else 'items'
+def get_etrec_table_format(expr, param_name, input_name):
+    if expr._params.get(param_name, None):
+        return expr._params[param_name]
+    return 'user-item' if not get_enable_sparse(expr, param_name, input_name) else 'items'
 
 
-def get_rec_triple_selected_col_names(node, param_name, input_name):
-    if node.parameters.get(param_name, None):
-        return node.parameters[param_name]
-    cols = [get_rec_user_id_column(node, param_name, input_name)[0],
-            get_rec_item_column(node, param_name, input_name)[0]]
-    payload_col = get_rec_payload_column(node, param_name, input_name)[0]
+def get_rec_triple_selected_col_names(expr, param_name, input_name):
+    if expr._params.get(param_name, None):
+        return expr._params[param_name]
+    cols = [get_rec_user_id_column(expr, param_name, input_name)[0],
+            get_rec_item_column(expr, param_name, input_name)[0]]
+    payload_col = get_rec_payload_column(expr, param_name, input_name)[0]
     if payload_col:
         cols.append(payload_col)
     return ','.join(cols)

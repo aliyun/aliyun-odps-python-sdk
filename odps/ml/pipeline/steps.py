@@ -16,7 +16,7 @@
 from ...utils import camel_to_underline
 from ...compat import six, getargspec
 from .core import PipelineStep
-from ..adapter import merge_data
+from ..expr.mixin import merge_data
 
 
 class SimpleDataFrameStep(PipelineStep):

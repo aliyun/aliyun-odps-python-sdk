@@ -90,6 +90,7 @@ module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-contrib-requirejs');
     grunt.loadNpmTasks('grunt-contrib-cssmin');
     grunt.loadNpmTasks('grunt-contrib-clean');
+    grunt.loadNpmTasks('grunt-file-append');
 
     grunt.registerTask('default', ['copy', 'uglify', 'requirejs', 'cssmin', 'clean']);
 

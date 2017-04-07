@@ -479,8 +479,11 @@ class PandasCompiler(Backend):
     def visit_value_counts(self, expr):
         def handle(kw):
             by = kw.get(expr._by)
+            sort = kw.get(expr._sort)
+            ascending = kw.get(expr._ascending)
+            dropna = kw.get(expr._dropna)
 
-            df = by.value_counts().to_frame()
+            df = by.value_counts(sort=sort, ascending=ascending, dropna=dropna).to_frame()
             df.reset_index(inplace=True)
             return pd.DataFrame(df.values, columns=expr.schema.names)
 

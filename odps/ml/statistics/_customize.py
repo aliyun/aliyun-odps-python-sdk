@@ -17,11 +17,11 @@ import json
 from collections import namedtuple
 from functools import partial
 
+from ..expr.exporters import get_ml_input
+from ..utils import parse_hist_repr
 from ... import utils
 from ...compat import StringIO, six
 from ...df import DataFrame
-from ..utils import parse_hist_repr
-
 
 try:
     import numpy as np
@@ -29,38 +29,38 @@ except ImportError:
     np = None
 
 from ..enums import FieldRole
-from ..nodes.exporters import get_input_table_name, get_input_partitions, get_input_field_names
+from odps.ml.expr.exporters import get_input_table_name, get_input_partitions, get_input_field_names
 
 
 get_predicted_value_column = partial(get_input_field_names, field_role=FieldRole.PREDICTED_VALUE)
 
 
-def get_y_table_name(node, input_name):
-    if not node.parameters['yColName']:
+def get_y_table_name(expr, input_name):
+    if not expr._params['yColName']:
         return None
-    if not node.input_edges.get(input_name):
-        return get_input_table_name(node, 'x')
-    return get_input_table_name(node, input_name)
+    if not get_ml_input(expr, input_name):
+        return get_input_table_name(expr, 'x')
+    return get_input_table_name(expr, input_name)
 
 
-def get_y_partitions(node, input_name):
-    if not node.parameters['yColName']:
+def get_y_partitions(expr, input_name):
+    if not expr._params['yColName']:
         return None
-    if not node.input_edges.get(input_name):
-        return get_input_partitions(node, 'x')
-    return get_input_partitions(node, input_name)
+    if not get_ml_input(expr, input_name):
+        return get_input_partitions(expr, 'x')
+    return get_input_partitions(expr, input_name)
 
 
-def get_histograms(odps, node):
+def get_histograms(expr, odps):
     hist_dict = dict()
-    for rec in DataFrame(odps.get_table(node.table_names)).execute():
+    for rec in DataFrame(odps.get_table(expr.tables[0])).execute():
         col, bins = rec
         hist_dict[col] = parse_hist_repr(bins)
     return hist_dict
 
 
-def get_pearson_result(odps, node):
-    return DataFrame(odps.get_table(node.table_names)).execute()[0][-1]
+def get_pearson_result(expr, odps):
+    return DataFrame(odps.get_table(expr.tables[0])).execute()[0][-1]
 
 
 class TTestResult(object):
@@ -104,8 +104,8 @@ class TTestResult(object):
         return buf.getvalue()
 
 
-def get_t_test_result(odps, node):
-    return TTestResult(json.loads(DataFrame(odps.get_table(node.table_names)).execute()[0][0]))
+def get_t_test_result(expr, odps):
+    return TTestResult(json.loads(DataFrame(odps.get_table(expr.tables[0])).execute()[0][0]))
 
 
 class ChiSquareTestResult(object):
@@ -115,25 +115,25 @@ class ChiSquareTestResult(object):
         self.detail = details
 
 
-def get_chisq_test_result(odps, node):
+def get_chisq_test_result(expr, odps):
     ChiSquareData = namedtuple('ChiSquareData', 'comment df p_value value')
-    json_result = json.loads(DataFrame(odps.get_table(node.table_names[1])).execute()[0][0].replace('p-value', 'p_value'))
+    json_result = json.loads(DataFrame(odps.get_table(expr.tables.summary)).execute()[0][0].replace('p-value', 'p_value'))
     result = ChiSquareData(**json_result.get('Chi-Square'))
     correct_result = ChiSquareData(**json_result.get('Continity Correct Chi-Square'))
 
     fields = 'f0 f1 observed expected residuals'.split()
     details = []
-    for rec in DataFrame(odps.get_table(node.table_names[2])).execute():
+    for rec in DataFrame(odps.get_table(expr.tables.detail)).execute():
         details.append(dict(zip(fields, rec.values)))
 
     return ChiSquareTestResult(result, correct_result, details)
 
 
-def get_mat_result(odps, node):
+def get_mat_result(expr, odps):
     MatResult = namedtuple('MatResult', 'matrix cols')
     cols = []
     mat = []
-    for rec in DataFrame(odps.get_table(node.table_names)).execute():
+    for rec in DataFrame(odps.get_table(expr.tables[0])).execute():
         if not cols:
             cols = list(rec.keys()[1:])
         mat.append(rec.values[1:])

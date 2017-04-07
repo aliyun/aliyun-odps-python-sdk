@@ -17,6 +17,7 @@
 import functools
 
 from ..models import Table
+from ..models.partition import Partition
 from ..compat import six, izip
 from .expr.utils import get_attrs
 from .expr.expressions import CollectionExpr
@@ -90,6 +91,11 @@ class DataFrame(CollectionExpr):
             if '_schema' not in kwargs:
                 kwargs['_schema'] = odps_schema_to_df_schema(data.schema)
             super(DataFrame, self).__init__(_source_data=data, **kwargs)
+        elif isinstance(data, Partition):
+            if '_schema' not in kwargs:
+                kwargs['_schema'] = odps_schema_to_df_schema(data.parent.parent.schema)
+            super(DataFrame, self).__init__(_source_data=data.parent.parent, **kwargs)
+            self._proxy = self.copy().filter_partition(str(data))
         elif has_pandas and isinstance(data, pd.DataFrame):
             if 'schema' in kwargs and kwargs['schema']:
                 schema = kwargs.pop('schema')
@@ -136,45 +142,35 @@ class DataFrame(CollectionExpr):
         return type(self)(data, **kv)
 
     @staticmethod
-    def batch_persist(dfs, tables, *args, **kw):
+    def batch_persist(dfs, tables, *args, **kwargs):
         """
         Persist multiple DataFrames into ODPS.
 
         :param dfs: DataFrames to persist.
         :param tables: Table names to persist to. Use (table, partition) tuple to store to a table partition.
         :param args: args for Expr.persist
-        :param kw: kwargs for Expr.persist
+        :param kwargs: kwargs for Expr.persist
 
         :Examples:
         >>> DataFrame.batch_persist([df1, df2], ['table_name1', ('table_name2', 'partition_name2')], lifecycle=1)
         """
-        actions = []
-        odps = None
+        from .delay import Delay
+
+        execute_keys = ('ui', 'async', 'n_parallel', 'timeout', 'close_and_notify')
+        execute_kw = dict((k, v) for k, v in six.iteritems(kwargs) if k in execute_keys)
+        persist_kw = dict((k, v) for k, v in six.iteritems(kwargs) if k not in execute_keys)
+
+        delay = Delay()
+        persist_kw['delay'] = delay
+
         for df, table in izip(dfs, tables):
             if isinstance(table, tuple):
                 table, partition = table
             else:
                 partition = None
-            actions.append(functools.partial(df.persist, table, partition=partition, *args, **kw))
+            df.persist(table, partition=partition, *args, **persist_kw)
 
-        for df in dfs:
-            try:
-                odps = six.next(df.data_source()).odps
-                if odps is not None:
-                    break
-            except StopIteration:
-                pass
-
-        if odps is None:
-            from ..inter import enter, InteractiveError
-            try:
-                odps = enter().odps
-            except (InteractiveError, AttributeError):
-                import warnings
-                warnings.warn('No ODPS object available in rooms. Further actions might lead to errors.',
-                              RuntimeWarning)
-        from ..runner import RunnerContext
-        RunnerContext.instance()._batch_run_actions(actions, odps)
+        return delay.execute(**execute_kw)
 
     @property
     def data(self):

@@ -15,14 +15,10 @@
 
 from __future__ import print_function
 
-import logging
-
 from odps.df import DataFrame
 from odps.ml.classifiers import LogisticRegression
 from odps.ml.cross_validation import cross_val_score
 from odps.ml.tests.base import MLTestBase, tn, ci_skip_case
-
-logger = logging.getLogger(__name__)
 
 IONOSPHERE_TABLE = tn('pyodps_test_ml_ionosphere')
 

@@ -62,8 +62,8 @@ test*.ipynb
 odps/src/*/*_c.c
 odps/src/*_c.c
 odps/tunnel/pb/*_c.c
+odps/tunnel/io/*_c.c
 odps/tunnel/*_c.c
-odps/tunnel/tabletunnel/*_c.c
 
 # benchmark
 benchmarks/*.out

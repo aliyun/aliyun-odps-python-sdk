@@ -16,12 +16,12 @@
 .. code:: python
 
     >>> print(iris.describe())
-              type  sepal_length  sepal_width  petal_length  petal_width
-    0        count    150.000000   150.000000    150.000000   150.000000
-    1         mean      5.843333     3.054000      3.758667     1.198667
-    2  std(ddof=0)      0.825301     0.432147      1.758529     0.760613
-    3          min      4.300000     2.000000      1.000000     0.100000
-    4          max      7.900000     4.400000      6.900000     2.500000
+        type  sepal_length  sepal_width  petal_length  petal_width
+    0  count    150.000000   150.000000    150.000000   150.000000
+    1   mean      5.843333     3.054000      3.758667     1.198667
+    2    std      0.828066     0.433594      1.764420     0.763161
+    3    min      4.300000     2.000000      1.000000     0.100000
+    4    max      7.900000     4.400000      6.900000     2.500000
 
 我们可以使用单列来执行聚合操作：
 
@@ -126,7 +126,7 @@ DataFrame 提供了一个\ ``value_counts``\ 操作，能返回按某列分组�
 对字段调用agg或者aggregate方法来调用自定义聚合。自定义聚合需要提供一个类，这个类需要提供以下方法：
 
 * buffer()：返回一个mutable的object（比如list、dict），buffer大小不应随数据而递增。
-* __call__(buffer, val)：将值聚合到中间buffer。
+* __call__(buffer, *val)：将值聚合到中间buffer。
 * merge(buffer, pbuffer)：讲pbuffer聚合到buffer中。
 * getvalue(buffer)：返回最终值。
 
@@ -173,6 +173,46 @@ DataFrame 提供了一个\ ``value_counts``\ 操作，能返回按某列分组�
     0                    3.418
     1                    2.770
     2                    2.974
+
+当对多列调用自定义聚合，可以使用agg方法。
+
+.. code-block:: python
+
+    class Agg(object):
+
+        def buffer(self):
+            return [0.0, 0.0]
+
+        def __call__(self, buffer, val1, val2):
+            buffer[0] += val1
+            buffer[1] += val2
+
+        def merge(self, buffer, pbuffer):
+            buffer[0] += pbuffer[0]
+            buffer[1] += pbuffer[1]
+
+        def getvalue(self, buffer):
+            if buffer[1] == 0:
+                return 0.0
+            return buffer[0] / buffer[1]
+
+.. code:: python
+
+    >>> from odps.df import agg
+    >>> to_agg = agg([iris.sepalwidth, iris.sepallength], Agg, rtype='float')  # 对两列调用自定义聚合
+    >>> iris.groupby('name').agg(val=to_agg)
+                  name       val
+    0      Iris-setosa  0.682781
+    1  Iris-versicolor  0.466644
+    2   Iris-virginica  0.451427
+
+要调用 ODPS 上已经存在的 UDAF，指定函数名即可。
+
+.. code:: python
+
+    >>> iris.groupby('name').agg(iris.sepalwidth.agg('your_func'))  # 对单列聚合
+    >>> to_agg = agg([iris.sepalwidth, iris.sepallength], 'your_func', rtype='float')
+    >>> iris.groupby('name').agg(to_agg.rename('val'))  # 对多列聚合
 
 HyperLogLog 计数
 ----------------

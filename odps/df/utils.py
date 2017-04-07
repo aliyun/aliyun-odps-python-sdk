@@ -124,6 +124,8 @@ def to_collection(seq_or_scalar):
     from .expr.expressions import CollectionExpr, Column, SequenceExpr
     from .expr.reduction import GroupedSequenceReduction, Count
 
+    if seq_or_scalar._non_table:
+        return seq_or_scalar
     if isinstance(seq_or_scalar, CollectionExpr):
         return seq_or_scalar
 

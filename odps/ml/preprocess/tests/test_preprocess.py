@@ -21,8 +21,6 @@ from odps.ml.preprocess import *
 from odps.ml.tests.base import MLTestBase, tn, ci_skip_case
 
 IONOSPHERE_TABLE = tn('pyodps_test_ml_ionosphere')
-IONOSPHERE_NORMALIZED_TABLE = tn('pyodps_test_ml_iono_normalized')
-IONOSPHERE_STANDARDIZED_TABLE = tn('pyodps_test_ml_iono_standardized')
 IONOSPHERE_RANDOM_SAMPLE_TABLE = tn('pyodps_test_ml_iono_rand_sample')
 IONOSPHERE_WEIGHTED_SAMPLE_TABLE = tn('pyodps_test_ml_iono_weight_sample')
 IONOSPHERE_APPEND_ID_TABLE = tn('pyodps_test_ml_iono_append_id')

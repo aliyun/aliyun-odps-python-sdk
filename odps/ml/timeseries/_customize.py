@@ -15,9 +15,9 @@
 
 from functools import partial
 
+from ..expr.exporters import get_input_field_names
+from ..expr.mixin import ml_collection_mixin
 from ...compat import Enum
-from ..nodes.exporters import get_input_field_names
-from ..adapter import ml_collection_mixin
 
 
 class TimeSeriesFieldRole(Enum):
@@ -28,6 +28,8 @@ class TimeSeriesFieldRole(Enum):
 
 @ml_collection_mixin
 class TimeSeriesMLMixIn(object):
+    __slots__ = ()
+
     field_role_enum = TimeSeriesFieldRole
     non_feature_roles = set((TimeSeriesFieldRole.TS_GROUP, TimeSeriesFieldRole.TS_SEQ))
 

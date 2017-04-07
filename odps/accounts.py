@@ -182,9 +182,9 @@ class SignServer(object):
 
 
 class SignServerAccount(BaseAccount):
-    def __init__(self, access_id, sign_endpoint):
+    def __init__(self, access_id, sign_endpoint=None, server=None, port=None):
         self.access_id = access_id
-        self.sign_endpoint = sign_endpoint
+        self.sign_endpoint = sign_endpoint or (server, port)
         self.req_session = requests.session()
 
     def sign_request(self, req, endpoint):

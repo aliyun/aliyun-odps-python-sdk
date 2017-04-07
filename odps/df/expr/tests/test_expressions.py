@@ -273,5 +273,85 @@ class Test(TestBase):
         with self.assertRaises(ExpressionError):
             self.expr[self.expr.id + 1, self.expr.name][self.expr2.name,]
 
+    def testSetitemField(self):
+        from odps.df.expr.groupby import GroupByCollectionExpr
+
+        expr = self.expr.copy()
+
+        expr['new_id'] = expr.id + 1
+
+        self.assertIn('new_id', expr.schema.names)
+        self.assertIs(expr._fields[-1].lhs.input, expr.input)
+
+        self.assertEqual(expr.schema.names, ['name', 'id', 'fid', 'new_id'])
+
+        expr['new_id2'] = expr.id + 2
+
+        self.assertIn('new_id2', expr.schema.names)
+        self.assertIs(expr._fields[-1].lhs.input, expr.input)
+
+        self.assertEqual(expr.schema.names, ['name', 'id', 'fid', 'new_id', 'new_id2'])
+        self.assertIsNone(expr._input._proxy)
+
+        expr['new_id2'] = expr.new_id
+
+        expr['new_id3'] = expr.id + expr.new_id2
+        self.assertIs(expr._fields[-1].lhs.input, expr.input)
+        self.assertIs(expr._fields[-1].rhs.lhs.input, expr.input)
+
+        self.assertIsInstance(expr, ProjectCollectionExpr)
+        self.assert_(isinstance(expr, ProjectCollectionExpr))
+
+        expr2 = expr.groupby('name').agg(expr.id.sum())
+        expr2['new_id2'] = expr2.id_sum + 1
+        self.assertIsInstance(expr2, ProjectCollectionExpr)
+        self.assertNotIsInstance(expr2, GroupByCollectionExpr)
+        self.assertNotIsInstance(expr2, FilterCollectionExpr)
+
+    def testDelitemField(self):
+        from odps.df.expr.groupby import GroupByCollectionExpr
+        from odps.df.expr.collections import DistinctCollectionExpr
+
+        expr = self.expr.copy()
+
+        del expr['fid']
+
+        self.assertNotIn('fid', expr.schema)
+        self.assertEqual(expr.schema.names, ['name', 'id'])
+        self.assertIsInstance(expr, ProjectCollectionExpr)
+
+        expr['id2'] = self.expr.id + 1
+        del expr['id2']
+
+        self.assertNotIn('id2', expr.schema)
+        self.assertEqual(expr.schema.names, ['name', 'id'])
+
+        expr['id3'] = expr.id
+        del expr['id']
+
+        self.assertNotIn('id', expr.schema)
+        self.assertIn('id3', expr.schema)
+        self.assertEqual(expr.schema.names, ['name', 'id3'])
+
+        expr2 = expr.groupby('name').agg(expr.id3.sum().rename('id'))
+        del expr2.name
+
+        self.assertNotIn('name', expr2.schema)
+        self.assertIn('id', expr2.schema)
+        self.assertEqual(expr2.schema.names, ['id'])
+        self.assertIsInstance(expr2, ProjectCollectionExpr)
+        self.assertNotIsInstance(expr2, GroupByCollectionExpr)
+
+        expr3 = expr2.distinct()
+        expr3['new_id'] = expr3.id + 1
+        expr3['new_id2'] = expr3.new_id * 2
+        del expr3['new_id']
+
+        self.assertNotIn('new_id', expr3.schema)
+        self.assertIn('new_id2', expr3.schema)
+        self.assertEqual(expr3.schema.names, ['id', 'new_id2'])
+        self.assertIsInstance(expr3, ProjectCollectionExpr)
+        self.assertNotIsInstance(expr3, DistinctCollectionExpr)
+
 if __name__ == '__main__':
     unittest.main()

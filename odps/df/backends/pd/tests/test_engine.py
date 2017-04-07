@@ -1216,7 +1216,7 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
-        expr = self.expr.name.value_counts()[:25]
+        expr = self.expr.name.value_counts(dropna=True)[:25]
 
         expected = [
             ['name1', 4],

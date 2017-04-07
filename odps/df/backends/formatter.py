@@ -1091,7 +1091,7 @@ class GenericArrayFormatter(object):
         self.justify = justify
 
     def get_result(self):
-        fmt_values = self._format_strings()
+        fmt_values = [v if v is not None else self.na_rep for v in self._format_strings()]
         return _make_fixed_width(fmt_values, self.justify)
 
     def _format_strings(self):
@@ -1169,7 +1169,7 @@ class FloatArrayFormatter(GenericArrayFormatter):
 
             too_long = maxlen > self.digits + 6
 
-            abs_vals = [abs(val) for val in self.values]
+            abs_vals = [abs(val) if val is not None else float('nan') for val in self.values]
 
             # this is pretty arbitrary for now
             has_large_values = any(abs_val > 1e8 for abs_val in abs_vals)
@@ -1189,7 +1189,7 @@ class FloatArrayFormatter(GenericArrayFormatter):
 class IntArrayFormatter(GenericArrayFormatter):
 
     def _format_strings(self):
-        formatter = self.formatter or (lambda x: '% d' % x)
+        formatter = self.formatter or (lambda x: '% d' % x if x is not None else self.na_rep)
         fmt_values = [formatter(x) for x in self.values]
         return fmt_values
 
@@ -1204,7 +1204,7 @@ class Datetime64Formatter(GenericArrayFormatter):
         """ we by definition have DO NOT have a TZ """
 
         values = self.values
-        return [val.strftime('%Y-%m-%d %H:%M:%S') for val in values]
+        return [val.strftime('%Y-%m-%d %H:%M:%S') if val is not None else self.nat_rep for val in values]
 
 
 def _has_names(index):

@@ -28,8 +28,13 @@ from . import utils
 
 class NodeMetaclass(type):
     def __new__(mcs, name, bases, kv):
-        if kv.get('_add_args_slots', True):
-            slots = list(kv.get('__slots__', [])) + list(kv.get('_slots', []))
+        mixin_slots = []
+        for b in bases:
+            mixin_slots.extend(list(getattr(b, '_mixin_slots', [])))
+
+        if kv.pop('_add_args_slots', True):
+            slots = mixin_slots + list(kv.get('__slots__', [])) + list(kv.get('_mixin_slots', [])) + \
+                    list(kv.get('_slots', []))
             args = kv.get('_args', [])
             slots.extend(args)
             slots = compat.OrderedDict.fromkeys(slots)
@@ -38,13 +43,25 @@ class NodeMetaclass(type):
 
         if '__slots__' not in kv:
             kv['__slots__'] = ()
+        if mixin_slots:
+            kv['_mixin_slots'] = []
         return type.__new__(mcs, name, bases, kv)
+
+    def __instancecheck__(self, instance):
+        from .expressions import CollectionExpr
+
+        if issubclass(type(instance), CollectionExpr) and \
+                hasattr(instance, '_proxy') and instance._proxy is not None:
+            return super(NodeMetaclass, self).__instancecheck__(instance._proxy)
+
+        return super(NodeMetaclass, self).__instancecheck__(instance)
 
 
 class Node(six.with_metaclass(NodeMetaclass)):
     __slots__ = '_args_indexes', '__weakref__'
     _args = ()  # the child(ren) of the current node
     _extra_args = ()
+    _non_table = False
 
     def __init__(self, *args, **kwargs):
         self._args_indexes = dict((name, i) for i, name in enumerate(self._args))
@@ -171,9 +188,6 @@ class Node(six.with_metaclass(NodeMetaclass)):
                         if unique:
                             yields.add(id(curr))
 
-    def _slot_values(self):
-        return [getattr(self, slot, None) for slot in utils.get_attrs(self)]
-
     def __eq__(self, other):
         return self.equals(other)
 
@@ -183,6 +197,9 @@ class Node(six.with_metaclass(NodeMetaclass)):
 
         if not isinstance(other, type(self)):
             return False
+
+        def slot_values(obj):
+            return [getattr(obj, slot, None) for slot in utils.get_attrs(obj)]
 
         def cmp(x, y):
             if isinstance(x, Node):
@@ -195,7 +212,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
             else:
                 res = x == y
             return res
-        return all(map(cmp, self._slot_values(), other._slot_values()))
+        return all(map(cmp, slot_values(self), slot_values(other)))
 
     def __hash__(self):
         return hash((type(self), tuple(self.children())))
@@ -262,8 +279,9 @@ class Node(six.with_metaclass(NodeMetaclass)):
     def _copy_type(self):
         return type(self)
 
-    def copy(self):
+    def copy(self, **kw):
         attr_dict = self._attr_dict()
+        attr_dict.update(kw)
         copied = type(self)(**attr_dict)
         return copied
 

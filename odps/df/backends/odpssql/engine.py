@@ -329,7 +329,7 @@ class ODPSSQLEngine(Engine):
                 no_permission = True
                 if head:
                     expr = expr[:head]
-                warnings.warn('Fail to download data by tunnel, 10000 records will be limited.\n' +
+                warnings.warn('Failed to download data by table tunnel, 10000 records will be limited.\n' +
                               'Cause: ' + str(ex))
             if force_tunnel or result is not None:
                 return result
@@ -408,7 +408,7 @@ class ODPSSQLEngine(Engine):
                 except ODPSError as ex:
                     # some project has closed the tunnel download
                     # we just ignore the error
-                    warnings.warn('Fail to download data by tunnel, 10000 records will be limited.\n' +
+                    warnings.warn('Failed to download data by table tunnel, 10000 records will be limited.\n' +
                                   'Cause: ' + str(ex))
                     pass
 

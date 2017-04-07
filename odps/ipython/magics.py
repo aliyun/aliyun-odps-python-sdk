@@ -39,9 +39,9 @@ except ImportError:
 
 try:
     from IPython.core.magic import Magics, magics_class, line_cell_magic, line_magic
-    from IPython.core.display import display_javascript
 except ImportError:
     # skipped for ci
+    ODPSSql = None
     pass
 else:
     @magics_class
@@ -201,21 +201,27 @@ else:
                             import pandas as pd
                             from pandas.parser import CParserError
 
-                            try:
-                                res = pd.read_csv(StringIO(reader.raw))
-                                if len(res.values) > 0:
-                                    schema = DataFrame(res).schema
-                                else:
-                                    cols = res.columns.tolist()
-                                    schema = Schema.from_lists(cols, ['string' for _ in cols])
-                                res = ResultFrame(res.values, schema=schema)
-                            except (ValueError, CParserError):
-                                res = reader.raw
+                            if options.use_instance_tunnel:
+                                res = ResultFrame([rec.values for rec in reader], schema=reader._schema)
+                            else:
+                                try:
+                                    res = pd.read_csv(StringIO(reader.raw))
+                                    if len(res.values) > 0:
+                                        schema = DataFrame(res).schema
+                                    else:
+                                        cols = res.columns.tolist()
+                                        schema = Schema.from_lists(cols, ['string' for _ in cols])
+                                    res = ResultFrame(res.values, schema=schema)
+                                except (ValueError, CParserError):
+                                    res = reader.raw
                         except ImportError:
-                            try:
-                                res = ResultFrame(list(reader), columns=reader._columns)
-                            except TypeError:
-                                res = reader.raw
+                            if options.use_instance_tunnel:
+                                res = ResultFrame([rec.values for rec in reader], schema=reader._schema)
+                            else:
+                                try:
+                                    res = ResultFrame(list(reader), columns=reader._columns)
+                                except TypeError:
+                                    res = reader.raw
 
                     html_notify('SQL execution succeeded')
                     return res
@@ -255,8 +261,6 @@ else:
 
     def load_ipython_extension(ipython):
         ipython.register_magics(ODPSSql)
-        js = "IPython.CodeCell.config_defaults.highlight_modes['magic_sql'] = {'reg':[/^%%sql/]};"
-        display_javascript(js, raw=True)
 
         # Do global import when load extension
         ipython.user_ns['DataFrame'] = DataFrame

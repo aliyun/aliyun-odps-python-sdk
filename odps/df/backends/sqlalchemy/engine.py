@@ -109,7 +109,7 @@ class SQLAlchemyEngine(Engine):
             return sa.compile()
 
     def _status_ui(self, ui):
-        ui.status('Try to execute by sqlalchemy...')
+        ui.status('Try to execute by sqlalchemy...', clear_keys=True)
 
     @classmethod
     def _get_or_create_conn(cls, engine):

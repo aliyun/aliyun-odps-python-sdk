@@ -15,6 +15,7 @@
 
 from __future__ import absolute_import
 
+import collections
 import re
 import logging
 import time
@@ -27,17 +28,19 @@ from collections import namedtuple, Iterable
 
 from .. import options
 from ..compat import six, getargspec
-from ..tunnel import TableTunnel
 from ..types import Partition
-from ..utils import camel_to_underline, TEMP_TABLE_PREFIX as GLOBAL_TEMP_PREFIX
+from ..utils import camel_to_underline, TEMP_TABLE_PREFIX
 from .enums import FieldContinuity, FieldRole
 
 ML_PACKAGE_ROOT = 'odps.ml'
 ML_INTERNAL_PACKAGE_ROOT = 'odps.internal.ml'
-TEMP_TABLE_PREFIX = GLOBAL_TEMP_PREFIX + 'ml_'
 TEMP_MODEL_PREFIX = 'pm_'
 TABLE_MODEL_PREFIX = 'otm_'
+TEMP_TABLE_MODEL_PREFIX = TEMP_TABLE_PREFIX + 'otm_'
 TABLE_MODEL_SEPARATOR = '__'
+
+ML_ARG_PREFIX = '_mlattr_'
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,11 +102,10 @@ class MLField(object):
         self.is_partition = is_partition
         self.kv_config = kv_config
 
-    @staticmethod
-    def copy(src, role=None):
+    def copy(self, role=None):
         if role is None:
             role = set()
-        ret = deepcopy(src)
+        ret = deepcopy(self)
         new_roles = role if isinstance(role, Iterable) else set([role, ])
         ret.role = ret.role | new_roles
         return ret
@@ -147,85 +149,8 @@ class MLField(object):
                                       self._repr_type_(), self._repr_role_())
 
 
-def split_projected_name(name):
-    if '.' in name:
-        project, name = name.split('.', 1)
-    else:
-        project = None
-    return project, name
-
-
-def fetch_table_fields(odps, table, list_partitions=False, project=None):
-    if isinstance(table, six.string_types):
-        if project is not None:
-            _, table_name = split_projected_name(table)
-        else:
-            project, table_name = split_projected_name(table)
-        table = odps.get_table(table_name, project=project)
-    ret = [MLField(c.name, c.type.name, FieldRole.FEATURE,
-                   continuity=FieldContinuity.CONTINUOUS if c.type.name == 'double' else FieldContinuity.DISCRETE,
-                   is_partition=True if isinstance(c, Partition) else False)
-           for c in table.schema.columns]
-    if list_partitions:
-        return ret
-    else:
-        return [pf for pf in ret if not pf.is_partition]
-
-
-def is_table_exists(odps, table_name):
-    project, table_name = split_projected_name(table_name)
-    return odps.exist_table(table_name, project=project)
-
-
-def drop_table(odps, table_name, async=True):
-    project, table_name = split_projected_name(table_name)
-    instance = odps.run_sql('drop table if exists ' + table_name, project=project)
-    if not async:
-        instance.wait_for_success()
-
-
-def set_table_lifecycle(odps, table_name, lifecycle, async=True, use_threads=True, wait=False):
-    def _setter(tables):
-        if isinstance(tables, six.string_types):
-            tables = [tables, ]
-        for table in tables:
-            if not is_table_exists(odps, table):
-                return
-            instance = odps.run_sql('alter table %s set lifecycle %s' % (table, str(lifecycle)))
-            if not async:
-                instance.wait_for_success()
-
-    if use_threads:
-        th = Thread(target=_setter, args=(table_name, ))
-        th.start()
-        if wait:
-            th.join()
-    else:
-        _setter(table_name)
-
-
-def gen_model_name(code_name, ts=None, node_id=None):
-    if ts is None:
-        ts = int(time.time()) if not options.runner.dry_run else 0
-    if node_id:
-        ts_str = '%d_%d' % (ts % 99991, node_id)
-    else:
-        ts_str = str(ts % 99991)
-    code_name = camel_to_underline(code_name)
-    m_name = TEMP_MODEL_PREFIX + code_name + '_' + ts_str
-    exc_len = len(code_name) - 32
-    if len(code_name) >= exc_len > 0:
-        truncated = code_name[0, len(code_name) - exc_len]
-        m_name = TEMP_MODEL_PREFIX + truncated + '_' + ts_str
-    return m_name
-
-
 def is_temp_table(table_name):
     return table_name.startswith(TEMP_TABLE_PREFIX)
-
-
-def is_temp_model(model_name):
-    return model_name.startswith(TEMP_MODEL_PREFIX)
 
 
 def get_function_args(func):
@@ -236,29 +161,6 @@ def get_function_args(func):
         return get_function_args(getattr(func, '__call__'))
     else:
         return list(getargspec(func).args)
-
-
-class JSONSerialClassEncoder(JSONEncoder):
-    def default(self, o):
-        if hasattr(o, 'serial'):
-            return o.serial()
-        else:
-            super(JSONSerialClassEncoder, self).default(o)
-
-
-INF_PATTERN = re.compile(r'(: *)(inf|-inf)( *,| *\})')
-
-
-def replace_json_infs(s):
-    def repl(m):
-        mid = m.group(2)
-        if mid == 'inf':
-            mid = 'Infinity'
-        elif mid == '-inf':
-            mid = '-Infinity'
-        return m.group(1) + mid + m.group(3)
-
-    return INF_PATTERN.sub(repl, s)
 
 
 def import_class_member(path):
@@ -296,7 +198,15 @@ def parse_hist_repr(bins):
             left, _ = bin_str.strip('[)').split(',')
             edges.append(float(left.strip()))
         hist.append(float(hist_str.strip()))
-    if np:
+    if np is not None:
         hist = np.array(hist)
         edges = np.array(edges)
     return HistogramOutput(hist=hist, bin_edges=edges)
+
+
+def build_model_table_name(model_name, item_name):
+    if model_name.startswith(TEMP_TABLE_PREFIX):
+        model_name = model_name[len(TEMP_TABLE_PREFIX):]
+        return ''.join((TEMP_TABLE_MODEL_PREFIX, model_name, TABLE_MODEL_SEPARATOR, item_name))
+    else:
+        return ''.join((TABLE_MODEL_PREFIX, model_name, TABLE_MODEL_SEPARATOR, item_name))

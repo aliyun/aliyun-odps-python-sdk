@@ -35,55 +35,55 @@ class TestStatistics(MLTestBase):
         self.create_ionosphere(IONOSPHERE_TABLE)
 
     def test_histograms(self):
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
         ds = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
         histograms(ds, _cases=self.gen_check_params_case({
-            'outputTableName': TEMP_TABLE_PREFIX + 'histograms_0_2_res',
+            'outputTableName': TEMP_TABLE_PREFIX + '_histograms',
             'selectedColNames': ','.join('a%02d' % i for i in range(1, 35)),
             'intervalNum': '10', 'inputTableName': IONOSPHERE_TABLE}))
 
     def test_t_test(self):
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
         ds = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
         t_test(ds, x_col='a04', _cases=self.gen_check_params_case(
-            {'mu': '0', 'outputTableName': TEMP_TABLE_PREFIX + 't_test_0_2_res', 'confidenceLevel': '0.95',
+            {'mu': '0', 'outputTableName': TEMP_TABLE_PREFIX + '_t_test', 'confidenceLevel': '0.95',
              'xTableName': IONOSPHERE_TABLE, 'alternative': 'two.sided', 'xColName': 'a04'}))
         t_test(ds, x_col='a04', y_col='a05', _cases=self.gen_check_params_case(
             {'yTableName': IONOSPHERE_TABLE, 'yColName': 'a05', 'mu': '0',
-             'outputTableName': TEMP_TABLE_PREFIX + 't_test_0_3_res', 'confidenceLevel': '0.95',
+             'outputTableName': TEMP_TABLE_PREFIX + '_t_test', 'confidenceLevel': '0.95',
              'xTableName': IONOSPHERE_TABLE, 'alternative': 'two.sided', 'xColName': 'a04'}))
 
     def test_chisquare(self):
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
         df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
         chi_square(df, x_col=df.a01, y_col='class', _cases=self.gen_check_params_case(
-            {'yColName': 'class', 'xColName': 'a01', 'outputDetailTableName': 'tmp_pyodps_ml_chi_square_0_1_res_2',
-             'outputTableName': 'tmp_pyodps_ml_chi_square_0_1_res_1',
+            {'yColName': 'class', 'xColName': 'a01', 'outputDetailTableName': 'tmp_pyodps__chi_square',
+             'outputTableName': 'tmp_pyodps__chi_square',
              'inputTableName': tn('pyodps_test_ml_ionosphere')}))
 
     def test_cov(self):
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
         df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
         covariance(df, _cases=self.gen_check_params_case(
-            {'outputTableName': 'tmp_pyodps_ml_covariance_0_2_res',
+            {'outputTableName': 'tmp_pyodps__covariance',
              'selectedColNames': ','.join('a%02d' % i for i in range(1, 35)),
              'inputTableName': tn('pyodps_test_ml_ionosphere')}))
 
     def test_mat_pearson(self):
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
         df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
         matrix_pearson(df, _cases=self.gen_check_params_case(
-            {'outputTableName': 'tmp_pyodps_ml_matrix_pearson_0_2_res',
+            {'outputTableName': 'tmp_pyodps__matrix_pearson',
              'selectedColNames': ','.join('a%02d' % i for i in range(1, 35)),
              'inputTableName': tn('pyodps_test_ml_ionosphere')}))
 
     def test_quantile(self):
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
         df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
         qt = quantile(df, _cases=self.gen_check_params_case(

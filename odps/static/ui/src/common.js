@@ -27,7 +27,7 @@ require(['jupyter-js-widgets'], function (_) {}, function () {
 
 var pyodps_init_time = new Date();
 
-define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], function ($, IPython) {
+define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], function ($, Jupyter) {
     "use strict";
 
     var entityMap = {
@@ -69,9 +69,9 @@ define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], f
      * @param func The function to be hooked
      */
     var call_on_executed = function (_widget, func) {
-        var cell_element = $(_widget.$el.closest('.cell'));
         var view_name = _widget.model.get('_view_name');
-        if (undefined == view_prompts[view_name]) {
+        var cell_obj = _widget.options.cell;
+        if (undefined === view_prompts[view_name]) {
             view_prompts[view_name] = {
                 prompt_num: -1,
                 func: func,
@@ -79,11 +79,11 @@ define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], f
 
             var notifier = function () {
                 // only display notifications when the cell stops running.
-                if (cell_element.hasClass('running'))
+                if ($(cell_obj.element).hasClass('running'))
                     window.setTimeout(notifier, 100);
                 else {
                     // ensure that notifications for a cell appear only once.
-                    var prompt_num = cell_element.data('cell').input_prompt_number;
+                    var prompt_num = cell_obj.input_prompt_number;
                     if (prompt_num !== view_prompts[view_name].prompt_num) {
                         view_prompts[view_name].prompt_num = prompt_num;
                         view_prompts[view_name].func.apply(_widget);
@@ -97,7 +97,7 @@ define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], f
             view_prompts[view_name].func = func
         }
     };
-    $([IPython.events]).on('kernel_restarting.Kernel', function () {
+    $([Jupyter.events]).on('kernel_restarting.Kernel', function () {
         view_prompts = {};
     });
 
@@ -108,5 +108,17 @@ define('pyodps/common', ['jquery', 'base/js/namespace', 'jupyter-js-widgets'], f
         register_css: register_css,
         call_on_executed: call_on_executed,
         escape_html: escape_html,
+    }
+});
+
+define('nbextensions/pyodps/main', ['base/js/namespace'], function(Jupyter) {
+    return {
+        load_ipython_extension: function() {
+            if (Jupyter.CodeCell.config_defaults) {
+                Jupyter.CodeCell.config_defaults.highlight_modes['magic_sql'] = {'reg':[/^%%sql/]};
+            } else {
+                Jupyter.CodeCell.options_default.highlight_modes['magic_sql'] = {'reg':[/^%%sql/]};
+            }
+        }
     }
 });

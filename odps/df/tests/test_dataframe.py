@@ -22,6 +22,7 @@ from odps.compat import unittest
 from odps.models import Schema
 from odps.df import DataFrame
 from odps.utils import to_text
+from odps.errors import DependencyNotInstalledError
 
 
 class Test(TestBase):
@@ -44,6 +45,9 @@ class Test(TestBase):
 
         self.assertEqual(3, df.count().execute())
         self.assertEqual(1, df[df.name == 'name1'].count().execute())
+
+        res = df[df.name.contains('中文')].execute()
+        self.assertGreaterEqual(len(res), 0)
 
     @pandas_case
     def testDataFrameFromPandas(self):
@@ -154,6 +158,60 @@ class Test(TestBase):
         df4 = df.fid.sum()
         self.assertEqual(df4.execute(), 6)
         self.assertEqual(df4.execute(), 6)
+
+    def testCreateDataFrameFromPartition(self):
+        test_table_name = tn('pyodps_test_dataframe_partition')
+        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds'], ['string'])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+        table = self.odps.create_table(test_table_name, schema)
+
+        with table.open_writer('ds=today', create_partition=True) as w:
+            w.write([[1, 'name1'], [2, 'name2'], [3, 'name3']])
+
+        try:
+            df = DataFrame(table.get_partition('ds=today'))
+            self.assertEqual(df.count().execute(), 3)
+
+            df = table.get_partition('ds=today').to_df()
+            self.assertEqual(df.count().execute(), 3)
+        finally:
+            table.drop()
+
+    def testSetItem(self):
+        df = DataFrame(self.table)
+        df['id2'] = df.id + 1
+        self.assertEqual(len(df.execute()), 3)
+
+        df['id3'] = df['id2'] * 2
+        self.assertEqual(len(next(df.execute())), 4)
+
+        del df['id2']
+        res = df.execute()
+        result = self._get_result(res)
+
+        expected = [
+            [1, 'name1', 4],
+            [2, 'name2', 6],
+            [3, 'name3', 8]
+        ]
+        self.assertEqual(expected, result)
+
+        df = DataFrame(self.table)
+        df['id2'] = df.id
+
+        try:
+            res = df.to_pandas()
+            result = self._get_result(res)
+
+            expected = [
+                [1, 'name1', 1],
+                [2, 'name2', 2],
+                [3, 'name3', 3]
+            ]
+            self.assertEqual(expected, result)
+        except (DependencyNotInstalledError, ImportError):
+            pass
 
 if __name__ == '__main__':
     unittest.main()

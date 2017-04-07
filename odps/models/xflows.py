@@ -26,7 +26,7 @@ class XFlows(Iterable):
 
     marker = serializers.XMLNodeField('Marker')
     max_items = serializers.XMLNodeField('MaxItems')
-    xflows = serializers.XMLNodesReferencesField(XFlow, 'xflow')
+    xflows = serializers.XMLNodesReferencesField(XFlow, 'odpsalgo')
 
     def _get(self, name):
         return XFlow(client=self._client, parent=self, name=name)

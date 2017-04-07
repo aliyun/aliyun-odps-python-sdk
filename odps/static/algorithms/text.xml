@@ -809,4 +809,127 @@
             <meta name="xflowProjectName" value="algo_public"/>
         </metas>
     </algorithm>
+    <algorithm codeName="Doc2Vec">
+        <reloadFields>false</reloadFields>
+        <exportFunction>true</exportFunction>
+        <docs><![CDATA[
+        Doc2Vec
+
+        %params%
+        ]]></docs>
+        <params>
+            <param name="inputTableName" required="true">
+                <exporter>get_input_table_name</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="inputTablePartitions">
+                <exporter>get_input_partitions</exporter>
+                <inputName>input</inputName>
+            </param>
+            <param name="docIdColName">
+                <exporter>$package_root.text._customize.get_doc_id_column</exporter>
+                <inputName>input</inputName>
+                <alias>docIdCol</alias>
+                <docs>文档id列名</docs>
+            </param>
+            <param name="docColName">
+                <exporter>$package_root.text._customize.get_doc_content_column</exporter>
+                <inputName>input</inputName>
+                <alias>docContent</alias>
+                <docs>文档列名</docs>
+            </param>
+            <param name="outputWordTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>word</outputName>
+            </param>
+            <param name="outputDocTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>doc</outputName>
+            </param>
+            <param name="outVocabularyTableName">
+                <exporter>get_output_table_name</exporter>
+                <outputName>vocabulary</outputName>
+            </param>
+            <param name="layerSize">
+                <docs>单词的特征维度</docs>
+                <value>100</value>
+            </param>
+            <param name="cbow">
+                <docs>语言模型</docs>
+                <value>0</value>
+            </param>
+            <param name="window">
+                <docs>单词窗口大小</docs>
+                <value>5</value>
+            </param>
+            <param name="minCount">
+                <docs>截断的最小词频</docs>
+                <value>5</value>
+            </param>
+            <param name="hs">
+                <docs>是否采用HIERARCHICAL SOFTMAX</docs>
+                <value>1</value>
+            </param>
+            <param name="negative">
+                <docs>NEGATIVE SAMPLING</docs>
+                <value>0</value>
+            </param>
+            <param name="sample">
+                <docs>向下采样阈值</docs>
+                <value>0</value>
+            </param>
+            <param name="alpha">
+                <docs>开始学习速率</docs>
+                <value>0.025</value>
+            </param>
+            <param name="iterTrain">
+                <docs>训练的迭代次数</docs>
+                <value>1</value>
+            </param>
+            <param name="randomWindow">
+                <docs>window是否随机</docs>
+                <value>1</value>
+            </param>
+        </params>
+        <ports>
+            <port name="input">
+                <ioType>INPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输入</docs>
+            </port>
+            <port name="word">
+                <ioType>OUTPUT</ioType>
+                <sequence>1</sequence>
+                <type>DATA</type>
+                <docs>输出词向量</docs>
+                <schema>
+                    <schema>content: string, {#range|0|layerSize|f#n: double}</schema>
+                </schema>
+            </port>
+            <port name="doc">
+                <ioType>OUTPUT</ioType>
+                <sequence>2</sequence>
+                <type>DATA</type>
+                <docs>输出文档向量</docs>
+                <schema>
+                    <schema>id: string, {#range|0|layerSize|f#n: double}</schema>
+                </schema>
+            </port>
+            <port name="vocabulary">
+                <ioType>OUTPUT</ioType>
+                <sequence>3</sequence>
+                <type>DATA</type>
+                <docs>输出词表</docs>
+                <required>false</required>
+                <schema>
+                    <schema>word: string, count: bigint</schema>
+                </schema>
+            </port>
+        </ports>
+        <metas>
+            <meta name="xflowName" value="pai_doc2vec"/>
+            <meta name="xflowProjectName" value="algo_public"/>
+        </metas>
+    </algorithm>
 </algorithms>

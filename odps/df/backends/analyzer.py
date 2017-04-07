@@ -172,10 +172,14 @@ class BaseAnalyzer(Backend):
         collection = expr.input
         by = expr._by
         sort = expr._sort.value
+        ascending = expr._ascending.value
+        dropna = expr._dropna.value
 
         sub = collection.groupby(by).agg(count=by.count())
         if sort:
-            sub = sub.sort('count', ascending=False)
+            sub = sub.sort('count', ascending=ascending)
+        if dropna:
+            sub = sub.filter(sub[by.name].notnull())
 
         return sub
 

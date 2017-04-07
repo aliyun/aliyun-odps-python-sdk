@@ -30,3 +30,13 @@ class FieldRole(Enum):
 class FieldContinuity(Enum):
     CONTINUOUS = 'CONTINUOUS'
     DISCRETE = 'DISCRETE'
+
+
+class PortType(Enum):
+    DATA = 'DATA'
+    MODEL = 'MODEL'
+
+
+class PortDirection(Enum):
+    INPUT = 'INPUT'
+    OUTPUT = 'OUTPUT'

@@ -49,12 +49,13 @@ class Instance(LazyLoad):
     >>>    print(reader.raw)  # just return the raw result
     """
 
-    __slots__ = '_task_results', '_is_sync'
+    __slots__ = '_task_results', '_is_sync', '_instance_tunnel', '_download_id'
 
     def __init__(self, **kwargs):
         if 'task_results' in kwargs:
             kwargs['_task_results'] = kwargs.pop('task_results')
         super(Instance, self).__init__(**kwargs)
+        self._download_id = None
 
         if self._task_results is not None and len(self._task_results) > 0:
             self._is_sync = True
@@ -402,10 +403,14 @@ class Instance(LazyLoad):
 
         if not self.is_successful():
             for task_name, task in six.iteritems(self.get_task_statuses()):
+                exc = None
                 if task.status == Instance.Task.TaskStatus.FAILED:
-                    raise errors.parse_result_error(self.get_task_result(task_name))
+                    exc = errors.parse_result_error(self.get_task_result(task_name))
                 elif task.status != Instance.Task.TaskStatus.SUCCESS:
-                    raise errors.ODPSError('%s, status=%s' % (task_name, task.status.value))
+                    exc = errors.ODPSError('%s, status=%s' % (task_name, task.status.value))
+                if exc:
+                    exc.instance_id = self.id
+                    raise exc
 
     def get_task_progress(self, task_name):
         """
@@ -541,7 +546,18 @@ class Instance(LazyLoad):
         job = self._get_job()
         return job.priority
 
-    def open_reader(self, schema=None, task_name=None):
+    def _create_instance_tunnel(self, endpoint=None):
+        if self._instance_tunnel is not None:
+            return self._instance_tunnel
+
+        from ..tunnel import InstanceTunnel
+
+        self._instance_tunnel = InstanceTunnel(client=self._client, project=self.project,
+                                               endpoint=endpoint or self.project._tunnel_endpoint)
+        return self._instance_tunnel
+
+    @utils.survey
+    def _open_result_reader(self, schema=None, task_name=None, **_):
         if not self.is_successful():
             raise errors.ODPSError(
                 'Cannot open reader, instance(%s) may fail or has not finished yet' % self.id)
@@ -563,3 +579,116 @@ class Instance(LazyLoad):
 
         result = self.get_task_result(task_name)
         return readers.RecordReader(schema, result)
+
+    def _open_tunnel_reader(self, **kw):
+        from ..tunnel.instancetunnel import InstanceDownloadSession
+
+        reopen = kw.pop('reopen', False)
+        endpoint = kw.pop('endpoint', None)
+
+        tunnel = self._create_instance_tunnel(endpoint=endpoint)
+        download_id = self._download_id if not reopen else None
+        download_session = tunnel.create_download_session(instance=self,
+                                                          download_id=download_id, **kw)
+
+        if download_id and download_session.status != InstanceDownloadSession.Status.Normal:
+            download_session = tunnel.create_download_session(instance=self, **kw)
+        self._download_id = download_session.id
+
+        class RecordReader(readers.AbstractRecordReader):
+            def __init__(self):
+                self._it = iter(self)
+                self._schema = download_session.schema
+
+            @property
+            def count(self):
+                return download_session.count
+
+            @property
+            def status(self):
+                return download_session.status
+
+            def __iter__(self):
+                for record in self.read():
+                    yield record
+
+            def __next__(self):
+                return next(self._it)
+
+            next = __next__
+
+            def _iter(self, start=None, end=None, step=None):
+                count = self._calc_count(start, end, step)
+                return self.read(start=start, count=count, step=step)
+
+            def read(self, start=None, count=None, step=None,
+                     compress=False, columns=None):
+                start = start or 0
+                step = step or 1
+                count = count * step if count is not None else self.count-start
+
+                if count == 0:
+                    return
+
+                with download_session.open_record_reader(
+                        start, count, compress=compress, columns=columns) as reader:
+                    for record in reader[::step]:
+                        yield record
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        return RecordReader()
+
+    def open_reader(self, *args, **kwargs):
+        """
+        Open the reader to read records from the result of the instance. If `use_tunnel` is `True`,
+        instance tunnel will be used. Otherwise conventional routine will be used. If instance tunnel
+        is not available, the method will fall back to the conventional routine.
+        Note that the number of records returned is limited unless `options.limited_instance_tunnel`
+        is set to `True` or `limit_enabled=True` is configured under instance tunnel mode. Otherwise
+        the number of records returned is always limited.
+
+        :param use_tunnel: if true, use instance tunnel to read from the instance.
+                           if absent, `options.use_instance_tunnel` will be used.
+        :param reopen: the reader will reuse last one, reopen is true means open a new reader.
+        :type reopen: bool
+        :param endpoint: the tunnel service URL
+        :param compress_option: compression algorithm, level and strategy
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param compress_algo: compression algorithm, work when ``compress_option`` is not provided,
+                              can be ``zlib``, ``snappy``
+        :param compress_level: used for ``zlib``, work when ``compress_option`` is not provided
+        :param compress_strategy: used for ``zlib``, work when ``compress_option`` is not provided
+        :return: reader, ``count`` means the full size, ``status`` means the tunnel status
+
+        :Example:
+
+        >>> with instance.open_reader() as reader:
+        >>>     count = reader.count  # How many records of a table or its partition
+        >>>     for record in reader[0: count]:
+        >>>         # read all data, actually better to split into reading for many times
+        """
+        use_tunnel = kwargs.pop('use_tunnel', options.use_instance_tunnel)
+        if use_tunnel:
+            if 'limit_enabled' not in kwargs:
+                kwargs['limit_enabled'] = options.limited_instance_tunnel
+
+            try:
+                return self._open_tunnel_reader(**kwargs)
+            except (errors.InvalidProjectTable, errors.InvalidArgument):
+                pass
+            except errors.NoPermission:
+                # fail-over on protected projects or tables
+                if kwargs.get('limit_enabled', False):
+                    raise
+                kwargs['limit_enabled'] = True
+                try:
+                    return self._open_tunnel_reader(**kwargs)
+                except (errors.InvalidProjectTable, errors.InvalidArgument):
+                    pass
+
+        return self._open_result_reader(*args, **kwargs)

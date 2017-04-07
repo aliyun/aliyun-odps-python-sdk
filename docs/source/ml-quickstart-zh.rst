@@ -15,15 +15,17 @@
 
 此后，创建一个范例数据集，使用 DataFrame 筛选一部分字段（注意不要遗漏标签），并查看数据的统计信息：
 
-.. code-block:: python
+.. code:: python
 
-    from odps.df.examples import create_ionosphere
-    df = create_ionosphere(o)['a01', 'a02', 'a03', 'a04', 'class']
-    df.calc_summary()
-
-返回的结果如下：
-
-.. image:: _static/table_summary.png
+    >>> from odps.df.examples import create_ionosphere
+    >>> df = create_ionosphere(o)['a01', 'a02', 'a03', 'a04', 'class']
+    >>> df.describe()
+        type	a01	a02	a03	a04	class
+    0	count	351.000000	351.0	351.000000	351.000000	351.000000
+    1	mean	0.891738	0.0	0.641342	0.044372	0.641026
+    2	std	0.311155	0.0	0.497708	0.441435	0.480384
+    3	min	0.000000	0.0	-1.000000	-1.000000	0.000000
+    4	max	1.000000	0.0	1.000000	1.000000	1.000000
 
 此后，对该数据集进行归一化，然后拆分并使用随机森林对训练集进行训练，查看输出的第一棵决策树：
 
@@ -32,13 +34,14 @@
     from odps.ml.classifiers import *
     from odps.ml.preprocess import normalize
     # 归一化及拆分
-    train, test = normalize(df).split(0.6)
+    train, test = df.min_max_scale(['a01', 'a02', 'a03', 'a04']).split(0.6)
     # 使用训练集训练模型
     model = RandomForests(tree_num=10).train(train)
     # 载入森林中的第一棵决策树
-    model.segments[0]
+    result = model.execute()
+    result[0]
 
-如果逐条执行上述语句，会发现只有 segments 被调用时，所有代码才会执行。这是由于 PyODPS ML 采用了延迟执行的方式。关于这一方式的具体细节将在“延迟执行”一节中详述。
+如果逐条执行上述语句，会发现只有 execute 被调用时，所有代码才会执行。这是由于 PyODPS ML 采用了延迟执行的方式。关于这一方式的具体细节将在“延迟执行”一节中详述。
 执行完成后，显示决策树如下：
 
 .. image:: _static/pyodps_output_decision_tree.svg

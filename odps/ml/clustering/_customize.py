@@ -13,14 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ..expr.exporters import get_ml_input
+
 
 """
 K-Means related exporters
 """
 
 
-def get_kmeans_input_append_col_idx(node, input_name):
-    data_obj = node.inputs[input_name].obj
+def get_kmeans_input_append_col_idx(expr, input_name):
+    data_obj = get_ml_input(expr, input_name)
     if data_obj is None:
         return None
-    return ','.join([str(idx) for idx, f in enumerate(data_obj._fields) if not f.is_partition])
+    return ','.join([str(idx) for idx, f in enumerate(data_obj._ml_fields) if not f.is_partition])

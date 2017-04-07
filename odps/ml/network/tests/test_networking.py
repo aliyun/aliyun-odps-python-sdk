@@ -51,7 +51,7 @@ class Test(MLTestBase):
         self.edge_df = DataFrame(self.odps.get_table(WEIGHTED_GRAPH_EDGE_TABLE)) \
             .roles(from_vertex='flow_out_id', to_vertex='flow_in_id', edge_weight='edge_weight')
 
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
     def test_node_density(self):
         df = DataFrame(self.odps.get_table(WEIGHTED_GRAPH_EDGE_TABLE))
@@ -147,4 +147,4 @@ class Test(MLTestBase):
         logger.info('Modularity: ' + str(modularity(ds, _cases=self.gen_check_params_case(
             {'splitSize': '64', 'fromVertexCol': 'flow_out_id', 'inputEdgeTableName': WEIGHTED_GRAPH_EDGE_TABLE,
              'fromGroupCol': 'group_out_id', 'workerMem': '4096', 'toVertexCol': 'flow_in_id',
-             'outputTableName': TEMP_TABLE_PREFIX + 'modularity_0_3_res', 'toGroupCol': 'group_in_id'}))))
+             'outputTableName': TEMP_TABLE_PREFIX + '_modularity', 'toGroupCol': 'group_in_id'}))))

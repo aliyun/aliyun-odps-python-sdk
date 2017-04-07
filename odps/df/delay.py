@@ -20,32 +20,49 @@ import sys
 import threading
 
 from ..compat import izip, six, futures
+from .backends.core import Engine
 
 
 class Delay(object):
     def __init__(self):
-        self._calls = []
-        self._futures = []
+        self._idx = 0
+        self._lock = threading.RLock()
+        self._calls = dict()
+        self._futures = dict()
+        self._running = False
 
     def execute(self, ui=None, async=False, n_parallel=1, timeout=None,
                 close_and_notify=True):
+
+        if self._running:
+            raise RuntimeError('Cannot execute on an executing delay object.')
+
+        with self._lock:
+            _idx_calls = sorted(six.iteritems(self._calls), key=lambda p: p[0])
+            _indices = [p[0] for p in _idx_calls]
+            _calls = [p[1] for p in _idx_calls]
+            _futures = [p[1] for p in sorted(six.iteritems(self._futures), key=lambda p: p[0])]
+
         from .backends.engine import get_default_engine
-        future_lock = threading.RLock()
-        engine = get_default_engine(*[call[1] for call in self._calls])
+        engine = get_default_engine(*[call[1] for call in _calls])
+
+        ui = ui or Engine._create_ui(async=async, n_parallel=n_parallel)
 
         batch_kw = dict(ui=ui, async=True, n_parallel=n_parallel, timeout=timeout,
                         close_and_notify=close_and_notify)
-        fs = engine.batch(*self._calls, **batch_kw)
+        fs = engine.batch(*_calls, **batch_kw)
 
         if not isinstance(fs, collections.Iterable):
             fs = [fs]
         if len(fs) == 0:
             return
 
-        def relay_future(src, dest=None):
+        self._running = True
+
+        def relay_future(src, index=None, dest=None):
             if dest.done():
                 return
-            with future_lock:
+            with self._lock:
                 try:
                     dest.set_result(src.result())
                 except:
@@ -54,15 +71,21 @@ class Delay(object):
                         dest.set_exception_info(e, tb)
                     else:
                         dest.set_exception(e)
+                finally:
+                    del self._calls[index]
+                    del self._futures[index]
 
-        for uf, bf in izip(self._futures, fs):
+        for idx, uf, bf in izip(_indices, _futures, fs):
             uf.set_running_or_notify_cancel()
-            bf.add_done_callback(functools.partial(relay_future, dest=uf))
+            bf.add_done_callback(functools.partial(relay_future, index=idx, dest=uf))
             if bf.done():
-                relay_future(bf, uf)
+                relay_future(bf, idx, uf)
 
         if not async:
-            futures.wait(self._futures, timeout)
+            try:
+                futures.wait(_futures, timeout)
+            finally:
+                self._running = False
         else:
             delay_future = futures.Future()
             delay_future.set_running_or_notify_cancel()
@@ -76,8 +99,9 @@ class Delay(object):
                 except:
                     exc_store[0] = sys.exc_info()[1:]
 
-                with future_lock:
+                with self._lock:
                     if all(f.done() for f in fs):
+                        self._running = False
                         if exc_store[0] is not None:
                             e, tb = exc_store[0]
                             if six.PY2:
@@ -94,7 +118,11 @@ class Delay(object):
             return delay_future
 
     def register_item(self, action, expr, *args, **kwargs):
-        user_future = futures.Future()
-        self._calls.append((action, expr, args, kwargs))
-        self._futures.append(user_future)
+        with self._lock:
+            call_idx = self._idx
+            self._idx += 1
+            user_future = futures.Future()
+            self._calls[call_idx] = (action, expr, args, kwargs)
+            self._futures[call_idx] = user_future
+
         return user_future

@@ -15,15 +15,13 @@
 
 import sys
 
-from .predefined import normalize, standardize
-from .predefined import Normalize, Standardize
 from ._customize import ReplaceNull, ReplaceEmpty, ReplaceNullEmpty, ReplaceCustom, ReplacePercentile, ReplaceZScore, \
     ReplaceConfidence
 
-from ..algorithms.loader import load_defined_algorithms
+from ..algolib.loader import load_defined_algorithms
 
 # required by autodoc of sphinx
-__all__ = ['normalize', 'standardize', 'Normalize', 'Standardize', 'ReplaceNull', 'ReplaceEmpty', 'ReplaceNullEmpty',
-           'ReplaceCustom', 'ReplacePercentile', 'ReplaceZScore', 'ReplaceConfidence']
+__all__ = ['ReplaceNull', 'ReplaceEmpty', 'ReplaceNullEmpty', 'ReplaceCustom', 'ReplacePercentile',
+           'ReplaceZScore', 'ReplaceConfidence']
 
 load_defined_algorithms(sys.modules[__name__], 'preprocess')

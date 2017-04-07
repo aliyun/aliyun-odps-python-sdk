@@ -187,9 +187,9 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
             Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.util_c', ['odps/tunnel/pb/util_c.pyx'], **extension_kw),
+            Extension('odps.tunnel.io.writer_c', ['odps/tunnel/io/writer_c.pyx'], **extension_kw),
+            Extension('odps.tunnel.io.reader_c', ['odps/tunnel/io/reader_c.pyx'], **extension_kw),
             Extension('odps.tunnel.checksum_c', ['odps/tunnel/checksum_c.pyx'], **extension_kw),
-            Extension('odps.tunnel.tabletunnel.writer_c', ['odps/tunnel/tabletunnel/writer_c.pyx'], **extension_kw),
-            Extension('odps.tunnel.tabletunnel.reader_c', ['odps/tunnel/tabletunnel/reader_c.pyx'], **extension_kw),
         ]
 
         setup_options['cmdclass'].update({'build_ext': build_ext})

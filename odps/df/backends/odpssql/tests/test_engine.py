@@ -625,6 +625,17 @@ class Test(TestBase):
         self.assertTrue(all(r[0] == 2 for r in result))
         self.assertTrue(all(r[1] == 3 for r in result))
 
+        def func(x, val):
+            return x + val['id']
+
+        expr = self.expr[self.expr.id.map(func, args=({'id': 1},)),
+                         self.expr.id.map(func, args=({'id': 2},)).rename('id2')]
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertTrue(all(r[0] == 2 for r in result))
+        self.assertTrue(all(r[1] == 3 for r in result))
+
     def testMath(self):
         data = self._gen_data(5, value_range=(1, 90))
 
@@ -1362,7 +1373,7 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
-        expr = self.expr.name.value_counts()[:25]
+        expr = self.expr.name.value_counts(dropna=True)[:25]
 
         expected = [
             ['name1', 4],

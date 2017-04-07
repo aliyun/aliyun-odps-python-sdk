@@ -553,7 +553,7 @@ logview 的 JSONSummary 中即可找到计数器值。
 ------------------------------------
 
 
-要想调用ODPS上的内建或者已定义函数，我们可以使用 ``func`` 接口。
+要想调用ODPS上的内建或者已定义函数，来生成列，我们可以使用 ``func`` 接口。
 
 
 .. code:: python
@@ -562,3 +562,5 @@ logview 的 JSONSummary 中即可找到计数器值。
     >>>
     >>> iris[iris.name, func.rand(rtype='float').rename('rand')][:4]
     >>> iris[iris.name, func.rand(10, rtype='float').rename('rand')][:4]
+    >>> # 调用ODPS上定义的UDF
+    >>> iris[iris.name, func.your_udf(iris.sepalwidth, iris.sepallength, rtype='float').rename('new_col')]

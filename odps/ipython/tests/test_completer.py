@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from odps.tests.core import TestBase
-from odps.ipython.completer import ObjectCompleter, TablesModelCompleter
+from odps.ipython.completer import ObjectCompleter
 
 
 class Test(TestBase):
@@ -44,23 +44,3 @@ class Test(TestBase):
 
         self.assertTupleEqual(completer.get_list_call('o11.get_function( \'jkl'),
                               ('o11.list_functions(project=None)', "'"))
-
-    def test_tables_model_completer_call(self):
-        completer = TablesModelCompleter()
-        self.assertTupleEqual(completer.get_list_call('model = TablesModel(o1 ,\t'),
-                              ('list_tables_model(o1, prefix="", project=None)', None))
-        self.assertTupleEqual(completer.get_list_call('TablesModel( \t o2_a ,'),
-                              ('list_tables_model(o2_a, prefix="", project=None)', None))
-        self.assertIsNone(completer.get_list_call('TablesModel(abc'))
-        self.assertIsNone(completer.get_list_call('TablesModel(o3, abc'))
-        self.assertTupleEqual(completer.get_list_call('(TablesModel(o4,  " def'),
-                              ('list_tables_model(o4, prefix=" def", project=None)', '"'))
-        self.assertTupleEqual(completer.get_list_call('( TablesModel( o5, \'ghi'),
-                              ('list_tables_model(o5, prefix="ghi", project=None)', "'"))
-        self.assertTupleEqual(completer.get_list_call('TablesModel(o6,  project= "another_proj", name= \'ghi'),
-                              ('list_tables_model(o6, prefix="ghi", project="another_proj")', "'"))
-        self.assertTupleEqual(completer.get_list_call('TablesModel(o7,\'ghi', 'TablesModel(o7,\'ghi, project= "another_proj"'),
-                              ('list_tables_model(o7, prefix="ghi", project="another_proj")', "'"))
-        self.assertTupleEqual(completer.get_list_call('TablesModel(o8,  name  = \'ghi', 'TablesModel(o8,  name  = \'ghi, project= "another_proj"'),
-                              ('list_tables_model(o8, prefix="ghi", project="another_proj")', "'"))
-        self.assertIsNone(completer.get_list_call('list_tables_model(o9, project= "another_proj", \'ghi'))

@@ -43,7 +43,7 @@ class TestMLRegression(MLTestBase):
         super(TestMLRegression, self).setUp()
         self.create_ionosphere(IONOSPHERE_TABLE)
 
-        options.runner.dry_run = True
+        options.ml.dry_run = True
 
     def test_mock_xgboost(self):
         df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
@@ -52,7 +52,7 @@ class TestMLRegression(MLTestBase):
         xgboost = Xgboost()
         model = xgboost.train(splited[0])._add_case(self.gen_check_params_case({
             'labelColName': 'class', 'modelName': MODEL_NAME, 'colsample_bytree': '1', 'silent': '1',
-            'eval_metric': 'error', 'eta': '0.3', 'inputTableName': TEMP_TABLE_PREFIX + '0_split_2_1', 'max_delta_step': '0',
+            'eval_metric': 'error', 'eta': '0.3', 'inputTableName': TEMP_TABLE_PREFIX + '_split', 'max_delta_step': '0',
             'base_score': '0.5', 'seed': '0', 'min_child_weight': '1', 'objective': 'reg:linear',
             'featureColNames': ','.join('a%02d' % i for i in range(1, 35)),
             'max_depth': '6', 'gamma': '0', 'booster': 'gbtree'}))
@@ -60,7 +60,7 @@ class TestMLRegression(MLTestBase):
 
         predicted = model.predict(splited[1])._add_case(self.gen_check_params_case({
             'modelName': MODEL_NAME, 'appendColNames': ','.join('a%02d' % i for i in range(1, 35)) + ',class',
-            'outputTableName': XGBOOST_OUT_TABLE, 'inputTableName': TEMP_TABLE_PREFIX + '0_split_2_2'}))
+            'outputTableName': XGBOOST_OUT_TABLE, 'inputTableName': TEMP_TABLE_PREFIX + '_split'}))
         # persist is an operational node which will trigger execution of the flow
         predicted.persist(XGBOOST_OUT_TABLE)
 
@@ -70,7 +70,7 @@ class TestMLRegression(MLTestBase):
 
         gbdt = GBDT(min_leaf_sample_count=10)
         model = gbdt.train(splited[0])._add_case(self.gen_check_params_case({
-            'tau': '0.6', 'modelName': MODEL_NAME, 'inputTableName': TEMP_TABLE_PREFIX + '0_split_2_1', 'maxLeafCount': '32',
+            'tau': '0.6', 'modelName': MODEL_NAME, 'inputTableName': TEMP_TABLE_PREFIX + '_split', 'maxLeafCount': '32',
             'shrinkage': '0.05', 'featureSplitValueMaxSize': '500', 'featureRatio': '0.6', 'testRatio': '0.0',
             'newtonStep': '0', 'randSeed': '0', 'sampleRatio': '0.6', 'p': '1', 'treeCount': '500', 'metricType': '2',
             'labelColName': 'class', 'featureColNames': ','.join('a%02d' % i for i in range(1, 35)),
@@ -79,13 +79,13 @@ class TestMLRegression(MLTestBase):
 
         predicted = model.predict(splited[1])._add_case(self.gen_check_params_case({
             'modelName': MODEL_NAME, 'appendColNames': ','.join('a%02d' % i for i in range(1, 35)) + ',class',
-            'outputTableName': GBDT_OUT_TABLE, 'inputTableName': TEMP_TABLE_PREFIX + '0_split_2_2'}))
+            'outputTableName': GBDT_OUT_TABLE, 'inputTableName': TEMP_TABLE_PREFIX + '_split'}))
         # persist is an operational node which will trigger execution of the flow
         predicted.persist(GBDT_OUT_TABLE)
 
     @ci_skip_case
     def test_linear(self):
-        options.runner.dry_run = False
+        options.ml.dry_run = False
         self.delete_table(LINEAR_REGRESSION_OUT_TABLE)
         self.delete_offline_model(MODEL_NAME)
 

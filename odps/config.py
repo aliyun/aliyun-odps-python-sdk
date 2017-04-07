@@ -302,6 +302,8 @@ options.register_option('temp_lifecycle', 1, validator=is_integer)
 options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
 options.register_option('table_read_limit', None, validator=any_validator(is_null, is_integer))
 options.register_option('completion_size', 10, validator=is_integer)
+options.register_option('use_instance_tunnel', True, validator=is_bool)
+options.register_option('limited_instance_tunnel', True, validator=is_bool)
 
 # c or python mode, use for UT, in other cases, please do not modify the value
 options.register_option('force_c', False, validator=is_integer)
@@ -340,18 +342,15 @@ options.register_option('df.libraries', None)
 options.register_option('df.odps.sort.limit', 10000)
 options.register_option('df.seahawks.max_size', 10 * 1024 * 1024 * 1024)  # 10G
 
-# Runner
-options.register_option('runner.parallel_num', 5, validator=is_integer)
-options.register_option('runner.dry_run', False, validator=is_bool)
-options.register_option('runner.retry_times', 3, validator=is_integer)
-
 # PyODPS ML
 options.register_option('ml.xflow_project', 'algo_public', validator=is_string)
-options.redirect_option('ml.parallel_num', 'runner.parallel_num')
-options.redirect_option('ml.dry_run', 'runner.dry_run')
-options.redirect_option('ml.retry_times', 'runner.retry_times')
-options.register_option('ml.auto_transfer_pmml', True, validator=is_bool)
+options.register_option('ml.dry_run', False, validator=is_bool)
+options.register_option('ml.use_model_transfer', True, validator=is_bool)
 options.register_option('ml.use_old_metrics', False, validator=is_bool)
+options.register_option('ml.model_volume', 'pyodps_volume', validator=is_string)
+
+# Runner
+options.redirect_option('runner.dry_run', 'ml.dry_run')
 
 # display
 from .console import detect_console_encoding

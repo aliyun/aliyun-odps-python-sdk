@@ -30,9 +30,10 @@ class Test(TestBase):
         table = MockTable(name='pyodps_test_expr_table', schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=schema)
 
-        expected = ('_lhs', '_rhs', '_data_type', '_source_data_type', '_name',
-                    '_source_name', '_deps', '_ban_optimize', '_engine',
-                    '_need_cache', '_mem_cache', '_id', '_args_indexes')
+        expected = ('_lhs', '_rhs', '_data_type', '_source_data_type',
+                    '_ml_fields_cache', '_ml_uplink', '_ml_operations',
+                    '_name', '_source_name', '_deps', '_ban_optimize', '_engine',
+                    '_need_cache', '_mem_cache', '_id', '_args_indexes', )
         self.assertSequenceEqual(expected, get_attrs(expr.id + 1))
 
     def testIsChanged(self):

@@ -1481,7 +1481,6 @@ class ODPS(object):
         else:
             return None
 
-
 def _get_odps_from_model(self):
     client = self._client
     account = client.account

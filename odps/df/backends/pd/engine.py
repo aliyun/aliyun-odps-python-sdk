@@ -52,7 +52,7 @@ class PandasEngine(Engine):
         return PandasExecuteNode(expr_dag)
 
     def _run(self, expr_dag, pd_dag, ui=None, progress_proportion=1, **_):
-        ui.status('Try to execute by local pandas...')
+        ui.status('Try to execute by local pandas...', clear_keys=True)
 
         results = ExprDictionary()
         while True:

@@ -32,6 +32,7 @@ from ..errors import CompileError
 from ..utils import refresh_dynamic
 from ... import types
 from .... import compat
+from ....utils import to_text
 
 
 class Analyzer(BaseAnalyzer):
@@ -352,7 +353,7 @@ class Analyzer(BaseAnalyzer):
                 return r.search(x) is not None
 
             pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._pat._value is None \
-                else Scalar(re.escape(expr.pat))
+                else Scalar(re.escape(to_text(expr.pat)))
             inputs = expr.input, pat, expr._case, expr._flags
             sub = self._gen_mapped_expr(expr, inputs, func,
                                         expr.name, multiple=False)
@@ -364,7 +365,7 @@ class Analyzer(BaseAnalyzer):
                 return len(regex.findall(x))
 
             pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._pat._value is None \
-                else Scalar(re.escape(expr.pat))
+                else Scalar(re.escape(to_text(expr.pat)))
             inputs = expr.input, pat, expr._flags
             sub = self._gen_mapped_expr(expr, inputs, func,
                                         expr.name, multiple=False)
@@ -394,7 +395,7 @@ class Analyzer(BaseAnalyzer):
                     return m.group(group)
 
             pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._pat._value is None \
-                else Scalar(re.escape(expr.pat))
+                else Scalar(re.escape(to_text(expr.pat)))
             inputs = expr.input, pat, expr._flags, expr._group
             sub = self._gen_mapped_expr(expr, inputs, func,
                                         expr.name, multiple=False)
@@ -416,7 +417,7 @@ class Analyzer(BaseAnalyzer):
                     return x.replace(pat, repl, n)
 
             pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._value is None \
-                else Scalar(re.escape(expr.pat))
+                else Scalar(re.escape(to_text(expr.pat)))
             inputs = expr.input, pat, expr._repl, expr._n, \
                      expr._case, expr._flags
             sub = self._gen_mapped_expr(expr, inputs, func,

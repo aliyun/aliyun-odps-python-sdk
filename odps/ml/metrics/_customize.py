@@ -13,19 +13,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import sys
 import json
+from collections import namedtuple
 
 from ... import serializers, DataFrame
 from ...compat import six, OrderedDict
-from ..utils import replace_json_infs, camel_to_underline, parse_hist_repr
-from ..algorithms.loader import load_defined_algorithms
+from ..utils import camel_to_underline, parse_hist_repr
+from ..algolib.loader import load_defined_algorithms
 
+INF_PATTERN = re.compile(r'(: *)(inf|-inf)( *,| *\})')
 load_defined_algorithms(sys.modules[__name__], 'metrics')
 
 
-def get_confusion_matrix_result(odps, node):
-    records = list(DataFrame(odps.get_table(node.table_names)).execute())
+def replace_json_infs(s):
+    def repl(m):
+        mid = m.group(2)
+        if mid == 'inf':
+            mid = 'Infinity'
+        elif mid == '-inf':
+            mid = '-Infinity'
+        return m.group(1) + mid + m.group(3)
+
+    return INF_PATTERN.sub(repl, s)
+
+
+def get_confusion_matrix_result(expr, odps):
+    records = list(DataFrame(odps.get_table(expr.tables[0])).execute())
     # skip the first row
     col_data = json.loads(records[0][0])
     col_data = map(lambda p: p[1], sorted(six.iteritems(col_data), key=lambda a: int(a[0][1:])))
@@ -38,9 +53,11 @@ def get_confusion_matrix_result(odps, node):
         pass
     return mat, col_data
 
+RocResult = namedtuple('RocResult', 'thresh tp fn tn fp')
 
-def get_roc_result(odps, node):
-    mat = [list(rec) for rec in DataFrame(odps.get_table(node.table_names)).execute()]
+
+def get_roc_result(expr, odps):
+    mat = [list(rec) for rec in DataFrame(odps.get_table(expr.tables[0])).execute()]
     thresh, tp, fn, tn, fp = [[r[ridx] for r in mat] for ridx in range(0, 5)]
     try:
         import numpy as np
@@ -48,13 +65,13 @@ def get_roc_result(odps, node):
     except ImportError:
         pass
 
-    return thresh, tp, fn, tn, fp
+    return RocResult(thresh, tp, fn, tn, fp)
 
 
-def get_regression_eval_result(odps, node):
-    records = list(DataFrame(odps.get_table(node.table_names[1])).execute())
+def get_regression_eval_result(expr, odps):
+    records = list(DataFrame(odps.get_table(expr.tables.index)).execute())
     indices = dict((camel_to_underline(k), v) for k, v in six.iteritems(json.loads(replace_json_infs(records[0].values[0]))))
-    records = list(DataFrame(odps.get_table(node.table_names[2])).execute())
+    records = list(DataFrame(odps.get_table(expr.tables.residual)).execute())
     indices['hist'] = parse_hist_repr(records[0].values[1])
     return indices
 
@@ -115,8 +132,8 @@ class MultiClassEvaluationResult(serializers.JSONSerializableModel):
     label_measures = serializers.JSONNodesReferencesField(LabelMeasure, 'LabelMeasureList')
 
 
-def get_multi_class_eval_result(odps, node):
-    rec = DataFrame(odps.get_table(node.table_names)).execute()[0]
+def get_multi_class_eval_result(expr, odps):
+    rec = DataFrame(odps.get_table(expr.tables[0])).execute()[0]
     return MultiClassEvaluationResult.parse(rec[0])
 
 
@@ -155,10 +172,10 @@ class BinaryClassEvaluationResult(object):
         return self._to_numpy([self.positive * (1 - rec['recall']) for rec in self.records])
 
 
-def get_binary_class_eval_result(odps, node):
+def get_binary_class_eval_result(expr, odps):
     result = BinaryClassEvaluationResult()
 
-    metric_recs = DataFrame(odps.get_table(node.table_names[1])).execute()
+    metric_recs = DataFrame(odps.get_table(expr.tables.metric)).execute()
 
     targets = {
         'Total Samples': 'size',
@@ -173,7 +190,7 @@ def get_binary_class_eval_result(odps, node):
             continue
         setattr(result, targets[rec['name']], rec['value'])
 
-    detail_recs = DataFrame(odps.get_table(node.table_names[2])).execute()
+    detail_recs = DataFrame(odps.get_table(expr.tables.detail)).execute()
     new_recs = []
     for rec in detail_recs:
         if rec['total'] == 0:
@@ -185,5 +202,5 @@ def get_binary_class_eval_result(odps, node):
     return result
 
 
-def get_clustering_eval_result(odps, node):
-    return json.loads(DataFrame(odps.get_table(node.table_names)).execute()[0][0])
+def get_clustering_eval_result(expr, odps):
+    return json.loads(DataFrame(odps.get_table(expr.tables[0])).execute()[0][0])

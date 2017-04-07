@@ -4,7 +4,7 @@
 ML References
 ==============
 
-.. autoclass:: odps.ml.adapter.MLCollectionMixin
+.. autoclass:: odps.ml.expr.mixin.MLCollectionMixin
     :members:
     :inherited-members:
 
@@ -15,9 +15,6 @@ ML References
 .. autoclass:: odps.ml.TablesModel
     :members:
     :inherited-members:
-
-.. autoclass:: odps.ml.TablesRecommendModel
-    :members:
 
 Classification
 --------------

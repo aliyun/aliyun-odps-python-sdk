@@ -34,16 +34,26 @@ class BaseScorer(six.with_metaclass(ABCMeta, object)):
 
 
 class PredictScorer(BaseScorer):
-    def __call__(self, df, col_true=None, col_pred=None, sample_weight=None):
-        kwargs = copy(self._kwargs)
+    def __call__(self, df, col_true=None, col_pred=None, sample_weight=None, **kwargs):
+        kw = copy(self._kwargs)
+        kw.update(kwargs)
         if col_true:
-            kwargs['col_true'] = col_true
+            kw['col_true'] = col_true
         if col_pred:
-            kwargs['col_pred'] = col_pred
-        if sample_weight is not None:
-            return self._sign * self._func(df, sample_weight=sample_weight, **self._kwargs)
+            kw['col_pred'] = col_pred
+        if kw.get('execute_now', True):
+            if sample_weight is not None:
+                return self._sign * self._func(df, sample_weight=sample_weight, **kw)
+            else:
+                return self._sign * self._func(df, **kw)
         else:
-            return self._sign * self._func(df, **self._kwargs)
+            if sample_weight is not None:
+                expr = self._func(df, sample_weight=sample_weight, **kw)
+            else:
+                expr = self._func(df, **kw)
+            old_callback = getattr(expr, '_result_callback', None) or (lambda v: v)
+            expr._result_callback = lambda v: self._sign * old_callback(v)
+            return expr
 
 
 def make_scorer(func, greater_is_better=True, **kwargs):

@@ -447,6 +447,7 @@ def load_text_file(path):
         return None
     with codecs.open(file_path, encoding='utf-8') as f:
         inp_file = f.read()
+        f.close()
     return inp_file
 
 
@@ -468,6 +469,7 @@ def load_text_files(pattern, func=None):
             continue
         with codecs.open(file_path, encoding='utf-8') as f:
             content_dict[fn] = f.read()
+            f.close()
     return content_dict
 
 
@@ -483,7 +485,7 @@ def load_static_text_files(pattern, func=None):
     return load_text_files('/static/' + pattern, func)
 
 
-def init_progress_bar(val=1):
+def init_progress_bar(val=1, use_console=True):
     try:
         from traitlets import TraitError
         ipython = True
@@ -494,27 +496,30 @@ def init_progress_bar(val=1):
         except ImportError:
             ipython = False
 
-    from .console import ProgressBar
+    from .console import ProgressBar, is_widgets_available
 
     if not ipython:
-        bar = ProgressBar(val)
+        bar = ProgressBar(val) if use_console else None
     else:
         try:
-            bar = ProgressBar(val, True)
+            if is_widgets_available():
+                bar = ProgressBar(val, True)
+            else:
+                bar = ProgressBar(val) if use_console else None
         except TraitError:
-            bar = ProgressBar(val)
+            bar = ProgressBar(val) if use_console else None
 
     return bar
 
 
-def init_progress_ui(val=1, lock=False):
+def init_progress_ui(val=1, lock=False, use_console=True, mock=False):
     from .ui import ProgressGroupUI, html_notify
 
     progress_group = None
     bar = None
-    if is_main_thread():
-        bar = init_progress_bar(val=val)
-        if bar._ipython_widget:
+    if not mock and is_main_thread():
+        bar = init_progress_bar(val=val, use_console=use_console)
+        if bar and bar._ipython_widget:
             try:
                 progress_group = ProgressGroupUI(bar._ipython_widget)
             except:
@@ -522,8 +527,10 @@ def init_progress_ui(val=1, lock=False):
 
     _lock = threading.Lock() if lock else None
 
-    def lk(func):
+    def ui_method(func):
         def inner(*args, **kwargs):
+            if mock:
+                return
             if _lock:
                 with _lock:
                     return func(*args, **kwargs)
@@ -532,48 +539,50 @@ def init_progress_ui(val=1, lock=False):
         return inner
 
     class ProgressUI(object):
-        @lk
+        @ui_method
         def update(self, value=None):
             if bar:
                 bar.update(value=value)
 
-        @lk
+        @ui_method
         def current_progress(self):
             if bar and hasattr(bar, '_current_value'):
                 return bar._current_value
 
-        @lk
+        @ui_method
         def inc(self, value):
             if bar and hasattr(bar, '_current_value'):
                 current_val = bar._current_value
                 bar.update(current_val + value)
 
-        @lk
-        def status(self, prefix, suffix=''):
+        @ui_method
+        def status(self, prefix, suffix='', clear_keys=False):
             if progress_group:
+                if clear_keys:
+                    progress_group.clear_keys()
                 progress_group.prefix = prefix
                 progress_group.suffix = suffix
 
-        @lk
+        @ui_method
         def add_keys(self, keys):
             if progress_group:
                 progress_group.add_keys(keys)
 
-        @lk
+        @ui_method
         def remove_keys(self, keys):
             if progress_group:
                 progress_group.remove_keys(keys)
 
-        @lk
+        @ui_method
         def update_group(self):
             if progress_group:
                 progress_group.update()
 
-        @lk
+        @ui_method
         def notify(self, msg):
             html_notify(msg)
 
-        @lk
+        @ui_method
         def close(self):
             if bar:
                 bar.close()
@@ -631,6 +640,8 @@ def survey(func):
 
         return func(*args, **kwargs)
 
+    _decorator.__name__ = func.__name__
+    _decorator.__doc__ = func.__doc__
     return _decorator
 
 

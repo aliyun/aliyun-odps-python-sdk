@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Copyright 1999-2017 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from collections import namedtuple
+
+from odps.config import options
+from odps.tests.core import TestBase, tn
+from odps.compat import unittest
+from odps.ipython.magics import ODPSSql
+
+try:
+    import IPython
+    has_ipython = True
+except ImportError:
+    has_ipython = False
+
+
+class Test(TestBase):
+    def setUp(self):
+        super(Test, self).setUp()
+        self.old_use_instance_tunnel = options.use_instance_tunnel
+
+    def tearDown(self):
+        super(Test, self).tearDown()
+        options.use_instance_tunnel = self.old_use_instance_tunnel
+
+    @unittest.skipIf(not has_ipython, 'Skipped when no IPython is detected.')
+    def testExecuteSql(self):
+        FakeShell = namedtuple('FakeShell', 'user_ns')
+
+        magic_class = ODPSSql(FakeShell(user_ns={}))
+        magic_class._odps = self.odps
+
+        test_table_name = tn('pyodps_t_test_sql_magic')
+        test_content = [['line1'], ['line2']]
+        self.odps.delete_table(test_table_name, if_exists=True)
+        self.odps.create_table(test_table_name, 'col string')
+        self.odps.write_table(test_table_name, test_content)
+
+        options.use_instance_tunnel = False
+        result = magic_class.execute('select * from %s' % test_table_name)
+        self.assertListEqual(self._get_result(result), test_content)
+
+        options.use_instance_tunnel = True
+        result = magic_class.execute('select * from %s' % test_table_name)
+        self.assertListEqual(self._get_result(result), test_content)

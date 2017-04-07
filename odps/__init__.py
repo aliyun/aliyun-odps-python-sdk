@@ -34,8 +34,9 @@ except ImportError:
 
 def install_plugins():
     try:
-        from .ml import adapter
+        from .ml import install_plugin, install_mixin
     except (ImportError, SyntaxError):
         pass
 
 install_plugins()
+del install_plugins

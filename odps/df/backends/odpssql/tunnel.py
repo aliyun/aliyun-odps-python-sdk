@@ -22,7 +22,7 @@ from ....utils import write_log as log
 from ....types import PartitionSpec
 from ....compat import izip
 from ....models import Table
-from ....tunnel.tabletunnel.downloadsession import TableDownloadSession
+from ....tunnel.tabletunnel import TableDownloadSession
 from ...expr.arithmetic import And, Equal
 from ...expr.reduction import *
 from ...utils import is_source_collection, is_source_partition
@@ -208,7 +208,7 @@ class TunnelEngine(object):
                 return
         else:
             log('Try to fetch data from tunnel')
-            ui.status('Try to download data with tunnel...')
+            ui.status('Try to download data with tunnel...', clear_keys=True)
             if isinstance(expr, SliceCollectionExpr):
                 if expr.start:
                     raise ExpressionError('For ODPS backend, slice\'s start cannot be specified')
@@ -247,8 +247,9 @@ class TunnelEngine(object):
                             s = max(reader.count - tail, 0)
                             start = s if start is None else max(s, start)
 
+                        unique_columns = list(OrderedDict.fromkeys(columns)) if columns is not None else None
                         for i, r in izip(itertools.count(1),
-                                         reader.read(start=start, count=rest, columns=columns)):
+                                         reader.read(start=start, count=rest, columns=unique_columns)):
                             if size is not None and cum > size - 1:
                                 finished = True
                                 break
@@ -267,7 +268,10 @@ class TunnelEngine(object):
                                 spec = PartitionSpec(partition) if not isinstance(partition, PartitionSpec) \
                                     else partition
                                 self._fill_back_partition_values(r, table, spec.kv)
-                            data.append(r.values)
+                            if columns is None or len(unique_columns) == len(columns):
+                                data.append(r.values)
+                            else:
+                                data.append([r[n] for n in columns])
 
                     if finished:
                         break

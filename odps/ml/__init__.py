@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .expr import PmmlModel, TablesModel, install_mixin
 from .enums import FieldRole, FieldContinuity
-from .models import PmmlModel, TablesModel, TablesRecommendModel, list_tables_model
-from .adapter import merge_data
-from .engines import XFlowNodeEngine
+from .expr.mixin import merge_data
+from .runners import XFlowNodeRunner
+from .models import TablesModelObject, install_plugin
 
 try:
     from ..internal.ml import *

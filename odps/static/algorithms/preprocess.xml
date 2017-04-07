@@ -42,7 +42,7 @@
                 <sequence>1</sequence>
                 <type>DATA</type>
                 <schema>
-                    <schema>{selectedColNames}, {IDColName}: bigint:</schema>
+                    <schema>{IDColName}: bigint:, {selectedColNames}</schema>
                 </schema>
             </port>
         </ports>

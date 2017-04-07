@@ -1208,7 +1208,7 @@ def min_max_scale(expr, columns=None, feature_range=(0, 1), preserve=False, suff
     def do_scale(expr, col):
         f_min, f_max = feature_range
         r = getattr(expr, col + '_max_' + time_suffix) - getattr(expr, col + '_min_' + time_suffix)
-        scaled = (getattr(expr, col) - getattr(expr, col + '_min_' + time_suffix)) / r
+        scaled = (r == 0).ifelse(Scalar(0), (getattr(expr, col) - getattr(expr, col + '_min_' + time_suffix)) / r)
         return scaled * (f_max - f_min) + f_min
 
     return _scale_values(expr, columns, calc_agg, do_scale, preserve=preserve, suffix=suffix, group=group)
@@ -1239,10 +1239,13 @@ def std_scale(expr, columns=None, with_means=True, with_std=True, preserve=False
 
     def do_scale(expr, col):
         c = getattr(expr, col)
+        mean_expr = getattr(expr, col + '_mean_' + time_suffix)
         if with_means:
-            c = c - getattr(expr, col + '_mean_' + time_suffix)
+            c = c - mean_expr
+            mean_expr = Scalar(0)
         if with_std:
-            c = c / getattr(expr, col + '_std_' + time_suffix)
+            std_expr = getattr(expr, col + '_std_' + time_suffix)
+            c = (std_expr == 0).ifelse(mean_expr, c / getattr(expr, col + '_std_' + time_suffix))
         return c
 
     return _scale_values(expr, columns, calc_agg, do_scale, preserve=preserve, suffix=suffix, group=group)

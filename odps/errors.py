@@ -56,7 +56,7 @@ def parse_response(resp):
         else:
             return
     clz = globals().get(code, ODPSError)
-    return clz(msg, request_id, code, host_id)
+    return clz(msg, request_id=request_id, code=code, host_id=host_id)
 
 
 def throw_if_parsable(resp):
@@ -105,9 +105,10 @@ class ODPSError(RuntimeError):
     """
     """
 
-    def __init__(self, msg, request_id=None, code=None, host_id=None):
+    def __init__(self, msg, request_id=None, code=None, host_id=None, instance_id=None):
         super(ODPSError, self).__init__(msg)
         self.request_id = request_id
+        self.instance_id = instance_id
         self.code = code
         self.host_id = host_id
 
@@ -118,6 +119,8 @@ class ODPSError(RuntimeError):
             message = self.args[0]  # py3
         if self.request_id:
             message = 'RequestId: %s\n%s' % (self.request_id, message)
+        if self.instance_id:
+            message = 'InstanceId: %s\n%s' % (self.instance_id, message)
         if self.code:
             return '%s: %s' % (self.code, message)
         return message
@@ -178,6 +181,10 @@ class SchemaParseError(ServerDefinedException):
 
 
 class InvalidStateSetting(ServerDefinedException):
+    pass
+
+
+class InvalidProjectTable(ServerDefinedException):
     pass
 
 

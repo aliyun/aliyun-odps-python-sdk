@@ -13,13 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .utils import metrics_result
 
-def _run_evaluation_node(df, model, cols):
+
+def _run_evaluation_node(df, model, cols, execute_now=True, result_callback=None):
     from . import _customize
     eval_fun = getattr(_customize, '_eval_clustering')
-    return eval_fun(df, model, cols=cols)
+    return eval_fun(df, model, cols=cols, execute_now=execute_now, _result_callback=result_callback)
 
 
+@metrics_result(_run_evaluation_node)
 def calinhara_score(df, model, cols=None):
     r"""
     Calculate Calinski-Harabasz coefficient for a clustering model.

@@ -15,10 +15,10 @@
 
 from functools import partial
 
+from ..expr.exporters import get_input_field_names
+from ..expr.mixin import ml_collection_mixin
+from ...compat import Enum
 from ...df import DataFrame
-from ..adapter import ml_collection_mixin
-from ..nodes.exporters import get_input_field_names
-from ...compat import six, Enum
 
 
 class NetworkFieldRole(Enum):
@@ -34,6 +34,8 @@ class NetworkFieldRole(Enum):
 
 @ml_collection_mixin
 class NetworkDFMixIn(object):
+    __slots__ = ()
+
     field_role_enum = NetworkFieldRole
     non_feature_roles = set((NetworkFieldRole.FROM_VERTEX, NetworkFieldRole.TO_VERTEX, NetworkFieldRole.VERTEX_ID,
                              NetworkFieldRole.FROM_VERTEX_LABEL, NetworkFieldRole.TO_VERTEX_LABEL))
@@ -51,13 +53,13 @@ get_vertex_weight_column = partial(get_input_field_names, field_role=NetworkFiel
 get_edge_weight_column = partial(get_input_field_names, field_role=NetworkFieldRole.EDGE_WEIGHT)
 
 
-def graph_has_vertex_weight(node, input_name):
-    vert_col = get_vertex_weight_column(node, 'vertexWeightCol', input_name)
+def graph_has_vertex_weight(expr, input_name):
+    vert_col = get_vertex_weight_column(expr, 'vertexWeightCol', input_name)
     return 'true' if vert_col else 'false'
 
 
-def graph_has_edge_weight(node, input_name):
-    edge_col = get_edge_weight_column(node, 'edgeWeightCol', input_name)
+def graph_has_edge_weight(expr, input_name):
+    edge_col = get_edge_weight_column(expr, 'edgeWeightCol', input_name)
     return 'true' if edge_col else 'false'
 
 
@@ -66,5 +68,5 @@ Metrics
 """
 
 
-def get_modularity_result(odps, node):
-    return DataFrame(odps.get_table(node.table_names)).execute()[0][0]
+def get_modularity_result(expr, odps):
+    return DataFrame(odps.get_table(expr.tables[0])).execute()[0][0]

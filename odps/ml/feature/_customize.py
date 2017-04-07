@@ -40,22 +40,22 @@ class ColImportanceResult(dict):
         return sio.getvalue()
 
 
-def get_rf_importance(odps, node):
+def get_rf_importance(expr, odps):
     stats_type = namedtuple('RFFeature', 'gini entropy')
     mapping = dict((row[0], stats_type(gini=row[1], entropy=row[2]))
-                   for row in DataFrame(odps.get_table(node.table_names)).execute())
+                   for row in DataFrame(odps.get_table(expr.tables[0])).execute())
     return ColImportanceResult(stats_type, **mapping)
 
 
-def get_gbdt_importance(odps, node):
+def get_gbdt_importance(expr, odps):
     stats_type = namedtuple('GBDTFeature', 'importance')
     mapping = dict((row[0], stats_type(importance=row[1]))
-                   for row in DataFrame(odps.get_table(node.table_names)).execute())
+                   for row in DataFrame(odps.get_table(expr.tables[0])).execute())
     return ColImportanceResult(stats_type, **mapping)
 
 
-def get_regression_importance(odps, node):
+def get_regression_importance(expr, odps):
     stats_type = namedtuple('RegressionFeature', 'weight importance')
     mapping = dict((row[0], stats_type(weight=row[1], importance=row[2]))
-                   for row in DataFrame(odps.get_table(node.table_names)).execute())
+                   for row in DataFrame(odps.get_table(expr.tables[0])).execute())
     return ColImportanceResult(stats_type, **mapping)

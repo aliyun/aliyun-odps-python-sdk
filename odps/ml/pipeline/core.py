@@ -18,9 +18,8 @@ from copy import deepcopy
 from types import MethodType
 
 from ...compat import OrderedDict, reduce, six
-from ...runner import adapter_from_df
 from ...utils import camel_to_underline, is_namedtuple
-from ..adapter import merge_data
+from ..expr.mixin import merge_data
 from ..utils import FieldRole
 
 
@@ -33,7 +32,7 @@ class PipelineBit(object):
 class PipelineStep(object):
     def __init__(self, step_name, param_names=None, output_names=None):
         self._step_name = step_name
-        self._uplink = []
+        self._ml_uplink = []
         self._param_names = [camel_to_underline(n) for n in param_names] if param_names is not None else []
         self._output_names = [camel_to_underline(n) for n in output_names] if output_names is not None else []
         self._pipeline = None
@@ -56,7 +55,7 @@ class PipelineStep(object):
         inputs = set(self._input_args) | set(six.itervalues(self._input_kwargs))
         first_input = next(iter(inputs))
         self._pipeline = first_input._step._pipeline
-        self._uplink = [bit._step for bit in inputs]
+        self._ml_uplink = [bit._step for bit in inputs]
         self._pipeline._add_step(self, name=name)
 
         out_tuple = namedtuple('OutTuple', ' '.join(self._output_names))
@@ -187,7 +186,7 @@ class Pipeline(GroupedStep):
         last_step = last_output = None
         for name, step, output in self._normalize_step_input(steps):
             ret_step = self._add_step(step, name=name)
-            ret_step._uplink = [last_step, ] if last_step is not None else []
+            ret_step._ml_uplink = [last_step, ] if last_step is not None else []
             ret_step._input_args = [PipelineBit(last_step, last_output or last_step._output_names[0])]\
                 if last_step is not None else None
             ret_step._pipeline = self
@@ -231,11 +230,11 @@ class Pipeline(GroupedStep):
     def _assert_valid(self):
         if not self._steps:
             raise ValueError('Cannot execute without any steps defined.')
-        zero_input_nodes = [sobj for sname, sobj in self._steps if not sobj._uplink]
+        zero_input_nodes = [sobj for sname, sobj in self._steps if not sobj._ml_uplink]
         if len(zero_input_nodes) > 1:
             raise ValueError('Multiple input steps is not allowed.')
         rev_dict = dict((s, []) for _, s in self._steps)
-        [rev_dict[ul].append(dl) for _, dl in self._steps for ul in dl._uplink]
+        [rev_dict[ul].append(dl) for _, dl in self._steps for ul in dl._ml_uplink]
         mid_items = [s for s, dl in six.iteritems(rev_dict) if dl]
         last_items = [s for s, dl in six.iteritems(rev_dict) if not dl]
         if len(last_items) > 1:
@@ -255,7 +254,7 @@ class Pipeline(GroupedStep):
                 self._initial_step._eval('transform', result_dict, *args, **kwargs)
         else:
             # pass raw args on
-            [self._eval_steps(s, 'transform', result_dict, args, kwargs) for s in step._uplink]
+            [self._eval_steps(s, 'transform', result_dict, args, kwargs) for s in step._ml_uplink]
             if step != self._final_step:
                 step._eval('transform', result_dict)
             else:
@@ -365,11 +364,11 @@ class FeatureUnion(GroupedStep):
         for src, result in processed:
             user_inclusive = set(self._append_col_dict[src]) if src in self._append_col_dict else set()
             for r in six.iterkeys(role_exported):
-                role_fields = [f.name for f in adapter_from_df(result).fields if r in f.role]
+                role_fields = [f.name for f in result._ml_fields if r in f.role]
                 if role_fields and not role_exported[r]:
                     user_inclusive.update(role_fields)
                     role_exported[r] = True
-            exclude_fields = [f.name for f in adapter_from_df(result).fields
+            exclude_fields = [f.name for f in result._ml_fields
                               if FieldRole.FEATURE not in f.role and f.name not in user_inclusive]
             if exclude_fields:
                 results.append((result, exclude_fields, True))

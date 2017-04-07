@@ -42,6 +42,7 @@ class EngineTypes(Enum):
     PANDAS = 'PANDAS'
     SEAHAWKS = 'SEAHAWKS'
     SQLALCHEMY = 'SQLALCHEMY'
+    ALGO = 'ALGO'
 
 
 class Backend(object):
@@ -59,6 +60,9 @@ class Backend(object):
         raise NotImplementedError
 
     def visit_filter_partition_collection(self, expr):
+        raise NotImplementedError
+
+    def visit_algo(self, expr):
         raise NotImplementedError
 
     def visit_slice_collection(self, expr):
@@ -188,7 +192,7 @@ class ExecuteNode(object):
 
 
 class ExecuteDAG(DAG):
-    def _run(self, ui):
+    def _run(self, ui, progress_proportion=1.0):
         curr_progress = ui.current_progress() or 0
         try:
             calls = self.topological_sort()
@@ -196,7 +200,7 @@ class ExecuteDAG(DAG):
 
             result_idx = dict()
             for i, call in enumerate(calls):
-                res = call(ui=ui, progress_proportion=1.0 / len(calls))
+                res = call(ui=ui, progress_proportion=progress_proportion / len(calls))
                 results[i] = res
                 if call.result_index is not None:
                     result_idx[call.result_index] = i
@@ -205,11 +209,11 @@ class ExecuteDAG(DAG):
         except Exception as e:
             if self._can_fallback() and self._need_fallback(e):
                 ui.update(curr_progress)
-                return self.fallback()._run(ui)
+                return self.fallback()._run(ui, progress_proportion)
 
             raise
 
-    def _run_in_parallel(self, ui, n_parallel, async=False, timeout=None):
+    def _run_in_parallel(self, ui, n_parallel, async=False, timeout=None, progress_proportion=1.0):
         submits_lock = threading.RLock()
         submits = dict()
         user_wait = dict()
@@ -265,7 +269,7 @@ class ExecuteDAG(DAG):
                                     raise DagDependencyError('Node execution failed due to failure of '
                                                              'previous node, exception: %s' % f.exception())
 
-                        res = func(ui=ui, progress_proportion=1.0 / len(calls))
+                        res = func(ui=ui, progress_proportion=progress_proportion / len(calls))
                         results[func] = res
                         user_wait[func].set_result(res)
                         return res
@@ -313,15 +317,15 @@ class ExecuteDAG(DAG):
             return [it[1] for it in sorted(result_wait.items(), key=itemgetter(0))]
 
     def execute(self, ui=None, async=False, n_parallel=1, timeout=None,
-                close_and_notify=True):
+                close_and_notify=True, progress_proportion=1.0):
         ui = ui or init_progress_ui(lock=async)
         succeeded = False
         if not async:
             try:
                 if n_parallel <= 1:
-                    results = self._run(ui)
+                    results = self._run(ui, progress_proportion)
                 else:
-                    results = self._run_in_parallel(ui, n_parallel)
+                    results = self._run_in_parallel(ui, n_parallel, progress_proportion=progress_proportion)
                 succeeded = True
                 return results
             finally:
@@ -334,7 +338,8 @@ class ExecuteDAG(DAG):
                         ui.notify('DataFrame execution failed')
         else:
             try:
-                fs = self._run_in_parallel(ui, n_parallel, async=async, timeout=timeout)
+                fs = self._run_in_parallel(ui, n_parallel, async=async, timeout=timeout,
+                                           progress_proportion=progress_proportion)
                 succeeded = True
                 return fs
             finally:
@@ -469,12 +474,15 @@ class Engine(object):
     def _process(self, *expr_args_kwargs):
         expr_args_kwargs = self._handle_expr_args_kwargs(expr_args_kwargs)
 
-        def rename(e):
+        def h(e):
             if isinstance(e, Scalar) and e.name is None:
                 return e.rename('__rand_%s' % int(time.time()))
+            if isinstance(e, CollectionExpr) and hasattr(e, '_proxy') and \
+                    e._proxy is not None:
+                return e._proxy
             return e
 
-        src_exprs = [rename(it[1]) for it in expr_args_kwargs]
+        src_exprs = [h(it[1]) for it in expr_args_kwargs]
         exprs_dags = self._build_expr_dag([self._convert_table(e) for e in src_exprs])
 
         return exprs_dags, expr_args_kwargs
@@ -487,6 +495,8 @@ class Engine(object):
             action, src_expr, args, kwargs = it
 
             for node in expr_dag.traverse():
+                if hasattr(self, '_selecter') and not self._selecter.force_odps and hasattr(node, '_algo'):
+                    raise NotImplementedError
                 h = self._dispatch(expr_dag, node, ctx)
                 if h:
                     kw = dict(kwargs)
@@ -509,6 +519,7 @@ class Engine(object):
 
     def _action(self, *exprs_args_kwargs, **kwargs):
         ui = kwargs.pop('ui', None)
+        progress_proportion = kwargs.pop('progress_proportion', 1.0)
         async = kwargs.pop('async', False)
         n_parallel = kwargs.pop('n_parallel', 1)
         timeout = kwargs.pop('timeout', None)
@@ -523,14 +534,14 @@ class Engine(object):
                 else:
                     act, expr, args, kw = expr_args_kwargs
 
-                kw = dict(kw)
+                kw = kw.copy()
                 kw.update(kwargs)
                 yield act, expr, args, kw
 
         dag = self.compile(*transform(*exprs_args_kwargs))
         try:
             res = self._execute_dag(dag, ui=ui, async=async, n_parallel=n_parallel,
-                                    timeout=timeout)
+                                    timeout=timeout, progress_proportion=progress_proportion)
         except KeyboardInterrupt:
             self.stop()
             sys.exit(1)
@@ -553,12 +564,21 @@ class Engine(object):
         engine = self
 
         execute_node = self._new_execute_node(expr_dag)
+        group_key = kwargs.get('group') or self._create_progress_group(expr)
 
         def run(s, **execute_kw):
             kw = dict(kwargs)
             kw.update(kw.pop('execute_kw', dict()))
             kw.update(execute_kw)
-            return engine._do_execute(expr_dag, expr, **kw)
+            kw['group'] = group_key
+
+            if 'ui' in kw:
+                kw['ui'].add_keys(group_key)
+            result = engine._do_execute(expr_dag, expr, **kw)
+            if 'ui' in kw:
+                kw['ui'].remove_keys(group_key)
+
+            return result
 
         execute_node.run = types.MethodType(run, execute_node)
         self._add_node(execute_node, dag)
@@ -577,11 +597,20 @@ class Engine(object):
         engine = self
 
         execute_node = self._new_execute_node(expr_dag)
+        group_key = self._create_progress_group(expr)
 
         def run(s, **execute_kw):
             kw = dict(kwargs)
             kw.update(execute_kw)
-            return engine._do_persist(expr_dag, expr, name, **kw)
+            kw['group'] = group_key
+
+            if 'ui' in kw:
+                kw['ui'].add_keys(group_key)
+            result = engine._do_persist(expr_dag, expr, name, **kw)
+            if 'ui' in kw:
+                kw['ui'].remove_keys(group_key)
+
+            return result
 
         execute_node.run = types.MethodType(run, execute_node)
         self._add_node(execute_node, dag)
@@ -601,29 +630,30 @@ class Engine(object):
             kwargs['batch'] = True
             return expr_args_kwargs, kwargs
 
-    def _create_ui_and_group(self, expr_args_kwargs, **kwargs):
-        ui = kwargs.get('ui', init_progress_ui(lock=kwargs.get('async', False)))
+    @staticmethod
+    def _create_ui(**kwargs):
+        existing_ui = kwargs.get('ui')
+        if existing_ui:
+            return existing_ui
 
-        batch = kwargs.get('batch', False)
-        if not batch:
-            expr = expr_args_kwargs[0][0]
-            node_name = getattr(expr, 'node_name', expr.__class__.__name__)
-            group = create_instance_group('DataFrame Operation[%s]' % node_name)
-        else:
-            group = create_instance_group('DataFrame Operations')
+        ui = init_progress_ui(lock=kwargs.get('async', False), use_console=not kwargs.get('async', False))
+        ui.status('Preparing')
+        return ui
 
-        ui.add_keys(group)
-        return ui, group
+    @staticmethod
+    def _create_progress_group(expr):
+        node_name = getattr(expr, 'node_name', expr.__class__.__name__)
+        return create_instance_group(node_name)
 
     def execute(self, *exprs_args_kwargs, **kwargs):
         exprs_args_kwargs, kwargs = self._handle_params(*exprs_args_kwargs, **kwargs)
-        kwargs['ui'], kwargs['group'] = self._create_ui_and_group(exprs_args_kwargs, **kwargs)
+        kwargs['ui'] = self._create_ui(**kwargs)
         kwargs['action'] = '_execute'
         return self._action(*exprs_args_kwargs, **kwargs)
 
     def persist(self, *exprs_args_kwargs, **kwargs):
         exprs_args_kwargs, kwargs = self._handle_params(*exprs_args_kwargs, **kwargs)
-        kwargs['ui'], kwargs['group'] = self._create_ui_and_group(exprs_args_kwargs, **kwargs)
+        kwargs['ui'] = self._create_ui(**kwargs)
         kwargs['action'] = '_persist'
         return self._action(*exprs_args_kwargs, **kwargs)
 
@@ -640,18 +670,13 @@ class Engine(object):
     def _get_cached_sub_expr(self, cached_expr, ctx=None):
         ctx = ctx or context
         data = ctx.get_cached(cached_expr)
-        if isinstance(cached_expr, CollectionExpr):
-            return CollectionExpr(_source_data=data,
-                                  _schema=cached_expr._schema)
-        else:
-            assert isinstance(cached_expr, Scalar)
-            return Scalar(_value=data, _value_type=cached_expr.dtype)
+        return cached_expr.get_cached(data)
 
     def _build_expr_dag(self, exprs, on_copy=None):
         cached_exprs = ExprDictionary()
 
         def find_cached(_, n):
-            if context.is_cached(n) and isinstance(n, (CollectionExpr, Scalar)):
+            if context.is_cached(n) and hasattr(n, 'get_cached'):
                 cached_exprs[n] = True
 
         if on_copy is not None:
@@ -685,6 +710,7 @@ class Engine(object):
                 dag.add_edge(dag_node, node)
 
     @classmethod
-    def _execute_dag(cls, dag, ui=None, async=False, n_parallel=1, timeout=None, close_and_notify=True):
+    def _execute_dag(cls, dag, ui=None, async=False, n_parallel=1, timeout=None, close_and_notify=True,
+                     progress_proportion=1.0):
         return dag.execute(ui=ui, async=async, n_parallel=n_parallel, timeout=timeout,
-                           close_and_notify=close_and_notify)
+                           close_and_notify=close_and_notify, progress_proportion=progress_proportion)

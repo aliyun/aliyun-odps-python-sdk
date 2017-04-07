@@ -439,6 +439,12 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
     >>> iris.map_reduce(mapper=handle).count()
     300
 
+如果想调用 ODPS 上已经存在的 UDTF，则函数指定为函数名即可。
+
+.. code:: python
+
+    >>> iris['name', 'sepallength'].apply('your_func', axis=1, names=['name2', 'sepallength2'], types=['string', 'float'])
+
 对所有列调用自定义聚合
 ~~~~~~~~~~~~~~~~~~~~~~~
 

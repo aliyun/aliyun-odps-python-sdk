@@ -501,60 +501,6 @@ Collection 提供了数据过滤的功能，
 
     **另外，切片操作只能作用在collection上，不能作用于sequence。**
 
-
-保存执行结果为 ODPS 表
-~~~~~~~~~~~~~~~~~~~~~~
-
-我们可以调用\ ``persist``\ 方法，参数为表名。返回一个新的DataFrame对象
-
-.. code:: python
-
-    >>> iris2 = iris[iris.sepalwidth < 2.5].persist('pyodps_iris2')
-    >>> iris2.head(5)
-       sepallength  sepalwidth  petallength  petalwidth             name
-    0          4.5         2.3          1.3         0.3      Iris-setosa
-    1          5.5         2.3          4.0         1.3  Iris-versicolor
-    2          4.9         2.4          3.3         1.0  Iris-versicolor
-    3          5.0         2.0          3.5         1.0  Iris-versicolor
-    4          6.0         2.2          4.0         1.0  Iris-versicolor
-
-``persist``\ 可以传入partitions参数，这样会创建一个表，它的分区是partitions所指定的字段。
-
-.. code:: python
-
-    >>> iris3 = iris[iris.sepalwidth < 2.5].persist('pyodps_iris3', partitions=['name'])
-    >>> iris3.data
-    odps.Table
-      name: odps_test_sqltask_finance.`pyodps_iris3`
-      schema:
-        sepallength           : double
-        sepalwidth            : double
-        petallength           : double
-        petalwidth            : double
-      partitions:
-        name                  : string
-
-
-如果想写入已经存在的表的某个分区，``persist``\ 可以传入partition参数，指明写入表的哪个分区（如ds=******）。
-这时要注意，该DataFrame的每个字段都必须在该表存在，且类型相同。drop_partition和create_partition参数只有在此时有效,
-分别表示是否要删除（如果分区存在）或创建（如果分区不存在）该分区。
-
-.. code:: python
-
-    >>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', partition='ds=test', drop_partition=True, create_partition=True)
-
-保存执行结果为 Pandas DataFrame
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-我们可以使用 ``to_pandas``\ 方法，如果wrap参数为True，将返回PyODPS DataFrame对象。
-
-.. code:: python
-
-    >>> type(iris[iris.sepalwidth < 2.5].to_pandas())
-    pandas.core.frame.DataFrame
-    >>> type(iris[iris.sepalwidth < 2.5].to_pandas(wrap=True))
-    odps.df.core.DataFrame
-
 执行
 -----
 
@@ -645,6 +591,60 @@ ResultFrame可以迭代取出每条记录。
     [5.0999999999999996, 3.5, 1.3999999999999999, 0.20000000000000001, u'Iris-setosa']
     [4.9000000000000004, 3.0, 1.3999999999999999, 0.20000000000000001, u'Iris-setosa']
     [4.7000000000000002, 3.2000000000000002, 1.3, 0.20000000000000001, u'Iris-setosa']
+
+
+保存执行结果为 ODPS 表
+~~~~~~~~~~~~~~~~~~~~~~
+
+对 Collection，我们可以调用\ ``persist``\ 方法，参数为表名。返回一个新的DataFrame对象
+
+.. code:: python
+
+    >>> iris2 = iris[iris.sepalwidth < 2.5].persist('pyodps_iris2')
+    >>> iris2.head(5)
+       sepallength  sepalwidth  petallength  petalwidth             name
+    0          4.5         2.3          1.3         0.3      Iris-setosa
+    1          5.5         2.3          4.0         1.3  Iris-versicolor
+    2          4.9         2.4          3.3         1.0  Iris-versicolor
+    3          5.0         2.0          3.5         1.0  Iris-versicolor
+    4          6.0         2.2          4.0         1.0  Iris-versicolor
+
+``persist``\ 可以传入partitions参数，这样会创建一个表，它的分区是partitions所指定的字段。
+
+.. code:: python
+
+    >>> iris3 = iris[iris.sepalwidth < 2.5].persist('pyodps_iris3', partitions=['name'])
+    >>> iris3.data
+    odps.Table
+      name: odps_test_sqltask_finance.`pyodps_iris3`
+      schema:
+        sepallength           : double
+        sepalwidth            : double
+        petallength           : double
+        petalwidth            : double
+      partitions:
+        name                  : string
+
+
+如果想写入已经存在的表的某个分区，``persist``\ 可以传入partition参数，指明写入表的哪个分区（如ds=******）。
+这时要注意，该DataFrame的每个字段都必须在该表存在，且类型相同。drop_partition和create_partition参数只有在此时有效,
+分别表示是否要删除（如果分区存在）或创建（如果分区不存在）该分区。
+
+.. code:: python
+
+    >>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', partition='ds=test', drop_partition=True, create_partition=True)
+
+保存执行结果为 Pandas DataFrame
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+我们可以使用 ``to_pandas``\ 方法，如果wrap参数为True，将返回PyODPS DataFrame对象。
+
+.. code:: python
+
+    >>> type(iris[iris.sepalwidth < 2.5].to_pandas())
+    pandas.core.frame.DataFrame
+    >>> type(iris[iris.sepalwidth < 2.5].to_pandas(wrap=True))
+    odps.df.core.DataFrame
 
 
 立即运行设置运行参数

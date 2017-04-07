@@ -20,7 +20,6 @@ from collections import namedtuple
 from odps.df import DataFrame
 from odps.ml.text import *
 from odps.ml.classifiers import *
-from odps.ml.preprocess import Normalize, Standardize
 from odps.ml.pipeline import Pipeline, FeatureUnion
 from odps.ml.pipeline.core import PipelineStep
 from odps.ml.tests.base import MLTestBase, tn, ci_skip_case
@@ -101,13 +100,3 @@ class Test(MLTestBase):
         TFIDF().link(DocWordStat().link(pl).triple)
         ret_df = pl.transform(df)
         ret_df.persist(TFIDF_TABLE)
-
-    @ci_skip_case
-    def test_logistic_regression(self):
-        self.delete_offline_model(IONOSPHERE_LR_MODEL)
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
-        fu = FeatureUnion(Normalize(), Standardize())
-        pl = Pipeline(fu, LogisticRegression())
-        ret_model = pl.train(df)
-        ret_model.persist(IONOSPHERE_LR_MODEL)

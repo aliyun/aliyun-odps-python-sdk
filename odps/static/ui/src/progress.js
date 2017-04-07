@@ -48,8 +48,8 @@ define('pyodps/progress', ["jquery", "pyodps/common", "jupyter-js-widgets"], fun
         '   </div>'.trim() +
         '   <div class="modal-footer">'.trim() +
         '    <span class="pull-left progress-legend-panel">'.trim() +
-        '     <span class="progress progress-bar progress-legend" role="progressbar"></span><span>Finished</span>'.trim() +
-        '     <span class="progress progress-bar progress-bar-warning progress-bar-striped progress-legend" role="progressbar"></span><span>Submitted</span>'.trim() +
+        '     <span class="progress-bar progress-legend"></span><span>Finished</span>'.trim() +
+        '     <span class="progress-bar progress-bar-warning progress-bar-striped progress-legend"></span><span>Submitted</span>'.trim() +
         '     <span class="progress progress-legend"></span><span>Waiting</span>'.trim() +
         '    </span>'.trim() +
         '    <button type="button" class="btn btn-default pull-right" data-dismiss="modal">Close</button>'.trim() +
@@ -91,14 +91,9 @@ define('pyodps/progress', ["jquery", "pyodps/common", "jupyter-js-widgets"], fun
     var modal;
 
     var InstancesProgress = widget.DOMWidgetView.extend({
-        initialize: function (parameters) {
+        initialize: function (attributes, options) {
             var that = this;
-
-            modal = $('#pyodps-progress-viewer');
-            if (modal.length == 0) {
-                modal = $(dialog_html);
-                $('body').append(modal);
-            }
+            InstancesProgress.__super__.initialize.apply(that, arguments);
 
             that.groupMsgs = {};
             that.groupOrder = []; // Order of groups by time of insertion
@@ -109,16 +104,27 @@ define('pyodps/progress', ["jquery", "pyodps/common", "jupyter-js-widgets"], fun
         },
 
         render: function () {
-            // Render the view.
             var that = this;
+            // Render the view.
+            modal = $('#pyodps-progress-viewer');
+            if (modal.length == 0) {
+                modal = $(dialog_html);
+                $('body').append(modal);
+            }
+
             that.prefixElement = $('<span style="padding-right: 5px"></span>');
             that.groupsElement = $('<span></span>');
-            that.suffixElement = $('<span style="padding-left: 5px"></span>');
+            that.suffixElement = $('<span></span>');
             var rootElement = $('<div></div>')
                 .append(that.prefixElement)
                 .append(that.groupsElement)
                 .append(that.suffixElement);
-            that.setElement(rootElement);
+
+            try {
+                that.$el.append(rootElement);
+            } catch(e) {
+                that.setElement(rootElement);
+            }
         },
 
         update: function (options) {
@@ -266,13 +272,13 @@ define('pyodps/progress', ["jquery", "pyodps/common", "jupyter-js-widgets"], fun
                     $.each(content, function (idx, group_key) {
                         if (!that.groupMsgs[group_key])
                             return;
-                        delete that.groupMsgs[group_key];
                         var i = that.groupOrder.indexOf(group_key);
                         if (i >= 0) that.groupOrder.splice(i, 1);
                     });
                 } else if (msg_obj.action == 'clear') {
                     that.groupMsgs = {};
                     that.groupOrder = [];
+                    that._build_link();
                 }
             }
             that.update();

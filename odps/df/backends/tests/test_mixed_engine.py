@@ -478,9 +478,9 @@ class Test(TestBase):
         self.assertRaises(DagDependencyError, fs.result)
 
     def testAppendIDCache(self):
-        options.runner.dry_run = False
+        options.ml.dry_run = False
 
-        @output(self.odps_df.schema.names + ['id1'], self.odps_df.schema.types + ['int'])
+        @output(['id1'] + self.odps_df.schema.names, ['int'] + self.odps_df.schema.types)
         def h(row):
             yield row
 
@@ -490,9 +490,9 @@ class Test(TestBase):
         self.assertEqual(len(expr3.execute()), 3)
 
     def testAppendId(self):
-        options.runner.dry_run = False
+        options.ml.dry_run = False
 
-        expr = self.odps_df['name',].distinct()
+        expr = self.odps_df['name', ].distinct()
         expr = expr.append_id(id_col='id2')
         expr = expr.join(self.odps_df, on=['name'])
         tablename = tn('pyodps_test_append_id_persist')

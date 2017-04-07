@@ -16,9 +16,9 @@
 import logging
 from collections import namedtuple
 
-from ... import options, errors, compat
-from ...runner import adapter_from_df
+from ... import options, compat
 from . import _customize
+from .utils import get_field_name_by_role, detect_metrics_fallback, metrics_result
 
 try:
     import numpy as np
@@ -32,41 +32,47 @@ from ..enums import FieldRole
 logger = logging.getLogger(__name__)
 
 
-def _get_field_name_by_role(df, role):
-    adapter = adapter_from_df(df)
-    fields = [f for f in adapter._fields if role in f.role]
-    if not fields:
-        raise ValueError('Input df does not contain a field with role %s.' % role.name)
-    return fields[0].name
-
-
-def _run_cm_node(df, col_true, col_pred):
+def _run_cm_node(df, col_true, col_pred, execute_now=True, result_callback=None):
+    detect_metrics_fallback(df)
     if not options.ml.use_old_metrics:
-        try:
-            eval_fun = getattr(_customize, 'eval_multi_class')
-            eval_result = eval_fun(df, label_col=col_true, predict_col=col_pred)
-            return eval_result.confusion_matrix
-        except errors.ODPSError as ex:
-            if 'ODPS-0420061' not in str(ex):
-                raise
-    cm_fun = getattr(_customize, '_confusion_matrix')
-    return cm_fun(df, label_col=col_true, predict_col=col_pred)
+        if result_callback:
+            cb = lambda v: result_callback(v.confusion_matrix)
+        else:
+            cb = lambda v: v.confusion_matrix
+
+        eval_fun = getattr(_customize, 'eval_multi_class')
+        eval_result = eval_fun(df, label_col=col_true, predict_col=col_pred,
+                               execute_now=execute_now, _result_callback=cb)
+        return eval_result
+    else:
+        cb = result_callback or (lambda v: v)
+        cm_fun = getattr(_customize, '_confusion_matrix')
+        return cm_fun(df, label_col=col_true, predict_col=col_pred,
+                      execute_now=execute_now, _result_callback=cb)
 
 
-def _run_roc_node(df, pos_label, col_true, col_pred, col_scores):
+def _run_roc_node(df, pos_label, col_true, col_pred, col_scores, execute_now=True, result_callback=None):
+    detect_metrics_fallback(df)
+    RocResult = _customize.RocResult
+
     if not options.ml.use_old_metrics:
-        try:
-            eval_fun = getattr(_customize, 'eval_binary_class')
-            eval_result = eval_fun(df, good_value=pos_label, label_col=col_true, score_col=col_scores)
-            return eval_result.thresh, eval_result.tp, eval_result.fn, eval_result.tn, eval_result.fp
-        except errors.ODPSError as ex:
-            if 'ODPS-0420061' not in str(ex):
-                raise
-    roc_fun = getattr(_customize, '_roc')
-    return roc_fun(df, good_value=pos_label, label_col=col_true, predict_col=col_pred,
-                   score_col=col_scores)
+        if result_callback:
+            cb = lambda v: result_callback(RocResult(v.thresh, v.tp, v.fn, v.tn, v.fp))
+        else:
+            cb = lambda v: RocResult(v.thresh, v.tp, v.fn, v.tn, v.fp)
+
+        eval_fun = getattr(_customize, 'eval_binary_class')
+        eval_result = eval_fun(df, good_value=pos_label, label_col=col_true, score_col=col_scores,
+                               execute_now=execute_now, _result_callback=cb)
+        return eval_result
+    else:
+        result_callback = result_callback or (lambda v: v)
+        roc_fun = getattr(_customize, '_roc')
+        return roc_fun(df, good_value=pos_label, label_col=col_true, predict_col=col_pred,
+                       score_col=col_scores, execute_now=execute_now, _result_callback=result_callback)
 
 
+@metrics_result(_run_cm_node)
 def confusion_matrix(df, col_true=None, col_pred=None):
     """
     Compute confusion matrix of a predicted data set.
@@ -87,10 +93,11 @@ def confusion_matrix(df, col_true=None, col_pred=None):
     >>> cm, mapping = confusion_matrix(predicted, 'category')
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     return _run_cm_node(df, col_true, col_pred)
 
 
+@metrics_result(_run_cm_node)
 def accuracy_score(df, col_true=None, col_pred=None, normalize=True):
     """
     Compute accuracy of a predicted data set.
@@ -109,7 +116,7 @@ def accuracy_score(df, col_true=None, col_pred=None, normalize=True):
     :rtype: float
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     mat, _ = _run_cm_node(df, col_true, col_pred)
     if np is not None:
         acc_count = np.sum(np.diag(mat))
@@ -131,6 +138,7 @@ def accuracy_score(df, col_true=None, col_pred=None, normalize=True):
             return diag_sum * 1.0 / mat_sum
 
 
+@metrics_result(_run_cm_node)
 def precision_score(df, col_true=None, col_pred='precision_result', pos_label=1, average=None):
     r"""
     Compute precision of a predicted data set. Precision is defined as :math:`\frac{TP}{TP + TN}`
@@ -187,7 +195,7 @@ def precision_score(df, col_true=None, col_pred='precision_result', pos_label=1,
     0.22
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     mat, label_list = _run_cm_node(df, col_true, col_pred)
     class_dict = dict((label, idx) for idx, label in enumerate(label_list))
     tps = np.diag(mat)
@@ -206,6 +214,7 @@ def precision_score(df, col_true=None, col_pred='precision_result', pos_label=1,
         return np.sum(tps * 1.0 / pred_count * support) / np.sum(support)
 
 
+@metrics_result(_run_cm_node)
 def recall_score(df, col_true=None, col_pred='precision_result', pos_label=1, average=None):
     r"""
     Compute recall of a predicted data set. Precision is defined as :math:`\frac{TP}{TP + FP}`
@@ -262,7 +271,7 @@ def recall_score(df, col_true=None, col_pred='precision_result', pos_label=1, av
     0.33
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     mat, label_list = _run_cm_node(df, col_true, col_pred)
     class_dict = dict((label, idx) for idx, label in enumerate(label_list))
     tps = np.diag(mat)
@@ -278,6 +287,7 @@ def recall_score(df, col_true=None, col_pred='precision_result', pos_label=1, av
         return np.mean(tps * 1.0 / supp_count)
 
 
+@metrics_result(_run_cm_node)
 def fbeta_score(df, col_true=None, col_pred='precision_result', beta=1.0, pos_label=1, average=None):
     r"""
     Compute f-beta score of a predicted data set. f-beta is defined as
@@ -340,7 +350,7 @@ def fbeta_score(df, col_true=None, col_pred='precision_result', beta=1.0, pos_la
     0.33
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     mat, label_list = _run_cm_node(df, col_true, col_pred)
     class_dict = dict((label, idx) for idx, label in enumerate(label_list))
     tps = np.diag(mat)
@@ -370,6 +380,7 @@ def fbeta_score(df, col_true=None, col_pred='precision_result', beta=1.0, pos_la
         return sum(fbeta * supp_count) / sum(supp_count)
 
 
+@metrics_result(_run_roc_node)
 def f1_score(df, col_true=None, col_pred='precision_result', pos_label=1, average=None):
     r"""
     Compute f-1 score of a predicted data set. f-1 is defined as
@@ -432,10 +443,11 @@ def f1_score(df, col_true=None, col_pred='precision_result', pos_label=1, averag
     0.33
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     return fbeta_score(df, col_true, col_pred, pos_label=pos_label, average=average)
 
 
+@metrics_result(_run_roc_node)
 def roc_curve(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     r"""
     Compute true positive rate (TPR), false positive rate (FPR) and threshold from predicted data set.
@@ -462,9 +474,9 @@ def roc_curve(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     >>> plt.plot(fpr, tpr)
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     if not col_scores:
-        col_scores = _get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
+        col_scores = get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
     thresh, tp, fn, tn, fp = _run_roc_node(df, pos_label, col_true, col_pred, col_scores)
 
     if np is not None:
@@ -478,6 +490,7 @@ def roc_curve(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     return roc_result(fpr=fpr, tpr=tpr, thresh=thresh)
 
 
+@metrics_result(_run_roc_node)
 def gain_chart(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     r"""
     Compute positive proportion, true positive rate (TPR) and threshold from predicted data set. The trace can be plotted as a cumulative gain chart
@@ -504,9 +517,9 @@ def gain_chart(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     >>> plt.plot(depth, tpr)
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     if not col_scores:
-        col_scores = _get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
+        col_scores = get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
     thresh, tp, fn, tn, fp = _run_roc_node(df, pos_label, col_true, col_pred, col_scores)
 
     depth = (tp + fp) * 1.0 / (tp + fp + tn + fn)
@@ -516,6 +529,7 @@ def gain_chart(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     return gain_result(depth=depth, tpr=tpr, thresh=thresh)
 
 
+@metrics_result(_run_roc_node)
 def lift_chart(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     r"""
     Compute life value, true positive rate (TPR) and threshold from predicted data set.
@@ -542,9 +556,9 @@ def lift_chart(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     >>> plt.plot(depth, lift)
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     if not col_scores:
-        col_scores = _get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
+        col_scores = get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
     thresh, tp, fn, tn, fp = _run_roc_node(df, pos_label, col_true, col_pred, col_scores)
 
     depth = (tp + fp) * 1.0 / (tp + fp + tn + fn)
@@ -570,6 +584,7 @@ def auc(tpr, fpr):
     return abs(np.trapz(tpr, fpr))
 
 
+@metrics_result(_run_roc_node)
 def roc_auc_score(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     """
     Compute Area Under the Curve (AUC) from prediction scores with trapezoidal rule.
@@ -590,15 +605,16 @@ def roc_auc_score(df, col_true=None, col_pred=None, col_scores=None, pos_label=1
     :rtype: float
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     if not col_scores:
-        col_scores = _get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
+        col_scores = get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
     thresh, tp, fn, tn, fp = _run_roc_node(df, pos_label, col_true, col_pred, col_scores)
     tpr = tp * 1.0 / (tp + fn)
     fpr = fp * 1.0 / (fp + tn)
     return auc(tpr, fpr)
 
 
+@metrics_result(_run_roc_node)
 def precision_recall_curve(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     """
     Compute precision and recall value with different thresholds. These precision and recall\
@@ -619,9 +635,9 @@ def precision_recall_curve(df, col_true=None, col_pred=None, col_scores=None, po
     :return: precision, recall and threshold, in numpy arrays.
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     if not col_scores:
-        col_scores = _get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
+        col_scores = get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
     thresh, tp, fn, tn, fp = _run_roc_node(df, pos_label, col_true, col_pred, col_scores)
 
     precisions = np.squeeze(np.asarray(tp * 1.0 / (tp + fp)))
@@ -631,6 +647,7 @@ def precision_recall_curve(df, col_true=None, col_pred=None, col_scores=None, po
     return result_type(precisions=precisions, recalls=recalls, thresh=thresh)
 
 
+@metrics_result(_run_roc_node)
 def average_precision_score(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     """
     Compute average precision score, i.e., the area under precision-recall curve.
@@ -651,9 +668,9 @@ def average_precision_score(df, col_true=None, col_pred=None, col_scores=None, p
     :rtype: float
     """
     if not col_pred:
-        col_pred = _get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
+        col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
     if not col_scores:
-        col_scores = _get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
+        col_scores = get_field_name_by_role(df, FieldRole.PREDICTED_SCORE)
     thresh, tp, fn, tn, fp = _run_roc_node(df, pos_label, col_true, col_pred, col_scores)
 
     precisions = np.squeeze(np.asarray(tp * 1.0 / (tp + fp)))

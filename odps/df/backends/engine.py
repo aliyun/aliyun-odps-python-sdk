@@ -57,14 +57,14 @@ def get_default_engine(*exprs):
         if len(expr_engines) == 1:
             engine = expr_engines[0]
             src = srcs[0]
-            if engine == Engines.ODPS:
+            if engine in (Engines.ODPS, Engines.ALGO):
                 expr_odps = src.odps
             elif engine in (Engines.PANDAS, Engines.SQLALCHEMY):
                 expr_odps = None
             else:
                 raise NotImplementedError
         else:
-            table_src = next(it for it in srcs if isinstance(it, Table))
+            table_src = next(it for it in srcs if hasattr(it, 'odps'))
             expr_odps = table_src.odps
         if expr_odps is not None:
             odps = expr_odps
@@ -91,10 +91,14 @@ class MixedEngine(Engine):
         self._seahawks_engine = SeahawksEngine(self._odps)
         self._sqlalchemy_engine = SQLAlchemyEngine(self._odps)
 
+        from ...ml.engine import OdpsAlgoEngine
+        self._xflow_engine = OdpsAlgoEngine(self._odps)
+
     def stop(self):
         self._pandas_engine.stop()
         self._odpssql_engine.stop()
         self._seahawks_engine.stop()
+        self._xflow_engine.stop()
 
     def _gen_table_name(self):
         table_name = self._odpssql_engine._gen_table_name()
@@ -109,6 +113,8 @@ class MixedEngine(Engine):
             return self._pandas_engine
         elif engine == Engines.SQLALCHEMY:
             return self._sqlalchemy_engine
+        elif engine == Engines.ALGO:
+            return self._xflow_engine
         else:
             assert engine == Engines.SEAHAWKS
             return self._seahawks_engine
@@ -206,7 +212,11 @@ class MixedEngine(Engine):
                 continue
 
     def _dispatch(self, expr_dag, expr, ctx):
+        from ...ml.expr import AlgoExprMixin
         funcs = []
+
+        if isinstance(expr, AlgoExprMixin):
+            return self._xflow_engine._dispatch(expr_dag, expr, ctx)
 
         handle = None
         if isinstance(expr, (JoinCollectionExpr, UnionCollectionExpr)) and \

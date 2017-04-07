@@ -22,7 +22,7 @@ from . import DataFrame, Scalar
 from ..ui.common import build_trait
 from ..console import in_ipython_frontend, is_widgets_available
 from ..compat import six, long_type
-from ..utils import to_text
+from ..utils import to_text, init_progress_ui
 
 MAX_TABLE_FETCH_SIZE = 10
 
@@ -52,6 +52,13 @@ else:
         return [_rv_list(r) for r in tb]
 
     class DFViewMixin(object):
+        @property
+        def mock_ui(self):
+            cls = type(self)
+            if not hasattr(cls, '_mock_ui'):
+                cls._mock_ui = init_progress_ui(mock=True)
+            return cls._mock_ui
+
         @staticmethod
         def _render_results(df, **kw):
 
@@ -82,7 +89,7 @@ else:
             return dict(groups=groups, data=sub_dfs, keys=key_dfs, **kw)
 
         def _handle_fetch_table(self, content, _):
-            df = self.df.to_pandas() if isinstance(self.df, DataFrame) else self.df
+            df = self.df.to_pandas(ui=self.mock_ui) if isinstance(self.df, DataFrame) else self.df
             start_pos, stop_pos, page = 0, len(df), 0
             if len(df) > MAX_TABLE_FETCH_SIZE:
                 page = content.get('page', 0)
@@ -121,14 +128,15 @@ else:
                     col_list = [self.df[col].map(lambda v: to_text(v)) for col in string_keys] +\
                                [self.df[col] for col in other_keys]
                     trans_df = self.df.select(col_list)
-                    pd_results = trans_df.groupby(group_by_keys).agg(**_gen_agg_func(trans_df)).to_pandas()
+                    pd_results = trans_df.groupby(group_by_keys).agg(**_gen_agg_func(trans_df)) \
+                        .to_pandas(ui=self.mock_ui)
                 else:
                     group_col = '__group_col__'
                     augment_df = self.df[Scalar(1).rename(group_col), self.df]
                     pd_results = augment_df.groupby([group_col]).agg(**_gen_agg_func(augment_df)) \
-                        .exclude(group_col).to_pandas()
+                        .exclude(group_col).to_pandas(ui=self.mock_ui)
             else:
-                pd_results = self.df.select(list(set(groups + keys + values))).to_pandas()
+                pd_results = self.df.select(list(set(groups + keys + values))).to_pandas(ui=self.mock_ui)
 
             result_dict = self._render_graph(pd_results, groups, keys)
             setattr(self, content.get('target'), result_dict)

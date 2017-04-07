@@ -158,7 +158,6 @@ class Test(TestBase):
         self.assertTrue(instance.is_terminated())
 
         task_names = instance.get_task_names()
-        self.assertGreater(len(task_names), 0)
 
         task_statuses = instance.get_task_statuses()
         for task_status in task_statuses.values():
@@ -257,12 +256,17 @@ class Test(TestBase):
         instance.wait_for_success()
         self.assertEqual(json.loads(instance.tasks[0].properties['settings']), hints)
 
-        with instance.open_reader(Schema.from_lists(['count'], ['bigint'])) as reader:
+        with instance.open_reader(Schema.from_lists(['count'], ['bigint']), use_tunnel=False) as reader:
             records = list(reader)
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['count'], 6)
 
-        with instance.open_reader() as reader:
+        with instance.open_reader(use_tunnel=True) as reader:
+            records = list(reader)
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]['count'], 6)
+
+        with instance.open_reader(use_tunnel=False) as reader:
             records = list(reader)
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['count'], '6')
@@ -302,7 +306,7 @@ class Test(TestBase):
         self.odps.write_table(
             table, 0, [table.new_record(it) for it in data])
 
-        with self.odps.execute_sql('select name from %s' % test_table).open_reader() as reader:
+        with self.odps.execute_sql('select name from %s' % test_table).open_reader(use_tunnel=False) as reader:
             read_data = sorted([to_str(r[0]) for r in reader])
             expected_data = sorted([to_str(r[1]) for r in data])
 
@@ -327,7 +331,16 @@ class Test(TestBase):
         ]
         self.odps.write_table(test_table, data)
 
-        with self.odps.execute_sql('select * from %s' % test_table).open_reader(table.schema) as reader:
+        inst = self.odps.execute_sql('select * from %s' % test_table)
+
+        with inst.open_reader(table.schema, use_tunnel=False) as reader:
+            read_data = [list(r.values) for r in reader]
+            read_data = sorted(read_data, key=lambda r: r[0])
+            expected_data = sorted(data, key=lambda r: r[0])
+
+            self.assertSequenceEqual(read_data, expected_data)
+
+        with inst.open_reader(table.schema, use_tunnel=True) as reader:
             read_data = [list(r.values) for r in reader]
             read_data = sorted(read_data, key=lambda r: r[0])
             expected_data = sorted(data, key=lambda r: r[0])

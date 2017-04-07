@@ -16,7 +16,7 @@
 
 from odps.tests.core import TestBase, snappy_case
 from odps.compat import unittest, BytesIO
-from odps.tunnel import io as tio
+from odps.tunnel.io import stream as io_stream
 
 import io
 import traceback
@@ -49,17 +49,17 @@ class Test(TestBase):
 
     def tearDown(self):
         super(Test, self).tearDown()
-        tio._FORCE_THREAD = False
+        io_stream._FORCE_THREAD = False
 
     def testCompressAndDecompressDeflate(self):
         tube = io.BytesIO()
 
-        outstream = tio.DeflateOutputStream(tube)
+        outstream = io_stream.DeflateOutputStream(tube)
         outstream.write(self.TEXT.encode('utf8'))
         outstream.flush()
 
         tube.seek(0)
-        instream = tio.DeflateInputStream(tube)
+        instream = io_stream.DeflateInputStream(tube)
 
         b = bytearray()
         while True:
@@ -74,12 +74,12 @@ class Test(TestBase):
     def testCompressAndDecompressSnappy(self):
         tube = io.BytesIO()
 
-        outstream = tio.SnappyOutputStream(tube)
+        outstream = io_stream.SnappyOutputStream(tube)
         outstream.write(self.TEXT.encode('utf8'))
         outstream.flush()
 
         tube.seek(0)
-        instream = tio.SnappyInputStream(tube)
+        instream = io_stream.SnappyInputStream(tube)
 
         b = bytearray()
         while True:
@@ -91,24 +91,24 @@ class Test(TestBase):
         self.assertEquals(self.TEXT.encode('utf8'), b)
 
     def testClass(self):
-        tio._FORCE_THREAD = False
+        io_stream._FORCE_THREAD = False
 
-        req_io = tio.RequestsIO(lambda c: None)
-        if tio.GreenletRequestsIO is None:
-            self.assertIsInstance(req_io, tio.ThreadRequestsIO)
+        req_io = io_stream.RequestsIO(lambda c: None)
+        if io_stream.GreenletRequestsIO is None:
+            self.assertIsInstance(req_io, io_stream.ThreadRequestsIO)
         else:
-            self.assertIsInstance(req_io, tio.GreenletRequestsIO)
-        self.assertIsInstance(tio.ThreadRequestsIO(lambda c: None), tio.ThreadRequestsIO)
-        if tio.GreenletRequestsIO is not None:
-            self.assertIsInstance(tio.GreenletRequestsIO(lambda c: None), tio.GreenletRequestsIO)
+            self.assertIsInstance(req_io, io_stream.GreenletRequestsIO)
+        self.assertIsInstance(io_stream.ThreadRequestsIO(lambda c: None), io_stream.ThreadRequestsIO)
+        if io_stream.GreenletRequestsIO is not None:
+            self.assertIsInstance(io_stream.GreenletRequestsIO(lambda c: None), io_stream.GreenletRequestsIO)
 
-        tio._FORCE_THREAD = True
+        io_stream._FORCE_THREAD = True
 
-        req_io = tio.RequestsIO(lambda c: None)
-        self.assertIsInstance(req_io, tio.ThreadRequestsIO)
-        self.assertIsInstance(tio.ThreadRequestsIO(lambda c: None), tio.ThreadRequestsIO)
-        if tio.GreenletRequestsIO is not None:
-            self.assertIsInstance(tio.GreenletRequestsIO(lambda c: None), tio.GreenletRequestsIO)
+        req_io = io_stream.RequestsIO(lambda c: None)
+        self.assertIsInstance(req_io, io_stream.ThreadRequestsIO)
+        self.assertIsInstance(io_stream.ThreadRequestsIO(lambda c: None), io_stream.ThreadRequestsIO)
+        if io_stream.GreenletRequestsIO is not None:
+            self.assertIsInstance(io_stream.GreenletRequestsIO(lambda c: None), io_stream.GreenletRequestsIO)
 
     def testRaises(self):
         exc_trace = [None]
@@ -123,9 +123,9 @@ class Test(TestBase):
                 exc_trace[0] = '\n'.join(tb[-3:])
                 raise
 
-        tio._FORCE_THREAD = True
+        io_stream._FORCE_THREAD = True
 
-        req_io = tio.ThreadRequestsIO(raise_poster)
+        req_io = io_stream.ThreadRequestsIO(raise_poster)
         req_io.start()
         try:
             req_io.write('TEST_DATA')
@@ -135,10 +135,10 @@ class Test(TestBase):
             tb = traceback.format_exc().splitlines()
             self.assertEqual('\n'.join(tb[-3:]), exc_trace[0])
 
-        if tio.GreenletRequestsIO is None:
+        if io_stream.GreenletRequestsIO is None:
             return
 
-        req_io = tio.GreenletRequestsIO(raise_poster)
+        req_io = io_stream.GreenletRequestsIO(raise_poster)
         req_io.start()
         try:
             req_io.write('TEST_DATA')

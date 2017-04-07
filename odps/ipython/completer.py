@@ -151,48 +151,6 @@ class ObjectCompleter(BaseCompleter):
                                 prefix=name_str, project=project), quote
 
 
-class TablesModelCompleter(BaseCompleter):
-    def build_regex(self):
-        _regex_str = '(^|.*[\(\)\s,=]+)TablesModel\(\s*(?P<odps>[^\(\)\s,]+)\s*,\s*'
-        self._regex = re.compile(_regex_str + '(?P<args>[^\(\)]*)$')
-        return _regex_str
-
-    def get_list_call(self, cursor_str, full_line=None):
-        full_line = full_line or cursor_str
-
-        cmatch = self._regex.match(cursor_str)
-        if cmatch is None:
-            return None
-        odps_obj = cmatch.group('odps')
-        arg_str = cmatch.group('args').strip()
-
-        project = 'None'
-        arg_start, arg_cursor = cmatch.span('args')
-        arg_body = full_line[arg_start:]
-        pmatch = PROJECT_REGEX.match(arg_body)
-        if pmatch:
-            project = pmatch.group('project')
-
-        nmatch = NAME_REGEX.match(arg_str)
-        name_str = nmatch.group('name') if nmatch else arg_str
-
-        quote = None
-        if name_str != '' and not (name_str.startswith('\'') or name_str.startswith('\"')):
-            return None
-        if name_str.endswith('\"') or name_str.endswith('\''):
-            return None
-        if name_str:
-            quote = name_str[0]
-            name_str = name_str[1:]
-
-        if self._ipython:
-            self._ipython.ex('from odps.ml import list_tables_model')
-        formatter = 'list_tables_model({odps}, prefix="{prefix}", project={project})'
-        return formatter.format(odps=odps_obj, prefix=name_str, project=project), quote
-
-
 def load_ipython_extension(ipython):
     completer = ObjectCompleter(ipython)
-    completer.register()
-    completer = TablesModelCompleter(ipython)
     completer.register()

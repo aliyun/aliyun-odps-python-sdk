@@ -18,7 +18,7 @@ import operator
 
 from ...models import Schema
 from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
-    Column, SequenceExpr, Scalar, repr_obj
+    Column, SequenceExpr, Scalar, BooleanScalar, repr_obj
 from .collections import SortedExpr, ReshuffledCollectionExpr
 from .errors import ExpressionError
 from . import utils
@@ -210,8 +210,9 @@ class GroupBy(BaseGroupBy):
     def __getitem__(self, item):
         item = self._defunc(item)
 
-        if isinstance(item, BooleanSequenceExpr):
-            having = item
+        if isinstance(item, (BooleanSequenceExpr, BooleanScalar)):
+            having = item if isinstance(item, BooleanSequenceExpr) \
+                else self._transform(item)
             if self._having is not None:
                 having = having & self._having
             return GroupBy(_input=self._input, _by=self._by,
@@ -492,7 +493,7 @@ CollectionExpr.groupby = groupby
 
 
 class ValueCounts(CollectionExpr):
-    _args = '_input', '_by', '_sort',
+    _args = '_input', '_by', '_sort', '_ascending', '_dropna'
     node_name = 'ValueCounts'
 
     def _init(self, *args, **kwargs):
@@ -504,9 +505,13 @@ class ValueCounts(CollectionExpr):
                                if isinstance(it, CollectionExpr))
         if isinstance(self._sort, bool):
             self._sort = Scalar(_value=self._sort)
+        if isinstance(self._ascending, bool):
+            self._ascending = Scalar(_value=self._ascending)
+        if isinstance(self._dropna, bool):
+            self._dropna = Scalar(_value=self._dropna)
 
     def iter_args(self):
-        for it in zip(['collection', 'by', '_sort'], self.args):
+        for it in zip(['collection', 'by', 'sort', 'ascending', 'dropna'], self.args):
             yield it
 
     @property
@@ -517,7 +522,7 @@ class ValueCounts(CollectionExpr):
         return visitor.visit_value_counts(self)
 
 
-def value_counts(expr, sort=True):
+def value_counts(expr, sort=True, ascending=False, dropna=False):
     """
     Return object containing counts of unique values.
 
@@ -527,13 +532,15 @@ def value_counts(expr, sort=True):
     :param expr: sequence
     :param sort: if sort
     :type sort: bool
+    :param dropna: Don’t include counts of None, default False
     :return: collection with two columns
     :rtype: :class:`odps.df.expr.expressions.CollectionExpr`
     """
 
     names = [expr.name, 'count']
     typos = [expr.dtype, types.int64]
-    return ValueCounts(_input=expr, _schema=Schema.from_lists(names, typos), _sort=sort)
+    return ValueCounts(_input=expr, _schema=Schema.from_lists(names, typos),
+                       _sort=sort, _ascending=ascending, _dropna=dropna)
 
 
 def topk(expr, k):

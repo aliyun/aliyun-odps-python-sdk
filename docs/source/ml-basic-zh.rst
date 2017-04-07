@@ -194,20 +194,28 @@ PyODPS ML 中无法显示创建一个模型。模型需要通过算法生成，�
     pmml_model.persist('model_name')
     reloaded_model = PmmlModel(odps.get_offline_model('model_name'))
 
-目前，PyODPS ML 支持对随机森林模型以及逻辑回归模型进行可视化。
+使用 :func:`PmmlModel.execute` 方法可以获取模型的 Pmml，该方法返回一个 :class:`PmmlResult` 对象，可获取其 pmml 属性：
 
-对于随机森林模型，调用 :func:`PmmlModel.segments` 属性可以获得一个数组，其中的每个元素都是一颗决策树，可以通过 root 属性获得根节点，并对
+.. code-block:: python
+
+    result = pmml_model.execute()
+    print(result.pmml)
+
+目前，PyODPS ML 支持对结果中的随机森林模型以及逻辑回归模型进行可视化。
+
+对于随机森林模型，:class:`PmmlResult` 中可通过下标读取每一颗决策树。在决策树中，可以通过 root 属性获得根节点，并对
 决策树进行遍历。在 Jupyter Notebook 中，也可以直接对节点进行可视化，如下面的代码，在模型中获取 ID 为 0 的决策树。如果安装有
 GraphViz，那么将显示 SVG 格式的决策树，否则将显示文本格式的决策树：
 
 .. code-block:: python
 
-    model.segments[0]
+    result = model.execute()
+    result[0]
 
-对于逻辑回归模型，调用 :func:`PmmlModel.load_regression` 方法可以获得一个数组，其中每个元素都是一条计算公式。
+对于逻辑回归模型，迭代 :func:`PmmlResult` 方法可以获得各个计算公式。
 
 可以使用模型的 :func:`PmmlModel.predict` 方法对数据集进行预测操作。该方法的输出为一个新的 DataFrame，除了原有列之外，还会附加
-三个新字段。不同算法对这些字段的定义可能会不同，见下表：
+三个新字段。不同算法对这些字段的定义可能会不同。常见的预测结果列见下表：
 
 ==================== ======== ====================================================
  字段名               类型      注释
@@ -246,14 +254,14 @@ otm_output_model__model。
 
 .. code-block:: python
 
-    models = list_tables_model(odps, 'model_prefix')
-    tables_model = TablesModel(odps, 'model_name')
+    model = odps.get_tables_model('model_prefix')
+    tables_model = TablesModel(model)
 
 表模型也拥有 predict 方法，可对数据集进行预测，但输出列不确定，一部分分类算法不支持输出 predict 列，具体需要参考各算法文档。
 
 推荐模型
 ==========
-推荐模型（:class:`TablesRecommendModel`）建立在表模型基础上，除了正常的 predict 方法外，还拥有 recommend 方法，可计算推荐结果。
+推荐模型建立在表模型基础上，除了正常的 predict 方法外，还拥有 recommend 方法，可计算推荐结果。
 该模型也可使用 :func:`TablesModel` 的构造函数进行加载，PyODPS ML 会自动判别类型。
 
 

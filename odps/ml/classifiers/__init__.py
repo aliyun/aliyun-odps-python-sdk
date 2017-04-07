@@ -15,7 +15,7 @@
 
 import sys
 
-from ..algorithms.loader import load_defined_algorithms
+from ..algolib.loader import load_defined_algorithms
 
 
 load_defined_algorithms(sys.modules[__name__], 'classifier')

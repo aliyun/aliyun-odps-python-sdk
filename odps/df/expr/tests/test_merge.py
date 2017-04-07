@@ -229,6 +229,8 @@ class Test(TestBase):
         self.assertIsInstance(expr._rhs, ProjectCollectionExpr)
 
     def testConcat(self):
+        from odps.ml.expr import AlgoCollectionExpr
+
         schema = Schema.from_lists(['name', 'id'], [types.string, types.int64])
         df = CollectionExpr(_source_data=None, _schema=schema)
         df1 = CollectionExpr(_source_data=None, _schema=schema)
@@ -254,14 +256,14 @@ class Test(TestBase):
             self.assertIsInstance(expr._lhs, CollectionExpr)
             self.assertIsInstance(expr._rhs, CollectionExpr)
         except ImportError:
-            self.assertIsInstance(expr, DataFrame)
+            self.assertIsInstance(expr, AlgoCollectionExpr)
         self.assertIn('name', expr.schema.names)
         self.assertIn('id', expr.schema.names)
         self.assertIn('fid', expr.schema.names)
         self.assertIn('fid2', expr.schema.names)
 
         expr = df.concat(df4, axis=1)
-        self.assertIsInstance(expr, DataFrame)
+        self.assertIsInstance(expr, AlgoCollectionExpr)
         self.assertIn('name', expr.schema.names)
         self.assertIn('id', expr.schema.names)
         self.assertIn('fid', expr.schema.names)

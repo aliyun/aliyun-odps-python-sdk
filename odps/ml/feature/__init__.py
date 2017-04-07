@@ -15,7 +15,7 @@
 
 import sys
 
-from ..algorithms.loader import load_defined_algorithms
+from ..algolib.loader import load_defined_algorithms
 
 # required by autodoc of sphinx
 __all__ = []

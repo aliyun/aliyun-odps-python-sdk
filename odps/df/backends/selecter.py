@@ -29,6 +29,7 @@ except ImportError:
     has_sqlalchemy = False
 
 from ...models import Table
+from ...models.ml import OfflineModel
 from ..expr.expressions import CollectionExpr
 from ..expr.core import ExprDictionary
 from .odpssql.models import MemCacheReference
@@ -40,6 +41,7 @@ from ...config import options
 
 
 def available_engines(sources):
+    from ...ml.models import TablesModelObject
     engines = set()
 
     for src in sources:
@@ -47,6 +49,8 @@ def available_engines(sources):
             engines.add(Engines.SEAHAWKS)
         elif isinstance(src, (Table, MemCacheReference)):
             engines.add(Engines.ODPS)
+        elif isinstance(src, (OfflineModel, TablesModelObject)):
+            engines.add(Engines.ALGO)
         elif has_pandas and isinstance(src, pd.DataFrame):
             engines.add(Engines.PANDAS)
         elif has_sqlalchemy and isinstance(src, sqlalchemy.Table):
@@ -148,6 +152,10 @@ class EngineSelecter(object):
 
     def select(self, expr_dag):
         node = expr_dag.root
+
+        if getattr(node, '_algo', None) is not None:
+            return Engines.ALGO
+
         if not self.has_diff_data_sources(node):
             engine = self._choose_backend(node)
             if engine == Engines.ODPS and not self.force_odps:

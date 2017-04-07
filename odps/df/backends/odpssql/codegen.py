@@ -465,10 +465,12 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
     from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
     to_type = df_type_to_odps_type(node.dtype).name
     raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
-    func_args, func_kwargs = \
-        hashable(node._func_args), tuple((hashable(node._func_kwargs) or {}).items())
+    func_args_str = to_str(
+        base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf)))
+    func_kwargs_str = to_str(
+        base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf)))
 
-    key = (from_type, to_type, func, tuple(resources), names_str, func_args, func_kwargs)
+    key = (from_type, to_type, func, tuple(resources), names_str, func_args_str, func_kwargs_str)
     if key in func_params:
         return
     else:
@@ -487,9 +489,8 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
         'to_type': to_type,
         'func_cls_name': func_cls_name,
         'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
-        'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
-        'func_kwargs_str': to_str(
-            base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
+        'func_args_str': func_args_str,
+        'func_kwargs_str': func_kwargs_str,
         'names_str': names_str,
         'resources': to_str(
             base64.b64encode(cloudpickle.dumps([r[:3] for r in resources], dump_code=options.df.dump_udf))),
@@ -509,10 +510,12 @@ def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
     from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
     raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
     to_type = ','.join(df_type_to_odps_type(t).name for t in node.schema.types)
-    func_args, func_kwargs = \
-        hashable(node._func_args), tuple((hashable(node._func_kwargs) or {}).items())
+    func_args_str = to_str(
+        base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf)))
+    func_kwargs_str = to_str(
+        base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf)))
 
-    key = (from_type, to_type, func, tuple(resources), names_str, func_args, func_kwargs)
+    key = (from_type, to_type, func, tuple(resources), names_str, func_args_str, func_kwargs_str)
     if key in func_params:
         return
     else:
@@ -531,9 +534,8 @@ def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
         'to_type': to_type,
         'func_cls_name': func_cls_name,
         'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
-        'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
-        'func_kwargs_str': to_str(
-            base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
+        'func_args_str': func_args_str,
+        'func_kwargs_str': func_kwargs_str,
         'close_func_str': to_str(
             base64.b64encode(cloudpickle.dumps(getattr(node, '_close_func', None), dump_code=options.df.dump_udf))),
         'names_str': names_str,
@@ -553,10 +555,12 @@ def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
     from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
     raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
     to_type = df_type_to_odps_type(node.dtype).name
-    func_args, func_kwargs = \
-        hashable(node._func_args), tuple((hashable(node._func_kwargs) or {}).items())
+    func_args_str = to_str(
+        base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf)))
+    func_kwargs_str = to_str(
+        base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf)))
 
-    key = (from_type, to_type, func, tuple(resources), func_args, func_kwargs)
+    key = (from_type, to_type, func, tuple(resources), func_args_str, func_kwargs_str)
     if key in func_params:
         return
     else:
@@ -575,9 +579,8 @@ def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
         'to_type': to_type,
         'func_cls_name': func_cls_name,
         'func_str': to_str(base64.b64encode(cloudpickle.dumps(func, dump_code=options.df.dump_udf))),
-        'func_args_str': to_str(base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))),
-        'func_kwargs_str': to_str(
-            base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))),
+        'func_args_str': func_args_str,
+        'func_kwargs_str': func_kwargs_str,
         'resources': to_str(
             base64.b64encode(cloudpickle.dumps([r[:3] for r in resources], dump_code=options.df.dump_udf))),
         'implementation': CLIENT_IMPL,

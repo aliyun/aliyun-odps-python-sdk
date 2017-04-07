@@ -15,8 +15,8 @@
 
 from functools import partial
 
-from ..adapter import ml_collection_mixin
-from ..nodes.exporters import get_input_field_names, get_input_field_ids, get_input_field_id
+from ..expr.exporters import get_ml_input, get_input_field_names, get_input_field_ids, get_input_field_id
+from ..expr.mixin import ml_collection_mixin
 from ...compat import Enum
 
 
@@ -30,6 +30,8 @@ class TextFieldRole(Enum):
 
 @ml_collection_mixin
 class TextDFMixIn(object):
+    __slots__ = ()
+
     field_role_enum = TextFieldRole
     non_feature_roles = set([TextFieldRole.DOC_ID, ])
 
@@ -46,13 +48,13 @@ get_doc_content_column_ids = partial(get_input_field_ids, field_role=TextFieldRo
 get_doc_content_column_id = partial(get_input_field_id, field_role=TextFieldRole.DOC_CONTENT)
 
 
-def normalize_get_append_col_names(node, param_name, input_name):
-    if node.parameters[param_name]:
-        return node.parameters[param_name]
-    data_obj = node.inputs[input_name].obj
+def normalize_get_append_col_names(expr, param_name, input_name):
+    if expr._params[param_name]:
+        return expr._params[param_name]
+    data_obj = get_ml_input(expr, input_name)
     if data_obj is None:
         return None
-    fields = data_obj._fields
-    sel_cols = set(node.parameters['selectedColNames'].split(',')) if node.parameters['selectedColNames']\
-        else set(get_doc_content_column(node, param_name, input_name))
+    fields = data_obj._ml_fields
+    sel_cols = set(expr._params['selectedColNames'].split(',')) if expr._params['selectedColNames']\
+        else set(get_doc_content_column(expr, param_name, input_name))
     return [f.name for f in fields if f.name not in sel_cols]

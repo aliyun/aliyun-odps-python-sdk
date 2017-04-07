@@ -120,17 +120,19 @@ class Test(TestBase):
         self.assertFalse(expr.input._sort_fields[2]._ascending)
 
     def testSample(self):
+        from odps.ml.expr import AlgoCollectionExpr
+
         self.assertIsInstance(self.expr.sample(100), SampledCollectionExpr)
         self.assertIsInstance(self.expr.sample(parts=10), SampledCollectionExpr)
         try:
             import pandas
         except ImportError:
             # No pandas: go for XFlow
-            self.assertIsInstance(self.expr.sample(frac=0.5), DataFrame)
+            self.assertIsInstance(self.expr.sample(frac=0.5), AlgoCollectionExpr)
         else:
             # Otherwise: go for Pandas
             self.assertIsInstance(self.expr.sample(frac=0.5), SampledCollectionExpr)
-        self.assertIsInstance(self.sourced_expr.sample(frac=0.5), DataFrame)
+        self.assertIsInstance(self.sourced_expr.sample(frac=0.5), AlgoCollectionExpr)
 
         self.assertRaises(ExpressionError, lambda: self.expr.sample())
         self.assertRaises(ExpressionError, lambda: self.expr.sample(i=-1))
@@ -240,27 +242,31 @@ class Test(TestBase):
                               if n.startswith('int') or n.startswith('float')])
 
     def testAppendId(self):
+        from odps.ml.expr import AlgoCollectionExpr
+
         expr = self.expr.append_id(id_col='id_col')
         try:
             import pandas
         except ImportError:
             # No pandas: go for XFlow
-            self.assertIsInstance(expr, DataFrame)
+            self.assertIsInstance(expr, AlgoCollectionExpr)
         else:
             # Otherwise: go for Pandas
             self.assertIsInstance(expr, AppendIDCollectionExpr)
         self.assertIn('id_col', expr.schema)
 
-        self.assertIsInstance(self.sourced_expr.append_id(), DataFrame)
+        self.assertIsInstance(self.sourced_expr.append_id(), AlgoCollectionExpr)
 
     def testSplit(self):
+        from odps.ml.expr import AlgoCollectionExpr
+
         expr1, expr2 = self.expr.split(0.6)
         try:
             import pandas
         except ImportError:
             # No pandas: go for XFlow
-            self.assertIsInstance(expr1, DataFrame)
-            self.assertIsInstance(expr2, DataFrame)
+            self.assertIsInstance(expr1, AlgoCollectionExpr)
+            self.assertIsInstance(expr2, AlgoCollectionExpr)
         else:
             # Otherwise: go for Pandas
             self.assertIsInstance(expr1, SplitCollectionExpr)

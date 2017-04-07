@@ -58,7 +58,7 @@ class Test(TestBase):
             p.print_stats(40)
             p.print_callees('types.py:846\(validate_value', 20)
             p.print_callees('types.py:828\(_validate_primitive_value', 20)
-            p.print_callees('uploadsession.py:185\(write', 20)
+            p.print_callees('tabletunnel.py:185\(write', 20)
         TestBase.teardown(self)
 
     def testWrite(self):

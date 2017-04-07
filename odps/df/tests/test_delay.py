@@ -40,12 +40,18 @@ class Test(TestBase):
     def testSyncExecute(self):
         delay = Delay()
         filtered = self.df[self.df.id > 0].cache()
-        sub_futures = [filtered[filtered.value == i].execute(delay=delay) for i in range(1, 4)]
+        sub_futures = [filtered[filtered.value == i].execute(delay=delay) for i in range(1, 3)]
         delay.execute(timeout=10 * 60)
 
         self.assertTrue(all(f.done() for f in sub_futures))
-        for i in range(1, 4):
+        for i in range(1, 3):
             self.assertEqual(self._get_result(sub_futures[i - 1].result()), [d for d in self.data if d[2] == i])
+
+        # execute on executed delay
+        sub_future = filtered[filtered.value == 3].execute(delay=delay)
+        delay.execute(timeout=10 * 60)
+        self.assertTrue(sub_future.done())
+        self.assertEqual(self._get_result(sub_future.result()), [d for d in self.data if d[2] == 3])
 
     def testAsyncExecute(self):
         def make_filter(df, cnt):
@@ -61,6 +67,7 @@ class Test(TestBase):
         filtered = self.df[self.df.id > 0].cache()
         sub_futures = [make_filter(filtered, i).execute(delay=delay) for i in range(1, 4)]
         future = delay.execute(async=True, n_parallel=3)
+        self.assertRaises(RuntimeError, lambda: delay.execute())
 
         for i in range(1, 4):
             self.assertFalse(future.done())

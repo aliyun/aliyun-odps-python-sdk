@@ -32,8 +32,10 @@ try:
 
     if ipython_major_version < 4:
         from IPython.utils.traitlets import Unicode, List
+        traitlets_version = (3, 0)
     else:
         from traitlets import Unicode, List
+        from traitlets import version_info as traitlets_version
     from IPython.display import display
 except Exception:
     InstancesProgress = None
@@ -45,8 +47,7 @@ else:
     last_ipython_msg_id = None
 
     def build_trait(trait_cls, default_value=None, **metadata):
-        from traitlets import version_info as traitlets_version
-        if traitlets_version[0] <= 4 and traitlets_version[1] < 1:  # old-fashioned call
+        if tuple(traitlets_version[:2]) < (4, 1):  # old-fashioned call
             if default_value:
                 return trait_cls(default_value, **metadata)
             else:

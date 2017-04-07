@@ -21,3 +21,7 @@ DataFrame Reference
 .. autoclass:: odps.df.RandomScalar
     :members:
     :inherited-members:
+
+.. autoclass:: odps.df.expr.groupby.GroupBy
+    :members:
+    :inherited-members:

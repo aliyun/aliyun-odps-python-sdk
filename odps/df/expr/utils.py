@@ -156,7 +156,7 @@ def is_changed(collection, column):
     if src_collection is collection:
         return False
 
-    dag = collection.to_dag(copy=False)
+    dag = collection.to_dag(copy=False, validate=False)
     coll = src_collection
     colls = [src_collection,]
     while coll is not collection:

@@ -172,6 +172,11 @@ class Project(LazyLoad):
         return SecurityConfiguration(client=self._client, parent=self)
 
     @property
+    def system_info(self):
+        resp = self._client.get(self.resource() + '/system')
+        return json.loads(resp.text if six.PY3 else resp.content)
+
+    @property
     def policy(self):
         if self._policy_cache is None:
             params = dict(policy='')

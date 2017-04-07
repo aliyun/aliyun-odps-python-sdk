@@ -15,11 +15,11 @@
 # limitations under the License.
 
 import math
-from datetime import datetime
 import random
 import time
-from multiprocessing.pool import ThreadPool
+from datetime import datetime
 from decimal import Decimal
+from multiprocessing.pool import ThreadPool
 
 try:
     from string import letters
@@ -53,19 +53,13 @@ def bothPyAndC(func):
                 from odps import models
                 reload_module(models)
 
-                from odps.tunnel.tabletunnel import writer
+                from odps.tunnel.io import writer
                 reload_module(writer)
 
-                from odps.tunnel.tabletunnel import reader
+                from odps.tunnel.io import reader
                 reload_module(reader)
 
-                from odps.tunnel.tabletunnel import uploadsession
-                reload_module(uploadsession)
-
-                from odps.tunnel.tabletunnel import downloadsession
-                reload_module(downloadsession)
-
-                from odps.tunnel.tabletunnel import tabletunnel
+                from odps.tunnel import tabletunnel
                 reload_module(tabletunnel)
 
                 self.tunnel = TableTunnel(self.odps, endpoint=self.odps._tunnel_endpoint)

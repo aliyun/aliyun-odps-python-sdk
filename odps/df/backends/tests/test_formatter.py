@@ -42,8 +42,10 @@ class Test(TestBase):
                                         datatypes('string', 'int64', 'float64', 'datetime'))
 
     def _random_values(self):
-        values = [self._gen_random_string(), self._gen_random_bigint(),
-                  self._gen_random_double(), self._gen_random_datetime()]
+        values = [self._gen_random_string() if random.random() >= 0.05 else None,
+                  self._gen_random_bigint(),
+                  self._gen_random_double() if random.random() >= 0.05 else None,
+                  self._gen_random_datetime() if random.random() >= 0.05 else None]
         schema = df_schema_to_odps_schema(self.schema)
         return Record(schema=schema, values=values)
 

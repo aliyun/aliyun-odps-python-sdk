@@ -275,6 +275,38 @@ class Test(TestBase):
                    "WHERE t1.`id` < 10"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.copy()
+        expr._proxy = None
+
+        expr['new_id'] = expr.id + 1
+        expr['new_id2'] = expr['new_id'] + 2
+        expr2 = expr.filter(expr.new_id < 10)
+        expr2['new_id3'] = expr2.new_id + expr2.id
+        expr2['new_id2'] = expr2.new_id
+        expected = "SELECT t2.`name`, t2.`id`, t2.`fid`, t2.`isMale`, t2.`scale`, " \
+                   "t2.`birth`, t2.`new_id`, t2.`new_id` AS `new_id2`, t2.`new_id` + t2.`id` AS `new_id3` \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, t1.`scale`, t1.`birth`, " \
+                   "t1.`id` + 1 AS `new_id`, (t1.`id` + 1) + 2 AS `new_id2` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   ") t2 \n" \
+                   "WHERE t2.`new_id` < 10"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr2, prettify=False)))
+
+        expr3 = expr.distinct()
+        expr3['new_id3'] = expr3['new_id2'] * 2
+        del expr3.new_id2
+
+        expected = "SELECT t2.`name`, t2.`id`, t2.`fid`, t2.`isMale`, t2.`scale`, " \
+                   "t2.`birth`, t2.`new_id`, t2.`new_id2` * 2 AS `new_id3` \n" \
+                   "FROM (\n" \
+                   "  SELECT DISTINCT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, " \
+                   "t1.`scale`, t1.`birth`, t1.`id` + 1 AS `new_id`, " \
+                   "(t1.`id` + 1) + 2 AS `new_id2` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   ") t2"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr3, prettify=False)))
+
     def testMemCacheCompilation(self):
         cached = self.expr['name', self.expr.id + 1].cache(mem=True)
         expr = cached.groupby('name').agg(cached.id.sum())
@@ -862,6 +894,18 @@ class Test(TestBase):
                    ') t3'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.id.value_counts(sort=True, ascending=True, dropna=True)
+        expected = 'SELECT * \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`id`, COUNT(t1.`id`) AS `count` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  GROUP BY t1.`id` \n' \
+                   '  ORDER BY count \n' \
+                   '  LIMIT 10000\n' \
+                   ') t2 \n' \
+                   'WHERE t2.`id` IS NOT NULL'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testDatetimeCompilation(self):
         self.assertRaises(NotImplementedError,
                           lambda: ODPSEngine(self.odps).compile(self.expr.birth.time))
@@ -1030,6 +1074,16 @@ class Test(TestBase):
         expected = 'SELECT t1.`name` AS `name2`, SUM(t1.`id`) + 3 AS `id` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    'GROUP BY t1.`name`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['name', 'id']).filter(self.expr.id.min() * 2 < 10) \
+            .agg(self.expr.fid.max() + 1, new_id=self.expr.id.sum())
+
+        expected = 'SELECT t1.`name`, t1.`id`, MAX(t1.`fid`) + 1 AS `fid_max`, SUM(t1.`id`) AS `new_id` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`name`, t1.`id` \n' \
+                   'HAVING (MIN(t1.`id`) * 2) < 10'
+
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
     def testMutate(self):
@@ -1218,6 +1272,11 @@ class Test(TestBase):
 
         expr = self.expr.name.cat(sep=',', na_rep='')
         expected = "SELECT WM_CONCAT(',', IF(t1.`name` IS NULL, '', t1.`name`)) AS `name_cat` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.name.cat(sep=',')
+        expected = "SELECT WM_CONCAT(',', t1.`name`) AS `name_cat` \n" \
                    "FROM mocked_project.`pyodps_test_expr_table` t1"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 

@@ -14,8 +14,8 @@
 # limitations under the License.
 
 from odps import options, DataFrame
-from odps.ml import PmmlModel
 from odps.ml.feature import *
+from odps.ml.expr import PmmlModel
 from odps.ml.tests.base import MLTestBase, tn
 
 TEST_LR_MODEL_NAME = tn('pyodps_test_lr_model')
@@ -29,27 +29,27 @@ class Test(MLTestBase):
         self.create_test_pmml_model(TEST_LR_MODEL_NAME)
         self.create_ionosphere(IONOSPHERE_TABLE)
         self.df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).label_field('class')
-        self.model = PmmlModel(self.odps.get_offline_model(TEST_LR_MODEL_NAME))
-        options.runner.dry_run = True
+        self.model = PmmlModel(_source_data=self.odps.get_offline_model(TEST_LR_MODEL_NAME))
+        options.ml.dry_run = True
 
     def test_rf_importance(self):
         rf_importance(self.df, self.model, core_num=1, core_mem=1024, _cases=self.gen_check_params_case({
             'labelColName': 'class', 'featureColNames': ','.join('a%02d' % i for i in range(1, 35)),
-            'modelName': TEST_LR_MODEL_NAME, 'outputTableName': 'tmp_pyodps_ml_rf_importance_0_3_res',
+            'modelName': TEST_LR_MODEL_NAME, 'outputTableName': 'tmp_pyodps__rf_importance',
             'inputTableName': IONOSPHERE_TABLE, 'coreNum': '1', 'memSizePerCore': '1024'
         }))
 
     def test_gbdt_importance(self):
         gbdt_importance(self.df, self.model, _cases=self.gen_check_params_case({
             'labelColName': 'class', 'featureColNames': ','.join('a%02d' % i for i in range(1, 35)),
-            'modelName': TEST_LR_MODEL_NAME, 'outputTableName': 'tmp_pyodps_ml_gbdt_importance_0_3_res',
+            'modelName': TEST_LR_MODEL_NAME, 'outputTableName': 'tmp_pyodps__gbdt_importance',
             'inputTableName': IONOSPHERE_TABLE
         }))
 
     def test_regression_importance(self):
         regression_importance(self.df, self.model, _cases=self.gen_check_params_case({
             'labelColName': 'class', 'featureColNames': ','.join('a%02d' % i for i in range(1, 35)),
-            'modelName': TEST_LR_MODEL_NAME, 'outputTableName': 'tmp_pyodps_ml_regression_importance_0_3_res',
+            'modelName': TEST_LR_MODEL_NAME, 'outputTableName': 'tmp_pyodps__regression_importance',
             'inputTableName': IONOSPHERE_TABLE
         }))
 
@@ -58,7 +58,7 @@ class Test(MLTestBase):
         output._add_case(self.gen_check_params_case({
             'inputTable': IONOSPHERE_TABLE, 'labelCol': 'class', 'selectMethod': 'iv',
             'selectedCols': ','.join('a%02d' % i for i in range(1, 35)), 'topN': '10',
-            'featImportanceTable': 'tmp_pyodps_ml_0_select_features_3_2',
+            'featImportanceTable': 'tmp_pyodps__select_features',
             'outputTable': SELECT_FEATURE_OUTPUT_TABLE
         }))
         output.persist(SELECT_FEATURE_OUTPUT_TABLE)

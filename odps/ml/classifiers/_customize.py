@@ -24,9 +24,9 @@ Random forests exporters
 """
 
 
-def random_forest_algo_types(node):
-    algo_type = node.parameters["algorithmType"]
-    tree_num = int(node.parameters["treeNum"])
+def random_forest_algo_types(expr):
+    algo_type = expr._params["algorithmType"]
+    tree_num = int(expr._params["treeNum"])
     tree_num = tree_num - 1 if tree_num != 0 else 0
     if algo_type == "mix":
         return None
@@ -39,12 +39,12 @@ def random_forest_algo_types(node):
     return None
 
 
-def random_forest_min_num_per(node):
+def random_forest_min_num_per(expr):
     ret = '-1'
-    if node.parameters['minNumPerInt'] is None:
+    if expr._params['minNumPerInt'] is None:
         return ret
 
-    min_num_per_int = node.parameters['minNumPerInt']
+    min_num_per_int = expr._params['minNumPerInt']
     if min_num_per_int.strip() != '':
         if int(min_num_per_int) in (-1, 0):
             return ret
