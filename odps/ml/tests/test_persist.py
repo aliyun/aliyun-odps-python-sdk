@@ -24,6 +24,7 @@ from odps import types as odps_types
 
 IRIS_TABLE = tn('pyodps_test_ml_iris')
 SIMPLE_PERSIST_TABLE = tn('pyodps_test_ml_simple_persist_table')
+EXISTING_PERSIST_TABLE = tn('pyodps_test_ml_existing_persist_table')
 STATIC_PART_TABLE = tn('pyodps_test_ml_static_part_table')
 DYNAMIC_PART_TABLE = tn('pyodps_test_ml_dynamic_part_table')
 
@@ -34,6 +35,18 @@ class Test(MLTestBase):
         df = DataFrame(self.odps.get_table(IRIS_TABLE))
         df.append_id().persist(SIMPLE_PERSIST_TABLE, lifecycle=1, drop_table=True)
         self.assertTrue(self.odps.exist_table(SIMPLE_PERSIST_TABLE))
+
+    def testExistingPersist(self):
+        self.create_iris(IRIS_TABLE)
+        df = DataFrame(self.odps.get_table(IRIS_TABLE)).append_id()
+
+        odps_schema = df_schema_to_odps_schema(df.schema)
+        cols = list(reversed(odps_schema.columns))
+        odps_schema = Schema.from_lists([c.name for c in cols], [c.type for c in cols])
+
+        self.odps.delete_table(EXISTING_PERSIST_TABLE, if_exists=True)
+        self.odps.create_table(EXISTING_PERSIST_TABLE, odps_schema)
+        df.persist(EXISTING_PERSIST_TABLE)
 
     def testStaticPartition(self):
         self.create_iris(IRIS_TABLE)

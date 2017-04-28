@@ -25,12 +25,7 @@ from ..compat import six
 from ..config import options
 
 
-class Instances(Iterable):
-
-    marker = serializers.XMLNodeField('Marker')
-    max_items = serializers.XMLNodeField('MaxItems')
-    instances = serializers.XMLNodesReferencesField(Instance, 'Instance')
-
+class BaseInstances(Iterable):
     def _get(self, name):
         return Instance(client=self._client, parent=self, name=name)
 
@@ -52,7 +47,7 @@ class Instances(Iterable):
         return self.iterate()
 
     def iterate(self, start_time=None, end_time=None, status=None, only_owner=None,
-                max_items=None, job_name=None, **kw):
+                max_items=None, job_name=None, quota_index=None, **kw):
         if 'from_time' in kw:
             start_time = kw['from_time']
 
@@ -82,11 +77,13 @@ class Instances(Iterable):
             params['maxitems'] = max_items
         if job_name is not None:
             params['jobname'] = job_name
+        if quota_index is not None:
+            params['quotaIndex'] = quota_index
 
         def _it():
             last_marker = params.get('marker')
             if 'marker' in params and \
-                (last_marker is None or len(last_marker) == 0):
+                    (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource()
@@ -163,3 +160,57 @@ class Instances(Iterable):
         instance = Instance(name=instance_id, task_results=results,
                             parent=self, client=self._client)
         return instance
+
+
+class Instances(BaseInstances):
+
+    marker = serializers.XMLNodeField('Marker')
+    max_items = serializers.XMLNodeField('MaxItems')
+    instances = serializers.XMLNodesReferencesField(Instance, 'Instance')
+
+
+class CachedInstances(BaseInstances):
+
+    class _CachedInstances(serializers.JSONSerializableModel):
+        instance_queueing_infos = \
+            serializers.JSONNodesReferencesField(Instance.InstanceQueueingInfo)
+
+    marker = serializers.XMLNodeField('Marker')
+    max_items = serializers.XMLNodeField('MaxItems')
+    instances = serializers.XMLNodeReferenceField(_CachedInstances, 'Content')
+
+    def iterate(self, status=None, only_owner=None,
+                max_items=None, quota_index=None, **kw):
+        if isinstance(status, six.string_types):
+            status = Instance.Status(status.capitalize())
+
+        params = dict()
+        if status is not None:
+            params['status'] = status.value
+        if only_owner is not None:
+            params['onlyowner'] = 'yes' if only_owner else 'no'
+        if max_items is not None:
+            params['maxitems'] = max_items
+        if quota_index is not None:
+            params['quotaIndex'] = quota_index
+
+        def _it():
+            last_marker = params.get('marker')
+            if 'marker' in params and \
+                (last_marker is None or len(last_marker) == 0):
+                return
+
+            url = self.resource()
+            resp = self._client.get(url, params=params)
+
+            inst = CachedInstances.parse(self._client, resp, obj=self)
+            params['marker'] = inst.marker
+
+            return inst.instances.instance_queueing_infos
+
+        while True:
+            instances = _it()
+            if instances is None:
+                break
+            for instance in instances:
+                yield instance

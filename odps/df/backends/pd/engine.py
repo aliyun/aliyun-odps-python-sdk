@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+import tarfile
+import zipfile
 
 from .compiler import PandasCompiler
 from .types import pd_to_df_schema
@@ -31,6 +34,7 @@ from ...types import DynamicSchema, Unknown
 from ....models import Schema, Partition
 from ....errors import ODPSError
 from ....types import PartitionSpec
+from ....lib.importer import CompressImporter
 from .... import compat
 from ..context import context
 from . import analyzer as ana
@@ -42,6 +46,24 @@ class PandasExecuteNode(ExecuteNode):
 
     def _repr_html_(self):
         return '<p>Local execution by pandas backend</p>'
+
+
+def with_thirdparty_libs(fun):
+    def wrapped(self, *args, **kwargs):
+        libraries = self._get_libraries(kwargs.get('libraries'))
+        importer = self._build_library_importer(libraries)
+        if importer is not None:
+            sys.meta_path.append(importer)
+
+        try:
+            return fun(self, *args, **kwargs)
+        finally:
+            if importer is not None:
+                sys.meta_path = [p for p in sys.meta_path if p is not importer]
+
+    wrapped.__name__ = fun.__name__
+    wrapped.__doc__ = fun.__doc__
+    return wrapped
 
 
 class PandasEngine(Engine):
@@ -135,6 +157,33 @@ class PandasEngine(Engine):
 
         return sub, execute_node
 
+    def _build_library_importer(self, libraries):
+        if libraries is None:
+            return None
+
+        readers = []
+
+        for library in libraries:
+            if isinstance(library, six.string_types):
+                library = self._odps.get_resource(library)
+
+            lib_name = library.name
+            if lib_name.endswith('.zip') or lib_name.endswith('.egg') or lib_name.endswith('.whl'):
+                readers.append(zipfile.ZipFile(library.open(mode='rb')))
+            elif lib_name.endswith('.tar') or lib_name.endswith('.tar.gz') or lib_name.endswith('.tar.bz2'):
+                from io import BytesIO
+                if lib_name.endswith('.tar'):
+                    mode = 'r'
+                else:
+                    mode = 'r:gz' if lib_name.endswith('.tar.gz') else 'r:bz2'
+                readers.append(tarfile.open(fileobj=BytesIO(library.open(mode='rb').read()), mode=mode))
+            else:
+                raise ValueError(
+                    'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
+
+        return CompressImporter(*readers)
+
+    @with_thirdparty_libs
     def _do_execute(self, expr_dag, expr, ui=None, progress_proportion=1,
                     head=None, tail=None, **kw):
         expr_dag = self._convert_table(expr_dag)
@@ -167,11 +216,12 @@ class PandasEngine(Engine):
             context.cache(src_expr, res)
             return res
 
+    @with_thirdparty_libs
     def _do_persist(self, expr_dag, expr, name, ui=None, project=None,
                     partitions=None, partition=None, odps=None, lifecycle=None,
                     progress_proportion=1, execute_percent=0.5,
-                    drop_table=False, create_table=True,
-                    drop_partition=False, create_partition=False, **kwargs):
+                    overwrite=True, drop_table=False, create_table=True,
+                    drop_partition=False, create_partition=False, cast=False, **kwargs):
         expr_dag = self._convert_table(expr_dag)
         self._rewrite(expr_dag)
 
@@ -182,7 +232,7 @@ class PandasEngine(Engine):
             raise ODPSError('ODPS entrance should be provided')
 
         df = self._do_execute(expr_dag, src_expr, ui=ui,
-                              progress_proportion=progress_proportion*execute_percent, **kwargs)
+                              progress_proportion=progress_proportion * execute_percent, **kwargs)
         schema = Schema(columns=df.columns)
 
         if partitions is not None:
@@ -200,7 +250,7 @@ class PandasEngine(Engine):
             ps = [Partition(name=t, type=schema.get_type(t)) for t in partitions]
             schema = Schema(columns=columns, partitions=ps)
         elif partition is not None:
-            t = self._odps.get_table(name, project=project)
+            t = odps.get_table(name, project=project)
             for col in expr.schema.columns:
                 if col.name.lower() not in t.schema:
                     raise CompileError('Column %s does not exist in table' % col.name)
@@ -217,14 +267,12 @@ class PandasEngine(Engine):
         if partition is None:
             if drop_table:
                 odps.delete_table(name, project=project, if_exists=True)
-            if create_table:
+            if create_table and not odps.exist_table(name):
                 schema = df_schema_to_odps_schema(schema)
-                table = odps.create_table(name, schema, project=project, lifecycle=lifecycle)
-            else:
-                table = odps.get_table(name, project=project)
-        else:
-            table = odps.get_table(name, project=project)
-        write_table(df, table, ui=ui, partitions=partitions, partition=partition,
+                odps.create_table(name, schema, project=project, lifecycle=lifecycle)
+
+        table = odps.get_table(name, project=project)
+        write_table(df, table, ui=ui, cast=cast, partitions=partitions, partition=partition,
                     progress_proportion=progress_proportion*(1-execute_percent))
 
         if partition:

@@ -14,11 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    import xml.etree.cElementTree as ElementTree
-except ImportError:
-    import xml.etree.ElementTree as ElementTree
-
 from .. import serializers
 from .cache import cache, del_cache
 from ..compat import six, quote_plus
@@ -135,9 +130,21 @@ class LazyLoad(RestModel):
         return self._loaded
 
     def __repr__(self):
-        if hasattr(self, '_repr'):
-            return self._repr()
-        return super(LazyLoad, self).__repr__()
+        try:
+            r = self._repr()
+        except:
+            r = None
+        if r:
+            return r
+        else:
+            return super(LazyLoad, self).__repr__()
+
+    def _repr(self):
+        name = self._name()
+        if name:
+            return '<%s %s>' % (type(self).__name__, name)
+        else:
+            raise ValueError
 
     def __hash__(self):
         return hash((self._name(), self.parent))

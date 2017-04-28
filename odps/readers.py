@@ -15,13 +15,14 @@
 # limitations under the License.
 
 import csv
+import copy
 import math
 
 from requests import Response
 
 from . import types, compat, utils
 from .models.record import Record
-from .compat import six
+from .compat import six, StringIO
 
 
 class AbstractRecordReader(object):
@@ -92,6 +93,42 @@ class AbstractRecordReader(object):
                 curr += 1
                 if end is not None and curr >= end:
                     return
+
+    def to_result_frame(self, unknown_as_string=True, as_type=None):
+        from .df.backends.frame import ResultFrame
+        from .df.backends.odpssql.types import odps_schema_to_df_schema, odps_type_to_df_type
+
+        kw = dict()
+        data = [r for r in self]
+        if getattr(self, '_schema', None) is not None:
+            kw['schema'] = odps_schema_to_df_schema(self._schema)
+        elif getattr(self, '_columns', None) is not None:
+            cols = []
+            for col in self._columns:
+                col = copy.copy(col)
+                col.type = odps_type_to_df_type(col.type)
+                cols.append(col)
+            kw['columns'] = cols
+
+        if hasattr(self, 'raw'):
+            try:
+                import pandas as pd
+                from .df.backends.pd.types import pd_to_df_schema
+                data = pd.read_csv(StringIO(self.raw))
+                kw['schema'] = pd_to_df_schema(data, unknown_as_string=unknown_as_string,
+                                               as_type=as_type)
+                kw.pop('columns', None)
+            except ImportError:
+                pass
+
+        if not kw:
+            raise ValueError('Cannot convert to ResultFrame from %s.' % type(self).__name__)
+
+        return ResultFrame(data, **kw)
+
+    def to_pandas(self):
+        import pandas  # don't remove
+        return self.to_result_frame().values
 
 
 class RecordReader(AbstractRecordReader):

@@ -25,12 +25,11 @@ import types as tps
 
 from ....errors import ODPSError, NoPermission, ConnectTimeout
 from ....utils import write_log as log
-from ....models import Partition, Resource
+from ....models import Partition
 from ....tempobj import register_temp_table
 from ....types import PartitionSpec
 from ....ui import reload_instance_status, fetch_instance_group
 from ...core import DataFrame
-from ... import NullScalar
 from ...expr.reduction import *
 from ...expr.core import ExprDAG
 from ...expr.dynamic import DynamicMixin
@@ -129,20 +128,6 @@ class ODPSSQLEngine(Engine):
             reload_instance_status(self._odps, group, instance.id)
             ui.update_group()
             return fetch_instance_group(group).instances.get(instance.id)
-
-    @classmethod
-    def _get_libraries(cls, libraries):
-        def conv(libs):
-            if isinstance(libs, (six.binary_type, six.text_type, Resource)):
-                return [libs, ]
-            return libs
-
-        libraries = conv(libraries) or []
-        if options.df.libraries is not None:
-            libraries.extend(conv(options.df.libraries))
-        if len(libraries) == 0:
-            return
-        return list(set(libraries))
 
     def _run(self, sql, ui, progress_proportion=1, hints=None, priority=None,
              group=None, libraries=None):
@@ -443,26 +428,10 @@ class ODPSSQLEngine(Engine):
                 context.cache(src_expr, res)
                 return res
 
-    @classmethod
-    def _reorder(cls, expr, table, cast=False):
-        df_schema = types.odps_schema_to_df_schema(table.schema)
-        expr_schema = expr.schema.to_ignorecase_schema()
-
-        if table.schema.names == expr_schema.names and \
-                df_schema.types[:len(table.schema.names)] == expr_schema.types:
-            return expr
-
-        def field(name):
-            if expr[name].dtype != df_schema[name].type and cast:
-                return expr[name].astype(df_schema[name].type)
-            return expr[name]
-        return expr[[field(name) if name in expr_schema else NullScalar(df_schema[name].type).rename(name)
-                     for name in table.schema.names]]
-
     def _do_persist(self, expr_dag, expr, name, partitions=None, partition=None, project=None, ui=None,
                     progress_proportion=1, lifecycle=None, hints=None, priority=None,
-                    drop_table=False, create_table=True, drop_partition=False, create_partition=False,
-                    cast=False, **kw):
+                    overwrite=True, drop_table=False, create_table=True, drop_partition=False,
+                    create_partition=False, cast=False, **kw):
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
 
@@ -479,9 +448,22 @@ class ODPSSQLEngine(Engine):
             if drop_table:
                 self._odps.delete_table(name, project=project, if_exists=True)
 
+            if self._odps.exist_table(name):
+                t = self._odps.get_table(name)
+                if t.schema.partitions:
+                    raise CompileError('Cannot insert into partition table %s without specifying '
+                                       '`partition` or `partitions`.')
+                expr = self._reorder(expr, t, cast=cast)
+            else:
+                t = None
+
             sql = self._compile(expr, prettify=False)
-            lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
-            format_sql = lambda s: 'CREATE TABLE {0} {1}AS \n{2}'.format(table_name, lifecycle_str, s)
+            if t:
+                action_str = 'OVERWRITE' if overwrite else 'INTO'
+                format_sql = lambda s: 'INSERT {0} TABLE {1} \n{2}'.format(action_str, table_name, s)
+            else:
+                lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
+                format_sql = lambda s: 'CREATE TABLE {0} {1}AS \n{2}'.format(table_name, lifecycle_str, s)
             if isinstance(sql, list):
                 sql[-1] = format_sql(sql[-1])
             else:
@@ -490,14 +472,6 @@ class ODPSSQLEngine(Engine):
             should_cache = True
         elif partition is not None:
             t = self._odps.get_table(name, project=project)
-
-            for col in expr.schema.columns:
-                if col.name.lower() not in t.schema:
-                    raise CompileError('Column %s does not exist in table' % col.name)
-                t_col = t.schema[col.name.lower()]
-                if not cast and types.df_type_to_odps_type(col.type) != t_col.type:
-                    raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
-                        col.name, t_col.type, col.type))
 
             if drop_partition:
                 t.delete_partition(partition, if_exists=True)
@@ -508,8 +482,9 @@ class ODPSSQLEngine(Engine):
             sql = self._compile(expr, prettify=False)
 
             partition = PartitionSpec(partition)
-            format_sql = lambda s: 'INSERT OVERWRITE TABLE {0} PARTITION({1}) \n{2}'.format(
-                table_name, partition, s
+            action_str = 'OVERWRITE' if overwrite else 'INTO'
+            format_sql = lambda s: 'INSERT {0} TABLE {1} PARTITION({2}) \n{3}'.format(
+                action_str, table_name, partition, s
             )
             if isinstance(sql, list):
                 sql[-1] = format_sql(sql[-1])
@@ -534,17 +509,20 @@ class ODPSSQLEngine(Engine):
                         'Partition field(%s) does not exist in DataFrame schema' % p)
 
             columns = [c for c in schema.columns if c.name not in partitions]
-            ps = [Partition(name=t, type=schema.get_type(t)) for t in partitions]
+            ps = [Partition(name=pt, type=schema.get_type(pt)) for pt in partitions]
             if drop_table:
                 self._odps.delete_table(name, project=project, if_exists=True)
             if create_table:
                 self._odps.create_table(name, Schema(columns=columns, partitions=ps), project=project)
             expr = expr[[c.name for c in expr.schema if c.name not in partitions] + partitions]
 
+            t = self._odps.get_table(name)
+            expr = self._reorder(expr, t, cast=cast, with_partitions=True)
             sql = self._compile(expr, prettify=False)
 
-            format_sql = lambda s: 'INSERT OVERWRITE TABLE {0} PARTITION({1}) \n{2}'.format(
-                table_name, ', '.join(partitions), s
+            action_str = 'OVERWRITE' if overwrite else 'INTO'
+            format_sql = lambda s: 'INSERT {0} TABLE {1} PARTITION({2}) \n{3}'.format(
+                action_str, table_name, ', '.join(partitions), s
             )
             if isinstance(sql, list):
                 sql[-1] = format_sql(sql[-1])

@@ -64,8 +64,11 @@ class ResultFrame(six.Iterator):
         self._index = index
 
         if has_pandas and pandas:
-            self._values = pd.DataFrame([self._get_values(r) for r in data],
-                                        columns=self._names, index=index)
+            if isinstance(data, pd.DataFrame):
+                self._values = data
+            else:
+                self._values = pd.DataFrame([self._get_values(r) for r in data],
+                                            columns=self._names, index=index)
             self._index = self._values.index
             self._pandas = True
         else:

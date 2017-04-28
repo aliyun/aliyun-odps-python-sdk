@@ -213,5 +213,13 @@ class Test(TestBase):
         except (DependencyNotInstalledError, ImportError):
             pass
 
+    def testRepeatSetItem(self):
+        df = DataFrame(self.table)
+
+        df['rank'] = df.groupby('name').sort('id').id.rank()
+        df['rank'] = df.groupby('name').sort('id').id.rank()
+
+        self.assertEqual(len(df.execute()), 3)
+
 if __name__ == '__main__':
     unittest.main()

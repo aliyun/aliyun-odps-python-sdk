@@ -1447,6 +1447,25 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
+    def testProjectionGroupbyFilter(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        df = self.expr.copy()
+        df['id'] = df.id + 1
+        df2 = df.groupby('name').agg(id=df.id.sum())[lambda x: x.name == 'name2']
+
+        expected = [['name2', 3]]
+        res = self.engine.execute(df2)
+        result = self._get_result(res)
+        self.assertEqual(expected, result)
+
     def testJoinGroupby(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -2411,7 +2430,9 @@ class Test(TestBase):
         self._gen_data(data=data)
 
         table_name = tn('pyodps_test_engine_persist_table')
+        self.odps.delete_table(table_name, if_exists=True)
 
+        # simple persist
         try:
             df = self.engine.persist(self.expr, table_name)
 
@@ -2419,6 +2440,20 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(len(result), 5)
             self.assertEqual(data, result)
+        finally:
+            self.odps.delete_table(table_name, if_exists=True)
+
+        # persist over existing table
+        try:
+            self.odps.create_table(table_name,
+                                   'name string, fid double, id bigint, isMale boolean, scale decimal, birth datetime',
+                                   lifecycle=1)
+            df = self.engine.persist(self.expr, table_name)
+
+            res = self.engine.execute(df)
+            result = self._get_result(res)
+            self.assertEqual(len(result), 5)
+            self.assertEqual(data, [[r[0], r[2], r[1], None, None, None] for r in result])
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 
@@ -2612,6 +2647,128 @@ class Test(TestBase):
             self.assertListEqual(uresult, expected)
         finally:
             table.drop()
+
+    def testDrop(self):
+        data1 = [
+            ['name1', 1, 3.0], ['name1', 2, 3.0], ['name1', 2, 2.5],
+            ['name2', 1, 1.2], ['name2', 3, 1.0],
+            ['name3', 1, 1.2], ['name3', 3, 1.2],
+        ]
+        schema1 = Schema.from_lists(['name', 'id', 'fid'],
+                                    [types.string, types.bigint, types.double])
+        table_name1 = tn('pyodps_test_engine_drop1')
+        self.odps.delete_table(table_name1, if_exists=True)
+        table1 = self.odps.create_table(name=table_name1, schema=schema1)
+        expr1 = CollectionExpr(_source_data=table1, _schema=odps_schema_to_df_schema(schema1))
+
+        data2 = [
+            ['name1', 1], ['name1', 2],
+            ['name2', 1], ['name2', 2],
+        ]
+        schema2 = Schema.from_lists(['name', 'id'],
+                                    [types.string, types.bigint])
+        table_name2 = tn('pyodps_test_engine_drop2')
+        self.odps.delete_table(table_name2, if_exists=True)
+        table2 = self.odps.create_table(name=table_name2, schema=schema2)
+        expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
+        try:
+            self.odps.write_table(table1, 0, data1)
+            self.odps.write_table(table2, 0, data2)
+
+            expr_result = expr1.drop(expr2)
+            res = self.engine.execute(expr_result)
+            result = self._get_result(res)
+
+            expected = [['name2', 3, 1.0], ['name3', 1, 1.2], ['name3', 3, 1.2]]
+            self.assertListEqual(sorted(result), sorted(expected))
+
+            expr_result = expr1.drop(expr2, columns='name')
+            res = self.engine.execute(expr_result)
+            result = self._get_result(res)
+
+            expected = [['name3', 1, 1.2], ['name3', 3, 1.2]]
+            self.assertListEqual(sorted(result), sorted(expected))
+
+            expr_result = expr1.drop(['id'], axis=1)
+            res = self.engine.execute(expr_result)
+            result = self._get_result(res)
+
+            expected = [
+                ['name1', 3.0], ['name1', 3.0], ['name1', 2.5],
+                ['name2', 1.2], ['name2', 1.0],
+                ['name3', 1.2], ['name3', 1.2],
+            ]
+            self.assertListEqual(sorted(result), sorted(expected))
+
+            expr_result = expr1.drop(expr2[['id']], axis=1)
+            res = self.engine.execute(expr_result)
+            result = self._get_result(res)
+
+            expected = [
+                ['name1', 3.0], ['name1', 3.0], ['name1', 2.5],
+                ['name2', 1.2], ['name2', 1.0],
+                ['name3', 1.2], ['name3', 1.2],
+            ]
+            self.assertListEqual(sorted(result), sorted(expected))
+        finally:
+            table1.drop()
+            table2.drop()
+
+    def testExceptIntersect(self):
+        data1 = [
+            ['name1', 1], ['name1', 2], ['name1', 2], ['name1', 2],
+            ['name2', 1], ['name2', 3],
+            ['name3', 1], ['name3', 3],
+        ]
+        schema1 = Schema.from_lists(['name', 'id'], [types.string, types.bigint])
+        table_name1 = tn('pyodps_test_engine_drop1')
+        self.odps.delete_table(table_name1, if_exists=True)
+        table1 = self.odps.create_table(name=table_name1, schema=schema1)
+        expr1 = CollectionExpr(_source_data=table1, _schema=odps_schema_to_df_schema(schema1))
+
+        data2 = [
+            ['name1', 1], ['name1', 2], ['name1', 2],
+            ['name2', 1], ['name2', 2],
+        ]
+        schema2 = Schema.from_lists(['name', 'id'], [types.string, types.bigint])
+        table_name2 = tn('pyodps_test_engine_drop2')
+        self.odps.delete_table(table_name2, if_exists=True)
+        table2 = self.odps.create_table(name=table_name2, schema=schema2)
+        expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
+        try:
+            self.odps.write_table(table1, 0, data1)
+            self.odps.write_table(table2, 0, data2)
+
+            expr_result = expr1.setdiff(expr2)
+            res = self.engine.execute(expr_result)
+            result = self._get_result(res)
+
+            expected = [['name1', 2], ['name2', 3], ['name3', 1], ['name3', 3]]
+            self.assertListEqual(sorted(result), sorted(expected))
+
+            expr_result = expr1.setdiff(expr2, distinct=True)
+            res = self.engine.execute(expr_result)
+            result = self._get_result(res)
+
+            expected = [['name2', 3], ['name3', 1], ['name3', 3]]
+            self.assertListEqual(sorted(result), sorted(expected))
+
+            expr_result = expr1.intersect(expr2)
+            res = self.engine.execute(expr_result)
+            result = self._get_result(res)
+
+            expected = [['name1', 1], ['name1', 2], ['name1', 2], ['name2', 1]]
+            self.assertListEqual(sorted(result), sorted(expected))
+
+            expr_result = expr1.intersect(expr2, distinct=True)
+            res = self.engine.execute(expr_result)
+            result = self._get_result(res)
+
+            expected = [['name1', 1], ['name1', 2], ['name2', 1]]
+            self.assertListEqual(sorted(result), sorted(expected))
+        finally:
+            table1.drop()
+            table2.drop()
 
     def testFilterOrder(self):
         table_name = tn('pyodps_test_division_error')

@@ -89,6 +89,7 @@ class OdpsAlgoEngine(Engine):
         return table_name
 
     def _gen_model_name(self, expr):
+        from .utils import TEMP_MODEL_PREFIX
         if options.ml.dry_run:
             if isinstance(expr, Node):
                 node_name = expr.node_name
@@ -96,8 +97,10 @@ class OdpsAlgoEngine(Engine):
                 node_name = str(expr)
             return '%s%s' % (utils.TEMP_TABLE_PREFIX, utils.camel_to_underline(node_name))
 
-        model_name = '%s%s_%s' % (utils.TEMP_TABLE_PREFIX, int(time.time()),
-                                  str(uuid.uuid4()).replace('-', '_'))
+        model_id_str = utils.to_binary(str(int(time.time())) + '_' + str(uuid.uuid4()).replace('-', '_'))
+        digest = hashlib.md5(model_id_str).hexdigest()
+
+        model_name = TEMP_MODEL_PREFIX + digest[-(32 - len(TEMP_MODEL_PREFIX)):]
         tempobj.register_temp_model(self._odps, model_name)
         return model_name
 
@@ -350,6 +353,19 @@ class OdpsAlgoEngine(Engine):
             return df.execute(ui=ui, progress_proportion=0.1 * progress_proportion, group=ui_group)
 
     def _handle_expr_persist(self, out_expr):
+        from ..df.backends.engine import ODPSSQLEngine
+
+        class ODPSEngine(ODPSSQLEngine):
+            def compile(self, expr, prettify=True, libraries=None):
+                expr = self._convert_table(expr)
+                expr_dag = expr.to_dag()
+                self._analyze(expr_dag, expr)
+                new_expr = self._rewrite(expr_dag)
+                sql = self._compile(new_expr, prettify=prettify, libraries=libraries)
+                if isinstance(sql, list):
+                    return '\n'.join(sql)
+                return sql
+
         if isinstance(out_expr, CollectionExpr):
             partition = out_expr.persist_kw.get('partition')
             partitions = out_expr.persist_kw.get('partitions')
@@ -357,16 +373,39 @@ class OdpsAlgoEngine(Engine):
             create_table = out_expr.persist_kw.get('create_table', True)
             drop_partition = out_expr.persist_kw.get('drop_partition', False)
             create_partition = out_expr.persist_kw.get('create_partition', False)
+            overwrite = out_expr.persist_kw.get('overwrite', True)
+            cast = out_expr.persist_kw.get('cast', False)
+
+            expr_table = out_expr.persist_kw['_table']
+            expr_project = out_expr.persist_kw.get('_project')
+            expr_table_path = expr_table if expr_project is None else expr_project + '.' + expr_table
 
             if partitions is None and partition is None:
-                expr_table = out_expr.persist_kw['_table']
-                expr_project = out_expr.persist_kw.get('_project')
                 if drop_table:
                     self._odps.delete_table(expr_table, project=expr_project, if_exists=True)
+
+                if self._odps.exist_table(expr_table):
+                    temp_table_name = self._gen_table_name(out_expr)
+                    out_expr.persist_kw['_table'] = temp_table_name
+                    out_expr.persist_kw['_project'] = None
+
+                    def callback():
+                        t = self._odps.get_table(expr_table)
+                        if t.schema.partitions:
+                            raise CompileError('Cannot insert into partition table %s without specifying '
+                                               '`partition` or `partitions`.')
+                        expr = self._odps.get_table(temp_table_name).to_df()
+                        expr = self._reorder(expr, t, cast=cast)
+
+                        sql = ODPSEngine(self._odps).compile(expr, prettify=False)
+                        action_str = 'OVERWRITE' if overwrite else 'INTO'
+                        return 'INSERT {0} TABLE {1} \n{2}'.format(action_str, expr_table_path, sql)
+
+                    return callback
+                else:
+                    return None
             elif partition is not None:
                 temp_table_name = self._gen_table_name(out_expr)
-                expr_table = out_expr.persist_kw['_table']
-                expr_project = out_expr.persist_kw.get('_project')
 
                 out_expr.persist_kw['_table'] = temp_table_name
                 out_expr.persist_kw['_project'] = None
@@ -383,15 +422,17 @@ class OdpsAlgoEngine(Engine):
                     if create_partition:
                         t.create_partition(partition, if_not_exists=True)
 
-                    return 'INSERT OVERWRITE TABLE {0} PARTITION({1}) SELECT * FROM {2}'.format(
-                        expr_table if expr_project is None else expr_project + '.' + expr_table,
-                        partition, temp_table_name,
+                    expr = t.to_df()
+                    expr = self._reorder(expr, t, cast=cast)
+                    sql = ODPSEngine(self._odps).compile(expr, prettify=False)
+                    action_str = 'OVERWRITE' if overwrite else 'INTO'
+
+                    return 'INSERT {0} TABLE {1} PARTITION({2}) {3}'.format(
+                        action_str, expr_table_path, partition, sql,
                     )
                 return callback
             else:
                 temp_table_name = self._gen_table_name(out_expr)
-                expr_table = out_expr.persist_kw['_table']
-                expr_project = out_expr.persist_kw['_project']
 
                 out_expr.persist_kw['_table'] = temp_table_name
                 out_expr.persist_kw['_project'] = None
@@ -413,10 +454,13 @@ class OdpsAlgoEngine(Engine):
                         self._odps.create_table(expr_table, Schema(columns=columns, partitions=ps),
                                                 project=expr_project)
 
-                    col_names = ', '.join([c.name for c in columns] + [pt.name for pt in ps])
-                    return 'INSERT OVERWRITE TABLE {0} PARTITION({1}) SELECT {2} FROM {3}'.format(
-                        expr_table if expr_project is None else expr_project + '.' + expr_table,
-                        ', '.join(partitions), col_names, temp_table_name,
+                    expr = t.to_df()
+                    expr = self._reorder(expr, t, cast=cast, with_partitions=True)
+                    sql = ODPSEngine(self._odps).compile(expr, prettify=False)
+                    action_str = 'OVERWRITE' if overwrite else 'INTO'
+
+                    return 'INSERT {0} TABLE {1} PARTITION({2}) {3}'.format(
+                        action_str, expr_table_path, ', '.join(partitions), sql,
                     )
                 return callback
         elif isinstance(out_expr, ODPSModelExpr):
@@ -433,6 +477,7 @@ class OdpsAlgoEngine(Engine):
                     drop_table=False, create_table=True, drop_partition=False, create_partition=False,
                     **kwargs):
         from .runners import SQLNodeRunner
+        from .enums import PortType
 
         expr = expr_dag.root
         kwargs['_output_models_only'] = self._is_output_model_only(src_expr)
@@ -448,9 +493,13 @@ class OdpsAlgoEngine(Engine):
                 if out_port.name in output_exprs:
                     out_expr = output_exprs[out_port.name]
                     if not getattr(out_expr, 'persist_kw', None):
-                        self._write_persist_kw(self._gen_table_name(out_expr), out_expr, **kwargs)
+                        expr_name = self._gen_table_name(out_expr) if isinstance(out_expr, CollectionExpr) \
+                            else self._gen_model_name(expr)
+                        self._write_persist_kw(expr_name, out_expr, **kwargs)
                 else:
-                    shared_kw['required_outputs'][out_port.name] = self._gen_table_name(src_expr.node_name)
+                    expr_name = self._gen_table_name(src_expr.node_name) if out_port.type == PortType.DATA \
+                        else self._gen_model_name(src_expr.node_name)
+                    shared_kw['required_outputs'][out_port.name] = expr_name
         src_expr.shared_kw = shared_kw
 
         kw = kwargs.copy()

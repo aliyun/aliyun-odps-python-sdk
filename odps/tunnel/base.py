@@ -61,8 +61,8 @@ class BaseTunnel(object):
             return self._tunnel_rest
 
         kw = dict()
-        if options.tunnel_proxy is not None:
-            kw['proxy'] = options.tunnel_proxy
+        if options.data_proxy is not None:
+            kw['proxy'] = options.data_proxy
 
         endpoint = self._endpoint
         if endpoint is None:

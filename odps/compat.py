@@ -21,17 +21,21 @@ try:
     import xml.etree.cElementTree as ElementTree
 except ImportError:
     import xml.etree.ElementTree as ElementTree
+try:
+    ElementTreeParseError = getattr(ElementTree, 'ParseError')
+except AttributeError:
+    ElementTreeParseError = getattr(ElementTree, 'XMLParserError')
 from unicodedata import east_asian_width
 
 from .lib import six
 
 PY26 = six.PY2 and sys.version_info[1] == 6
 PY27 = six.PY2 and sys.version_info[1] == 7
-LESS_PY26 = six.PY2 and sys.version_info[1] < 6
-LESS_PY32 = six.PY3 and sys.version_info[1] < 2
-LESS_PY33 = six.PY3 and sys.version_info[1] < 3
-LESS_PY34 = six.PY3 and sys.version_info[1] < 4
-LESS_PY35 = six.PY3 and sys.version_info[1] < 5
+LESS_PY26 = sys.version_info[:2] < (2, 6)
+LESS_PY32 = sys.version_info[:2] < (3, 2)
+LESS_PY33 = sys.version_info[:2] < (3, 3)
+LESS_PY34 = sys.version_info[:2] < (3, 4)
+LESS_PY35 = sys.version_info[:2] < (3, 5)
 PYPY = platform.python_implementation().lower() == 'pypy'
 
 SEEK_SET = 0
@@ -231,24 +235,36 @@ from .lib.six.moves import configparser as ConfigParser
 try:
     import pytz
     utc = pytz.utc
+    FixedOffset = pytz._FixedOffset
 except ImportError:
     import datetime
     _ZERO_TIMEDELTA = datetime.timedelta(0)
 
-    class _UTC(datetime.tzinfo):
+    # A class building tzinfo objects for fixed-offset time zones.
+    # Note that FixedOffset(0, "UTC") is a different way to build a
+    # UTC tzinfo object.
+
+    class FixedOffset(datetime.tzinfo):
+        """Fixed offset in minutes east from UTC."""
+
+        def __init__(self, offset, name=None):
+            self.__offset = datetime.timedelta(minutes=offset)
+            self.__name = name
+
         def utcoffset(self, dt):
-            return _ZERO_TIMEDELTA
+            return self.__offset
 
         def tzname(self, dt):
-            return "UTC"
+            return self.__name
 
         def dst(self, dt):
             return _ZERO_TIMEDELTA
 
-    utc = _UTC()
+
+    utc = FixedOffset(0, 'UTC')
 
 
 __all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress',
-           'reduce', 'reload_module', 'Queue', 'Empty',
+           'reduce', 'reload_module', 'Queue', 'Empty', 'ElementTree', 'ElementTreeParseError',
            'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
-           'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'utc']
+           'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc']

@@ -82,24 +82,18 @@ def get_config():
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             seahawks_url = None
         try:
-            tunnel_endpoint = config.get("tunnel", "endpoint")
+            tunnel_endpoint = config.get("odps", "tunnel_endpoint")
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             tunnel_endpoint = None
         try:
-            predict_endpoint = config.get("predict", "endpoint")
+            predict_endpoint = config.get("odps", "predict_endpoint")
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             predict_endpoint = None
-
-        try:
-            datahub_endpoint = config.get("datahub", "endpoint")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            datahub_endpoint = None
 
         config.odps = ODPS(access_id, secret_access_key, project, endpoint,
                            tunnel_endpoint=tunnel_endpoint, predict_endpoint=predict_endpoint,
                            seahawks_url=seahawks_url)
         config.tunnel = TableTunnel(config.odps, endpoint=tunnel_endpoint)
-        config.datahub_endpoint = datahub_endpoint
         logging_level = config.get('test', 'logging_level')
         LOGGING_CONFIG['handlers']['console']['level'] = logging_level
     else:
@@ -266,7 +260,6 @@ class TestBase(_TestBase):
         self.config = get_config()
         self.odps = self.config.odps
         self.tunnel = self.config.tunnel
-        self.datahub_endpoint = self.config.datahub_endpoint
         self.setup()
 
     def tearDown(self):

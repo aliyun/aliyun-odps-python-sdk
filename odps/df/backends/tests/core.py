@@ -62,7 +62,7 @@ class TestBase(Base):
                 if isinstance(f, float) and isinstance(s, float):
                     self.assertAlmostEqual(f, s, **kw)
                 elif isinstance(f, list) and isinstance(s, list):
-                    self.assertListAlmostEqual(f, s, only_float=True, **kw)
+                    self.assertListAlmostEqual(f, s, only_float=False, **kw)
                 else:
                     self.assertEqual(f, s)
 

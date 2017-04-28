@@ -102,6 +102,16 @@ class Test(TestBase):
         self.assertEqual(joined._rhs, e)
         self.assertEqual(joined._how, 'LEFT OUTER')
 
+        joined = e1.left_join(e, e.name == e1.name, merge_columns=True)
+        self.assertIsInstance(joined, ProjectCollectionExpr)
+        self.assertIsInstance(joined._input, LeftJoin)
+        self.assertEqual(joined._input._lhs, e1)
+        self.assertEqual(joined._input._rhs, e)
+        self.assertEqual(joined._input._how, 'LEFT OUTER')
+        self.assertIn('name', joined.schema.names)
+        self.assertNotIn('id', joined.schema.names)
+        self.assertNotIn('fid', joined.schema.names)
+
         joined = e1.right_join(e, [e.fid == e1.fid, e1.name == e.name])
         self.assertIsInstance(joined, RightJoin)
         self.assertEqual(joined._lhs, e1)

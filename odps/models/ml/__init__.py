@@ -16,8 +16,7 @@
 
 from .offlinemodels import OfflineModels
 from .offlinemodel import OfflineModel
-
-try:
-    from ...internal.models.ml import *
-except ImportError:
-    pass
+from .onlinemodels import OnlineModels
+from .onlinemodel import OnlineModel, ModelAbTest, ModelAbTestRequest, ModelAbTestItem, \
+    BuiltinProcessor, CustomProcessor, PmmlProcessor, PmmlRunMode, ModelPredictor, \
+    ModelResource, UsedResource, OnlineModelError

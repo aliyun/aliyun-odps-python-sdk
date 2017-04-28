@@ -25,6 +25,8 @@ import threading
 from operator import itemgetter
 
 from ...compat import six, Enum
+from ...models import Resource
+from ...config import options
 from ...dag import DAG
 from ...utils import init_progress_ui
 from ...ui.progress import create_instance_group
@@ -33,7 +35,7 @@ from .. import utils
 from ..expr.expressions import Expr, CollectionExpr, Scalar
 from ..expr.core import ExprDictionary, ExprDAG
 from .context import context, ExecuteContext
-from .errors import DagDependencyError
+from .errors import DagDependencyError, CompileError
 from .formatter import ExprExecutionGraphFormatter
 
 
@@ -422,7 +424,7 @@ class Engine(object):
 
         # analyze first
         self._new_analyzer(expr_dag, on_sub=sub_has_dep).analyze()
-        # optimzie
+        # optimize
         return Optimizer(expr_dag).optimize()
 
     def _rewrite(self, expr_dag):
@@ -585,6 +587,36 @@ class Engine(object):
 
         return execute_node
 
+    @classmethod
+    def _reorder(cls, expr, table, cast=False, with_partitions=False):
+        from .odpssql.engine import types as odps_engine_types
+        from .. import NullScalar
+
+        df_schema = odps_engine_types.odps_schema_to_df_schema(table.schema)
+        expr_schema = expr.schema.to_ignorecase_schema()
+        case_dict = dict((n.lower(), n) for n in expr.schema.names)
+
+        for col in expr_schema.columns:
+            if col.name.lower() not in df_schema:
+                raise CompileError('Column %s does not exist in table' % col.name)
+            t_col = df_schema[col.name.lower()]
+            if not cast and col.type != t_col.type:
+                raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
+                    col.name, t_col.type, col.type))
+
+        if table.schema.names == expr_schema.names and \
+                        df_schema.types[:len(table.schema.names)] == expr_schema.types:
+            return expr
+
+        def field(name):
+            expr_name = case_dict[name]
+            if expr[expr_name].dtype != df_schema[name].type and cast:
+                return expr[expr_name].astype(df_schema[name].type)
+            return expr[expr_name]
+        names = [c.name for c in table.schema.columns] if with_partitions else table.schema.names
+        return expr[[field(name) if name in expr_schema else NullScalar(df_schema[name].type).rename(name)
+                     for name in names]]
+
     def _do_persist(self, expr_dag, expr, name, **kwargs):
         raise NotImplementedError
 
@@ -714,3 +746,17 @@ class Engine(object):
                      progress_proportion=1.0):
         return dag.execute(ui=ui, async=async, n_parallel=n_parallel, timeout=timeout,
                            close_and_notify=close_and_notify, progress_proportion=progress_proportion)
+
+    @classmethod
+    def _get_libraries(cls, libraries):
+        def conv(libs):
+            if isinstance(libs, (six.binary_type, six.text_type, Resource)):
+                return [libs, ]
+            return libs
+
+        libraries = conv(libraries) or []
+        if options.df.libraries is not None:
+            libraries.extend(conv(options.df.libraries))
+        if len(libraries) == 0:
+            return
+        return list(set(libraries))

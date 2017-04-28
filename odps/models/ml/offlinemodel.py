@@ -40,7 +40,8 @@ class OfflineModel(LazyLoad):
 
     def get_model(self):
         """
-        Get PMML text of the current model.
+        Get PMML text of the current model. Note that model file obtained
+        via this method might be incomplete due to size limitations.
         """
         url = self.resource()
         params = {'data': ''}

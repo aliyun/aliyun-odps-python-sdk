@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import textwrap
+
 from odps.tests.core import TestBase
-from odps.compat import unittest
+from odps.compat import unittest, six, LESS_PY35
 from odps.models import Schema
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
@@ -126,11 +128,38 @@ class Test(TestBase):
         self.assertIsInstance(expr, IntToDatetime)
         self.assertIsInstance(expr, DatetimeScalar)
 
+    def testMap(self):
+        expr = self.expr.id.map(lambda a: float(a + 1), rtype=types.float64)
+        self.assertIsInstance(expr, MappedExpr)
+        self.assertIs(expr._data_type, types.float64)
+
+        if not LESS_PY35:
+            l = locals().copy()
+            six.exec_(textwrap.dedent("""
+            def fun(v) -> float:
+                return float(v + 1)
+            expr = self.expr.id.map(fun)
+            """), globals(), l)
+            expr = l['expr']
+            self.assertIsInstance(expr, MappedExpr)
+            self.assertIsInstance(expr._data_type, types.Float)
+
     def testReduceApply(self):
         expr = self.expr[self.expr.id, self.expr['name', 'id'].apply(
             lambda row: row.name + row.id, axis=1, reduce=True).rename('nameid')]
 
         self.assertIsInstance(expr._fields[1], MappedExpr)
+
+        if not LESS_PY35:
+            l = locals().copy()
+            six.exec_(textwrap.dedent("""
+            def fun(r) -> float:
+                return r.id + r.fid
+            expr = self.expr[self.expr.id, self.expr['id', 'fid'].apply(fun, axis=1, reduce=True).rename('idfid')]
+            """), globals(), l)
+            expr = l['expr']
+            self.assertIsInstance(expr._fields[1], MappedExpr)
+            self.assertIsInstance(expr._fields[1]._data_type, types.Float)
 
 
 if __name__ == '__main__':

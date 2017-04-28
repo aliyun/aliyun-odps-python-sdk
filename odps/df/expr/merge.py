@@ -16,11 +16,10 @@
 
 import inspect
 from .expressions import CollectionExpr, ProjectCollectionExpr, \
-    Column, BooleanSequenceExpr, SequenceExpr, Expr, repr_obj
+    Column, BooleanSequenceExpr, SequenceExpr, Expr, Scalar, repr_obj
 from .core import Node, ExprDictionary
 from .arithmetic import Equal
 from .errors import ExpressionError
-from ..utils import is_source_collection
 from ...compat import six, reduce
 from ...models import Schema
 
@@ -187,6 +186,41 @@ class JoinCollectionExpr(CollectionExpr):
     def _get_non_suffixes_fields(self):
         return set()
 
+    def _get_predicate_fields(self):
+        predicate_fields = set()
+
+        if not self._predicate:
+            return predicate_fields
+
+        for p in self._predicate:
+            if isinstance(p, six.string_types):
+                predicate_fields.add(p)
+            elif isinstance(p, (tuple, Equal)):
+                if isinstance(p, Equal):
+                    p = p.lhs, p.rhs
+                if isinstance(p, tuple) and len(p) != 2:
+                    continue
+
+                left_name = None
+                if isinstance(p[0], six.string_types):
+                    left_name = p[0]
+                elif isinstance(p[0], Column) and not p[0].is_renamed():
+                    left_name = p[0].name
+
+                if left_name is None:
+                    continue
+
+                right_name = None
+                if isinstance(p[1], six.string_types):
+                    right_name = p[1]
+                elif isinstance(p[1], Column) and not p[1].is_renamed():
+                    right_name = p[1].name
+
+                if left_name == right_name:
+                    predicate_fields.add(left_name)
+
+        return predicate_fields
+
     def _set_schema(self):
         names, typos = [], []
 
@@ -276,10 +310,71 @@ class JoinCollectionExpr(CollectionExpr):
             if isinstance(p, BooleanSequenceExpr):
                 subs.append(p)
 
-        if len(subs) ==0:
+        if len(subs) == 0:
             self._predicate = None
         else:
             self._predicate = subs
+
+    def _merge_joined_fields(self, merge_columns):
+        if not merge_columns:
+            return self
+
+        predicate_fields = self._get_predicate_fields()
+        if not predicate_fields:
+            raise ValueError('No fields in predicate. Cannot merge columns.')
+
+        src_map = self._column_origins
+        rename_map = dict()
+        for name, src in six.iteritems(src_map):
+            src_id, src_name = src
+            if src_name not in predicate_fields:
+                continue
+            if src_name not in rename_map:
+                rename_map[src_name] = [None, None]
+            rename_map[src_name][src_id] = name
+
+        if merge_columns in ('auto', 'left', 'right') or (isinstance(merge_columns, bool) and merge_columns):
+            merge_columns = dict((k, merge_columns) for k in six.iterkeys(rename_map))
+        if isinstance(merge_columns, six.string_types):
+            merge_columns = {merge_columns: 'auto'}
+        if isinstance(merge_columns, list):
+            merge_columns = dict((k, 'auto') for k in merge_columns)
+
+        excludes = set()
+        for col, action in six.iteritems(merge_columns):
+            if col not in rename_map:
+                raise ValueError('Column {0} not exists in join predicate.'.format(col))
+            if isinstance(action, bool) and action:
+                merge_columns[col] = 'auto'
+            else:
+                merge_columns[col] = action.lower()
+            excludes.update(rename_map[col])
+
+        selects = []
+        merged = set()
+        for col in self.schema.names:
+            if col not in excludes:
+                selects.append(self[col])
+            else:
+                src_name = src_map[col][1]
+                if src_name in merged:
+                    continue
+
+                merged.add(src_name)
+
+                left_name, right_name = rename_map[src_name]
+                left_col = self[left_name]
+                right_col = self[right_name]
+
+                if merge_columns[src_name] == 'auto':
+                    selects.append(left_col.isnull().ifelse(right_col, left_col).rename(src_name))
+                elif merge_columns[src_name] == 'left':
+                    selects.append(left_col.rename(src_name))
+                elif merge_columns[src_name] == 'right':
+                    selects.append(right_col.rename(src_name))
+        selected = self.select(*selects)
+        return JoinFieldMergedCollectionExpr(_input=self, _fields=selected._fields,
+                                             _schema=selected._schema, _rename_map=rename_map)
 
 
 class InnerJoin(JoinCollectionExpr):
@@ -288,39 +383,7 @@ class InnerJoin(JoinCollectionExpr):
         super(InnerJoin, self)._init(*args, **kwargs)
 
     def _get_non_suffixes_fields(self):
-        non_suffixes = set()
-
-        if not self._predicate:
-            return non_suffixes
-
-        for p in self._predicate:
-            if isinstance(p, six.string_types):
-                non_suffixes.add(p)
-            elif isinstance(p, (tuple, Equal)):
-                if isinstance(p, Equal):
-                    p = p.lhs, p.rhs
-                if isinstance(p, tuple) and len(p) != 2:
-                    continue
-
-                left_name = None
-                if isinstance(p[0], six.string_types):
-                    left_name = p[0]
-                elif isinstance(p[0], Column) and not p[0].is_renamed():
-                    left_name = p[0].name
-
-                if left_name is None:
-                    continue
-
-                right_name = None
-                if isinstance(p[1], six.string_types):
-                    right_name = p[1]
-                elif isinstance(p[1], Column) and not p[1].is_renamed():
-                    right_name = p[1].name
-
-                if left_name == right_name:
-                    non_suffixes.add(left_name)
-
-        return non_suffixes
+        return self._get_predicate_fields()
 
 
 class LeftJoin(JoinCollectionExpr):
@@ -339,6 +402,102 @@ class OuterJoin(JoinCollectionExpr):
     def _init(self, *args, **kwargs):
         self._how = 'FULL OUTER'
         super(OuterJoin, self)._init(*args, **kwargs)
+
+
+class JoinFieldMergedCollectionExpr(ProjectCollectionExpr):
+    __slots__ = '_rename_map',
+
+    def _get_fields(self, fields, ret_raw_fields=False):
+        selects = []
+        raw_selects = []
+        joined_expr = self._input
+
+        for field in fields:
+            field = self._defunc(field)
+            if isinstance(field, CollectionExpr):
+                if any(c is self for c in field.children()) or \
+                        any(c is joined_expr._lhs for c in field.children()) or \
+                        any(c is joined_expr._rhs for c in field.children()):
+                    selects.extend(self._get_fields(field._project_fields))
+                elif field is self:
+                    selects.extend(self._get_fields(self._schema.names))
+                elif field is joined_expr._lhs:
+                    fields = [joined_expr._renamed_columns.get(n, [n])[0]
+                              if n not in self._rename_map else n
+                              for n in field.schema.names]
+                    selects.extend(self._get_fields(fields))
+                elif field is joined_expr._rhs:
+                    fields = [joined_expr._renamed_columns.get(n, [None, n])[1]
+                              if n not in self._rename_map else n
+                              for n in field.schema.names]
+                    selects.extend(self._get_fields(fields))
+                else:
+                    selects.extend(super(JoinFieldMergedCollectionExpr, self)._get_fields(field))
+                raw_selects.append(field)
+            else:
+                select = self._get_field(field)
+                selects.append(select)
+                raw_selects.append(select)
+
+        if ret_raw_fields:
+            return selects, raw_selects
+        return selects
+
+    def _get_field(self, field):
+        field = self._defunc(field)
+
+        if isinstance(field, six.string_types):
+            if field not in self._schema:
+                raise ValueError('Field(%s) does not exist' % field)
+            return Column(self, _name=field, _data_type=self._schema[field].type)
+
+        joined_expr = self._input
+        root = field
+        has_path = False
+
+        for expr in root.traverse(top_down=True, unique=True,
+                                  stop_cond=lambda x: isinstance(x, Column) or x is self):
+            if isinstance(expr, Column):
+                if expr.input is self:
+                    has_path = True
+                    continue
+                if expr.input is joined_expr._lhs:
+                    has_path = True
+                    idx = 0
+                elif expr.input is joined_expr._rhs:
+                    has_path = True
+                    idx = 1
+                elif isinstance(joined_expr._lhs, JoinCollectionExpr):
+                    try:
+                        expr = joined_expr._lhs._get_field(expr)
+                    except ExpressionError:
+                        continue
+                    has_path = True
+                    idx = 0
+                elif isinstance(joined_expr._rhs, JoinCollectionExpr):
+                    try:
+                        expr = joined_expr._rhs._get_field(expr)
+                    except ExpressionError:
+                        continue
+                    has_path = True
+                    idx = 1
+                else:
+                    continue
+
+                name = expr.source_name
+                if name not in self._rename_map and name in joined_expr._renamed_columns:
+                    name = joined_expr._renamed_columns[name][idx]
+                to_sub = self._get_field(name)
+                if expr.is_renamed():
+                    to_sub = to_sub.rename(expr.name)
+
+                to_sub.copy_to(expr)
+
+        if isinstance(field, SequenceExpr) and not has_path:
+            raise ExpressionError('field must come from Join collection '
+                                  'or its left and right child collection: %s'
+                                  % repr_obj(field))
+        return root
 
 
 class JoinProjectCollectionExpr(ProjectCollectionExpr):
@@ -472,7 +631,7 @@ def inner_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     return join(left, right, on, suffixes=suffixes, mapjoin=mapjoin)
 
 
-def left_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
+def left_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_columns=None):
     """
     Left join two collections.
 
@@ -486,6 +645,11 @@ def left_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     :param on: fields to join on
     :param suffixes: when name conflict, the suffixes will be added to both columns.
     :param mapjoin: set use mapjoin or not, default value False.
+    :param merge_columns: whether to merge columns with the same name into one column without suffix.
+                          If the value is True, columns in the predicate with same names will be merged,
+                          with non-null value. If the value is 'left' or 'right', the values of predicates
+                          on the left / right collection will be taken. You can also pass a dictionary to
+                          describe the behavior of each column, such as { 'a': 'auto', 'b': 'left' }.
     :return: collection
 
     :Example:
@@ -500,11 +664,11 @@ def left_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     >>> df.left_join(df2, on=['name', ('id', 'id1')])
     >>> df.left_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
+    joined = join(left, right, on, how='left', suffixes=suffixes, mapjoin=mapjoin)
+    return joined._merge_joined_fields(merge_columns)
 
-    return join(left, right, on, how='left', suffixes=suffixes, mapjoin=mapjoin)
 
-
-def right_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
+def right_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_columns=None):
     """
     Right join two collections.
 
@@ -518,6 +682,11 @@ def right_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     :param on: fields to join on
     :param suffixes: when name conflict, the suffixes will be added to both columns.
     :param mapjoin: set use mapjoin or not, default value False.
+    :param merge_columns: whether to merge columns with the same name into one column without suffix.
+                          If the value is True, columns in the predicate with same names will be merged,
+                          with non-null value. If the value is 'left' or 'right', the values of predicates
+                          on the left / right collection will be taken. You can also pass a dictionary to
+                          describe the behavior of each column, such as { 'a': 'auto', 'b': 'left' }.
     :return: collection
 
     :Example:
@@ -532,11 +701,11 @@ def right_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     >>> df.right_join(df2, on=['name', ('id', 'id1')])
     >>> df.right_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
+    joined = join(left, right, on, how='right', suffixes=suffixes, mapjoin=mapjoin)
+    return joined._merge_joined_fields(merge_columns)
 
-    return join(left, right, on, how='right', suffixes=suffixes, mapjoin=mapjoin)
 
-
-def outer_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
+def outer_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_columns=None):
     """
     Outer join two collections.
 
@@ -550,6 +719,11 @@ def outer_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     :param on: fields to join on
     :param suffixes: when name conflict, the suffixes will be added to both columns.
     :param mapjoin: set use mapjoin or not, default value False.
+    :param merge_columns: whether to merge columns with the same name into one column without suffix.
+                          If the value is True, columns in the predicate with same names will be merged,
+                          with non-null value. If the value is 'left' or 'right', the values of predicates
+                          on the left / right collection will be taken. You can also pass a dictionary to
+                          describe the behavior of each column, such as { 'a': 'auto', 'b': 'left' }.
     :return: collection
 
     :Example:
@@ -564,8 +738,8 @@ def outer_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     >>> df.outer_join(df2, on=['name', ('id', 'id1')])
     >>> df.outer_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
-
-    return join(left, right, on, how='outer', suffixes=suffixes, mapjoin=mapjoin)
+    joined = join(left, right, on, how='outer', suffixes=suffixes, mapjoin=mapjoin)
+    return joined._merge_joined_fields(merge_columns)
 
 
 CollectionExpr.join = join
@@ -573,6 +747,10 @@ CollectionExpr.inner_join = inner_join
 CollectionExpr.left_join = left_join
 CollectionExpr.right_join = right_join
 CollectionExpr.outer_join = outer_join
+
+
+def _get_sequence_source_collection(expr):
+    return next(it for it in expr.traverse(top_down=True, unique=True) if isinstance(it, CollectionExpr))
 
 
 class UnionCollectionExpr(CollectionExpr):
@@ -586,25 +764,22 @@ class UnionCollectionExpr(CollectionExpr):
         self._validate()
         self._schema = self._clean_schema()
 
-    def _get_sequence_source_collection(self, expr):
-        return next(it for it in expr.traverse(top_down=True, unique=True) if isinstance(it, CollectionExpr))
-
     def _validate_collection_child(self):
         if self._lhs.schema.names == self._rhs.schema.names and self._lhs.schema.types == self._rhs.schema.types:
             return True
         elif set(self._lhs.schema.names) == set(self._rhs.schema.names) and set(self._lhs.schema.types) == set(
             self._rhs.schema.types):
             self._rhs = self._rhs[self._lhs.schema.names]
-            return True
+            return self._lhs.schema.types == self._rhs.schema.types
         else:
             return False
 
     def _validate(self):
         if isinstance(self._lhs, SequenceExpr):
-            source_collection = self._get_sequence_source_collection(self._lhs)
+            source_collection = _get_sequence_source_collection(self._lhs)
             self._lhs = source_collection[[self._lhs]]
         if isinstance(self._rhs, SequenceExpr):
-            source_collection = self._get_sequence_source_collection(self._rhs)
+            source_collection = _get_sequence_source_collection(self._rhs)
             self._rhs = source_collection[[self._rhs]]
 
         if isinstance(self._lhs, CollectionExpr) and isinstance(self._rhs, CollectionExpr):
@@ -725,9 +900,196 @@ def concat(left, rights, distinct=False, axis=0):
         return __horz_concat(left, rights)
 
 
+def _drop(expr, data, axis=0, columns=None):
+    """
+    Drop data from a DataFrame.
+    
+    :param expr: collection to drop data from
+    :param data: data to be removed
+    :param axis: 0 for deleting rows, 1 for columns.
+    :param columns: columns of data to select, only useful when axis == 0
+    :return: collection
+    
+    Example:
+    >>> import pandas as pd
+    >>> df1 = DataFrame(pd.DataFrame({'a': [1, 2, 3], 'b': [4, 5, 6], 'c': [7, 8, 9]}))
+    >>> df2 = DataFrame(pd.DataFrame({'a': [2, 3], 'b': [5, 7]}))
+    >>> df1.drop(df2)
+       a  b  c
+    0  1  4  7
+    1  3  6  9
+    >>> df1.drop(df2, columns='a')
+       a  b  c
+    0  1  4  7
+    >>> df1.drop(['a'], axis=1)
+       b  c
+    0  4  7
+    1  5  8
+    2  6  9
+    >>> df1.drop(df2, axis=1)
+       c
+    0  7
+    1  8
+    2  9
+    """
+    from ..utils import to_collection
+    expr = to_collection(expr)
+
+    if axis == 0:
+        if not isinstance(data, (CollectionExpr, SequenceExpr)):
+            raise ExpressionError('data should be a collection or sequence when axis == 1.')
+
+        data = to_collection(data)
+        if columns is None:
+            columns = [n for n in data.schema.names]
+        if isinstance(columns, six.string_types):
+            columns = [columns, ]
+
+        data = data.select(*columns).distinct()
+
+        drop_predicates = [data[n].isnull() for n in data.schema.names]
+        return expr.left_join(data, on=columns, suffixes=('', '_dp')).filter(*drop_predicates) \
+            .select(*expr.schema.names)
+    else:
+        if isinstance(data, (CollectionExpr, SequenceExpr)):
+            data = to_collection(data).schema.names
+        return expr.exclude(data)
+
+
+def setdiff(left, *rights, **kwargs):
+    """
+    Exclude data from a collection, like `except` clause in SQL. All collections involved should
+    have same schema.
+    
+    :param left: collection to drop data from
+    :param rights: collection or list of collections
+    :param distinct: whether to preserve duplicate entries
+    :return: collection
+    
+    Examples:
+    >>> import pandas as pd
+    >>> df1 = DataFrame(pd.DataFrame({'a': [1, 2, 3, 3, 3], 'b': [1, 2, 3, 3, 3]}))
+    >>> df2 = DataFrame(pd.DataFrame({'a': [1, 3], 'b': [1, 3]}))
+    >>> df1.setdiff(df2)
+       a  b
+    0  2  2
+    1  3  3
+    2  3  3
+    >>> df1.setdiff(df2, distinct=True)
+       a  b
+    0  2  2
+    """
+    import time
+    from ..utils import output
+
+    distinct = kwargs.get('distinct', False)
+
+    if isinstance(rights[0], list):
+        rights = rights[0]
+
+    cols = [n for n in left.schema.names]
+    types = [n for n in left.schema.types]
+
+    counter_col_name = 'exc_counter_%d' % int(time.time())
+    left = left[left, Scalar(1).rename(counter_col_name)]
+    rights = [r[r, Scalar(-1).rename(counter_col_name)] for r in rights]
+
+    unioned = left
+    for r in rights:
+        unioned = unioned.union(r)
+
+    if distinct:
+        aggregated = unioned.groupby(*cols).agg(**{counter_col_name: unioned[counter_col_name].min()})
+        return aggregated.filter(aggregated[counter_col_name] == 1).select(*cols)
+    else:
+        aggregated = unioned.groupby(*cols).agg(**{counter_col_name: unioned[counter_col_name].sum()})
+
+        @output(cols, types)
+        def exploder(row):
+            import sys
+            irange = xrange if sys.version_info[0] < 3 else range
+            for _ in irange(getattr(row, counter_col_name)):
+                yield row[:-1]
+
+        return aggregated.map_reduce(mapper=exploder).select(*cols)
+
+
+def intersect(left, *rights, **kwargs):
+    """
+    Calc intersection among datasets,
+    
+    :param left: collection
+    :param rights: collection or list of collections
+    :param distinct: whether to preserve duolicate entries
+    :return: collection
+    
+    Examples:
+    >>> import pandas as pd
+    >>> df1 = DataFrame(pd.DataFrame({'a': [1, 2, 3, 3, 3], 'b': [1, 2, 3, 3, 3]}))
+    >>> df2 = DataFrame(pd.DataFrame({'a': [1, 3, 3], 'b': [1, 3, 3]}))
+    >>> df1.intersect(df2)
+       a  b
+    0  1  1 
+    1  3  3
+    2  3  3
+    >>> df1.intersect(df2, distinct=True)
+       a  b
+    0  1  1 
+    1  3  3
+    """
+    import time
+    from ..utils import output
+
+    distinct = kwargs.get('distinct', False)
+
+    if isinstance(rights[0], list):
+        rights = rights[0]
+
+    cols = [n for n in left.schema.names]
+    types = [n for n in left.schema.types]
+
+    collections = (left, ) + rights
+
+    idx_col_name = 'idx_%d' % int(time.time())
+    counter_col_name = 'exc_counter_%d' % int(time.time())
+
+    collections = [c[c, Scalar(idx).rename(idx_col_name)] for idx, c in enumerate(collections)]
+
+    unioned = reduce(lambda a, b: a.union(b), collections)
+    src_agg = unioned.groupby(*(cols + [idx_col_name])) \
+        .agg(**{counter_col_name: unioned.count()})
+
+    aggregators = {
+        idx_col_name: src_agg[idx_col_name].nunique(),
+        counter_col_name: src_agg[counter_col_name].min(),
+    }
+    final_agg = src_agg.groupby(*cols).agg(**aggregators)
+    final_agg = final_agg.filter(final_agg[idx_col_name] == len(collections))
+
+    if distinct:
+        return final_agg.filter(final_agg[counter_col_name] > 0).select(*cols)
+    else:
+        @output(cols, types)
+        def exploder(row):
+            import sys
+            irange = xrange if sys.version_info[0] < 3 else range
+            for _ in irange(getattr(row, counter_col_name)):
+                yield row[:-2]
+
+        return final_agg.map_reduce(mapper=exploder).select(*cols)
+
+
 CollectionExpr.union = union
 SequenceExpr.union = union
 CollectionExpr.__horz_concat = __horz_concat
 SequenceExpr.__horz_concat = __horz_concat
 CollectionExpr.concat = concat
 SequenceExpr.concat = concat
+CollectionExpr.drop = _drop
+SequenceExpr.drop = _drop
+CollectionExpr.setdiff = setdiff
+SequenceExpr.setdiff = setdiff
+CollectionExpr.except_ = setdiff
+SequenceExpr.except_ = setdiff
+CollectionExpr.intersect = intersect
+SequenceExpr.intersect = intersect

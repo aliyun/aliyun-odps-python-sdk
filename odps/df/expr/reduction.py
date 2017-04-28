@@ -626,6 +626,9 @@ def aggregate(exprs, aggregator, rtype=None, resources=None, args=(), **kwargs):
             rtype = rtype or aggregator.output_types[0]
         aggregator = aggregator._func
 
+    if rtype is None:
+        rtype = utils.get_annotation_rtype(aggregator.getvalue)
+
     if not isinstance(exprs, Iterable):
         exprs = [exprs, ]
         if rtype is None:

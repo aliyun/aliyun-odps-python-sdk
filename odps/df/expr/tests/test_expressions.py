@@ -273,6 +273,15 @@ class Test(TestBase):
         with self.assertRaises(ExpressionError):
             self.expr[self.expr.id + 1, self.expr.name][self.expr2.name,]
 
+        expr1 = self.expr['name', (self.expr.id + 1).rename('id2')]
+        expr = expr1[expr1.name.notnull()][
+            expr1.name.rename('name2'),
+            expr1.id2.rename('id3'),
+            expr1.groupby('id2').sort('id2').rank()
+        ]
+        self.assertIs(expr._fields[1].input, expr.input)
+        self.assertIs(expr._fields[2].input, expr.input)
+
     def testSetitemField(self):
         from odps.df.expr.groupby import GroupByCollectionExpr
 

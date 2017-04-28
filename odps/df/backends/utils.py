@@ -138,10 +138,47 @@ def _convert_pd_type(values, table):
     return retvals
 
 
-def _write_table_no_partitions(frame, table, ui, partition=None,
+def _reorder_pd(frame, table, cast=False):
+    import pandas as pd
+    from .odpssql.types import odps_schema_to_df_schema, df_type_to_odps_type, odps_type_to_df_type
+    from .pd.types import df_type_to_np_type
+    from .errors import CompileError
+
+    df_schema = odps_schema_to_df_schema(table.schema)
+    for col in frame.columns:
+        if col.name.lower() not in df_schema._name_indexes:
+            raise CompileError('Column %s does not exist in table' % col.name)
+        t_col = df_schema[col.name.lower()]
+        if not cast and col.type != t_col.type:
+            raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
+                col.name, t_col.type, col.type))
+
+    size = len(frame.values)
+
+    df_col_dict = dict((c.name.lower(), c) for c in frame.columns)
+    case_dict = dict((c.name.lower(), c.name) for c in frame.columns)
+
+    data_dict = dict()
+    for dest_col in table.schema.columns:
+        if dest_col.name not in df_col_dict:
+            data_dict[dest_col.name] = [None] * size
+        else:
+            src_type = df_type_to_odps_type(df_col_dict[dest_col.name].type)
+            if src_type == dest_col.type:
+                data_dict[dest_col.name] = frame.values[case_dict[dest_col.name]]
+            elif cast:
+                new_np_type = df_type_to_np_type(odps_type_to_df_type(dest_col.type))
+                data_dict[dest_col.name] = frame.values[case_dict[dest_col.name]].astype(new_np_type)
+            else:
+                raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
+                    dest_col.name, src_type, dest_col.type))
+    return pd.DataFrame(data_dict, columns=[c.name for c in table.schema.columns])
+
+
+def _write_table_no_partitions(frame, table, ui, cast=False, overwrite=True, partition=None,
                                progress_proportion=1):
     def gen():
-        df = frame.values
+        df = _reorder_pd(frame, table, cast=cast)
         size = len(df)
 
         last_percent = 0
@@ -156,17 +193,26 @@ def _write_table_no_partitions(frame, table, ui, partition=None,
         if last_percent < progress_proportion:
             ui.inc(progress_proportion - last_percent)
 
+    if overwrite:
+        if partition is None:
+            table.truncate()
+        else:
+            table.delete_partition(partition, if_exists=True)
+            table.create_partition(partition)
+
     with table.open_writer(partition=partition) as writer:
         writer.write(gen())
 
 
-def _write_table_with_partitions(frame, table, partitions, ui,
+def _write_table_with_partitions(frame, table, partitions, ui, cast=False, overwrite=True,
                                  progress_proportion=1):
-    df = frame.values
+    df = _reorder_pd(frame, table, cast=cast)
     vals_to_partitions = dict()
     for ps in df[partitions].drop_duplicates().values:
         p = ','.join('='.join([str(n), str(v)]) for n, v in zip(partitions, ps))
-        table.create_partition(p)
+        if overwrite:
+            table.delete_partition(p, if_exists=True)
+        table.create_partition(p, if_not_exists=True)
         vals_to_partitions[tuple(ps)] = p
 
     size = len(df)
@@ -193,14 +239,14 @@ def _write_table_with_partitions(frame, table, partitions, ui,
         ui.inc(progress_proportion - last_percent[0])
 
 
-def write_table(frame, table, ui, partitions=None, partition=None,
+def write_table(frame, table, ui, cast=False, overwrite=True, partitions=None, partition=None,
                 progress_proportion=1):
     ui.status('Try to upload to ODPS with tunnel...')
     if partitions is None:
-        _write_table_no_partitions(frame, table, ui, partition=partition,
+        _write_table_no_partitions(frame, table, ui, cast=cast, overwrite=overwrite, partition=partition,
                                    progress_proportion=progress_proportion)
     else:
-        _write_table_with_partitions(frame, table, partitions, ui,
+        _write_table_with_partitions(frame, table, partitions, ui, cast=cast, overwrite=overwrite,
                                      progress_proportion=progress_proportion)
 
 

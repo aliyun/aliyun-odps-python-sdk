@@ -116,5 +116,5 @@ Pipeline
 Customization
 -------------
 
-.. automodule:: odps.ml.algorithms
+.. automodule:: odps.ml.algolib
     :members:

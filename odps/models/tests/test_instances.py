@@ -21,11 +21,11 @@ import random
 import textwrap
 from datetime import datetime, timedelta
 
-from odps.tests.core import TestBase, to_str, tn
+from odps.tests.core import TestBase, to_str, tn, pandas_case
 from odps.compat import unittest, six
 from odps.models import Instance, SQLTask, Schema
 from odps.errors import ODPSError
-from odps import errors, compat, types as odps_types
+from odps import errors, compat, types as odps_types, utils
 
 expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
 <Instance>
@@ -420,10 +420,73 @@ class Test(TestBase):
         for obj in (func, py_res, res1, res2, table):
             obj.drop()
 
+    def testReadNonSelectSQLInstance(self):
+        test_table = tn('pyodps_t_tmp_read_non_select_sql_instance')
+        self.odps.delete_table(test_table, if_exists=True)
+        table = self.odps.create_table(
+            test_table,
+            schema=Schema.from_lists(['size'], ['bigint'], ['pt'], ['string']), if_not_exists=True)
+        pt_spec = 'pt=20170410'
+        table.create_partition(pt_spec)
+
+        inst = self.odps.execute_sql('desc %s' % test_table)
+
+        self.assertRaises((Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported),
+                          lambda: inst.open_reader(use_tunnel=True))
+        reader = inst.open_reader()
+        self.assertTrue(hasattr(reader, 'raw'))
+
+        inst = self.odps.execute_sql('show partitions %s' % test_table)
+        reader = inst.open_reader()
+        self.assertTrue(hasattr(reader, 'raw'))
+        self.assertIn(utils.to_text(pt_spec), utils.to_text(reader.raw))
+
+    @pandas_case
+    def testInstanceResultToResultFrame(self):
+        test_table = tn('pyodps_t_tmp_instance_result_to_pd')
+        self.odps.delete_table(test_table, if_exists=True)
+        table = self.odps.create_table(
+            test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
+        self.odps.write_table(table, [[1], [2], [3]])
+
+        inst = self.odps.execute_sql('select * from %s' % test_table)
+        tunnel_pd = inst.open_reader(use_tunnel=True).to_pandas()
+        result_pd = inst.open_reader(use_tunnel=False).to_pandas()
+        self.assertListEqual(tunnel_pd.values.tolist(), result_pd.values.tolist())
+
     def testInstanceLogview(self):
         instance = self.odps.run_sql('drop table if exists non_exist_table_name')
         self.assertIsInstance(self.odps.get_logview_address(instance.id, 12), six.string_types)
 
+    def testInstanceQueueingInfo(self):
+        instance = self.odps.run_sql('select * from dual')
+        queue_info, resp = instance._get_queueing_info()
+        if json.loads(resp.content if six.PY2 else resp.text):
+            self.assertIs(queue_info.instance, instance)
+            self.assertIsNotNone(queue_info.instance_id)
+            self.assertIsNotNone(queue_info.priority)
+            self.assertIsNotNone(queue_info.job_name)
+            self.assertIsNotNone(queue_info.project)
+            self.assertIsNotNone(queue_info.skynet_id)
+            self.assertIsNotNone(queue_info.start_time)
+            self.assertIsNotNone(queue_info.user_account)
+            self.assertIn(queue_info.status, (Instance.InstanceQueueingInfo.Status.RUNNING,
+                                              Instance.InstanceQueueingInfo.Status.SUSPENDED,
+                                              Instance.InstanceQueueingInfo.Status.TERMINATED,
+                                              Instance.InstanceQueueingInfo.Status.UNKNOWN))
+
+            self.assertIsNotNone(queue_info.sub_status_history)
+
+    def testInstanceQueueingInfos(self):
+        self.odps.run_sql('select * from dual')
+
+        infos = [info for i, info in compat.izip(itertools.count(0), self.odps.list_instance_queueing_infos())
+                 if i < 5]
+        if len(infos) > 0:
+            self.assertIsInstance(infos[0], Instance.InstanceQueueingInfo)
+            self.assertIsNotNone(infos[0].instance_id)
+            self.assertIsInstance(infos[0].instance, Instance)
+            self.assertEqual(infos[0].instance.id, infos[0].instance_id)
 
 if __name__ == '__main__':
     unittest.main()

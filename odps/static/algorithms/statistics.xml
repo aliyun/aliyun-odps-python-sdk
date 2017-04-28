@@ -407,7 +407,6 @@ three types of T tests.
                 <inputName>input</inputName>
             </param>
             <param name="N" required="true">
-                <alias>cols</alias>
                 <value>100</value>
                 <docs>分位点个数，默认 100</docs>
             </param>

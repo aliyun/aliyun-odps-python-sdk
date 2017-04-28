@@ -21,6 +21,8 @@ import inspect
 import traceback
 import collections
 import threading
+from datetime import datetime
+from decimal import Decimal
 
 from .. import types
 from ..utils import is_source_collection
@@ -158,7 +160,7 @@ def is_changed(collection, column):
 
     dag = collection.to_dag(copy=False, validate=False)
     coll = src_collection
-    colls = [src_collection,]
+    colls = []
     while coll is not collection:
         try:
             parents = [p for p in dag.successors(coll) if isinstance(p, CollectionExpr)]
@@ -179,3 +181,21 @@ def is_changed(collection, column):
                 return True
 
     return False
+
+
+annotation_rtypes = {
+    int: types.int64,
+    str: types.string,
+    float: types.float64,
+    bool: types.boolean,
+    datetime: types.datetime,
+    Decimal: types.decimal,
+}
+
+
+def get_annotation_rtype(func):
+    if hasattr(func, '__annotations__'):
+        ret_type = func.__annotations__.get('return')
+        if ret_type in annotation_rtypes:
+            return annotation_rtypes[ret_type]
+    return None

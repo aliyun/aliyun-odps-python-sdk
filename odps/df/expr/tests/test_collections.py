@@ -241,6 +241,61 @@ class Test(TestBase):
                              [n + '_scaled' for n in self.expr.dtypes.names
                               if n.startswith('int') or n.startswith('float')])
 
+    def testApplyMap(self):
+        from odps.df.expr.collections import ProjectCollectionExpr, Column
+        from odps.df.expr.element import MappedExpr
+
+        schema = Schema.from_lists(['idx', 'f1', 'f2', 'f3'], [types.int64] + [types.float64] * 3)
+        expr = CollectionExpr(_source_data=None, _schema=schema)
+
+        self.assertRaises(ValueError, lambda: expr.applymap(lambda v: v + 1, columns='idx', excludes='f1'))
+
+        mapped = expr.applymap(lambda v: v + 1)
+        self.assertIsInstance(mapped, ProjectCollectionExpr)
+        for c in mapped._fields:
+            self.assertIsInstance(c, MappedExpr)
+
+        mapped = expr.applymap(lambda v: v + 1, columns='f1')
+        self.assertIsInstance(mapped, ProjectCollectionExpr)
+        for c in mapped._fields:
+            self.assertIsInstance(c, MappedExpr if c.name == 'f1' else Column)
+
+        map_cols = set(['f1', 'f2', 'f3'])
+        mapped = expr.applymap(lambda v: v + 1, columns=map_cols)
+        self.assertIsInstance(mapped, ProjectCollectionExpr)
+        for c in mapped._fields:
+            self.assertIsInstance(c, MappedExpr if c.name in map_cols else Column)
+
+        mapped = expr.applymap(lambda v: v + 1, excludes='idx')
+        self.assertIsInstance(mapped, ProjectCollectionExpr)
+        for c in mapped._fields:
+            self.assertIsInstance(c, Column if c.name == 'idx' else MappedExpr)
+
+        exc_cols = set(['idx', 'f1'])
+        mapped = expr.applymap(lambda v: v + 1, excludes=exc_cols)
+        self.assertIsInstance(mapped, ProjectCollectionExpr)
+        for c in mapped._fields:
+            self.assertIsInstance(c, Column if c.name in exc_cols else MappedExpr)
+
+    def testCallableColumn(self):
+        from odps.df.expr.expressions import CallableColumn
+        from odps.df.expr.collections import ProjectCollectionExpr
+
+        schema = Schema.from_lists(['name', 'f1', 'append_id'], [types.string, types.float64, types.int64])
+        expr = CollectionExpr(_source_data=None, _schema=schema)
+        self.assertIsInstance(expr.append_id, CallableColumn)
+        self.assertNotIsInstance(expr.f1, CallableColumn)
+
+        projected = expr[expr.name, expr.append_id]
+        self.assertIsInstance(projected, ProjectCollectionExpr)
+        self.assertListEqual(projected.schema.names, ['name', 'append_id'])
+
+        projected = expr[expr.name, expr.f1]
+        self.assertNotIsInstance(projected.append_id, CallableColumn)
+
+        appended = expr.append_id(id_col='id_col')
+        self.assertIn('id_col', appended.schema)
+
     def testAppendId(self):
         from odps.ml.expr import AlgoCollectionExpr
 

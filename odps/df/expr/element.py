@@ -389,6 +389,9 @@ def _map(expr, func, rtype=None, resources=None, args=(), **kwargs):
             rtype = rtype or func.output_types[0]
         func = func._func
 
+    if rtype is None:
+        rtype = utils.get_annotation_rtype(func)
+
     from ...models import Function
 
     rtype = rtype or expr.dtype

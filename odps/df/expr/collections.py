@@ -511,7 +511,7 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
             if names is not None and len(names) > 1:
                 raise ValueError('When reduce, at most one name can be specified')
             name = names[0] if names is not None else None
-            tp = types[0] if types is not None else string
+            tp = types[0] if types is not None else (utils.get_annotation_rtype(func) or string)
             inputs = expr._fields if hasattr(expr, '_fields') and expr._fields is not None \
                 else [expr[n] for n in expr.schema.names]
             return MappedExpr(_func=func, _func_args=args, _func_kwargs=kwargs,
@@ -1564,6 +1564,39 @@ def split(expr, frac, seed=None):
         return _split(expr, frac, seed=seed)
 
 
+def applymap(expr, func, rtype=None, resources=None, columns=None, excludes=None, args=(), **kwargs):
+    """
+    Call func on each element of this collection.
+
+    :param func: lambda, function, :class:`odps.models.Function`,
+                 or str which is the name of :class:`odps.models.Funtion`
+    :param rtype: if not provided, will be the dtype of this sequence
+    :param columns: columns to apply this function on
+    :param excludes: columns to skip when applying the function
+    :return: a new collection
+
+    :Example:
+
+    >>> df.id.map(lambda x: x + 1)
+    """
+    if columns is not None and excludes is not None:
+        raise ValueError('`columns` and `excludes` cannot be provided at the same time.')
+    if not columns:
+        excludes = excludes or []
+        if isinstance(excludes, six.string_types):
+            excludes = [excludes]
+        excludes = set([c if isinstance(c, six.string_types) else c.name for c in excludes])
+        columns = set([c for c in expr.schema.names if c not in excludes])
+    else:
+        if isinstance(columns, six.string_types):
+            columns = [columns]
+        columns = set([c if isinstance(c, six.string_types) else c.name for c in columns])
+    mapping = [expr[c] if c not in columns
+               else expr[c].map(func, rtype=rtype, resources=resources, args=args, **kwargs)
+               for c in expr.schema.names]
+    return expr.select(*mapping)
+
+
 _collection_methods = dict(
     sort_values=sort_values,
     sort=sort_values,
@@ -1588,6 +1621,7 @@ _collection_methods = dict(
     append_id=append_id,
     _split=_split,
     split=split,
+    applymap=applymap,
 )
 
 _sequence_methods = dict(

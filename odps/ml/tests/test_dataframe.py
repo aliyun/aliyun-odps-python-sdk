@@ -29,6 +29,8 @@ IONOSPHERE_SORTED_TABLE = tn('pyodps_test_ml_iono_sorted')
 IONOSPHERE_SORTED_TABLE_PART = tn('pyodps_test_ml_iono_sorted_part')
 IONOSPHERE_PREDICTED_1 = tn('pyodps_test_ml_iono_predicted_1')
 IONOSPHERE_PREDICTED_2 = tn('pyodps_test_ml_iono_predicted_2')
+IONOSPHERE_SPLIT_1 = tn('pyodps_test_ml_iono_split_1')
+IONOSPHERE_SPLIT_2 = tn('pyodps_test_ml_iono_split_2')
 
 
 class Test(MLTestBase):
@@ -76,6 +78,20 @@ class Test(MLTestBase):
         predicted.persist(IONOSPHERE_PREDICTED_2)
         assert self.odps.exist_table(IONOSPHERE_PREDICTED_1)
         assert self.odps.exist_table(IONOSPHERE_PREDICTED_2)
+
+    def test_persist_split(self):
+        options.verbose = True
+
+        self.odps.delete_table(IONOSPHERE_SPLIT_1, if_exists=True)
+        self.odps.delete_table(IONOSPHERE_SPLIT_2, if_exists=True)
+
+        self.create_ionosphere(IONOSPHERE_TABLE)
+        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
+        split1, split2 = df.split(0.6)
+        split1.persist(IONOSPHERE_SPLIT_1)
+        split2.persist(IONOSPHERE_SPLIT_2)
+        assert self.odps.exist_table(IONOSPHERE_SPLIT_1)
+        assert self.odps.exist_table(IONOSPHERE_SPLIT_2)
 
     @pandas_case
     def test_df_combined(self):

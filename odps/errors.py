@@ -13,17 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import json
-try:
-    import xml.etree.cElementTree as ET
-except ImportError:
-    import xml.etree.ElementTree as ET
+import operator
 import logging
 
 from . import utils
-from .compat import six
-
+from .compat import six, reduce, ElementTree as ET, ElementTreeParseError as ETParseError
 
 LOG = logging.getLogger(__name__)
 
@@ -47,7 +42,7 @@ def parse_response(resp):
         msg = root.find('./Message').text
         request_id = root.find('./RequestId').text
         host_id = root.find('./HostId').text
-    except ET.ParseError:
+    except ETParseError:
         request_id = resp.headers.get('x-odps-request-id', None)
         if len(resp.content) > 0:
             obj = json.loads(resp.text)
@@ -89,8 +84,9 @@ CODE_MAPPING = {
 }
 
 
-def parse_result_error(msg):
-    msg_parts = [pt.strip() for pt in msg.split(':')]
+def parse_instance_error(msg):
+    msg_parts = reduce(operator.add, (pt.split(':') for pt in msg.split(' - ')))
+    msg_parts = [pt.strip() for pt in msg_parts]
     try:
         msg_code = next(p for p in msg_parts if p in CODE_MAPPING)
         cls = globals().get(CODE_MAPPING[msg_code], ODPSError)
@@ -197,4 +193,8 @@ class NoSuchPath(ServerDefinedException):
 
 
 class InternalServerError(ServerDefinedException):
+    pass
+
+
+class InstanceTypeNotSupported(ServerDefinedException):
     pass

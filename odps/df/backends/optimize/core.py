@@ -243,7 +243,12 @@ class Optimizer(Backend):
             return retval
 
     def _get_fields(self, collection):
-        return select_fields(collection)
+        fields = select_fields(collection)
+        if isinstance(collection, GroupByCollectionExpr) and \
+                collection._having is not None:
+            # add GroupbyCollectionExpr.having to broadcast fields
+            fields.append(collection._having)
+        return fields
 
     def _get_field(self, collection, name):
         # FIXME: consider name with upper letters

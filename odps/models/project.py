@@ -18,8 +18,8 @@ import json
 
 from .core import LazyLoad, XMLRemoteModel
 from .functions import Functions
-from .instances import Instances
-from .ml.offlinemodels import OfflineModels
+from .instances import Instances, CachedInstances
+from .ml import OfflineModels, OnlineModels
 from .resources import Resources
 from .tables import Tables
 from .volumes import Volumes
@@ -30,7 +30,6 @@ from .. import serializers, utils
 from ..compat import six
 
 
-@utils.attach_internal
 class Project(LazyLoad):
     """
     Project is the counterpart of **database** in a RDBMS.
@@ -139,6 +138,10 @@ class Project(LazyLoad):
         return Instances(client=self._client, parent=self)
 
     @property
+    def instance_queueing_infos(self):
+        return CachedInstances(client=self._client, parent=self)
+
+    @property
     def functions(self):
         return Functions(client=self._client, parent=self)
 
@@ -157,6 +160,10 @@ class Project(LazyLoad):
     @property
     def offline_models(self):
         return OfflineModels(client=self._client, parent=self)
+
+    @property
+    def online_models(self):
+        return OnlineModels(client=self._client, parent=self)
 
     @property
     def users(self):

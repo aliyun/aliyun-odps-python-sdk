@@ -14,17 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import base64
 import json
 import time
+import warnings
 from datetime import datetime
-import contextlib
 
-from .core import LazyLoad, XMLRemoteModel
+from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
 from .job import Job
 from .worker import WorkerDetail2
 from .. import serializers, utils, errors, compat, readers, options
-from ..compat import ElementTree, Enum, six, OrderedDict
+from ..compat import ElementTree, Enum, six, OrderedDict, raise_exc
 
 
 class Instance(LazyLoad):
@@ -179,6 +180,9 @@ class Instance(LazyLoad):
         key = serializers.XMLNodeField('Key')
         value = serializers.XMLNodeField('Value')
 
+    class DownloadSessionCreationError(errors.InternalServerError):
+        pass
+
     name = serializers.XMLNodeField('Name')
     owner = serializers.XMLNodeField('Owner')
     start_time = serializers.XMLNodeField('StartTime', parse_callback=utils.parse_rfc822)
@@ -194,6 +198,45 @@ class Instance(LazyLoad):
     class AnonymousSubmitInstance(XMLRemoteModel):
         _root = 'Instance'
         job = serializers.XMLNodeReferenceField(Job, 'Job')
+
+    class InstanceQueueingInfo(JSONRemoteModel):
+        __slots__ = '_instance',
+
+        class Status(Enum):
+            RUNNING = 'Running'
+            SUSPENDED = 'Suspended'
+            TERMINATED = 'Terminated'
+            UNKNOWN = 'Unknown'
+
+        _properties = serializers.JSONRawField()  # hold the raw dict
+        instance_id = serializers.JSONNodeField('instanceId')
+        priority = serializers.JSONNodeField('instancePriority')
+        progress = serializers.JSONNodeField('instanceProcess')
+        job_name = serializers.JSONNodeField('jobName')
+        project = serializers.JSONNodeField('projectName')
+        skynet_id = serializers.JSONNodeField('skynetId')
+        start_time = serializers.JSONNodeField('startTime', parse_callback=utils.strptime_with_tz)
+        task_type = serializers.JSONNodeField('taskType')
+        task_name = serializers.JSONNodeField('taskName')
+        user_account = serializers.JSONNodeField('userAccount')
+        status = serializers.JSONNodeField('status', parse_callback=Status)
+
+        @property
+        def instance(self):
+            if hasattr(self, '_instance') and self._instance:
+                return self._instance
+
+            from .projects import Projects
+            self._instance = Projects(client=self._client)[self.project].instances[self.instance_id]
+            return self._instance
+
+        def __getattr__(self, item):
+            item = utils.underline_to_camel(item)
+
+            if item in self._properties:
+                return self._properties[item]
+
+            return super(Instance.InstanceQueueingInfo, self).__getattr__(item)
 
     def reload(self):
         resp = self._client.get(self.resource())
@@ -405,7 +448,7 @@ class Instance(LazyLoad):
             for task_name, task in six.iteritems(self.get_task_statuses()):
                 exc = None
                 if task.status == Instance.Task.TaskStatus.FAILED:
-                    exc = errors.parse_result_error(self.get_task_result(task_name))
+                    exc = errors.parse_instance_error(self.get_task_result(task_name))
                 elif task.status != Instance.Task.TaskStatus.SUCCESS:
                     exc = errors.ODPSError('%s, status=%s' % (task_name, task.status.value))
                 if exc:
@@ -546,6 +589,17 @@ class Instance(LazyLoad):
         job = self._get_job()
         return job.priority
 
+    def _get_queueing_info(self):
+        url = self.resource()
+        params = {'cached': ''}
+        resp = self._client.get(url, params=params)
+        return Instance.InstanceQueueingInfo.parse(
+            self._client, resp, parent=self.project.instance_queueing_infos), resp
+
+    def get_queueing_info(self):
+        info, _ = self._get_queueing_info()
+        return info
+
     def _create_instance_tunnel(self, endpoint=None):
         if self._instance_tunnel is not None:
             return self._instance_tunnel
@@ -588,11 +642,17 @@ class Instance(LazyLoad):
 
         tunnel = self._create_instance_tunnel(endpoint=endpoint)
         download_id = self._download_id if not reopen else None
-        download_session = tunnel.create_download_session(instance=self,
-                                                          download_id=download_id, **kw)
 
-        if download_id and download_session.status != InstanceDownloadSession.Status.Normal:
-            download_session = tunnel.create_download_session(instance=self, **kw)
+        try:
+            download_session = tunnel.create_download_session(instance=self,
+                                                              download_id=download_id, **kw)
+            if download_id and download_session.status != InstanceDownloadSession.Status.Normal:
+                download_session = tunnel.create_download_session(instance=self, **kw)
+        except errors.InternalServerError:
+            e, tb = sys.exc_info()[1:]
+            e.__class__ = Instance.DownloadSessionCreationError
+            raise_exc(Instance.DownloadSessionCreationError, e, tb)
+
         self._download_id = download_session.id
 
         class RecordReader(readers.AbstractRecordReader):
@@ -647,13 +707,16 @@ class Instance(LazyLoad):
         """
         Open the reader to read records from the result of the instance. If `use_tunnel` is `True`,
         instance tunnel will be used. Otherwise conventional routine will be used. If instance tunnel
-        is not available, the method will fall back to the conventional routine.
+        is not available and `use_tunnel` is not specified,, the method will fall back to the
+        conventional routine.
         Note that the number of records returned is limited unless `options.limited_instance_tunnel`
         is set to `True` or `limit_enabled=True` is configured under instance tunnel mode. Otherwise
         the number of records returned is always limited.
 
         :param use_tunnel: if true, use instance tunnel to read from the instance.
-                           if absent, `options.use_instance_tunnel` will be used.
+                           if false, use conventional routine.
+                           if absent, `options.use_instance_tunnel` will be used and automatic fallback
+                           is enabled.
         :param reopen: the reader will reuse last one, reopen is true means open a new reader.
         :type reopen: bool
         :param endpoint: the tunnel service URL
@@ -672,15 +735,28 @@ class Instance(LazyLoad):
         >>>     for record in reader[0: count]:
         >>>         # read all data, actually better to split into reading for many times
         """
-        use_tunnel = kwargs.pop('use_tunnel', options.use_instance_tunnel)
+        use_tunnel = kwargs.get('use_tunnel')
+        auto_fallback = use_tunnel is None
+        if use_tunnel is None:
+            use_tunnel = options.use_instance_tunnel
+        tunnel_fallback_errors = (errors.InvalidProjectTable, errors.InvalidArgument)
         if use_tunnel:
             if 'limit_enabled' not in kwargs:
                 kwargs['limit_enabled'] = options.limited_instance_tunnel
 
             try:
                 return self._open_tunnel_reader(**kwargs)
-            except (errors.InvalidProjectTable, errors.InvalidArgument):
-                pass
+            except tunnel_fallback_errors:
+                if not auto_fallback:
+                    raise
+                if not kwargs.get('limit_enabled'):
+                    warnings.warn('Instance tunnel not supported, will fallback to '
+                                  'conventional ways. 10000 records will be limited.')
+            except (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported):
+                # this is for DDL sql instances such as `show partitions` which raises
+                # InternalServerError when creating download sessions.
+                if not auto_fallback:
+                    raise
             except errors.NoPermission:
                 # fail-over on protected projects or tables
                 if kwargs.get('limit_enabled', False):
@@ -688,7 +764,8 @@ class Instance(LazyLoad):
                 kwargs['limit_enabled'] = True
                 try:
                     return self._open_tunnel_reader(**kwargs)
-                except (errors.InvalidProjectTable, errors.InvalidArgument):
-                    pass
+                except tunnel_fallback_errors:
+                    if not auto_fallback:
+                        raise
 
         return self._open_result_reader(*args, **kwargs)

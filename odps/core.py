@@ -27,6 +27,7 @@ from . import models, accounts, errors, utils
 
 
 DEFAULT_ENDPOINT = 'http://service.odps.aliyun.com/api'
+DEFAULT_PREDICT_ENDPOINT = 'http://prediction.odps.aliyun.com'
 LOG_VIEW_HOST_DEFAULT = 'http://logview.odps.aliyun.com'
 
 DROP_TABLE_REGEX = re.compile('^\s*drop\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
@@ -91,8 +92,9 @@ class ODPS(object):
         self._projects = models.Projects(client=self.rest)
         self._project = self.get_project()
 
-        self._predict_endpoint = kw.pop('predict_endpoint', None)
-        options.predict_endpoint = self._predict_endpoint
+        self._predict_endpoint = kw.pop('predict_endpoint', DEFAULT_PREDICT_ENDPOINT)
+        if self._predict_endpoint is not None:
+            options.predict_endpoint = self._predict_endpoint
 
         self._seahawks_url = None
         if kw.get('seahawks_url'):
@@ -103,9 +105,9 @@ class ODPS(object):
 
     @classmethod
     def _from_account(cls, account, project, endpoint=DEFAULT_ENDPOINT,
-                      tunnel_endpoint=None, seahawks_url=None):
+                      tunnel_endpoint=None, **kwargs):
         return cls(None, None, project, endpoint=endpoint, tunnel_endpoint=tunnel_endpoint,
-                   account=account, seahawks_url=seahawks_url)
+                   account=account, **kwargs)
 
     def get_project(self, name=None):
         """
@@ -560,7 +562,7 @@ class ODPS(object):
         return project.functions.delete(name)
 
     def list_instances(self, project=None, start_time=None, end_time=None,
-                       status=None, only_owner=None, **kw):
+                       status=None, only_owner=None, quota_index=None, **kw):
         """
         List instances of a project by given optional conditions
         including start time, end time, status and if only the owner.
@@ -573,6 +575,8 @@ class ODPS(object):
         :param status: including 'Running', 'Suspended', 'Terminated'
         :param only_owner: True will filter the instances created by current user
         :type only_owner: bool
+        :param quota_index:
+        :type quota_index: str
         :return: instances
         :rtype: list
         """
@@ -583,7 +587,26 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.instances.iterate(
             start_time=start_time, end_time=end_time,
-            status=status, only_owner=only_owner)
+            status=status, only_owner=only_owner, quota_index=quota_index)
+
+    def list_instance_queueing_infos(self, project=None, status=None, only_owner=None,
+                                     quota_index=None):
+        """
+        List instance queueing information.
+
+        :param project: project name, if not provided, will be the default project
+        :param status: including 'Running', 'Suspended', 'Terminated'
+        :param only_owner: True will filter the instances created by current user
+        :type only_owner: bool
+        :param quota_index:
+        :type quota_index: str
+        :return: instance queueing infos
+        :rtype: list
+        """
+
+        project = self.get_project(name=project)
+        return project.instance_queueing_infos.iterate(
+            status=status, only_owner=only_owner, quota_index=quota_index)
 
     def get_instance(self, id_, project=None):
         """
@@ -699,7 +722,7 @@ class ODPS(object):
             drop_table_name = drop_table_match.group('table_name').strip('`')
             del self.get_project(project).tables[drop_table_name]
 
-        task = models.SQLTask(query=sql, **kwargs)
+        task = models.SQLTask(query=utils.to_text(sql), **kwargs)
         if options.sql.settings:
             task.update_settings(options.sql.settings)
         if hints:
@@ -1253,6 +1276,155 @@ class ODPS(object):
             if not if_exists:
                 raise
 
+    def create_online_model(self, name, *args, **kwargs):
+        """
+        Create an online model based on offline model names or custom pipeline.
+
+        :param str name: model name
+        :param str project: model name
+        :param async: whether to wait for creation completed
+
+        :return: online model
+
+        This method can be used to create online models based on offline models or customized
+        pipelines. For offline models, the method call should be
+
+        >>> model = odps.create_online_model('**online_model_name**', '**offline_model_name**')
+
+        For customized models, the method call should be
+
+        >>> from odps.models.ml import ModelPredictor, CustomProcessor
+        >>> processor = CustomProcessor(class_name='**class**', lib='**library name**',
+                                        resources=['**resource name**', ],  config='**configuration**')
+        >>> predictor = ModelPredictor(runtime='Jar or Native', instance_num=5, pipeline=[processor, ],
+                                        target_name='**target name**')
+        >>> model = odps.create_online_model('**online_model_name**', predictor)
+
+        .. seealso:: :class:`odps.models.ml.OnlineModel`
+
+        """
+        # def create_online_model(self, name, offline_model, project=None, qos=100, offline_model_project=None,
+        #                         wait=True, interval=1):
+        from odps.models.ml.onlinemodel import ModelPredictor
+        offline_model = kwargs.get('offline_model', None)
+        if args and isinstance(args[0], six.string_types):
+            offline_model = offline_model or args[0]
+        predictor = kwargs.get('predictor', None)
+        if args and isinstance(args[0], ModelPredictor):
+            predictor = args[0]
+        if predictor is not None and offline_model is not None:
+            raise ValueError('You cannot supply both offline_model and predictor at the same time.')
+        elif predictor is None and offline_model is None:
+            raise ValueError('You should supply at least one argument in offline_model and predictor.')
+
+        project = kwargs.pop('project', None)
+        project = self.get_project(name=project)
+        if offline_model:
+            from .models.ml import OfflineModel
+            if isinstance(offline_model, OfflineModel):
+                kwargs['offline_model_project'] = offline_model.project.name
+                offline_model = offline_model.name
+            if 'offline_model_project' not in kwargs:
+                kwargs['offline_model_project'] = self.project
+            return project.online_models.create(name=name, offline_model_name=offline_model, runtime='Native', **kwargs)
+        elif predictor:
+            return project.online_models.create(name=name, predictor=predictor, **kwargs)
+        else:
+            raise ValueError('Cannot determine which type of model to create.')
+
+    def list_online_models(self, project=None, prefix=None, owner=None):
+        """
+        List offline models of project by optional filter conditions including prefix and owner.
+
+        :param project: project name, if not provided, will be the default project
+        :param prefix: prefix of offline model's name
+        :param owner: Aliyun account
+        :return: offline models
+        :rtype: list
+        """
+
+        project = self.get_project(name=project)
+        return project.online_models.iterate(name=prefix, owner=owner)
+
+    def get_online_model(self, name, project=None):
+        """
+        Get online model by given name
+
+        :param name: name of the online model
+        :param project: project name, if not provided, will be the default project
+        :return: offline model
+        :rtype: :class:`odps.models.ml.OfflineModel`
+        :raise: :class:`odps.errors.NoSuchObject` if not exists
+        """
+
+        project = self.get_project(name=project)
+        return project.online_models[name]
+
+    def exist_online_model(self, name, project=None):
+        """
+        If the online model with given name exists or not.
+
+        :param name: name of the online model
+        :param project: project name, if not provided, will be the default project
+        :return: True if offline model exists else False
+        :rtype: bool
+        """
+
+        project = self.get_project(name=project)
+        return name in project.online_models
+
+    def predict_online_model(self, name, data, schema=None, project=None, endpoint=None):
+        """
+        Get prediction result with provided data on specified online model.
+
+        :param name: name of the online model
+        :param data: data to be predicted
+        :param schema: schema of input data
+        :param project: name of the project where the online model is located
+        :param endpoint: endpoint of predict service
+        :return: prediction result
+
+        The input data can be an :class:`odps.models.Record` instance or a dictionary providing column names as keys
+        and values as values. In such cases, the parameter `schema` can be neglected. Otherwise a list of column names
+        should be provided.
+
+        Multiple values organized in lists or tuples is also acceptable.
+
+        The output result object has three fields. The `label` field provides predicted label, the `value` field
+        provides predicted value, while the `scores` field provides a dictionary listing scores for every possible
+        labels.
+        """
+        endpoint = endpoint or self._predict_endpoint or options.predict_endpoint
+        return self.get_online_model(name, project=project).predict(data, schema=schema, endpoint=endpoint)
+
+    def config_online_model_ab_test(self, name, *args, **kwargs):
+        """
+        Config AB-Test percentages of the online model.
+
+        :param name: name of the online model
+
+        This method should be called like
+
+        >>> result = odps.config_online_model_ab_test('**online_model_name**', model1, percentage1, model2, percentage2, ...)
+
+        where `modelx` can be model names or :class:`odps.models.ml.OnlineModel` instances, while `percentagex` should
+        be percentage of `modelx` in AB-Test, ranging from 0 to 100.
+        """
+        return self.get_online_model(name, project=kwargs.get('project')).config_ab_test(*args)
+
+    def delete_online_model(self, name, project=None, async=False):
+        """
+        Delete the online model by given name.
+
+        :param name: name of the online model
+        :param project: project name, if not provided, will be the default project
+        :param async: whether to wait for deletion completed
+        :return: None
+        """
+
+        project = self.get_project(name=project)
+        return project.online_models.delete(name, async=async)
+
     def get_logview_address(self, instance_id, hours=None, project=None):
         """
         Get logview address by given instance id and hours.
@@ -1500,3 +1672,5 @@ except ImportError:
 options.log_view_host = LOG_VIEW_HOST_DEFAULT
 if 'PYODPS_ENDPOINT' in os.environ:
     DEFAULT_ENDPOINT = os.environ.get('PYODPS_ENDPOINT')
+if 'PYODPS_PREDICT_ENDPOINT' in os.environ:
+    DEFAULT_PREDICT_ENDPOINT = os.environ.get('PYODPS_PREDICT_ENDPOINT')

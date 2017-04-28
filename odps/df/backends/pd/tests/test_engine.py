@@ -657,6 +657,111 @@ class Test(TestBase):
             except:
                 pass
 
+    def testThirdPartyLibraries(self):
+        import zipfile
+        import tarfile
+        import requests
+        from odps.compat import BytesIO
+
+        data = [
+            ['2016', 4, 5.3, None, None, None],
+            ['2015', 2, 3.5, None, None, None],
+            ['2014', 4, 4.2, None, None, None],
+            ['2013', 3, 2.2, None, None, None],
+            ['2012', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        utils_urls = [
+            'http://mirrors.aliyun.com/pypi/packages/39/7b/'
+            '1cb2391517d9cb30001140c6662e00d7443752e5a1713e317fb93267da3f/'
+            'python_utils-2.1.0-py2.py3-none-any.whl#md5=9dabec0d4f224ba90fd4c53064e7c016',
+            'http://mirrors.aliyun.com/pypi/packages/70/7e/'
+            'a2fcd97ec348e63be034027d4475986063c6d869f7e9f1b7802a8b17304e/'
+            'python-utils-2.1.0.tar.gz#md5=9891e757c629fc43ccd2c896852f8266',
+        ]
+        utils_resources = []
+        for utils_url, name in zip(utils_urls, ['python_utils.whl', 'python_utils.tar.gz']):
+            obj = BytesIO(requests.get(utils_url).content)
+            res_name = '%s_%s.%s' % (
+                name.split('.', 1)[0], str(uuid.uuid4()).replace('-', '_'), name.split('.', 1)[1])
+            res = self.odps.create_resource(res_name, 'file', file_obj=obj)
+            utils_resources.append(res)
+
+        resources = []
+        six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
+
+        zip_io = BytesIO()
+        zip_f = zipfile.ZipFile(zip_io, 'w')
+        zip_f.write(six_path, arcname='mylib/six.py')
+        zip_f.close()
+        zip_io.seek(0)
+
+        rn = 'six_%s.zip' % str(uuid.uuid4())
+        resource = self.odps.create_resource(rn, 'file', file_obj=zip_io)
+        resources.append(resource)
+
+        tar_io = BytesIO()
+        tar_f = tarfile.open(fileobj=tar_io, mode='w:gz')
+        tar_f.add(six_path, arcname='mylib/six.py')
+        tar_f.close()
+        tar_io.seek(0)
+
+        rn = 'six_%s.tar.gz' % str(uuid.uuid4())
+        resource = self.odps.create_resource(rn, 'file', file_obj=tar_io)
+        resources.append(resource)
+
+        try:
+            for resource in resources:
+                for utils_resource in utils_resources:
+                    def f(x):
+                        from python_utils import converters
+                        return converters.to_int(x)
+
+                    expr = self.expr.name.map(f, rtype='int')
+
+                    res = self.engine.execute(expr, libraries=[resource.name, utils_resource])
+                    result = self._get_result(res)
+
+                    self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
+
+                    def f(row):
+                        from python_utils import converters
+                        return converters.to_int(row.name),
+
+                    expr = self.expr.apply(f, axis=1, names=['name', ], types=['int', ])
+
+                    res = self.engine.execute(expr, libraries=[resource, utils_resource])
+                    result = self._get_result(res)
+
+                    self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
+
+                    class Agg(object):
+                        def buffer(self):
+                            return [0]
+
+                        def __call__(self, buffer, val):
+                            from python_utils import converters
+                            buffer[0] += converters.to_int(val)
+
+                        def merge(self, buffer, pbuffer):
+                            buffer[0] += pbuffer[0]
+
+                        def getvalue(self, buffer):
+                            return buffer[0]
+
+                    expr = self.expr.name.agg(Agg, rtype='int')
+
+                    options.df.libraries = [resource.name, utils_resource]
+                    try:
+                        res = self.engine.execute(expr)
+                    finally:
+                        options.df.libraries = None
+
+                    self.assertEqual(res, sum([int(r[0].split('-')[0]) for r in data]))
+        finally:
+            [res.drop() for res in resources + utils_resources]
+
     def testApply(self):
         data = [
             ['name1', 4, None, None, None, None],
@@ -1288,6 +1393,25 @@ class Test(TestBase):
             ['name1', 4]
         ]
 
+        self.assertEqual(expected, result)
+
+    def testProjectionGroupbyFilter(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        df = self.expr.copy()
+        df['id'] = df.id + 1
+        df2 = df.groupby('name').agg(id=df.id.sum())[lambda x: x.name == 'name2']
+
+        expected = [['name2', 3]]
+        res = self.engine.execute(df2)
+        result = self._get_result(res)
         self.assertEqual(expected, result)
 
     def testJoinGroupby(self):
@@ -2092,6 +2216,7 @@ class Test(TestBase):
         self._gen_data(data=data)
 
         table_name = tn('pyodps_test_engine_persist_table')
+        self.odps.delete_table(table_name, if_exists=True)
 
         try:
             df = self.engine.persist(self.expr, table_name)
@@ -2100,6 +2225,19 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(len(result), 5)
             self.assertEqual(data, result)
+        finally:
+            self.odps.delete_table(table_name, if_exists=True)
+
+        try:
+            self.odps.create_table(table_name,
+                                   'name string, fid double, id bigint, isMale boolean, scale decimal, birth datetime',
+                                   lifecycle=1)
+            df = self.engine.persist(self.expr, table_name)
+
+            res = df.to_pandas()
+            result = self._get_result(res)
+            self.assertEqual(len(result), 5)
+            self.assertEqual(data, [[r[0], r[2], r[1], r[3], r[4], r[5]] for r in result])
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 
@@ -2262,6 +2400,111 @@ class Test(TestBase):
             [5, 'name1', 1.0, 2.0, 3.0, 4.0],
         ]
         self.assertListEqual(uresult, expected)
+
+    def testDrop(self):
+        import pandas as pd
+
+        data1 = [
+            ['name1', 1, 3.0], ['name1', 2, 3.0], ['name1', 2, 2.5],
+            ['name2', 1, 1.2], ['name2', 3, 1.0],
+            ['name3', 1, 1.2], ['name3', 3, 1.2],
+        ]
+        schema1 = Schema.from_lists(['name', 'id', 'fid'],
+                                    [types.string, types.int64, types.float64])
+        expr1 = CollectionExpr(_source_data=pd.DataFrame(data1, columns=schema1.names),
+                               _schema=schema1)
+
+        data2 = [
+            ['name1', 1], ['name1', 2],
+            ['name2', 1], ['name2', 2],
+        ]
+        schema2 = Schema.from_lists(['name', 'id'],
+                                    [types.string, types.int64])
+        expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
+                               _schema=schema2)
+
+        expr_result = expr1.drop(expr2)
+        res = self.engine.execute(expr_result)
+        result = self._get_result(res)
+
+        expected = [['name2', 3, 1.0], ['name3', 1, 1.2], ['name3', 3, 1.2]]
+        self.assertListEqual(sorted(result), sorted(expected))
+
+        expr_result = expr1.drop(expr2, columns='name')
+        res = self.engine.execute(expr_result)
+        result = self._get_result(res)
+
+        expected = [['name3', 1, 1.2], ['name3', 3, 1.2]]
+        self.assertListEqual(sorted(result), sorted(expected))
+
+        expr_result = expr1.drop(['id'], axis=1)
+        res = self.engine.execute(expr_result)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 3.0], ['name1', 3.0], ['name1', 2.5],
+            ['name2', 1.2], ['name2', 1.0],
+            ['name3', 1.2], ['name3', 1.2],
+        ]
+        self.assertListEqual(sorted(result), sorted(expected))
+
+        expr_result = expr1.drop(expr2[['id']], axis=1)
+        res = self.engine.execute(expr_result)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 3.0], ['name1', 3.0], ['name1', 2.5],
+            ['name2', 1.2], ['name2', 1.0],
+            ['name3', 1.2], ['name3', 1.2],
+        ]
+        self.assertListEqual(sorted(result), sorted(expected))
+
+    def testExceptIntersect(self):
+        import pandas as pd
+        data1 = [
+            ['name1', 1], ['name1', 2], ['name1', 2], ['name1', 2],
+            ['name2', 1], ['name2', 3],
+            ['name3', 1], ['name3', 3],
+        ]
+        schema1 = Schema.from_lists(['name', 'id'], [types.string, types.int64])
+        expr1 = CollectionExpr(_source_data=pd.DataFrame(data1, columns=schema1.names),
+                               _schema=schema1)
+
+        data2 = [
+            ['name1', 1], ['name1', 2], ['name1', 2],
+            ['name2', 1], ['name2', 2],
+        ]
+        schema2 = Schema.from_lists(['name', 'id'], [types.string, types.int64])
+        expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
+                               _schema=schema2)
+
+        expr_result = expr1.setdiff(expr2)
+        res = self.engine.execute(expr_result)
+        result = self._get_result(res)
+
+        expected = [['name1', 2], ['name2', 3], ['name3', 1], ['name3', 3]]
+        self.assertListEqual(sorted(result), sorted(expected))
+
+        expr_result = expr1.setdiff(expr2, distinct=True)
+        res = self.engine.execute(expr_result)
+        result = self._get_result(res)
+
+        expected = [['name2', 3], ['name3', 1], ['name3', 3]]
+        self.assertListEqual(sorted(result), sorted(expected))
+
+        expr_result = expr1.intersect(expr2)
+        res = self.engine.execute(expr_result)
+        result = self._get_result(res)
+
+        expected = [['name1', 1], ['name1', 2], ['name1', 2], ['name2', 1]]
+        self.assertListEqual(sorted(result), sorted(expected))
+
+        expr_result = expr1.intersect(expr2, distinct=True)
+        res = self.engine.execute(expr_result)
+        result = self._get_result(res)
+
+        expected = [['name1', 1], ['name1', 2], ['name2', 1]]
+        self.assertListEqual(sorted(result), sorted(expected))
 
     def testFilterOrder(self):
         import pandas as pd

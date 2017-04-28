@@ -18,8 +18,10 @@ from .core import Container
 from .project import Project
 from .. import serializers, errors
 from ..compat import six
+from ..utils import attach_internal
 
 
+@attach_internal
 class Projects(Container):
 
     marker = serializers.XMLNodeField('Marker')

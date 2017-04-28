@@ -105,6 +105,20 @@ class Test(TestBase):
         self.odps.delete_resource(resource_name)
         self.odps.delete_table(test_table_name)
 
+    def testTempFileResource(self):
+        resource_name = tn('pyodps_t_tmp_file_resource')
+
+        try:
+            self.odps.delete_resource(resource_name)
+        except errors.ODPSError:
+            pass
+
+        resource = self.odps.create_resource(resource_name, 'file', file_obj=FILE_CONTENT, temp=True)
+        self.assertIsInstance(resource, FileResource)
+        self.assertTrue(resource.is_temp_resource)
+
+        self.odps.delete_resource(resource_name)
+
     def testFileResource(self):
         resource_name = tn('pyodps_t_tmp_file_resource')
 

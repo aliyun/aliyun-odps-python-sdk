@@ -48,4 +48,10 @@ Definitions
 .. autoclass:: odps.models.Worker
     :members:
 
+.. autoclass:: odps.models.ml.OfflineModel
+    :members:
+
+.. autoclass:: odps.models.ml.OnlineModel
+    :members:
+
 .. intinclude:: api-def-int.rst

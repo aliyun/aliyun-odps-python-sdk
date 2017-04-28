@@ -668,6 +668,25 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
+    def testProjectionGroupbyFilter(self):
+        data = [
+            ['name1', 4, 5.3, None, None],
+            ['name2', 2, 3.5, None, None],
+            ['name1', 4, 4.2, None, None],
+            ['name1', 3, 2.2, None, None],
+            ['name1', 3, 4.1, None, None],
+        ]
+        self._gen_data(data=data)
+
+        df = self.expr.copy()
+        df['id'] = df.id + 1
+        df2 = df.groupby('name').agg(id=df.id.sum())[lambda x: x.name == 'name2']
+
+        expected = [['name2', 3]]
+        res = self.engine.execute(df2)
+        result = self._get_result(res)
+        self.assertEqual(expected, result)
+
     def testJoinGroupby(self):
         data = [
             ['name1', 4, 5.3, None, None],

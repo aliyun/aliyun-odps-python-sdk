@@ -83,6 +83,9 @@ class Resources(Iterable):
         if obj is None and 'type' not in kwargs:
             raise ValueError('Unknown resource type to create.')
 
+        if 'temp' in kwargs:
+            kwargs['is_temp_resource'] = kwargs.pop('temp')
+
         ctor_kw = kwargs.copy()
         ctor_kw.pop('file_obj', None)
         obj = obj or Resource(parent=self, client=self._client, **ctor_kw)

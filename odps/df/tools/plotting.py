@@ -17,6 +17,7 @@
 from ...compat import Enum, six
 from ...errors import DependencyNotInstalledError
 from ..expr.expressions import CollectionExpr, SequenceExpr, run_at_once, Expr
+from ..expr.dynamic import DynamicMixin
 from ..types import is_number
 
 
@@ -122,6 +123,12 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
     except ImportError:
         raise DependencyNotInstalledError('plot requires for pandas')
 
+    if isinstance(expr, DynamicMixin):
+        rf = expr.head(1)
+        columns = rf.columns
+    else:
+        columns = expr.dtypes
+
     fields = []
     x_name = None
     y_name = None
@@ -140,7 +147,7 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
             y_name = y.name
 
     if x_name is None or y_name is None:
-        for col in expr.dtypes.columns:
+        for col in columns:
             if col.name == x_name or col.name == y_name:
                 continue
             elif is_number(col.type):

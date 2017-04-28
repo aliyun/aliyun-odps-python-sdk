@@ -214,7 +214,7 @@ class Table(LazyLoad):
 
         return super(Table, self).__getattribute__(attr)
 
-    def __repr__(self):
+    def _repr(self):
         buf = six.StringIO()
 
         buf.write('odps.Table\n')
@@ -540,6 +540,22 @@ class Table(LazyLoad):
 
     def get_partition(self, partition_spec):
         return self.partitions[partition_spec]
+
+    def truncate(self, async=False):
+        """
+        truncate this table.
+
+        :param async: run asynchronously if True
+        :return: None
+        """
+        from .tasks import SQLTask
+        task = SQLTask(name='SQLAddPartitionTask', query='truncate table %s' % self.name)
+        instance = self.project.parent[self._client.project].instances.create(task=task)
+
+        if not async:
+            instance.wait_for_success()
+        else:
+            return instance
 
     def drop(self, async=False, if_exists=False):
         """

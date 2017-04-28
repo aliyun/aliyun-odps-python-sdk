@@ -66,7 +66,6 @@ start_coverage()
 import os
 import sys
 import json
-import tempfile
 
 try:
     os.unlink(os.path.realpath(__file__))
@@ -92,6 +91,53 @@ for inst in insts:
 """.lstrip()
 
 
+TEMP_FUNCTION_CODE = u"""
+#-*- coding:utf-8 -*-
+from odps.tests.core import start_coverage
+start_coverage()
+
+import os
+import sys
+import json
+
+try:
+    os.unlink(os.path.realpath(__file__))
+except Exception:
+    pass
+
+import_paths = json.loads({import_paths!r})
+odps_info = json.loads({odps_info!r})
+
+sys.path.extend(import_paths)
+
+from odps import ODPS, tempobj
+from odps.tests.core import tn
+
+odps = ODPS(**tempobj.compat_kwargs(odps_info))
+
+resource_name = {resource_name!r}
+function_name = {function_name!r}
+
+tempobj.register_temp_resource(odps, resource_name)
+tempobj.register_temp_function(odps, function_name)
+
+res_text = \"\"\"
+from odps.udf import annotate
+@annotate("bigint->bigint")
+class TempFun(object):
+   def evaluate(self, arg0):
+       return arg0
+\"\"\"
+if odps.exist_resource(resource_name + '.py'):
+    odps.delete_resource(resource_name + '.py')
+res = odps.create_resource(resource_name + '.py', 'py', file_obj=res_text)
+
+if odps.exist_function(function_name):
+    odps.delete_function(function_name)
+fun = odps.create_function(function_name, class_type=resource_name + '.TempFun', resources=[res, ])
+"""
+
+
 class TestTempObjs(TestBase):
     def setUp(self):
         super(TestTempObjs, self).setUp()
@@ -107,7 +153,7 @@ class TestTempObjs(TestBase):
                                project=self.odps.project,
                                endpoint=self.odps.endpoint))
 
-    def test_temp_object(self):
+    def testTempObject(self):
         class TestTempObject(tempobj.TempObject):
             _type = 'Temp'
             __slots__ = 'param1', 'param2'
@@ -116,15 +162,15 @@ class TestTempObjs(TestBase):
             _type = 'Temp2'
 
         obj1 = TestTempObject('v1', param2='v2')
-        assert obj1.param1 == 'v1' and obj1.param2 == 'v2'
+        self.assertEqual((obj1.param1, obj1.param2), ('v1', 'v2'))
         obj2 = TestTempObject('v1', 'v2')
 
-        assert obj1 == obj2
-        assert obj1 != 'String'
-        assert hash(obj1) == hash(obj2)
-        assert obj1 != TestTempObject2('v1', 'v2')
+        self.assertEqual(obj1, obj2)
+        self.assertNotEqual(obj1, 'String')
+        self.assertEqual(hash(obj1), hash(obj2))
+        self.assertNotEqual(obj1, TestTempObject2('v1', 'v2'))
 
-    def test_drop(self):
+    def testDrop(self):
         tempobj.register_temp_table(self.odps, 'non_exist_table')
         tempobj.register_temp_model(self.odps, 'non_exist_model')
         tempobj.register_temp_function(self.odps, 'non_exist_function')
@@ -132,7 +178,7 @@ class TestTempObjs(TestBase):
         tempobj.register_temp_volume_partition(self.odps, ('non_exist_vol', 'non_exist_vol_part'))
         tempobj.clean_stored_objects(self.odps)
 
-    def test_cleanup(self):
+    def testCleanup(self):
         self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
         self.odps.execute_sql('create table {0} (col1 string) lifecycle 1'.format(TEMP_TABLE_NAME))
         tempobj.register_temp_table(self.odps, TEMP_TABLE_NAME)
@@ -140,7 +186,7 @@ class TestTempObjs(TestBase):
         sleep(10)
         assert not self.odps.exist_table(TEMP_TABLE_NAME)
 
-    def test_cleanup_script(self):
+    def testCleanupScript(self):
         self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
         self.odps.execute_sql('create table {0} (col1 string) lifecycle 1'.format(TEMP_TABLE_NAME))
         tempobj.register_temp_table(self.odps, TEMP_TABLE_NAME)
@@ -149,7 +195,7 @@ class TestTempObjs(TestBase):
         sleep(10)
         assert not self.odps.exist_table(TEMP_TABLE_NAME)
 
-    def test_multi_process(self):
+    def testMultiProcess(self):
         self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
 
         self.odps.execute_sql('create table {0} (col1 string) lifecycle 1'.format(TEMP_TABLE_NAME))
@@ -170,7 +216,7 @@ class TestTempObjs(TestBase):
         assert self.odps.exist_table(TEMP_TABLE_NAME)
         self.odps.run_sql('drop table {0}'.format(TEMP_TABLE_NAME))
 
-    def test_plenty_create(self):
+    def testPlentyCreate(self):
         del_insts = [self.odps.run_sql('drop table {0}'.format(tn('tmp_pyodps_create_temp_%d' % n))) for n in range(10)]
         [inst.wait_for_completion() for inst in del_insts]
 
@@ -194,4 +240,26 @@ class TestTempObjs(TestBase):
             trial -= 1
             sleep(5)
             if trial == 0:
-                assert case()
+                self.assertTrue(case())
+
+    def testTempFunctions(self):
+        resource_name = tn('pyodps_test_tempobj_temp_resource') + '.py'
+        function_name = tn('pyodps_test_tempobj_temp_function')
+
+        script = TEMP_FUNCTION_CODE.format(
+            odps_info=self._get_odps_json(), import_paths=json.dumps(sys.path),
+            resource_name=resource_name, function_name=function_name,
+        )
+
+        script_name = tempfile.gettempdir() + os.sep + 'tmp_' + str(os.getpid()) + '_temp_functions.py'
+        with open(script_name, 'w') as script_file:
+            script_file.write(script)
+            script_file.close()
+        env = copy.deepcopy(os.environ)
+        env.update({'WAIT_CLEANUP': '1'})
+        subprocess.call([sys.executable, script_name], close_fds=True, env=env)
+
+        sleep(10)
+
+        self.assertFalse(self.odps.exist_resource(resource_name))
+        self.assertFalse(self.odps.exist_function(function_name))

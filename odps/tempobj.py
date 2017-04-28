@@ -55,8 +55,15 @@ temp_codes = json.loads({odps_info!r})
 import_paths = json.loads({import_paths!r})
 biz_ids = json.loads({biz_ids!r})
 
-if sys.platform == 'win32':
-    import_paths = [p.encode('mbcs') for p in import_paths]
+if sys.version_info[0] < 3:
+    if sys.platform == 'win32':
+        import_paths = [p.encode('mbcs') for p in import_paths]
+    else:
+        import_paths = [p.encode() for p in import_paths]
+        
+normed_paths = set(os.path.normcase(os.path.normpath(p)) for p in sys.path)
+import_paths = [p for p in import_paths
+                if os.path.normcase(os.path.normpath(p)) not in normed_paths]
 
 sys.path.extend(import_paths)
 from odps import ODPS, tempobj
@@ -118,6 +125,7 @@ class ExecutionEnv(object):
 class TempObject(object):
     __slots__ = []
     _type = ''
+    _priority = 0
 
     def __init__(self, *args, **kwargs):
         for k, v in zip(self.__slots__, args):
@@ -172,6 +180,7 @@ class TempModel(TempObject):
 class TempFunction(TempObject):
     __slots__ = 'function', 'project'
     _type = 'Function'
+    _priority = 1
 
     def drop(self, odps):
         try:
@@ -229,7 +238,7 @@ class ObjectRepository(object):
                 pool = futures.ThreadPoolExecutor(CLEANER_THREADS)
                 list(pool.map(_cleaner, reversed(list(self._container))))
             else:
-                for o in reversed(list(self._container)):
+                for o in sorted(list(self._container), key=lambda ro: type(ro)._priority, reverse=True):
                     _cleaner(o)
         for obj in cleaned:
             if obj in self._container:

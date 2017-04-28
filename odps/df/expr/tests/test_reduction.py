@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import textwrap
 
 from odps.tests.core import TestBase
-from odps.compat import unittest
+from odps.compat import unittest, six, LESS_PY35
 from odps.df.expr.reduction import *
 from odps.df import types
 
@@ -168,6 +169,47 @@ class Test(TestBase):
 
         cat = self.expr.string.cat(sep=',')
         self.assertIsInstance(cat, StringScalar)
+
+    def testAgg(self):
+        class Agg(object):
+            def buffer(self):
+                return [0]
+
+            def __call__(self, buffer, val):
+                buffer[0] += val
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] += pbuffer[0]
+
+            def getvalue(self, buffer):
+                return buffer[0]
+
+        expr = self.expr.int64.agg(Agg)
+
+        self.assertIsInstance(expr, Aggregation)
+        self.assertEqual(expr.dtype, types.int64)
+
+        if not LESS_PY35:
+            l = locals().copy()
+            six.exec_(textwrap.dedent("""
+            class Agg(object):
+                def buffer(self):
+                    return [0]
+    
+                def __call__(self, buffer, val):
+                    buffer[0] += val
+    
+                def merge(self, buffer, pbuffer):
+                    buffer[0] += pbuffer[0]
+    
+                def getvalue(self, buffer) -> float:
+                    return buffer[0]
+    
+            expr = self.expr.int64.agg(Agg)
+            """), globals(), l)
+            expr = l['expr']
+            self.assertIsInstance(expr, Aggregation)
+            self.assertIsInstance(expr.dtype, types.Float)
 
 if __name__ == '__main__':
     unittest.main()

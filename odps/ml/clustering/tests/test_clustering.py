@@ -55,6 +55,6 @@ class TestMLClustering(MLTestBase):
         labeled._add_case(self.gen_check_params_case(
             {'inputTableName': IONOSPHERE_TABLE, 'centerCount': '3', 'distanceType': 'euclidean',
              'idxTableName': 'test_project_name.' + IONOSPHERE_CLUSTER_LABEL_TABLE, 'initCentersMethod': 'sample',
-             'modelName': 'tmp_pyodps__k_means', 'appendColsIndex': ','.join('%d' % i for i in range(0, 35)),
+             'modelName': 'tmp_pyodps_k_means', 'appendColsIndex': ','.join('%d' % i for i in range(0, 35)),
              'selectedColNames': ','.join('a%02d' % i for i in range(1, 35)), 'loop': '100', 'accuracy': '0.0'}))
         labeled.persist(IONOSPHERE_CLUSTER_LABEL_TABLE, project='test_project_name')

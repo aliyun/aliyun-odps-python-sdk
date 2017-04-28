@@ -291,8 +291,9 @@ options.register_option('local_timezone', True)
 options.register_option('user_agent_pattern', '$pyodps_version $python_version $os_version')
 options.register_option('log_view_host', None)
 options.register_option('log_view_hours', 24, validator=is_integer)
+options.register_option('data_proxy', None)
+options.redirect_option('tunnel_proxy', 'data_proxy')
 options.register_option('tunnel_endpoint', None)
-options.register_option('tunnel_proxy', None)
 options.register_option('predict_endpoint', None)
 options.register_option('seahawks_url', None)
 options.register_option('biz_id', None)
@@ -340,6 +341,7 @@ options.register_option('df.quote', True, validator=is_bool)
 options.register_option('df.dump_udf', False, validator=is_bool)
 options.register_option('df.libraries', None)
 options.register_option('df.odps.sort.limit', 10000)
+options.register_option('df.sqlalchemy.execution_options', None, validator=any_validator(is_null, is_dict))
 options.register_option('df.seahawks.max_size', 10 * 1024 * 1024 * 1024)  # 10G
 
 # PyODPS ML

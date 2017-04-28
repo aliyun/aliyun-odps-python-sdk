@@ -29,7 +29,7 @@ from ...expr.window import *
 from ...expr.merge import *
 from ...expr.utils import highest_precedence_data_type
 from ... import types as df_types
-from ...utils import is_constant_scalar, traverse_until_source
+from ...utils import is_constant_scalar, traverse_until_source, is_source_collection
 from ....compat import lzip
 from .... import utils
 from . import types

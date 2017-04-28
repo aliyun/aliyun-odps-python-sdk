@@ -24,6 +24,7 @@ from .errors import ExpressionError
 from . import utils
 from ...compat import reduce, six
 from .. import types
+from ..utils import is_constant_scalar
 from ...utils import object_getattr
 
 
@@ -144,63 +145,50 @@ class GroupBy(BaseGroupBy):
 
     def _validate_agg(self, agg):
         from .reduction import GroupedSequenceReduction
+        from .window import RankOp
 
-        no_path = True
-        for path in agg.all_path(self._input):
-            no_path = False
-
-            has_reduction = False
-            not_self = False
-            for n in path:
-                if isinstance(n, GroupedSequenceReduction):
-                    has_reduction = True
-                    if n._grouped is not self:
-                        not_self = True
-                elif isinstance(n, CollectionExpr) and n is not self._input:
+        has_reduction = False
+        for node in agg.traverse(top_down=True, unique=True,
+                                 stop_cond=lambda x: x is self._input):
+            if isinstance(node, GroupedSequenceReduction):
+                has_reduction = True
+                if node._grouped is not self:
                     raise ExpressionError(
-                        'Aggregation should be applied to the columns of %s, not %s' % (
-                            repr_obj(self._input), repr_obj(n)))
-
-            if not_self:
+                        'Aggregation has not been applied to the right GroupBy, got: %s' % repr_obj(agg))
+            elif isinstance(node, Column):
+                if node._input is not self._input:
+                    raise ExpressionError(
+                        'Aggregation should be applied to the column of %s' % repr_obj(self._input))
+            elif isinstance(node, RankOp) and node._input is not self._input:
                 raise ExpressionError(
-                    'Aggregation has not been applied to the right GroupBy: %s' % repr_obj(agg))
-            if not has_reduction:
-                raise ExpressionError('No aggregation found in %s' % repr_obj(agg))
+                    'Aggregation should be applied to the column of %s' % repr_obj(self._input))
 
-        if no_path:
-            raise ExpressionError(
-                'Aggregation should be applied to the column of %s' % repr_obj(self._input))
+        if not has_reduction:
+            raise ExpressionError('No aggregation found in %s' % repr_obj(agg))
 
     def _transform(self, reduction_expr):
         if isinstance(reduction_expr, Scalar):
             from .reduction import SequenceReduction
+            from .window import RankOp
 
-            root = reduction_expr
+            dag = reduction_expr.to_dag(copy=False, validate=False)
+            for node in dag.traverse(
+                    stop_cond=lambda x: isinstance(x, (Column, RankOp)) or x is self._input):
+                if isinstance(node, SequenceReduction):
+                    to_sub = node.to_grouped_reduction(self)
+                    dag.substitute(node, to_sub)
+                elif isinstance(node, Scalar) and not is_constant_scalar(node) \
+                        and len(node.children()) > 0:
+                    to_sub = node.to_sequence()
+                    dag.substitute(node, to_sub)
+                elif isinstance(node, Column) and node._input is not self._input:
+                    field = self._input._get_field(node)
+                    if field:
+                        dag.substitute(node, field)
+                elif isinstance(node, RankOp) and node._input is not self._input:
+                    dag.substitute(node._input, self._input, parents=[node])
 
-            # some nodes may have been changed during traversing
-            # thus we store them here to prevent from processing again
-            subs = dict()
-            for path in root.all_path(self._input, strict=True):
-                for idx, node in enumerate(path):
-                    if id(node) in subs:
-                        path[idx] = subs[id(node)]
-                        continue
-
-                    if isinstance(node, SequenceReduction):
-                        to_sub = node.to_grouped_reduction(self)
-                    elif isinstance(node, Scalar) and node._value is None:
-                        to_sub = node.to_sequence()
-                    else:
-                        continue
-
-                    if idx == 0:
-                        root = to_sub
-
-                    path[idx] = to_sub
-                    subs[id(node)] = to_sub
-                    path[idx - 1].substitute(node, to_sub)
-
-            return root
+            return dag.root
 
         return reduction_expr
 

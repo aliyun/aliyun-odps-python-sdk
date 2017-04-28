@@ -201,7 +201,7 @@ else:
                             import pandas as pd
                             from pandas.parser import CParserError
 
-                            if options.use_instance_tunnel:
+                            if not hasattr(reader, 'raw'):
                                 res = ResultFrame([rec.values for rec in reader], schema=reader._schema)
                             else:
                                 try:
@@ -215,7 +215,7 @@ else:
                                 except (ValueError, CParserError):
                                     res = reader.raw
                         except ImportError:
-                            if options.use_instance_tunnel:
+                            if not hasattr(reader, 'raw'):
                                 res = ResultFrame([rec.values for rec in reader], schema=reader._schema)
                             else:
                                 try:

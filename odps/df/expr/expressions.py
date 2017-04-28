@@ -576,13 +576,24 @@ class CollectionExpr(Expr):
         Expr.__setattr__(self, key, value)
 
     def __getattribute__(self, attr):
-        proxy = object.__getattribute__(self, '_proxy')
-        if attr == '_proxy':
-            return proxy
+        try:
+            proxy = object.__getattribute__(self, '_proxy')
+            if attr == '_proxy':
+                return proxy
 
-        if proxy:
-            # delegate everything to proxy object
-            return getattr(proxy, attr)
+            if proxy:
+                # delegate everything to proxy object
+                return getattr(proxy, attr)
+        except AttributeError:
+            pass
+
+        try:
+            if attr in object.__getattribute__(self, '_schema')._name_indexes:
+                cls_attr = getattr(type(self), attr, None)
+                if cls_attr is None or inspect.ismethod(cls_attr) or inspect.isfunction(cls_attr):
+                    return self[attr]
+        except AttributeError:
+            pass
 
         return super(CollectionExpr, self).__getattribute__(attr)
 
@@ -669,8 +680,10 @@ class CollectionExpr(Expr):
         return True
 
     def _backtrack_field(self, field, collection):
+        from .window import RankOp
+
         for col in field.traverse(top_down=True, unique=True,
-                                  stop_cond=lambda x: isinstance(x, Column)):
+                                  stop_cond=lambda x: isinstance(x, (Column, RankOp))):
             if isinstance(col, Column):
                 changed = is_changed(collection, col)
                 if changed or changed is None:
@@ -679,6 +692,8 @@ class CollectionExpr(Expr):
                     return
                 else:
                     col.substitute(col._input, collection)
+            elif isinstance(col, RankOp) and col._input is not collection:
+                col.substitute(col._input, collection)
 
         return field
 
@@ -690,7 +705,10 @@ class CollectionExpr(Expr):
         if isinstance(field, six.string_types):
             if field not in self._schema:
                 raise ValueError('Field(%s) does not exist, please check schema' % field)
-            return Column(self, _name=field, _data_type=self._schema[field].type)
+            cls = Column
+            if callable(getattr(type(self), field, None)):
+                cls = CallableColumn
+            return cls(self, _name=field, _data_type=self._schema[field].type)
 
         if not self._validate_field(field):
             new_field = None
@@ -700,7 +718,6 @@ class CollectionExpr(Expr):
             if new_field is None:
                 raise ExpressionError('Cannot support projection on %s' % repr_obj(field))
             field = new_field
-
         return field
 
     def _get_fields(self, fields, ret_raw_fields=False):
@@ -1367,6 +1384,11 @@ class Column(SequenceExpr):
         return visitor.visit_column(self)
 
 
+class CallableColumn(Column):
+    def __call__(self, *args, **kwargs):
+        return getattr(type(self._input), self.source_name)(self._input, *args, **kwargs)
+
+
 class Scalar(TypedExpr):
     """
     Represent for the scalar type.
@@ -1700,6 +1722,7 @@ class ProjectCollectionExpr(CollectionExpr):
 
     def _setitem(self, value, value_dag=None):
         from ..backends.context import context
+        from .window import Window
 
         if context.is_cached(self):
             super(ProjectCollectionExpr, self).__setitem__(value.name, value)
@@ -1717,6 +1740,9 @@ class ProjectCollectionExpr(CollectionExpr):
                 if field.name != n.name:
                     field = field.rename(n.name)
                 value_dag.substitute(n, field)
+            elif isinstance(n, Window) and n.input is self:
+                # Window object like rank will point to collection directly instead of through column
+                value_dag.substitute(n.input, self.input)
 
         value = value_dag.root
         fields = [field if field.name != value.name else value for field in self._fields]

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import time
 import uuid
 
@@ -51,11 +52,13 @@ class Test(TestBase):
         names = ['name', 'id']
         types = ['string', 'bigint']
 
-        table = tn('pyodps_df_mixed')
-        self.odps.delete_table(table, if_exists=True)
-        self.t = self.odps.create_table(table, Schema.from_lists(names, types))
-        with self.t.open_writer() as w:
-            w.write([self.t.new_record(r) for r in odps_data])
+        table = tn('pyodps_df_mixed_%d' % os.getpid())
+        if self.odps.exist_table(table):
+            self.t = self.odps.get_table(table)
+        else:
+            self.t = self.odps.create_table(table, Schema.from_lists(names, types), lifecycle=1)
+            with self.t.open_writer() as w:
+                w.write([self.t.new_record(r) for r in odps_data])
 
         self.odps_df = DataFrame(self.t)
         self.pd_df = DataFrame(pd.DataFrame(pd_data, columns=names))
@@ -64,7 +67,6 @@ class Test(TestBase):
         self.pd_engine = PandasEngine(self.odps)
 
     def teardown(self):
-        self.t.drop()
         self.engine._selecter.force_odps = False
 
     def testGroupReduction(self):
@@ -160,17 +162,30 @@ class Test(TestBase):
     def testPandasPersist(self):
         import pandas as pd, numpy as np
 
-        self.odps.to_global()
-
         tmp_table_name = tn('pyodps_test_mixed_persist')
         self.odps.delete_table(tmp_table_name, if_exists=True)
+        t = self.odps.create_table(tmp_table_name, ('a bigint, b bigint, c bigint', 'ds string'))
+        t.create_partition('ds=today')
+        try:
+            pd_df = pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc'))
+            df = DataFrame(pd_df).persist(tmp_table_name, partition='ds=today', odps=self.odps)
 
-        pd_df = pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc'))
-        df = DataFrame(pd_df).persist(tmp_table_name)
+            self.assertPandasEqual(df[list('abc')].to_pandas(), pd_df)
+        finally:
+            self.odps.delete_table(tmp_table_name)
 
-        self.assertPandasEqual(df.to_pandas(), pd_df)
+        self.odps.to_global()
 
-        self.odps.delete_table(tmp_table_name)
+        tmp_table_name = tn('pyodps_test_mixed_persist2')
+        self.odps.delete_table(tmp_table_name, if_exists=True)
+
+        try:
+            pd_df = pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc'))
+            df = DataFrame(pd_df).persist(tmp_table_name)
+
+            self.assertPandasEqual(df.to_pandas(), pd_df)
+        finally:
+            self.odps.delete_table(tmp_table_name)
 
     def testExecuteCacheTable(self):
         df = self.odps_df[self.odps_df.name == 'name1']

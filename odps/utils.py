@@ -43,7 +43,7 @@ from datetime import datetime
 from email.utils import parsedate_tz, formatdate
 
 from . import compat
-from .compat import six, getargspec
+from .compat import six, getargspec, FixedOffset
 
 try:
     import pytz
@@ -356,6 +356,18 @@ def to_datetime(milliseconds, local_tz=None):
     return f(milliseconds)
 
 
+def strptime_with_tz(dt, format='%Y-%m-%d %H:%M:%S'):
+    try:
+        return datetime.strptime(dt, format)
+    except ValueError:
+        naive_date_str, _, offset_str = dt.rpartition(' ')
+        naive_dt = datetime.strptime(naive_date_str, format)
+        offset = int(offset_str[-4:-2]) * 60 + int(offset_str[-2:])
+        if offset_str[0] == "-":
+            offset = -offset
+        return naive_dt.replace(tzinfo=FixedOffset(offset))
+
+
 def to_binary(text, encoding='utf-8'):
     if text is None:
         return text
@@ -386,7 +398,7 @@ def to_str(text, encoding='utf-8'):
 if sys.platform == 'win32':
     def _replace_default_encoding(func):
         def _fun(s, encoding=None):
-            encoding = encoding or getattr(sys.__stdout__, 'encoding', None) or 'mbcs'
+            encoding = encoding or getattr(sys.stdout, 'encoding', None) or 'mbcs'
             return func(s, encoding=encoding)
 
         _fun.__name__ = func.__name__

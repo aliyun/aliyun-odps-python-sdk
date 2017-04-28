@@ -283,10 +283,10 @@ PyODPS ML 不会立即执行每一个 Node 对应的操作，而是等到 IO、C
 .. code-block:: python
 
     df1, df2 = DataFrame(odps.get_table('iris')).split(0.5)
-    standardize(df1).persist('iris_part_std')
-    normalize(df2)
+    df1.std_scale().persist('iris_part_std')
+    df2.min_max_scale()
 
-代码中的标准化（standardize）操作会被执行，因为 df1 这条链路上执行了 persist 操作。而归一化（normalize）操作则不会被执行，
+代码中的标准化（std_scale）操作会被执行，因为 df1 这条链路上执行了 persist 操作。而归一化（min_max_scale）操作则不会被执行，
 因为其链路中并不存在任何触发执行的代码。
 
 采用延迟执行的好处有三。首先，对于存在分支的流程，延迟执行能帮助 PyODPS ML 决定哪些步骤可以并行化，从而能够尽可能地利用计算资源。
@@ -299,26 +299,3 @@ PyODPS ML 不会立即执行每一个 Node 对应的操作，而是等到 IO、C
 PyODPS ML 可以使用 GC 获得真正需要的输出个数，从而避免了多余的输出操作。最后，延迟执行也能够帮助用户更快地搭建算法流程。
 
 如果需要某个步骤立即执行，也可以在相应的 DataFrame 或 Model 上执行 persist() 方法。此时，该数据对象对应的节点及所有依赖节点都将被执行。
-
-查看执行步骤
-============
-PyODPS ML 支持用户查看某个数据对象的执行步骤。用户只需要在 DataFrame 或 Model 对象上调用 show_steps 方法即可显示该数据的执行步骤。
-
-例如，下面的代码
-
-.. code-block:: python
-
-    train, test = df.split(0.5)
-    algo = LogisticRegression(tree_num=10)
-    model = algo.train(train)
-    predicted = model.predict(test)
-
-执行
-
-.. code-block:: python
-
-    predicted.show_steps()
-
-后，Jupyter Notebook 会显示执行步骤 DAG 图如下：
-
-.. image:: _static/ml_show_steps.svg

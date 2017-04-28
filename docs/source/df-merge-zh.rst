@@ -126,7 +126,14 @@ self-join的时候，可以调用\ ``view``\ 方法，这样就可以分别取�
     1  http://us.imdb.com/M/title-exact?Four%20Rooms%...          3
     2  http://us.imdb.com/M/title-exact?Get%20Shorty%...          4
 
-除了\ ``join``\ 以外，DataFrame还支持\ ``left_join``\ ，\ ``right_join``\ ，和\ ``outer_join``\ 。
+除了\ ``join``\ 以外，DataFrame还支持\ ``left_join``\ ，\ ``right_join``\ ，和\ ``outer_join``\ 。在执行上述外连接操作时，
+默认会将重名列加上 _x 和 _y 后缀，可通过在 suffixes 参数中传入一个二元 tuple 来自定义后缀。
+
+如果需要在外连接中避免对谓词中相等的列取重复列，可以指定 merge_columns 选项，该选项会自动选择两列中的非空值作为新列的值：
+
+.. code:: python
+
+    >>> movies.left_join(ratings, on='movie_id', merge_columns=True)
 
 要使用 **mapjoin**\ 也很简单，只需将mapjoin设为True，执行时会对右表做mapjoin操作。
 

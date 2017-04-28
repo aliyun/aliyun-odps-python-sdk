@@ -119,8 +119,11 @@ class Test(TestBase):
         grouped = self.expr.groupby('string')
         self.assertRaises(ExpressionError, lambda: self.expr.groupby('boolean').agg(grouped.int32.sum()))
 
-        expr = self.expr[self.expr, Scalar(1).rename('id')]
-        self.assertRaises(ExpressionError, lambda: expr.groupby('id').agg(self.expr.int32.sum()))
+    def testBacktrackField(self):
+        expr = self.expr[self.expr.int64 < 10].groupby(self.expr.string).agg(s=self.expr.float32.sum())
+        self.assertIs(expr._by[0]._input, expr._input)
+        self.assertIs(expr._aggregations[0]._input._input, expr._input)
+
 
 if __name__ == '__main__':
     unittest.main()

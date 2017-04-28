@@ -173,10 +173,12 @@ class SQLAlchemyEngine(Engine):
         return res
 
     def _run(self, sa, ui, expr_dag, src_expr, progress_proportion=1,
-             head=None, tail=None, fetch=True, tmp_table_name=None):
+             head=None, tail=None, fetch=True, tmp_table_name=None,
+             execution_options=None):
         self._status_ui(ui)
 
         schema = expr_dag.root.schema
+        execution_options = dict() if execution_options is None else execution_options
         try:
             if isinstance(src_expr, (CollectionExpr, SequenceExpr)):
                 if tmp_table_name is None:
@@ -185,7 +187,7 @@ class SQLAlchemyEngine(Engine):
                 log('Sql compiled:')
                 log(self._sa_to_sql(to_execute))
                 conn = self._get_or_create_conn(sa.bind)
-                conn.execute(to_execute)
+                conn.execution_options(**execution_options).execute(to_execute)
 
                 if fetch:
                     result = self._get_result(tmp_table_name, sa.bind, schema, head, tail)
@@ -198,7 +200,7 @@ class SQLAlchemyEngine(Engine):
                 log(self._sa_to_sql(sa))
 
                 conn = self._get_or_create_conn(sa.bind)
-                res = conn.execute(sa).scalar()
+                res = conn.execution_options(**execution_options).execute(sa).scalar()
                 if src_expr.dtype != types.decimal and isinstance(res, Decimal):
                     return self._get_cast_func(src_expr.dtype)(res)
                 return res
@@ -250,7 +252,6 @@ class SQLAlchemyEngine(Engine):
 
         return sub, execute_node
 
-
     def _compile(self, expr, dag):
         compiler = SQLAlchemyCompiler(dag)
         return compiler.compile(expr)
@@ -278,10 +279,13 @@ class SQLAlchemyEngine(Engine):
 
         fetch = kwargs.pop('fetch', True)
         temp_table_name = kwargs.pop('temp_table_name', None)
+        execution_options = kwargs.pop('execution_options',
+                                       options.df.sqlalchemy.execution_options)
         result = self._run(sqlalchemy_expr, ui, expr_dag, src_expr,
                            progress_proportion=progress_proportion,
                            head=head, tail=tail, fetch=fetch,
-                           tmp_table_name=temp_table_name)
+                           tmp_table_name=temp_table_name,
+                           execution_options=execution_options)
 
         if not isinstance(src_expr, Scalar):
             # reset schema
@@ -303,8 +307,8 @@ class SQLAlchemyEngine(Engine):
     def _do_persist(self, expr_dag, expr, name, partitions=None, partition=None,
                     odps=None, project=None, ui=None,
                     progress_proportion=1, execute_percent=0.5, lifecycle=None,
-                    drop_table=False, create_table=True,
-                    drop_partition=False, create_partition=False, **kwargs):
+                    overwrite=True, drop_table=False, create_table=True,
+                    drop_partition=False, create_partition=False, cast=False, **kwargs):
         expr_dag = self._convert_table(expr_dag)
         self._rewrite(expr_dag)
 
@@ -360,7 +364,7 @@ class SQLAlchemyEngine(Engine):
                 table = odps.get_table(name, project=project)
         else:
             table = odps.get_table(name, project=project)
-        write_table(df, table, ui=ui, partitions=partitions, partition=partition,
+        write_table(df, table, ui=ui, cast=cast, overwrite=overwrite, partitions=partitions, partition=partition,
                     progress_proportion=progress_proportion * (1 - execute_percent))
 
         if partition:

@@ -184,6 +184,9 @@ class Test(TestBase):
 
         self.assertSequenceEqual(texted_data, [record.values for record in table.head(length)])
 
+        table.truncate()
+        self.assertEqual([], list(self.odps.read_table(table)))
+
         self.odps.delete_table(test_table_name)
         self.assertFalse(self.odps.exist_table(test_table_name))
 

@@ -47,7 +47,7 @@ class Test(TestBase):
         test_table_name = tn('pyodps_t_test_sql_magic')
         test_content = [['line1'], ['line2']]
         self.odps.delete_table(test_table_name, if_exists=True)
-        self.odps.create_table(test_table_name, 'col string')
+        self.odps.create_table(test_table_name, 'col string', lifecycle=1)
         self.odps.write_table(test_table_name, test_content)
 
         options.use_instance_tunnel = False
@@ -57,3 +57,10 @@ class Test(TestBase):
         options.use_instance_tunnel = True
         result = magic_class.execute('select * from %s' % test_table_name)
         self.assertListEqual(self._get_result(result), test_content)
+
+        result = magic_class.execute('show tables')
+        self.assertTrue(len(result) > 0)
+
+        table_name = tn('pyodps_test_magics_create_table_result')
+        magic_class.execute('create table %s (col string) lifecycle 1' % table_name)
+        magic_class.execute('drop table %s' % table_name)
