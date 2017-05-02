@@ -737,8 +737,8 @@ DataFrame的计算过程中，一些Collection被多处使用，或者用户需�
 .. intinclude:: df-seahawks-int-zh.rst
 
 
-异步执行
-~~~~~~~~~~~
+异步和并行执行
+~~~~~~~~~~~~~~~
 
 DataFrame 支持异步操作，对于立即执行的方法，包括 ``execute``、``persist``、``head``、``tail`` （其他方法不支持），
 传入 ``async`` 参数，即可以将一个操作异步执行，``timeout`` 参数指定超时时间，
@@ -763,10 +763,31 @@ DataFrame 支持异步操作，对于立即执行的方法，包括 ``execute``�
     9           4.9          3.1           1.5          0.1  Iris-setosa
 
 
-并行执行
-~~~~~~~~~~~
+DataFrame 的并行执行可以使用多线程来并行，单个 expr 的执行可以通过 ``n_parallel`` 参数来指定并发度。
+比如，当一个 DataFrame 的执行依赖的多个 cache 的 DataFrame 能够并行执行时，该参数就会生效。
 
-DataFrame 的并行执行可以使用多线程来并行，但会带来一个问题，比如两个 DataFrame 有共同的依赖，这个依赖将会被执行两遍。
+.. code-block:: python
+
+    >>> expr1 = iris.groupby('category').agg(value=iris.sepal_width.sum()).cache()
+    >>> expr2 = iris.groupby('category').agg(value=iris.sepal_length.mean()).cache()
+    >>> expr3 = iris.groupby('category').agg(value=iris.petal_length.min()).cache()
+    >>> expr = expr1.union(expr2).union(expr3)
+    >>> future = expr.execute(n_parallel=3, async=True, timeout=2)  # 并行和异步执行，2秒超时，返回Future对象
+    >>> future.result()
+              category    value
+    0      Iris-setosa    5.006
+    1  Iris-versicolor    5.936
+    2   Iris-virginica    6.588
+    3      Iris-setosa  170.900
+    4  Iris-versicolor  138.500
+    5   Iris-virginica  148.700
+    6      Iris-setosa    1.000
+    7  Iris-versicolor    3.000
+    8   Iris-virginica    4.500
+
+
+当同时执行多个 expr 时，我们可以用多线程执行，但会面临一个问题，
+比如两个 DataFrame 有共同的依赖，这个依赖将会被执行两遍。
 
 现在我们提供了新的 ``Delay API``，
 来将立即执行的操作（包括 ``execute``、``persist``、``head``、``tail``，其他方法不支持）变成延迟操作，
@@ -782,7 +803,7 @@ DataFrame 的并行执行可以使用多线程来并行，但会带来一个问�
     >>> future1 = df.sepal_width.sum().execute(delay=delay)  # 立即返回future对象，此时并没有执行
     >>> future2 = df.sepal_width.mean().execute(delay=delay)
     >>> future3 = df.sepal_length.max().execute(delay=delay)
-    >>> delay.execute(n_parallels=3)  # 并发度是3，此时才真正执行。
+    >>> delay.execute(n_parallel=3)  # 并发度是3，此时才真正执行。
     |==========================================|   1 /  1  (100.00%)        21s
     >>> future1.result()
     458.10000000000014
