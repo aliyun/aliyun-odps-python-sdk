@@ -73,17 +73,20 @@
 .. code-block:: python
 
    >>> from odps.models import Schema, Column, Partition
-   >>> columns = [Column(name='num', type='bigint', comment='the column')]
+   >>> columns = [Column(name='num', type='bigint', comment='the column'),
+   >>>            Column(name='num2', type='double', comment='the column2')]
    >>> partitions = [Partition(name='pt', type='string', comment='the partition')]
    >>> schema = Schema(columns=columns, partitions=partitions)
    >>> schema.columns
-   [<column num, type bigint>, <partition pt, type string>]
+   [<column num, type bigint>,
+    <column num2, type double>,
+    <partition pt, type string>]
    >>> schema.partitions
    [<partition pt, type string>]
    >>> schema.names  # 获取非分区字段的字段名
-   ['num']
+   ['num', 'num2']
    >>> schema.types  # 获取非分区字段的字段类型
-   [bigint]
+   [bigint, double]
 
 
 第二种方法是使用 ``Schema.from_lists``，这种方法更容易调用，但显然无法直接设置列和分区的注释了。

@@ -292,6 +292,7 @@ IPython 会自动补全前缀为 tabl 的表。
 SQL命令
 ---------
 
+.. _sqlinter:
 
 PyODPS 还提供了 SQL 插件，来执行 ODPS SQL。下面是单行 SQL：
 
@@ -435,6 +436,7 @@ PyODPS 还提供了 SQL 插件，来执行 ODPS SQL。下面是单行 SQL：
     </table>
     </div>
 
+.. _sqlparam:
 
 如果想执行参数化SQL查询，则需要替换的参数可以使用\ ``:参数``\ 的方式。
 

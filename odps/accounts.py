@@ -173,7 +173,9 @@ class SignServer(object):
             self._server = self.SignServerCore(endpoint, self.SignServerHandler, accounts=self.accounts)
             self._server.serve_forever()
 
-        threading.Thread(target=starter).start()
+        thread = threading.Thread(target=starter)
+        thread.daemon = True
+        thread.start()
         while self._server is None or not self._server._ready:
             time.sleep(0.05)
 

@@ -349,10 +349,11 @@ def _is_pid_running(pid):
             return False
 
 
-def clean_objects(odps):
+def clean_objects(odps, biz_ids=None):
     odps_key = _gen_repository_key(odps)
     files = []
-    for biz_id in _obj_repos.biz_ids:
+    biz_ids = biz_ids or _obj_repos.biz_ids
+    for biz_id in biz_ids:
         files.extend(glob.glob(os.path.join(TEMP_ROOT, biz_id, odps_key, '*.his')))
 
     for fn in files:

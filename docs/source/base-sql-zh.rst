@@ -133,6 +133,14 @@ PyODPS 默认限制能够从 Instance 读取的数据规模，限制数目由 OD
     3
 
 
+在交互式环境执行SQL
+---------------------
+
+在 ipython 和 jupyter 里支持 :ref:`使用 SQL 插件的方式运行 SQL <sqlinter>`，且支持 :ref:`参数化查询 <sqlparam>`，
+详情参阅 :ref:`文档 <sqlinter>`。
+
+
+
 设置biz_id
 ------------
 
