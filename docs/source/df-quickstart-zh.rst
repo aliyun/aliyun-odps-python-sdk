@@ -90,8 +90,8 @@
 
 .. code:: python
 
-    >>> users.age.between(20, 25).count().rename('count')
-    943
+    >>> users[users.age.between(20, 25)].count()
+    195
 
 接下来，我们看看男女用户分别有多少。
 
