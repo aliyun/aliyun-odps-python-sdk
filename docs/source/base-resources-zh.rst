@@ -22,8 +22,8 @@
 
 .. code-block:: python
 
-   resource = odps.create_resource('test_file_resource', 'file', file_obj=open('/to/path/file'))  # 使用file-like的对象
-   resource = odps.create_resource('test_py_resource', 'py', file_obj='import this')  # 使用字符串
+   resource = o.create_resource('test_file_resource', 'file', file_obj=open('/to/path/file'))  # 使用file-like的对象
+   resource = o.create_resource('test_py_resource', 'py', file_obj='import this')  # 使用字符串
 
 读取和修改文件资源
 ~~~~~~~~~~~~~~~~~~
@@ -40,7 +40,7 @@
    >>>     lines = fp.readlines()  # 读成多行
    >>>     fp.write('Hello World')  # 报错，读模式下无法写资源
    >>>
-   >>> with odps.open_resource('test_file_resource', mode='r+') as fp:  # 读写模式打开
+   >>> with o.open_resource('test_file_resource', mode='r+') as fp:  # 读写模式打开
    >>>     fp.read()
    >>>     fp.tell()  # 当前位置
    >>>     fp.seek(10)
@@ -69,13 +69,13 @@
 
 .. code-block:: python
 
-   >>> odps.create_resource('test_table_resource', 'table', table_name='my_table', partition='pt=test')
+   >>> o.create_resource('test_table_resource', 'table', table_name='my_table', partition='pt=test')
 
 更新表资源
 ~~~~~~~~~~~
 
 .. code-block:: python
 
-   >>> table_resource = odps.get_resource('test_table_resource')
+   >>> table_resource = o.get_resource('test_table_resource')
    >>> table_resource.update(partition='pt=test2', project_name='my_project2')
 

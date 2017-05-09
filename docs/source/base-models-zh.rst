@@ -14,7 +14,7 @@ run_xflow 的例子：
 
 .. code:: python
 
-    >>> odps.run_xflow('LogisticRegression', 'algo_public', dict(modelName='logistic_regression_model_name',
+    >>> o.run_xflow('LogisticRegression', 'algo_public', dict(modelName='logistic_regression_model_name',
     >>>                regularizedLevel='1', maxIter='100', regularizedType='l1', epsilon='0.000001', labelColName='y',
     >>>                featureColNames='pdays,emp_var_rate', goodValue='1', inputTableName='bank_data'))
 
@@ -22,20 +22,20 @@ run_xflow 的例子：
 
 .. code:: python
 
-    >>> models = odps.list_offline_models(prefix='prefix')
+    >>> models = o.list_offline_models(prefix='prefix')
 
 也可以通过模型名获取模型并读取模型 PMML（如果支持）：
 
 .. code:: python
 
-    >>> model = odps.get_offline_model('logistic_regression_model_name')
+    >>> model = o.get_offline_model('logistic_regression_model_name')
     >>> pmml = model.get_model()
 
 删除模型可使用下列语句：
 
 .. code:: python
 
-    >>> odps.delete_offline_model('logistic_regression_model_name')
+    >>> o.delete_offline_model('logistic_regression_model_name')
 
 在线模型
 ---------
@@ -46,8 +46,8 @@ run_xflow 的例子：
 
 .. code:: python
 
-    >>> odps = ODPS('your-access-id', 'your-secret-access-key', 'your-default-project',
-    >>>             endpoint='your-end-point', predict_endpoint='predict_endpoint')
+    >>> o = ODPS('your-access-id', 'your-secret-access-key', 'your-default-project',
+    >>>          endpoint='your-end-point', predict_endpoint='predict_endpoint')
 
 即可在 ODPS 对象上添加相关配置。Predict Endpoint 的地址请参考相关说明或咨询管理员。
 
@@ -58,7 +58,7 @@ PyODPS 提供了离线模型的部署功能。部署方法为
 
 .. code:: python
 
-    >>> model = odps.create_online_model('online_model_name', 'offline_model_name')
+    >>> model = o.create_online_model('online_model_name', 'offline_model_name')
 
 
 部署自定义 Pipeline 上线
@@ -77,7 +77,7 @@ PyODPS 提供了离线模型的部署功能。部署方法为
     >>> predictor.pipeline.append(CustomProcessor(class_name='SampleProcessor',
     >>>                                           lib='libsample_processor.so',
     >>>                                           resources='online_test/resources/sample_processor.tar.gz'))
-    >>> model = odps.create_online_model('online_model_name', predictor)
+    >>> model = o.create_online_model('online_model_name', predictor)
 
 其中，BuiltinProcessor、PmmlProcessor 和 CustomProcessor 分别指 ODPS OfflineModel 形成的 Pipeline 节点、PMML
 模型文件形成的 Pipeline 节点和用户自行开发的 Pipeline 节点。
@@ -89,30 +89,30 @@ PyODPS 提供了离线模型的部署功能。部署方法为
 
 .. code:: python
 
-    >>> models = odps.list_online_models(prefix='prefix')
-    >>> model = odps.get_online_model('online_model_name')
-    >>> odps.delete_online_model('online_model_name')
+    >>> models = o.list_online_models(prefix='prefix')
+    >>> model = o.get_online_model('online_model_name')
+    >>> o.delete_online_model('online_model_name')
 
 可使用模型名和数据进行在线预测，输入数据可以是 Record，也可以是字典或数组和 Schema 的组合：
 
 .. code:: python
 
     >>> data = [[4, 3, 2, 1], [1, 2, 3, 4]]
-    >>> result = odps.predict_online_model('online_model_name', data,
-    >>>                                    schema=['sepal_length', 'sepal_width', 'petal_length', 'petal_width'])
+    >>> result = o.predict_online_model('online_model_name', data,
+    >>>                                 schema=['sepal_length', 'sepal_width', 'petal_length', 'petal_width'])
 
 也可为模型设置 ABTest。参数中的 modelx 可以是在线模型名，也可以是 get_online_model 获得的模型对象本身，而 percentagex 表示
 modelx 在 ABTest 中所占的百分比，范围为 0 至 100：
 
 .. code:: python
 
-    >>> result = odps.config_online_model_ab_test('online_model_name', model1, percentage1, model2, percentage2)
+    >>> result = o.config_online_model_ab_test('online_model_name', model1, percentage1, model2, percentage2)
 
 修改模型参数可以通过修改 OnlineModel 对象的属性，再调用 update 方法实现，如
 
 .. code:: python
 
-    >>> model = odps.get_online_model('online_model_name')
+    >>> model = o.get_online_model('online_model_name')
     >>> model.cpu = 200
     >>> model.update()
 
@@ -122,24 +122,24 @@ OnlineModel 的 update 方法在整个操作完成后才返回。用户可以通
 
 .. code:: python
 
-    >>> model = odps.create_online_model('online_model_name', 'offline_model_name')
+    >>> model = o.create_online_model('online_model_name', 'offline_model_name')
 
 等价于
 
 .. code:: python
 
-    >>> model = odps.create_online_model('online_model_name', 'offline_model_name', async=True)
+    >>> model = o.create_online_model('online_model_name', 'offline_model_name', async=True)
     >>> model.wait_for_service()
 
 而
 
 .. code:: python
 
-    >>> odps.delete_online_model('online_model_name')
+    >>> o.delete_online_model('online_model_name')
 
 等价于
 
 .. code:: python
 
-    >>> odps.delete_online_model('* online_model_name *', async=True)
+    >>> o.delete_online_model('* online_model_name *', async=True)
     >>> model.wait_for_deletion()

@@ -127,6 +127,8 @@ full_requirements = [
     'matplotlib>=1.4',
     'graphviz>=0.4',
 ]
+if sys.version_info[0] == 2:
+    full_requirements.append('ipython<6.0.0')
 if sys.platform != 'win32':
     full_requirements.append('cython>=0.20')
 

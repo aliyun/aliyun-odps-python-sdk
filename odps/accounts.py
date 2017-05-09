@@ -118,6 +118,12 @@ class SignServer(object):
             self.wfile.write(b"PyODPS Account Server")
 
         def do_POST(self):
+            try:
+                self._do_POST()
+            except:
+                self.send_response(500)
+
+        def _do_POST(self):
             ctype, pdict = cgi.parse_header(self.headers.get('content-type'))
             if ctype == 'multipart/form-data':
                 postvars = cgi.parse_multipart(self.rfile, pdict)
@@ -126,7 +132,27 @@ class SignServer(object):
                 postvars = six.moves.urllib.parse.parse_qs(self.rfile.read(length), keep_blank_values=1)
             else:
                 self.send_response(400)
+                self.end_headers()
                 return
+
+            if self.server._token is not None:
+                auth = self.headers.get('Authorization')
+                if not auth:
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+                method, content = auth.split(' ', 1)
+                method = method.lower()
+                if method == 'token':
+                    if content != self.server._token:
+                        self.send_response(401)
+                        self.end_headers()
+                        return
+                else:
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+
             assert len(postvars[b'access_id']) == 1 and len(postvars[b'canonical']) == 1
             access_id = utils.to_str(postvars[b'access_id'][0])
             canonical = utils.to_str(postvars[b'canonical'][0])
@@ -148,6 +174,7 @@ class SignServer(object):
     class SignServerCore(six.moves.socketserver.ThreadingMixIn, six.moves.BaseHTTPServer.HTTPServer):
         def __init__(self, *args, **kwargs):
             self._accounts = kwargs.pop('accounts', {})
+            self._token = kwargs.pop('token', None)
             self._ready = False
             six.moves.BaseHTTPServer.HTTPServer.__init__(self, *args, **kwargs)
             self._ready = True
@@ -156,9 +183,10 @@ class SignServer(object):
             self.shutdown()
             self.server_close()
 
-    def __init__(self):
+    def __init__(self, token=None):
         self._server = None
         self._accounts = dict()
+        self._token = token
 
     @property
     def server(self):
@@ -168,9 +196,14 @@ class SignServer(object):
     def accounts(self):
         return self._accounts
 
+    @property
+    def token(self):
+        return self._token
+
     def start(self, endpoint):
         def starter():
-            self._server = self.SignServerCore(endpoint, self.SignServerHandler, accounts=self.accounts)
+            self._server = self.SignServerCore(endpoint, self.SignServerHandler,
+                                               accounts=self.accounts, token=self.token)
             self._server.serve_forever()
 
         thread = threading.Thread(target=starter)
@@ -183,11 +216,17 @@ class SignServer(object):
         self._server.stop()
 
 
+class SignServerError(Exception):
+    def __init__(self, msg, code):
+        super(SignServerError, self).__init__(msg)
+        self.code = code
+
+
 class SignServerAccount(BaseAccount):
-    def __init__(self, access_id, sign_endpoint=None, server=None, port=None):
+    def __init__(self, access_id, sign_endpoint=None, server=None, port=None, token=None):
         self.access_id = access_id
         self.sign_endpoint = sign_endpoint or (server, port)
-        self.req_session = requests.session()
+        self.token = token
 
     def sign_request(self, req, endpoint):
         url = req.url[len(endpoint):]
@@ -196,7 +235,14 @@ class SignServerAccount(BaseAccount):
         canonical_str = self._build_canonical_str(url_components, req)
         LOG.debug('canonical string: ' + canonical_str)
 
-        resp = self.req_session.post('http://%s:%s' % self.sign_endpoint,
-                                     data=dict(access_id=self.access_id, canonical=canonical_str))
-        req.headers['Authorization'] = resp.text
-        LOG.debug('headers after signing: ' + repr(req.headers))
+        headers = dict()
+        if self.token:
+            headers['Authorization'] = 'token ' + self.token
+
+        resp = requests.post('http://%s:%s' % self.sign_endpoint, headers=headers,
+                             data=dict(access_id=self.access_id, canonical=canonical_str))
+        if resp.status_code < 400:
+            req.headers['Authorization'] = resp.text
+            LOG.debug('headers after signing: ' + repr(req.headers))
+        else:
+            raise SignServerError('Sign server returned error code: %d' % resp.status_code, resp.status_code)

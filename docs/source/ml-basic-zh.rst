@@ -36,19 +36,19 @@ PyODPS ML 中获取 DataFrame 的方法与一般的 DataFrame 相同，即
 
 .. code-block:: python
 
-    df = DataFrame(odps.get_table('ionosphere'))
+    df = DataFrame(o.get_table('ionosphere'))
 
 如果表为分区表，可以使用 filter_partition 方法指定输入的分区名。该方法针对 XFlow 进行了优化。
 
 .. code-block:: python
 
-    df = DataFrame(odps.get_table('ionosphere_parted')).filter_partition('pt=20160101')
+    df = DataFrame(o.get_table('ionosphere_parted')).filter_partition('pt=20160101')
 
 也可以使用 roles 方法指定字段的用途，如
 
 .. code-block:: python
 
-    df = DataFrame(odps.get_table('iris')).roles(label='category')
+    df = DataFrame(o.get_table('iris')).roles(label='category')
 
 DataFrame 也可以通过其他 DataFrame 通过变换得到。这一变换可以通过调用 DataFrame 上的方法完成，，也可以调用用 PyODPS ML 中
 的算法获得。大多数方法调用后都会返回一个新的 DataFrame 对象。除了标准的 DataFrame 方法外，PyODPS ML 还增加了下述方法：
@@ -134,7 +134,7 @@ PyODPS ML 默认一个 DataFrame 上的所有字段均为特征字段。xxx_fiel
 
 .. code-block:: python
 
-    df = DataFrame(odps.get_table('iris'))
+    df = DataFrame(o.get_table('iris'))
     labeled = dataset.label_field('category')
 
 此外，为了简便标签的设置，也可以使用 roles 方法进行设置，例子如下：
@@ -192,7 +192,7 @@ PyODPS ML 中无法显示创建一个模型。模型需要通过算法生成，�
 .. code-block:: python
 
     pmml_model.persist('model_name')
-    reloaded_model = PmmlModel(odps.get_offline_model('model_name'))
+    reloaded_model = PmmlModel(o.get_offline_model('model_name'))
 
 使用 :func:`PmmlModel.execute` 方法可以获取模型的 Pmml，该方法返回一个 :class:`PmmlResult` 对象，可获取其 pmml 属性：
 
@@ -254,7 +254,7 @@ otm_output_model__model。
 
 .. code-block:: python
 
-    model = odps.get_tables_model('model_prefix')
+    model = o.get_tables_model('model_prefix')
     tables_model = TablesModel(model)
 
 表模型也拥有 predict 方法，可对数据集进行预测，但输出列不确定，一部分分类算法不支持输出 predict 列，具体需要参考各算法文档。
@@ -282,7 +282,7 @@ PyODPS ML 不会立即执行每一个 Node 对应的操作，而是等到 IO、C
 
 .. code-block:: python
 
-    df1, df2 = DataFrame(odps.get_table('iris')).split(0.5)
+    df1, df2 = DataFrame(o.get_table('iris')).split(0.5)
     df1.std_scale().persist('iris_part_std')
     df2.min_max_scale()
 

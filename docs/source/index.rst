@@ -18,7 +18,7 @@ PyODPS支持Python 2.6以上包括Python 3。系统安装了pip后，只需运�
 
   pip install pyodps
 
-PyODPS的相关依赖会自动安装。
+PyODPS 的相关依赖会自动安装。
 
 **注意**，对于Linux和Mac用户，先安装Cython，再运行安装pyodps命令，能加速Tunnel的上传和下载。
 
@@ -35,14 +35,14 @@ PyODPS的相关依赖会自动安装。
 
    from odps import ODPS
 
-   odps = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-default-project**',
+   o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-default-project**',
                endpoint='**your-end-point**')
 
 这样就已经初始化，就可以对表、资源、函数等进行操作了。
 
 在主入口，我们对于主要的ODPS对象都提供了最基本的几个操作，包括 ``list``、``get``、``exist``、``create``、``delete``。
 
-我们会对这几部分来分别展开说明。
+我们会对这几部分来分别展开说明。后文中的 o 对象如无说明均指的是 ODPS 入口对象。
 
 .. toctree::
    :maxdepth: 1

@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import uuid
+
 from odps import ODPS
 from odps.tests.core import TestBase, tn
-from odps.accounts import SignServer, SignServerAccount
+from odps.accounts import SignServer, SignServerAccount, SignServerError
 
 
 class Test(TestBase):
@@ -28,6 +30,24 @@ class Test(TestBase):
             account = SignServerAccount(self.odps.account.access_id, server.server.server_address)
             odps = ODPS(None, None, self.odps.project, self.odps.endpoint, account=account)
             odps.delete_table(tn('test_sign_account_table'), if_exists=True)
+            t = odps.create_table(tn('test_sign_account_table'), 'col string', lifecycle=1)
+            self.assertTrue(odps.exist_table(tn('test_sign_account_table')))
+            t.drop(async=True)
+        finally:
+            server.stop()
+
+    def testTokenizedSignServerAccount(self):
+        server = SignServer(token=str(uuid.uuid4()))
+        server.accounts[self.odps.account.access_id] = self.odps.account.secret_access_key
+        try:
+            server.start(('127.0.0.1', 0))
+            account = SignServerAccount(self.odps.account.access_id, server.server.server_address)
+            odps = ODPS(None, None, self.odps.project, self.odps.endpoint, account=account)
+            self.assertRaises(SignServerError,
+                              lambda: odps.delete_table(tn('test_sign_account_table'), if_exists=True))
+
+            account = SignServerAccount(self.odps.account.access_id, server.server.server_address, token=server.token)
+            odps = ODPS(None, None, self.odps.project, self.odps.endpoint, account=account)
             t = odps.create_table(tn('test_sign_account_table'), 'col string', lifecycle=1)
             self.assertTrue(odps.exist_table(tn('test_sign_account_table')))
             t.drop(async=True)

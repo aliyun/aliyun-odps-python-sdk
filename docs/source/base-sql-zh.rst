@@ -13,9 +13,9 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 
 .. code-block:: python
 
-   >>> odps.execute_sql('select * from dual')  #  同步的方式执行，会阻塞直到SQL执行完成
+   >>> o.execute_sql('select * from dual')  #  同步的方式执行，会阻塞直到SQL执行完成
    >>>
-   >>> instance = odps.run_sql('select * from dual')  # 异步的方式执行
+   >>> instance = o.run_sql('select * from dual')  # 异步的方式执行
    >>> print(instance.get_logview_address())  # 获取logview地址
    >>> instance.wait_for_success()  # 阻塞直到完成
 
@@ -28,7 +28,7 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 
 .. code-block:: python
 
-   >>> odps.execute_sql('select * from pyodps_iris', hints={'odps.sql.mapper.split.size': 16})
+   >>> o.execute_sql('select * from pyodps_iris', hints={'odps.sql.mapper.split.size': 16})
 
 我们可以对于全局配置设置sql.settings后，每次运行时则都会添加相关的运行时参数。
 
@@ -36,7 +36,7 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 
    >>> from odps import options
    >>> options.sql.settings = {'odps.sql.mapper.split.size': 16}
-   >>> odps.execute_sql('select * from pyodps_iris')  # 会根据全局配置添加hints
+   >>> o.execute_sql('select * from pyodps_iris')  # 会根据全局配置添加hints
 
 
 读取SQL执行结果
@@ -46,7 +46,7 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 
 .. code-block:: python
 
-   >>> with odps.execute_sql('select * from dual').open_reader() as reader:
+   >>> with o.execute_sql('select * from dual').open_reader() as reader:
    >>>     for record in reader:
    >>>         # 处理每一个record
 
@@ -54,7 +54,7 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 
 .. code-block:: python
 
-   >>> with odps.execute_sql('desc dual').open_reader() as reader:
+   >>> with o.execute_sql('desc dual').open_reader() as reader:
    >>>     print(reader.raw)
 
 如果 `options.use_instance_tunnel == True`，那么 PyODPS 会默认调用 Instance Tunnel，否则会调用旧的 Result 接口。
@@ -64,10 +64,10 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 .. code-block:: python
 
    >>> # 使用 Instance Tunnel
-   >>> with odps.execute_sql('select * from dual').open_reader(use_tunnel=True) as reader:
+   >>> with o.execute_sql('select * from dual').open_reader(use_tunnel=True) as reader:
    >>>     print(reader.raw)
    >>> # 使用 Results 接口
-   >>> with odps.execute_sql('select * from dual').open_reader(use_tunnel=False) as reader:
+   >>> with o.execute_sql('select * from dual').open_reader(use_tunnel=False) as reader:
    >>>     print(reader.raw)
 
 PyODPS 默认限制能够从 Instance 读取的数据规模，限制数目由 ODPS Project 的设置决定。如果使用 Instance Tunnel，可以
@@ -95,13 +95,13 @@ PyODPS 默认限制能够从 Instance 读取的数据规模，限制数目由 OD
         def evaluate(self, arg):
             return arg + self.n
     '''
-    res1 = odps.create_resource('test_alias_res1', 'file', file_obj='1')
-    odps.create_resource('test_alias.py', 'py', file_obj=myfunc)
-    odps.create_function('test_alias_func',
-                         class_type='test_alias.Example',
-                         resources=['test_alias.py', 'test_alias_res1'])
+    res1 = o.create_resource('test_alias_res1', 'file', file_obj='1')
+    o.create_resource('test_alias.py', 'py', file_obj=myfunc)
+    o.create_function('test_alias_func',
+                      class_type='test_alias.Example',
+                      resources=['test_alias.py', 'test_alias_res1'])
 
-    table = odps.create_table(
+    table = o.create_table(
         'test_table',
         schema=Schema.from_lists(['size'], ['bigint']),
         if_not_exists=True
@@ -109,9 +109,9 @@ PyODPS 默认限制能够从 Instance 读取的数据规模，限制数目由 OD
 
     data = [[1, ], ]
     # 写入一行数据，只有一行，一个值1
-    odps.write_table(table, 0, [table.new_record(it) for it in data])
+    o.write_table(table, 0, [table.new_record(it) for it in data])
 
-    with odps.execute_sql(
+    with o.execute_sql(
         'select test_alias_func(size) from test_table').open_reader() as reader:
         print(reader[0][0])
 
@@ -121,9 +121,9 @@ PyODPS 默认限制能够从 Instance 读取的数据规模，限制数目由 OD
 
 .. code-block:: python
 
-    res2 = odps.create_resource('test_alias_res2', 'file', file_obj='2')
+    res2 = o.create_resource('test_alias_res2', 'file', file_obj='2')
     # 把内容为1的资源alias成内容为2的资源，我们不需要修改UDF或资源
-    with odps.execute_sql(
+    with o.execute_sql(
         'select test_alias_func(size) from test_table',
         aliases={'test_alias_res1': 'test_alias_res2'}).open_reader() as reader:
         print(reader[0][0])
@@ -151,4 +151,4 @@ PyODPS 默认限制能够从 Instance 读取的数据规模，限制数目由 OD
    from odps import options
 
    options.biz_id = 'my_biz_id'
-   odps.execute_sql('select * from pyodps_iris')
+   o.execute_sql('select * from pyodps_iris')

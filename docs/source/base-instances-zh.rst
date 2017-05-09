@@ -14,9 +14,9 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 
 .. code-block:: python
 
-   >>> for instance in odps.list_instances():
+   >>> for instance in o.list_instances():
    >>>     print(instance.id)
-   >>> odps.exist_instance('my_instance_id')
+   >>> o.exist_instance('my_instance_id')
 
 
 停止一个instance可以在odps入口使用 ``stop_instance``，或者对instance对象调用 ``stop`` 方法。
@@ -40,7 +40,7 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 
 .. code-block:: python
 
-   >>> instance = odps.get_instance('2016042605520945g9k5pvyi2')
+   >>> instance = o.get_instance('2016042605520945g9k5pvyi2')
    >>> instance.status
    <Status.TERMINATED: 'Terminated'>
    >>> from odps.models import Instance

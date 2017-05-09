@@ -261,20 +261,20 @@ PyODPS 还提供了 IPython 的插件，来更方便得操作 ODPS。
 
 对象名补全
 ----------
-PyODPS 拓展了 IPython 原有的代码补全功能，支持在书写 ``odps.get_xxx`` 这样的语句时，自动补全对象名。
+PyODPS 拓展了 IPython 原有的代码补全功能，支持在书写 ``o.get_xxx`` 这样的语句时，自动补全对象名。
 
 例如，在 IPython 中输入下列语句（<tab>不是实际输入的字符，而是当所有输入完成后，将光标移动到相应位置，
 并按 Tab 键）：
 
 .. code-block:: python
 
-    odps.get_table(<tab>
+    o.get_table(<tab>
 
 如果已知需要补全对象的前缀，也可以使用
 
 .. code-block:: python
 
-    odps.get_table('tabl<tab>
+    o.get_table('tabl<tab>
 
 IPython 会自动补全前缀为 tabl 的表。
 
@@ -282,8 +282,8 @@ IPython 会自动补全前缀为 tabl 的表。
 
 .. code-block:: python
 
-    odps.get_table(project='project_name', name='tabl<tab>
-    odps.get_table('tabl<tab>', project='project_name')
+    o.get_table(project='project_name', name='tabl<tab>
+    o.get_table('tabl<tab>', project='project_name')
 
 如果匹配的对象有多个，IPython 会给出一个列表，其最大长度由 ``options.completion_size`` 给出，
 默认为 10。
@@ -539,4 +539,3 @@ SQL 语句在 Jupyter Notebook 中执行作业时，会显示当前正在执行�
 当作业运行成功后，浏览器将给出提醒信息，告知作业是否成功：
 
 .. image:: _static/exec_notify.png
-

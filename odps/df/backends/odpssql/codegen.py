@@ -45,7 +45,41 @@ CLIENT_IMPL = '(%d, %d, "%s")' % (sys.version_info[0],
                                   sys.version_info[1],
                                   platform.python_implementation().lower())
 
-READ_LIB = '''\
+X_NAMED_TUPLE_FILE = os.path.join(dirname, 'xnamedtuple.py')
+with open(X_NAMED_TUPLE_FILE) as f:
+    X_NAMED_TUPLE = f.read()
+
+
+UDF_TMPL_HEADER = '''\
+%(cloudpickle)s
+%(memimport)s
+
+%(xnamedtuple)s
+
+import base64
+import inspect
+import time
+import sys
+
+try:
+    import numpy
+except ImportError:
+    pass
+
+from odps.udf import annotate
+from odps.distcache import get_cache_file, get_cache_table
+
+
+try:
+    import socket
+except ImportError:
+    class MockSocketModule(object):
+        _GLOBAL_DEFAULT_TIMEOUT = object()
+        def __getattr__(self, item):
+            raise AttributeError('Accessing attribute `{0}` of module `socket` is prohibited by sandbox.'.format(item))
+    sys.modules['socket'] = MockSocketModule()
+
+
 def read_lib(lib, f):
     if lib.endswith('.zip') or lib.endswith('.egg') or lib.endswith('.whl'):
         return zipfile.ZipFile(f)
@@ -59,33 +93,14 @@ def read_lib(lib, f):
 
     raise ValueError(
         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
-'''
+''' % {
+    'cloudpickle': CLOUD_PICKLE,
+    'memimport': MEM_IMPORT,
+    'xnamedtuple': X_NAMED_TUPLE,
+}
 
-X_NAMED_TUPLE_FILE = os.path.join(dirname, 'xnamedtuple.py')
-with open(X_NAMED_TUPLE_FILE) as f:
-    X_NAMED_TUPLE = f.read()
 
-
-UDF_TMPL = '''\
-%(cloudpickle)s
-%(memimport)s
-
-%(readlib)s
-%(xnamedtuple)s
-
-import base64
-import time
-import inspect
-import sys
-
-try:
-    import numpy
-except ImportError:
-    pass
-
-from odps.udf import annotate
-from odps.distcache import get_cache_file, get_cache_table
-
+UDF_TMPL = '''
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(object):
 
@@ -180,27 +195,9 @@ class %(func_cls_name)s(object):
 '''
 
 
-UDTF_TMPL = '''\
-%(cloudpickle)s
-%(memimport)s
-
-%(readlib)s
-%(xnamedtuple)s
-
-import sys
-import base64
+UDTF_TMPL = '''
 import functools
-import inspect
-import time
-
-try:
-    import numpy
-except ImportError:
-    pass
-
-from odps.udf import annotate
 from odps.udf import BaseUDTF
-from odps.distcache import get_cache_file, get_cache_table
 
 PY2 = sys.version_info[0] == 2
 
@@ -343,25 +340,8 @@ class %(func_cls_name)s(BaseUDTF):
                 self.forward(*self._handle_output(res))
 '''
 
-UDAF_TMPL = '''\
-%(cloudpickle)s
-%(memimport)s
-
-%(readlib)s
-%(xnamedtuple)s
-
-import base64
-import inspect
-import time
-
-try:
-    import numpy
-except ImportError:
-    pass
-
-from odps.udf import annotate
+UDAF_TMPL = '''
 from odps.udf import BaseUDAF
-from odps.distcache import get_cache_file, get_cache_table
 
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(BaseUDAF):
@@ -480,10 +460,7 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
 
         func_params.add(key)
 
-    func_to_udfs[func] = UDF_TMPL % {
-        'cloudpickle': CLOUD_PICKLE,
-        'readlib': READ_LIB,
-        'xnamedtuple': X_NAMED_TUPLE,
+    func_to_udfs[func] = UDF_TMPL_HEADER + UDF_TMPL % {
         'raw_from_type': raw_from_type,
         'from_type': from_type,
         'to_type': to_type,
@@ -497,7 +474,6 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
         'implementation': CLIENT_IMPL,
         'dump_code': options.df.dump_udf,
         'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
-        'memimport': MEM_IMPORT,
         'libraries': ','.join(libraries if libraries is not None else []),
     }
     if resources:
@@ -525,10 +501,7 @@ def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
 
         func_params.add(key)
 
-    func_to_udfs[func] = UDTF_TMPL % {
-        'cloudpickle': CLOUD_PICKLE,
-        'readlib': READ_LIB,
-        'xnamedtuple': X_NAMED_TUPLE,
+    func_to_udfs[func] = UDF_TMPL_HEADER + UDTF_TMPL % {
         'raw_from_type': raw_from_type,
         'from_type': from_type,
         'to_type': to_type,
@@ -543,7 +516,6 @@ def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
         'implementation': CLIENT_IMPL,
         'dump_code': options.df.dump_udf,
         'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
-        'memimport': MEM_IMPORT,
         'libraries': ','.join(libraries if libraries is not None else []),
     }
     if resources:
@@ -570,10 +542,7 @@ def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
 
         func_params.add(key)
 
-    func_to_udfs[func] = UDAF_TMPL % {
-        'cloudpickle': CLOUD_PICKLE,
-        'readlib': READ_LIB,
-        'xnamedtuple': X_NAMED_TUPLE,
+    func_to_udfs[func] = UDF_TMPL_HEADER + UDAF_TMPL % {
         'raw_from_type': raw_from_type,
         'from_type': from_type,
         'to_type': to_type,
@@ -586,7 +555,6 @@ def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
         'implementation': CLIENT_IMPL,
         'dump_code': options.df.dump_udf,
         'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
-        'memimport': MEM_IMPORT,
         'libraries': ','.join(libraries if libraries is not None else []),
     }
     if resources:

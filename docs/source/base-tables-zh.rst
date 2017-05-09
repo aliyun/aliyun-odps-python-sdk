@@ -8,11 +8,11 @@
 基本操作
 --------
 
-我们可以用 ``list_tables`` 来列出项目空间下的所有表。
+我们可以用 ODPS 入口对象的 ``list_tables`` 来列出项目空间下的所有表。
 
 .. code-block:: python
 
-   for table in odps.list_tables():
+   for table in o.list_tables():
        # 处理每个表
 
 通过调用 ``exist_table`` 来判断表是否存在。
@@ -21,7 +21,7 @@
 
 .. code-block:: python
 
-   >>> t = odps.get_table('dual')
+   >>> t = o.get_table('dual')
    >>> t.schema
    odps.Schema {
      c_int_a                 bigint
@@ -60,7 +60,7 @@
 
 .. code-block:: python
 
-   >>> t = odps.get_table('dual', project='other_project')
+   >>> t = o.get_table('dual', project='other_project')
 
 
 .. _table_schema:
@@ -106,8 +106,8 @@
 
 .. code-block:: python
 
-   >>> table = odps.create_table('my_new_table', schema)
-   >>> table = odps.create_table('my_new_table', schema, if_not_exists=True)  # 只有不存在表时才创建
+   >>> table = o.create_table('my_new_table', schema)
+   >>> table = o.create_table('my_new_table', schema, if_not_exists=True)  # 只有不存在表时才创建
 
 其他还可以设置lifecycle等参数。
 
@@ -128,7 +128,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. code-block:: python
 
-   >>> t = odps.get_table('mytable')
+   >>> t = o.get_table('mytable')
    >>> r = t.new_record(['val0', 'val1'])  # 值的个数必须等于表schema的字段数
    >>> r2 = t.new_record()  #  也可以不传入值
    >>> r2[0] = 'val0' # 可以通过偏移设置值
@@ -152,7 +152,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. code-block:: python
 
-   >>> t = odps.get_table('dual')
+   >>> t = o.get_table('dual')
    >>> for record in t.head(3):
    >>>     # 处理每个Record对象
 
@@ -172,7 +172,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. code-block:: python
 
-   >>> for record in odps.read_table('test_table', partition='pt=test'):
+   >>> for record in o.read_table('test_table', partition='pt=test'):
    >>>     # 处理一条记录
 
 
@@ -222,14 +222,14 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>>            [222, 'bbb', False],
    >>>            [333, 'ccc', True],
    >>>            [444, '中文', False]]
-   >>> odps.write_table('test_table', records, partition='pt=test', create_partition=True)
+   >>> o.write_table('test_table', records, partition='pt=test', create_partition=True)
 
 删除表
 -------
 
 .. code-block:: python
 
-   >>> odps.delete_table('my_table_name', if_exists=True)  #  只有表存在时删除
+   >>> o.delete_table('my_table_name', if_exists=True)  #  只有表存在时删除
    >>> t.drop()  # Table对象存在的时候可以直接执行drop函数
 
 
@@ -241,7 +241,7 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 
 .. code-block:: python
 
-   >>> table = odps.get_table('my_table_name')
+   >>> table = o.get_table('my_table_name')
    >>> df = table.to_df()
 
 表分区
@@ -304,7 +304,7 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 
 ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据。
 
-**注意**，如果安装了 **cython**，在安装pyodps时会编译C代码，加速Tunnel的上传和下载。
+**注意**，如果安装了 **Cython**，在安装pyodps时会编译C代码，加速Tunnel的上传和下载。
 
 上传
 ~~~~~~
@@ -313,7 +313,7 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
 
    from odps.tunnel import TableTunnel
 
-   table = odps.get_table('my_table')
+   table = o.get_table('my_table')
 
    tunnel = TableTunnel(odps)
    upload_session = tunnel.create_upload_session(table.name, partition_spec='pt=test')

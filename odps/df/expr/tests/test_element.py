@@ -136,7 +136,9 @@ class Test(TestBase):
         if not LESS_PY35:
             l = locals().copy()
             six.exec_(textwrap.dedent("""
-            def fun(v) -> float:
+            from typing import Optional
+            
+            def fun(v) -> Optional[float]:
                 return float(v + 1)
             expr = self.expr.id.map(fun)
             """), globals(), l)

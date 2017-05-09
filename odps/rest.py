@@ -120,7 +120,7 @@ class RestClient(object):
         return self.request(url, 'get', stream=stream, **kwargs)
 
     def post(self, url, data, **kwargs):
-        data = utils.to_binary(data) if isinstance(data, six.string_types) else data
+        data = utils.to_binary(data, encoding='utf-8') if isinstance(data, six.string_types) else data
         return self.request(url, 'post', data=data, **kwargs)
 
     def put(self, url, data, **kwargs):
