@@ -25,7 +25,7 @@ import types as tps
 
 from ....errors import ODPSError, NoPermission, ConnectTimeout
 from ....utils import write_log as log
-from ....models import Partition
+from ....models.table import TableSchema
 from ....tempobj import register_temp_table
 from ....types import PartitionSpec
 from ....ui import reload_instance_status, fetch_instance_group
@@ -509,7 +509,7 @@ class ODPSSQLEngine(Engine):
                         'Partition field(%s) does not exist in DataFrame schema' % p)
 
             columns = [c for c in schema.columns if c.name not in partitions]
-            ps = [Partition(name=pt, type=schema.get_type(pt)) for pt in partitions]
+            ps = [TableSchema.TablePartition(name=pt, type=schema.get_type(pt)) for pt in partitions]
             if drop_table:
                 self._odps.delete_table(name, project=project, if_exists=True)
             if create_table:

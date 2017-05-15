@@ -26,6 +26,15 @@ _SEARCH_ORDER = [
     ('.py', False),
     ('/__init__.py', True),
 ]
+_EXTRA_PACKAGE_PATH = 'work/extra_packages'
+
+
+if hasattr(dict, 'itervalues'):
+    iterkeys = lambda d: d.iterkeys()
+    itervalues = lambda d: d.itervalues()
+else:
+    iterkeys = lambda d: d.keys()
+    itervalues = lambda d: d.values()
 
 
 class CompressImportError(ImportError):
@@ -49,30 +58,88 @@ class CompressImporter(object):
         Args:
           compressed_files zipfile.ZipFile or tarfile.TarFile
         """
-        self._files = compressed_files
+        self._files = []
         self._prefixes = defaultdict(lambda: set(['']))
+        self._bin_path = None
 
-        for f in self._files:
+        for f in compressed_files:
+            if isinstance(f, zipfile.ZipFile):
+                bin_package = any(n.endswith('.so') or n.endswith('.pxd') or n.endswith('.dylib')
+                                  for n in f.namelist())
+                need_extract = True
+            elif isinstance(f, tarfile.TarFile):
+                bin_package = any(m.name.endswith('.so') or m.name.endswith('.pxd') or m.name.endswith('.dylib')
+                                  for m in f.getmembers())
+                need_extract = True
+            elif isinstance(f, dict):
+                bin_package = any(name.endswith('.so') or name.endswith('.pxd') or name.endswith('.dylib')
+                                  for name in iterkeys(f))
+                need_extract = False
+            else:
+                raise TypeError('Compressed file can only be zipfile.ZipFile or tarfile.TarFile')
+
+            if bin_package:
+                if not ALLOW_BINARY:
+                    raise SystemError('Cannot load binary package %s. Please set `odps.isolation.session.enable` '
+                                      'to True or ask your project owner to change project-level configuration.')
+                if need_extract:
+                    raise SystemError('We do not allow file-type resource for binary packages. Please upload an '
+                                      'archive-typed resource instead.')
+
+            prefixes = set([''])
+            dir_prefixes = set()
             if isinstance(f, zipfile.ZipFile):
                 for name in f.namelist():
-                    name = name if name.endswith(os.sep) else name.rsplit(os.sep, 1)[0]
-                    if name in self._prefixes[f]:
+                    name = name if name.endswith('/') else (name.rsplit('/', 1)[0] + '/')
+                    if name in prefixes:
                         continue
                     try:
                         f.getinfo(name + '__init__.py')
                     except KeyError:
-                        self._prefixes[f].add(name)
+                        prefixes.add(name)
+                        if self._bin_path:
+                            dir_prefixes.add(os.path.join(self._bin_path, name))
             elif isinstance(f, tarfile.TarFile):
                 for member in f.getmembers():
-                    name = member.name if member.isdir() else member.name.rsplit(os.sep, 1)[0]
-                    if name in self._prefixes[f]:
+                    name = member.name if member.isdir() else member.name.rsplit('/', 1)[0]
+                    if name in prefixes:
                         continue
                     try:
                         f.getmember(name + '/__init__.py')
                     except KeyError:
-                        self._prefixes[f].add(name + '/')
+                        prefixes.add(name + '/')
+                        if self._bin_path:
+                            dir_prefixes.add(os.path.join(self._bin_path, name + '/'))
+            elif isinstance(f, dict):
+                # Force ArchiveResource to run under binary mode to resolve manually
+                # opening __file__ paths in pure-python code.
+                if ALLOW_BINARY:
+                    bin_package = True
+
+                for name in iterkeys(f):
+                    name = name.replace(os.sep, '/')
+                    name = name if name.endswith('/') else (name.rsplit('/', 1)[0] + '/')
+                    if name in prefixes or '/tests/' in name:
+                        continue
+                    if name + '__init__.py' not in f:
+                        prefixes.add(name)
+                        dir_prefixes.add(name)
+                    else:
+                        if '/' in name.rstrip('/'):
+                            ppath = name.rstrip('/').rsplit('/', 1)[0]
+                        else:
+                            ppath = ''
+                        prefixes.add(ppath)
+                        dir_prefixes.add(ppath)
+
+            if bin_package:
+                for p in sorted(dir_prefixes):
+                    if p not in sys.path:
+                        sys.path.append(p)
             else:
-                raise TypeError('Compressed file can be zipfile.ZipFile or tarfile.TarFile')
+                self._files.append(f)
+                if prefixes:
+                    self._prefixes[id(f)] = sorted(prefixes)
 
     def _get_info(self, fullmodname):
         """
@@ -94,7 +161,7 @@ class CompressImporter(object):
         parts = fullmodname.split('.')
         submodname = parts[-1]
         for f in self._files:
-            for prefix in self._prefixes[f]:
+            for prefix in self._prefixes[id(f)]:
                 for suffix, is_package in _SEARCH_ORDER:
                     l = [prefix] + parts[:-1] + [submodname + suffix.replace('/', os.sep)]
                     relpath = os.path.join(*l)
@@ -102,8 +169,11 @@ class CompressImporter(object):
                         relpath = relpath.replace(os.sep, '/')
                         if isinstance(f, zipfile.ZipFile):
                             f.getinfo(relpath)
-                        else:
+                        elif isinstance(f, tarfile.TarFile):
                             f.getmember(relpath)
+                        else:
+                            if relpath not in f:
+                                raise KeyError
                     except KeyError:
                         pass
                     else:
@@ -135,8 +205,10 @@ class CompressImporter(object):
         fullpath = '%s%s%s' % (fileobj, os.sep, relpath)
         if isinstance(fileobj, zipfile.ZipFile):
             source = fileobj.read(relpath.replace(os.sep, '/'))
-        else:
+        elif isinstance(fileobj, tarfile.TarFile):
             source = fileobj.extractfile(relpath.replace(os.sep, '/')).read()
+        else:
+            source = fileobj[relpath.replace(os.sep, '/')].read()
         source = source.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
         return submodname, is_package, fullpath, source
 
@@ -190,3 +262,10 @@ class CompressImporter(object):
                 del sys.modules[fullmodname]
             raise
         return mod
+
+
+try:
+    os.path.exists('/tmp')
+    ALLOW_BINARY = True
+except:
+    ALLOW_BINARY = False

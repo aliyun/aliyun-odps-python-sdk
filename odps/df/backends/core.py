@@ -236,7 +236,7 @@ class ExecuteDAG(DAG):
 
             def close_ui(*_):
                 with submits_lock:
-                    if all(call in submits and results[call] is not None for call in result_calls):
+                    if all(call in submits and call in results for call in result_calls):
                         ui.close()
 
             executor = futures.ThreadPoolExecutor(max_workers=n_parallel)
@@ -283,6 +283,7 @@ class ExecuteDAG(DAG):
                                 new_dag = dag.fallback()
                                 actual_run(new_dag, True)
                         if not fallback.is_set():
+                            results[func] = (e, tb)
                             if six.PY2:
                                 user_wait[func].set_exception_info(e, tb)
                             else:
@@ -747,12 +748,19 @@ class Engine(object):
         return dag.execute(ui=ui, async=async, n_parallel=n_parallel, timeout=timeout,
                            close_and_notify=close_and_notify, progress_proportion=progress_proportion)
 
-    @classmethod
-    def _get_libraries(cls, libraries):
+    def _get_libraries(self, libraries):
         def conv(libs):
             if isinstance(libs, (six.binary_type, six.text_type, Resource)):
-                return [libs, ]
-            return libs
+                return conv([libs, ])
+            if libs is None:
+                return None
+            new_libs = []
+            for lib in libs:
+                if isinstance(lib, Resource):
+                    new_libs.append(lib)
+                else:
+                    new_libs.append(self._odps.get_resource(lib))
+            return new_libs
 
         libraries = conv(libraries) or []
         if options.df.libraries is not None:

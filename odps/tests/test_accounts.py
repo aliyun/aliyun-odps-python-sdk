@@ -48,6 +48,7 @@ class Test(TestBase):
 
             account = SignServerAccount(self.odps.account.access_id, server.server.server_address, token=server.token)
             odps = ODPS(None, None, self.odps.project, self.odps.endpoint, account=account)
+            odps.delete_table(tn('test_sign_account_table'), if_exists=True)
             t = odps.create_table(tn('test_sign_account_table'), 'col string', lifecycle=1)
             self.assertTrue(odps.exist_table(tn('test_sign_account_table')))
             t.drop(async=True)

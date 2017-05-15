@@ -165,7 +165,7 @@ class MixedEngine(Engine):
             execute_dag, dag, seq, **kwargs)
 
         def callback(res):
-            vals = res[:, 0]
+            vals = res[:, 0].tolist()
             expr._values = tuple(Scalar(val) for val in vals)
         execute_node.callback = callback
 

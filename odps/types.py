@@ -359,6 +359,22 @@ class OdpsSchema(Schema):
                               partition_names=partitions,
                               partition_types=partitions_types)
 
+    def get_table_ddl(self, table_name='table_name', with_comments=True):
+        def _format_col(col):
+            col_str = u'`%s` %s' % (utils.to_text(col.name), str(col.type))
+            if with_comments and col.comment:
+                col_str += u' COMMENT \'%s\'' % utils.to_text(col.comment)
+            return col_str
+
+        def _format_cols(cols):
+            col_text = u',\n'.join((_format_col(col) for col in cols))
+            return '\n'.join(('  ' + col_text for col_text in col_text.splitlines()))
+
+        create_str = u'CREATE TABLE %s (\n' % utils.to_text(table_name) + _format_cols(self._columns) + u'\n)'
+        if self._partitions:
+            create_str += u' PARTITIONED BY (\n' + _format_cols(self._partitions) + u'\n)'
+        return create_str
+
 
 class Record(object):
     """

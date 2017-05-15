@@ -264,10 +264,7 @@ class MetricsResultExpr(AlgoExprMixin, Expr):
 
 
 def make_extra_expr(expr, name, schema, **kw):
-    attr_kw = expr._attr_dict()
-    attr_kw.update(dict(register_expr=True, _is_extra=True, _schema=schema, _output_name=name, **kw))
-    if '_id' in attr_kw:
-        del attr_kw['_id']
-    new_expr = type(expr)(**attr_kw)
+    new_expr = expr.copy(clear_keys=['_id'], register_expr=True, _is_extra=True, _schema=schema,
+                         _output_name=name, **kw)
     new_expr.cache(False)
     return new_expr

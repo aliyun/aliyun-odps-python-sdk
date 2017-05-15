@@ -185,6 +185,15 @@ class Test(TestBase):
             expr = self.expr.join(self.expr1, on='id')
             self.expr.join(expr, on=self.expr.id == self.expr.id)
 
+        # first __setitem__, then join
+        e = self.expr
+        e1 = self.expr1['name', self.expr1.fid.rename('fid2')]
+        e1['fid2'] = e1.fid2.astype('string')
+        joined = e.join(e1, on='name')
+        self.assertIsInstance(joined, JoinCollectionExpr)
+        self.assertListEqual(joined.dtypes.names, ['name', 'id', 'fid', 'fid2'])
+        self.assertEqual(joined.fid2.dtype.name, 'string')
+
     def testComplexJoin(self):
         df = None
         for i in range(30):

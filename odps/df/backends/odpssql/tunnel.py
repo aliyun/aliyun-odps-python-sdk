@@ -69,6 +69,8 @@ class TunnelEngine(object):
         if is_source_collection(collection) and \
                 isinstance(collection._source_data, Table):
             return True
+        if isinstance(collection, FilterPartitionCollectionExpr):
+            return True
         if not no_filter and cls._filter_on_partition(collection):
             return True
         if not no_projection and cls._projection_on_source(collection):
@@ -87,11 +89,13 @@ class TunnelEngine(object):
                     return False
                 cols.append(col.source_name)
             return cols
+        elif isinstance(expr, FilterPartitionCollectionExpr):
+            return expr.schema.names
         return False
 
     @classmethod
     def _filter_on_partition(cls, expr):
-        if not isinstance(expr, FilterCollectionExpr) or \
+        if not isinstance(expr, (FilterCollectionExpr, FilterPartitionCollectionExpr)) or \
                 not cls._can_propagate(expr.input, no_filter=True):
             return False
 
@@ -170,18 +174,25 @@ class TunnelEngine(object):
             return
 
         while True:
-            ret = self._filter_on_partition(input)
-            if ret:
-                partitions = self._to_partition_spec(ret)
-                input = input.input
-                continue
+            if isinstance(input, FilterPartitionCollectionExpr):
+                partitions = self._to_partition_spec(
+                    self._filter_on_partition(input))
+                if not columns:
+                    columns = self._projection_on_source(input)
+                break
+            else:
+                ret = self._filter_on_partition(input)
+                if ret:
+                    partitions = self._to_partition_spec(ret)
+                    input = input.input
+                    continue
 
-            ret = self._projection_on_source(input)
-            if ret:
-                columns = ret
-                input = input.input
-                continue
-            break
+                ret = self._projection_on_source(input)
+                if ret:
+                    columns = ret
+                    input = input.input
+                    continue
+                break
 
         table = next(expr.data_source())
         partition, filter_all_partitions = None, True

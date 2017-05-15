@@ -151,6 +151,24 @@ class Test(TestBase):
             expr = df[df.name == data[1][0]]
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertTrue(all(r is not None for r in res[:, -1]))
+
+            expr = df.filter_partition('name={0}'.format(data[0][0])).count()
+            expr = self.engine._pre_process(expr)
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertGreater(res, 0)
+
+            expr = df.filter_partition('name={0}'.format(data[0][0]))
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertGreater(len(res), 0)
+
+            expr = df.filter_partition('name={0}'.format(data[0][0]))['fid', 'id'].count()
+            expr = self.engine._pre_process(expr)
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertGreater(res, 0)
+
+            expr = df.filter_partition('name={0}'.format(data[0][0]))['fid', 'id']
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertGreater(len(res), 0)
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 
@@ -886,6 +904,11 @@ class Test(TestBase):
                 name.split('.', 1)[0], str(uuid.uuid4()).replace('-', '_'), name.split('.', 1)[1])
             res = self.odps.create_resource(res_name, 'file', file_obj=obj)
             dateutil_resources.append(res)
+
+        obj = BytesIO(requests.get(dateutil_urls[0]).content)
+        res_name = 'dateutil_archive_%s.zip' % str(uuid.uuid4()).replace('-', '_')
+        res = self.odps.create_resource(res_name, 'archive', file_obj=obj)
+        dateutil_resources.append(res)
 
         resources = []
         six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')

@@ -407,7 +407,7 @@ map也支持使用现有的UDF函数，传入的参数是str类型（函数名�
 map传入Python函数的实现使用了ODPS Python UDF，因此，如果用户所在的Project不支持Python
 UDF，则map函数无法使用。除此以外，所有 Python UDF 的限制在此都适用。
 
-目前，第三方库（包含C）只能使用\ ``numpy``\ ，纯Python库使用参考 :ref:`使用第三方纯Python库 <third_party_library>`。
+目前，第三方库（包含C）只能使用\ ``numpy``\ ，第三方库使用参考 :ref:`使用第三方Python库 <third_party_library>`。
 
 除了调用自定义函数，DataFrame还提供了很多内置函数，这些函数中部分使用了map函数来实现，因此，如果\ **用户所在Project未开通Python
 UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提供Python UDF支持）**\ 。
@@ -465,10 +465,10 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
 
 .. _third_party_library:
 
-使用第三方纯Python库
+使用第三方Python库
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-现在用户可以把第三方Python包作为资源上传到ODPS，支持的格式有whl、egg、zip以及tar.gz。
+现在用户可以把第三方 Python 包作为资源上传到 MaxCompute，支持的格式有 whl、egg、zip 以及 tar.gz。
 在全局或者在立即执行的方法时，指定需要使用的包文件。即可以在自定义函数中使用第三方库。
 
 值得注意的是，第三方库的依赖库，也必须指定，否则依然会有导入错误。
@@ -529,6 +529,34 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
        datestr
     0     2016
     1     2015
+
+PyODPS 默认支持执行纯 Python 且不含文件操作的第三方库。在较新版本的 MaxCompute 服务下，PyODPS
+也支持执行带有二进制代码或带有文件操作的 Python 库。这些库必须已被编译好，以 archive 格式上传，whl
+后缀的包需要重命名为 zip。同时，作业需要开启 ``odps.isolation.session.enable`` 选项，或者在
+Project 级别开启 Isolation。下面的例子展示了如何上传并使用 scipy 中的特殊函数：
+
+.. code:: python
+
+    >>> # 对于含有二进制代码的包，必须使用 Archive 方式上传资源
+    >>> odps.create_resource('scipy.zip', 'archive', file_obj=open('scipy-0.19.0-cp27-cp27m-manylinux1_x86_64.whl'))
+    >>>
+    >>> # 如果 Project 开启了 Isolation，下面的选项不是必需的
+    >>> options.sql.settings = { 'odps.isolation.setting.enable': True }
+    >>>
+    >>> def psi(value):
+    >>>     # 建议在函数内部 import 第三方库，以防止不同操作系统下二进制包结构差异造成执行错误
+    >>>     from scipy.special import psi
+    >>>     return float(psi(value))
+    >>>
+    >>> df.float_col.map(psi).execute(libraries=['scipy.zip'])
+
+
+对于只提供源码的二进制包，可以在 Linux Shell 中打包成 Wheel 再上传，Mac 和 Windows 中生成的 Wheel
+包无法在 MaxCompute 中使用：
+
+.. code-block:: shell
+
+    python setup.py bdist_wheel
 
 
 使用计数器

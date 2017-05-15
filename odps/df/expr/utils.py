@@ -209,3 +209,11 @@ def get_annotation_rtype(func):
             if len(actual_types) == 1:
                 return annotation_rtypes.get(actual_types[0])
     return None
+
+
+def get_proxied_expr(expr):
+    try:
+        obj = object.__getattribute__(expr, '_proxy')
+        return obj if obj is not None else expr
+    except AttributeError:
+        return expr

@@ -95,7 +95,7 @@ class DataFrame(CollectionExpr):
             if '_schema' not in kwargs:
                 kwargs['_schema'] = odps_schema_to_df_schema(data.parent.parent.schema)
             super(DataFrame, self).__init__(_source_data=data.parent.parent, **kwargs)
-            self._proxy = self.copy().filter_partition(str(data))
+            self._proxy = self.copy().filter_partition(data)
         elif has_pandas and isinstance(data, pd.DataFrame):
             if 'schema' in kwargs and kwargs['schema']:
                 schema = kwargs.pop('schema')

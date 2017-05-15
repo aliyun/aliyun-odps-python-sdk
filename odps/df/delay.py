@@ -84,6 +84,12 @@ class Delay(object):
         if not async:
             try:
                 futures.wait(_futures, timeout)
+                for uf in _futures:
+                    uf.result()
+                ui.notify('DataFrame execution succeeded')
+            except:
+                ui.notify('DataFrame execution failed')
+                raise
             finally:
                 self._running = False
         else:

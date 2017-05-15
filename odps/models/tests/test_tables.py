@@ -147,10 +147,28 @@ class Test(TestBase):
           ds2     string      # 分区注释2
         }
         """).strip()
+        ddl_string_comment = textwrap.dedent(u"""
+        CREATE TABLE table_name (
+          `序列` BIGINT COMMENT '注释',
+          `值` STRING COMMENT '注释2'
+        ) PARTITIONED BY (
+          `ds` STRING COMMENT '分区注释',
+          `ds2` STRING COMMENT '分区注释2'
+        )""").strip()
+        ddl_string = textwrap.dedent(u"""
+        CREATE TABLE table_name (
+          `序列` BIGINT,
+          `值` STRING
+        ) PARTITIONED BY (
+          `ds` STRING,
+          `ds2` STRING
+        )""").strip()
 
         self.assertEqual(repr(columns), columns_repr)
         self.assertEqual(repr(partitions), partitions_repr)
         self.assertEqual(repr(schema).strip(), schema_repr)
+        self.assertEqual(schema.get_table_ddl().strip(), ddl_string_comment)
+        self.assertEqual(schema.get_table_ddl(with_comments=False).strip(), ddl_string)
 
         self.odps.delete_table(test_table_name, if_exists=True)
 

@@ -20,8 +20,12 @@ import logging
 
 from .common import build_trait
 from ..compat import OrderedDict, six
+from ..errors import InternalServerError
 from ..models.instance import Instance
 from ..serializers import JSONSerializableModel, JSONNodeField, JSONNodesReferencesField
+
+PROGRESS_RETRY = 3
+PROGRESS_RETRY_DELAY = 0.15
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +94,10 @@ def create_instance_group(name):
     return key
 
 
-def reload_instance_status(odps, group_id, instance_id):
+_logview_cache = dict()
+
+
+def _reload_instance_status(odps, group_id, instance_id):
     if group_id not in PROGRESS_REPO:
         raise KeyError('Instance group ID not exist.')
     group_json = PROGRESS_REPO[group_id]
@@ -108,7 +115,9 @@ def reload_instance_status(odps, group_id, instance_id):
 
     sub_inst = odps.get_instance(instance_id)
     inst_json.status = sub_inst.status
-    inst_json.logview = sub_inst.get_logview_address()
+    if instance_id not in _logview_cache:
+        _logview_cache[instance_id] = sub_inst.get_logview_address()
+    inst_json.logview = _logview_cache[instance_id]
 
     if old_status != Instance.Status.TERMINATED:
         for task_name, task in six.iteritems(sub_inst.get_task_statuses()):
@@ -137,6 +146,15 @@ def reload_instance_status(odps, group_id, instance_id):
                 task_json.stages.append(stage_json)
 
 
+def reload_instance_status(odps, group_id, instance_id):
+    for itr in range(3):
+        try:
+            return _reload_instance_status(odps, group_id, instance_id)
+        except InternalServerError:
+            if itr != 2:
+                time.sleep(PROGRESS_RETRY_DELAY)
+
+
 def fetch_instance_group(group_id):
     if group_id not in PROGRESS_REPO:
         raise KeyError('Instance group ID not exist.')
@@ -162,7 +180,7 @@ try:
 except Exception:
     InstancesProgress = None
 else:
-    if in_ipython_frontend():
+    if widgets and in_ipython_frontend():
         class InstancesProgress(widgets.DOMWidget):
             _view_name = build_trait(Unicode, 'InstancesProgress', sync=True)
             _view_module = build_trait(Unicode, 'pyodps/progress', sync=True)

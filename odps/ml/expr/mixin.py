@@ -39,10 +39,10 @@ class DynamicDataFrame(DynamicMixin, DataFrame):
 
 
 def copy_df(df):
-    attrs = df._attr_dict()
     if isinstance(df, AlgoExprMixin):
-        attrs['register_expr'] = True
-    new_df = type(df)(**attrs)
+        new_df = df.copy(register_expr=True)
+    else:
+        new_df = df.copy()
     new_df._ml_fields = df._ml_fields
     new_df._ml_uplink = [df]
     return new_df

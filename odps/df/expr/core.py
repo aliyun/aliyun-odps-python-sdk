@@ -218,6 +218,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
         return hash((type(self), tuple(self.children())))
 
     def is_ancestor(self, other):
+        other = utils.get_proxied_expr(other)
         for n in self.traverse(top_down=True, unique=True):
             if n is other:
                 return True
@@ -279,10 +280,14 @@ class Node(six.with_metaclass(NodeMetaclass)):
     def _copy_type(self):
         return type(self)
 
-    def copy(self, **kw):
-        attr_dict = self._attr_dict()
+    def copy(self, clear_keys=None, **kw):
+        proxied = utils.get_proxied_expr(self)
+        attr_dict = proxied._attr_dict()
+        if clear_keys is not None:
+            for k in clear_keys:
+                attr_dict.pop(k, None)
         attr_dict.update(kw)
-        copied = type(self)(**attr_dict)
+        copied = type(proxied)(**attr_dict)
         return copied
 
     def copy_to(self, target):
@@ -306,6 +311,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
                 raise
 
         for node in self.traverse(unique=True, extra=extra):
+            node = utils.get_proxied_expr(node)
             attr_dict = node._attr_dict()
 
             for arg_name, arg in node.arg_name_values(extra=extra):

@@ -108,6 +108,10 @@ class Partition(LazyLoad):
     def name(self):
         return str(self.partition_spec)
 
+    @property
+    def table(self):
+        return self.parent.parent
+
     def reload(self):
         url = self.resource()
         params = {'partition': str(self.partition_spec)}
@@ -129,7 +133,13 @@ class Partition(LazyLoad):
     def to_df(self):
         from ..df import DataFrame
 
-        return DataFrame(self.parent.parent).filter_partition(str(self))
+        return DataFrame(self.table).filter_partition(self)
 
     def drop(self, async=False):
         return self.parent.delete(self, async=async)
+
+    def open_reader(self, **kw):
+        return self.table.open_reader(str(self), **kw)
+
+    def open_writer(self, blocks=None, **kw):
+        return self.table.open_reader(str(self), blocks=blocks, **kw)

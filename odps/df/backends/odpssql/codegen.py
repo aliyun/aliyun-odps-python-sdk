@@ -29,7 +29,7 @@ from ...utils import make_copy
 from ....config import options
 from ....lib import cloudpickle
 from ....compat import OrderedDict, six, PY26, PY27
-from ....models import FileResource, TableResource
+from ....models import FileResource, TableResource, ArchiveResource
 from ....utils import to_str, hashable
 
 dirname = os.path.dirname(os.path.abspath(cloudpickle.__file__))
@@ -59,6 +59,7 @@ UDF_TMPL_HEADER = '''\
 import base64
 import inspect
 import time
+import os
 import sys
 
 try:
@@ -67,7 +68,7 @@ except ImportError:
     pass
 
 from odps.udf import annotate
-from odps.distcache import get_cache_file, get_cache_table
+from odps.distcache import get_cache_file, get_cache_table, get_cache_archive
 
 
 try:
@@ -81,9 +82,11 @@ except ImportError:
 
 
 def read_lib(lib, f):
+    if isinstance(f, list):
+        return dict((os.path.normpath(fo.name), fo) for fo in f)
     if lib.endswith('.zip') or lib.endswith('.egg') or lib.endswith('.whl'):
         return zipfile.ZipFile(f)
-    elif lib.endswith('.tar') or lib.endswith('.tar.gz') or lib.endswith('.tar.bz2'):
+    if lib.endswith('.tar') or lib.endswith('.tar.gz') or lib.endswith('.tar.bz2'):
         from io import BytesIO
         if lib.endswith('.tar'):
             mode = 'r'
@@ -111,6 +114,8 @@ class %(func_cls_name)s(object):
         for t, n, fields in rs:
             if t == 'file':
                 resources.append(get_cache_file(str(n)))
+            elif t == 'archive':
+                resources.append(get_cache_archive(str(n)))
             else:
                 tb = get_cache_table(str(n))
                 if fields:
@@ -147,7 +152,11 @@ class %(func_cls_name)s(object):
         libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
         files = []
         for lib in libraries:
-            f = get_cache_file(lib)
+            if lib.startswith('a:'):
+                lib = lib[2:]
+                f = get_cache_archive(lib)
+            else:
+                f = get_cache_file(lib)
             files.append(read_lib(lib, f))
         sys.meta_path.append(CompressImporter(*files))
 
@@ -215,6 +224,8 @@ class %(func_cls_name)s(BaseUDTF):
         for t, n, fields in rs:
             if t == 'file':
                 resources.append(get_cache_file(str(n)))
+            elif t == 'archive':
+                resources.append(get_cache_archive(str(n)))
             else:
                 tb = get_cache_table(str(n))
                 if fields:
@@ -262,7 +273,11 @@ class %(func_cls_name)s(BaseUDTF):
         libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
         files = []
         for lib in libraries:
-            f = get_cache_file(lib)
+            if lib.startswith('a:'):
+                lib = lib[2:]
+                f = get_cache_archive(lib)
+            else:
+                f = get_cache_file(lib)
             files.append(read_lib(lib, f))
         sys.meta_path.append(CompressImporter(*files))
 
@@ -352,6 +367,8 @@ class %(func_cls_name)s(BaseUDAF):
         for t, n, fields in rs:
             if t == 'file':
                 resources.append(get_cache_file(str(n)))
+            elif t == 'archive':
+                resources.append(get_cache_archive(str(n)))
             else:
                 tb = get_cache_table(str(n))
                 if fields:
@@ -385,7 +402,11 @@ class %(func_cls_name)s(BaseUDAF):
         libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
         files = []
         for lib in libraries:
-            f = get_cache_file(lib)
+            if lib.startswith('a:'):
+                lib = lib[2:]
+                f = get_cache_archive(lib)
+            else:
+                f = get_cache_file(lib)
             files.append(read_lib(lib, f))
         sys.meta_path.append(CompressImporter(*files))
 
@@ -566,8 +587,15 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
     func_to_resources = OrderedDict()
     func_params = set()
     if libraries is not None:
-        libraries = [lib if isinstance(lib, six.string_types) else lib.name
-                     for lib in libraries]
+        def _get_library_name(res):
+            if isinstance(res, six.string_types):
+                return res
+            elif isinstance(res, ArchiveResource):
+                return 'a:' + res.name
+            else:
+                return res.name
+
+        libraries = [_get_library_name(lib) for lib in libraries]
 
     for node in expr.traverse(unique=True):
         func = getattr(node, 'func', None)
@@ -579,8 +607,14 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
         resources = []
         collection_idx = 0
         if hasattr(node, '_resources') and node._resources:
-            for res in node._resources :
-                if isinstance(res, FileResource):
+            for res in node._resources:
+                if isinstance(res, ArchiveResource):
+                    tp = 'archive'
+                    name = res.name
+                    fields = None
+                    create = False
+                    table_name = None
+                elif isinstance(res, FileResource):
                     tp = 'file'
                     name = res.name
                     fields = None

@@ -138,6 +138,13 @@ class Test(TestBase):
         expected = self.pd_engine.execute(df['name'].isin(self.pd_df['name']).rename('isin')).values
         self.assertTrue(result.equals(expected))
 
+        expr = (self.odps_df.id + 2).isin(self.pd_df['id']).rename('isin')
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [[False], [False], [True]]
+        self.assertEqual(result, expected)
+
     def testMixed(self):
         expr = self.odps_df.union(
             self.odps_df.join(self.pd_df, 'name')[

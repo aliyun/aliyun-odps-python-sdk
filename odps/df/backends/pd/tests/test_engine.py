@@ -688,6 +688,11 @@ class Test(TestBase):
             res = self.odps.create_resource(res_name, 'file', file_obj=obj)
             utils_resources.append(res)
 
+        obj = BytesIO(requests.get(utils_urls[0]).content)
+        res_name = 'python_utils_%s.zip' % str(uuid.uuid4()).replace('-', '_')
+        res = self.odps.create_resource(res_name, 'archive', file_obj=obj)
+        utils_resources.append(res)
+
         resources = []
         six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
 

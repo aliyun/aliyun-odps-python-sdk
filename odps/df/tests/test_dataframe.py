@@ -160,6 +160,7 @@ class Test(TestBase):
         self.assertEqual(df4.execute(), 6)
 
     def testCreateDataFrameFromPartition(self):
+        from odps.types import PartitionSpec
         test_table_name = tn('pyodps_test_dataframe_partition')
         schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds'], ['string'])
 
@@ -174,6 +175,9 @@ class Test(TestBase):
             self.assertEqual(df.count().execute(), 3)
 
             df = table.get_partition('ds=today').to_df()
+            partition = df.data
+            self.assertIs(partition.table, table)
+            self.assertEqual(partition.partition_spec, PartitionSpec('ds=today'))
             self.assertEqual(df.count().execute(), 3)
         finally:
             table.drop()

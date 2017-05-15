@@ -22,7 +22,8 @@ import functools
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
-from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type, new_id, is_changed
+from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type, new_id, \
+    is_changed, get_proxied_expr
 from .. import types
 from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys
 from ...config import options
@@ -151,7 +152,7 @@ class Expr(Node):
             delay = kwargs.pop('delay')
             future = delay.register_item('execute', self, **kwargs)
 
-            def _ret_exec():
+            def _ret_exec(future):
                 try:
                     self.__execution = future.result()
                 except:
@@ -615,7 +616,7 @@ class CollectionExpr(Expr):
         Filter the data by partition string. A partition string looks like `pt1=1/pt2=2,pt1=2/pt2=1`, where
         comma (,) denotes 'or', while '/' denotes 'and'.
 
-        :param str predicate: predicate string of partition filter
+        :param str|Partition predicate: predicate string of partition filter
         :param bool exclude: True if you want to exclude partition fields, otherwise False. True for default.
         :return: new collection
         :rtype: :class:`odps.df.expr.expressions.CollectionExpr`
@@ -642,6 +643,14 @@ class CollectionExpr(Expr):
             elif isinstance(part_col.data_type, types.Float):
                 field_value = float(field_value)
             return part_col == field_value
+
+        from ...models.partition import Partition
+        from ...types import PartitionSpec
+
+        if isinstance(predicate, Partition):
+            predicate = predicate.partition_spec
+        if isinstance(predicate, PartitionSpec):
+            predicate = '/'.join("%s='%s'" % (k, v) for k, v in six.iteritems(predicate.kv))
 
         if isinstance(predicate, list):
             predicate = ','.join(str(s) for s in predicate)
@@ -823,6 +832,11 @@ class CollectionExpr(Expr):
         return self._schema
 
     @property
+    def odps_schema(self):
+        from ..backends.odpssql.types import df_schema_to_odps_schema
+        return df_schema_to_odps_schema(self.schema)
+
+    @property
     def columns(self):
         """
         :return: columns
@@ -931,9 +945,9 @@ class CollectionExpr(Expr):
 
         :return:
         """
-
-        kv = dict((attr, getattr(self, attr)) for attr in get_attrs(self))
-        return type(self)(**kv)
+        proxied = get_proxied_expr(self)
+        kv = dict((attr, getattr(proxied, attr)) for attr in get_attrs(proxied))
+        return type(proxied)(**kv)
 
     def describe(self):
         from .. import output
@@ -1598,7 +1612,7 @@ class Float32Scalar(Scalar):
 
 
 class Float64Scalar(Scalar):
-    def __int__(self, *args, **kwargs):
+    def _init(self, *args, **kwargs):
         super(Float64Scalar, self)._init(*args, **kwargs)
         self._value_type = types.float64
 
@@ -1840,6 +1854,20 @@ class FilterPartitionCollectionExpr(CollectionExpr):
 
     def accept(self, visitor):
         visitor.visit_filter_partition_collection(self)
+
+    @property
+    def data_table(self):
+        return self.input.data
+
+    @property
+    def data(self):
+        from ...types import PartitionSpec
+        from .arithmetic import Or
+
+        if isinstance(self._predicate, Or):
+            raise AttributeError('Cannot get data when predicate contains multiple partition specs.')
+        spec = PartitionSpec(self.predicate_string.replace('/', ','))
+        return self.data_table.partitions[spec]
 
 
 class SliceCollectionExpr(CollectionExpr):

@@ -513,10 +513,10 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
 可以看到这里的stop_words是存放于本地，但在真正执行时会被上传到ODPS作为资源引用。
 
 
-使用第三方纯Python库
+使用第三方Python库
 ~~~~~~~~~~~~~~~~~~~~
 
-使用方法类似 :ref:`map中使用第三方纯Python库 <third_party_library>` 。
+使用方法类似 :ref:`map中使用第三方Python库 <third_party_library>` 。
 
 可以在全局指定使用的库：
 
@@ -687,11 +687,11 @@ combiner表示在map_reduce API里表示在mapper端，就先对数据进行聚�
     4   short    1
     5     use    1
 
-使用第三方纯Python库
+使用第三方Python库
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-使用方法类似 :ref:`map中使用第三方纯Python库 <third_party_library>` 。
+使用方法类似 :ref:`map中使用第三方Python库 <third_party_library>` 。
 
 可以在全局指定使用的库：
 
