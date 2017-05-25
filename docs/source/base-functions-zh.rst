@@ -19,6 +19,11 @@ ODPS用户可以编写自定义 `函数 <https://docs.aliyun.com/#/pub/odps/basi
    >>> resource = o.get_resource('my_udf.py')
    >>> function = o.create_function('test_function', class_type='my_udf.Test', resources=[resource, ])
 
+
+.. note::
+
+    注意，公共云由于安全原因，暂不支持使用Python UDF。
+
 删除函数
 ---------
 
