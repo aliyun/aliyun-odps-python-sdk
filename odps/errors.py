@@ -81,6 +81,7 @@ def throw_if_parsable(resp):
 
 CODE_MAPPING = {
     'ODPS-0010000': 'InternalServerError',
+    'ODPS-0123055': 'ScriptError',
 }
 
 
@@ -193,6 +194,10 @@ class NoSuchPath(ServerDefinedException):
 
 
 class InternalServerError(ServerDefinedException):
+    pass
+
+
+class ScriptError(ServerDefinedException):
     pass
 
 

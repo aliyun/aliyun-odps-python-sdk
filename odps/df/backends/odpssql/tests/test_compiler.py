@@ -307,6 +307,23 @@ class Test(TestBase):
                    ") t2"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr3, prettify=False)))
 
+        expr = self.expr['name', 'id'].distinct()
+        expr = expr[expr.id > 0]
+        expr = expr.exclude('id')
+        expr = expr[expr, expr.apply(lambda row: row[0], axis=1, reduce=True, types='string').rename('name2')]
+
+        engine = ODPSEngine(self.odps)
+
+        expected = "SELECT t2.`name`, {0}(t2.`name`) AS `name2` \n" \
+                   "FROM (\n" \
+                   "  SELECT DISTINCT t1.`name`, t1.`id` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   ") t2 \n" \
+                   "WHERE t2.`id` > 0"
+        res = engine.compile(expr, prettify=False)
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
+
     def testMemCacheCompilation(self):
         cached = self.expr['name', self.expr.id + 1].cache(mem=True)
         expr = cached.groupby('name').agg(cached.id.sum())

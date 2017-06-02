@@ -2237,7 +2237,8 @@ class Test(TestBase):
             self.odps.create_table(table_name,
                                    'name string, fid double, id bigint, isMale boolean, scale decimal, birth datetime',
                                    lifecycle=1)
-            df = self.engine.persist(self.expr, table_name)
+            expr = self.expr['name', 'fid', self.expr.id.astype('int32'), 'isMale', 'scale', 'birth']
+            df = self.engine.persist(expr, table_name)
 
             res = df.to_pandas()
             result = self._get_result(res)

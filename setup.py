@@ -126,6 +126,7 @@ full_requirements = [
     'pandas>=0.17.0',
     'matplotlib>=1.4',
     'graphviz>=0.4',
+    'greenlet>=0.4.10',
 ]
 if sys.version_info[0] == 2:
     full_requirements.append('ipython<6.0.0')
@@ -179,13 +180,16 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
         if sys.platform == 'win32':
             cython.inline('return a + b', a=1, b=1)
 
-        extension_kw = dict()
+        extension_kw = dict(language='c++')
         if 'MSC' in sys.version:
             extension_kw['extra_compile_args'] = ['/Ot']
+        else:
+            extension_kw['extra_compile_args'] = ['-O3']
 
         extensions = [
-            Extension('odps.types_c', ['odps/src/types_c.pyx'], **extension_kw),
-            Extension('odps.crc32c_c', ['odps/src/crc32c/*.pyx'], **extension_kw),
+            Extension('odps.src.types_c', ['odps/src/types_c.pyx'], **extension_kw),
+            Extension('odps.src.utils_c', ['odps/src/utils_c.pyx'], **extension_kw),
+            Extension('odps.src.crc32c_c', ['odps/src/crc32c/*.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.util_c', ['odps/tunnel/pb/util_c.pyx'], **extension_kw),
@@ -286,7 +290,7 @@ if build_cmd == 'clean':
                 os.unlink(full_path)
             elif ext.lower() == '.pyx':
                 pyx_files.add(fn)
-            elif ext.lower() == '.c':
+            elif ext.lower() in ('.c', '.cpp', '.cc'):
                 c_file_pairs.append((fn, f))
 
         # remove cython-generated files

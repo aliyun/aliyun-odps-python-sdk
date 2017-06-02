@@ -318,7 +318,7 @@ class ObjectRepositoryLib(dict):
             if env.is_windows:
                 env.os.chmod(script_name, env.file_right)
             else:
-                env.subprocess.call(['chmod', oct(env.file_right), script_name])
+                env.subprocess.call(['chmod', oct(env.file_right).replace('o', ''), script_name])
         except:
             pass
 

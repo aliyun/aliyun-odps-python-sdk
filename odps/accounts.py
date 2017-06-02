@@ -27,7 +27,7 @@ import requests
 
 from .compat import six
 from .compat import urlparse, unquote, parse_qsl
-from . import compat, utils
+from . import compat, utils, options
 
 
 LOG = logging.getLogger(__name__)
@@ -122,6 +122,7 @@ class SignServer(object):
                 self._do_POST()
             except:
                 self.send_response(500)
+                self.end_headers()
 
         def _do_POST(self):
             ctype, pdict = cgi.parse_header(self.headers.get('content-type'))
@@ -223,10 +224,30 @@ class SignServerError(Exception):
 
 
 class SignServerAccount(BaseAccount):
+    _session_local = threading.local()
+
     def __init__(self, access_id, sign_endpoint=None, server=None, port=None, token=None):
         self.access_id = access_id
         self.sign_endpoint = sign_endpoint or (server, port)
         self.token = token
+
+    @property
+    def session(self):
+        if not hasattr(type(self)._session_local, '_session'):
+            adapter_options = dict(
+                pool_connections=options.pool_connections,
+                pool_maxsize=options.pool_maxsize,
+                max_retries=options.retry_times,
+            )
+            session = requests.Session()
+            # mount adapters with retry times
+            session.mount(
+                'http://', requests.adapters.HTTPAdapter(**adapter_options))
+            session.mount(
+                'https://', requests.adapters.HTTPAdapter(**adapter_options))
+
+            self._session_local._session = session
+        return self._session_local._session
 
     def sign_request(self, req, endpoint):
         url = req.url[len(endpoint):]
@@ -239,8 +260,8 @@ class SignServerAccount(BaseAccount):
         if self.token:
             headers['Authorization'] = 'token ' + self.token
 
-        resp = requests.post('http://%s:%s' % self.sign_endpoint, headers=headers,
-                             data=dict(access_id=self.access_id, canonical=canonical_str))
+        resp = self.session.request('post', 'http://%s:%s' % self.sign_endpoint, headers=headers,
+                                    data=dict(access_id=self.access_id, canonical=canonical_str))
         if resp.status_code < 400:
             req.headers['Authorization'] = resp.text
             LOG.debug('headers after signing: ' + repr(req.headers))

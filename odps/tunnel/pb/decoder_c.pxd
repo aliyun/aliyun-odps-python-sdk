@@ -29,6 +29,8 @@ cdef class Decoder:
 
     cpdef add_offset(self, int n)
 
+    cpdef int32_t read_field_number(self)
+
     cpdef read_field_number_and_wire_type(self)
 
     cpdef int32_t read_sint32(self)

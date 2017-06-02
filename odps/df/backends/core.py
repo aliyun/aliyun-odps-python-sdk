@@ -595,15 +595,16 @@ class Engine(object):
 
         df_schema = odps_engine_types.odps_schema_to_df_schema(table.schema)
         expr_schema = expr.schema.to_ignorecase_schema()
+        expr_table_schema = odps_engine_types.df_schema_to_odps_schema(expr_schema)
         case_dict = dict((n.lower(), n) for n in expr.schema.names)
 
-        for col in expr_schema.columns:
-            if col.name.lower() not in df_schema:
+        for col in expr_table_schema.columns:
+            if col.name.lower() not in expr_table_schema:
                 raise CompileError('Column %s does not exist in table' % col.name)
-            t_col = df_schema[col.name.lower()]
-            if not cast and col.type != t_col.type:
-                raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
-                    col.name, t_col.type, col.type))
+            t_col = table.schema[col.name.lower()]
+            if not cast and not t_col.type.can_implicit_cast(col.type):
+                raise CompileError('Cannot implicitly cast column %s from %s to %s.' % (
+                    col.name, col.type, t_col.type))
 
         if table.schema.names == expr_schema.names and \
                         df_schema.types[:len(table.schema.names)] == expr_schema.types:
@@ -611,9 +612,13 @@ class Engine(object):
 
         def field(name):
             expr_name = case_dict[name]
-            if expr[expr_name].dtype != df_schema[name].type and cast:
+            if expr[expr_name].dtype == df_schema[name].type:
+                return expr[expr_name]
+            elif df_schema[name].type.can_implicit_cast(expr[expr_name].dtype) or cast:
                 return expr[expr_name].astype(df_schema[name].type)
-            return expr[expr_name]
+            else:
+                raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
+                    expr_name, expr[expr_name].dtype, df_schema[name].type))
         names = [c.name for c in table.schema.columns] if with_partitions else table.schema.names
         return expr[[field(name) if name in expr_schema else NullScalar(df_schema[name].type).rename(name)
                      for name in names]]

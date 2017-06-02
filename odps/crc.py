@@ -45,7 +45,7 @@ class Crc32(object):
 
 try:
     if not options.force_py:
-        from .crc32c_c import Crc32c
+        from .src.crc32c_c import Crc32c
     else:
         Crc32c = None
 except ImportError as e:

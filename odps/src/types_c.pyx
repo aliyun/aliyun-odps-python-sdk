@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,14 +14,14 @@
 
 from libc.stdint cimport *
 from libc.string cimport *
+from cpython.datetime cimport import_datetime, PyDateTime_Check
 
-import time
 from datetime import datetime
 from decimal import Decimal
 
-from . import types
-from . import utils
-from .compat import six, decimal
+from .. import types
+from .. import utils
+from ..compat import decimal
 
 cdef int64_t bigint_min = types.bigint._bounds[0]
 cdef int64_t bigint_max = types.bigint._bounds[1]
@@ -32,6 +30,20 @@ cdef int decimal_int_len_max = 36
 cdef int decimal_scale_max = 18
 cdef object to_scale = decimal.Decimal(str(10 ** -decimal_scale_max))
 
+cdef:
+    int64_t BOOL_TYPE_ID = types.boolean._type_id
+    int64_t DATETIME_TYPE_ID = types.datetime._type_id
+    int64_t STRING_TYPE_ID = types.string._type_id
+    int64_t DOUBLE_TYPE_ID = types.double._type_id
+    int64_t BIGINT_TYPE_ID = types.bigint._type_id
+    int64_t DECIMAL_TYPE_ID = types.decimal._type_id
+
+
+def init_module():
+    import_datetime()
+
+
+init_module()
 
 
 cdef int64_t _validate_bigint(int64_t val):
@@ -49,13 +61,11 @@ cdef unicode _validate_string(bytes val):
 
 
 cdef object _validate_datetime(object val):
+    if PyDateTime_Check(val):
+        return val
     if isinstance(val, (bytes, unicode)):
-        val = datetime.strptime(val, '%Y-%m-%d %H:%M:%S')
-
-    if not isinstance(val, datetime):
-        raise TypeError("Invalid data type: expect datetime, got %s" % type(val))
-
-    return val
+        return datetime.strptime(val, '%Y-%m-%d %H:%M:%S')
+    raise TypeError("Invalid data type: expect datetime, got %s" % type(val))
 
 
 cdef object _validate_decimal(object val):
@@ -83,26 +93,27 @@ cdef bint _validate_boolean(bint val):
     return val
 
 
-cdef dict validates = {
-    types.bigint: _validate_bigint,
-    types.double: _validate_double,
-    types.string: _validate_string,
-    types.datetime: _validate_datetime,
-    types.boolean: _validate_boolean,
-    types.decimal: _validate_decimal,
-}
-
-
 cpdef object validate_value(object val, object value_type):
     if val is None and value_type.nullable:
         return val
 
-    validate = validates.get(value_type)
-    if validate is not None:
-        try:
-            return validate(val)
-        except TypeError:
-            pass
+    cdef int64_t type_id = value_type._type_id
+
+    try:
+        if type_id == BIGINT_TYPE_ID:
+            return _validate_bigint(val)
+        elif type_id == DOUBLE_TYPE_ID:
+            return _validate_double(val)
+        elif type_id == STRING_TYPE_ID:
+            return _validate_string(val)
+        elif type_id == DATETIME_TYPE_ID:
+            return _validate_datetime(val)
+        elif type_id == BOOL_TYPE_ID:
+            return _validate_boolean(val)
+        elif type_id == DECIMAL_TYPE_ID:
+            return _validate_decimal(val)
+    except TypeError:
+        pass
 
     return types.validate_value(val, value_type)
 
@@ -162,5 +173,3 @@ class Record(types.Record):
 
     def __getitem__(self, item):
         return _getitem(self, item)
-
-

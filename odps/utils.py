@@ -42,7 +42,7 @@ from base64 import b64encode
 from datetime import datetime
 from email.utils import parsedate_tz, formatdate
 
-from . import compat
+from . import compat, options
 from .compat import six, getargspec, FixedOffset
 
 try:
@@ -280,16 +280,30 @@ def build_to_milliseconds(local_tz=None, is_dst=False):
     utc = compat.utc
     local_tz = local_tz if local_tz is not None else options.local_timezone
     if isinstance(local_tz, bool):
-        if local_tz:
-            _mktime = time.mktime
-        else:
-            _mktime = calendar.timegm
 
-        def to_milliseconds(dt):
-            if dt.tzinfo is not None:
-                return int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
+        try:
+            if options.force_py:
+                raise ImportError
+            if local_tz:
+                from .src.utils_c import datetime_to_local_milliseconds
+                to_milliseconds = datetime_to_local_milliseconds
             else:
-                return int((_mktime(dt.timetuple()) + dt.microsecond / 1000000.0) * 1000)
+                from .src.utils_c import datetime_to_gmt_milliseconds
+                to_milliseconds = datetime_to_gmt_milliseconds
+        except ImportError:
+            if options.force_c:
+                raise
+
+            if local_tz:
+                _mktime = time.mktime
+            else:
+                _mktime = calendar.timegm
+
+            def to_milliseconds(dt):
+                if dt.tzinfo is not None:
+                    return int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
+                else:
+                    return int((_mktime(dt.timetuple()) + dt.microsecond / 1000000.0) * 1000)
 
         return to_milliseconds
     else:
@@ -319,7 +333,6 @@ def to_milliseconds(dt, local_tz=None, is_dst=False):
 
 
 def build_to_datetime(local_tz=None):
-    from . import options
     utc = compat.utc
     long_type = compat.long_type
     local_tz = local_tz if local_tz is not None else options.local_timezone
@@ -398,8 +411,7 @@ def to_str(text, encoding='utf-8'):
 if sys.platform == 'win32':
     def _replace_default_encoding(func):
         def _fun(s, encoding=None):
-            encoding = encoding or getattr(sys.stdout, 'encoding', None) or 'mbcs'
-            return func(s, encoding=encoding)
+            return func(s, encoding=encoding or options.display.encoding)
 
         _fun.__name__ = func.__name__
         _fun.__doc__ = func.__doc__
@@ -618,8 +630,10 @@ def replace_sql_parameters(sql, ns):
         val = ns.get(name)
         if val is None:
             return matched.group(0)
+        elif isinstance(val, (six.integer_types, float)):
+            return repr(val)
         else:
-            return val
+            return "'{0}'".format(escape_odps_string(str(val)))
 
     return param_re.sub(replace, sql)
 

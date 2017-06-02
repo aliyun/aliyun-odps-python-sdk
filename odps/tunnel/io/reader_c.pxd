@@ -18,19 +18,28 @@
 
 from libc.stdint cimport *
 from libc.string cimport *
+from libcpp.vector cimport vector
 
 from ..pb.decoder_c cimport Decoder
 from ..checksum_c cimport Checksum
+
+
+ctypedef void (*_SET_FUNCTION)(BaseTunnelRecordReader self, list record, int i)
 
 
 cdef class BaseTunnelRecordReader:
 
     cdef object _schema
     cdef object _columns
+    cdef object _to_datetime
     cdef Decoder _reader
     cdef Checksum _crc
     cdef Checksum _crccrc
-    cdef int _curr_cusor
+    cdef int _curr_cursor
+    cdef int _n_columns
+    cdef int _read_limit
+    cdef list _column_types
+    cdef vector[_SET_FUNCTION] _column_setters
 
     cdef list _read_array(self, object value_type)
     cdef bytes _read_string(self)
@@ -38,11 +47,11 @@ cdef class BaseTunnelRecordReader:
     cdef bint _read_bool(self)
     cdef int64_t _read_bigint(self)
     cdef object _read_datetime(self)
-    cdef _set_string(self, object record, int i)
-    cdef _set_double(self, object record, int i)
-    cdef _set_bool(self, object record, int i)
-    cdef _set_bigint(self, object record, int i)
-    cdef _set_datetime(self, object record, int i)
-    cdef _set_decimal(self, object record, int i)
-    cdef dict _get_read_functions(self)
+    cdef void _set_record_list_value(self, list record, int i, object value)
+    cdef void _set_string(self, list record, int i)
+    cdef void _set_double(self, list record, int i)
+    cdef void _set_bool(self, list record, int i)
+    cdef void _set_bigint(self, list record, int i)
+    cdef void _set_datetime(self, list record, int i)
+    cdef void _set_decimal(self, list record, int i)
     cpdef read(self)

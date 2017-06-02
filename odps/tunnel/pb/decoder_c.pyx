@@ -19,7 +19,11 @@ from libc.string cimport *
 from util_c cimport *
 
 import struct
-from wire_format import TAG_TYPE_BITS, _TAG_TYPE_MASK
+from wire_format import TAG_TYPE_BITS as PY_TAG_TYPE_BITS, _TAG_TYPE_MASK as _PY_TAG_TYPE_MASK
+
+cdef:
+    int TAG_TYPE_BITS = PY_TAG_TYPE_BITS
+    int _TAG_TYPE_MASK = _PY_TAG_TYPE_MASK
 
 cdef class Decoder:
 
@@ -38,6 +42,11 @@ cdef class Decoder:
 
     cpdef int position(self):
         return self._pos
+
+    cpdef int32_t read_field_number(self):
+        cdef int32_t tag_and_type
+        tag_and_type = self.read_uint32()
+        return tag_and_type >> TAG_TYPE_BITS
 
     cpdef read_field_number_and_wire_type(self):
         cdef int32_t tag_and_type

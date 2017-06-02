@@ -21,8 +21,7 @@ from pstats import Stats
 
 from odps.compat import unittest
 from odps.tests.core import TestBase
-from odps.models import Schema
-from odps.types import Record
+from odps.models import Schema, Record
 
 
 class Test(TestBase):

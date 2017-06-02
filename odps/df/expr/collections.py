@@ -512,7 +512,7 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
                 raise ValueError('When reduce, at most one name can be specified')
             name = names[0] if names is not None else None
             tp = types[0] if types is not None else (utils.get_annotation_rtype(func) or string)
-            inputs = expr._fields if hasattr(expr, '_fields') and expr._fields is not None \
+            inputs = [e.copy() for e in expr._fields] if hasattr(expr, '_fields') and expr._fields is not None \
                 else [expr[n] for n in expr.schema.names]
             return MappedExpr(_func=func, _func_args=args, _func_kwargs=kwargs,
                               _name=name, _data_type=tp,

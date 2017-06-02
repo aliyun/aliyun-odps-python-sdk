@@ -225,6 +225,8 @@ class OdpsAlgoEngine(Engine):
 
     @staticmethod
     def _is_output_model_only(src_expr):
+        if isinstance(src_expr, MetricsResultExpr):
+            return False
         output_exprs = src_expr.outputs()
         return not any(1 for out_expr in six.itervalues(output_exprs) if isinstance(out_expr, CollectionExpr))
 
@@ -235,7 +237,7 @@ class OdpsAlgoEngine(Engine):
             return
 
         def create_output_table(table_name, table_schema):
-            lifecycle = options.temp_lifecycle if is_temp_table(table_name) else None
+            lifecycle = options.temp_lifecycle if is_temp_table(table_name) else options.lifecycle
             self._odps.create_table(table_name, table_schema, lifecycle=lifecycle)
 
         table_names, table_schemas = [], []
@@ -318,9 +320,9 @@ class OdpsAlgoEngine(Engine):
                 ui = kw.pop('ui')
                 progress_proportion = kw.pop('progress_proportion', 1)
                 ui_group = kw.pop('group', None)
-                engine_kw = getattr(src_expr, '_engine_kw', None)
+                engine_kw = getattr(src_expr, '_engine_kw', {})
 
-                kw['lifecycle'] = options.temp_lifecycle
+                engine_kw['lifecycle'] = options.temp_lifecycle
                 if hasattr(src_expr, '_cases'):
                     kw['_cases'] = src_expr._cases
 

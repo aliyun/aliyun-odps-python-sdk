@@ -18,6 +18,7 @@ from __future__ import absolute_import
 import json
 import logging
 import platform
+import threading
 from string import Template
 
 import requests
@@ -52,6 +53,8 @@ def default_user_agent():
 
 
 class RestClient(object):
+    _session_local = threading.local()
+
     def __init__(self, account, endpoint, project=None, user_agent=None, **kwargs):
         if endpoint.endswith('/'):
             endpoint = endpoint[:-1]
@@ -71,21 +74,32 @@ class RestClient(object):
     def account(self):
         return self._account
 
+    @property
+    def session(self):
+        if not hasattr(type(self)._session_local, '_session'):
+            adapter_options = dict(
+                pool_connections=options.pool_connections,
+                pool_maxsize=options.pool_maxsize,
+                max_retries=options.retry_times,
+            )
+            session = requests.Session()
+            # mount adapters with retry times
+            session.mount(
+                'http://', requests.adapters.HTTPAdapter(**adapter_options))
+            session.mount(
+                'https://', requests.adapters.HTTPAdapter(**adapter_options))
+
+            self._session_local._session = session
+        return self._session_local._session
+
     def request(self, url, method, stream=False, **kwargs):
         self.upload_survey_log()
 
         LOG.debug('Start request.')
         LOG.debug('url: ' + url)
-        session = requests.Session()
         if LOG.level == logging.DEBUG:
             for k, v in kwargs.items():
                 LOG.debug(k + ': ' + utils.to_text(v))
-
-        # mount adapters with retry times
-        session.mount(
-            'http://', requests.adapters.HTTPAdapter(max_retries=options.retry_times))
-        session.mount(
-            'https://', requests.adapters.HTTPAdapter(max_retries=options.retry_times))
 
         # Construct user agent without handling the letter case.
         headers = kwargs.get('headers', {})
@@ -101,10 +115,10 @@ class RestClient(object):
         self._account.sign_request(prepared_req, self._endpoint)
 
         try:
-            res = session.send(prepared_req, stream=stream,
-                               timeout=(options.connect_timeout, options.read_timeout),
-                               verify=False,
-                               proxies=self._proxy)
+            res = self.session.send(prepared_req, stream=stream,
+                                    timeout=(options.connect_timeout, options.read_timeout),
+                                    verify=False,
+                                    proxies=self._proxy)
         except requests.ConnectTimeout:
             raise errors.ConnectTimeout('Connecting to endpoint %s timeout.' % self._endpoint)
 

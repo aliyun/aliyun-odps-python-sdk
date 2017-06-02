@@ -31,7 +31,7 @@ class Checksum(object):
     def _mode(self):
         # use for UT to check if use c extension
         try:
-            from ..crc32c_c import Crc32c
+            from ..src.crc32c_c import Crc32c
 
             return 'c' if isinstance(self.crc, Crc32c) else 'py'
         except ImportError:

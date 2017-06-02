@@ -20,10 +20,9 @@ import os
 import time
 from collections import namedtuple
 
+from odps import options, utils
 from odps.tests.core import TestBase
-from odps.compat import unittest, long_type
-from odps.utils import replace_sql_parameters, experimental, ExperimentalNotAllowed, \
-    to_milliseconds, to_datetime
+from odps.compat import unittest, long_type, reload_module
 
 try:
     import pytz
@@ -36,27 +35,49 @@ mytimetuple = namedtuple(
 )
 
 
+def bothPyAndC(func):
+    def inner(self, *args, **kwargs):
+        try:
+            import cython
+            ts = 'py', 'c'
+        except ImportError:
+            ts = 'py',
+            import warnings
+            warnings.warn('No c code tests for table tunnel')
+        for t in ts:
+            old_config = getattr(options, 'force_{0}'.format(t))
+            setattr(options, 'force_{0}'.format(t), True)
+            try:
+                reload_module(utils)
+                func(self, *args, **kwargs)
+            finally:
+                setattr(options, 'force_{0}'.format(t), old_config)
+
+    return inner
+
+
 class Test(TestBase):
     def testReplaceSqlParameters(self):
-        ns = {'test1': 'new_test1', 'test3': 'new_test3'}
+        ns = {'test1': 'new_test1', 'test3': 'new_\'test3\''}
 
         sql = 'select :test1 from dual where :test2 > 0 and f=:test3.abc'
-        replaced_sql = replace_sql_parameters(sql, ns)
+        replaced_sql = utils.replace_sql_parameters(sql, ns)
 
-        expected = 'select new_test1 from dual where :test2 > 0 and f=new_test3.abc'
+        expected = 'select \'new_test1\' from dual where :test2 > 0 and f=\'new_\\\'test3\\\'\'.abc'
         self.assertEqual(expected, replaced_sql)
 
     def testExperimental(self):
-        @experimental('Experimental method')
+        @utils.experimental('Experimental method')
         def fun():
             pass
 
         try:
             os.environ['PYODPS_EXPERIMENTAL'] = 'false'
-            self.assertRaises(ExperimentalNotAllowed, fun)
+            self.assertRaises(utils.ExperimentalNotAllowed, fun)
         finally:
             del os.environ['PYODPS_EXPERIMENTAL']
 
+    @bothPyAndC
     def testTimeConvertNative(self):
         class GMT8(datetime.tzinfo):
             def utcoffset(self, dt):
@@ -77,6 +98,9 @@ class Test(TestBase):
 
             def tzname(self, dt):
                 return "UTC"
+
+        to_milliseconds = utils.to_milliseconds
+        to_datetime = utils.to_datetime
 
         base_time = datetime.datetime.now().replace(microsecond=0)
         base_time_utc = datetime.datetime.utcfromtimestamp(time.mktime(base_time.timetuple()))
@@ -102,7 +126,11 @@ class Test(TestBase):
         self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=GMT8()))
 
     @unittest.skipIf(pytz is None, 'Skipped because pytz is not installed.')
+    @bothPyAndC
     def testTimeConvertPytz(self):
+        to_milliseconds = utils.to_milliseconds
+        to_datetime = utils.to_datetime
+
         base_time = datetime.datetime.now(tz=pytz.timezone('Etc/GMT-8')).replace(microsecond=0)
         milliseconds = long_type(calendar.timegm(base_time.astimezone(pytz.utc).timetuple())) * 1000
 

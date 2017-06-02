@@ -102,6 +102,7 @@ class ThreadRequestsIO(RequestsIO):
         from ...compat import Queue
         self._queue = Queue()
         self._wait_obj = threading.Thread(target=self._async_func)
+        self._wait_obj.daemon = True
 
     def start(self):
         self._wait_obj.start()

@@ -16,25 +16,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from libc.stdint cimport *
-from libc.string cimport *
-
-cdef class Checksum:
-
-    cdef object crc
-    cdef uint32_t _crc32c
-    cdef int use_c
-
-    cdef void c_update_bool(self, bint val)
-    cdef void c_update_int(self, int32_t val)
-    cdef void c_update_long(self, int64_t val)
-    cdef void c_update_float(self, double val)
-    cdef void c_update(self, char *ptr, size_t length)
-
-    cpdef update_bool(self, bint val)
-    cpdef update_int(self, int32_t val)
-    cpdef update_long(self, int64_t val)
-    cpdef update_float(self, double val)
-    cpdef update(self, bytes b)
-    cpdef uint32_t getvalue(self)
-    cpdef reset(self)
+cpdef object validate_value(object val, object value_type)

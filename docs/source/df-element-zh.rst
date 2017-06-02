@@ -531,13 +531,13 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
     1     2015
 
 PyODPS 默认支持执行纯 Python 且不含文件操作的第三方库。在较新版本的 MaxCompute 服务下，PyODPS
-也支持执行带有二进制代码或带有文件操作的 Python 库。这些库必须已被编译好，以 archive 格式上传，whl
-后缀的包需要重命名为 zip。同时，作业需要开启 ``odps.isolation.session.enable`` 选项，或者在
-Project 级别开启 Isolation。下面的例子展示了如何上传并使用 scipy 中的特殊函数：
+也支持执行带有二进制代码或带有文件操作的 Python 库。这些库的后缀必须是 cp27-cp27m-manylinux1_x86_64，
+以 archive 格式上传，whl 后缀的包需要重命名为 zip。同时，作业需要开启 ``odps.isolation.session.enable``
+选项，或者在 Project 级别开启 Isolation。下面的例子展示了如何上传并使用 scipy 中的特殊函数：
 
 .. code:: python
 
-    >>> # 对于含有二进制代码的包，必须使用 Archive 方式上传资源
+    >>> # 对于含有二进制代码的包，必须使用 Archive 方式上传资源，whl 后缀需要改为 zip
     >>> odps.create_resource('scipy.zip', 'archive', file_obj=open('scipy-0.19.0-cp27-cp27m-manylinux1_x86_64.whl'))
     >>>
     >>> # 如果 Project 开启了 Isolation，下面的选项不是必需的

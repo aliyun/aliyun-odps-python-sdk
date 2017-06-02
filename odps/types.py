@@ -408,14 +408,19 @@ class Record(object):
     __slots__ = '_values', '_columns', '_name_indexes'
 
     def __init__(self, columns=None, schema=None, values=None):
-        self._columns = columns or schema.columns
+        if columns is not None:
+            self._columns = columns
+            self._name_indexes = dict((col.name, i) for i, col in enumerate(self._columns))
+        else:
+            self._columns = schema.columns
+            self._name_indexes = schema._name_indexes
+
         if self._columns is None:
             raise ValueError('Either columns or schema should not be provided')
 
         self._values = [None, ] * len(self._columns)
         if values is not None:
             self._sets(values)
-        self._name_indexes = dict((col.name, i) for i, col in enumerate(self._columns))
 
     def _mode(self):
         return 'py'
@@ -526,6 +531,7 @@ class DataType(object):
     Abstract data type
     """
     _singleton = True
+    _type_id = None
     __slots__ = 'nullable',
 
     def __new__(cls, *args, **kwargs):
@@ -608,6 +614,7 @@ class OdpsPrimitive(DataType):
 class Bigint(OdpsPrimitive):
     __slots__ = ()
 
+    _type_id = 0
     _bounds = (-9223372036854775808, 9223372036854775807)
 
     def can_implicit_cast(self, other):
@@ -634,6 +641,7 @@ class Bigint(OdpsPrimitive):
 
 class Double(OdpsPrimitive):
     __slots__ = ()
+    _type_id = 1
 
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
@@ -652,6 +660,7 @@ class Double(OdpsPrimitive):
 class String(OdpsPrimitive):
     __slots__ = ()
 
+    _type_id = 2
     _max_length = 8 * 1024 * 1024  # 8M
 
     def can_implicit_cast(self, other):
@@ -682,6 +691,7 @@ class String(OdpsPrimitive):
 
 class Datetime(OdpsPrimitive):
     __slots__ = ()
+    _type_id = 3
 
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
@@ -701,6 +711,7 @@ class Datetime(OdpsPrimitive):
 
 class Boolean(OdpsPrimitive):
     __slots__ = ()
+    _type_id = 4
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
@@ -709,6 +720,7 @@ class Boolean(OdpsPrimitive):
 
 class Decimal(OdpsPrimitive):
     __slots__ = ()
+    _type_id = 5
 
     _max_int_len = 36
     _max_scale = 18

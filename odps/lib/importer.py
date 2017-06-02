@@ -80,8 +80,10 @@ class CompressImporter(object):
 
             if bin_package:
                 if not ALLOW_BINARY:
-                    raise SystemError('Cannot load binary package %s. Please set `odps.isolation.session.enable` '
-                                      'to True or ask your project owner to change project-level configuration.')
+                    raise SystemError('Cannot load binary package. It is quite possible that you are using an old '
+                                      'MaxCompute service which does not support binary packages. If this is '
+                                      'not true, please set `odps.isolation.session.enable` to True or ask your '
+                                      'project owner to change project-level configuration.')
                 if need_extract:
                     raise SystemError('We do not allow file-type resource for binary packages. Please upload an '
                                       'archive-typed resource instead.')

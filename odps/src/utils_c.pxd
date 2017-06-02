@@ -17,24 +17,13 @@
 # under the License.
 
 from libc.stdint cimport *
-from libc.string cimport *
 
-cdef class Checksum:
+ctypedef uint64_t (*TO_MILLISECONDS_FUN)(object dt)
 
-    cdef object crc
-    cdef uint32_t _crc32c
-    cdef int use_c
+cdef uint64_t c_datetime_to_local_milliseconds(object dt)
+cdef uint64_t c_datetime_to_gmt_milliseconds(object dt)
 
-    cdef void c_update_bool(self, bint val)
-    cdef void c_update_int(self, int32_t val)
-    cdef void c_update_long(self, int64_t val)
-    cdef void c_update_float(self, double val)
-    cdef void c_update(self, char *ptr, size_t length)
+cpdef uint64_t datetime_to_local_milliseconds(object dt)
+cpdef uint64_t datetime_to_gmt_milliseconds(object dt)
 
-    cpdef update_bool(self, bint val)
-    cpdef update_int(self, int32_t val)
-    cpdef update_long(self, int64_t val)
-    cpdef update_float(self, double val)
-    cpdef update(self, bytes b)
-    cpdef uint32_t getvalue(self)
-    cpdef reset(self)
+cdef TO_MILLISECONDS_FUN get_to_milliseconds_fun_ptr(object fun)

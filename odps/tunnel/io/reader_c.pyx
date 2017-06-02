@@ -18,12 +18,19 @@ from libc.string cimport *
 
 from ..pb.decoder_c cimport Decoder
 from ..checksum_c cimport Checksum
+from ...src.types_c cimport validate_value
 
 import warnings
 from ..wireconstants import ProtoWireConstants
 from ... import utils, types, compat, options
 from ...models import Record
 from ...readers import AbstractRecordReader
+
+
+cdef:
+    uint32_t WIRE_TUNNEL_META_COUNT = ProtoWireConstants.TUNNEL_META_COUNT
+    uint32_t WIRE_TUNNEL_META_CHECKSUM = ProtoWireConstants.TUNNEL_META_CHECKSUM
+    uint32_t WIRE_TUNNEL_END_RECORD = ProtoWireConstants.TUNNEL_END_RECORD
 
 
 cdef class BaseTunnelRecordReader:
@@ -33,11 +40,33 @@ cdef class BaseTunnelRecordReader:
             self._columns = self._schema.columns
         else:
             self._columns = [self._schema[c] for c in columns]
+        self._reader_schema = types.OdpsSchema(columns=self._columns)
+        self._n_columns = len(self._columns)
+        self._column_types = [c.type for c in self._columns]
+
+        self._column_setters.resize(self._n_columns)
+        for i in range(self._n_columns):
+            data_type = self._column_types[i]
+            if data_type == types.boolean:
+                self._column_setters[i] = self._set_bool
+            elif data_type == types.datetime:
+                self._column_setters[i] = self._set_datetime
+            elif data_type == types.string:
+                self._column_setters[i] = self._set_string
+            elif data_type == types.double:
+                self._column_setters[i] = self._set_double
+            elif data_type == types.bigint:
+                self._column_setters[i] = self._set_bigint
+            elif data_type == types.decimal:
+                self._column_setters[i] = self._set_decimal
+            else:
+                self._column_setters[i] = NULL
+
         self._reader = Decoder(input_stream)
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._curr_cursor = 0
-        self._read_limit = options.table_read_limit
+        self._read_limit = -1 if options.table_read_limit is None else options.table_read_limit
         self._to_datetime = utils.build_to_datetime()
 
     def _mode(self):
@@ -85,7 +114,7 @@ cdef class BaseTunnelRecordReader:
         cdef double val
 
         val = self._reader.read_double()
-        self._crc.update_float(val)
+        self._crc.c_update_float(val)
 
         return val
 
@@ -93,7 +122,7 @@ cdef class BaseTunnelRecordReader:
         cdef bint val
 
         val = self._reader.read_bool()
-        self._crc.update_bool(val)
+        self._crc.c_update_bool(val)
 
         return val
 
@@ -101,7 +130,7 @@ cdef class BaseTunnelRecordReader:
         cdef int64_t val
 
         val = self._reader.read_sint64()
-        self._crc.update_long(val)
+        self._crc.c_update_long(val)
 
         return val
 
@@ -109,45 +138,40 @@ cdef class BaseTunnelRecordReader:
         cdef int64_t val
 
         val = self._reader.read_sint64()
-        self._crc.update_long(val)
+        self._crc.c_update_long(val)
         return self._to_datetime(val)
 
-    cdef _set_string(self, object record, int i):
+    cdef void _set_record_list_value(self, list record, int i, object value):
+        col_type = self._column_types[i]
+        value = validate_value(value, col_type)
+        record[i] = value
+
+    cdef void _set_string(self, list record, int i):
         cdef bytes val = self._read_string()
-        record[i] = val
+        self._set_record_list_value(record, i, val)
 
-    cdef _set_double(self, object record, int i):
+    cdef void _set_double(self, list record, int i):
         cdef double val = self._read_double()
-        record[i] = val
+        self._set_record_list_value(record, i, val)
 
-    cdef _set_bool(self, object record, int i):
+    cdef void _set_bool(self, list record, int i):
         cdef bint val = self._read_bool()
-        record[i] = val
+        self._set_record_list_value(record, i, val)
 
-    cdef _set_bigint(self, object record, int i):
+    cdef void _set_bigint(self, list record, int i):
         cdef int64_t val = self._read_bigint()
-        record[i] = val
+        self._set_record_list_value(record, i, val)
 
-    cdef _set_datetime(self, object record, int i):
+    cdef void _set_datetime(self, list record, int i):
         cdef object val = self._read_datetime()
-        record[i] = val
+        self._set_record_list_value(record, i, val)
 
-    cdef _set_decimal(self, object record, int i):
+    cdef void _set_decimal(self, list record, int i):
         cdef bytes val
 
         val = self._reader.read_string()
         self._crc.update(val)
-        record[i] = val
-
-    cdef dict _get_read_functions(self):
-        return {
-            types.boolean: self._set_bool,
-            types.datetime: self._set_datetime,
-            types.string: self._set_string,
-            types.double: self._set_double,
-            types.bigint: self._set_bigint,
-            types.decimal: self._set_decimal
-        }
+        self._set_record_list_value(record, i, val)
 
     cpdef read(self):
         cdef:
@@ -155,62 +179,65 @@ cdef class BaseTunnelRecordReader:
             int checksum
             int idx_of_checksum
             int i
+            int data_type_id
             object data_type
             object record
+            list rec_list
 
-        if self._read_limit is not None and self.count >= self._read_limit:
+        if self._curr_cursor >= self._read_limit > 0:
             warnings.warn('Number of lines read via tunnel already reaches the limitation.')
             return None
-        record = Record(self._columns)
+
+        record = Record(schema=self._reader_schema)
+        rec_list = record._values
 
         while True:
-            index, _ = self._reader.read_field_number_and_wire_type()
+            index = self._reader.read_field_number()
 
             if index == 0:
                 continue
-            if index == ProtoWireConstants.TUNNEL_END_RECORD:
-                checksum = utils.long_to_int(self._crc.getvalue())
-                if int(self._reader.read_uint32()) != utils.int_to_uint(checksum):
+            if index == WIRE_TUNNEL_END_RECORD:
+                checksum = <int32_t>self._crc.getvalue()
+                if self._reader.read_uint32() != <uint32_t>checksum:
                     raise IOError('Checksum invalid')
                 self._crc.reset()
-                self._crccrc.update_int(checksum)
+                self._crccrc.c_update_int(checksum)
                 break
 
-            if index == ProtoWireConstants.TUNNEL_META_COUNT:
-                if self.count != self._reader.read_sint64():
+            if index == WIRE_TUNNEL_META_COUNT:
+                if self._curr_cursor != self._reader.read_sint64():
                     raise IOError('count does not match')
-                idx_of_checksum, _ = self._reader.read_field_number_and_wire_type()
-                if ProtoWireConstants.TUNNEL_META_CHECKSUM != idx_of_checksum:
+                idx_of_checksum = self._reader.read_field_number()
+                if WIRE_TUNNEL_META_CHECKSUM != idx_of_checksum:
                     raise IOError('Invalid stream data.')
-                if int(self._crccrc.getvalue()) != self._reader.read_uint32():
+                if self._crccrc.getvalue() != self._reader.read_uint32():
                     raise IOError('Checksum invalid.')
                 # if not self._reader.at_end():
                 #     raise IOError('Expect at the end of stream, but not.')
 
                 return
 
-            if index > len(self._columns):
+            if index > self._n_columns:
                 raise IOError('Invalid protobuf tag. Perhaps the datastream '
                               'from server is crushed.')
 
             self._crc.update_int(index)
 
-            read_functions = self._get_read_functions()
-
             i = index - 1
-            data_type = self._columns[i].type
-            if data_type in read_functions:
-                read_functions[data_type](self, record, i)
-            elif isinstance(data_type, types.Array):
-                val = self._read_array(data_type.value_type)
-                record[i] = val
-            elif isinstance(data_type, types.Map):
-                keys = self._read_array(data_type.key_type)
-                values = self._read_array(data_type.value_type)
-                val = compat.OrderedDict(zip(keys, values))
-                record[i] = val
+            if self._column_setters[i] != NULL:
+                self._column_setters[i](self, rec_list, i)
             else:
-                raise IOError('Unsupported type %s' % data_type)
+                data_type = self._column_types[i]
+                if isinstance(data_type, types.Array):
+                    val = self._read_array(data_type.value_type)
+                    rec_list[i] = val
+                elif isinstance(data_type, types.Map):
+                    keys = self._read_array(data_type.key_type)
+                    values = self._read_array(data_type.value_type)
+                    val = compat.OrderedDict(zip(keys, values))
+                    rec_list[i] = val
+                else:
+                    raise IOError('Unsupported type %s' % data_type)
 
         self._curr_cursor += 1
         return record

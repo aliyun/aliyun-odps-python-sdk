@@ -25,6 +25,8 @@ DEFAULT_CHUNK_SIZE = 1496
 DEFAULT_CONNECT_RETRY_TIMES = 4
 DEFAULT_CONNECT_TIMEOUT = 5
 DEFAULT_READ_TIMEOUT = 120
+DEFAULT_POOL_CONNECTIONS = 10
+DEFAULT_POOL_MAXSIZE = 10
 _DEFAULT_REDIRECT_WARN = 'Option {source} has been replaced by {target} and might be removed in a future release.'
 
 
@@ -318,6 +320,8 @@ options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
 options.register_option('retry_times', DEFAULT_CONNECT_RETRY_TIMES, validator=is_integer)
 options.register_option('connect_timeout', DEFAULT_CONNECT_TIMEOUT, validator=is_integer)
 options.register_option('read_timeout', DEFAULT_READ_TIMEOUT, validator=is_integer)
+options.register_option('pool_connections', DEFAULT_POOL_CONNECTIONS, validator=is_integer)
+options.register_option('pool_maxsize', DEFAULT_POOL_MAXSIZE, validator=is_integer)
 
 # terminal
 options.register_option('console.max_lines', None)

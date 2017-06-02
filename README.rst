@@ -13,7 +13,7 @@ The quick way:
 
 ::
 
-    pip install pyodps[full]
+    pip install 'pyodps[full]'
 
 If you don't need to use Jupyter, just type
 

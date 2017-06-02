@@ -140,18 +140,19 @@ def _convert_pd_type(values, table):
 
 def _reorder_pd(frame, table, cast=False):
     import pandas as pd
-    from .odpssql.types import odps_schema_to_df_schema, df_type_to_odps_type, odps_type_to_df_type
+    from .odpssql.types import df_schema_to_odps_schema, df_type_to_odps_type, odps_type_to_df_type
+
     from .pd.types import df_type_to_np_type
     from .errors import CompileError
 
-    df_schema = odps_schema_to_df_schema(table.schema)
-    for col in frame.columns:
-        if col.name.lower() not in df_schema._name_indexes:
+    expr_table_schema = df_schema_to_odps_schema(frame.schema).to_ignorecase_schema()
+    for col in expr_table_schema.columns:
+        if col.name.lower() not in expr_table_schema._name_indexes:
             raise CompileError('Column %s does not exist in table' % col.name)
-        t_col = df_schema[col.name.lower()]
-        if not cast and col.type != t_col.type:
-            raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
-                col.name, t_col.type, col.type))
+        t_col = table.schema[col.name.lower()]
+        if not cast and not t_col.type.can_implicit_cast(col.type):
+            raise CompileError('Cannot implicitly cast column %s from %s to %s.' % (
+                col.name, col.type, t_col.type))
 
     size = len(frame.values)
 
@@ -166,7 +167,7 @@ def _reorder_pd(frame, table, cast=False):
             src_type = df_type_to_odps_type(df_col_dict[dest_col.name].type)
             if src_type == dest_col.type:
                 data_dict[dest_col.name] = frame.values[case_dict[dest_col.name]]
-            elif cast:
+            elif dest_col.type.can_implicit_cast(src_type) or cast:
                 new_np_type = df_type_to_np_type(odps_type_to_df_type(dest_col.type))
                 data_dict[dest_col.name] = frame.values[case_dict[dest_col.name]].astype(new_np_type)
             else:
