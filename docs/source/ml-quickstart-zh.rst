@@ -32,7 +32,6 @@
 .. code-block:: python
 
     from odps.ml.classifiers import *
-    from odps.ml.preprocess import normalize
     # 归一化及拆分
     train, test = df.min_max_scale(['a01', 'a02', 'a03', 'a04']).split(0.6)
     # 使用训练集训练模型

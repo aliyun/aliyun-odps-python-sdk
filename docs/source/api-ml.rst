@@ -47,13 +47,7 @@ Feature Engineering
 Metrics
 -------
 
-.. automodule:: odps.ml.metrics.classification
-    :members:
-
-.. automodule:: odps.ml.metrics.clustering
-    :members:
-
-.. automodule:: odps.ml.metrics.regression
+.. automodule:: odps.ml.metrics
     :members:
 
 Preprocessing
