@@ -344,6 +344,9 @@ class Analyzer(BaseAnalyzer):
         func = None
         if isinstance(expr, Contains) and expr.regex:
             def func(x, pat, case, flags):
+                if x is None:
+                    return False
+
                 flgs = 0
                 if not case:
                     flgs = re.I

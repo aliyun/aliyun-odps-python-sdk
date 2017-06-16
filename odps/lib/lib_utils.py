@@ -98,7 +98,7 @@ if tuple(sys.version_info[:2]) < (3, 5):
         six.exec_('raise ex_type, ex, tb', glb, locals())
 else:
     def raise_exc(ex_type, ex_value, tb):
-        raise ex_value
+        raise ex_value.with_traceback(tb)
 
 
 if hasattr(inspect, 'signature'):

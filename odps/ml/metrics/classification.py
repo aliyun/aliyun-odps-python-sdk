@@ -75,7 +75,7 @@ def _run_roc_node(df, pos_label, col_true, col_pred, col_scores, execute_now=Tru
 @metrics_result(_run_cm_node)
 def confusion_matrix(df, col_true=None, col_pred=None):
     """
-    Compute confusion matrix of a predicted data set.
+    Compute confusion matrix of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -100,7 +100,7 @@ def confusion_matrix(df, col_true=None, col_pred=None):
 @metrics_result(_run_cm_node)
 def accuracy_score(df, col_true=None, col_pred=None, normalize=True):
     """
-    Compute accuracy of a predicted data set.
+    Compute accuracy of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -141,7 +141,7 @@ def accuracy_score(df, col_true=None, col_pred=None, normalize=True):
 @metrics_result(_run_cm_node)
 def precision_score(df, col_true=None, col_pred='precision_result', pos_label=1, average=None):
     r"""
-    Compute precision of a predicted data set. Precision is defined as :math:`\frac{TP}{TP + TN}`
+    Compute precision of a predicted DataFrame. Precision is defined as :math:`\frac{TP}{TP + TN}`
 
     :Parameters:
         - **df** - predicted data frame
@@ -217,7 +217,7 @@ def precision_score(df, col_true=None, col_pred='precision_result', pos_label=1,
 @metrics_result(_run_cm_node)
 def recall_score(df, col_true=None, col_pred='precision_result', pos_label=1, average=None):
     r"""
-    Compute recall of a predicted data set. Precision is defined as :math:`\frac{TP}{TP + FP}`
+    Compute recall of a predicted DataFrame. Precision is defined as :math:`\frac{TP}{TP + FP}`
 
     :Parameters:
         - **df* - predicted data frame
@@ -290,7 +290,7 @@ def recall_score(df, col_true=None, col_pred='precision_result', pos_label=1, av
 @metrics_result(_run_cm_node)
 def fbeta_score(df, col_true=None, col_pred='precision_result', beta=1.0, pos_label=1, average=None):
     r"""
-    Compute f-beta score of a predicted data set. f-beta is defined as
+    Compute f-beta score of a predicted DataFrame. f-beta is defined as
 
     .. math::
 
@@ -383,7 +383,7 @@ def fbeta_score(df, col_true=None, col_pred='precision_result', beta=1.0, pos_la
 @metrics_result(_run_roc_node)
 def f1_score(df, col_true=None, col_pred='precision_result', pos_label=1, average=None):
     r"""
-    Compute f-1 score of a predicted data set. f-1 is defined as
+    Compute f-1 score of a predicted DataFrame. f-1 is defined as
 
     .. math::
 
@@ -450,7 +450,7 @@ def f1_score(df, col_true=None, col_pred='precision_result', pos_label=1, averag
 @metrics_result(_run_roc_node)
 def roc_curve(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     r"""
-    Compute true positive rate (TPR), false positive rate (FPR) and threshold from predicted data set.
+    Compute true positive rate (TPR), false positive rate (FPR) and threshold from predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -493,7 +493,7 @@ def roc_curve(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
 @metrics_result(_run_roc_node)
 def gain_chart(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     r"""
-    Compute positive proportion, true positive rate (TPR) and threshold from predicted data set. The trace can be plotted as a cumulative gain chart
+    Compute positive proportion, true positive rate (TPR) and threshold from predicted DataFrame. The trace can be plotted as a cumulative gain chart
 
     Note that this method will trigger the defined flow to execute.
 
@@ -532,7 +532,7 @@ def gain_chart(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
 @metrics_result(_run_roc_node)
 def lift_chart(df, col_true=None, col_pred=None, col_scores=None, pos_label=1):
     r"""
-    Compute life value, true positive rate (TPR) and threshold from predicted data set.
+    Compute life value, true positive rate (TPR) and threshold from predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -574,7 +574,7 @@ def auc(tpr, fpr):
     Calculate AUC value from true positive rate (TPR) and false positive rate (FPR)\
     with trapezoidal rule.
 
-    Note that calculation on data sets should use ``roc_auc_score`` instead.
+    Note that calculation on DataFrames should use ``roc_auc_score`` instead.
 
     :param tpr: True positive rate array
     :param fpr: False positive rate array

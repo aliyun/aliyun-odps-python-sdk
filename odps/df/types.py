@@ -120,7 +120,7 @@ class Decimal(Primitive):
     __slots__ = ()
 
     def can_implicit_cast(self, other):
-        if isinstance(other, Integer):
+        if isinstance(other, (Decimal, Integer)):
             return True
         return False
 

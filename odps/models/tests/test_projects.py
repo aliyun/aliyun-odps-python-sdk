@@ -16,7 +16,7 @@ from datetime import datetime
 
 from odps.tests.core import TestBase
 from odps.compat import unittest, six
-from odps.models import Projects
+from odps.models import Projects, Project
 
 
 class Test(TestBase):
@@ -58,6 +58,11 @@ class Test(TestBase):
         self.assertIsInstance(project.state, six.string_types)
 
         self.assertTrue(project.is_loaded)
+
+    def testListProjects(self):
+        projects = [next(self.odps.list_projects(max_items=1)) for _ in range(2)]
+        self.assertGreater(len(projects), 1)
+        self.assertIsInstance(projects[0], Project)
 
 
 if __name__ == "__main__":

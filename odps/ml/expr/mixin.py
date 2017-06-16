@@ -281,12 +281,12 @@ class MLCollectionMixin(Node):
     ##########################
     def split(self, frac):
         """
-        Split the data set into two DataFrames with certain ratio.
+        Split the DataFrame into two DataFrames with certain ratio.
 
         :param frac: Split ratio
         :type frac: float
 
-        :return: two split data set objects
+        :return: two split DataFrame objects
         :rtype: list[DataFrame]
         """
         from .. import preprocess
@@ -300,7 +300,7 @@ class MLCollectionMixin(Node):
         :param str id_col_name: name of appended ID field.
         :param str cols: fields contained in output. All fields by default.
 
-        :return: data set with ID field
+        :return: DataFrame with ID field
         :rtype: DataFrame
         """
         from .. import preprocess
@@ -536,12 +536,12 @@ def ml_collection_mixin(cls):
 
 def merge_data(*data_frames, **kwargs):
     """
-    Merge data sets by column. Number of rows in tables must be the same.
+    Merge DataFrames by column. Number of rows in tables must be the same.
 
     This method can be called both outside and as a DataFrame method.
 
-    :param list[DataFrame] data_frames: data sets to be merged.
-    :param bool auto_rename: if True, fields in source data sets will be renamed in the output.
+    :param list[DataFrame] data_frames: DataFrames to be merged.
+    :param bool auto_rename: if True, fields in source DataFrames will be renamed in the output.
 
     :return: merged data frame.
     :rtype: DataFrame

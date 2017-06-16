@@ -114,6 +114,8 @@ class Schema(object):
             duplicates = [n for n in self._name_indexes if self.names.count(n) > 1]
             raise ValueError('Duplicate column names: %s' % ', '.join(duplicates))
 
+        self._snapshot = None
+
     def __repr__(self):
         return self._repr()
 
@@ -265,6 +267,18 @@ class OdpsSchema(Schema):
 
         return buf.getvalue()
 
+    def build_snapshot(self):
+        if self._snapshot is None and not options.force_py:
+            if not self._columns:
+                return None
+
+            try:
+                from .src.types_c import SchemaSnapshot
+                self._snapshot = SchemaSnapshot(self)
+            except ImportError:
+                pass
+        return self._snapshot
+
     @property
     def simple_columns(self):
         return self._columns
@@ -376,33 +390,12 @@ class OdpsSchema(Schema):
         return create_str
 
 
-class Record(object):
-    """
-    A record generally means the data of a single line in a table.
+class RecordMeta(type):
+    def __instancecheck__(cls, instance):
+        return isinstance(instance, RecordReprMixin)
 
-    :Example:
 
-    >>> schema = Schema.from_lists(['name', 'id'], ['string', 'string'])
-    >>> record = Record(schema=schema, values=['test', 'test2'])
-    >>> record[0] = 'test'
-    >>> record[0]
-    >>> 'test'
-    >>> record['name']
-    >>> 'test'
-    >>> record[0:2]
-    >>> ('test', 'test2')
-    >>> record[0, 1]
-    >>> ('test', 'test2')
-    >>> record['name', 'id']
-    >>> for field in record:
-    >>>     print(field)
-    ('name', u'test')
-    ('id', u'test2')
-    >>> len(record)
-    2
-    >>> 'name' in record
-    True
-    """
+class BaseRecord(object):
 
     # set __slots__ to save memory in the situation that records' size may be quite large
     __slots__ = '_values', '_columns', '_name_indexes'
@@ -448,14 +441,14 @@ class Record(object):
 
     def __getitem__(self, item):
         if isinstance(item, six.string_types):
-            return getattr(self, item)
+            return self.get_by_name(item)
         elif isinstance(item, (list, tuple)):
             return [self[it] for it in item]
         return self._values[item]
 
     def __setitem__(self, key, value):
         if isinstance(key, six.string_types):
-            setattr(self, key, value)
+            self.set_by_name(key, value)
         else:
             self._set(key, value)
 
@@ -463,22 +456,22 @@ class Record(object):
         if item == '_name_indexes':
             return object.__getattribute__(self, item)
         if hasattr(self, '_name_indexes') and item in self._name_indexes:
-            i = self._name_indexes[item]
-            return self._values[i]
+            return self.get_by_name(item)
         return object.__getattribute__(self, item)
 
     def __setattr__(self, key, value):
         if hasattr(self, '_name_indexes') and key in self._name_indexes:
-            i = self._name_indexes[key]
-            self._set(i, value)
+            self.set_by_name(key, value)
         else:
             object.__setattr__(self, key, value)
 
     def get_by_name(self, name):
-        return getattr(self, name)
+        i = self._name_indexes[name]
+        return self._values[i]
 
     def set_by_name(self, name, value):
-        return setattr(self, name, value)
+        i = self._name_indexes[name]
+        self._set(i, value)
 
     def __len__(self):
         return len(self._columns)
@@ -490,6 +483,19 @@ class Record(object):
         for i, col in enumerate(self._columns):
             yield (col.name, self[i])
 
+    @property
+    def values(self):
+        return self._values
+
+    @property
+    def n_columns(self):
+        return len(self._columns)
+
+    def get_columns_count(self):  # compatible
+        return self.n_columns
+
+
+class RecordReprMixin(object):
     def __repr__(self):
         buf = six.StringIO()
 
@@ -514,16 +520,34 @@ class Record(object):
 
         return self._columns == other._columns and self._values == other._values
 
-    @property
-    def values(self):
-        return self._values
 
-    @property
-    def n_columns(self):
-        return len(self._columns)
+class Record(six.with_metaclass(RecordMeta, RecordReprMixin, BaseRecord)):
+    """
+    A record generally means the data of a single line in a table.
 
-    def get_columns_count(self):  # compatible
-        return self.n_columns
+    :Example:
+
+    >>> schema = Schema.from_lists(['name', 'id'], ['string', 'string'])
+    >>> record = Record(schema=schema, values=['test', 'test2'])
+    >>> record[0] = 'test'
+    >>> record[0]
+    >>> 'test'
+    >>> record['name']
+    >>> 'test'
+    >>> record[0:2]
+    >>> ('test', 'test2')
+    >>> record[0, 1]
+    >>> ('test', 'test2')
+    >>> record['name', 'id']
+    >>> for field in record:
+    >>>     print(field)
+    ('name', u'test')
+    ('id', u'test2')
+    >>> len(record)
+    2
+    >>> 'name' in record
+    True
+    """
 
 
 class DataType(object):
@@ -685,7 +709,10 @@ class String(OdpsPrimitive):
 
         if isinstance(data_type, Datetime):
             return value.strftime('%Y-%m-%d %H:%M:%S')
-        val = utils.to_text(value)
+        if options.tunnel.string_as_binary:
+            val = utils.to_binary(value)
+        else:
+            val = utils.to_text(value)
         return val
 
 
@@ -901,7 +928,7 @@ except ImportError:
 _odps_primitive_to_builtin_types = {
     bigint: integer_builtins,
     double: float_builtins,
-    string: six.string_types,
+    string: (six.text_type, six.binary_type),
     datetime: _datetime,
     boolean: bool,
     decimal: DECIMAL_TYPES
@@ -917,8 +944,12 @@ def infer_primitive_data_type(value):
 def _validate_primitive_value(value, data_type):
     if value is None:
         return None
-    if isinstance(value, (bytearray, six.binary_type)):
-        value = value.decode('utf-8')
+    if options.tunnel.string_as_binary:
+        if isinstance(value, six.text_type):
+            value = value.encode('utf-8')
+    else:
+        if isinstance(value, (bytearray, six.binary_type)):
+            value = value.decode('utf-8')
 
     builtin_types = _odps_primitive_to_builtin_types[data_type]
     if isinstance(value, builtin_types):

@@ -56,7 +56,7 @@ def table_creator(func):
 
 
 """
-Simple Data Sets
+Simple DataFrames
 """
 
 
@@ -455,7 +455,7 @@ def create_newsgroup_table(odps, table_name, tunnel=None, data_part='train', pro
     if not os.path.exists(USER_DATA_REPO):
         os.makedirs(USER_DATA_REPO)
     if not os.path.exists(cache_file):
-        warnings.warn('We need to download data set from ' + NEWSGROUP_URL + '.')
+        warnings.warn('We need to download data from ' + NEWSGROUP_URL + '.')
         download_newsgroup(os.path.join(USER_DATA_REPO, NEWSGROUP_DATA_NAME), USER_DATA_REPO)
 
     with open(cache_file, 'rb') as f:
@@ -497,7 +497,7 @@ def load_mnist_data():
     if not os.path.exists(USER_DATA_REPO):
         os.makedirs(USER_DATA_REPO)
     if not os.path.exists(mnist_file):
-        warnings.warn('We need to download data set from ' + MNIST_PICKLED_URL + '.')
+        warnings.warn('We need to download data from ' + MNIST_PICKLED_URL + '.')
         urlretrieve(MNIST_PICKLED_URL, mnist_file)
 
     with gzip.open(mnist_file, 'rb') as fobj:

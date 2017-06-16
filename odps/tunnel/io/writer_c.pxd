@@ -18,8 +18,8 @@
 
 from libc.stdint cimport *
 from libc.string cimport *
-from libcpp.vector cimport vector
 
+from ...src.types_c cimport BaseRecord, SchemaSnapshot
 from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport Encoder
 from ...src.utils_c cimport TO_MILLISECONDS_FUN
@@ -58,16 +58,14 @@ cdef class ProtobufRecordWriter:
 
 cdef class BaseRecordWriter(ProtobufRecordWriter):
     cdef size_t _curr_cursor_c
-    cdef list _column_types
     cdef object _to_milliseconds
     cdef TO_MILLISECONDS_FUN _c_to_milliseconds
     cdef object _reader_schema
     cdef Checksum _crc_c
     cdef Checksum _crccrc_c
-    cdef vector[int64_t] _column_type_ids
-    cdef vector[int] _column_is_partition
+    cdef SchemaSnapshot _schema_snapshot
 
-    cpdef write(self, object record)
+    cpdef write(self, BaseRecord record)
 
     cpdef _write_bool(self, bint data)
 

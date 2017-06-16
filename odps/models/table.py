@@ -73,6 +73,7 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
 
     def load(self):
         self.update(self._columns, self._partitions)
+        self.build_snapshot()
 
     comment = serializers.JSONNodeField('comment', set_to_parent=True)
     owner = serializers.JSONNodeField('owner', set_to_parent=True)

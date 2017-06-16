@@ -149,36 +149,24 @@ def ci_skip_case(obj):
         return obj
 
 
-def numpy_case(obj):
-    try:
-        import numpy
+def module_depend_case(mod_names):
+    if isinstance(mod_names, six.string_types):
+        mod_names = [mod_names, ]
+
+    def _decorator(obj):
+        for mod_name in mod_names:
+            try:
+                __import__(mod_name, fromlist=[''])
+            except ImportError:
+                return ignore_case(obj, 'Skipped due to absence of %s.' % mod_name)
         return obj
-    except ImportError:
-        return ignore_case(obj, 'Skipped due to absence of numpy.')
+    return _decorator
 
 
-def pandas_case(obj):
-    try:
-        import pandas
-        return obj
-    except ImportError:
-        return ignore_case(obj, 'Skipped due to absence of pandas.')
-
-
-def snappy_case(obj):
-    try:
-        import snappy
-        return obj
-    except ImportError:
-        return ignore_case(obj, 'Skipped due to absence of snappy.')
-
-
-def sqlalchemy_case(obj):
-    try:
-        import sqlalchemy
-        return obj
-    except ImportError:
-        return ignore_case(obj, 'Skipped due to absence of sqlalchemy.')
+numpy_case = module_depend_case('numpy')
+pandas_case = module_depend_case('pandas')
+snappy_case = module_depend_case('snappy')
+sqlalchemy_case = module_depend_case('sqlalchemy')
 
 
 def global_locked(lock_key):
@@ -233,14 +221,30 @@ class TestMeta(type):
 
 try:
     from flaky import flaky
+    import requests
 
     def is_internal_error(err, *args):
-        if issubclass(err[0], InternalServerError):
+        ex = err[0]
+        if issubclass(ex, InternalServerError):
             return True
-        elif 'Faithfully yours, tengine.' in str(err[0]):
+        if issubclass(ex, (requests.ConnectionError, requests.Timeout)):
             return True
-        elif 'status=CANCELLED' in str(err[0]):
+        if 'Faithfully yours, tengine.' in str(ex):
             return True
+        if 'status=CANCELLED' in str(ex):
+            return True
+        try:
+            import sqlalchemy.exc
+            if issubclass(ex, sqlalchemy.exc.ProgrammingError) and 'does not exist' in str(ex):
+                return True
+        except ImportError:
+            pass
+        try:
+            import psycopg2
+            if issubclass(ex, psycopg2.DatabaseError) and 'unknown error' in str(ex):
+                return True
+        except ImportError:
+            pass
         return False
 
     @flaky(max_runs=3, rerun_filter=is_internal_error)

@@ -73,7 +73,7 @@ class BaseNodeRunner(object):
         else:
             self.actual_exec()
 
-            while not all(inst.is_terminated() for inst in self._instances):
+            while not all(inst.is_terminated(retry=True) for inst in self._instances):
                 self.refresh_progress()
                 time.sleep(1)
             [inst.wait_for_success() for inst in self._instances]

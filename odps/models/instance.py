@@ -392,17 +392,21 @@ class Instance(LazyLoad):
 
         return self._status
 
-    def is_terminated(self):
+    def is_terminated(self, retry=False):
         """
         If this instance has finished or not.
 
         :return: True if finished else False
         :rtype: bool
         """
+        for _ in range(options.retry_times):
+            try:
+                return self.status == Instance.Status.TERMINATED
+            except errors.InternalServerError:
+                if not retry:
+                    raise
 
-        return self.status == Instance.Status.TERMINATED
-
-    def is_successful(self):
+    def is_successful(self, retry=False):
         """
         If the instance runs successfully.
 
@@ -410,10 +414,17 @@ class Instance(LazyLoad):
         :rtype: bool
         """
 
-        if not self.is_terminated():
+        if not self.is_terminated(retry=retry):
             return False
+        for _ in range(options.retry_times):
+            try:
+                statuses = self.get_task_statuses()
+                break
+            except errors.InternalServerError:
+                if not retry:
+                    raise
         return all(task.status == Instance.Task.TaskStatus.SUCCESS
-                   for task in self.get_task_statuses().values())
+                   for task in statuses.values())
 
     @property
     def is_sync(self):
@@ -427,7 +438,7 @@ class Instance(LazyLoad):
         :return: None
         """
 
-        while not self.is_terminated():
+        while not self.is_terminated(retry=True):
             try:
                 time.sleep(interval)
             except KeyboardInterrupt:
@@ -444,7 +455,7 @@ class Instance(LazyLoad):
 
         self.wait_for_completion(interval=interval)
 
-        if not self.is_successful():
+        if not self.is_successful(retry=True):
             for task_name, task in six.iteritems(self.get_task_statuses()):
                 exc = None
                 if task.status == Instance.Task.TaskStatus.FAILED:
@@ -612,7 +623,7 @@ class Instance(LazyLoad):
 
     @utils.survey
     def _open_result_reader(self, schema=None, task_name=None, **_):
-        if not self.is_successful():
+        if not self.is_successful(retry=True):
             raise errors.ODPSError(
                 'Cannot open reader, instance(%s) may fail or has not finished yet' % self.id)
 
@@ -715,7 +726,7 @@ class Instance(LazyLoad):
 
         :param use_tunnel: if true, use instance tunnel to read from the instance.
                            if false, use conventional routine.
-                           if absent, `options.use_instance_tunnel` will be used and automatic fallback
+                           if absent, `options.tunnel.use_instance_tunnel` will be used and automatic fallback
                            is enabled.
         :param reopen: the reader will reuse last one, reopen is true means open a new reader.
         :type reopen: bool
@@ -738,11 +749,11 @@ class Instance(LazyLoad):
         use_tunnel = kwargs.get('use_tunnel')
         auto_fallback = use_tunnel is None
         if use_tunnel is None:
-            use_tunnel = options.use_instance_tunnel
+            use_tunnel = options.tunnel.use_instance_tunnel
         tunnel_fallback_errors = (errors.InvalidProjectTable, errors.InvalidArgument)
         if use_tunnel:
             if 'limit_enabled' not in kwargs:
-                kwargs['limit_enabled'] = options.limited_instance_tunnel
+                kwargs['limit_enabled'] = options.tunnel.limited_instance_tunnel
 
             try:
                 return self._open_tunnel_reader(**kwargs)

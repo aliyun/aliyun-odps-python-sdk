@@ -140,7 +140,7 @@ class ODPSSQLEngine(Engine):
         ui.status('Executing', 'execution details')
 
         percent = 0
-        while not instance.is_terminated():
+        while not instance.is_terminated(retry=True):
             inst_progress = self._reload_ui(group, instance, ui)
 
             if inst_progress:

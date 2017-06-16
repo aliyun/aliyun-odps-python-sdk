@@ -295,7 +295,6 @@ options.register_option('log_view_host', None)
 options.register_option('log_view_hours', 24, validator=is_integer)
 options.register_option('data_proxy', None)
 options.redirect_option('tunnel_proxy', 'data_proxy')
-options.register_option('tunnel_endpoint', None)
 options.register_option('predict_endpoint', None)
 options.register_option('seahawks_url', None)
 options.register_option('biz_id', None)
@@ -305,8 +304,6 @@ options.register_option('temp_lifecycle', 1, validator=is_integer)
 options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
 options.register_option('table_read_limit', None, validator=any_validator(is_null, is_integer))
 options.register_option('completion_size', 10, validator=is_integer)
-options.register_option('use_instance_tunnel', True, validator=is_bool)
-options.register_option('limited_instance_tunnel', True, validator=is_bool)
 
 # c or python mode, use for UT, in other cases, please do not modify the value
 options.register_option('force_c', False, validator=is_integer)
@@ -322,6 +319,15 @@ options.register_option('connect_timeout', DEFAULT_CONNECT_TIMEOUT, validator=is
 options.register_option('read_timeout', DEFAULT_READ_TIMEOUT, validator=is_integer)
 options.register_option('pool_connections', DEFAULT_POOL_CONNECTIONS, validator=is_integer)
 options.register_option('pool_maxsize', DEFAULT_POOL_MAXSIZE, validator=is_integer)
+
+# tunnel
+options.register_option('tunnel.endpoint', None)
+options.register_option('tunnel.string_as_binary', False, validator=is_bool)
+options.register_option('tunnel.use_instance_tunnel', True, validator=is_bool)
+options.register_option('tunnel.limited_instance_tunnel', True, validator=is_bool)
+options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
+options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')
+options.redirect_option('limited_instance_tunnel', 'tunnel.limited_instance_tunnel')
 
 # terminal
 options.register_option('console.max_lines', None)

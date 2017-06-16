@@ -772,16 +772,28 @@
                 <inputName>id</inputName>
             </param>
             <param name="idColName">
+                <alias>idCol</alias>
                 <inputName>id</inputName>
             </param>
             <param name="outputTableName">
                 <exporter>get_output_table_name</exporter>
                 <outputName>output</outputName>
             </param>
-            <param name="order">
-                <alias>order</alias>
-                <docs>N-grams的最大长度</docs>
-                <value>3</value>
+            <param name="vectorColNames">
+                <alias>vectorCols</alias>
+                <docs>向量的列名列表</docs>
+                <inputName>input</inputName>
+            </param>
+            <param name="topN">
+                <docs>输出的距离最近的向量的数目</docs>
+                <value>5</value>
+            </param>
+            <param name="distanceType">
+                <docs>距离的计算方式，可选 euclidean、cosine、manhattan</docs>
+                <value>euclidean</value>
+            </param>
+            <param name="distanceThreshold">
+                <docs>距离的阈值，当两个向量的距离小于此值时输出</docs>
             </param>
         </params>
         <ports>
@@ -795,13 +807,16 @@
                 <ioType>INPUT</ioType>
                 <sequence>2</sequence>
                 <type>data</type>
-                <docs>ngram 以往输出（可合并）</docs>
+                <docs>需要计算相近向量的id的列表所在表</docs>
             </port>
             <port name="output">
                 <ioType>OUTPUT</ioType>
                 <sequence>1</sequence>
                 <type>DATA</type>
                 <docs>输出</docs>
+                <schema>
+                    <schema>original_id: string, near_id: string, distance: double, rank: bigint</schema>
+                </schema>
             </port>
         </ports>
         <metas>

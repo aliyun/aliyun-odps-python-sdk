@@ -257,6 +257,28 @@ class Test(TestBase):
                    ') t3'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+    def testGroupbyProjection(self):
+        expr = self.expr['id', 'name', 'fid']
+        expr2 = expr.groupby('name').agg(count=expr.count(), id=expr.id.sum())
+        expr3 = expr2['count', 'id']
+
+        expected = "SELECT COUNT(1) AS `count`, SUM(t1.`id`) AS `id` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "GROUP BY t1.`name`"
+
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr3, prettify=False)))
+
+        expr = self.expr['id', 'name', 'fid'].filter(self.expr.id < 10)['name', 'id']
+        expr2 = expr.groupby('name').agg(count=expr.count(), id=expr.id.sum(), name2=expr.name.max())
+        expr3 = expr2[expr2.count + 1, 'id']
+
+        expected = "SELECT COUNT(1) + 1 AS `count`, SUM(t1.`id`) AS `id` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "WHERE t1.`id` < 10 \n" \
+                   "GROUP BY t1.`name`"
+
+        self.assertEqual(expected, ODPSEngine(self.odps).compile(expr3, prettify=False))
+
 
 if __name__ == '__main__':
     unittest.main()

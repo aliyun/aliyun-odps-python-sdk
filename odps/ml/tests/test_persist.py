@@ -22,7 +22,7 @@ from odps.ml.tests.base import MLTestBase
 from odps.models import Partition, Schema
 from odps import types as odps_types
 
-IRIS_TABLE = tn('pyodps_test_ml_iris')
+IRIS_TABLE = tn('pyodps_test_ml_iris_persist')
 SIMPLE_PERSIST_TABLE = tn('pyodps_test_ml_simple_persist_table')
 EXISTING_PERSIST_TABLE = tn('pyodps_test_ml_existing_persist_table')
 STATIC_PART_TABLE = tn('pyodps_test_ml_static_part_table')

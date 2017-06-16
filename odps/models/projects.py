@@ -18,10 +18,8 @@ from .core import Container
 from .project import Project
 from .. import serializers, errors
 from ..compat import six
-from ..utils import attach_internal
 
 
-@attach_internal
 class Projects(Container):
 
     marker = serializers.XMLNodeField('Marker')
@@ -44,3 +42,40 @@ class Projects(Container):
             return True
         except errors.NoSuchObject:
             return False
+
+    def __iter__(self):
+        return self.iterate()
+
+    def iterate(self, owner=None, user=None, group=None, max_items=None, name=None):
+        params = {'expectmarker': 'true'}
+        if name is not None:
+            params['name'] = name
+        if owner is not None:
+            params['owner'] = owner
+        if user is not None:
+            params['user'] = user
+        if group is not None:
+            params['group'] = group
+        if max_items is not None:
+            params['maxitems'] = max_items
+
+        def _it():
+            last_marker = params.get('marker')
+            if 'marker' in params and \
+                    (last_marker is None or len(last_marker) == 0):
+                return
+
+            url = self.resource()
+            resp = self._client.get(url, params=params)
+
+            t = Projects.parse(self._client, resp, obj=self)
+            params['marker'] = t.marker
+
+            return t.projects
+
+        while True:
+            projects = _it()
+            if projects is None:
+                break
+            for project in projects:
+                yield project

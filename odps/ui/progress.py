@@ -19,6 +19,7 @@ import uuid
 import logging
 
 from .common import build_trait
+from ..config import options
 from ..compat import OrderedDict, six
 from ..errors import InternalServerError
 from ..models.instance import Instance
@@ -147,7 +148,7 @@ def _reload_instance_status(odps, group_id, instance_id):
 
 
 def reload_instance_status(odps, group_id, instance_id):
-    for itr in range(3):
+    for itr in range(options.retry_times):
         try:
             return _reload_instance_status(odps, group_id, instance_id)
         except InternalServerError:

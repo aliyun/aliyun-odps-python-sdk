@@ -274,7 +274,7 @@ class PmmlModel(ODPSModelExpr):
 
     def predict(self, *args, **kwargs):
         """
-        Predict given data set using the given model. Actual prediction steps will not
+        Predict given DataFrame using the given model. Actual prediction steps will not
         be executed till an operational step is called.
 
         After execution, three columns will be appended to the table:
@@ -336,11 +336,11 @@ class TablesModel(ODPSModelExpr):
 
     def predict(self, *args, **kwargs):
         """
-        Predict given data set using the given model. Actual prediction steps will not
+        Predict given DataFrame using the given model. Actual prediction steps will not
         be executed till an operational step is called.
 
-        :param list[DataFrame] args: input data sets to be predicted
-        :param kwargs: named input data sets or prediction parameters, details can be found in ''Predictor Parameters'' section of training algorithms.
+        :param list[DataFrame] args: input DataFrames to be predicted
+        :param kwargs: named input DataFrames or prediction parameters, details can be found in ''Predictor Parameters'' section of training algorithms.
 
         A :class:`DataFrame` object will be generated for input data. Output fields may be referenced in the
         documents of training algorithms.

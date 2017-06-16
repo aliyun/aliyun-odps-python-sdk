@@ -175,8 +175,10 @@ class TunnelEngine(object):
 
         while True:
             if isinstance(input, FilterPartitionCollectionExpr):
-                partitions = self._to_partition_spec(
-                    self._filter_on_partition(input))
+                partition_kv = self._filter_on_partition(input)
+                if not partition_kv:
+                    return
+                partitions = self._to_partition_spec(partition_kv)
                 if not columns:
                     columns = self._projection_on_source(input)
                 break

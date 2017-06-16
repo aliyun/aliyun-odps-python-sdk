@@ -56,7 +56,7 @@ else:
             if options.account is not None and options.default_project is not None:
                 self._odps = ODPS._from_account(
                     options.account, options.default_project,
-                    endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint
+                    endpoint=options.end_point, tunnel_endpoint=options.tunnel.endpoint
                 )
             else:
                 self._odps = enter().odps
@@ -173,7 +173,7 @@ else:
                 progress_ui.status('Executing')
 
                 percent = 0
-                while not instance.is_terminated():
+                while not instance.is_terminated(retry=True):
                     last_percent = percent
 
                     reload_instance_status(self._odps, group_id, instance.id)

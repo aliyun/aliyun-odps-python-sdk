@@ -16,6 +16,7 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
+from ...src.types_c cimport BaseRecord, SchemaSnapshot
 from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport Encoder
 from ...src.utils_c cimport get_to_milliseconds_fun_ptr
@@ -120,11 +121,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._encoding = encoding
         self._schema = schema
         self._columns = self._schema.columns
-        self._column_types = [c.type for c in self._columns]
-        self._column_type_ids = [c.type._type_id if c.type._type_id is not None else -1
-                                 for c in self._columns]
-        self._column_is_partition = [1 if self._schema.is_partition(c) else 0
-                                     for c in self._columns]
+        self._schema_snapshot = self._schema.build_snapshot()
 
         self._crc_c = Checksum()
         self._crccrc_c = Checksum()
@@ -143,14 +140,15 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     def _crccrc(self):
         return self._crccrc_c
 
-    cpdef write(self, object record):
+    cpdef write(self, BaseRecord record):
         cdef:
             int n_record_fields
             int pb_index
             int i
-            uint64_t l_val
             int data_type_id
             int checksum
+            object val
+            uint64_t l_val
 
         n_record_fields = len(record)
 
@@ -158,17 +156,17 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             raise IOError('record fields count is more than schema.')
 
         for i in range(min(n_record_fields, self._n_columns)):
-            if self._column_is_partition[i]:
+            if self._schema_snapshot._col_is_partition[i]:
                 continue
 
-            val = record[i]
+            val = record._get(i)
             if val is None:
                 continue
 
             pb_index = i + 1
             self._crc_c.update_int(pb_index)
 
-            data_type_id = self._column_type_ids[i]
+            data_type_id = self._schema_snapshot._col_type_ids[i]
             if data_type_id == BOOL_TYPE_ID:
                 self._write_tag(pb_index, WIRETYPE_VARINT)
                 self._write_bool(val)
@@ -192,7 +190,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
                 self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
                 self._write_string(str(val))
             else:
-                data_type = self._column_types[i]
+                data_type = self._schema_snapshot._col_types[i]
                 if isinstance(data_type, types.Array):
                     self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
                     self._write_raw_uint(len(val))

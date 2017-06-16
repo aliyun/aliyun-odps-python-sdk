@@ -73,7 +73,7 @@ def get_default_engine(*exprs):
                     options.end_point is not None and options.default_project is not None:
         odps = ODPS._from_account(options.account, options.default_project,
                                   endpoint=options.end_point,
-                                  tunnel_endpoint=options.tunnel_endpoint)
+                                  tunnel_endpoint=options.tunnel.endpoint)
 
     return MixedEngine(odps, list(engines))
 

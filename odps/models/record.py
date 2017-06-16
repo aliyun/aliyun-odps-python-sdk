@@ -18,11 +18,14 @@ from .. import types as _types
 from ..config import options
 try:
     if not options.force_py:
-        from ..src.types_c import Record
+        from ..src.types_c import BaseRecord
+
+        Record = _types.RecordMeta('Record', (_types.RecordReprMixin, BaseRecord),
+                                   {'__doc__': _types.Record.__doc__})
     else:
         Record = _types.Record
-except ImportError as e:
+except (ImportError, AttributeError):
     if options.force_c:
-        raise e
+        raise
     Record = _types.Record
 

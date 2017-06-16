@@ -34,7 +34,7 @@ class BaseTunnel(object):
         else:
             self._project = project
 
-        self._endpoint = endpoint or self._project._tunnel_endpoint or options.tunnel_endpoint
+        self._endpoint = endpoint or self._project._tunnel_endpoint or options.tunnel.endpoint
         self._tunnel_rest = None
 
     @property

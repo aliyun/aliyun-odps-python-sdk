@@ -64,6 +64,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         resp = self._client.post(url, {}, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
+            if self.schema is not None:
+                self.schema.build_snapshot()
         else:
             e = TunnelError.parse(resp)
             raise e
@@ -76,6 +78,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         resp = self._client.get(url, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
+            if self.schema is not None:
+                self.schema.build_snapshot()
         else:
             e = TunnelError.parse(resp)
             raise e

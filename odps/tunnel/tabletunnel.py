@@ -70,6 +70,8 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         resp = self._client.post(url, {}, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
+            if self.schema is not None:
+                self.schema.build_snapshot()
         else:
             e = TunnelError.parse(resp)
             raise e
@@ -85,6 +87,8 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         resp = self._client.get(url, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
+            if self.schema is not None:
+                self.schema.build_snapshot()
         else:
             e = TunnelError.parse(resp)
             raise e
@@ -200,6 +204,8 @@ class TableUploadSession(serializers.JSONSerializableModel):
         resp = self._client.post(url, {}, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
+            if self.schema is not None:
+                self.schema.build_snapshot()
         else:
             e = TunnelError.parse(resp)
             raise e
@@ -215,12 +221,14 @@ class TableUploadSession(serializers.JSONSerializableModel):
         resp = self._client.get(url, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
+            if self.schema is not None:
+                self.schema.build_snapshot()
         else:
             e = TunnelError.parse(resp)
             raise e
 
     def new_record(self, values=None):
-        return Record(self.schema.columns, values=values)
+        return Record(schema=self.schema, values=values)
 
     def open_record_writer(self, block_id=None, compress=False, buffer_size=None):
         compress_option = self._compress_option or CompressOption()

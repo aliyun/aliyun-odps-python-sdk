@@ -66,7 +66,7 @@ class Room(object):
                 options.account = ODPS._build_account(access_id, access_key)
                 options.end_point = endpoint
                 options.default_project = default_project
-                options.tunnel_endpoint = tunnel_endpoint
+                options.tunnel.endpoint = tunnel_endpoint
                 options.seahawks_url = seahawks_url
                 options.predict_endpoint = kwargs.get('predict_endpoint')
 
@@ -82,7 +82,7 @@ class Room(object):
     @property
     def odps(self):
         return ODPS._from_account(options.account, options.default_project,
-                                  endpoint=options.end_point, tunnel_endpoint=options.tunnel_endpoint,
+                                  endpoint=options.end_point, tunnel_endpoint=options.tunnel.endpoint,
                                   seahawks_url=options.seahawks_url, predict_endpoint=options.predict_endpoint)
 
     def __getattr__(self, attr):

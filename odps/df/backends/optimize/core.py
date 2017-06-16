@@ -121,7 +121,7 @@ class Optimizer(Backend):
             for field in expr._fields:
                 selects.append(self._broadcast_field(field, expr.input) or field)
 
-            expr._input._fields = selects
+            expr._input._aggregations = expr._input._fields = selects
             expr._input._schema = Schema.from_lists([f.name for f in selects],
                                                     [f.dtype for f in selects])
             self._sub(expr, expr.input)
@@ -237,7 +237,7 @@ class Optimizer(Backend):
                 if len(collects) > 1:
                     self._broadcast_field(field, *collects[:-1]) or field
             else:
-                path[-2].substitute(collection, collection.input, dag=self._dag)
+                path[-2].substitute(collection, collects[0].input, dag=self._dag)
 
         if changed:
             return retval

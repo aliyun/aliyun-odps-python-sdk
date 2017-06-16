@@ -36,6 +36,7 @@ KW_EXTRACTED_TABLE = tn('pyodps_test_ml_kw_extracted_result')
 TEXT_SUMMARIZED_TABLE = tn('pyodps_test_ml_text_summarized_result')
 COUNT_NGRAM_TABLE = tn('pyodps_test_ml_count_ngram_result')
 DOC2VEC_DOC_TABLE = tn('pyodps_test_ml_doc2vec_doc_result')
+SEMANTIC_DIST_TABLE = tn('pyodps_test_ml_semantic_dist_result')
 
 
 class Test(MLTestBase):
@@ -149,3 +150,10 @@ class Test(MLTestBase):
              'outVocabularyTableName': 'tmp_pyodps__doc2_vec', 'outputWordTableName': 'tmp_pyodps__doc2_vec',
              'outputDocTableName': tn('pyodps_test_ml_doc2vec_doc_result')}))
         doc_df.persist(DOC2VEC_DOC_TABLE)
+
+    def test_semantic_vector_distance(self):
+        result_df = semantic_vector_distance(self.df)
+        result_df._add_case(self.gen_check_params_case(
+            {'topN': '5', 'outputTableName': tn('pyodps_test_ml_semantic_dist_result'), 'distanceType': 'euclidean',
+             'inputTableName': tn('pyodps_test_ml_corpus')}))
+        result_df.persist(SEMANTIC_DIST_TABLE)

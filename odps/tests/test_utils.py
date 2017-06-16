@@ -21,13 +21,8 @@ import time
 from collections import namedtuple
 
 from odps import options, utils
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, module_depend_case
 from odps.compat import unittest, long_type, reload_module
-
-try:
-    import pytz
-except ImportError:
-    pytz = None
 
 mytimetuple = namedtuple(
     'TimeTuple',
@@ -125,9 +120,11 @@ class Test(TestBase):
 
         self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=GMT8()))
 
-    @unittest.skipIf(pytz is None, 'Skipped because pytz is not installed.')
+    @module_depend_case('pytz')
     @bothPyAndC
     def testTimeConvertPytz(self):
+        import pytz
+
         to_milliseconds = utils.to_milliseconds
         to_datetime = utils.to_datetime
 

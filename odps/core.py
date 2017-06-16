@@ -87,7 +87,7 @@ class ODPS(object):
 
         self._tunnel_endpoint = kw.pop('tunnel_endpoint', None)
         if self._tunnel_endpoint is not None:
-            options.tunnel_endpoint = self._tunnel_endpoint
+            options.tunnel.endpoint = self._tunnel_endpoint
 
         self._projects = models.Projects(client=self.rest)
         self._project = self.get_project()
@@ -108,6 +108,24 @@ class ODPS(object):
                       tunnel_endpoint=None, **kwargs):
         return cls(None, None, project, endpoint=endpoint, tunnel_endpoint=tunnel_endpoint,
                    account=account, **kwargs)
+
+    @property
+    def projects(self):
+        return self._projects
+
+    def list_projects(self, owner=None, user=None, group=None, prefix=None, max_items=None):
+        """
+        List projects.
+
+        :param owner: Aliyun account, the owner which listed projects belong to
+        :param user: name of the user who has access to listed projects
+        :param group: name of the group listed projects belong to
+        :param prefix: prefix of names of listed projects
+        :param max_items: the maximal size of result set
+        :return: projects in this endpoint.
+        :rtype: generator
+        """
+        return self.projects.iterate(owner=owner, user=user, group=group, max_items=max_items, name=prefix)
 
     def get_project(self, name=None):
         """
@@ -1644,7 +1662,7 @@ class ODPS(object):
         options.account = self.account
         options.default_project = self.project
         options.end_point = self.endpoint
-        options.tunnel_endpoint = self._tunnel_endpoint
+        options.tunnel.endpoint = self._tunnel_endpoint
 
     @classmethod
     def from_global(cls):

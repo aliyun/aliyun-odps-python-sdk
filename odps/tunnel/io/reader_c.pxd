@@ -20,6 +20,7 @@ from libc.stdint cimport *
 from libc.string cimport *
 from libcpp.vector cimport vector
 
+from ...src.types_c cimport SchemaSnapshot
 from ..pb.decoder_c cimport Decoder
 from ..checksum_c cimport Checksum
 
@@ -38,8 +39,8 @@ cdef class BaseTunnelRecordReader:
     cdef int _curr_cursor
     cdef int _n_columns
     cdef int _read_limit
-    cdef list _column_types
     cdef vector[_SET_FUNCTION] _column_setters
+    cdef SchemaSnapshot _schema_snapshot
 
     cdef list _read_array(self, object value_type)
     cdef bytes _read_string(self)

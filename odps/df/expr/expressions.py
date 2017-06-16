@@ -996,7 +996,13 @@ class CollectionExpr(Expr):
             raise NotImplementedError
 
     def get_cached(self, data):
-        return CollectionExpr(_source_data=data, _schema=self._schema)
+        coll = CollectionExpr(_source_data=data, _schema=self._schema)
+        for attr in CollectionExpr.__slots__:
+            if not attr.startswith('_ml_'):
+                continue
+            if hasattr(self, attr):
+                setattr(coll, attr, getattr(self, attr))
+        return coll
 
 
 _cached_typed_expr = dict()

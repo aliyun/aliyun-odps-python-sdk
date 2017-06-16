@@ -21,8 +21,8 @@ from odps.df.backends.frame import ResultFrame
 from odps.ml import PmmlModel
 from odps.ml.tests.base import MLTestBase
 
-IRIS_TABLE = tn('pyodps_test_ml_iris')
-IRIS_TEST_OFFLINE_MODEL = tn('pyodps_test_iris_model')
+IRIS_TABLE = tn('pyodps_test_ml_iris_execute')
+IRIS_TEST_OFFLINE_MODEL = tn('pyodps_test_iris_model_exec')
 
 
 class Test(MLTestBase):
@@ -50,7 +50,9 @@ class Test(MLTestBase):
 
         df = DataFrame(self.odps.get_table(IRIS_TABLE)).roles(label='category')
         model = classifiers.LogisticRegression().train(df)
-        model.persist(IRIS_TEST_OFFLINE_MODEL, drop_model=True)
+        persisted = model.persist(IRIS_TEST_OFFLINE_MODEL, drop_model=True)
+        result = persisted.execute()
+        self.assertIsInstance(result, PmmlRegressionResult)
 
         expr = PmmlModel(self.odps.get_offline_model(IRIS_TEST_OFFLINE_MODEL))
         result = expr.execute()

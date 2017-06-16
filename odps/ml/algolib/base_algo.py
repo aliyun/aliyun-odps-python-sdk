@@ -81,7 +81,7 @@ class BaseAlgorithm(PipelineStep):
 
         total_input = len(args) + len(ml_kw)
         if total_input == 0:
-            raise TypeError('Can only perform transformation on data sets')
+            raise TypeError('Can only perform transformation on DataFrames')
         if total_input > len(inputs):
             raise ValueError('Input count mismatch.')
 
@@ -221,10 +221,10 @@ class BaseTrainingAlgorithm(BaseAlgorithm):
     """
     def train(self, *args, **kwargs):
         """
-        Train a data set.
+        Perform training on a DataFrame.
         The label field is specified by the ``label_field`` method.
 
-        :param train_data: Data set to be trained. Label field must be specified.
+        :param train_data: DataFrame to be trained. Label field must be specified.
         :type train_data: DataFrame
 
         :return: Trained model

@@ -16,9 +16,9 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
+from ...src.types_c cimport BaseRecord
 from ..pb.decoder_c cimport Decoder
 from ..checksum_c cimport Checksum
-from ...src.types_c cimport validate_value
 
 import warnings
 from ..wireconstants import ProtoWireConstants
@@ -41,12 +41,12 @@ cdef class BaseTunnelRecordReader:
         else:
             self._columns = [self._schema[c] for c in columns]
         self._reader_schema = types.OdpsSchema(columns=self._columns)
+        self._schema_snapshot = self._reader_schema.build_snapshot()
         self._n_columns = len(self._columns)
-        self._column_types = [c.type for c in self._columns]
 
         self._column_setters.resize(self._n_columns)
         for i in range(self._n_columns):
-            data_type = self._column_types[i]
+            data_type = self._schema_snapshot._col_types[i]
             if data_type == types.boolean:
                 self._column_setters[i] = self._set_bool
             elif data_type == types.datetime:
@@ -142,12 +142,10 @@ cdef class BaseTunnelRecordReader:
         return self._to_datetime(val)
 
     cdef void _set_record_list_value(self, list record, int i, object value):
-        col_type = self._column_types[i]
-        value = validate_value(value, col_type)
-        record[i] = value
+        record[i] = self._schema_snapshot.validate_value(i, value)
 
     cdef void _set_string(self, list record, int i):
-        cdef bytes val = self._read_string()
+        cdef object val = self._read_string()
         self._set_record_list_value(record, i, val)
 
     cdef void _set_double(self, list record, int i):
@@ -181,7 +179,7 @@ cdef class BaseTunnelRecordReader:
             int i
             int data_type_id
             object data_type
-            object record
+            BaseRecord record
             list rec_list
 
         if self._curr_cursor >= self._read_limit > 0:
@@ -189,7 +187,7 @@ cdef class BaseTunnelRecordReader:
             return None
 
         record = Record(schema=self._reader_schema)
-        rec_list = record._values
+        rec_list = record._c_values
 
         while True:
             index = self._reader.read_field_number()
@@ -227,7 +225,7 @@ cdef class BaseTunnelRecordReader:
             if self._column_setters[i] != NULL:
                 self._column_setters[i](self, rec_list, i)
             else:
-                data_type = self._column_types[i]
+                data_type = self._schema_snapshot._col_types[i]
                 if isinstance(data_type, types.Array):
                     val = self._read_array(data_type.value_type)
                     rec_list[i] = val

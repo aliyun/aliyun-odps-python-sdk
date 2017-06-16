@@ -31,7 +31,7 @@ def _run_evaluation_node(df, col_true, col_pred, execute_now=True, result_callba
 @metrics_result(_run_evaluation_node)
 def mean_squared_error(df, col_true, col_pred=None):
     """
-    Compute mean squared error of a predicted data set.
+    Compute mean squared error of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -52,7 +52,7 @@ def mean_squared_error(df, col_true, col_pred=None):
 @metrics_result(_run_evaluation_node)
 def mean_absolute_error(df, col_true, col_pred=None):
     """
-    Compute mean absolute error of a predicted data set.
+    Compute mean absolute error of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -73,7 +73,7 @@ def mean_absolute_error(df, col_true, col_pred=None):
 @metrics_result(_run_evaluation_node)
 def mean_absolute_percentage_error(df, col_true, col_pred=None):
     """
-    Compute mean absolute percentage error of a predicted data set.
+    Compute mean absolute percentage error of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -94,7 +94,7 @@ def mean_absolute_percentage_error(df, col_true, col_pred=None):
 @metrics_result(_run_evaluation_node)
 def total_sum_of_squares(df, col_true, col_pred=None):
     """
-    Compute total sum of squares (SST) of a predicted data set.
+    Compute total sum of squares (SST) of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -115,7 +115,7 @@ def total_sum_of_squares(df, col_true, col_pred=None):
 @metrics_result(_run_evaluation_node)
 def explained_sum_of_squares(df, col_true, col_pred=None):
     """
-    Compute explained sum of squares (SSE) of a predicted data set.
+    Compute explained sum of squares (SSE) of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -136,7 +136,7 @@ def explained_sum_of_squares(df, col_true, col_pred=None):
 @metrics_result(_run_evaluation_node)
 def r2_score(df, col_true, col_pred=None):
     """
-    Compute determination coefficient (R2) of a predicted data set.
+    Compute determination coefficient (R2) of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -157,7 +157,7 @@ def r2_score(df, col_true, col_pred=None):
 @metrics_result(_run_evaluation_node)
 def multi_corr(df, col_true, col_pred=None):
     """
-    Compute multiple correlation coefficient (R) of a predicted data set.
+    Compute multiple correlation coefficient (R) of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -178,7 +178,7 @@ def multi_corr(df, col_true, col_pred=None):
 @metrics_result(_run_evaluation_node)
 def rooted_mean_squared_error(df, col_true, col_pred=None):
     """
-    Compute rooted mean squared error (RMSE) of a predicted data set.
+    Compute rooted mean squared error (RMSE) of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -199,7 +199,7 @@ def rooted_mean_squared_error(df, col_true, col_pred=None):
 @metrics_result(_run_evaluation_node)
 def mean_absolute_deviation(df, col_true, col_pred=None):
     """
-    Compute mean absolute deviation (MAD) of a predicted data set.
+    Compute mean absolute deviation (MAD) of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 
@@ -220,7 +220,7 @@ def mean_absolute_deviation(df, col_true, col_pred=None):
 @metrics_result(_run_evaluation_node)
 def residual_histogram(df, col_true, col_pred=None):
     """
-    Compute histogram of residuals of a predicted data set.
+    Compute histogram of residuals of a predicted DataFrame.
 
     Note that this method will trigger the defined flow to execute.
 

@@ -186,6 +186,10 @@ class Test(TestBase):
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertIsNone(res)
 
+            expr = df.filter_partition('name={0},id={1}'.format(data[0][0], data[0][1]))
+            res = self.engine._handle_cases(expr, self.faked_bar)
+            self.assertIsNone(res)
+
             expr = df[(df.name == data[0][0]) & (df.id == data[0][1])]['fid', 'ismale'].count()
             expr = self.engine._pre_process(expr)
             res = self.engine._handle_cases(expr, self.faked_bar)
@@ -486,6 +490,12 @@ class Test(TestBase):
 
         self.assertEqual(len(self.engine._ctx._registered_funcs.values()), 2)
 
+        expr = self.expr.apply(lambda row: row.name + str(row.id), axis=1, reduce=True).rename('name')
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertEqual(result, [[r[0] + str(r[1])] for r in data])
+
     def testElement(self):
         data = self._gen_data(5, nullable_field='name')
 
@@ -758,6 +768,7 @@ class Test(TestBase):
             (lambda s: s.istitle(), self.expr.name.istitle()),
             (lambda s: to_str(s).isnumeric(), self.expr.name.isnumeric()),
             (lambda s: to_str(s).isdecimal(), self.expr.name.isdecimal()),
+            (lambda s: False, self.expr.name.map(lambda x: None).contains('abc')),
         ]
 
         fields = [it[1].rename('id'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -797,6 +808,23 @@ class Test(TestBase):
                     if arg in self.valid_ids:
                         return arg
 
+        class my_func3(object):
+            def __init__(self, resources):
+                self.file_resource = resources[0]
+                self.table_resource = resources[1]
+                self.table_resource2 = list(resources[2])
+
+                self.valid_ids = [int(l) for l in self.file_resource]
+                self.valid_ids.extend([int(l[0]) for l in self.table_resource])
+
+            def __call__(self, arg):
+                if isinstance(arg, tuple):
+                    if arg[1] in self.valid_ids:
+                        return arg
+                else:
+                    if arg in self.valid_ids:
+                        return arg
+
         def my_func2(resources):
             file_resource = resources[0]
             table_resource = resources[1]
@@ -816,6 +844,7 @@ class Test(TestBase):
         file_resource_name = tn('pyodps_tmp_file_resource')
         table_resource_name = tn('pyodps_tmp_table_resource')
         table_name = tn('pyodps_tmp_function_resource_table')
+        table_name2 = tn('pyodps_tmp_function_resource_table2')
         try:
             self.odps.delete_resource(file_resource_name)
         except:
@@ -825,7 +854,11 @@ class Test(TestBase):
         self.odps.delete_table(table_name, if_exists=True)
         t = self.odps.create_table(table_name, Schema.from_lists(['id'], ['bigint']))
         with t.open_writer() as writer:
-            writer.write([r[1: 2] for r in data[3: 4]])
+            writer.write([r[1:2] for r in data[3:4]])
+        self.odps.delete_table(table_name2, if_exists=True)
+        t2 = self.odps.create_table(table_name2, Schema.from_lists(['name', 'id'], ['string', 'bigint']))
+        with t2.open_writer() as writer:
+            writer.write([r[:2] for r in data[3:4]])
         try:
             self.odps.delete_resource(table_resource_name)
         except:
@@ -843,7 +876,7 @@ class Test(TestBase):
             self.assertEqual(sorted([[r[1]] for r in data[:4]]), sorted(result))
 
             expr = self.expr['name', 'id', 'fid']
-            expr = expr.apply(my_func, axis=1, resources=[file_resource, table_resource],
+            expr = expr.apply(my_func3, axis=1, resources=[file_resource, table_resource, t2.to_df()],
                               names=expr.schema.names, types=expr.schema.types)
 
             res = self.engine.execute(expr)

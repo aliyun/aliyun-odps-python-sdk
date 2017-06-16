@@ -31,11 +31,11 @@ except ImportError:
 class Test(TestBase):
     def setUp(self):
         super(Test, self).setUp()
-        self.old_use_instance_tunnel = options.use_instance_tunnel
+        self.old_use_instance_tunnel = options.tunnel.use_instance_tunnel
 
     def tearDown(self):
         super(Test, self).tearDown()
-        options.use_instance_tunnel = self.old_use_instance_tunnel
+        options.tunnel.use_instance_tunnel = self.old_use_instance_tunnel
 
     @unittest.skipIf(not has_ipython, 'Skipped when no IPython is detected.')
     def testExecuteSql(self):
@@ -50,11 +50,11 @@ class Test(TestBase):
         self.odps.create_table(test_table_name, 'col string', lifecycle=1)
         self.odps.write_table(test_table_name, test_content)
 
-        options.use_instance_tunnel = False
+        options.tunnel.use_instance_tunnel = False
         result = magic_class.execute('select * from %s' % test_table_name)
         self.assertListEqual(self._get_result(result), test_content)
 
-        options.use_instance_tunnel = True
+        options.tunnel.use_instance_tunnel = True
         result = magic_class.execute('select * from %s' % test_table_name)
         self.assertListEqual(self._get_result(result), test_content)
 

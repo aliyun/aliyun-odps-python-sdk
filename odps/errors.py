@@ -145,6 +145,10 @@ class ConnectTimeout(ODPSError):
     pass
 
 
+class DataHealthManagerError(ODPSError):
+    pass
+
+
 class ServerDefinedException(ODPSError):
 
     def __str__(self):
@@ -194,6 +198,10 @@ class NoSuchPath(ServerDefinedException):
 
 
 class InternalServerError(ServerDefinedException):
+    pass
+
+
+class ReadMetaError(InternalServerError):
     pass
 
 

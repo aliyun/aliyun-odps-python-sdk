@@ -79,6 +79,12 @@ except ImportError:
         def __getattr__(self, item):
             raise AttributeError('Accessing attribute `{0}` of module `socket` is prohibited by sandbox.'.format(item))
     sys.modules['socket'] = MockSocketModule()
+    
+
+def gen_resource_data(fields, tb):
+    named_args = xnamedtuple('NamedArgs', fields)
+    for args in tb:
+        yield named_args(*args)
 
 
 def read_lib(lib, f):
@@ -119,8 +125,7 @@ class %(func_cls_name)s(object):
             else:
                 tb = get_cache_table(str(n))
                 if fields:
-                    named_args = xnamedtuple('NamedArgs', fields)
-                    tb = (named_args(*args) for args in tb)
+                    tb = gen_resource_data(fields, tb)
                 resources.append(tb)
 
         encoded = '%(func_str)s'
@@ -137,6 +142,8 @@ class %(func_cls_name)s(object):
                 self.f = self.f(resources)
 
         self.names = tuple(it for it in '%(names_str)s'.split(',') if it)
+        if self.names:
+            self.named_args = xnamedtuple('NamedArgs', self.names)
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
@@ -198,8 +205,7 @@ class %(func_cls_name)s(object):
             res = self.f(*args, **self.kwargs)
             return self._handle_output(res)
         else:
-            named_args = xnamedtuple('NamedArgs', self.names)
-            res = self.f(named_args(*args), *self.args, **self.kwargs)
+            res = self.f(self.named_args(*args), *self.args, **self.kwargs)
             return self._handle_output(res)
 '''
 
@@ -229,8 +235,7 @@ class %(func_cls_name)s(BaseUDTF):
             else:
                 tb = get_cache_table(str(n))
                 if fields:
-                    named_args = xnamedtuple('NamedArgs', fields)
-                    tb = (named_args(*args) for args in tb)
+                    tb = gen_resource_data(fields, tb)
                 resources.append(tb)
 
         encoded = '%(func_str)s'
@@ -372,8 +377,7 @@ class %(func_cls_name)s(BaseUDAF):
             else:
                 tb = get_cache_table(str(n))
                 if fields:
-                    named_args = xnamedtuple('NamedArgs', fields)
-                    tb = (named_args(*args) for args in tb)
+                    tb = gen_resource_data(fields, tb)
                 resources.append(tb)
 
         encoded_func_args = '%(func_args_str)s'

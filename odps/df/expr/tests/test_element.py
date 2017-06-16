@@ -48,6 +48,7 @@ class Test(TestBase):
         self.assertIsInstance(self.expr.name.fillna('test'), FillNa)
         self.assertIsInstance(self.expr.name.fillna('test'), StringSequenceExpr)
         self.assertIsInstance(self.expr.name.sum().fillna('test'), StringScalar)
+        self.assertIsInstance(self.expr.scale.fillna(0), DecimalSequenceExpr)
 
         self.assertRaises(ValueError, lambda: self.expr.id.fillna('abc'))
 

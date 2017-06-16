@@ -65,6 +65,18 @@ class Test(MLTestBase):
         predicted['appended_col'] = predicted['prediction_score'] * 2
         predicted.to_pandas()
 
+    def test_sequential_execute(self):
+        self.create_ionosphere(IONOSPHERE_TABLE)
+        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
+        train, test = df.split(0.6)
+        lr = LogisticRegression(epsilon=0.01)
+        model = lr.train(train)
+        predicted = model.predict(test)
+        predicted.count().execute()
+        model = lr.train(predicted)
+        predicted2 = model.predict(test)
+        predicted2.count().execute()
+
     def test_df_multiple_persist(self):
         self.odps.delete_table(IONOSPHERE_PREDICTED_1, if_exists=True)
         self.odps.delete_table(IONOSPHERE_PREDICTED_2, if_exists=True)

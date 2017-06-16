@@ -155,6 +155,8 @@ class AlgoExprMixin(Expr):
         shared_props_registry[self._exec_id]['shared_kw'] = value
 
     def outputs(self):
+        if getattr(self, '_exec_id', None) is None:
+            return dict()
         out_dict = expr_output_registry.get(self._exec_id, dict())
         out_dict = dict((k, v()) for k, v in six.iteritems(out_dict))
         return dict((k, v) for k, v in six.iteritems(out_dict) if v is not None and not v.is_extra_expr)

@@ -25,6 +25,8 @@ from datetime import datetime
 
 def bothPyAndC(func):
     def inner(self, *args, **kwargs):
+        global Schema, Record
+
         try:
             import cython
             ts = 'py', 'c'
@@ -41,6 +43,8 @@ def bothPyAndC(func):
 
                 from odps import models
                 reload_module(models)
+
+                Schema, Record = models.Schema, models.Record
 
                 func(self, *args, **kwargs)
             finally:
@@ -66,6 +70,12 @@ class Test(TestBase):
             ['col%s'%i for i in range(8)],
             ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal',
              'array<string>', 'map<string,bigint>'])
+        s.build_snapshot()
+        if options.force_py:
+            self.assertIsNone(s._snapshot)
+        else:
+            self.assertIsNotNone(s._snapshot)
+
         r = Record(schema=s)
         r[0] = 1
         r[1] = 1.2
@@ -87,6 +97,7 @@ class Test(TestBase):
         self.assertEquals(OrderedDict({'a': 1}), r[7])
         self.assertEquals([1, 1.2], r[:2])
 
+    @bothPyAndC
     def testRecordSetAndGetByName(self):
         s = Schema.from_lists(
             ['col%s'%i for i in range(8)],
@@ -112,7 +123,7 @@ class Test(TestBase):
         self.assertEquals(['a', 'b'], r['col6'])
         self.assertEquals( OrderedDict({'a': 1}), r['col7'])
 
-    def testInplicitCast(self):
+    def testImplicitCast(self):
         bigint = Bigint()
         double = Double()
         datetime = Datetime()
@@ -132,6 +143,7 @@ class Test(TestBase):
         self.assertFalse(bool.can_implicit_cast(double))
         self.assertFalse(datetime.can_implicit_cast(double))
 
+    @bothPyAndC
     def testSetWithCast(self):
         s = Schema.from_lists(
             ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal'],
@@ -146,6 +158,7 @@ class Test(TestBase):
         r['datetime'] = '2016-01-01 0:0:0'
         self.assertEquals(datetime(2016, 1, 1), r['datetime'])
 
+    @bothPyAndC
     def testRecordSetField(self):
         s = Schema.from_lists(['col1'], ['string',])
         r = Record(schema=s)
@@ -159,6 +172,7 @@ class Test(TestBase):
         self.assertEqual(r[0], 'c')
         self.assertEqual(r['col1'], 'c')
 
+    @bothPyAndC
     def testDuplicateNames(self):
         self.assertRaises(ValueError, lambda: Schema.from_lists(['col1', 'col1'], ['string', 'string']))
         try:
@@ -166,6 +180,7 @@ class Test(TestBase):
         except ValueError as e:
             self.assertTrue('col1' in str(e))
 
+    @bothPyAndC
     def testChineseSchema(self):
         s = Schema.from_lists([u'用户'], ['string'], ['分区'], ['bigint'])
         self.assertIn('用户', s)
@@ -177,20 +192,41 @@ class Test(TestBase):
         s2 = Schema.from_lists(['用户'], ['string'], [u'分区'], ['bigint'])
         self.assertEqual(s, s2)
 
+    @bothPyAndC
     def testRecordMultiFields(self):
         s = Schema.from_lists(['col1', 'col2'], ['string', 'bigint'])
         r = Record(values=[1, 2], schema=s)
 
         self.assertEqual(r['col1', 'col2'], ['1', 2])
 
-        self.assertRaises(AttributeError, lambda: r['col3'])
-        self.assertRaises(AttributeError, lambda: r['col3', ])
+        self.assertRaises(KeyError, lambda: r['col3'])
+        self.assertRaises(KeyError, lambda: r['col3', ])
 
+    @bothPyAndC
     def testBizarreRepr(self):
         s = Schema.from_lists(['逗比 " \t'], ['string'], ['正常'], ['bigint'])
         s_repr = repr(s)
         self.assertIn('"逗比 \\" \\t"', s_repr)
         self.assertNotIn('"正常"', s_repr)
+
+    @bothPyAndC
+    def testStringAsBinary(self):
+        try:
+            options.tunnel.string_as_binary = True
+            s = Schema.from_lists(['col1', 'col2'], ['string', 'bigint'])
+            r = Record(values=[1, 2], schema=s)
+            self.assertEqual(r['col1', 'col2'], [b'1', 2])
+            self.assertIsInstance(r[0], bytes)
+
+            r[0] = u'junk'
+            self.assertEqual(r[0], b'junk')
+            self.assertIsInstance(r[0], bytes)
+
+            r[0] = b'junk'
+            self.assertEqual(r[0], b'junk')
+            self.assertIsInstance(r[0], bytes)
+        finally:
+            options.tunnel.string_as_binary = False
 
 if __name__ == '__main__':
     unittest.main()

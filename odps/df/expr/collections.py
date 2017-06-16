@@ -1187,7 +1187,7 @@ def min_max_scale(expr, columns=None, feature_range=(0, 1), preserve=False, suff
     """
     Resize a data frame by max / min values, i.e., (X - min(X)) / (max(X) - min(X))
 
-    :param DataFrame expr: input data set
+    :param DataFrame expr: input DataFrame
     :param feature_range: the target range to resize the value into, i.e., v * (b - a) + a
     :param bool preserve: determine whether input data should be kept. If True, scaled input data will be appended to the data frame with `suffix`
     :param columns: columns names to resize. If set to None, float or int-typed columns will be normalized if the column is not specified as a group column.
@@ -1218,7 +1218,7 @@ def std_scale(expr, columns=None, with_means=True, with_std=True, preserve=False
     """
     Resize a data frame by mean and standard error.
 
-    :param DataFrame expr: Input data set
+    :param DataFrame expr: Input DataFrame
     :param bool with_means: Determine whether the output will be subtracted by means
     :param bool with_std: Determine whether the output will be divided by standard deviations
     :param bool preserve: Determine whether input data should be kept. If True, scaled input data will be appended to the data frame with `suffix`
@@ -1278,7 +1278,7 @@ def extract_kv(expr, columns=None, kv_delim=':', item_delim=',', dtype='float', 
     Extract values in key-value represented columns into standalone columns. New column names will
     be the name of the key-value column followed by an underscore and the key.
 
-    :param DataFrame expr: input data set
+    :param DataFrame expr: input DataFrame
     :param columns: the key-value columns to be extracted.
     :param str kv_delim: delimiter between key and value.
     :param str item_delim: delimiter between key-value pairs.
@@ -1327,7 +1327,7 @@ def to_kv(expr, columns=None, kv_delim=':', item_delim=',', kv_name='kv_col'):
     """
     Merge values in specified columns into a key-value represented column.
 
-    :param DataFrame expr: input data set.
+    :param DataFrame expr: input DataFrame
     :param columns: the columns to be merged.
     :param str kv_delim: delimiter between key and value.
     :param str item_delim: delimiter between key-value pairs.
@@ -1370,7 +1370,7 @@ def dropna(expr, how='any', thresh=None, subset=None):
     """
     Return object with labels on given axis omitted where alternately any or all of the data are missing
 
-    :param DataFrame expr: input data set.
+    :param DataFrame expr: input DataFrame
     :param how: can be ‘any’ or ‘all’. If 'any' is specified any NA values are present, drop that label. If 'all' is specified and all values are NA, drop that label.
     :param thresh: require that many non-NA values
     :param subset: Labels along other axis to consider, e.g. if you are dropping rows these would be a list of columns to include
@@ -1395,7 +1395,7 @@ def fillna(expr, value=None, method=None, subset=None):
     """
     Fill NA/NaN values using the specified method
 
-    :param DataFrame expr: input data set.
+    :param DataFrame expr: input DataFrame
     :param method: can be ‘backfill’, ‘bfill’, ‘pad’, ‘ffill’ or None
     :param value: value to fill into
     :param subset: Labels along other axis to consider.
@@ -1457,7 +1457,7 @@ def ffill(expr, subset=None):
     """
     Fill NA/NaN values with the forward method. Equivalent to fillna(method='ffill').
 
-    :param DataFrame expr: input data set.
+    :param DataFrame expr: input DataFrame.
     :param subset: Labels along other axis to consider.
     :return: DataFrame
     """
@@ -1468,7 +1468,7 @@ def bfill(expr, subset=None):
     """
     Fill NA/NaN values with the backward method. Equivalent to fillna(method='bfill').
 
-    :param DataFrame expr: input data set.
+    :param DataFrame expr: input DataFrame.
     :param subset: Labels along other axis to consider.
     :return: DataFrame
     """
@@ -1556,7 +1556,7 @@ def split(expr, frac, seed=None):
 
     :param float frac: Split ratio
 
-    :return: two split data set objects
+    :return: two split DataFrame objects
     """
     if hasattr(expr, '_xflow_split'):
         return expr._xflow_split(frac, seed=seed)

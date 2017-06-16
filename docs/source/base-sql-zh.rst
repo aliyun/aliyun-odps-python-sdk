@@ -57,7 +57,7 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
    >>> with o.execute_sql('desc dual').open_reader() as reader:
    >>>     print(reader.raw)
 
-如果 `options.use_instance_tunnel == True`，那么 PyODPS 会默认调用 Instance Tunnel，否则会调用旧的 Result 接口。
+如果 `options.tunnel.use_instance_tunnel == True`，那么 PyODPS 会默认调用 Instance Tunnel，否则会调用旧的 Result 接口。
 如果你使用了版本较低的 MaxCompute 服务，PyODPS 会自动降级到旧的 Result 接口。如果 Instance Tunnel 的结果不合预期，
 请将该选项设为 `False`。在调用 open_reader 时，也可以使用 ``use_tunnel`` 参数来指定使用何种结果接口，例如
 
@@ -65,14 +65,16 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 
    >>> # 使用 Instance Tunnel
    >>> with o.execute_sql('select * from dual').open_reader(use_tunnel=True) as reader:
-   >>>     print(reader.raw)
+   >>>     for record in reader:
+   >>>         # 处理每一个record
    >>> # 使用 Results 接口
    >>> with o.execute_sql('select * from dual').open_reader(use_tunnel=False) as reader:
-   >>>     print(reader.raw)
+   >>>     for record in reader:
+   >>>         # 处理每一个record
 
 PyODPS 默认限制能够从 Instance 读取的数据规模，限制数目由 ODPS Project 的设置决定。如果使用 Instance Tunnel，可以
-将 `options.limited_instance_tunnel` 设为 False 或加入 `limited_enabled=False` 选项以放开限制。如果使用旧 Result
-接口，可将 SQL 结果写入另一张表后用读表接口读取（可能受到 Project 级别安全设置的限制）。
+将 `options.tunnel.limited_instance_tunnel` 设为 False 或在 open_reader 方法中加入 `limited_enabled=False` 选项以放开限制。
+如果使用旧 Result 接口，可将 SQL 结果写入另一张表后用读表接口读取（可能受到 Project 级别安全设置的限制）。
 
 设置alias
 ------------

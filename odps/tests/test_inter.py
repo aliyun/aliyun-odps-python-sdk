@@ -49,7 +49,7 @@ class Test(TestBase):
         self.assertEqual(access_key, options.account.secret_access_key)
         self.assertEqual(project, options.default_project)
         self.assertEqual(endpoint, options.end_point)
-        self.assertIsNone(options.tunnel_endpoint)
+        self.assertIsNone(options.tunnel.endpoint)
 
         self.assertRaises(
             InteractiveError,
