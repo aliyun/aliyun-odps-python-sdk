@@ -7,10 +7,20 @@ environment:
 
   matrix:
 
-    # Python 2.7.10 is the latest version and is not pre-installed.
-    
-    - PYTHON: "C:\\Python27.10-x64"
-      PYTHON_VERSION: "2.7.10"
+    - PYTHON: "C:\\Python27"
+      PYTHON_VERSION: "2.7.x" # currently 2.7.9
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python27-x64"
+      PYTHON_VERSION: "2.7.x" # currently 2.7.9
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Python33"
+      PYTHON_VERSION: "3.3.x" # currently 3.3.5
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python33-x64"
+      PYTHON_VERSION: "3.3.x" # currently 3.3.5
       PYTHON_ARCH: "64"
 
 
@@ -47,15 +57,15 @@ install:
   # compiled extensions and are not provided as pre-built wheel packages,
   # pip will build them from source using the MSVC compiler matching the
   # target Python version and architecture
-  - "%PYTHON%\\pip install -r requirements-full.txt"
+  - "pip install -r requirements-full.txt"
 
 build_script:
   # Build the compiled extension
-  - "build.cmd %PYTHON%\\python setup.py build"
+  - "build.cmd python setup.py build"
 
 after_test:
   # If tests are successful, create binary packages for the project.
-  - "build.cmd %PYTHON%\\python setup.py bdist_wheel"
+  - "build.cmd python setup.py bdist_wheel"
   - ps: "ls dist"
 
 artifacts:
