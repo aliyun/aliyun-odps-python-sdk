@@ -23,7 +23,7 @@ from datetime import datetime
 
 from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
 from .job import Job
-from .worker import WorkerDetail2
+from .worker import WorkerDetail2, LOG_TYPES_MAPPING
 from .. import serializers, utils, errors, compat, readers, options
 from ..compat import ElementTree, Enum, six, OrderedDict, raise_exc
 
@@ -537,6 +537,28 @@ class Instance(LazyLoad):
         """
         json_obj = self.get_task_detail2(task_name)
         return WorkerDetail2.extract_from_json(json_obj, client=self._client, parent=self)
+
+    def get_worker_log(self, log_id, log_type, size=0):
+        """
+        Get logs from worker.
+
+        :param log_id: id of log, can be retrieved from details.
+        :param log_type: type of logs. Possible log types contains {log_types}
+        :param size: length of the log to retrieve
+        :return: log content
+        """
+        params = OrderedDict([('log', ''), ('id', log_id)])
+        if log_type is not None:
+            log_type = log_type.lower()
+            if log_type not in LOG_TYPES_MAPPING:
+                raise ValueError('log_type should choose a value in ' +
+                                 ' '.join(six.iterkeys(LOG_TYPES_MAPPING)))
+            params['logtype'] = LOG_TYPES_MAPPING[log_type]
+        if size > 0:
+            params['size'] = str(size)
+        resp = self._client.get(self.resource(), params=params)
+        return resp.text
+    get_worker_log.__doc__ = get_worker_log.__doc__.format(log_types=', '.join(sorted(six.iterkeys(LOG_TYPES_MAPPING))))
 
     def get_logview_address(self, hours=None):
         """

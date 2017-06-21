@@ -182,7 +182,7 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
 
         extension_kw = dict(language='c++')
         if 'MSC' in sys.version:
-            extension_kw['extra_compile_args'] = ['/Ot']
+            extension_kw['extra_compile_args'] = ['/Ot', '/I' + os.path.join(repo_root, 'misc')]
         else:
             extension_kw['extra_compile_args'] = ['-O3']
 

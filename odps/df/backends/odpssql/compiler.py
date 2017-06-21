@@ -322,7 +322,11 @@ class OdpsSQLCompiler(Backend):
     def _fill_back_columns(self, sql, symbols_to_columns):
         symbol_compiled = dict()
         for symbol, column in six.iteritems(symbols_to_columns):
-            collection, name = self._retrieve_column_alias_collection(column)
+            try:
+                collection, name = self._retrieve_column_alias_collection(column)
+            except KeyError:
+                # sorted column relative, just ignore
+                continue
             symbol_compiled[symbol] = '{0}.{1}'.format(
                 self._ctx.get_collection_alias(collection)[0],
                 self._quote(name))

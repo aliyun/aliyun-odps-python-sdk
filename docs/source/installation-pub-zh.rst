@@ -18,9 +18,7 @@
 
 
 安装有 `合适版本 <https://wiki.python.org/moin/WindowsCompilers>`_ Visual C++ 和 Cython 的 Windows 用户也可使用
-Tunnel 加速功能，但 Visual C++ 2008 及以下版本用户需要在编译器 include 目录中加入 stdint.h 头文件，否则会导致编译错误。
-该文件可在
-`这里 <https://raw.githubusercontent.com/miloyip/rapidjson/master/include/rapidjson/msinttypes/stdint.h>`_ 获得。
+Tunnel 加速功能。
 
 接着就可以安装PyODPS：
 

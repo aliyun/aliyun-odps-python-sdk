@@ -2006,6 +2006,20 @@ class Test(TestBase):
         fun_name = list(engine._ctx._registered_funcs.values())[0]
         self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
 
+    def testJoinSort(self):
+        expr = self.expr.outer_join(self.expr1, on='id')
+        expr = expr[expr['id_x'].rename('id'), 'name_x', 'name_y'].sort(['id', 'name_x'])
+        engine = ODPSEngine(self.odps)
+
+        expected = "SELECT t1.`id`, t1.`name` AS `name_x`, t2.`name` AS `name_y` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "FULL OUTER JOIN \n" \
+                   "  mocked_project.`pyodps_test_expr_table1` t2\n" \
+                   "ON t1.`id` == t2.`id` \n" \
+                   "ORDER BY id, name_x \n" \
+                   "LIMIT 10000"
+        self.assertEqual(to_str(expected), to_str(engine.compile(expr, prettify=False)))
+
     def testAsType(self):
         e = self.expr
         new_e = e.id.astype('float')
