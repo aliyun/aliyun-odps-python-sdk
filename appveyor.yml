@@ -6,6 +6,17 @@ environment:
     CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\appveyor\\run_with_env.cmd"
 
   matrix:
+
+    # Python 2.7.10 is the latest version and is not pre-installed.
+
+    - PYTHON: "C:\\Python27.10"
+      PYTHON_VERSION: "2.7.10"
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python27.10-x64"
+      PYTHON_VERSION: "2.7.10"
+      PYTHON_ARCH: "64"
+
     # Pre-installed Python versions, which Appveyor may upgrade to
     # a later point release.
     # See: http://www.appveyor.com/docs/installed-software#python
@@ -13,6 +24,47 @@ environment:
     - PYTHON: "C:\\Python27"
       PYTHON_VERSION: "2.7.x" # currently 2.7.9
       PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python27-x64"
+      PYTHON_VERSION: "2.7.x" # currently 2.7.9
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Python33"
+      PYTHON_VERSION: "3.3.x" # currently 3.3.5
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python33-x64"
+      PYTHON_VERSION: "3.3.x" # currently 3.3.5
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Python34"
+      PYTHON_VERSION: "3.4.x" # currently 3.4.3
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python34-x64"
+      PYTHON_VERSION: "3.4.x" # currently 3.4.3
+      PYTHON_ARCH: "64"
+
+    # Python versions not pre-installed
+
+    # Python 2.6.6 is the latest Python 2.6 with a Windows installer
+    # See: https://github.com/ogrisel/python-appveyor-demo/issues/10
+
+    - PYTHON: "C:\\Python266"
+      PYTHON_VERSION: "2.6.6"
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python266-x64"
+      PYTHON_VERSION: "2.6.6"
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Python35"
+      PYTHON_VERSION: "3.5.0"
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python35-x64"
+      PYTHON_VERSION: "3.5.0"
+      PYTHON_ARCH: "64"
 
     # Major and minor releases (i.e x.0.0 and x.y.0) prior to 3.3.0 use
     # a different naming scheme.
@@ -39,11 +91,7 @@ install:
   - ps: "ls \"C:/\""
 
   - ECHO "Installed SDKs:"
-  - ps: "ls \"C:/Program Files/\""
-
-  # Install Python (from the official .msi of http://python.org) and pip when
-  # not already installed.
-  - ps: if (-not(Test-Path($env:PYTHON))) { & appveyor\install.ps1 }
+  - ps: "ls \"C:/Program Files/Microsoft SDKs/Windows\""
 
   # Prepend newly installed Python to the PATH of this build (this cannot be
   # done from inside the powershell script as it would require to restart
@@ -82,7 +130,3 @@ after_test:
 artifacts:
   # Archive the generated packages in the ci.appveyor.com build report.
   - path: dist\*
-
-#on_success:
-#  - TODO: upload the content of dist/*.whl to a public wheelhouse
-#
