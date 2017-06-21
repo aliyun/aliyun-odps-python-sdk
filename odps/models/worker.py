@@ -14,14 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..compat import six, OrderedDict
+from ..compat import six
 from .. import serializers
 
-_LOG_TYPES_MAPPING = {
+LOG_TYPES_MAPPING = {
     'hs_err_log': 'hs_err_*.log',
     'coreinfo': 'coreinfo.tmp',
 }
-_LOG_TYPES_MAPPING.update(dict((k, k) for k in 'stdout stderr waterfall_summary jstack pstack'.split()))
+LOG_TYPES_MAPPING.update(dict((k, k) for k in 'stdout stderr waterfall_summary jstack pstack'.split()))
 
 
 class Worker(serializers.JSONSerializableModel):
@@ -42,24 +42,14 @@ class Worker(serializers.JSONSerializableModel):
         :param size: length of the log to retrieve
         :return: log content
         """
-        params = OrderedDict([('log', ''), ('id', self.log_id)])
-        if log_type is not None:
-            log_type = log_type.lower()
-            if log_type not in _LOG_TYPES_MAPPING:
-                raise ValueError('log_type should choose a value in ' +
-                                 ' '.join(six.iterkeys(_LOG_TYPES_MAPPING)))
-            params['logtype'] = _LOG_TYPES_MAPPING[log_type]
-        if size > 0:
-            params['size'] = str(size)
-        resp = self._client.get(self.parent.resource(), params=params)
-        return resp.text
-
-    get_log.__doc__ = get_log.__doc__.format(log_types=', '.join(sorted(six.iterkeys(_LOG_TYPES_MAPPING))))
+        return self.parent.get_worker_log(self.log_id, log_type, size=size)
+    get_log.__doc__ = get_log.__doc__.format(log_types=', '.join(sorted(six.iterkeys(LOG_TYPES_MAPPING))))
 
 
 class WorkerDetail2(Worker):
     id = serializers.JSONNodeField('id')
     log_id = serializers.JSONNodeField('logId')
+    type = serializers.JSONNodeField('type')
     start_time = serializers.JSONNodeField('startTime', parse_callback=int)
     end_time = serializers.JSONNodeField('endTime', parse_callback=int)
     status = serializers.JSONNodeField('status')
@@ -78,9 +68,11 @@ class WorkerDetail2(Worker):
                 for v in o:
                     _extract(v)
             elif isinstance(o, dict):
+                worker_type = o.get('name', '')
                 if 'instances' in o:
                     for v in o['instances']:
                         w = cls.parse(v, parent=parent)
+                        w.type = worker_type
                         w._client = client
                         workers.append(w)
                     return

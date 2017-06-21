@@ -541,7 +541,7 @@ PyODPS 默认支持执行纯 Python 且不含文件操作的第三方库。在�
     >>> odps.create_resource('scipy.zip', 'archive', file_obj=open('scipy-0.19.0-cp27-cp27m-manylinux1_x86_64.whl'))
     >>>
     >>> # 如果 Project 开启了 Isolation，下面的选项不是必需的
-    >>> options.sql.settings = { 'odps.isolation.setting.enable': True }
+    >>> options.sql.settings = { 'odps.isolation.session.enable': True }
     >>>
     >>> def psi(value):
     >>>     # 建议在函数内部 import 第三方库，以防止不同操作系统下二进制包结构差异造成执行错误

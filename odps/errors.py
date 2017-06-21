@@ -79,9 +79,10 @@ def throw_if_parsable(resp):
             raise ODPSError(str(resp.status_code))
 
 
-CODE_MAPPING = {
+_CODE_MAPPING = {
     'ODPS-0010000': 'InternalServerError',
     'ODPS-0123055': 'ScriptError',
+    'ODPS-0110141': 'DataVersionError',
 }
 
 
@@ -89,8 +90,8 @@ def parse_instance_error(msg):
     msg_parts = reduce(operator.add, (pt.split(':') for pt in msg.split(' - ')))
     msg_parts = [pt.strip() for pt in msg_parts]
     try:
-        msg_code = next(p for p in msg_parts if p in CODE_MAPPING)
-        cls = globals().get(CODE_MAPPING[msg_code], ODPSError)
+        msg_code = next(p for p in msg_parts if p in _CODE_MAPPING)
+        cls = globals().get(_CODE_MAPPING[msg_code], ODPSError)
     except StopIteration:
         cls = ODPSError
         msg_code = None
@@ -206,6 +207,10 @@ class ReadMetaError(InternalServerError):
 
 
 class ScriptError(ServerDefinedException):
+    pass
+
+
+class DataVersionError(InternalServerError):
     pass
 
 
