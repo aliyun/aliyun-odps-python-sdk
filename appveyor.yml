@@ -39,7 +39,7 @@ install:
   - ps: "ls \"C:/\""
 
   - ECHO "Installed SDKs:"
-  - ps: "ls \"C:/Program Files/""
+  - ps: "ls \"C:/Program Files/\""
 
   # Install Python (from the official .msi of http://python.org) and pip when
   # not already installed.
