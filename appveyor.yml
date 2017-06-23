@@ -43,9 +43,11 @@ install:
 
 
 
-on_success:
+after_test:
   # Build the compiled extension
   - "python setup.py build"
+  
+  - "python setup.py bdist_wheel"
   
   # Specify account details for testPyPI
   - echo [distutils]                                  > %USERPROFILE%\\.pypirc
@@ -58,12 +60,9 @@ on_success:
   
   # Workaround required to ensure setup.py finds the .pypirc under Windows
   - set HOME=%USERPROFILE%
-  
-  - "python setup.py bdist_wheel"
-  
-  - "twine register -r pypitest dist:\\*.wheel"
- 
 
+  - "twine register -r pypitest dist:\\*"
+ 
 artifacts:
   # Archive the generated packages in the ci.appveyor.com build report.
   - path: dist\*
