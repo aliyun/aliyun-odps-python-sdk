@@ -52,8 +52,8 @@ after_test:
   # Specify account details for testPyPI
   - echo [distutils]                                  > %USERPROFILE%\\.pypirc
   - echo index-servers =                             >> %USERPROFILE%\\.pypirc
-  - echo     pypitest                                >> %USERPROFILE%\\.pypirc
-  - echo [pypitest]                                  >> %USERPROFILE%\\.pypirc
+  - echo     testpypi                                >> %USERPROFILE%\\.pypirc
+  - echo [testpypi]                                  >> %USERPROFILE%\\.pypirc
   - echo repository=https://testpypi.python.org/pypi >> %USERPROFILE%\\.pypirc
   - echo username=pyodps                             >> %USERPROFILE%\\.pypirc
   - echo password=%SECUREPSD%                        >> %USERPROFILE%\\.pypirc
@@ -68,6 +68,6 @@ artifacts:
 on_success:  
   #- "twine upload -u pyodps -p %SECUREPSD dist\*"
   - "python setup.py register -r https://testpypi.python.org/pypi"
-  - "twine upload -u pyodps -p PyODPSMars@015 -r testpypi dist/*"
+  - "twine upload -r testpypi dist/*"
  
 
