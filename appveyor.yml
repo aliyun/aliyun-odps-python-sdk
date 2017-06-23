@@ -41,9 +41,6 @@ install:
   - "pip install twine"
 
 
-artifacts:
-  # Archive the generated packages in the ci.appveyor.com build report.
-  - path: dist\*
 
 
 on_success:
@@ -66,3 +63,7 @@ on_success:
   
   - "twine register -r pypitest dist:\\*.wheel"
  
+
+artifacts:
+  # Archive the generated packages in the ci.appveyor.com build report.
+  - path: dist\*
