@@ -2,13 +2,13 @@ environment:
 
   matrix:
 
-    - PYTHON: "C:\\Python27"
-      PYTHON_VERSION: "2.7.x"
-      PYTHON_ARCH: "32"
+    #- PYTHON: "C:\\Python27"
+    #  PYTHON_VERSION: "2.7.x"
+    #  PYTHON_ARCH: "32"
 
-    - PYTHON: "C:\\Python27-x64"
-      PYTHON_VERSION: "2.7.x"
-      PYTHON_ARCH: "64"
+    #- PYTHON: "C:\\Python27-x64"
+    #  PYTHON_VERSION: "2.7.x"
+    #  PYTHON_ARCH: "64"
 
     - PYTHON: "C:\\Python35"
       PYTHON_VERSION: "3.5.0"
@@ -17,11 +17,6 @@ environment:
     - PYTHON: "C:\\Python35-x64"
       PYTHON_VERSION: "3.5.0"
       PYTHON_ARCH: "64"
-      DISTUTILS_USE_SDK: "1"
-
-platform:
-  - x86
-  - Any CPU
 
 install:
   # Prepend newly installed Python to the PATH of this build (this cannot be
@@ -48,7 +43,8 @@ build_script:
 
 after_test:
   - "python setup.py bdist_wheel"
-  - ps: "ls dist"
+  - "python setup.py bdist_wheel"
+  - "python setup.py bdist_wheel"
 
 artifacts:
   # Archive the generated packages in the ci.appveyor.com build report.
