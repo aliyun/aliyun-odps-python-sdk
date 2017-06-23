@@ -41,12 +41,12 @@ install:
   #- "pip install twine"
 
 
-
-
-after_test:
+build:
   # Build the compiled extension
   - "python setup.py build"
-  
+
+after_test:
+
   - "python setup.py bdist_wheel"
   
   # Specify account details for testPyPI
