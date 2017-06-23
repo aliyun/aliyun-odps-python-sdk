@@ -8,17 +8,17 @@ environment:
       PYTHON_VERSION: "2.7.x"
       PYTHON_ARCH: "32"
 
-    - PYTHON: "C:\\Python27-x64"
-      PYTHON_VERSION: "2.7.x"
-      PYTHON_ARCH: "64"
+    #- PYTHON: "C:\\Python27-x64"
+    #  PYTHON_VERSION: "2.7.x"
+    #  PYTHON_ARCH: "64"
 
-    - PYTHON: "C:\\Python35"
-      PYTHON_VERSION: "3.5.0"
-      PYTHON_ARCH: "32"
+    #- PYTHON: "C:\\Python35"
+    #  PYTHON_VERSION: "3.5.0"
+    #  PYTHON_ARCH: "32"
 
-    - PYTHON: "C:\\Python35-x64"
-      PYTHON_VERSION: "3.5.0"
-      PYTHON_ARCH: "64"
+    #- PYTHON: "C:\\Python35-x64"
+    #  PYTHON_VERSION: "3.5.0"
+    #  PYTHON_ARCH: "64"
     
 install:
   # Prepend newly installed Python to the PATH of this build (this cannot be
@@ -67,6 +67,7 @@ artifacts:
     
 on_success:  
   #- "twine upload -u pyodps -p %SECUREPSD dist\*"
-  - "twine upload  -u pyodps -p PyODPSMars@015 -r pypitest dist/*"
+  - "python setup.py register -r https://testpypi.python.org/pypi"
+  - "twine upload -u pyodps -p PyODPSMars@015 -r testpypi dist/*"
  
 
