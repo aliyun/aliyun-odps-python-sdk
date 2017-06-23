@@ -61,7 +61,7 @@ after_test:
   # Workaround required to ensure setup.py finds the .pypirc under Windows
   - set HOME=%USERPROFILE%
 
-  - "twine register -r pypitest dist:\\*"
+  - "twine register -r pypitest dist\\*.whl"
  
 artifacts:
   # Archive the generated packages in the ci.appveyor.com build report.
