@@ -50,19 +50,23 @@ after_test:
   - "python setup.py bdist_wheel"
   
   # Specify account details for testPyPI
-  - echo [distutils]                                  > %USERPROFILE%\\.pypirc
-  - echo index-servers =                             >> %USERPROFILE%\\.pypirc
-  - echo     pypitest                                >> %USERPROFILE%\\.pypirc
-  - echo [pypitest]                                  >> %USERPROFILE%\\.pypirc
-  - echo repository=https://testpypi.python.org/pypi >> %USERPROFILE%\\.pypirc
-  - echo username=pyodps                             >> %USERPROFILE%\\.pypirc
-  - echo password=%SECUREPSD%                        >> %USERPROFILE%\\.pypirc
+  #- echo [distutils]                                  > %USERPROFILE%\\.pypirc
+  #- echo index-servers =                             >> %USERPROFILE%\\.pypirc
+  #- echo     pypitest                                >> %USERPROFILE%\\.pypirc
+  #- echo [pypitest]                                  >> %USERPROFILE%\\.pypirc
+  #- echo repository=https://testpypi.python.org/pypi >> %USERPROFILE%\\.pypirc
+  #- echo username=pyodps                             >> %USERPROFILE%\\.pypirc
+  #- echo password=%SECUREPSD%                        >> %USERPROFILE%\\.pypirc
   
   # Workaround required to ensure setup.py finds the .pypirc under Windows
   - set HOME=%USERPROFILE%
 
-  - "twine register -r pypitest dist/*"
+  artifacts:
+    # Archive the generated packages in the ci.appveyor.com build report.
+    - path: dist\*
+    
+  on_success:  
+  #- "twine upload -u pyodps -p %SECUREPSD dist\*"
+  - "twine upload -r pypitest dist\*"
  
-artifacts:
-  # Archive the generated packages in the ci.appveyor.com build report.
-  - path: dist\*
+
