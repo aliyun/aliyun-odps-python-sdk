@@ -67,6 +67,6 @@ artifacts:
     
 on_success:  
   #- "twine upload -u pyodps -p %SECUREPSD dist\*"
-  - "twine register -r pypitest dist\*.whl"
+  - "twine upload  -u pyodps -p %SECUREPSD% -r pypitest dist\*"
  
 
