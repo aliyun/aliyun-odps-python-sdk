@@ -18,9 +18,10 @@ environment:
       PYTHON_VERSION: "3.5.0"
       PYTHON_ARCH: "64"
 
-  operating system:
-    -liunx
-    -windows
+platform:
+  - Win32
+  - x64
+  - Linux
     
 install:
   # Prepend newly installed Python to the PATH of this build (this cannot be
@@ -46,8 +47,6 @@ build_script:
   - "python setup.py build"
 
 after_test:
-  - "python setup.py bdist_wheel"
-  - "python setup.py bdist_wheel"
   - "python setup.py bdist_wheel"
 
 artifacts:
