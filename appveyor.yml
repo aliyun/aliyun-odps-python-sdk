@@ -1,27 +1,24 @@
 environment:
-
+  SECUREPSD:
+    secure: 6sB3RRUjx/vTjKDEdZP5KA==
+    
   matrix:
 
-    #- PYTHON: "C:\\Python27"
-    #  PYTHON_VERSION: "2.7.x"
+ #   - PYTHON: "C:\\Python27"
+ #     PYTHON_VERSION: "2.7.x"
+ #     PYTHON_ARCH: "32"
+
+#    - PYTHON: "C:\\Python27-x64"
+#      PYTHON_VERSION: "2.7.x"
+#      PYTHON_ARCH: "64"
+
+  #  - PYTHON: "C:\\Python35"
+   #   PYTHON_VERSION: "3.5.0"
     #  PYTHON_ARCH: "32"
-
-    #- PYTHON: "C:\\Python27-x64"
-    #  PYTHON_VERSION: "2.7.x"
-    #  PYTHON_ARCH: "64"
-
-    - PYTHON: "C:\\Python35"
-      PYTHON_VERSION: "3.5.0"
-      PYTHON_ARCH: "32"
 
     - PYTHON: "C:\\Python35-x64"
       PYTHON_VERSION: "3.5.0"
       PYTHON_ARCH: "64"
-
-platform:
-  - Win32
-  - x64
-  - Linux
     
 install:
   # Prepend newly installed Python to the PATH of this build (this cannot be
@@ -41,14 +38,31 @@ install:
   - "pip install -r requirements-full.txt"
   - "pip install wheel"
   - "pip install cython"
+  - "pip install twine"
 
-build_script:
-  # Build the compiled extension
-  - "python setup.py build"
-
-after_test:
-  - "python setup.py bdist_wheel"
 
 artifacts:
   # Archive the generated packages in the ci.appveyor.com build report.
   - path: dist\*
+
+
+on_success:
+  # Build the compiled extension
+  - "python setup.py build"
+  
+  # Specify account details for testPyPI
+  - echo [distutils]                                  > %USERPROFILE%\\.pypirc
+  - echo index-servers =                             >> %USERPROFILE%\\.pypirc
+  - echo     pypitest                                >> %USERPROFILE%\\.pypirc
+  - echo [pypitest]                                  >> %USERPROFILE%\\.pypirc
+  - echo repository=https://testpypi.python.org/pypi >> %USERPROFILE%\\.pypirc
+  - echo username=pyodps                             >> %USERPROFILE%\\.pypirc
+  - echo password=%SECUREPSD%                        >> %USERPROFILE%\\.pypirc
+  
+  # Workaround required to ensure setup.py finds the .pypirc under Windows
+  - set HOME=%USERPROFILE%
+  
+  - "python setup.py bdist_wheel"
+  
+  - "twine register -r pypitest dist:\\*.wheel"
+ 
