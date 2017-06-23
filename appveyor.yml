@@ -38,10 +38,10 @@ install:
   - "pip install -r requirements-full.txt"
   - "pip install wheel"
   - "pip install cython"
-  #- "pip install twine"
+  - "pip install twine"
 
 
-build:
+build_script:
   # Build the compiled extension
   - "python setup.py build"
 
