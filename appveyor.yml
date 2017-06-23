@@ -18,6 +18,10 @@ environment:
       PYTHON_VERSION: "3.5.0"
       PYTHON_ARCH: "64"
 
+  operating system:
+    -liunx
+    -windows
+    
 install:
   # Prepend newly installed Python to the PATH of this build (this cannot be
   # done from inside the powershell script as it would require to restart
