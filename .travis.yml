@@ -1,0 +1,26 @@
+language: python
+
+sudo: false
+
+python:
+- 2.7
+- 3.5
+- 3.6
+
+os:
+- linux
+- osx
+
+install:
+- pip install -r requirements-full.txt
+
+deploy:
+  provider: pypi
+  distributions: sdist bdist bdist_wheel
+  server: https://testpypi.python.org/pypi
+  user: pyodps
+  password:
+	  secure: XHkrQX0R8Sysl1d46Dw0AMTr1nu6eDu3Ls/HCmTPO3hEIppuN7oSAnGFPT5hIaZlS5xST346jn0T04h4Ciuxt1oro4Hl5esrZwMbCEYP7H/J1h6XdVij8iPVb/dNKKzAAiPOjaG5xaDCU45htmT2EXrR2bnTwCahRUbZhRNO90fuewrFk59Nbelne0FPF7+U3gIj+ZW6SJm3Y2yVeFKXy3Oo0XJQmI/cXFOO7Qldzk6ywNckWUwRwOhxpAVKzoWGgjToGxx4mrpHT5mHTcAXSf6N+RxCJ5G8EE+PpklQvCLan9zsSyoJ1faYa4qSrMufuE0TSELLoAdyeXVYN9fgZN6GIuoZXdRPOH+Bcpk8o4VOhkQ2YIn4IIoWv436ufpR3vid0dwh8UqxNNL4AIvEg9Khplzh+32zeT4yaTR99/LNNFU+t6nCGfHQ13gVdmgzVsZDumrGxbt5SCEy0aMNq1vpat+QTtuogiIbv2pa6IT4wbnnmkVps54hUYPL6Loq6/kiCoXAjBvESErEgo0l7M/PrgMnp6cR59rwJa0NMdS/eGz8Un9uST394nnv2KBxQV6HAItHPDPxbvfpvkDigow/mtZsj2l7wY01C0sJBfTCTmqNKD9/eQOS14LeB2QRhl3bDKsAUpq+8qw7OUjY7r4TyUP4GaQy3EPlbHdDyDU=
+
+  on:
+    branch: master
