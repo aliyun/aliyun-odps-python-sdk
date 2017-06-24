@@ -1,17 +1,21 @@
 language: python
 
-sudo: false
-
-python:
-- 2.7
-- 3.5
-- 3.6
-
-os:
-- linux
-- osx
-
+matrix:
+    include:
+        - os: linux
+          sudo: required
+          python: 3.5
+        - os: linux
+          sudo: required
+          python: 2.7
+        - os: osx
+          language: generic
+          env: TOXENV=py35
+        - os: osx
+          language: generic
+          env: TOXENV=py27
 install:
+- pip install --upgrade pip
 - pip install -r requirements-full.txt
 
 deploy:
