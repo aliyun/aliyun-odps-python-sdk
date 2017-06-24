@@ -20,11 +20,10 @@ install:
   - pip install -r requirements-full.txt
 
 script:
-  - python setup.py install
 
 deploy:
   provider: pypi
-  distributions: sdist bdist bdist_wheel
+  distributions: bdist_wheel
   server: https://testpypi.python.org/pypi
   user: pyodps
   password:
