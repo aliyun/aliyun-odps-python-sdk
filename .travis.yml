@@ -9,13 +9,12 @@ matrix:
           sudo: required
           python: 2.7
         - os: osx
-          language: generic
-          env: TOXENV=py35
+          python: 2.7
         - os: osx
-          language: generic
-          env: TOXENV=py27
+          python: 3.5
 install:
 - pip install --upgrade pip
+- pip install wheel
 - pip install -r requirements-full.txt
 
 deploy:
