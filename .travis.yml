@@ -9,13 +9,18 @@ matrix:
           sudo: required
           python: 2.7
         - os: osx
+          language: generic
           python: 2.7
         - os: osx
+          language: generic
           python: 3.5
 install:
-- pip install --upgrade pip
-- pip install wheel
-- pip install -r requirements-full.txt
+  - pip install --upgrade pip
+  - pip install wheel
+  - pip install -r requirements-full.txt
+
+script:
+  - python setup.py install
 
 deploy:
   provider: pypi
