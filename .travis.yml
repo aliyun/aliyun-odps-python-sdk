@@ -8,24 +8,13 @@ env:
 matrix:
     include:
       - os: osx
+        python: 3.5
         language: generic
-        env: PYENV_VERSION=2.7.12
+        
       - os: osx
+        python: 2.7
         language: generic
-        env: PYENV_VERSION=3.5.2
-      - os: linux
-        python: 3.5
-        env: PLATFORM="i686"
-      - os: linux
-        sudo: required
-        python: 2.7
-        env: PLATFORM="i686"
-      - os: linux
-        python: 2.7
-        env: PLATFORM="x86_64"
-      - os: linux
-        python: 3.5
-        env: PLATFORM="x86_64"
+        
         
 install:
   - pip install --upgrade pip
@@ -37,7 +26,6 @@ script:
   - python --version
 
 deploy:
-  #skip_cleanup: true
   provider: pypi
   distributions: sdist bdist bdist_wheel
   server: https://testpypi.python.org/pypi
