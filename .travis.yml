@@ -24,6 +24,7 @@ script:
   - python setup.py bdist_wheel
 
 deploy:
+  skip_cleanup: true
   provider: pypi
   distributions: bdist_wheel
   server: https://testpypi.python.org/pypi
