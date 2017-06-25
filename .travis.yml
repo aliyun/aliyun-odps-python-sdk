@@ -1,5 +1,8 @@
 language: python
 dist: trusty
+python:
+  - 2.7
+  - 3.5
 
 env:
   global:
@@ -8,11 +11,6 @@ env:
 matrix:
     include:
       - os: osx
-        python: 3.5
-        language: generic
-        
-      - os: osx
-        python: 2.7
         language: generic
         
         
