@@ -1,4 +1,6 @@
 language: python
+dist: trusty
+sudo: false
 
 env:
   global:
@@ -6,24 +8,25 @@ env:
     
 matrix:
     include:
-      - os: manylinux1_x86_64
-        sudo: required
-        python: 3.5
-      - os: manylinux1_i686
-        sudo: required
-        python: 2.7
-      - os: manylinux1_x86_64
-        sudo: required
-        python: 2.7
-      - os: manylinux1_i686
-        sudo: required
-        python: 3.5
       - os: osx
         language: generic
-        env: PYTHON=2.7
+        env: PYENV_VERSION=2.7.12
       - os: osx
         language: generic
-        env: PYTHON=3.5
+        env: PYENV_VERSION=3.5.2
+      - os: linux
+        python: 3.5
+        env: PLATFORM="i686"
+      - os: linux
+        sudo: required
+        python: 2.7
+        env: PLATFORM="i686"
+      - os: linux
+        python: 2.7
+        env: PLATFORM="x86_64"
+      - os: linux
+        python: 3.5
+        env: PLATFORM="x86_64"
         
 install:
   - pip install --upgrade pip
