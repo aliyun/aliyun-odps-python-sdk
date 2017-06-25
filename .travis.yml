@@ -6,18 +6,25 @@ env:
     
 matrix:
     include:
-        - os: linux
-          sudo: required
-          python: 3.5
-        - os: linux
-          sudo: required
-          python: 2.7
-        - os: osx
-          language: generic
-          python: 2.7
-        - os: osx
-          language: generic
-          python: 3.5
+      - os: manylinux1_x86_64
+        sudo: required
+        python: 3.5
+      - os: manylinux1_i686
+        sudo: required
+        python: 2.7
+      - os: manylinux1_x86_64
+        sudo: required
+        python: 2.7
+      - os: manylinux1_i686
+        sudo: required
+        python: 3.5
+      - os: osx
+        language: generic
+        env: PYTHON=2.7
+      - os: osx
+        language: generic
+        env: PYTHON=3.5
+        
 install:
   - pip install --upgrade pip
   - pip install wheel
