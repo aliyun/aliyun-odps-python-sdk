@@ -1,6 +1,5 @@
 language: python
 dist: trusty
-sudo: false
 
 env:
   global:
@@ -35,11 +34,10 @@ install:
   - pip install cython
   
 script:
-  - python setup.py install
-  - python setup.py bdist_wheel
+  - python --version
 
 deploy:
-  skip_cleanup: true
+  #skip_cleanup: true
   provider: pypi
   distributions: sdist bdist bdist_wheel
   server: https://testpypi.python.org/pypi
