@@ -18,7 +18,8 @@ install:
   - pip install --upgrade pip
   - pip install wheel
   - pip install -r requirements-full.txt
-
+  - pip install cython
+  
 script:
   - python setup.py install
   - python setup.py bdist_wheel
