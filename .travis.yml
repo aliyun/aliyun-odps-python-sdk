@@ -31,7 +31,7 @@ script:
 deploy:
   skip_cleanup: true
   provider: pypi
-  distributions: bdist_wheel
+  distributions: sdist bdist bdist_wheel
   server: https://testpypi.python.org/pypi
   user: pyodps
   password:
