@@ -1,34 +1,21 @@
-language: python
-dist: trusty
+notifications:
+  email: false
 
-os:
-  - osx
+matrix:
+  include:
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686
+           PRE_CMD=linux32
 
-python:
-  - 2.7
-  - 3.5
-
-env:
-  global:
-    - secure: "gM0t6qJK7q7OjHTPpaHQQkKVQinMWxdOSOtjhnS9d15QvqqYxDSTJAa0Eu0T8yM9z/MkokD62JPiffVXsfS7YKTk7IAivoJHku5V/JLKYcuAj48YiAFdPFhDweZ2EXOsvc6Zrorzx64/MX6XyjOwL8IGo3Kz4fNPOEDCjzS/+/2pMP9w515Jnk6bW1TOFt7DOMa6M489K+/fJwZBaFYvQmFttQws1MiKTGJ1Yaershw7ZCW3+slZ1Rczj9+X5jgmvRnjIunb5dflPDlxvaWP4esUhezMFCBF3LSW4fXBlpSkMaWp6URv6vNQk0QQRYp2VEzbEGGYEDAt8AlZ8F7xQbiqmARBJrcf9vSVl80VaxNxoz28+3fOxvP/WGDmAYXty6ONgvNRdVp1Ecc4DozL8lTIIZL8BDzKU0NO4VepwgaQZ6oyhhLbrQFIJdT7Jt7V51M6n3j9Kc9Hzvk8n5cZgboKy3EnPE15mvtrs6efOFF4c3xZ2ICUlM88BrYMmFeZ/I7IhDMxiKxVH1CGQ+Jv0ifmdy+MPA5eFxLnY/2HmUm2XLhW2GzysV3ekWZd1BD5oibHU4hl2IlSRgHtuSomNrCJlZMV9M12SsVsliRjUFIMnrzdxgp0DPKOsLp+Wi8wrWpnp+piNOPk+RChJsSggg9QBaKjnfuLybTSrtit2f0="
-            
-        
 install:
-  - pip install --upgrade pip
-  - pip install wheel
-  - pip install -r requirements-full.txt
-  - pip install cython
-  
+  - docker pull $DOCKER_IMAGE
+
 script:
-  - python --version
-
-deploy:
-  provider: pypi
-  distributions: sdist bdist bdist_wheel
-  server: https://testpypi.python.org/pypi
-  user: pyodps
-  password:
-    secure: gM0t6qJK7q7OjHTPpaHQQkKVQinMWxdOSOtjhnS9d15QvqqYxDSTJAa0Eu0T8yM9z/MkokD62JPiffVXsfS7YKTk7IAivoJHku5V/JLKYcuAj48YiAFdPFhDweZ2EXOsvc6Zrorzx64/MX6XyjOwL8IGo3Kz4fNPOEDCjzS/+/2pMP9w515Jnk6bW1TOFt7DOMa6M489K+/fJwZBaFYvQmFttQws1MiKTGJ1Yaershw7ZCW3+slZ1Rczj9+X5jgmvRnjIunb5dflPDlxvaWP4esUhezMFCBF3LSW4fXBlpSkMaWp6URv6vNQk0QQRYp2VEzbEGGYEDAt8AlZ8F7xQbiqmARBJrcf9vSVl80VaxNxoz28+3fOxvP/WGDmAYXty6ONgvNRdVp1Ecc4DozL8lTIIZL8BDzKU0NO4VepwgaQZ6oyhhLbrQFIJdT7Jt7V51M6n3j9Kc9Hzvk8n5cZgboKy3EnPE15mvtrs6efOFF4c3xZ2ICUlM88BrYMmFeZ/I7IhDMxiKxVH1CGQ+Jv0ifmdy+MPA5eFxLnY/2HmUm2XLhW2GzysV3ekWZd1BD5oibHU4hl2IlSRgHtuSomNrCJlZMV9M12SsVsliRjUFIMnrzdxgp0DPKOsLp+Wi8wrWpnp+piNOPk+RChJsSggg9QBaKjnfuLybTSrtit2f0=
-
-  on:
-    branch: testPyPI
+  - docker run --rm -v `pwd`:/io $DOCKER_IMAGE $PRE_CMD /io/build_wheels.sh
+  - ls wheelhouse/
