@@ -223,8 +223,10 @@ try:
     from flaky import flaky
     import requests
 
-    def is_internal_error(err, *args):
+    def is_internal_error(err, fun_name, *_):
         ex = err[0]
+        if fun_name in ('testInstanceQueueingInfo', 'testBatchStop') and issubclass(ex, AssertionError):
+            return True
         if issubclass(ex, InternalServerError):
             return True
         if issubclass(ex, (requests.ConnectionError, requests.Timeout)):
@@ -234,13 +236,9 @@ try:
         if 'status=CANCELLED' in str(ex):
             return True
         try:
-            import sqlalchemy.exc
-            if issubclass(ex, sqlalchemy.exc.ProgrammingError) and 'does not exist' in str(ex):
-                return True
-        except ImportError:
-            pass
-        try:
             import psycopg2
+            if issubclass(ex, psycopg2.ProgrammingError) and 'does not exist' in str(ex):
+                return True
             if issubclass(ex, psycopg2.DatabaseError) and 'unknown error' in str(ex):
                 return True
         except ImportError:

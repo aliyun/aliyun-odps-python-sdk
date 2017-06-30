@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
-
 from .core import LazyLoad, cache, Iterable
 from .cache import cache_parent
 from .volumes import Volume

@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import contextlib
-
 from .core import LazyLoad, Iterable
 from .. import serializers, errors, utils
 from ..compat import six, Enum
@@ -52,7 +50,7 @@ class VolumePartition(LazyLoad):
     """
     Represents a partition in a volume.
     """
-    __slots__ = '_volume_tunnel', '_download_id', '_upload_id'
+    __slots__ = '_volume_tunnel', '_id_thread_local'
 
     class Type(Enum):
         NEW = 'NEW'
@@ -69,6 +67,9 @@ class VolumePartition(LazyLoad):
     file_number = serializers.XMLNodeField('FileNumber', parse_callback=int)
     creation_time = serializers.XMLNodeField('CreationTime', parse_callback=utils.parse_rfc822)
     last_modified_time = serializers.XMLNodeField('LastModifiedTime', parse_callback=utils.parse_rfc822)
+
+    _download_id = utils.thread_local_attribute('_id_thread_local')
+    _upload_id = utils.thread_local_attribute('_id_thread_local')
 
     def __init__(self, **kwargs):
         super(VolumePartition, self).__init__(**kwargs)

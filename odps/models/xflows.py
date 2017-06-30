@@ -147,12 +147,20 @@ class XFlows(Iterable):
         return self._client.get(instance.resource(), params=params).content
 
     def get_xflow_instance(self, instance):
-        content = self.get_xflow_source()
+        content = self.get_xflow_source(instance)
         try:
             inst = XFlows.AnonymousSubmitXFlowInstance.parse(self._client, content)
             return inst.instance
         except compat.ElementTreeParseError as e:
             raise errors.ODPSError(e)
+
+    def get_xflow_sub_instances(self, instance):
+        inst_dict = compat.OrderedDict()
+        for x_result in filter(lambda xr: xr.node_type != 'Local',
+                               six.itervalues(self.get_xflow_results(instance))):
+            if x_result.node_type == 'Instance':
+                inst_dict[x_result.name] = self.odps.get_instance(x_result.instance_id)
+        return inst_dict
 
     def is_xflow_instance(self, instance):
         try:

@@ -37,6 +37,7 @@ import warnings
 import uuid
 import xml.dom.minidom
 import collections
+import random
 from hashlib import sha1, md5
 from base64 import b64encode
 from datetime import datetime
@@ -779,3 +780,30 @@ def hashable(obj):
         raise TypeError(type(obj))
 
     return items
+
+
+_NO_DEFAULT_VALUE_TYPE = type('NoDefaultValueType', (object, ), {})
+_NO_DEFAULT_VALUE = _NO_DEFAULT_VALUE_TYPE()
+
+
+def thread_local_attribute(thread_local_name, default_value=_NO_DEFAULT_VALUE):
+    attr_name = '_local_attr_%d' % random.randint(0, 99999999)
+
+    def _get_thread_local(self):
+        thread_local = getattr(self, thread_local_name, None)
+        if thread_local is None:
+            setattr(self, thread_local_name, threading.local())
+            thread_local = getattr(self, thread_local_name)
+        return thread_local
+
+    def _getter(self):
+        thread_local = _get_thread_local(self)
+        if not isinstance(default_value, _NO_DEFAULT_VALUE_TYPE) and not hasattr(thread_local, attr_name):
+            setattr(thread_local, attr_name, default_value)
+        return getattr(thread_local, attr_name)
+
+    def _setter(self, value):
+        thread_local = _get_thread_local(self)
+        setattr(thread_local, attr_name, value)
+
+    return property(fget=_getter, fset=_setter)

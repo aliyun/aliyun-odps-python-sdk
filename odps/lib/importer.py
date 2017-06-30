@@ -16,17 +16,18 @@
 
 import zipfile
 import tarfile
-from collections import defaultdict
 import os
+import random
 import sys
 import types
+import warnings
+from collections import defaultdict
 
 
 _SEARCH_ORDER = [
     ('.py', False),
     ('/__init__.py', True),
 ]
-_EXTRA_PACKAGE_PATH = 'work/extra_packages'
 
 
 if hasattr(dict, 'itervalues'):
@@ -35,6 +36,12 @@ if hasattr(dict, 'itervalues'):
 else:
     iterkeys = lambda d: d.keys()
     itervalues = lambda d: d.values()
+
+
+def _clean_extract():
+    if CompressImporter._extract_path:
+        import shutil
+        shutil.rmtree(CompressImporter._extract_path)
 
 
 class CompressImportError(ImportError):
@@ -50,8 +57,9 @@ class CompressImporter(object):
     and you're in business.  Instances satisfy both the 'importer' and
     'loader' APIs specified in PEP 302.
     """
+    _extract_path = None
 
-    def __init__(self, *compressed_files):
+    def __init__(self, *compressed_files, **kwargs):
         """
         Constructor.
 
@@ -60,7 +68,9 @@ class CompressImporter(object):
         """
         self._files = []
         self._prefixes = defaultdict(lambda: set(['']))
-        self._bin_path = None
+        self._extract = kwargs.get('extract', False)
+        self._match_version = kwargs.get('_match_version', True)
+        self._local_warned = False
 
         for f in compressed_files:
             if isinstance(f, zipfile.ZipFile):
@@ -85,8 +95,7 @@ class CompressImporter(object):
                                       'not true, please set `odps.isolation.session.enable` to True or ask your '
                                       'project owner to change project-level configuration.')
                 if need_extract:
-                    raise SystemError('We do not allow file-type resource for binary packages. Please upload an '
-                                      'archive-typed resource instead.')
+                    f = self._extract_archive(f)
 
             prefixes = set([''])
             dir_prefixes = set()
@@ -99,8 +108,6 @@ class CompressImporter(object):
                         f.getinfo(name + '__init__.py')
                     except KeyError:
                         prefixes.add(name)
-                        if self._bin_path:
-                            dir_prefixes.add(os.path.join(self._bin_path, name))
             elif isinstance(f, tarfile.TarFile):
                 for member in f.getmembers():
                     name = member.name if member.isdir() else member.name.rsplit('/', 1)[0]
@@ -110,8 +117,6 @@ class CompressImporter(object):
                         f.getmember(name + '/__init__.py')
                     except KeyError:
                         prefixes.add(name + '/')
-                        if self._bin_path:
-                            dir_prefixes.add(os.path.join(self._bin_path, name + '/'))
             elif isinstance(f, dict):
                 # Force ArchiveResource to run under binary mode to resolve manually
                 # opening __file__ paths in pure-python code.
@@ -142,6 +147,41 @@ class CompressImporter(object):
                 self._files.append(f)
                 if prefixes:
                     self._prefixes[id(f)] = sorted(prefixes)
+
+    def _extract_archive(self, archive):
+        if not self._extract:
+            raise SystemError('We do not allow file-type resource for binary packages. Please upload an '
+                              'archive-typed resource instead.')
+        if self._match_version and (sys.version_info[:2] != (2, 7) or sys.maxunicode != 65535 or os.name != 'posix'):
+            if not self._local_warned:
+                self._local_warned = True
+                warnings.warn('Your python version may not match the version on MaxCompute clusters. '
+                              'Package installed in your site-packages will be used instead of those '
+                              'specified in libraries. If no corresponding packages were discovered, '
+                              'an ImportError might be raised in execution.')
+            return
+
+        cls = type(self)
+        if not cls._extract_path:
+            import tempfile
+            import atexit
+            cls._extract_path = tempfile.mkdtemp(prefix='tmp-pyodps-')
+            atexit.register(_clean_extract)
+
+        extract_dir = os.path.join(cls._extract_path,
+                                   'archive-' + str(random.randint(100000, 999999)))
+        os.makedirs(extract_dir)
+        if isinstance(archive, zipfile.ZipFile):
+            archive.extractall(extract_dir)
+        elif isinstance(archive, tarfile.TarFile):
+            archive.extractall(extract_dir)
+
+        mock_archive = dict()
+        for root, dirs, files in os.walk(extract_dir):
+            for name in files:
+                full_name = os.path.join(root, name)
+                mock_archive[name] = open(full_name, 'rb')
+        return mock_archive
 
     def _get_info(self, fullmodname):
         """

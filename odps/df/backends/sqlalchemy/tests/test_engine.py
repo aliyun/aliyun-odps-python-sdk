@@ -571,6 +571,13 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
+        expr = self.expr.groupby('id').name.cat(sep=',')
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [['name2'], ['name1,name1'], ['name1,name1']]
+        self.assertEqual(sorted(result), sorted(expected))
+
     def testJoinGroupby(self):
         data = [
             ['name1', 4, 5.3, None, None, None],

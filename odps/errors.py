@@ -83,6 +83,7 @@ _CODE_MAPPING = {
     'ODPS-0010000': 'InternalServerError',
     'ODPS-0123055': 'ScriptError',
     'ODPS-0110141': 'DataVersionError',
+    'ODPS-0430055': 'InternalConnectionError',
 }
 
 

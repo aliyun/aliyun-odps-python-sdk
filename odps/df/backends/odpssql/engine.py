@@ -457,7 +457,7 @@ class ODPSSQLEngine(Engine):
             else:
                 t = None
 
-            sql = self._compile(expr, prettify=False)
+            sql = self._compile(expr, prettify=False, libraries=libraries)
             if t:
                 action_str = 'OVERWRITE' if overwrite else 'INTO'
                 format_sql = lambda s: 'INSERT {0} TABLE {1} \n{2}'.format(action_str, table_name, s)
@@ -479,7 +479,7 @@ class ODPSSQLEngine(Engine):
                 t.create_partition(partition, if_not_exists=True)
 
             expr = self._reorder(expr, t, cast=cast)
-            sql = self._compile(expr, prettify=False)
+            sql = self._compile(expr, prettify=False, libraries=libraries)
 
             partition = PartitionSpec(partition)
             action_str = 'OVERWRITE' if overwrite else 'INTO'
@@ -518,7 +518,7 @@ class ODPSSQLEngine(Engine):
 
             t = self._odps.get_table(name)
             expr = self._reorder(expr, t, cast=cast, with_partitions=True)
-            sql = self._compile(expr, prettify=False)
+            sql = self._compile(expr, prettify=False, libraries=libraries)
 
             action_str = 'OVERWRITE' if overwrite else 'INTO'
             format_sql = lambda s: 'INSERT {0} TABLE {1} PARTITION({2}) \n{3}'.format(

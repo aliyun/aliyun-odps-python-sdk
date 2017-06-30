@@ -37,7 +37,7 @@ from odps.df.backends.odpssql.types import df_schema_to_odps_schema, \
 from odps.df.backends.context import context
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.backends.odpssql.engine import ODPSSQLEngine
-from odps.df import Scalar, output_names, output_types, output, day, millisecond, agg
+from odps.df import Scalar, output_names, output_types, output, day, millisecond, agg, func
 from odps import options
 
 
@@ -131,6 +131,10 @@ class Test(TestBase):
         df = self.engine.persist(self.expr, table_name, partitions=['name'])
 
         try:
+            expr = df[df.name == func.max_pt('{0}.{1}'.format(self.odps.project, table_name))]
+            res = self.engine._handle_cases(expr, self.faked_bar, verify=True)
+            self.assertFalse(res)
+
             expr = df.count()
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertIsNone(res)
@@ -991,6 +995,17 @@ class Test(TestBase):
 
                     self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
 
+                    expr = self.expr.apply(f, axis=1, names=['name', ], types=['int', ])
+                    tn = str(uuid.uuid4()).replace('-', '_')
+                    try:
+                        new_expr = self.engine.persist(expr, tn, libraries=[resource, dateutil_resource])
+                        res = self.engine.execute(new_expr)
+                        result = self._get_result(res)
+
+                        self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
+                    finally:
+                        self.odps.delete_table(tn, if_exists=True)
+
                     class Agg(object):
                         def buffer(self):
                             return [0]
@@ -1502,6 +1517,13 @@ class Test(TestBase):
         ]
 
         self.assertEqual(expected, result)
+
+        expr = self.expr.groupby('id').name.cat(sep=',')
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [['name2'], ['name1,name1'], ['name1,name1']]
+        self.assertEqual(sorted(result), sorted(expected))
 
     def testProjectionGroupbyFilter(self):
         data = [

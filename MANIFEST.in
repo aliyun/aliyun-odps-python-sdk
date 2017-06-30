@@ -6,4 +6,5 @@ global-include *.pyx
 global-include *.pxd
 include odps/src/crc32c/crc32c.c
 include odps/src/utils.h
+include odps/misc/stdint.h
 global-exclude *_c.c*

@@ -1206,7 +1206,7 @@ class ODPS(object):
 
     def get_xflow_results(self, instance, project=None):
         """
-        The result given the instance of xflow
+        The result given the results of xflow
 
         :param instance: instance of xflow
         :type instance: :class:`odps.models.Instance`
@@ -1222,6 +1222,18 @@ class ODPS(object):
             instance = project.instances[instance]
 
         return project.xflows.get_xflow_results(instance)
+
+    def get_xflow_sub_instances(self, instance, project=None):
+        """
+        The result iterates the sub instance of xflow
+
+        :param instance: instance of xflow
+        :type instance: :class:`odps.models.Instance`
+        :param project: project name, if not provided, will be the default project
+        :return: sub instances dictionary
+        """
+        project = self.get_project(name=project)
+        return project.xflows.get_xflow_sub_instances(instance)
 
     def delete_xflow(self, name, project=None):
         """

@@ -113,6 +113,10 @@ class Resource(LazyLoad):
     def _project(self):
         return self._parent._parent.name
 
+    @property
+    def project(self):
+        return self._project
+
     def reload(self):
         url = self.resource()
         resp = self._client.get(url, params={'meta': ''})

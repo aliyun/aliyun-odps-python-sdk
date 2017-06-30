@@ -50,7 +50,9 @@ class Instance(LazyLoad):
     >>>    print(reader.raw)  # just return the raw result
     """
 
-    __slots__ = '_task_results', '_is_sync', '_instance_tunnel', '_download_id'
+    __slots__ = '_task_results', '_is_sync', '_instance_tunnel', '_id_thread_local'
+
+    _download_id = utils.thread_local_attribute('_id_thread_local')
 
     def __init__(self, **kwargs):
         if 'task_results' in kwargs:
@@ -527,15 +529,20 @@ class Instance(LazyLoad):
         except ValueError:
             return res
 
-    def get_task_workers(self, task_name):
+    def get_task_workers(self, task_name=None, json_obj=None):
         """
         Get workers from task
         :param task_name: task name
+        :param json_obj: json object parsed from get_task_detail2
         :return: list of workers
 
         .. seealso:: :class:`odps.models.Worker`
         """
-        json_obj = self.get_task_detail2(task_name)
+        if task_name is None and json_obj is None:
+            raise ValueError('Either task_name or json_obj should be provided')
+
+        if json_obj is None:
+            json_obj = self.get_task_detail2(task_name)
         return WorkerDetail2.extract_from_json(json_obj, client=self._client, parent=self)
 
     def get_worker_log(self, log_id, log_type, size=0):
@@ -790,15 +797,5 @@ class Instance(LazyLoad):
                 # InternalServerError when creating download sessions.
                 if not auto_fallback:
                     raise
-            except errors.NoPermission:
-                # fail-over on protected projects or tables
-                if kwargs.get('limit_enabled', False):
-                    raise
-                kwargs['limit_enabled'] = True
-                try:
-                    return self._open_tunnel_reader(**kwargs)
-                except tunnel_fallback_errors:
-                    if not auto_fallback:
-                        raise
 
         return self._open_result_reader(*args, **kwargs)

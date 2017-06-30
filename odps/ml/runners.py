@@ -174,14 +174,12 @@ class XFlowNodeRunner(BaseNodeRunner):
             group_json = fetch_instance_group(self._progress_group)
             group_json.logview = inst.get_logview_address()
         for xflow_inst in insts:
-            for x_result in filter(lambda xr: xr.node_type != 'Local',
-                                   six.itervalues(self._engine._odps.get_xflow_results(xflow_inst))):
-                if x_result.node_type == 'Instance' and x_result.instance_id not in self._sub_instance_set:
-                    self._sub_instance_set.add(x_result.instance_id)
-                    sub_inst = self._engine._odps.get_instance(x_result.instance_id)
-                    write_log('Sub Instance: {0} ({1})'.format(x_result.name, x_result.instance_id))
+            for inst_name, sub_inst in six.iteritems(self._engine._odps.get_xflow_sub_instances(xflow_inst)):
+                if sub_inst.id not in self._sub_instance_set:
+                    self._sub_instance_set.add(sub_inst.id)
+                    write_log('Sub Instance: {0} ({1})'.format(inst_name, sub_inst.id))
                     write_log('  Log view: ' + sub_inst.get_logview_address())
-                reload_instance_status(self._engine._odps, self._progress_group, x_result.instance_id)
+                reload_instance_status(self._engine._odps, self._progress_group, sub_inst.id)
         self._ui.update_group()
 
 

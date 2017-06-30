@@ -71,6 +71,33 @@ from odps.udf import annotate
 from odps.distcache import get_cache_file, get_cache_table, get_cache_archive
 
 
+class UnbufferedStream(object):
+    def __init__(self, stream):
+        self.stream = stream
+        
+    def write(self, data):
+        self.stream.write(data)
+        self.stream.flush()
+        
+    def writelines(self, datas):
+        self.stream.writelines(datas)
+        self.stream.flush()
+        
+    def __getattr__(self, attr):
+        if attr != 'stream':
+            return getattr(self.stream, attr)
+        else:
+            return object.__getattribute__(self, 'stream')
+        
+    def __setattr__(self, attr, value):
+        if attr != 'stream':
+            return setattr(self.stream, attr, value)
+        else:
+            return object.__setattr__(self, 'stream', value)
+        
+sys.stdout = UnbufferedStream(sys.stdout)
+
+
 try:
     import socket
 except ImportError:

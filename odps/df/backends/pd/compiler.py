@@ -718,6 +718,9 @@ class PandasCompiler(Backend):
         if isinstance(expr.input, Scalar):
             series = pd.Series(series.repeat(len(bys[0])).values, index=bys[0].index)
 
+        if isinstance(expr, GroupedCat):
+            return series.groupby(bys).apply(lambda x: kw.get(expr._sep).join(x))
+
         kv = dict()
         if hasattr(expr, '_ddof'):
             kv['ddof'] = expr._ddof

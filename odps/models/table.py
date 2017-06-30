@@ -160,8 +160,8 @@ class Table(LazyLoad):
                    'storage_handler', 'resources', 'serde_properties', \
                    'reserved'
     __slots__ = '_is_extend_info_loaded', 'last_meta_modified_time', 'is_virtual_view', \
-                'lifecycle', 'view_text', 'size', 'shard', \
-                '_table_tunnel', '_download_ids', '_upload_ids'
+                'lifecycle', 'view_text', 'size', 'shard', '_table_tunnel', \
+                '_id_thread_local'
     __slots__ += _extend_args
 
     name = serializers.XMLNodeField('Name')
@@ -175,6 +175,9 @@ class Table(LazyLoad):
                                              parse_callback=utils.parse_rfc822)
     last_modified_time = serializers.XMLNodeField('LastModifiedTime',
                                                   parse_callback=utils.parse_rfc822)
+
+    _download_ids = utils.thread_local_attribute('_id_thread_local')
+    _upload_ids = utils.thread_local_attribute('_id_thread_local')
 
     def __init__(self, **kwargs):
         self._is_extend_info_loaded = False
@@ -322,13 +325,14 @@ class Table(LazyLoad):
         endpoint = kw.pop('endpoint', None)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint)
-        download_id = self._download_ids.get(partition) if not reopen else None
+        download_ids = self._download_ids
+        download_id = download_ids.get(partition) if not reopen else None
         download_session = tunnel.create_download_session(table=self, partition_spec=partition,
                                                           download_id=download_id, **kw)
 
         if download_id and download_session.status != TableDownloadSession.Status.Normal:
             download_session = tunnel.create_download_session(table=self, partition_spec=partition, **kw)
-        self._download_ids[partition] = download_session.id
+        download_ids[partition] = download_session.id
 
         class RecordReader(readers.AbstractRecordReader):
             def __init__(self):
@@ -419,7 +423,8 @@ class Table(LazyLoad):
             self.create_partition(partition, if_not_exists=True)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint)
-        upload_id = self._upload_ids.get(partition) if not reopen else None
+        upload_ids = self._upload_ids
+        upload_id = upload_ids.get(partition) if not reopen else None
         upload_session = tunnel.create_upload_session(table=self, partition_spec=partition,
                                                       upload_id=upload_id, **kw)
 
@@ -427,7 +432,7 @@ class Table(LazyLoad):
             # check upload session status
             upload_session = tunnel.create_upload_session(table=self, partition_spec=partition, **kw)
             upload_id = None
-        self._upload_ids[partition] = upload_session.id
+        upload_ids[partition] = upload_session.id
 
         blocks = blocks or upload_session.blocks or [0, ]
         blocks_writes = [False] * len(blocks)
@@ -507,7 +512,7 @@ class Table(LazyLoad):
                 if commit:
                     written_blocks = [block for block, block_write in zip(blocks, blocks_writes) if block_write]
                     upload_session.commit(written_blocks)
-                    self._table._upload_ids[partition] = None
+                    upload_ids[partition] = None
 
                 self._closed = True
 

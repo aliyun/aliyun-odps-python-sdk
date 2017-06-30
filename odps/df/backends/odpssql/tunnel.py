@@ -25,6 +25,7 @@ from ....models import Table
 from ....tunnel.tabletunnel import TableDownloadSession
 from ...expr.arithmetic import And, Equal
 from ...expr.reduction import *
+from ...expr.element import Func
 from ...utils import is_source_collection, is_source_partition
 from ..frame import ResultFrame
 from . import types
@@ -33,17 +34,12 @@ from . import types
 @contextmanager
 def _open_reader(t, **kwargs):
     try:
-        with t.open_reader(**kwargs) as reader:
-            if reader.status == TableDownloadSession.Status.Normal:
-                yield reader
-                return
+        reader = t.open_reader(**kwargs)
+        if reader.status != TableDownloadSession.Status.Normal:
+            raise ODPSError('Intentionally reusing')
     except ODPSError:
-        # ignore the error when reusing the tunnel before
-        pass
-
-    # reopen
-    with t.open_reader(reopen=True, **kwargs) as reader:
-        yield reader
+        reader = t.open_reader(reopen=True, **kwargs)
+    yield reader
 
 
 class TunnelEngine(object):
@@ -114,7 +110,8 @@ class TunnelEngine(object):
                 for child in expr.args:
                     if not extract(child):
                         return False
-            elif isinstance(expr, Equal) and isinstance(expr._rhs, Scalar):
+            elif isinstance(expr, Equal) and isinstance(expr._rhs, Scalar) and \
+                    not isinstance(expr._rhs, Func):  # skip the internal function
                 if extract(expr._lhs):
                     values.append(expr._rhs.value)
                     return True

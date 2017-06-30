@@ -55,6 +55,17 @@ expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
 '''
 
 
+class TunnelLimitedInstance(Instance):
+    _exc = None
+
+    def _open_tunnel_reader(self, **kw):
+        cls = type(self)
+        if cls._exc is not None:
+            if not isinstance(cls._exc, errors.NoPermission) or not kw.get('limit_enabled'):
+                raise cls._exc
+        return super(TunnelLimitedInstance, self)._open_tunnel_reader(**kw)
+
+
 class Test(TestBase):
 
     def testInstances(self):
@@ -272,6 +283,29 @@ class Test(TestBase):
             self.assertEqual(records[0]['count'], '6')
 
         table.drop()
+
+    def testLimitedInstanceTunnel(self):
+        test_table = tn('pyodps_t_tmp_limited_instance_tunnel')
+        self.odps.delete_table(test_table, if_exists=True)
+        table = self.odps.create_table(
+            test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
+        self.odps.write_table(
+            table, 0, [table.new_record([1]), table.new_record([2])])
+        self.odps.write_table(table, [table.new_record([3]), ])
+
+        instance = self.odps.execute_sql('select * from %s' % test_table)
+        instance = TunnelLimitedInstance(client=instance._client, parent=instance.parent,
+                                         name=instance.id)
+
+        TunnelLimitedInstance._exc = errors.InvalidArgument('Mock fallback error')
+        self.assertRaises(errors.InvalidArgument, instance.open_reader, use_tunnel=True)
+        with instance.open_reader() as reader:
+            self.assertTrue(hasattr(reader, 'raw'))
+
+        TunnelLimitedInstance._exc = errors.InstanceTypeNotSupported('Mock instance not supported')
+        self.assertRaises(errors.InstanceTypeNotSupported, instance.open_reader, use_tunnel=True)
+        with instance.open_reader() as reader:
+            self.assertTrue(hasattr(reader, 'raw'))
 
     def testReadSQLWrite(self):
         test_table = tn('pyodps_t_tmp_read_sql_instance_write')

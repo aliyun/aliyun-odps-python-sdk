@@ -104,9 +104,19 @@ class Test(TestBase):
         zip_f = zipfile.ZipFile(zip_io, 'w')
         zip_f.writestr('testa/a.so', '')
         zip_f.close()
-        self.assertRaises(SystemError, CompressImporter, zip_f)
 
-        temp_path = tempfile.mkdtemp(prefix='tmp_pyodps')
+        zip_io.seek(0)
+        self.assertRaises(SystemError, CompressImporter, zipfile.ZipFile(zip_io, 'r'))
+
+        try:
+            zip_io.seek(0)
+            CompressImporter(zipfile.ZipFile(zip_io, 'r'), extract=True, _match_version=False)
+            self.assertTrue(os.path.exists(CompressImporter._extract_path))
+        finally:
+            shutil.rmtree(CompressImporter._extract_path)
+            CompressImporter._extract_path = None
+
+        temp_path = tempfile.mkdtemp(prefix='tmp-pyodps-')
         lib_path = os.path.join(temp_path, 'mylib')
         os.makedirs(lib_path)
 
