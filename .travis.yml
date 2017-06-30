@@ -14,6 +14,14 @@ matrix:
     - sudo: required
       services:
         - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64 PYVER=cp27-cp27mu
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp27-cp27mu
+    - sudo: required
+      services:
+        - docker
       env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64 PYVER=cp27-cp27m
     - sudo: required
       services:
@@ -44,6 +52,7 @@ matrix:
     - os: osx
       language: generic
       env: PYTHON=3.6.1
+
 
 install:
   - sudo chmod 777 bin/travis/*
