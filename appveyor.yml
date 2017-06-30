@@ -1,0 +1,84 @@
+environment:
+  SECUREPSD:
+    secure: 1SQHsoWjjcFPUM4cK7qRDg==
+    
+  matrix:
+
+    - PYTHON: "C:\\Python27"
+      PYTHON_VERSION: "2.7.x"
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python27-x64"
+      PYTHON_VERSION: "2.7.x"
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Python35"
+      PYTHON_VERSION: "3.5"
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python35-x64"
+      PYTHON_VERSION: "3.5"
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Python36"
+      PYTHON_VERSION: "3.6"
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python36-x64"
+      PYTHON_VERSION: "3.6"
+      PYTHON_ARCH: "64"
+    
+install:
+  # Prepend newly installed Python to the PATH of this build (this cannot be
+  # done from inside the powershell script as it would require to restart
+  # the parent CMD process).
+  - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
+
+  # Check that we have the expected version and architecture for Python
+  - "python --version"
+  - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
+
+  # Upgrade to the latest version of pip to avoid it displaying warnings
+  # about it being out of date.
+  - "pip install --disable-pip-version-check --user --upgrade pip"
+
+  # Install the build dependencies of the project.
+  - "pip install -r requirements-full.txt"
+  - "pip install wheel"
+  - "pip install cython"
+  - "pip install twine"
+
+
+build_script:
+  # Build tar zip only once
+  - ps: if ($env:PYTHON_VERSION -eq "2.7.x" -and $env:PYTHON_ARCH -eq "32") { Invoke-Expression "python setup.py sdist --formats=gztar" }
+  - "python setup.py bdist_wheel"
+
+after_test:
+
+  
+  # Specify account details for PyPI
+  - echo [distutils]                                  > %USERPROFILE%\\.pypirc
+  - echo index-servers =                             >> %USERPROFILE%\\.pypirc
+  - echo     pypi                                >> %USERPROFILE%\\.pypirc
+  - echo [pypi]                                  >> %USERPROFILE%\\.pypirc
+  - echo repository=https://upload.pypi.org/legacy/    >> %USERPROFILE%\\.pypirc
+  - echo username=pyodps                             >> %USERPROFILE%\\.pypirc
+  - echo password=%SECUREPSD%                        >> %USERPROFILE%\\.pypirc
+  
+  # Workaround required to ensure setup.py finds the .pypirc under Windows
+  #- set HOME=%USERPROFILE%
+
+artifacts:
+  # Archive the generated packages in the ci.appveyor.com build report.
+  - path: dist\*
+
+
+
+on_success:
+  - echo %APPVEYOR_REPO_TAG%
+  - echo %APPVEYOR_REPO_TAG_NAME%
+  - echo %APPVEYOR_REPO_BRANCH%
+  - ps: If ($env:APPVEYOR_REPO_TAG -eq "true") { Invoke-Expression "twine upload -r pypi --skip-existing dist/*" } Else { write-output "Not on a tag commit, won't deploy to pypi"}
+ 
+
