@@ -18,23 +18,41 @@ matrix:
     - sudo: required
       services:
         - docker
-      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64 PYVER=cp35-cp35mu
-    - sudo: required
-      services:
-        - docker
-      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64 PYVER=cp36-cp36mu
-    - sudo: required
-      services:
-        - docker
       env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp27-cp27mu
     - sudo: required
       services:
         - docker
-      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp35-cp35mu
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64 PYVER=cp27-cp27m
     - sudo: required
       services:
         - docker
-      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp36-cp36mu
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64 PYVER=cp35-cp35m
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64 PYVER=cp36-cp36m
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp27-cp27m
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp35-cp35m
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp36-cp36m
+    - os: osx
+      language: generic
+      env: PYTHON=2.7.12
+    - os: osx
+      language: generic
+      env: PYTHON=3.5.3
+    - os: osx
+      language: generic
+      env: PYTHON=3.6.1
+
 
 install:
   - sudo chmod 777 bin/travis/*
