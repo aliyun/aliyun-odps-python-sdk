@@ -72,9 +72,13 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
    >>>     for record in reader:
    >>>         # 处理每一个record
 
-PyODPS 默认限制能够从 Instance 读取的数据规模，限制数目由 ODPS Project 的设置决定。如果使用 Instance Tunnel，可以
-将 `options.tunnel.limited_instance_tunnel` 设为 False 或在 open_reader 方法中加入 `limited_enabled=False` 选项以放开限制。
-如果使用旧 Result 接口，可将 SQL 结果写入另一张表后用读表接口读取（可能受到 Project 级别安全设置的限制）。
+PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护的 Project，通过 Tunnel 下载数据受限。此时，如果
+`options.tunnel.limit_instance_tunnel`未设置，会自动打开数据量限制。此时，可下载的数据条数受到 Project 配置限制，
+通常该限制为 10000 条。如果你想要手动限制下载数据的规模，可以为 open_reader 方法增加`limit_enabled`选项，或者设置
+`options.tunnel.limit_instance_tunnel = True`。
+
+如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取
+（可能受到 Project 安全设置的限制）。
 
 设置alias
 ------------

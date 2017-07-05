@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import requests
+
 from .base import BaseTunnel
 from .io.writer import RecordWriter, BufferredRecordWriter
 from .io.reader import TunnelRecordReader
 from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputStream
 from .errors import TunnelError
-from .. import errors, serializers, types
+from .. import errors, serializers, types, options
 from ..compat import Enum, six
 from ..models import Projects, Record, Schema
 
@@ -296,7 +298,17 @@ class TableUploadSession(serializers.JSONSerializableModel):
         if self._partition_spec is not None and len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
         url = self._table.resource()
-        resp = self._client.post(url, '', params=params)
+
+        retries = options.retry_times
+        while True:
+            try:
+                resp = self._client.post(url, '', params=params)
+                break
+            except (requests.Timeout, requests.ConnectionError):
+                if retries > 0:
+                    retries -= 1
+                else:
+                    raise
         self.parse(resp, obj=self)
 
 

@@ -112,6 +112,7 @@ class OdpsSQLCompiler(Backend):
 
         # use for `join` or `union` operations etc.
         self._sub_compiles = defaultdict(lambda: list())
+        self._union_no_alias = dict()
         # When encountering `join` or `union`, we will try to compile all child branches,
         # for each nodes of these branches, we should not check the uniqueness,
         # when compilation finishes, we substitute the children of `join` or `union` with None,
@@ -159,6 +160,8 @@ class OdpsSQLCompiler(Backend):
                         yield n
 
     def _compile_union_node(self, expr, traversed):
+        if isinstance(expr.lhs, UnionCollectionExpr):
+            self._union_no_alias[expr.lhs] = True
         compiled = self._compile(expr.lhs)
 
         self._sub_compiles[expr].append(compiled)
@@ -295,10 +298,14 @@ class OdpsSQLCompiler(Backend):
             self._cleanup()
 
     def to_sql(self):
-        lines = [
-            'SELECT {0} '.format(self._select_clause or '*'),
-            'FROM {0} '.format(self._from_clause),
-        ]
+        if not self._from_clause.startswith('SELECT'):
+            lines = [
+                'SELECT {0} '.format(self._select_clause or '*'),
+                'FROM {0} '.format(self._from_clause),
+            ]
+        else:
+            # special case due to `union`
+            lines = [self._from_clause]
 
         if self._where_clause:
             lines.append('WHERE {0} '.format(self._where_clause))
@@ -1237,8 +1244,10 @@ class OdpsSQLCompiler(Backend):
 
         from_clause = '{0} \nUNION ALL\n{1}'.format(left_compiled, utils.indent(right_compiled, self._indent_size))
 
-        compiled = '(\n{0}\n) {1}'.format(utils.indent(from_clause, self._indent_size),
-                                          self._ctx.get_collection_alias(expr, create=True)[0])
+        compiled = from_clause
+        if not self._union_no_alias.get(expr, False):
+            compiled = '(\n{0}\n) {1}'.format(utils.indent(from_clause, self._indent_size),
+                                              self._ctx.get_collection_alias(expr, create=True)[0])
 
         self.add_from_clause(expr, compiled)
         self._ctx.add_expr_compiled(expr, compiled)

@@ -42,8 +42,9 @@ htmlcov
 nosetests.xml
 .cache
 
-# intellij
+# IDEs
 .idea
+.vscode
 *.iml
 
 # virtualenv

@@ -70,7 +70,7 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
 ================================ ============================================ ========
 tunnel.endpoint                  Tunnel Endpoint                              None
 tunnel.use_instance_tunnel       使用 Instance Tunnel 获取执行结果            True
-tunnel.limited_instance_tunnel   限制 Instance Tunnel 获取结果的条数          True
+tunnel.limit_instance_tunnel     是否限制 Instance Tunnel 获取结果的条数      None
 tunnel.string_as_binary          在 string 类型中使用 bytes 而非 unicode      False
 ================================ ============================================ ========
 

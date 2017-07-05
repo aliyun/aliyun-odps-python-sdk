@@ -2469,6 +2469,7 @@ class Test(TestBase):
             ['name1', 4, 4.2, None, None, None],
             ['name1', 3, 2.2, None, None, None],
             ['name1', 3, 4.1, None, None, None],
+            [None, 3, 4.1, None, None, None],
         ]
 
         data2 = [

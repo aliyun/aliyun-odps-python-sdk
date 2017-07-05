@@ -103,12 +103,12 @@ def bloomfilter(collection, on, column, capacity=3000, error_rate=0.01):
 
                 bloom = BloomFilter(capacity, error_rate)
                 for row in table:
-                    bloom.add(getattr(row, col_name))
+                    bloom.add(str(getattr(row, col_name)))
 
                 self.bloom = bloom
 
             def __call__(self, row):
-                if getattr(row, rand_name) not in self.bloom:
+                if str(getattr(row, rand_name)) not in self.bloom:
                     return
                 return row[:-1]
 

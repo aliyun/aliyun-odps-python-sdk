@@ -320,14 +320,15 @@ options.register_option('read_timeout', DEFAULT_READ_TIMEOUT, validator=is_integ
 options.register_option('pool_connections', DEFAULT_POOL_CONNECTIONS, validator=is_integer)
 options.register_option('pool_maxsize', DEFAULT_POOL_MAXSIZE, validator=is_integer)
 
-# tunnel
+# Tunnel
 options.register_option('tunnel.endpoint', None)
 options.register_option('tunnel.string_as_binary', False, validator=is_bool)
 options.register_option('tunnel.use_instance_tunnel', True, validator=is_bool)
-options.register_option('tunnel.limited_instance_tunnel', True, validator=is_bool)
+options.register_option('tunnel.limit_instance_tunnel', None, validator=(is_null, is_bool))
 options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
 options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')
-options.redirect_option('limited_instance_tunnel', 'tunnel.limited_instance_tunnel')
+options.redirect_option('limited_instance_tunnel', 'tunnel.limit_instance_tunnel')
+options.redirect_option('tunnel.limited_instance_tunnel', 'tunnel.limit_instance_tunnel')
 
 # terminal
 options.register_option('console.max_lines', None)

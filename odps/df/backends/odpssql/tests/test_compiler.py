@@ -2109,6 +2109,40 @@ class Test(TestBase):
 
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(e1.concat(e2), False)))
 
+        expr = e1.union(e2).union(self.expr['name', 'id'])
+        expected = "SELECT * \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`id`, t1.`name` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table1` t1 \n" \
+                   "  UNION ALL\n" \
+                   "    SELECT t2.`id`, t2.`name` \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table2` t2 \n" \
+                   "  UNION ALL\n" \
+                   "    SELECT t3.`id`, t3.`name` \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table` t3\n" \
+                   ") t4"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = e1.union(e2).union(e1.union(e2))
+        expected = "SELECT * \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`id`, t1.`name` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table1` t1 \n" \
+                   "  UNION ALL\n" \
+                   "    SELECT t2.`id`, t2.`name` \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table2` t2 \n" \
+                   "  UNION ALL\n" \
+                   "    SELECT * \n" \
+                   "    FROM (\n" \
+                   "      SELECT t3.`id`, t3.`name` \n" \
+                   "      FROM mocked_project.`pyodps_test_expr_table1` t3 \n" \
+                   "      UNION ALL\n" \
+                   "        SELECT t4.`id`, t4.`name` \n" \
+                   "        FROM mocked_project.`pyodps_test_expr_table2` t4\n" \
+                   "    ) t5\n" \
+                   ") t6"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testAliases(self):
         df = self.expr
         df = df[(df.id == 1) | (df.id == 2)].exclude(['fid'])

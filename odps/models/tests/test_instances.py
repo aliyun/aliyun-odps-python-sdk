@@ -285,7 +285,7 @@ class Test(TestBase):
         table.drop()
 
     def testLimitedInstanceTunnel(self):
-        test_table = tn('pyodps_t_tmp_limited_instance_tunnel')
+        test_table = tn('pyodps_t_tmp_limit_instance_tunnel')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
@@ -306,6 +306,11 @@ class Test(TestBase):
         self.assertRaises(errors.InstanceTypeNotSupported, instance.open_reader, use_tunnel=True)
         with instance.open_reader() as reader:
             self.assertTrue(hasattr(reader, 'raw'))
+
+        TunnelLimitedInstance._exc = errors.NoPermission('Mock permission error')
+        self.assertRaises(errors.NoPermission, instance.open_reader, limit_enabled=False)
+        with instance.open_reader() as reader:
+            self.assertFalse(hasattr(reader, 'raw'))
 
     def testReadSQLWrite(self):
         test_table = tn('pyodps_t_tmp_read_sql_instance_write')

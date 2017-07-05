@@ -776,26 +776,38 @@ class Instance(LazyLoad):
         >>>         # read all data, actually better to split into reading for many times
         """
         use_tunnel = kwargs.get('use_tunnel')
-        auto_fallback = use_tunnel is None
+        auto_fallback_result = use_tunnel is None
         if use_tunnel is None:
             use_tunnel = options.tunnel.use_instance_tunnel
-        tunnel_fallback_errors = (errors.InvalidProjectTable, errors.InvalidArgument)
+        result_fallback_errors = (errors.InvalidProjectTable, errors.InvalidArgument)
         if use_tunnel:
             if 'limit_enabled' not in kwargs:
-                kwargs['limit_enabled'] = options.tunnel.limited_instance_tunnel
+                kwargs['limit_enabled'] = options.tunnel.limit_instance_tunnel
+
+            auto_fallback_protection = False
+            if kwargs['limit_enabled'] is None:
+                kwargs['limit_enabled'] = False
+                auto_fallback_protection = True
 
             try:
                 return self._open_tunnel_reader(**kwargs)
-            except tunnel_fallback_errors:
-                if not auto_fallback:
+            except result_fallback_errors:
+                if not auto_fallback_result:
                     raise
                 if not kwargs.get('limit_enabled'):
                     warnings.warn('Instance tunnel not supported, will fallback to '
                                   'conventional ways. 10000 records will be limited.')
+            except errors.NoPermission:
+                if not auto_fallback_protection:
+                    raise
+                if not kwargs.get('limit_enabled'):
+                    warnings.warn('Project under protection, 10000 records will be limited.')
+                    kwargs['limit_enabled'] = True
+                    return self._open_tunnel_reader(**kwargs)
             except (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported):
                 # this is for DDL sql instances such as `show partitions` which raises
                 # InternalServerError when creating download sessions.
-                if not auto_fallback:
+                if not auto_fallback_result:
                     raise
 
         return self._open_result_reader(*args, **kwargs)
