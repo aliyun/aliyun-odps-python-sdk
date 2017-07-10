@@ -191,6 +191,7 @@ class Config(object):
         setattr(self._config, key, value)
 
     def register_option(self, option, value, validator=None):
+        assert validator is None or callable(validator)
         splits = option.split('.')
         conf = self._config
 
@@ -324,7 +325,7 @@ options.register_option('pool_maxsize', DEFAULT_POOL_MAXSIZE, validator=is_integ
 options.register_option('tunnel.endpoint', None)
 options.register_option('tunnel.string_as_binary', False, validator=is_bool)
 options.register_option('tunnel.use_instance_tunnel', True, validator=is_bool)
-options.register_option('tunnel.limit_instance_tunnel', None, validator=(is_null, is_bool))
+options.register_option('tunnel.limit_instance_tunnel', None, validator=any_validator(is_null, is_bool))
 options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
 options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')
 options.redirect_option('limited_instance_tunnel', 'tunnel.limit_instance_tunnel')
