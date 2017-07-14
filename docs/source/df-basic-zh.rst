@@ -93,7 +93,7 @@ Sequence
 ~~~~~~
 
 DataFrame包括自己的类型系统，在使用Table初始化的时候，ODPS的类型会被进行转换。这样做的好处是，能支持更多的计算后端。目前，DataFrame的执行后端支持ODPS
-SQL和pandas。
+SQL、pandas以及数据库（MySQL和Postgres）。
 
 PyODPS DataFrame包括以下类型：
 
@@ -269,6 +269,39 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     3              4.1
     4              4.6
 
+在 0.7.2 以后的版本也支持在原 Collection 上增加或者删除一列。
+
+.. code:: python
+
+    >>> iris['sepalwidthplus1'] = iris.sepalwidth + 1
+    >>> iris.head(5)
+              name  sepallength  sepalwidth  petallength  petalwidth  \
+    0  Iris-setosa          5.1         3.5          1.4         0.2
+    1  Iris-setosa          4.9         3.0          1.4         0.2
+    2  Iris-setosa          4.7         3.2          1.3         0.2
+    3  Iris-setosa          4.6         3.1          1.5         0.2
+    4  Iris-setosa          5.0         3.6          1.4         0.2
+
+       sepalwidthplus1
+    0              4.5
+    1              4.0
+    2              4.2
+    3              4.1
+    4              4.6
+
+这种做法和上一步是等价的，好处是，省去了重新创建一个 Collection 的麻烦。
+
+删除一列则可以：
+
+    >>> del iris['sepallength']
+    >>> iris.head(5)
+              name  sepalwidth  petallength  petalwidth  sepalwidthplus1
+    0  Iris-setosa         3.5          1.4         0.2              4.5
+    1  Iris-setosa         3.0          1.4         0.2              4.0
+    2  Iris-setosa         3.2          1.3         0.2              4.2
+    3  Iris-setosa         3.1          1.5         0.2              4.1
+    4  Iris-setosa         3.6          1.4         0.2              4.6
+
 我们也可以先将原列通过 exclude 方法进行排除，再将变换后的新列并入，而不必担心重名。
 
 .. code:: python
@@ -295,31 +328,8 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     3  Iris-setosa               2.1
     4  Iris-setosa               2.6
 
-.. note::
 
-    **注意**\ ：在进行列变换时，作为输入的 collection 或者 sequence 必须来自上一步的 collection
-    或者由上一步的 collection 变换而来。
-
-例如，
-
-.. code:: python
-
-    >>> iris['name', 'petallength'][[iris.name, ]].head(5)
-
-就是错误的。一种方法是将上述表达式分成两步写：
-
-.. code:: python
-
-    >>> df = iris['name', 'petallength']
-    >>> df[[df.name, ]].head(5)
-              name
-    0  Iris-setosa
-    1  Iris-setosa
-    2  Iris-setosa
-    3  Iris-setosa
-    4  Iris-setosa
-
-此外，我们也可以传入一个 lambda 表达式，它接收一个参数，接收上一步的结果。在执行时，PyODPS
+此外，我们也支持传入一个 lambda 表达式，它接收一个参数，接收上一步的结果。在执行时，PyODPS
 会检查这些 lambda 表达式，传入上一步生成的 collection 并将其替换为正确的列。
 
 .. code:: python
@@ -596,7 +606,9 @@ ResultFrame可以迭代取出每条记录。
 保存执行结果为 ODPS 表
 ~~~~~~~~~~~~~~~~~~~~~~
 
-对 Collection，我们可以调用\ ``persist``\ 方法，参数为表名。返回一个新的DataFrame对象
+对 Collection，我们可以调用\ ``persist``\ 方法，参数为表名。返回一个新的DataFrame对象。
+
+此时，如果表不存在，会先创建。
 
 .. code:: python
 
@@ -633,6 +645,8 @@ ResultFrame可以迭代取出每条记录。
 .. code:: python
 
     >>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', partition='ds=test', drop_partition=True, create_partition=True)
+
+以上三种情况都支持传入 ``overwrite`` 参数，默认为True，表示是否会覆盖原有的数据。
 
 保存执行结果为 Pandas DataFrame
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
