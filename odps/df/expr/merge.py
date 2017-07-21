@@ -541,7 +541,9 @@ def _make_different_sources(left, right, predicate=None):
                     p_dag = p.to_dag(copy=False, validate=False)
                     for p_n in p_dag.traverse(top_down=True):
                         if p_n is right:
-                            p_dag.substitute(right, copied)
+                            succs = list(s for s in p_dag.successors(p_n)
+                                         if s not in exprs)
+                            p_dag.substitute(right, copied, parents=succs)
 
     return left, subs.get(right, right)
 
@@ -910,7 +912,7 @@ def _drop(expr, data, axis=0, columns=None):
     :param columns: columns of data to select, only useful when axis == 0
     :return: collection
     
-    Example:
+    :Example:
     >>> import pandas as pd
     >>> df1 = DataFrame(pd.DataFrame({'a': [1, 2, 3], 'b': [4, 5, 6], 'c': [7, 8, 9]}))
     >>> df2 = DataFrame(pd.DataFrame({'a': [2, 3], 'b': [5, 7]}))
@@ -966,7 +968,7 @@ def setdiff(left, *rights, **kwargs):
     :param distinct: whether to preserve duplicate entries
     :return: collection
     
-    Examples:
+    :Examples:
     >>> import pandas as pd
     >>> df1 = DataFrame(pd.DataFrame({'a': [1, 2, 3, 3, 3], 'b': [1, 2, 3, 3, 3]}))
     >>> df2 = DataFrame(pd.DataFrame({'a': [1, 3], 'b': [1, 3]}))
@@ -1023,7 +1025,7 @@ def intersect(left, *rights, **kwargs):
     :param distinct: whether to preserve duolicate entries
     :return: collection
     
-    Examples:
+    :Examples:
     >>> import pandas as pd
     >>> df1 = DataFrame(pd.DataFrame({'a': [1, 2, 3, 3, 3], 'b': [1, 2, 3, 3, 3]}))
     >>> df2 = DataFrame(pd.DataFrame({'a': [1, 3, 3], 'b': [1, 3, 3]}))

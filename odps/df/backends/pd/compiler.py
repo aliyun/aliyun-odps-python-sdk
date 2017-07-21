@@ -915,6 +915,20 @@ class PandasCompiler(Backend):
 
         self._add_node(expr, handle)
 
+    def _check_output_types(self, pd_df, expect_df_types):
+        for field, expect_df_type in zip(pd_df.columns, expect_df_types):
+            arr = pd_df[field].values
+            try:
+                df_type = types.np_type_to_df_type(pd_df[field].dtype, arr=arr)
+            except TypeError:
+                # all element is None
+                continue
+            if not expect_df_type.can_implicit_cast(df_type):
+                raise TypeError('Field(%s) has wrong type, expect %s, got %s' % (
+                    field, expect_df_type, df_type
+                ))
+        return pd_df
+
     def visit_apply_collection(self, expr):
         def conv(l):
             if isinstance(l, tuple):
@@ -966,7 +980,8 @@ class PandasCompiler(Backend):
                         rows.append(conv(l))
                 else:
                     rows.append(close_func(*expr._func_args, **expr._func_kwargs))
-            return pd.DataFrame(rows, columns=expr.schema.names)
+            return self._check_output_types(pd.DataFrame(rows, columns=expr.schema.names),
+                                            expr.schema.types)
 
         self._add_node(expr, handle)
 

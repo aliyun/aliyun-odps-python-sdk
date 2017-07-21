@@ -18,6 +18,8 @@ DataFrame Reference
     :members:
     :inherited-members:
 
+.. autofunction:: odps.df.NullScalar
+
 .. autoclass:: odps.df.RandomScalar
     :members:
     :inherited-members:

@@ -74,6 +74,10 @@ class Node(six.with_metaclass(NodeMetaclass)):
         for key, value in six.iteritems(kwargs):
             setattr(self, key, value)
 
+    @property
+    def _node_id(self):
+        return id(self)
+
     def _init_attr(self, attr, val):
         if not hasattr(self, attr):
             setattr(self, attr, val)
@@ -151,9 +155,9 @@ class Node(six.with_metaclass(NodeMetaclass)):
         def is_trav(n):
             if not unique:
                 return False
-            if id(n) in traversed:
+            if n._node_id in traversed:
                 return True
-            traversed.add(id(n))
+            traversed.add(n._node_id)
             return False
 
         q = deque()
@@ -172,7 +176,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
                                 if not is_trav(c)]
                     q.extendleft(children[::-1])
             else:
-                if id(curr) not in checked:
+                if curr._node_id not in checked:
                     children = curr.children(extra=extra)
                     if len(children) == 0:
                         yield curr
@@ -180,13 +184,13 @@ class Node(six.with_metaclass(NodeMetaclass)):
                         q.appendleft(curr)
                         if stop_cond is None or not stop_cond(curr):
                             q.extendleft([c for c in children
-                                          if not is_trav(c) or id(c) not in checked][::-1])
-                    checked.add(id(curr))
+                                          if not is_trav(c) or c._node_id not in checked][::-1])
+                    checked.add(curr._node_id)
                 else:
-                    if id(curr) not in yields:
+                    if curr._node_id not in yields:
                         yield curr
                         if unique:
-                            yields.add(id(curr))
+                            yields.add(curr._node_id)
 
     def __eq__(self, other):
         return self.equals(other)
@@ -244,12 +248,12 @@ class Node(six.with_metaclass(NodeMetaclass)):
             curr = q[-1]
             children = curr.children()
 
-            pos = node_poses[id(curr)]
+            pos = node_poses[curr._node_id]
             if len(children) == 0 or pos >= len(children):
                 q.pop()
                 # TODO: add this in the future
                 # if pos >= len(children):
-                #     node_poses[id(curr)] = 0
+                #     node_poses[curr._node_id] = 0
                 continue
 
             n = children[pos]
@@ -258,7 +262,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
                 yield list(q)
                 q.pop()
 
-            node_poses[id(curr)] += 1
+            node_poses[curr._node_id] += 1
 
     def all_path(self, other, strict=False):
         # remember, if the node has been changed into another one during traversing
@@ -306,7 +310,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
             if n is None:
                 return n
             try:
-                return expr_id_to_copied[id(n)]
+                return expr_id_to_copied[n._node_id]
             except KeyError:
                 raise
 
@@ -321,11 +325,11 @@ class Node(six.with_metaclass(NodeMetaclass)):
                     attr_dict[arg_name] = get(arg)
 
             copied_node = type(node)(**attr_dict)
-            expr_id_to_copied[id(node)] = copied_node
+            expr_id_to_copied[node._node_id] = copied_node
             if on_copy is not None:
                 [func(node, copied_node) for func in on_copy]
 
-        return expr_id_to_copied[id(self)]
+        return expr_id_to_copied[self._node_id]
 
     def to_dag(self, copy=True, on_copy=None, dag=None, validate=True):
         if copy:
@@ -341,7 +345,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
             queue.put(expr)
 
         traversed = set()
-        traversed.add(id(expr))
+        traversed.add(expr._node_id)
 
         while not queue.empty():
             node = queue.get()
@@ -352,9 +356,9 @@ class Node(six.with_metaclass(NodeMetaclass)):
                 if not dag.contains_edge(child, node):
                     dag.add_edge(child, node, validate=False)
 
-                if id(child) in traversed:
+                if child._node_id in traversed:
                     continue
-                traversed.add(id(child))
+                traversed.add(child._node_id)
                 queue.put(child)
 
         if validate:
@@ -397,7 +401,7 @@ class ExprProxy(object):
         self._ref = weakref.ref(expr, callback)
         self._cmp = compare
         self._hash = hash(expr)
-        self._expr_id = id(expr)
+        self._expr_id = expr._node_id
 
     def __call__(self):
         return self._ref()
@@ -415,7 +419,7 @@ class ExprProxy(object):
         if obj is not None and self._cmp:
             return obj.equals(other)
 
-        return self._expr_id == id(other)
+        return self._expr_id == other._node_id
 
 
 class ExprDAG(DAG):

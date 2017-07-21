@@ -137,7 +137,7 @@ class ResultFrame(six.Iterator):
     def __getattr__(self, item):
         col = self.get_column_data(item)
         if col is None:
-            raise AttributeError
+            raise AttributeError("ResultFrame has no column '{0}'".format(item))
         return col
 
     def __getitem__(self, item):

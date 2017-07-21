@@ -317,6 +317,30 @@ class Test(TestBase):
         self.assertNotIsInstance(expr2, GroupByCollectionExpr)
         self.assertNotIsInstance(expr2, FilterCollectionExpr)
 
+    def testSetitemConditionField(self):
+        from odps.df.expr.arithmetic import And
+        from odps.df.expr.element import IfElse
+
+        expr = self.expr.copy()
+
+        self.assertRaises(ValueError, expr.__setitem__, (expr.id, 'new_id'), 0)
+        self.assertRaises(ValueError, expr.__setitem__, (expr.id, expr.name, 'new_id'), 0)
+
+        expr[expr.id < 10, 'new_id'] = expr.id + 1
+        self.assertIn('new_id', expr.schema.names)
+        self.assertIsInstance(expr._fields[-1], IfElse)
+
+        expr[expr.id < 5, expr.name == 'test', 'new_id2'] = expr.id + 2
+        self.assertIn('new_id2', expr.schema.names)
+        self.assertIsInstance(expr._fields[-1], IfElse)
+        self.assertIsInstance(expr._fields[-1].input, And)
+
+        expr[expr.id >= 5, expr.name == 'test', 'new_id2'] = expr.id + 2
+        self.assertIn('new_id2', expr.schema.names)
+        self.assertIsInstance(expr._fields[-1], IfElse)
+        self.assertIsInstance(expr._fields[-1].input, And)
+        self.assertIsInstance(expr._fields[-1]._else, IfElse)
+
     def testDelitemField(self):
         from odps.df.expr.groupby import GroupByCollectionExpr
         from odps.df.expr.collections import DistinctCollectionExpr

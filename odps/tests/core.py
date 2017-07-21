@@ -21,7 +21,7 @@ import warnings
 
 from .. import compat, utils
 from .. import ODPS
-from ..errors import InternalServerError
+from ..errors import InternalServerError, NoSuchObject
 from ..tunnel import TableTunnel
 from ..compat import six, ConfigParser
 
@@ -225,9 +225,10 @@ try:
 
     def is_internal_error(err, fun_name, *_):
         ex = err[0]
-        if fun_name in ('testInstanceQueueingInfo', 'testBatchStop') and issubclass(ex, AssertionError):
+        if fun_name in ('testInstanceQueueingInfo', 'testBatchStop', 'testAsyncExecute') \
+                and issubclass(ex, AssertionError):
             return True
-        if issubclass(ex, InternalServerError):
+        if issubclass(ex, (InternalServerError, NoSuchObject)):
             return True
         if issubclass(ex, (requests.ConnectionError, requests.Timeout)):
             return True

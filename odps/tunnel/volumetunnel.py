@@ -510,7 +510,7 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
 
     def commit(self, files):
         if not files:
-            raise AttributeError('Invalid argument: files')
+            raise ValueError('`files` not supplied')
         if isinstance(files, six.string_types):
             files = [files, ]
         formatted = [self._format_file_name(fn) for fn in files]

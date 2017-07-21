@@ -16,6 +16,7 @@
 
 from copy import deepcopy
 import contextlib
+import traceback
 import warnings
 
 from .compat import six
@@ -48,8 +49,11 @@ class Redirection(object):
 
     def getvalue(self):
         if self._warn and not self._warned:
-            self._warned = True
-            warnings.warn(self._warn)
+            in_completer = any(1 for st in traceback.extract_stack()
+                               if 'completer' in st[0].lower())
+            if not in_completer:
+                self._warned = True
+                warnings.warn(self._warn)
         conf = self._parent.root
         for it in self._items:
             conf = getattr(conf, it)

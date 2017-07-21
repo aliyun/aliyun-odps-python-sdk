@@ -247,10 +247,23 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     3         3.1         0.2  Iris-setosa
     4         3.6         0.2  Iris-setosa
 
-如果我们需要在已有数据集中引入某一列变换的结果，也可以使用 expr[columns] 语法，并将新列作为 columns 的一部分。
-这里需要注意的是，变换后的列名与原列名可能相同，如果需要与原 collection 合并，请将该列重命名。
+0.7.2 以后的 PyODPS 支持另一种写法，即在数据集上直接排除相应的列：
 
-下面的例子将 iris 中的 sepalwidth 列加一后重命名为 sepalwidthplus1 并合并回原列：
+.. code:: python
+
+    >>> del iris['sepallength']
+    >>> del iris['petallength']
+    >>> iris[:5]
+       sepalwidth  petalwidth         name
+    0         3.5         0.2  Iris-setosa
+    1         3.0         0.2  Iris-setosa
+    2         3.2         0.2  Iris-setosa
+    3         3.1         0.2  Iris-setosa
+    4         3.6         0.2  Iris-setosa
+
+如果我们需要在已有数据集中引入某一列变换的结果，也可以使用 expr[columns] 语法，并将新列作为 columns 的一部分。
+
+下面的例子将 iris 中的 sepalwidth 列加一后重命名为 sepalwidthplus1 并追加到数据集末尾，形成新的数据集：
 
 .. code:: python
 
@@ -269,18 +282,21 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     3              4.1
     4              4.6
 
-在 0.7.2 以后的版本也支持在原 Collection 上增加或者删除一列。
+使用 `df[df, new_sequence]` 需要注意的是，变换后的列名与原列名可能相同，如果需要与原 collection 合并，
+请将该列重命名。
+
+0.7.2 以后版本的 PyODPS 支持直接在当前数据集中追加，写法为
 
 .. code:: python
 
     >>> iris['sepalwidthplus1'] = iris.sepalwidth + 1
     >>> iris.head(5)
-              name  sepallength  sepalwidth  petallength  petalwidth  \
-    0  Iris-setosa          5.1         3.5          1.4         0.2
-    1  Iris-setosa          4.9         3.0          1.4         0.2
-    2  Iris-setosa          4.7         3.2          1.3         0.2
-    3  Iris-setosa          4.6         3.1          1.5         0.2
-    4  Iris-setosa          5.0         3.6          1.4         0.2
+       sepallength  sepalwidth  petallength  petalwidth         name  \
+    0          5.1         3.5          1.4         0.2  Iris-setosa
+    1          4.9         3.0          1.4         0.2  Iris-setosa
+    2          4.7         3.2          1.3         0.2  Iris-setosa
+    3          4.6         3.1          1.5         0.2  Iris-setosa
+    4          5.0         3.6          1.4         0.2  Iris-setosa
 
        sepalwidthplus1
     0              4.5
@@ -288,19 +304,6 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     2              4.2
     3              4.1
     4              4.6
-
-这种做法和上一步是等价的，好处是，省去了重新创建一个 Collection 的麻烦。
-
-删除一列则可以：
-
-    >>> del iris['sepallength']
-    >>> iris.head(5)
-              name  sepalwidth  petallength  petalwidth  sepalwidthplus1
-    0  Iris-setosa         3.5          1.4         0.2              4.5
-    1  Iris-setosa         3.0          1.4         0.2              4.0
-    2  Iris-setosa         3.2          1.3         0.2              4.2
-    3  Iris-setosa         3.1          1.5         0.2              4.1
-    4  Iris-setosa         3.6          1.4         0.2              4.6
 
 我们也可以先将原列通过 exclude 方法进行排除，再将变换后的新列并入，而不必担心重名。
 
@@ -314,8 +317,20 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     3          4.6          1.5         0.2  Iris-setosa         6.2
     4          5.0          1.4         0.2  Iris-setosa         7.2
 
+对于 0.7.2 以后版本的 PyODPS，如果想在当前数据集上直接覆盖，则可以写
 
-进行列增删的另一种方法是调用 select 方法，将需要选择的列作为参数输入。如果需要重命名，使用 Keyword
+.. code:: python
+
+    >>> iris['sepalwidth'] = iris.sepalwidth * 2
+    >>> iris.head(5)
+       sepallength  sepalwidth  petallength  petalwidth         name
+    0          5.1         7.0          1.4         0.2  Iris-setosa
+    1          4.9         6.0          1.4         0.2  Iris-setosa
+    2          4.7         6.4          1.3         0.2  Iris-setosa
+    3          4.6         6.2          1.5         0.2  Iris-setosa
+    4          5.0         7.2          1.4         0.2  Iris-setosa
+
+增删列以创建新数据集的另一种方法是调用 select 方法，将需要选择的列作为参数输入。如果需要重命名，使用 Keyword
 参数输入，并将新的列名作为参数名即可。
 
 .. code:: python
@@ -328,8 +343,7 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     3  Iris-setosa               2.1
     4  Iris-setosa               2.6
 
-
-此外，我们也支持传入一个 lambda 表达式，它接收一个参数，接收上一步的结果。在执行时，PyODPS
+此外，我们也可以传入一个 lambda 表达式，它接收一个参数，接收上一步的结果。在执行时，PyODPS
 会检查这些 lambda 表达式，传入上一步生成的 collection 并将其替换为正确的列。
 
 .. code:: python
@@ -356,6 +370,20 @@ DataFrame 支持在 collection 中追加一列常数。追加常数需要使用 
     2          4.7         3.2          1.3         0.2  Iris-setosa   1
     3          4.6         3.1          1.5         0.2  Iris-setosa   1
     4          5.0         3.6          1.4         0.2  Iris-setosa   1
+
+
+如果需要指定一个空值列，可以使用 :class:`NullScalar`，需要提供字段类型。
+
+.. code:: python
+
+    >>> from odps.df import NullScalar
+    >>> iris[iris, NullScalar('float').rename('fid')][:5]
+       sepal_length  sepal_width  petal_length  petal_width     category   fid
+    0           5.1          3.5           1.4          0.2  Iris-setosa  None
+    1           4.9          3.0           1.4          0.2  Iris-setosa  None
+    2           4.7          3.2           1.3          0.2  Iris-setosa  None
+    3           4.6          3.1           1.5          0.2  Iris-setosa  None
+    4           5.0          3.6           1.4          0.2  Iris-setosa  None
 
 
 DataFrame 也支持在 collection 中增加一列随机数列，该列类型为 float，范围为 0 - 1，每行数值均不同。
@@ -606,9 +634,7 @@ ResultFrame可以迭代取出每条记录。
 保存执行结果为 ODPS 表
 ~~~~~~~~~~~~~~~~~~~~~~
 
-对 Collection，我们可以调用\ ``persist``\ 方法，参数为表名。返回一个新的DataFrame对象。
-
-此时，如果表不存在，会先创建。
+对 Collection，我们可以调用\ ``persist``\ 方法，参数为表名。返回一个新的DataFrame对象
 
 .. code:: python
 
@@ -645,8 +671,6 @@ ResultFrame可以迭代取出每条记录。
 .. code:: python
 
     >>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', partition='ds=test', drop_partition=True, create_partition=True)
-
-以上三种情况都支持传入 ``overwrite`` 参数，默认为True，表示是否会覆盖原有的数据。
 
 保存执行结果为 Pandas DataFrame
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

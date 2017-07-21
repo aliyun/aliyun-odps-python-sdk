@@ -1712,6 +1712,24 @@ class Test(TestBase):
                    'ON t2.`name` == t6.`name`'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(joined, prettify=False)))
 
+        e1, e2 = self.expr, self.expr1
+        expr = e1.join(e2, on=[e1['id'] == e2['id']])
+        expr2 = expr.join(e1, on=[expr['fid_x'] == e1['fid']])
+        expected = 'SELECT t1.`name` AS `name_x`, t1.`id` AS `id_x`, t1.`fid` AS `fid_x`, ' \
+                   't1.`isMale` AS `isMale_x`, t1.`scale` AS `scale_x`, ' \
+                   't1.`birth` AS `birth_x`, t2.`name` AS `name_y`, ' \
+                   't2.`fid` AS `fid_y`, t2.`isMale` AS `isMale_y`, ' \
+                   't2.`scale` AS `scale_y`, t2.`birth` AS `birth_y`, t3.`name`, ' \
+                   't3.`id` AS `id_y`, t3.`fid`, t3.`isMale`, t3.`scale`, t3.`birth` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table1` t2\n' \
+                   'ON t1.`id` == t2.`id` \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table` t3\n' \
+                   'ON t1.`fid` == t3.`fid`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr2, prettify=False)))
+
     def testLeftJoin(self):
         left = self.expr.select(self.expr, type='normal')
         right = self.expr[:4]

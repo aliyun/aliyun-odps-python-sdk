@@ -21,6 +21,8 @@ import time
 import warnings
 from datetime import datetime
 
+import requests
+
 from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
 from .job import Job
 from .worker import WorkerDetail2, LOG_TYPES_MAPPING
@@ -792,22 +794,32 @@ class Instance(LazyLoad):
             try:
                 return self._open_tunnel_reader(**kwargs)
             except result_fallback_errors:
+                # service version too low to support instance tunnel.
                 if not auto_fallback_result:
                     raise
                 if not kwargs.get('limit_enabled'):
                     warnings.warn('Instance tunnel not supported, will fallback to '
                                   'conventional ways. 10000 records will be limited.')
+            except requests.Timeout:
+                # tunnel creation timed out, which might be caused by too many files
+                # on the service.
+                if not auto_fallback_result:
+                    raise
+                if not kwargs.get('limit_enabled'):
+                    warnings.warn('Instance tunnel timed out, will fallback to '
+                                  'conventional ways. 10000 records will be limited.')
+            except (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported):
+                # this is for DDL sql instances such as `show partitions` which raises
+                # InternalServerError when creating download sessions.
+                if not auto_fallback_result:
+                    raise
             except errors.NoPermission:
+                # project is protected
                 if not auto_fallback_protection:
                     raise
                 if not kwargs.get('limit_enabled'):
                     warnings.warn('Project under protection, 10000 records will be limited.')
                     kwargs['limit_enabled'] = True
                     return self._open_tunnel_reader(**kwargs)
-            except (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported):
-                # this is for DDL sql instances such as `show partitions` which raises
-                # InternalServerError when creating download sessions.
-                if not auto_fallback_result:
-                    raise
 
         return self._open_result_reader(*args, **kwargs)

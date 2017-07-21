@@ -347,7 +347,7 @@ class Expr(Node):
         return self.copy()
 
     def __hash__(self):
-        return id(self) * hash(Expr)
+        return self._node_id * hash(Expr)
 
     def __eq__(self, other):
         try:
@@ -535,7 +535,25 @@ class CollectionExpr(Expr):
     def __setitem__(self, key, value):
         if not isinstance(value, Expr):
             value = Scalar(value)
-        value = value.rename(key)
+
+        if not isinstance(key, tuple):
+            column_name = key
+            value = value.rename(column_name)
+        else:
+            conds = key[:-1]
+            conds = [self._defunc(c) for c in conds]
+            if not all(isinstance(c.dtype, types.Boolean) for c in conds):
+                raise ValueError('Conditions should be boolean expressions or boolean columns')
+            if len(conds) == 1:
+                cond = conds[0]
+            else:
+                cond = reduce(operator.and_, conds)
+            column_name = key[-1]
+            if column_name not in self._schema:
+                default_col = Scalar(_value_type=value.dtype)
+            else:
+                default_col = self[column_name]
+            value = cond.ifelse(value, default_col).rename(column_name)
 
         expr = self.copy() if self._proxy is None else self._proxy._input
 
@@ -547,8 +565,8 @@ class CollectionExpr(Expr):
         if self._proxy is not None:
             return self._proxy._setitem(value, value_dag=dag)
 
-        fields = [f if f != key else value for f in self._schema.names]
-        if key not in self._schema:
+        fields = [f if f != column_name else value for f in self._schema.names]
+        if column_name not in self._schema:
             fields.append(value)
         # make the isinstance to check the proxy type
         self.__class__ = type(self.__class__.__name__, (self.__class__,), {})

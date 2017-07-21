@@ -21,6 +21,8 @@ import random
 import textwrap
 from datetime import datetime, timedelta
 
+import requests
+
 from odps.tests.core import TestBase, to_str, tn, pandas_case
 from odps.compat import unittest, six
 from odps.models import Instance, SQLTask, Schema
@@ -299,6 +301,11 @@ class Test(TestBase):
 
         TunnelLimitedInstance._exc = errors.InvalidArgument('Mock fallback error')
         self.assertRaises(errors.InvalidArgument, instance.open_reader, use_tunnel=True)
+        with instance.open_reader() as reader:
+            self.assertTrue(hasattr(reader, 'raw'))
+
+        TunnelLimitedInstance._exc = requests.Timeout('Mock timeout')
+        self.assertRaises(requests.Timeout, instance.open_reader, use_tunnel=True)
         with instance.open_reader() as reader:
             self.assertTrue(hasattr(reader, 'raw'))
 

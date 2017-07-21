@@ -959,6 +959,52 @@ class Test(TestBase):
 
         self.assertEqual(sorted(result), sorted(expected))
 
+    def testMapReduceTypeCheck(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+        data = self._gen_data(data=data)
+
+        df = self.expr[self.expr.id.astype('string'),]
+
+        @output(['id'], ['int'])
+        def reducer(keys):
+            def h(row, done):
+                yield row.id
+
+            return h
+
+        df = df.map_reduce(reducer=reducer)
+        with self.assertRaises(TypeError):
+            self.engine.execute(df)
+
+        df = self.expr[self.expr.id.astype('int8'),]
+
+        @output(['id'], ['int'])
+        def reducer(keys):
+            def h(row, done):
+                yield row.id
+
+            return h
+
+        df = df.map_reduce(reducer=reducer)
+        self.engine.execute(df)
+
+        @output(['id'], ['int8'])
+        def reducer(keys):
+            def h(row, done):
+                yield row.id
+
+            return h
+
+        df = self.expr['id',].map_reduce(reducer=reducer)
+        with self.assertRaises(TypeError):
+            self.engine.execute(df)
+
     def testReduceOnly(self):
         data = [
             ['name1', 4, 5.3, None, None, None],

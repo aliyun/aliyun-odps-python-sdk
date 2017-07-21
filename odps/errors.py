@@ -81,8 +81,9 @@ def throw_if_parsable(resp):
 
 _CODE_MAPPING = {
     'ODPS-0010000': 'InternalServerError',
-    'ODPS-0123055': 'ScriptError',
     'ODPS-0110141': 'DataVersionError',
+    'ODPS-0123055': 'ScriptError',
+    'ODPS-0130131': 'NoSuchTable',
     'ODPS-0430055': 'InternalConnectionError',
 }
 
@@ -171,6 +172,14 @@ class NoSuchPartition(NoSuchObject):
     pass
 
 
+class NoSuchPath(NoSuchObject):
+    pass
+
+
+class NoSuchTable(NoSuchObject):
+    pass
+
+
 class InvalidArgument(ServerDefinedException):
     pass
 
@@ -195,15 +204,15 @@ class NoPermission(ServerDefinedException):
     pass
 
 
-class NoSuchPath(ServerDefinedException):
-    pass
-
-
 class InternalServerError(ServerDefinedException):
     pass
 
 
 class ReadMetaError(InternalServerError):
+    pass
+
+
+class ServiceUnavailable(InternalServerError):
     pass
 
 

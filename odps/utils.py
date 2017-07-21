@@ -807,3 +807,11 @@ def thread_local_attribute(thread_local_name, default_value=_NO_DEFAULT_VALUE):
         setattr(thread_local, attr_name, value)
 
     return property(fget=_getter, fset=_setter)
+
+
+def get_id(n):
+    if hasattr(n, '_node_id'):
+        return n._node_id
+
+    return id(n)
+

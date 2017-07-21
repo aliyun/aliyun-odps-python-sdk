@@ -24,6 +24,7 @@ from ...utils import hashable
 from ...df import DataFrame
 from ...df.expr.collections import CollectionExpr, Expr, FilterPartitionCollectionExpr
 from ...df.expr.dynamic import DynamicMixin, DynamicCollectionExpr
+from ...utils import get_id
 
 expr_output_registry = dict()
 shared_props_registry = dict()
@@ -228,7 +229,7 @@ class MetricsResultExpr(AlgoExprMixin, Expr):
     def get_input_hash(self, input_port):
         from .exporters import get_ml_input
         input_expr = get_ml_input(self, input_port.name)
-        pid = id(input_expr) if input_expr else None
+        pid = get_id(input_expr) if input_expr else None
         return hash((input_port.name, pid))
 
     @property

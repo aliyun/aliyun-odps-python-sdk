@@ -408,7 +408,7 @@ class ODPSSQLEngine(Engine):
                 context.cache(src_expr, cache_data)
                 ui.inc(progress_proportion)
 
-        with instance.open_reader(schema=schema) as reader:
+        with instance.open_reader(schema=schema, use_tunnel=False) as reader:
             ui.status('Start to read instance results...')
             if not isinstance(src_expr, Scalar):
                 if head:

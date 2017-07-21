@@ -363,14 +363,14 @@ class VolumeFSObjects(Iterable):
             try:
                 # as reload() will be done in constructor of VolumeFSObject, we return directly.
                 return self._get(item)
-            except (errors.NoSuchObject, errors.NoSuchPath):
+            except errors.NoSuchObject:
                 return False
         elif isinstance(item, VolumeFSObject):
             obj = item
             try:
                 obj.reload()
                 return True
-            except (errors.NoSuchObject, errors.NoSuchPath):
+            except errors.NoSuchObject:
                 return False
         else:
             return False

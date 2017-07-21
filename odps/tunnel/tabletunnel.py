@@ -304,7 +304,7 @@ class TableUploadSession(serializers.JSONSerializableModel):
             try:
                 resp = self._client.post(url, '', params=params)
                 break
-            except (requests.Timeout, requests.ConnectionError):
+            except (requests.Timeout, requests.ConnectionError, errors.InternalServerError):
                 if retries > 0:
                     retries -= 1
                 else:

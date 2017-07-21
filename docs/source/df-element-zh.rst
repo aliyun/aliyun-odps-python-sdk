@@ -70,6 +70,20 @@ switch用于多条件判断的情况。
     3       noeq
     4      eq5.0
 
+PyODPS 0.7.8 以上版本支持根据条件修改数据集某一列的一部分值，写法为：
+
+.. code:: python
+
+    >>> iris[iris.sepallength > 5, 'cmp5'] = 'gt5'
+    >>> iris[iris.sepallength <= 5, 'cmp5'] = 'lte5'
+    >>> iris.head(5)
+       cmp5
+    0   gt5
+    1  lte5
+    2  lte5
+    3  lte5
+    4  lte5
+
 数学运算
 --------
 
@@ -168,7 +182,7 @@ API不支持连续操作，比如\ ``3 <= iris.sepallength <= 5``\ ，但是提�
     3         True
     4        False
 
-String相关操作
+String 相关操作
 --------------
 
 DataFrame API提供了一系列针对string类型的Sequence或者Scalar的操作。

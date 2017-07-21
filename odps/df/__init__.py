@@ -27,6 +27,12 @@ from ..compat import six
 
 
 def NullScalar(tp):
+    """
+    Creates a Scalar representing typed None values.
+
+    :param tp: type of the scalar
+    :return: Scalar with None value
+    """
     return Scalar(_value_type=tp)
 
 func = FuncFactory()

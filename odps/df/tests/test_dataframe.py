@@ -217,6 +217,39 @@ class Test(TestBase):
         except (DependencyNotInstalledError, ImportError):
             pass
 
+        df = DataFrame(self.table)
+        df[df.id <= 2, 'id2'] = df.id
+
+        try:
+            res = df.to_pandas()
+            result = self._get_result(res)
+
+            expected = [
+                [1, 'name1', 1],
+                [2, 'name2', 2],
+                [3, 'name3', None]
+            ]
+            self.assertEqual(expected, result)
+        except (DependencyNotInstalledError, ImportError):
+            pass
+
+        df = DataFrame(self.table)
+        df[df.id < 2, 'id2'] = df.id
+        df[df.id > 2, df.name == 'name3', 'id2'] = df.id + 1
+
+        try:
+            res = df.to_pandas()
+            result = self._get_result(res)
+
+            expected = [
+                [1, 'name1', 1],
+                [2, 'name2', None],
+                [3, 'name3', 4]
+            ]
+            self.assertEqual(expected, result)
+        except (DependencyNotInstalledError, ImportError):
+            pass
+
     def testRepeatSetItem(self):
         df = DataFrame(self.table)
 

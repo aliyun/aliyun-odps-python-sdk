@@ -15,8 +15,6 @@
 # limitations under the License.
 
 import itertools
-import functools
-import weakref
 from collections import Iterable
 from copy import deepcopy
 
