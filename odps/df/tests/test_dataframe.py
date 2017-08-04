@@ -258,5 +258,20 @@ class Test(TestBase):
 
         self.assertEqual(len(df.execute()), 3)
 
+    def testDataFrameWithColHead(self):
+        test_table_name2 = tn('pyodps_test_dataframe_with_head')
+        schema = Schema.from_lists(['id', 'head'], ['bigint', 'string'])
+
+        self.odps.delete_table(test_table_name2, if_exists=True)
+        table = self.odps.create_table(test_table_name2, schema)
+
+        with table.open_writer() as w:
+            w.write([[1, 'name1'], [2, 'name2'], [3, 'name3']])
+
+        df = DataFrame(table)
+        df2 = DataFrame(self.table)
+        df3 = df.join(df2, on=('head', 'name'))
+        df3.head(10)
+
 if __name__ == '__main__':
     unittest.main()

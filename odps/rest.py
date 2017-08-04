@@ -22,6 +22,10 @@ import threading
 from string import Template
 
 import requests
+try:
+    from requests import ConnectTimeout
+except ImportError:
+    from requests import Timeout as ConnectTimeout
 import requests.packages.urllib3.util.ssl_
 requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
 requests.packages.urllib3.disable_warnings()
@@ -119,7 +123,7 @@ class RestClient(object):
                                     timeout=(options.connect_timeout, options.read_timeout),
                                     verify=False,
                                     proxies=self._proxy)
-        except requests.ConnectTimeout:
+        except ConnectTimeout:
             raise errors.ConnectTimeout('Connecting to endpoint %s timeout.' % self._endpoint)
 
         LOG.debug('response.status_code %d' % res.status_code)

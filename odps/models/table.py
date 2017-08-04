@@ -176,15 +176,17 @@ class Table(LazyLoad):
     last_modified_time = serializers.XMLNodeField('LastModifiedTime',
                                                   parse_callback=utils.parse_rfc822)
 
-    _download_ids = utils.thread_local_attribute('_id_thread_local')
-    _upload_ids = utils.thread_local_attribute('_id_thread_local')
+    _download_ids = utils.thread_local_attribute('_id_thread_local', dict)
+    _upload_ids = utils.thread_local_attribute('_id_thread_local', dict)
 
     def __init__(self, **kwargs):
         self._is_extend_info_loaded = False
-
         super(Table, self).__init__(**kwargs)
-        self._download_ids = dict()
-        self._upload_ids = dict()
+
+        try:
+            del self._id_thread_local
+        except AttributeError:
+            pass
 
     def reload(self):
         url = self.resource()

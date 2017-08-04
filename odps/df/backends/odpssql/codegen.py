@@ -154,6 +154,17 @@ class %(func_cls_name)s(object):
                 if fields:
                     tb = gen_resource_data(fields, tb)
                 resources.append(tb)
+                
+        libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
+        files = []
+        for lib in libraries:
+            if lib.startswith('a:'):
+                lib = lib[2:]
+                f = get_cache_archive(lib)
+            else:
+                f = get_cache_file(lib)
+            files.append(read_lib(lib, f))
+        sys.meta_path.append(CompressImporter(*files))
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
@@ -182,17 +193,6 @@ class %(func_cls_name)s(object):
 
         self.from_types = '%(raw_from_type)s'.split(',')
         self.to_type = '%(to_type)s'
-
-        libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
-        files = []
-        for lib in libraries:
-            if lib.startswith('a:'):
-                lib = lib[2:]
-                f = get_cache_archive(lib)
-            else:
-                f = get_cache_file(lib)
-            files.append(read_lib(lib, f))
-        sys.meta_path.append(CompressImporter(*files))
 
     def _handle_input(self, args):
         from datetime import datetime
@@ -264,6 +264,17 @@ class %(func_cls_name)s(BaseUDTF):
                 if fields:
                     tb = gen_resource_data(fields, tb)
                 resources.append(tb)
+                
+        libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
+        files = []
+        for lib in libraries:
+            if lib.startswith('a:'):
+                lib = lib[2:]
+                f = get_cache_archive(lib)
+            else:
+                f = get_cache_file(lib)
+            files.append(read_lib(lib, f))
+        sys.meta_path.append(CompressImporter(*files))
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
@@ -301,17 +312,6 @@ class %(func_cls_name)s(BaseUDTF):
 
         self.from_types = '%(raw_from_type)s'.split(',')
         self.to_types = '%(to_type)s'.split(',')
-
-        libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
-        files = []
-        for lib in libraries:
-            if lib.startswith('a:'):
-                lib = lib[2:]
-                f = get_cache_archive(lib)
-            else:
-                f = get_cache_file(lib)
-            files.append(read_lib(lib, f))
-        sys.meta_path.append(CompressImporter(*files))
 
     def _handle_input(self, args):
         from datetime import datetime
@@ -406,6 +406,17 @@ class %(func_cls_name)s(BaseUDAF):
                 if fields:
                     tb = gen_resource_data(fields, tb)
                 resources.append(tb)
+                
+        libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
+        files = []
+        for lib in libraries:
+            if lib.startswith('a:'):
+                lib = lib[2:]
+                f = get_cache_archive(lib)
+            else:
+                f = get_cache_file(lib)
+            files.append(read_lib(lib, f))
+        sys.meta_path.append(CompressImporter(*files))
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
@@ -429,17 +440,6 @@ class %(func_cls_name)s(BaseUDAF):
 
         self.from_types = '%(raw_from_type)s'.split(',')
         self.to_type = '%(to_type)s'
-
-        libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
-        files = []
-        for lib in libraries:
-            if lib.startswith('a:'):
-                lib = lib[2:]
-                f = get_cache_archive(lib)
-            else:
-                f = get_cache_file(lib)
-            files.append(read_lib(lib, f))
-        sys.meta_path.append(CompressImporter(*files))
 
     def _handle_input(self, args):
         from datetime import datetime

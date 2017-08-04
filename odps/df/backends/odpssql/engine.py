@@ -27,7 +27,6 @@ from ....errors import ODPSError, NoPermission, ConnectTimeout
 from ....utils import write_log as log
 from ....models.table import TableSchema
 from ....tempobj import register_temp_table
-from ....types import PartitionSpec
 from ....ui import reload_instance_status, fetch_instance_group
 from ...core import DataFrame
 from ...expr.reduction import *
@@ -132,7 +131,7 @@ class ODPSSQLEngine(Engine):
     def _run(self, sql, ui, progress_proportion=1, hints=None, priority=None,
              group=None, libraries=None):
         self._ctx.create_udfs(libraries=self._get_libraries(libraries))
-        instance = self._odps.run_sql(sql, hints=hints, priority=priority)
+        instance = self._odps.run_sql(sql, hints=hints, priority=priority, name='PyODPSDataFrameTask')
 
         self._instances.append(instance.id)
         log('Instance ID: ' + instance.id)
@@ -431,7 +430,7 @@ class ODPSSQLEngine(Engine):
     def _do_persist(self, expr_dag, expr, name, partitions=None, partition=None, project=None, ui=None,
                     progress_proportion=1, lifecycle=None, hints=None, priority=None,
                     overwrite=True, drop_table=False, create_table=True, drop_partition=False,
-                    create_partition=False, cast=False, **kw):
+                    create_partition=None, cast=False, **kw):
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
 
@@ -443,13 +442,19 @@ class ODPSSQLEngine(Engine):
 
         should_cache = False
 
+        if drop_table:
+            self._odps.delete_table(name, project=project, if_exists=True)
+
         table_name = name if project is None else '%s.`%s`' % (project, name)
         if partitions is None and partition is None:
-            if drop_table:
-                self._odps.delete_table(name, project=project, if_exists=True)
+            # the non-partitioned table
+            if drop_partition:
+                raise ValueError('Cannot drop partition for non-partition table')
+            if create_partition:
+                raise ValueError('Cannot create partition for non-partition table')
 
-            if self._odps.exist_table(name):
-                t = self._odps.get_table(name)
+            if self._odps.exist_table(name, project=project) or not create_table:
+                t = self._odps.get_table(name, project=project)
                 if t.schema.partitions:
                     raise CompileError('Cannot insert into partition table %s without specifying '
                                        '`partition` or `partitions`.')
@@ -471,17 +476,30 @@ class ODPSSQLEngine(Engine):
 
             should_cache = True
         elif partition is not None:
-            t = self._odps.get_table(name, project=project)
+            if self._odps.exist_table(name, project=project) or not create_table:
+                t = self._odps.get_table(name, project=project)
+                partition = self._get_partition(partition, t)
 
-            if drop_partition:
-                t.delete_partition(partition, if_exists=True)
-            if create_partition:
-                t.create_partition(partition, if_not_exists=True)
+                if drop_partition:
+                    t.delete_partition(partition, if_exists=True)
+                if create_partition:
+                    t.create_partition(partition, if_not_exists=True)
+            else:
+                partition = self._get_partition(partition)
+                column_names = [n for n in expr.schema.names if n not in partition]
+                column_types = [types.df_type_to_odps_type(expr.schema[n].type)
+                                for n in column_names]
+                partition_names = [n for n in partition.keys]
+                partition_types = ['string'] * len(partition_names)
+                t = self._odps.create_table(
+                    name, TableSchema.from_lists(column_names, column_types,
+                                                 partition_names, partition_types), project=project)
+                if create_partition is None or create_partition is True:
+                    t.create_partition(partition)
 
             expr = self._reorder(expr, t, cast=cast)
             sql = self._compile(expr, prettify=False, libraries=libraries)
 
-            partition = PartitionSpec(partition)
             action_str = 'OVERWRITE' if overwrite else 'INTO'
             format_sql = lambda s: 'INSERT {0} TABLE {1} PARTITION({2}) \n{3}'.format(
                 action_str, table_name, partition, s
@@ -510,13 +528,16 @@ class ODPSSQLEngine(Engine):
 
             columns = [c for c in schema.columns if c.name not in partitions]
             ps = [TableSchema.TablePartition(name=pt, type=schema.get_type(pt)) for pt in partitions]
-            if drop_table:
-                self._odps.delete_table(name, project=project, if_exists=True)
-            if create_table:
-                self._odps.create_table(name, Schema(columns=columns, partitions=ps), project=project)
+            if self._odps.exist_table(name, project=project) or not create_table:
+                t = self._odps.get_table(name, project=project)
+            else:
+                t = self._odps.create_table(name, Schema(columns=columns, partitions=ps), project=project)
+            if drop_partition:
+                raise ValueError('Cannot drop partitions when specify `partitions`')
+            if create_partition:
+                raise ValueError('Cannot create partitions when specify `partitions`')
             expr = expr[[c.name for c in expr.schema if c.name not in partitions] + partitions]
 
-            t = self._odps.get_table(name)
             expr = self._reorder(expr, t, cast=cast, with_partitions=True)
             sql = self._compile(expr, prettify=False, libraries=libraries)
 
@@ -543,7 +564,8 @@ class ODPSSQLEngine(Engine):
             context.cache(src_expr, t)
         if partition:
             filters = []
+            df = DataFrame(t)
             for k in partition.keys:
-                filters.append(lambda x: x[k] == partition[k])
-            return DataFrame(t).filter(*filters)
+                filters.append(df[k] == partition[k])
+            return df.filter(*filters)
         return DataFrame(t)

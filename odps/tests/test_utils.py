@@ -146,6 +146,34 @@ class Test(TestBase):
         self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz='Etc/GMT-1'))
         self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=pytz.timezone('Etc/GMT-1')))
 
+    def testThreadLocalAttribute(self):
+        class TestClass(object):
+            _no_defaults = utils.thread_local_attribute('test_thread_local')
+            _defaults = utils.thread_local_attribute('test_thread_local', lambda: 'TestValue')
+
+        inst = TestClass()
+        self.assertRaises(AttributeError, lambda: inst._no_defaults)
+        self.assertEqual(inst._defaults, 'TestValue')
+
+        inst._no_defaults = 'TestManualValue1'
+        self.assertEqual(inst._no_defaults, 'TestManualValue1')
+        inst._defaults = 'TestManualValue2'
+        self.assertEqual(inst._defaults, 'TestManualValue2')
+
+        from odps.compat import futures
+        executor = futures.ThreadPoolExecutor(1)
+
+        def test_fn():
+            self.assertRaises(AttributeError, lambda: inst._no_defaults)
+            self.assertEqual(inst._defaults, 'TestValue')
+
+            inst._no_defaults = 'TestManualValue1'
+            self.assertEqual(inst._no_defaults, 'TestManualValue1')
+            inst._defaults = 'TestManualValue2'
+            self.assertEqual(inst._defaults, 'TestManualValue2')
+
+        executor.submit(test_fn).result()
+
 
 if __name__ == '__main__':
     unittest.main()

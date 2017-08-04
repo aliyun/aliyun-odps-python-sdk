@@ -11,7 +11,7 @@
 由于PyODPS DataFrame本身会对整个操作执行优化，为了能直观地反应整个过程，
 我们可以使用可视化的方式显示整个表达式的计算过程。
 
-值得注意的是，可视化需要依赖 **graphviz** 包。
+值得注意的是，可视化需要依赖 `graphviz 软件 <http://www.graphviz.org/Download..php>`_ 和 **graphviz** Python 包。
 
 
 .. code:: python

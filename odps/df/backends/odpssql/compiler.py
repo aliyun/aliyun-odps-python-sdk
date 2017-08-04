@@ -952,7 +952,8 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, (All, GroupedAll)):
             compiled = 'MIN(IF(%s, 1, 0)) == 1' % self._ctx.get_expr_compiled(expr.args[0])
         elif isinstance(expr, (NUnique, GroupedNUnique)):
-            compiled = 'COUNT(DISTINCT %s)' % self._ctx.get_expr_compiled(expr.args[0])
+            compiled = 'COUNT(DISTINCT %s)' % ', '.join(
+                self._ctx.get_expr_compiled(c) for c in expr.inputs)
         elif isinstance(expr, (Cat, GroupedCat)):
             compiled = 'WM_CONCAT(%s, %s)' % (self._ctx.get_expr_compiled(expr._sep),
                                               self._ctx.get_expr_compiled(expr.input))

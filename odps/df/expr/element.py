@@ -266,14 +266,16 @@ class Switch(ElementOp):
 
     def iter_args(self):
         def _names():
-            yield 'case'
+            if hasattr(self, '_case'):
+                yield 'case'
             for _ in self._conditions:
                 yield 'when'
                 yield 'then'
             yield 'default'
 
         def _args():
-            yield self._case
+            if hasattr(self, '_case'):
+                yield self._case
             for condition, then in zip(self._conditions, self._thens):
                 yield condition
                 yield then

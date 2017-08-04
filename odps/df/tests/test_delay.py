@@ -78,6 +78,29 @@ class Test(TestBase):
         future.result(timeout=10 * 60)
         self.assertTrue(future.done())
 
+    def testPersistExecute(self):
+        delay = Delay()
+        filtered = self.df[self.df.id > 0].cache()
+
+        persist_table_name = tn('pyodps_test_delay_persist')
+        schema = Schema.from_lists(['id', 'name', 'value'], ['bigint', 'string', 'bigint'],
+                                   ['pt', 'ds'], ['string', 'string'])
+        self.odps.delete_table(persist_table_name, if_exists=True)
+        self.odps.create_table(persist_table_name, schema)
+
+        future1 = filtered[filtered.value > 2].persist(persist_table_name, partition='pt=a,ds=d1', delay=delay)
+        future2 = filtered[filtered.value < 2].persist(persist_table_name, partition='pt=a,ds=d2', delay=delay)
+
+        delay.execute()
+        df1 = future1.result()
+        df2 = future2.result()
+
+        self.assertEqual([c.lhs.name for c in df1.predicate.children()], ['pt', 'ds'])
+        result1 = self._get_result(df1.execute())
+        self.assertEqual([r[:-2] for r in result1], [d for d in self.data if d[2] > 2])
+        self.assertEqual([c.lhs.name for c in df2.predicate.children()], ['pt', 'ds'])
+        result2 = self._get_result(df2.execute())
+        self.assertEqual([r[:-2] for r in result2], [d for d in self.data if d[2] < 2])
 
 if __name__ == '__main__':
     unittest.main()

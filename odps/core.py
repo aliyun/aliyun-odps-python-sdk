@@ -189,6 +189,9 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Table`
         """
 
+        if '.' in name:
+            project, name = name.split('.', 1)
+
         project = self.get_project(name=project)
         return project.tables[name]
 

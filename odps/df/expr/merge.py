@@ -16,7 +16,7 @@
 
 import inspect
 from .expressions import CollectionExpr, ProjectCollectionExpr, \
-    Column, BooleanSequenceExpr, SequenceExpr, Expr, Scalar, repr_obj
+    Column, BooleanSequenceExpr, SequenceExpr, Expr, Scalar, repr_obj, CallableColumn
 from .core import Node, ExprDictionary
 from .arithmetic import Equal
 from .errors import ExpressionError
@@ -114,7 +114,10 @@ class JoinCollectionExpr(CollectionExpr):
         if isinstance(field, six.string_types):
             if field not in self._schema:
                 raise ValueError('Field(%s) does not exist' % field)
-            return Column(self, _name=field, _data_type=self._schema[field].type)
+            cls = Column
+            if callable(getattr(type(self), field, None)):
+                cls = CallableColumn
+            return cls(self, _name=field, _data_type=self._schema[field].type)
 
         root = field
         has_path = False
@@ -129,6 +132,11 @@ class JoinCollectionExpr(CollectionExpr):
                     has_path = True
                     idx = 0
                 elif self._is_column(expr, self._rhs):
+                    has_path = True
+                    idx = 1
+                elif expr.input._id == self._get_child(self._rhs)._id:
+                    # In case that the right collection has been copied
+                    expr.substitute(expr.input, self._get_child(self._rhs))
                     has_path = True
                     idx = 1
                 elif isinstance(self._lhs, JoinCollectionExpr):
@@ -449,7 +457,10 @@ class JoinFieldMergedCollectionExpr(ProjectCollectionExpr):
         if isinstance(field, six.string_types):
             if field not in self._schema:
                 raise ValueError('Field(%s) does not exist' % field)
-            return Column(self, _name=field, _data_type=self._schema[field].type)
+            cls = Column
+            if callable(getattr(type(self), field, None)):
+                cls = CallableColumn
+            return cls(self, _name=field, _data_type=self._schema[field].type)
 
         joined_expr = self._input
         root = field

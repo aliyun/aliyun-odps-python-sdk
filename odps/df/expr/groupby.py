@@ -56,12 +56,13 @@ class BaseGroupBy(Expr):
         if any(col.is_renamed() for col in item if isinstance(col, Column)):
             raise ValueError('Fail to get group by fields, column cannot be renamed')
 
+        get_name = lambda it: it if isinstance(it, six.string_types) else it.source_name
         _to_agg = type(self._input.schema)(
-            self._input.schema([field.source_name for field in item
-                                if field.source_name in self._to_agg]))
+            columns=self._input.schema[[get_name(field) for field in item
+                                        if get_name(field) in self._to_agg]])
 
         return GroupBy(_input=self._input, _by=self._by,
-                       _by_names=self._by_names, _to_agg=_to_agg)
+                       _by_names=getattr(self, '_by_names', None), _to_agg=_to_agg)
 
     def __getattr__(self, attr):
         try:
@@ -143,6 +144,15 @@ class GroupBy(BaseGroupBy):
         self._init_attr('_having', None)
         super(GroupBy, self)._init(*args, **kwargs)
 
+    def _same_by(self, other):
+        if other._input is not self._input:
+            return False
+        if len(self._by) != len(other._by):
+            return False
+        if any(x is not y for x, y in zip(self._by, other._by)):
+            return False
+        return True
+
     def _validate_agg(self, agg):
         from .reduction import GroupedSequenceReduction
         from .window import RankOp
@@ -152,7 +162,7 @@ class GroupBy(BaseGroupBy):
                                  stop_cond=lambda x: x is self._input):
             if isinstance(node, GroupedSequenceReduction):
                 has_reduction = True
-                if node._grouped is not self:
+                if not self._same_by(node._grouped):
                     raise ExpressionError(
                         'Aggregation has not been applied to the right GroupBy, got: %s' % repr_obj(agg))
             elif isinstance(node, Column):

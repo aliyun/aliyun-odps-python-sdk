@@ -281,8 +281,8 @@ class OdpsAlgoEngine(Engine):
                 from .runners import XFlowNodeRunner
 
                 model = result_expr._source_data
-                pmml = model.get_model()
                 if not options.ml.use_model_transfer:
+                    pmml = model.get_model()
                     return PmmlResult(pmml)
                 else:
                     volume_name = options.ml.model_volume

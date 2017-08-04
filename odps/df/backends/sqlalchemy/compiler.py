@@ -525,7 +525,7 @@ class SQLAlchemyCompiler(Backend):
         elif isinstance(expr, (Mean, GroupedMean)):
             f = func.avg
         elif isinstance(expr, (NUnique, GroupedNUnique)):
-            f = lambda x: func.count(distinct(x))
+            f = lambda *x: func.count(distinct(*x))
         elif isinstance(expr, (Cat, GroupedCat)):
             f = lambda x: func.array_to_string(func.array_agg(x),
                                                self._expr_to_sqlalchemy[expr._sep])
@@ -535,6 +535,10 @@ class SQLAlchemyCompiler(Backend):
         if isinstance(expr, (Count, GroupedCount)) and \
                 isinstance(expr.input, CollectionExpr):
             reduced = f()
+        elif isinstance(expr, (NUnique, GroupedNUnique)):
+            if len(expr.inputs) > 1:
+                raise NotImplementedError
+            reduced = f(*(self._expr_to_sqlalchemy[i] for i in expr.inputs))
         else:
             reduced = f(input)
         self._add(expr, reduced)

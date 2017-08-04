@@ -77,18 +77,19 @@ tunnel.string_as_binary          在 string 类型中使用 bytes 而非 unicode
 DataFrame 配置
 ==================
 
-==================== ======================================= =======
-选项                 说明	                                 默认值
-==================== ======================================= =======
-interactive          是否在交互式环境                           根据检测值
-df.analyze           是否启用非 ODPS 内置函数                   True
-df.optimize          是否开启DataFrame全部优化                  True
-df.optimizes.pp      是否开启DataFrame谓词下推优化               True
-df.optimizes.cp      是否开启DataFrame列剪裁优化                 True
-df.optimizes.tunnel  是否开启DataFrame使用tunnel优化执行         True
-df.quote             ODPS SQL后端是否用``来标记字段和表名        True
-df.libraries         DataFrame运行使用的第三方库（资源名）        None
-==================== ======================================= =======
+==================== ========================================== =======
+选项                 说明	                                    默认值
+==================== ========================================== =======
+interactive          是否在交互式环境                              根据检测值
+df.analyze           是否启用非 ODPS 内置函数                      True
+df.optimize          是否开启DataFrame全部优化                     True
+df.optimizes.pp      是否开启DataFrame谓词下推优化                  True
+df.optimizes.cp      是否开启DataFrame列剪裁优化                    True
+df.optimizes.tunnel  是否开启DataFrame使用tunnel优化执行            True
+df.quote             ODPS SQL后端是否用``来标记字段和表名           True
+df.libraries         DataFrame运行使用的第三方库（资源名）           None
+df.odps.sort.limit   DataFrame有排序操作时，默认添加的limit条数      10000
+==================== ========================================== =======
 
 
 机器学习配置

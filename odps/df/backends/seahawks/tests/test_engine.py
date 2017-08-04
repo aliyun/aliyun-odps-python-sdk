@@ -24,7 +24,8 @@ import uuid
 from odps.df.backends.tests.core import TestBase, to_str, tn
 from odps.models import Schema
 from odps import types
-from odps.compat import six
+from odps.compat import six, OrderedDict
+from odps.errors import ODPSError
 from odps.df.types import validate_data_type, DynamicSchema
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema, \
     odps_schema_to_df_schema
@@ -32,6 +33,7 @@ from odps.df.expr.expressions import CollectionExpr
 from odps.df.backends.seahawks.engine import SeahawksEngine
 from odps.df.backends.seahawks.models import SeahawksTable
 from odps.df.backends.context import context
+from odps.df.backends.errors import CompileError
 from odps.df import Scalar
 from odps.tests.core import sqlalchemy_case
 
@@ -1048,6 +1050,24 @@ class Test(TestBase):
         finally:
             table2.drop()
 
+    def testJoinAggregation(self):
+        data = [
+            ['name1', 4, 5.3, None, None],
+            ['name2', 2, 3.5, None, None],
+            ['name1', 4, 4.2, None, None],
+            ['name1', 3, 2.2, None, None],
+            ['name1', 3, 4.1, None, None],
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.join(self.expr.view(), on=['name', 'id'])[
+            lambda x: x.count(), self.expr.id.sum()]
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual([[9, 30]], result)
+
     def testUnion(self):
         data = [
             ['name1', 4, 5.3, None, None],
@@ -1167,13 +1187,51 @@ class Test(TestBase):
 
         table_name = tn('pyodps_test_engine_persist_seahawks_table')
 
+        # simple persist
         try:
+            with self.assertRaises(ODPSError):
+                self.engine.persist(self.expr, table_name, create_table=False)
+
             df = self.engine.persist(self.expr, table_name)
 
             res = self.engine.execute(df)
             result = self._get_result(res)
             self.assertEqual(len(result), 5)
             self.assertEqual(data, result)
+
+            with self.assertRaises(ValueError):
+                self.engine.persist(self.expr, table_name, create_partition=True)
+            with self.assertRaises(ValueError):
+                self.engine.persist(self.expr, table_name, drop_partition=True)
+        finally:
+            self.odps.delete_table(table_name, if_exists=True)
+
+        # persist over existing table
+        try:
+            self.odps.create_table(table_name,
+                                   'name string, fid double, id bigint, isMale boolean, birth datetime',
+                                   lifecycle=1)
+
+            expr = self.expr[self.expr, Scalar(1).rename('name2')]
+            with self.assertRaises(CompileError):
+                self.engine.persist(expr, table_name)
+
+            expr = self.expr['name', 'fid', self.expr.id.astype('int32'), 'isMale', 'birth']
+            df = self.engine.persist(expr, table_name)
+
+            res = self.engine.execute(df)
+            result = self._get_result(res)
+            self.assertEqual(len(result), 5)
+            self.assertEqual(data, [[r[0], r[2], r[1], None, None] for r in result])
+        finally:
+            self.odps.delete_table(table_name, if_exists=True)
+
+        try:
+            df = self.engine.persist(self.expr, table_name, partition={'ds': 'today'})
+
+            res = self.engine.execute(df)
+            result = self._get_result(res)
+            self.assertEqual(len(result), 5)
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 
@@ -1185,7 +1243,27 @@ class Test(TestBase):
             res = self.engine.execute(df)
             result = self._get_result(res)
             self.assertEqual(len(result), 5)
-            self.assertEqual(data, [r[:-1] for r in result])
+            self.assertEqual(data, [d[:-1] for d in result])
+
+            df2 = self.engine.persist(self.expr[self.expr.id.astype('float'), 'name'], table_name,
+                                      partition='ds=today2', create_partition=True, cast=True)
+
+            res = self.engine.execute(df2)
+            result = self._get_result(res)
+            self.assertEqual(len(result), 5)
+            self.assertEqual([d[:2] + [None] * (len(d) - 2) for d in data], [d[:-1] for d in result])
+        finally:
+            self.odps.delete_table(table_name, if_exists=True)
+
+        try:
+            schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds', 'hh'], ['string', 'string'])
+            self.odps.create_table(table_name, schema)
+
+            with self.assertRaises(ValueError):
+                self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
+
+            self.engine.persist(self.expr, table_name, partition=OrderedDict([('hh', 'now'), ('ds', 'today')]))
+            self.assertTrue(self.odps.get_table(table_name).exist_partition('ds=today,hh=now'))
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 

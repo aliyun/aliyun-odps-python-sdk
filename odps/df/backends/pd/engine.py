@@ -33,7 +33,7 @@ from ...utils import is_source_collection, is_constant_scalar
 from ...types import DynamicSchema, Unknown
 from ....models import Schema, Partition
 from ....errors import ODPSError
-from ....types import PartitionSpec
+from ....models.table import TableSchema
 from ....lib.importer import CompressImporter
 from .... import compat
 from ..context import context
@@ -235,7 +235,15 @@ class PandasEngine(Engine):
                               progress_proportion=progress_proportion * execute_percent, **kwargs)
         schema = Schema(columns=df.columns)
 
+        if drop_table:
+            odps.delete_table(name, project=project, if_exists=True)
+
         if partitions is not None:
+            if drop_partition:
+                raise ValueError('Cannot drop partitions when specify `partitions`')
+            if create_partition:
+                raise ValueError('Cannot create partitions when specify `partitions`')
+
             if isinstance(partitions, tuple):
                 partitions = list(partitions)
             if not isinstance(partitions, list):
@@ -246,39 +254,58 @@ class PandasEngine(Engine):
                     raise ValueError(
                             'Partition field(%s) does not exist in DataFrame schema' % p)
 
+            schema = df_schema_to_odps_schema(schema)
             columns = [c for c in schema.columns if c.name not in partitions]
             ps = [Partition(name=t, type=schema.get_type(t)) for t in partitions]
             schema = Schema(columns=columns, partitions=ps)
+
+            if odps.exist_table(name, project=project) or not create_table:
+                t = odps.get_table(name, project=project)
+            else:
+                t = odps.create_table(name, schema, project=project)
         elif partition is not None:
-            t = odps.get_table(name, project=project)
-            for col in expr.schema.columns:
-                if col.name.lower() not in t.schema:
-                    raise CompileError('Column %s does not exist in table' % col.name)
-                t_col = t.schema[col.name.lower()]
-                if df_type_to_odps_type(col.type) != t_col.type:
-                    raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
-                        col.name, t_col.type, col.type))
+            if odps.exist_table(name, project=project) or not create_table:
+                t = odps.get_table(name, project=project)
+                partition = self._get_partition(partition, t)
 
+                if drop_partition:
+                    t.delete_partition(partition, if_exists=True)
+                if create_partition:
+                    t.create_partition(partition, if_not_exists=True)
+            else:
+                partition = self._get_partition(partition)
+                column_names = [n for n in expr.schema.names if n not in partition]
+                column_types = [df_type_to_odps_type(expr.schema[n].type)
+                                for n in column_names]
+                partition_names = [n for n in partition.keys]
+                partition_types = ['string'] * len(partition_names)
+                t = odps.create_table(
+                    name, TableSchema.from_lists(column_names, column_types,
+                                                 partition_names, partition_types), project=project)
+                if create_partition is None or create_partition is True:
+                    t.create_partition(partition)
+        else:
             if drop_partition:
-                t.delete_partition(partition, if_exists=True)
+                raise ValueError('Cannot drop partition for non-partition table')
             if create_partition:
-                t.create_partition(partition, if_not_exists=True)
+                raise ValueError('Cannot create partition for non-partition table')
 
-        if partition is None:
-            if drop_table:
-                odps.delete_table(name, project=project, if_exists=True)
-            if create_table and not odps.exist_table(name):
-                schema = df_schema_to_odps_schema(schema)
-                odps.create_table(name, schema, project=project, lifecycle=lifecycle)
+            if odps.exist_table(name, project=project) or not create_table:
+                t = odps.get_table(name, project=project)
+                if t.schema.partitions:
+                    raise CompileError('Cannot insert into partition table %s without specifying '
+                                       '`partition` or `partitions`.')
+            else:
+                t = odps.create_table(name, df_schema_to_odps_schema(schema), project=project)
 
-        table = odps.get_table(name, project=project)
-        write_table(df, table, ui=ui, cast=cast, partitions=partitions, partition=partition,
+        write_table(df, t, ui=ui, cast=cast, overwrite=overwrite, partitions=partitions, partition=partition,
                     progress_proportion=progress_proportion*(1-execute_percent))
 
         if partition:
-            partition = PartitionSpec(partition)
-            filters = []
-            for k in partition.keys:
-                filters.append(lambda x: x[k] == partition[k])
-            return DataFrame(odps.get_table(name, project=project)).filter(*filters)
-        return DataFrame(odps.get_table(name, project=project))
+            if partition:
+                filters = []
+                df = DataFrame(t)
+                for k in partition.keys:
+                    filters.append(df[k] == partition[k])
+                return df.filter(*filters)
+        return DataFrame(t)

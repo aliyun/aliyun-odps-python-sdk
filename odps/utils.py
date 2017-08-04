@@ -782,11 +782,7 @@ def hashable(obj):
     return items
 
 
-_NO_DEFAULT_VALUE_TYPE = type('NoDefaultValueType', (object, ), {})
-_NO_DEFAULT_VALUE = _NO_DEFAULT_VALUE_TYPE()
-
-
-def thread_local_attribute(thread_local_name, default_value=_NO_DEFAULT_VALUE):
+def thread_local_attribute(thread_local_name, default_value=None):
     attr_name = '_local_attr_%d' % random.randint(0, 99999999)
 
     def _get_thread_local(self):
@@ -798,8 +794,8 @@ def thread_local_attribute(thread_local_name, default_value=_NO_DEFAULT_VALUE):
 
     def _getter(self):
         thread_local = _get_thread_local(self)
-        if not isinstance(default_value, _NO_DEFAULT_VALUE_TYPE) and not hasattr(thread_local, attr_name):
-            setattr(thread_local, attr_name, default_value)
+        if not hasattr(thread_local, attr_name) and callable(default_value):
+            setattr(thread_local, attr_name, default_value())
         return getattr(thread_local, attr_name)
 
     def _setter(self, value):

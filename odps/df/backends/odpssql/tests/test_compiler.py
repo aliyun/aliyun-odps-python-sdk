@@ -1103,6 +1103,19 @@ class Test(TestBase):
 
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.groupby('name').agg(self.expr.id.nunique(),
+                                             self.expr['id', 'fid'].nunique().rename('nunique'),
+                                             lambda x: x['id', 'name'].nunique().rename('nunique2'),
+                                             lambda x: x.fid.nunique().rename('nunique3'))
+
+        expected = 'SELECT t1.`name`, COUNT(DISTINCT t1.`id`) AS `id_nunique`, ' \
+                   'COUNT(DISTINCT t1.`id`, t1.`fid`) AS `nunique`, ' \
+                   'COUNT(DISTINCT t1.`id`, t1.`name`) AS `nunique2`, ' \
+                   'COUNT(DISTINCT t1.`fid`) AS `nunique3` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`name`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testMutate(self):
         expr = self.expr[self.expr.exclude('birth'), self.expr.fid.astype('int').rename('new_id')]
         expr = expr[expr, expr.groupby('name').mutate(lambda x: x.new_id.cumsum().rename('new_id_sum'))]

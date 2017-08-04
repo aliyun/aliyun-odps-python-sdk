@@ -282,7 +282,7 @@ class Expr(Node):
                     except AttributeError:
                         return
 
-            raise e
+            raise
 
     def _defunc(self, field):
         return field(self) if inspect.isfunction(field) else field
@@ -514,8 +514,6 @@ class CollectionExpr(Expr):
 
         if isinstance(item, six.string_types):
             return self._get_field(item)
-        elif isinstance(item, list) and all(isinstance(it, Scalar) for it in item):
-            return self._summary(item)
         elif isinstance(item, slice):
             if item.start is None and item.stop is None and item.step is None:
                 return self
@@ -775,6 +773,9 @@ class CollectionExpr(Expr):
 
     def _project(self, fields):
         selects = self._get_fields(fields)
+
+        if all(isinstance(it, Scalar) for it in selects):
+            return self._summary(selects)
 
         names = [select.name for select in selects]
         typos = [select.dtype for select in selects]

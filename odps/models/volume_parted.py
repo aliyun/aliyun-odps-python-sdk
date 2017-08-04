@@ -68,14 +68,17 @@ class VolumePartition(LazyLoad):
     creation_time = serializers.XMLNodeField('CreationTime', parse_callback=utils.parse_rfc822)
     last_modified_time = serializers.XMLNodeField('LastModifiedTime', parse_callback=utils.parse_rfc822)
 
-    _download_id = utils.thread_local_attribute('_id_thread_local')
-    _upload_id = utils.thread_local_attribute('_id_thread_local')
+    _download_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
+    _upload_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
 
     def __init__(self, **kwargs):
         super(VolumePartition, self).__init__(**kwargs)
         self._volume_tunnel = None
-        self._download_id = None
-        self._upload_id = None
+
+        try:
+            del self._id_thread_local
+        except AttributeError:
+            pass
 
     def reload(self):
         resp = self._client.get(self.resource())

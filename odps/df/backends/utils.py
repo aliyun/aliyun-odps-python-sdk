@@ -147,8 +147,8 @@ def _reorder_pd(frame, table, cast=False):
 
     expr_table_schema = df_schema_to_odps_schema(frame.schema).to_ignorecase_schema()
     for col in expr_table_schema.columns:
-        if col.name.lower() not in expr_table_schema._name_indexes:
-            raise CompileError('Column %s does not exist in table' % col.name)
+        if col.name.lower() not in table.schema:
+            raise CompileError('Column(%s) does not exist in table' % col.name)
         t_col = table.schema[col.name.lower()]
         if not cast and not t_col.type.can_implicit_cast(col.type):
             raise CompileError('Cannot implicitly cast column %s from %s to %s.' % (
@@ -256,5 +256,7 @@ def process_persist_kwargs(kw):
     kw.pop('partitions', None)
     kw.pop('create_table', None)
     kw.pop('drop_table', None)
+    kw.pop('create_partition', None)
+    kw.pop('drop_partition', None)
 
     return kw

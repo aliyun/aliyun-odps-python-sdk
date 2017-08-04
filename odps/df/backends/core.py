@@ -31,6 +31,7 @@ from ...dag import DAG
 from ...utils import init_progress_ui
 from ...ui.progress import create_instance_group
 from ...compat import futures
+from ...types import PartitionSpec
 from .. import utils
 from ..expr.expressions import Expr, CollectionExpr, Scalar
 from ..expr.core import ExprDictionary, ExprDAG
@@ -599,8 +600,8 @@ class Engine(object):
         case_dict = dict((n.lower(), n) for n in expr.schema.names)
 
         for col in expr_table_schema.columns:
-            if col.name.lower() not in expr_table_schema:
-                raise CompileError('Column %s does not exist in table' % col.name)
+            if col.name.lower() not in table.schema:
+                raise CompileError('Column(%s) does not exist in table' % col.name)
             t_col = table.schema[col.name.lower()]
             if not cast and not t_col.type.can_implicit_cast(col.type):
                 raise CompileError('Cannot implicitly cast column %s from %s to %s.' % (
@@ -622,6 +623,38 @@ class Engine(object):
         names = [c.name for c in table.schema.columns] if with_partitions else table.schema.names
         return expr[[field(name) if name in expr_schema else NullScalar(df_schema[name].type).rename(name)
                      for name in names]]
+
+    @classmethod
+    def _get_partition(cls, partition, table=None):
+        if isinstance(partition, dict):
+            p_spec = PartitionSpec()
+            for name, val in six.iteritems(partition):
+                p_spec[name] = val
+        elif isinstance(partition, PartitionSpec):
+            p_spec = partition
+        else:
+            if not isinstance(partition, six.string_types):
+                raise TypeError('`partition` should be a str or dict, '
+                                'got {0} instead'.format(type(partition)))
+            p_spec = PartitionSpec(partition)
+
+        if table is not None:
+            part_names = [p.name for p in table.schema.partitions]
+            for name in part_names:
+                if name not in p_spec:
+                    raise ValueError('Table has partition column {0} '
+                                     'which not specified by `partition`'.format(name))
+            for name in p_spec.keys:
+                if name not in table.schema._partition_schema:
+                    raise ValueError('Table does not have partition({0}) '
+                                     'which specified in `partition`'.format(name))
+            if p_spec.keys != part_names:
+                old_p_spec = p_spec
+                p_spec = PartitionSpec()
+                for n in part_names:
+                    p_spec[n] = old_p_spec[n]
+
+        return p_spec
 
     def _do_persist(self, expr_dag, expr, name, **kwargs):
         raise NotImplementedError

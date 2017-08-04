@@ -20,6 +20,7 @@ from odps.models import Schema
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.expressions import CollectionExpr
+from odps.df.backends.odpssql.types import odps_schema_to_df_schema
 from odps.df.backends.odpssql.tests.test_compiler import ODPSEngine
 
 
@@ -278,6 +279,165 @@ class Test(TestBase):
                    "GROUP BY t1.`name`"
 
         self.assertEqual(expected, ODPSEngine(self.odps).compile(expr3, prettify=False))
+
+    def testFilterPushdownThroughMultipleProjection(self):
+        schema = Schema.from_lists(list('abcde'), ['string']*5)
+        table = MockTable(name='pyodps_test_expr_table3', schema=schema)
+        tab = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
+
+        labels2 = []
+        bins2 = []
+        for i in range(0, 30):
+            a = str(7 * i) + '-' + str(7 * (i + 1))
+            b = 7 * i
+            bins2.append(b)
+            labels2.append(a)
+
+        p1 = tab.select(tab.a,
+                        tab.c.astype('int').cut(bins2, labels=labels2, include_over=True).rename('c_cut'),
+                        tab.e.astype('int').rename('e'),
+                        tab.c.astype('int').rename('c'))
+        p1['f'] = p1['e'] / p1['c']
+        t = []
+        l = []
+        for i in range(0, 20):
+            a = 1 * i
+            b = str(a)
+            t.append(a)
+            l.append(b)
+        p2 = p1.select(p1.a, p1.c_cut, p1.f.cut(bins=t, labels=l, include_over=True).rename('f_cut'))
+
+        expected = "SELECT t1.`a`, CASE WHEN (0 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 7) THEN '0-7' " \
+                   "WHEN (7 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 14) " \
+                   "THEN '7-14' WHEN (14 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 21) THEN '14-21' " \
+                   "WHEN (21 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 28) " \
+                   "THEN '21-28' WHEN (28 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 35) THEN '28-35' " \
+                   "WHEN (35 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 42) THEN '35-42' " \
+                   "WHEN (42 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 49) THEN '42-49' " \
+                   "WHEN (49 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 56) " \
+                   "THEN '49-56' WHEN (56 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 63) THEN '56-63' " \
+                   "WHEN (63 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 70) THEN '63-70' " \
+                   "WHEN (70 < CAST(t1.`c` AS BIGINT)) AND (CAST(t1.`c` AS BIGINT) <= 77) " \
+                   "THEN '70-77' WHEN (77 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 84) " \
+                   "THEN '77-84' WHEN (84 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 91) THEN '84-91' " \
+                   "WHEN (91 < CAST(t1.`c` AS BIGINT)) AND (CAST(t1.`c` AS BIGINT) <= 98) " \
+                   "THEN '91-98' WHEN (98 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 105) THEN '98-105' " \
+                   "WHEN (105 < CAST(t1.`c` AS BIGINT)) AND (CAST(t1.`c` AS BIGINT) <= 112) " \
+                   "THEN '105-112' WHEN (112 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 119) THEN '112-119' " \
+                   "WHEN (119 < CAST(t1.`c` AS BIGINT)) AND (CAST(t1.`c` AS BIGINT) <= 126) " \
+                   "THEN '119-126' WHEN (126 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 133) THEN '126-133' " \
+                   "WHEN (133 < CAST(t1.`c` AS BIGINT)) AND (CAST(t1.`c` AS BIGINT) <= 140) " \
+                   "THEN '133-140' WHEN (140 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 147) THEN '140-147' " \
+                   "WHEN (147 < CAST(t1.`c` AS BIGINT)) AND (CAST(t1.`c` AS BIGINT) <= 154) " \
+                   "THEN '147-154' WHEN (154 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 161) THEN '154-161' " \
+                   "WHEN (161 < CAST(t1.`c` AS BIGINT)) AND (CAST(t1.`c` AS BIGINT) <= 168) " \
+                   "THEN '161-168' WHEN (168 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 175) THEN '168-175' " \
+                   "WHEN (175 < CAST(t1.`c` AS BIGINT)) AND (CAST(t1.`c` AS BIGINT) <= 182) " \
+                   "THEN '175-182' WHEN (182 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 189) THEN '182-189' " \
+                   "WHEN (189 < CAST(t1.`c` AS BIGINT)) AND (CAST(t1.`c` AS BIGINT) <= 196) " \
+                   "THEN '189-196' WHEN (196 < CAST(t1.`c` AS BIGINT)) " \
+                   "AND (CAST(t1.`c` AS BIGINT) <= 203) THEN '196-203' " \
+                   "WHEN 203 < CAST(t1.`c` AS BIGINT) THEN '203-210' END AS `c_cut`, " \
+                   "CASE WHEN (0 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 1) THEN '0' " \
+                   "WHEN (1 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 2) " \
+                   "THEN '1' WHEN (2 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 3) THEN '2' " \
+                   "WHEN (3 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 4) " \
+                   "THEN '3' WHEN (4 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 5) THEN '4' " \
+                   "WHEN (5 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 6) THEN '5' " \
+                   "WHEN (6 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 7) " \
+                   "THEN '6' WHEN (7 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 8) THEN '7' " \
+                   "WHEN (8 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 9) THEN '8' " \
+                   "WHEN (9 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 10) " \
+                   "THEN '9' WHEN (10 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 11) THEN '10' " \
+                   "WHEN (11 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 12) " \
+                   "THEN '11' WHEN (12 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 13) THEN '12' " \
+                   "WHEN (13 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 14) THEN '13' " \
+                   "WHEN (14 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 15) THEN '14' " \
+                   "WHEN (15 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 16) THEN '15' " \
+                   "WHEN (16 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 17) THEN '16' " \
+                   "WHEN (17 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 18) " \
+                   "THEN '17' WHEN (18 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 19) THEN '18' " \
+                   "WHEN 19 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) THEN '19' END AS `f_cut` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table3` t1 \n" \
+                   "WHERE (CASE WHEN (0 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 1) THEN '0' " \
+                   "WHEN (1 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 2) " \
+                   "THEN '1' WHEN (2 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 3) THEN '2' " \
+                   "WHEN (3 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 4) THEN '3' " \
+                   "WHEN (4 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 5) THEN '4' " \
+                   "WHEN (5 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 6) THEN '5' " \
+                   "WHEN (6 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 7) THEN '6' " \
+                   "WHEN (7 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 8) THEN '7' " \
+                   "WHEN (8 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 9) THEN '8' " \
+                   "WHEN (9 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 10) THEN '9' " \
+                   "WHEN (10 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 11) THEN '10' " \
+                   "WHEN (11 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 12) THEN '11' " \
+                   "WHEN (12 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 13) THEN '12' " \
+                   "WHEN (13 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 14) THEN '13' " \
+                   "WHEN (14 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 15) THEN '14' " \
+                   "WHEN (15 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 16) THEN '15' " \
+                   "WHEN (16 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 17) THEN '16' " \
+                   "WHEN (17 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 18) THEN '17' " \
+                   "WHEN (18 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT))) " \
+                   "AND ((CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) <= 19) THEN '18' " \
+                   "WHEN 19 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) THEN '19' END) == '9'"
+
+        self.assertEqual(str(expected), str(ODPSEngine(self.odps).compile(p2[p2.f_cut == '9'], prettify=False)))
 
 
 if __name__ == '__main__':

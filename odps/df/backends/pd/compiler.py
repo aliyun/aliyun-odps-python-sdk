@@ -23,7 +23,8 @@ import time
 from ..core import Backend
 from ...expr.expressions import *
 from ...expr.arithmetic import Power
-from ...expr.reduction import GroupedSequenceReduction, GroupedCount, Count, GroupedCat, Cat
+from ...expr.reduction import GroupedSequenceReduction, GroupedCount, Count, \
+    GroupedCat, Cat, NUnique, GroupedNUnique
 from ...expr.merge import JoinCollectionExpr
 from ...expr.datetimes import DTScalar
 from ...expr.collections import PivotCollectionExpr
@@ -37,6 +38,7 @@ from ... import types as df_types
 from ....models import FileResource, TableResource, Schema
 from .... import compat
 from ....lib.xnamedtuple import xnamedtuple
+from ....compat import lzip
 
 try:
     import numpy as np
@@ -712,8 +714,11 @@ class PandasCompiler(Backend):
             bys = [(by * size if len(by) == 1 else by) for by in bys]
             return df.groupby(bys).size()
 
-        series = kw.get(expr.input) if isinstance(expr.input, SequenceExpr) \
-            else pd.Series([kw.get(expr.input)], name=expr.input.name)
+        if isinstance(expr, GroupedNUnique):
+            series = pd.Series(lzip(*(kw.get(i) for i in expr.inputs)))
+        else:
+            series = kw.get(expr.input) if isinstance(expr.input, SequenceExpr) \
+                else pd.Series([kw.get(expr.input)], name=expr.input.name)
         bys = self._get_compiled_bys(kw, expr._by, len(series))
         if isinstance(expr.input, Scalar):
             series = pd.Series(series.repeat(len(bys[0])).values, index=bys[0].index)
@@ -743,7 +748,10 @@ class PandasCompiler(Backend):
             op = expr.node_name.lower()
             op = 'size' if op == 'count' else op
 
-            input = children_vals[0]
+            if isinstance(expr, NUnique):
+                input = pd.Series(lzip(*children_vals))
+            else:
+                input = children_vals[0]
             if isinstance(expr, Count) and isinstance(expr.input, (CollectionExpr, SequenceExpr)):
                 return len(input)
             elif isinstance(expr, (Cat, GroupedCat)):

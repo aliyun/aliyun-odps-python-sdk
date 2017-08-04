@@ -210,6 +210,12 @@ class Test(TestBase):
 
         self.assertFalse(any(field.endswith('_x') for field in df.schema.names))
 
+    def testJoinRightTwice(self):
+        expr = self.expr.join(self.expr1, on='id')['id', self.expr.fid]
+        expr = expr.join(self.expr1, on='id')[self.expr1.name,]
+
+        self.assertIs(expr._fields[0].input, expr.input)
+
     def testUnion(self):
         df = self.expr
         df1 = self.expr1

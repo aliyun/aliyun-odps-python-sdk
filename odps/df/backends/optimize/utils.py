@@ -19,41 +19,49 @@ from ...expr.expressions import Column, CollectionExpr
 
 
 def change_input(expr, src_input, new_input, get_field, dag):
-    for path in expr.all_path(src_input, strict=True):
-        cols = [it for it in path if isinstance(it, Column)]
-        assert len(cols) <= 1
-        collection_len = len([it for it in path if isinstance(it, CollectionExpr)])
-        if isinstance(expr, CollectionExpr):
-            assert collection_len == 2
-        else:
-            assert collection_len == 1
-        if len(cols) == 1:
-            col = cols[0]
-
-            col_name = col.source_name or col.name
+    traversed = set()
+    list(expr.traverse(traversed=traversed, stop_cond=lambda x: x is src_input, unique=True))
+    for p in filter(lambda x: x._node_id in traversed, dag.successors(src_input)):
+        if isinstance(p, Column):
+            col_name = p.source_name or p.name
             field = get_field(new_input, col_name)
-            if col.is_renamed():
-                field = field.rename(col.name)
+            if p.is_renamed():
+                field = field.rename(p.name)
             else:
                 field = field.copy()
-            path[-3].substitute(col, field, dag=dag)
+            parents = [it for it in dag.successors(p)
+                       if it._node_id in traversed]
+            dag.substitute(p, field, parents=parents)
         else:
-            path[-2].substitute(src_input, new_input, dag=dag)
+            assert isinstance(p, CollectionExpr)
+            p.substitute(src_input, new_input, dag=dag)
 
 
 def copy_sequence(sequence, collection, dag=None):
-    copied = sequence.copy()
-    if dag:
-        dag.add_node(copied)
-    is_copied = set()
-    for path in sequence.all_path(collection, strict=True):
-        curr = copied
-        for seq in path[1:-1]:
-            if id(seq) in is_copied:
-                continue
-            is_copied.add(id(seq))
-            copied_seq = seq.copy()
-            curr.substitute(seq, copied_seq, dag=dag)
-            curr = copied_seq
+    if dag is None:
+        dag = sequence.to_dag(copy=False)
 
-    return copied
+    traversed = set()
+    copies = dict()
+
+    def copy(node):
+        if node._node_id not in copies:
+            copies[node._node_id] = node.copy()
+        copied = copies[node._node_id]
+        if not dag.contains_node(copied):
+            dag.add_node(copied)
+        return copied
+
+    for n in sequence.traverse(top_down=True, traversed=traversed,
+                               stop_cond=lambda x: x is collection, unique=True):
+        if n is sequence:
+            copy(n)
+            continue
+        if n is collection:
+            continue
+
+        parents = [p for p in dag.successors(n) if p._node_id in traversed]
+        for parent in parents:
+            copy(parent).substitute(n, copy(n), dag=dag)
+
+    return copies[sequence._node_id]

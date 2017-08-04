@@ -54,13 +54,17 @@ class Instance(LazyLoad):
 
     __slots__ = '_task_results', '_is_sync', '_instance_tunnel', '_id_thread_local'
 
-    _download_id = utils.thread_local_attribute('_id_thread_local')
+    _download_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
 
     def __init__(self, **kwargs):
         if 'task_results' in kwargs:
             kwargs['_task_results'] = kwargs.pop('task_results')
         super(Instance, self).__init__(**kwargs)
-        self._download_id = None
+
+        try:
+            del self._id_thread_local
+        except AttributeError:
+            pass
 
         if self._task_results is not None and len(self._task_results) > 0:
             self._is_sync = True

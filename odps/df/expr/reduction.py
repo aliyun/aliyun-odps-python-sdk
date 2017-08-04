@@ -235,11 +235,50 @@ class GroupedAll(GroupedSequenceReduction):
 
 
 class NUnique(SequenceReduction):
-    __slots__ = ()
+    _args = '_inputs',
+
+    @property
+    def source_name(self):
+        if self._source_name:
+            return self._source_name
+        if len(self._inputs) == 1:
+            return self._inputs[0].name
+
+    @property
+    def name(self):
+        if self._name:
+            return self._name
+        source_name = self.source_name
+        if source_name:
+            return '%s_%s' % (source_name, self.node_name.lower())
+
+    @property
+    def input(self):
+        return self._inputs[0]
 
 
 class GroupedNUnique(GroupedSequenceReduction):
     node_name = 'nunique'
+    _args = '_inputs', '_by'
+
+    @property
+    def source_name(self):
+        if self._source_name:
+            return self._source_name
+        if len(self._inputs) == 1:
+            return self._inputs[0].name
+
+    @property
+    def name(self):
+        if self._name:
+            return self._name
+        source_name = self.source_name
+        if source_name:
+            return '%s_%s' % (source_name, self.node_name.lower())
+
+    @property
+    def input(self):
+        return self._inputs[0]
 
 
 class Cat(SequenceReduction):
@@ -547,9 +586,21 @@ def nunique(expr):
     :param expr:
     :return:
     """
-
     output_type = types.int64
-    return _reduction(expr, NUnique, output_type)
+
+    if isinstance(expr, SequenceExpr):
+        return NUnique(_value_type=output_type, _inputs=[expr])
+    elif isinstance(expr, SequenceGroupBy):
+        return GroupedNUnique(_data_type=output_type, _inputs=[expr.to_column()], _grouped=expr.input)
+    elif isinstance(expr, CollectionExpr):
+        return NUnique(_value_type=types.int64, _inputs=expr._project_fields)
+    elif isinstance(expr, GroupBy):
+        if expr._to_agg:
+            inputs = expr.input[expr._to_agg.names]._project_fields
+        else:
+            inputs = expr.input._project_fields
+        return GroupedNUnique(_data_type=types.int64, _inputs=inputs,
+                              _grouped=expr)
 
 
 def _cat(expr, sep=None, na_rep=None):
