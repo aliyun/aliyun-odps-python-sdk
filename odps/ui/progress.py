@@ -225,7 +225,9 @@ else:
 
 class ProgressGroupUI(object):
     def __init__(self, ipython_widget=False):
-        self._ipython_widget = ipython_widget and InstancesProgress
+        self._ipython_widget = ipython_widget
+        if ipython_widget and InstancesProgress is None:
+            raise RuntimeError('Cannot create group ui when InstancesProgress is None')
         self._widget = None
         self._group_keys = set()
         self._prefix = ''

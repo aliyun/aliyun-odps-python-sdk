@@ -19,13 +19,14 @@ import inspect
 import operator
 from collections import defaultdict, Iterable
 import functools
+import sys
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
 from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type, new_id, \
     is_changed, get_proxied_expr
 from .. import types
-from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys
+from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys, six
 from ...config import options
 from ...utils import TEMP_TABLE_PREFIX, to_binary
 from ...models import Schema
@@ -618,6 +619,30 @@ class CollectionExpr(Expr):
             pass
 
         return super(CollectionExpr, self).__getattribute__(attr)
+
+    def query(self, expr):
+        """
+        Query the data with a boolean expression.
+
+        :param expr: the query string, you can use '@' character refer to environment variables.
+        :return: new collection
+        :rtype: :class:`odps.df.expr.expressions.CollectionExpr`
+
+        """
+        from .query import ExprVisitor
+
+        if not isinstance(expr, six.string_types):
+            raise ValueError('expr must be a string')
+
+        frame = sys._getframe(2).f_locals
+        try:
+            env = frame.copy()
+        finally:
+            del frame
+
+        visitor = ExprVisitor(self, env)
+        predicate = visitor.eval(expr)
+        return self.filter(predicate)
 
     def filter(self, *predicates):
         """

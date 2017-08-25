@@ -2211,5 +2211,38 @@ class Test(TestBase):
                    "WHERE ((t1.`part1` == 'a') AND (CAST(t1.`part2` AS BIGINT) == 1)) OR (t1.`part1` == 'b')"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(df, prettify=False)))
 
+    def testQuery(self):
+        df = self.expr1
+
+        df_res = df.query('id+2 >= 3*3')
+        df_cmp = df[df.id + 2 >= 9]
+        self.assertEqual(to_str(ODPSEngine(self.odps).compile(df_cmp, prettify=False)),
+                         to_str(ODPSEngine(self.odps).compile(df_res, prettify=False)))
+
+        df_res = df.query('name="test" & id>1 or isMale and True')
+        df_cmp = df[(df.name == 'test') & (df.id > 1) | df.isMale & True]
+        self.assertEqual(to_str(ODPSEngine(self.odps).compile(df_cmp, prettify=False)),
+                         to_str(ODPSEngine(self.odps).compile(df_res, prettify=False)))
+
+        id = 1
+        fid = 0.2
+        s = 't1'
+        df_res = df.query('id+1 > @id and fid**2 != @fid & name in [@s,"t2"]')
+        df_cmp = df[((df.id + 1) > 1) & (df.fid ** 2 != 0.2) & (df.name.isin(['t1', 't2']))]
+        self.assertEqual(to_str(ODPSEngine(self.odps).compile(df_cmp, prettify=False)),
+                         to_str(ODPSEngine(self.odps).compile(df_res, prettify=False)))
+
+        l = [1, 2, 3, 4]
+        df_res = df.query('@df.name="test" & id < @l[2]')
+        df_cmp = df[(df.name == 'test') & (df.id < 3)]
+        self.assertEqual(to_str(ODPSEngine(self.odps).compile(df_cmp, prettify=False)),
+                         to_str(ODPSEngine(self.odps).compile(df_res, prettify=False)))
+
+        df_res = df.query('@df.name="test" & id in @l[:-1] or -2<-fid<-3')
+        df_cmp = df[(df.name == 'test') & df.id.isin([1, 2, 3]) | ((-df.fid > -2) & (-df.fid < -3))]
+        self.assertEqual(to_str(ODPSEngine(self.odps).compile(df_cmp, prettify=False)),
+                         to_str(ODPSEngine(self.odps).compile(df_res, prettify=False)))
+
+
 if __name__ == '__main__':
     unittest.main()

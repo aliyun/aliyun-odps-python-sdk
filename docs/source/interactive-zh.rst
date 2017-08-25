@@ -520,6 +520,8 @@ petalwidth，则图表变为下图。可见在 petallength - petalwidth 维度�
 对于柱状图和饼图，值字段支持选择聚合函数。PyODPS 对柱状图的默认聚合函数为 sum，对饼图则为 count。如需修改聚合函数，
 可在值字段名称后的聚合函数名上单击，此后选择所需的聚合函数即可。
 
+对于折线图，需要避免 X 轴包含空值，否则图像可能不符合预期。
+
 .. image:: _static/dfview-pie-aggsel.png
 
 完成绘图后，可单击“下载”保存绘制的图表。

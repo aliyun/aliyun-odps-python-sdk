@@ -38,7 +38,7 @@ def _run_cm_node(df, col_true, col_pred, execute_now=True, result_callback=None)
         if result_callback:
             cb = lambda v: result_callback(v.confusion_matrix)
         else:
-            cb = lambda v: v.confusion_matrix
+            cb = lambda v: (v.confusion_matrix, v.labels)
 
         eval_fun = getattr(_customize, 'eval_multi_class')
         eval_result = eval_fun(df, label_col=col_true, predict_col=col_pred,
@@ -94,7 +94,7 @@ def confusion_matrix(df, col_true=None, col_pred=None):
     """
     if not col_pred:
         col_pred = get_field_name_by_role(df, FieldRole.PREDICTED_CLASS)
-    return _run_cm_node(df, col_true, col_pred)
+    return _run_cm_node(df, col_true, col_pred)[0]
 
 
 @metrics_result(_run_cm_node)
