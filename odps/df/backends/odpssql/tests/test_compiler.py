@@ -324,6 +324,23 @@ class Test(TestBase):
         fun_name = list(engine._ctx._registered_funcs.values())[0]
         self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
 
+        expr = self.expr.limit(5)
+        expr = expr.map_reduce(mapper=lambda row: row[0],
+                               mapper_output_names=['name'], mapper_output_types='string')
+
+        engine = ODPSEngine(self.odps)
+
+        expected = "SELECT {0}(t2.`name`, t2.`id`, t2.`fid`, t2.`isMale`, " \
+                   "CAST(t2.`scale` AS STRING), t2.`birth`) AS (`name`) \n" \
+                   "FROM (\n" \
+                   "  SELECT * \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "  LIMIT 5\n" \
+                   ") t2"
+        res = engine.compile(expr, prettify=False)
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
+
     def testMemCacheCompilation(self):
         cached = self.expr['name', self.expr.id + 1].cache(mem=True)
         expr = cached.groupby('name').agg(cached.id.sum())
@@ -2007,7 +2024,7 @@ class Test(TestBase):
                 yield row
             return h
 
-        expr=expr.map_reduce(reducer=reducer, group='name')
+        expr = expr.map_reduce(reducer=reducer, group='name')
 
         expected = "SELECT t6.`name`, t6.`id`, t6.`fid`, t6.`isMale`, " \
                    "CAST(t6.`scale` AS DECIMAL) AS `scale`, t6.`birth`, t6.`new_id` \n" \
@@ -2172,6 +2189,25 @@ class Test(TestBase):
                    "        FROM mocked_project.`pyodps_test_expr_table2` t4\n" \
                    "    ) t5\n" \
                    ") t6"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        e = self.expr['name', 'id']
+        e['const'] = 'cst'
+        e1 = self.expr1['name', 'id']
+        e3 = e1.groupby('name').agg(id=e1.id.sum())
+        e3['const'] = 'cst'
+        expr = e.union(e3['const', 'id', 'name'])
+
+        expected = "SELECT * \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`name`, t1.`id`, 'cst' AS `const` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "  UNION ALL\n" \
+                   "    SELECT t2.`name`, SUM(t2.`id`) AS `id`, 'cst' AS `const` \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table1` t2 \n" \
+                   "    GROUP BY t2.`name`\n" \
+                   ") t3"
+
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
     def testAliases(self):

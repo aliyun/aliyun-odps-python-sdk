@@ -769,6 +769,79 @@ class Test(TestBase):
         finally:
             [res.drop() for res in resources + utils_resources]
 
+    def testCustomLibraries(self):
+        data = self._gen_data(5)
+
+        import textwrap
+        user_script = textwrap.dedent("""
+        def user_fun(a):
+            return a + 1
+        """)
+        rn = 'test_res_%s' % str(uuid.uuid4()).replace('-', '_')
+        res = self.odps.create_resource(rn + '.py', 'file', file_obj=user_script)
+
+        def get_fun(code, fun_name):
+            g, loc = globals(), dict()
+            six.exec_(code, g, loc)
+            return loc[fun_name]
+
+        f = get_fun(textwrap.dedent("""
+        def f(v):
+            from %s import user_fun
+            return user_fun(v)
+        """ % rn), 'f')
+
+        try:
+            expr = self.expr.id.map(f)
+            r = self.engine.execute(expr, libraries=[rn + '.py'])
+            result = self._get_result(r)
+            expect = [[v[1] + 1] for v in data]
+            self.assertListEqual(result, expect)
+        finally:
+            res.drop()
+
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        try:
+            package_dir = os.path.join(temp_dir, 'test_package')
+            os.makedirs(package_dir)
+            with open(os.path.join(package_dir, '__init__.py'), 'w'):
+                pass
+            with open(os.path.join(package_dir, 'adder.py'), 'w') as fo:
+                fo.write(user_script)
+
+            single_dir = os.path.join(temp_dir, 'test_single')
+            os.makedirs(single_dir)
+            with open(os.path.join(single_dir, 'user_script.py'), 'w') as fo:
+                fo.write(user_script)
+
+            f1 = get_fun(textwrap.dedent("""
+            def f1(v):
+                from user_script import user_fun
+                return user_fun(v)
+            """), 'f1')
+
+            expr = self.expr.id.map(f1)
+            r = self.engine.execute(expr, libraries=[os.path.join(single_dir, 'user_script.py')])
+            result = self._get_result(r)
+            expect = [[v[1] + 1] for v in data]
+            self.assertListEqual(result, expect)
+
+            f2 = get_fun(textwrap.dedent("""
+            def f2(v):
+                from test_package.adder import user_fun
+                return user_fun(v)
+            """), 'f2')
+
+            expr = self.expr.id.map(f2)
+            r = self.engine.execute(expr, libraries=[package_dir])
+            result = self._get_result(r)
+            expect = [[v[1] + 1] for v in data]
+            self.assertListEqual(result, expect)
+        finally:
+            import shutil
+            shutil.rmtree(temp_dir)
+
     def testApply(self):
         data = [
             ['name1', 4, None, None, None, None],

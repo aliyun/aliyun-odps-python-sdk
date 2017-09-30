@@ -646,13 +646,12 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
     def gen_name():
         return 'pyodps_field_%s' % str(uuid.uuid4()).replace('-', '_')
 
-    def _gen_actual_reducer(reducer, mapper_output_names, group):
+    def _gen_actual_reducer(reducer, group):
         class ActualReducer(object):
             def __init__(self, resources=None):
                 self._func = reducer
                 self._curr = None
                 self._prev_rows = None
-                self._names = mapper_output_names
                 self._key_named_tuple = namedtuple('NamedKeys', group)
 
                 self._resources = resources
@@ -764,7 +763,7 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
 
                 self.buffer.sort(key=self._cmp_to_key(cmp))
 
-                ActualCombiner = _gen_actual_reducer(combiner, names, group)
+                ActualCombiner = _gen_actual_reducer(combiner, group)
                 ac = ActualCombiner()
                 named_row = namedtuple('NamedRow', names)
                 for r in self.buffer:
@@ -873,7 +872,7 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
                 'Null reducer cannot have reducer output types %s' % reducer_output_types)
         return mapped
 
-    ActualReducer = _gen_actual_reducer(reducer, mapper_output_types, group)
+    ActualReducer = _gen_actual_reducer(reducer, group)
     return clustered.apply(ActualReducer, resources=reducer_resources,
                            names=reducer_output_names, types=reducer_output_types)
 

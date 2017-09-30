@@ -496,13 +496,14 @@ class PandasCompiler(Backend):
             input = kw.get(expr.input)
             names = expr.schema.names
 
-            sorted_fields = []
+            sorted_columns = OrderedDict()
             for field in expr._sorted_fields:
                 name = str(uuid.uuid4())
-                sorted_fields.append(name)
-                input[name] = kw.get(field)
+                sorted_columns[name] = kw.get(field)
+            input = input.assign(**sorted_columns)
 
-            return input.sort_values(sorted_fields, ascending=expr._ascending)[names]
+            return input.sort_values(list(six.iterkeys(sorted_columns)),
+                                     ascending=expr._ascending)[names]
 
         self._add_node(expr, handle)
 

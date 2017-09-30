@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import tarfile
 import zipfile
 
@@ -69,6 +68,7 @@ def with_thirdparty_libs(fun):
 class PandasEngine(Engine):
     def __init__(self, odps=None):
         self._odps = odps
+        self._file_objs = []
 
     def _new_execute_node(self, expr_dag):
         return PandasExecuteNode(expr_dag)
@@ -108,6 +108,13 @@ class PandasEngine(Engine):
             if len(results) == 1:
                 return compat.lvalues(results)[0]
             raise e
+        finally:
+            for fo in self._file_objs:
+                try:
+                    fo.close()
+                except:
+                    pass
+            self._file_objs = []
 
     def _new_analyzer(self, expr_dag, on_sub=None):
         return ana.Analyzer(expr_dag)
@@ -161,25 +168,47 @@ class PandasEngine(Engine):
         if libraries is None:
             return None
 
+        def _open_file(*args, **kwargs):
+            handle = open(*args, **kwargs)
+            self._file_objs.append(handle)
+            return handle
+
         readers = []
 
-        for library in libraries:
-            if isinstance(library, six.string_types):
-                library = self._odps.get_resource(library)
-
-            lib_name = library.name
-            if lib_name.endswith('.zip') or lib_name.endswith('.egg') or lib_name.endswith('.whl'):
-                readers.append(zipfile.ZipFile(library.open(mode='rb')))
-            elif lib_name.endswith('.tar') or lib_name.endswith('.tar.gz') or lib_name.endswith('.tar.bz2'):
-                from io import BytesIO
-                if lib_name.endswith('.tar'):
-                    mode = 'r'
+        for lib in libraries:
+            if isinstance(lib, six.string_types):
+                lib = os.path.abspath(lib)
+                file_dict = dict()
+                if os.path.isfile(lib):
+                    file_dict[lib.replace(os.path.sep, '/')] = _open_file(lib, 'rb')
                 else:
-                    mode = 'r:gz' if lib_name.endswith('.tar.gz') else 'r:bz2'
-                readers.append(tarfile.open(fileobj=BytesIO(library.open(mode='rb').read()), mode=mode))
+                    for root, dirs, files in os.walk(lib):
+                        for f in files:
+                            fpath = os.path.join(root, f)
+                            file_dict[fpath.replace(os.path.sep, '/')] = _open_file(fpath, 'rb')
+                readers.append(file_dict)
             else:
-                raise ValueError(
-                    'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
+                lib_name = lib.name
+                if lib_name.endswith('.zip') or lib_name.endswith('.egg') or lib_name.endswith('.whl'):
+                    readers.append(zipfile.ZipFile(lib.open(mode='rb')))
+                elif lib_name.endswith('.tar') or lib_name.endswith('.tar.gz') or lib_name.endswith('.tar.bz2'):
+                    if lib_name.endswith('.tar'):
+                        mode = 'r'
+                    else:
+                        mode = 'r:gz' if lib_name.endswith('.tar.gz') else 'r:bz2'
+                    readers.append(tarfile.open(fileobj=six.BytesIO(lib.open(mode='rb').read()), mode=mode))
+                elif lib_name.endswith('.py'):
+                    tarbinary = six.BytesIO()
+                    tar = tarfile.open(fileobj=tarbinary, mode='w:gz')
+                    fbin = lib.open(mode='rb').read()
+                    info = tarfile.TarInfo(name='pyodps_lib/' + lib_name)
+                    info.size = len(fbin)
+                    tar.addfile(info, fileobj=six.BytesIO(fbin))
+                    tar.close()
+                    readers.append(tarfile.open(fileobj=six.BytesIO(tarbinary.getvalue()), mode='r:gz'))
+                else:
+                    raise ValueError(
+                        'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
 
         return CompressImporter(*readers, extract=True)
 

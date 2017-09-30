@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import operator
+import random
 
 from ...models import Schema
 from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
@@ -25,7 +26,7 @@ from . import utils
 from ...compat import reduce, six
 from .. import types
 from ..utils import is_constant_scalar
-from ...utils import object_getattr
+from ...utils import object_getattr, camel_to_underline
 
 
 class BaseGroupBy(Expr):
@@ -39,6 +40,11 @@ class BaseGroupBy(Expr):
             self._by = self._input._get_fields(self._by)
         else:
             self._by = [self._input._get_field(self._by)]
+        for idx, by_field in enumerate(self._by):
+            if by_field.name is None:
+                new_field_name = '_%s_%d' % (camel_to_underline(type(by_field).__name__),
+                                             random.randint(10000, 99999))
+                self._by[idx] = by_field.rename(new_field_name)
         if self._to_agg is None:
             self._to_agg = self._input.schema
 

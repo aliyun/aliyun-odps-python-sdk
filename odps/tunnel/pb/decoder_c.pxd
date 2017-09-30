@@ -29,22 +29,22 @@ cdef class Decoder:
 
     cpdef add_offset(self, int n)
 
-    cpdef int32_t read_field_number(self)
+    cpdef int32_t read_field_number(self) except? -1
 
     cpdef read_field_number_and_wire_type(self)
 
-    cpdef int32_t read_sint32(self)
+    cpdef int32_t read_sint32(self) except? -1
 
-    cpdef uint32_t read_uint32(self)
+    cpdef uint32_t read_uint32(self) except? 0xffffffff
 
-    cpdef int64_t read_sint64(self)
+    cpdef int64_t read_sint64(self) except? -1
 
-    cpdef uint64_t read_uint64(self)
+    cpdef uint64_t read_uint64(self) except? 0xffffffff
 
-    cpdef bint read_bool(self)
+    cpdef bint read_bool(self) except? False
 
-    cpdef double read_double(self)
+    cpdef double read_double(self) except? -1.0
 
-    cpdef float read_float(self)
+    cpdef float read_float(self) except? -1.0
 
     cpdef bytes read_string(self)

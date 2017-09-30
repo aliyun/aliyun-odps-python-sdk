@@ -26,15 +26,10 @@ from .errors import ExpressionError
 from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type, new_id, \
     is_changed, get_proxied_expr
 from .. import types
-from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys, six
+from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys, six, futures
 from ...config import options
 from ...utils import TEMP_TABLE_PREFIX, to_binary
 from ...models import Schema
-
-
-def run_at_once(func):
-    func.run_at_once = True
-    return func
 
 
 class ReprWrapper(object):
@@ -137,36 +132,58 @@ class Expr(Node):
                 return self.__execution._repr_html_()
             return repr(self.__execution)
 
+    def _handle_delay_call(self, method, *args, **kwargs):
+        delay = kwargs.pop('delay', None)
+        if delay is not None:
+            future = delay.register_item(method, *args, **kwargs)
+            return future
+        else:
+            from ..engines import get_default_engine
+            engine = get_default_engine(self)
+
+            wrapper = kwargs.pop('wrapper', None)
+            result = getattr(engine, method)(*args, **kwargs)
+            if wrapper is None:
+                return result
+            async_ = kwargs.get('async', False)
+            if async_:
+                user_future = futures.Future()
+
+                def _relay(f):
+                    try:
+                        user_future.set_result(wrapper(f.result()))
+                    except:
+                        if hasattr(f, 'exception_info'):
+                            user_future.set_exception_info(*f.exception_info())
+                        else:
+                            user_future.set_exception(f.exception())
+
+                result.add_done_callback(_relay)
+                return user_future
+            else:
+                return wrapper(result)
+
     def visualize(self):
         from ..engines import get_default_engine
 
         engine = get_default_engine(self)
         return engine.visualize(self)
 
-    @run_at_once
     def execute(self, **kwargs):
         """
         :return: execution result
         :rtype: :class:`odps.df.backends.frame.ResultFrame`
         """
-        if kwargs.get('delay') is not None:
-            delay = kwargs.pop('delay')
-            future = delay.register_item('execute', self, **kwargs)
+        _wrapper = kwargs.pop('wrapper', None)
 
-            def _ret_exec(future):
-                try:
-                    self.__execution = future.result()
-                except:
-                    pass
+        def wrapper(result):
+            self.__execution = result
+            if _wrapper is not None:
+                return _wrapper(result)
+            else:
+                return result
 
-            future.add_done_callback(_ret_exec)
-            return future
-
-        from ..engines import get_default_engine
-
-        engine = get_default_engine(self)
-        self.__execution = engine.execute(self, **kwargs)
-        return self.__execution
+        return self._handle_delay_call('execute', self, wrapper=wrapper, **kwargs)
 
     def compile(self):
         """
@@ -181,7 +198,6 @@ class Expr(Node):
         engine = get_default_engine(self)
         return engine.compile(self)
 
-    @run_at_once
     def persist(self, name, partitions=None, partition=None, lifecycle=None, project=None, **kwargs):
         """
         Persist the execution into a new table. If `partitions` not specified,
@@ -208,23 +224,13 @@ class Expr(Node):
         >>> df.persist('odps_new_table', partition='pt=test')
         >>> df.persist('odps_new_table', partitions=['ds'])
         """
-        from ..engines import get_default_engine
-
-        engine = get_default_engine(self)
-
         if lifecycle is None and options.lifecycle is not None:
             lifecycle = \
                 options.lifecycle if not name.startswith(TEMP_TABLE_PREFIX) \
                     else options.temp_lifecycle
 
-        if kwargs.get('delay') is not None:
-            delay = kwargs.pop('delay')
-            future = delay.register_item('persist', self, name, partitions=partitions, partition=partition,
-                                         lifecycle=lifecycle, project=project, **kwargs)
-            return future
-        else:
-            return engine.persist(self, name, partitions=partitions, partition=partition,
-                                  lifecycle=lifecycle, project=project, **kwargs)
+        return self._handle_delay_call('persist', self, name, partitions=partitions, partition=partition,
+                                       lifecycle=lifecycle, project=project, **kwargs)
 
     def cache(self, mem=False):
         self._need_cache = True
@@ -929,7 +935,6 @@ class CollectionExpr(Expr):
 
         return self[:n]
 
-    @run_at_once
     def head(self, n=None, **kwargs):
         """
         Return the first n rows. Execute at once.
@@ -940,13 +945,8 @@ class CollectionExpr(Expr):
         """
         if n is None:
             n = options.display.max_rows
+        return self._handle_delay_call('execute', self, head=n, **kwargs)
 
-        from ..engines import get_default_engine
-
-        engine = get_default_engine(self)
-        return engine.execute(self, head=n, **kwargs)
-
-    @run_at_once
     def tail(self, n=None, **kwargs):
         """
         Return the last n rows. Execute at once.
@@ -957,13 +957,8 @@ class CollectionExpr(Expr):
         """
         if n is None:
             n = options.display.max_rows
+        return self._handle_delay_call('execute', self, tail=n, **kwargs)
 
-        from ..engines import get_default_engine
-
-        engine = get_default_engine(self)
-        return engine.execute(self, tail=n, **kwargs)
-
-    @run_at_once
     def to_pandas(self, wrap=False, **kwargs):
         """
         Convert to pandas DataFrame. Execute at once.
@@ -978,11 +973,14 @@ class CollectionExpr(Expr):
             raise DependencyNotInstalledError(
                     'to_pandas requires `pandas` library')
 
-        res = self.execute(**kwargs).values
-        if wrap:
-            from .. import DataFrame
-            return DataFrame(res, schema=self.schema)
-        return res
+        def wrapper(result):
+            res = result.values
+            if wrap:
+                from .. import DataFrame
+                return DataFrame(res, schema=self.schema)
+            return res
+
+        return self.execute(wrapper=wrapper, **kwargs)
 
     @property
     def dtypes(self):
@@ -1214,7 +1212,6 @@ class SequenceExpr(TypedExpr):
     def cache(self):
         raise ExpressionError('Cache operation does not support for sequence.')
 
-    @run_at_once
     def head(self, n=None, **kwargs):
         """
         Return first n rows. Execute at once.
@@ -1223,16 +1220,10 @@ class SequenceExpr(TypedExpr):
         :return: result frame
         :rtype: :class:`odps.df.expr.expressions.CollectionExpr`
         """
-
         if n is None:
             n = options.display.max_rows
+        return self._handle_delay_call('execute', self, head=n, **kwargs)
 
-        from ..engines import get_default_engine
-
-        engine = get_default_engine(self)
-        return engine.execute(self, head=n, **kwargs)
-
-    @run_at_once
     def tail(self, n=None, **kwargs):
         """
         Return the last n rows. Execute at once.
@@ -1243,13 +1234,8 @@ class SequenceExpr(TypedExpr):
 
         if n is None:
             n = options.display.max_rows
+        return self._handle_delay_call('execute', self, tail=n, **kwargs)
 
-        from ..engines import get_default_engine
-
-        engine = get_default_engine(self)
-        return engine.execute(self, tail=n, **kwargs)
-
-    @run_at_once
     def to_pandas(self, wrap=False, **kwargs):
         """
         Convert to pandas Series. Execute at once.
@@ -1264,11 +1250,14 @@ class SequenceExpr(TypedExpr):
             raise DependencyNotInstalledError(
                     'to_pandas requires for `pandas` library')
 
-        df = self.execute(**kwargs).values
-        if wrap:
-            from .. import DataFrame
-            df = DataFrame(df)
-        return df[self.name]
+        def wrapper(result):
+            df = result.values
+            if wrap:
+                from .. import DataFrame
+                df = DataFrame(df)
+            return df[self.name]
+
+        return self.execute(wrapper=wrapper, **kwargs)
 
     @property
     def data_type(self):

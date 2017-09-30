@@ -230,7 +230,10 @@ if BaseRecordWriter is None:
         def __enter__(self):
             return self
 
-        def __exit__(self, *_):
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            # if an error occurs inside the with block, we do not commit
+            if exc_val is not None:
+                return
             self.close()
 
 
@@ -257,16 +260,9 @@ class RecordWriter(BaseRecordWriter):
         else:
             raise errors.InvalidArgument('Invalid compression algorithm.')
         super(RecordWriter, self).__init__(schema, out)
-        self._upload_started = False
-
-    def _start_upload(self):
-        if self._upload_started:
-            return
         self._req_io.start()
-        self._upload_started = True
 
     def write(self, record):
-        self._start_upload()
         if self._req_io._async_err:
             ex_type, ex_value, tb = self._req_io._async_err
             raise_exc(ex_type, ex_value, tb)

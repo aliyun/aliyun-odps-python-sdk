@@ -15,11 +15,13 @@
 # limitations under the License.
 
 import itertools
+import os
+import tarfile
 import uuid
 import time
 
 from .... import tempobj
-from ....compat import OrderedDict, six
+from ....compat import OrderedDict, BytesIO, six
 from ....utils import TEMP_TABLE_PREFIX
 from ....errors import ODPSError
 
@@ -54,6 +56,8 @@ class ODPSContext(object):
 
         self._indent_size = indent_size
         self._mapjoin_hints = []
+
+        self._path_to_resources = dict()
 
         self._to_drops = []
 
@@ -96,6 +100,9 @@ class ODPSContext(object):
     def _gen_udf_name(self):
         return 'pyodps_udf_%s_%s' % (int(time.time()), str(uuid.uuid4()).replace('-', '_'))
 
+    def _gen_resource_name(self):
+        return 'pyodps_res_%s_%s' % (int(time.time()), str(uuid.uuid4()).replace('-', '_'))
+
     def _gen_table_name(self):
         return '%s_%s_%s' % (TEMP_TABLE_PREFIX, int(time.time()),
                              str(uuid.uuid4()).replace('-', '_'))
@@ -108,6 +115,47 @@ class ODPSContext(object):
 
     def get_udf(self, func):
         return self._registered_funcs[func]
+
+    def prepare_resources(self, libraries):
+        from ....models import Resource
+
+        if libraries is None:
+            return None
+
+        ret_libs = []
+        for lib in libraries:
+            if isinstance(lib, Resource):
+                ret_libs.append(lib)
+                continue
+            elif lib in self._path_to_resources:
+                ret_libs.append(self._path_to_resources[lib])
+                continue
+
+            tarbinary = BytesIO()
+            tar = tarfile.open(fileobj=tarbinary, mode='w:gz')
+            if os.path.isfile(lib):
+                with open(lib, 'rb') as fo:
+                    finfo = tarfile.TarInfo('pyodps_files/' + os.path.basename(lib))
+                    finfo.size = os.path.getsize(lib)
+                    tar.addfile(finfo, fo)
+            else:
+                base_dir = os.path.dirname(os.path.abspath(lib))
+                for root, dirs, files in os.walk(lib):
+                    for f in files:
+                        fpath = os.path.join(root, f)
+                        rpath = os.path.relpath(fpath, base_dir).replace(os.path.sep, '/')
+                        with open(fpath, 'rb') as fo:
+                            finfo = tarfile.TarInfo(rpath)
+                            finfo.size = os.path.getsize(fpath)
+                            tar.addfile(finfo, fo)
+            tar.close()
+
+            res_name = self._gen_resource_name() + '.tar.gz'
+            res = self._odps.create_resource(res_name, 'archive', file_obj=tarbinary.getvalue())
+            self._path_to_resources[lib] = res
+            self._to_drops.append(res)
+            ret_libs.append(res)
+        return ret_libs
 
     def create_udfs(self, libraries=None):
         self._func_to_functions.clear()

@@ -164,8 +164,9 @@ class Optimizer(Backend):
         if compacted is None:
             return
 
-        self._sub(expr, compacted)
-        return compacted
+        if expr is not compacted:
+            self._sub(expr, compacted)
+            return compacted
 
     def _compact(self, expr):
         to_compact = [expr, ]

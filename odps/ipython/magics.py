@@ -21,8 +21,9 @@ from ..compat import six, StringIO
 from .. import types as odps_types
 from .. import options, ODPS, log
 from ..utils import replace_sql_parameters, init_progress_ui
-from ..df import DataFrame, Scalar, NullScalar
+from ..df import DataFrame, Scalar, NullScalar, Delay
 from ..df.backends.frame import ResultFrame
+from ..df.backends.odpssql.types import odps_schema_to_df_schema, odps_type_to_df_type
 from ..models import Schema
 from ..ui.common import html_notify
 from ..ui.progress import create_instance_group, reload_instance_status, fetch_instance_group
@@ -199,10 +200,14 @@ else:
                     with instance.open_reader() as reader:
                         try:
                             import pandas as pd
-                            from pandas.parser import CParserError
+                            try:
+                                from pandas.io.parsers import ParserError as CParserError
+                            except ImportError:
+                                from pandas.parser import CParserError
 
                             if not hasattr(reader, 'raw'):
-                                res = ResultFrame([rec.values for rec in reader], schema=reader._schema)
+                                res = ResultFrame([rec.values for rec in reader],
+                                                  schema=odps_schema_to_df_schema(reader._schema))
                             else:
                                 try:
                                     res = pd.read_csv(StringIO(reader.raw))
@@ -210,16 +215,21 @@ else:
                                         schema = DataFrame(res).schema
                                     else:
                                         cols = res.columns.tolist()
-                                        schema = Schema.from_lists(cols, ['string' for _ in cols])
+                                        schema = odps_schema_to_df_schema(
+                                            Schema.from_lists(cols, ['string' for _ in cols]))
                                     res = ResultFrame(res.values, schema=schema)
                                 except (ValueError, CParserError):
                                     res = reader.raw
                         except ImportError:
                             if not hasattr(reader, 'raw'):
-                                res = ResultFrame([rec.values for rec in reader], schema=reader._schema)
+                                res = ResultFrame([rec.values for rec in reader],
+                                                  schema=odps_schema_to_df_schema(reader._schema))
                             else:
                                 try:
-                                    res = ResultFrame(list(reader), columns=reader._columns)
+                                    columns = [odps_types.Column(name=col.name,
+                                                                 typo=odps_type_to_df_type(col.type))
+                                               for col in reader._columns]
+                                    res = ResultFrame(list(reader), columns=columns)
                                 except TypeError:
                                     res = reader.raw
 
@@ -268,3 +278,4 @@ else:
         ipython.user_ns['NullScalar'] = NullScalar
         ipython.user_ns['options'] = options
         ipython.user_ns['Schema'] = Schema
+        ipython.user_ns['Delay'] = Delay

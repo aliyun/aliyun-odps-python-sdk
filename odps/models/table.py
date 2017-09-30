@@ -522,6 +522,9 @@ class Table(LazyLoad):
                 return self
 
             def __exit__(self, exc_type, exc_val, exc_tb):
+                # if an error occurs inside the with block, we do not commit
+                if exc_val is not None:
+                    return
                 self.close()
 
         return RecordWriter(self)

@@ -30,6 +30,7 @@ ctypedef void (*_SET_FUNCTION)(BaseTunnelRecordReader self, list record, int i)
 
 cdef class BaseTunnelRecordReader:
 
+    cdef object _last_error
     cdef object _schema
     cdef object _columns
     cdef object _to_datetime

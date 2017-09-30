@@ -29,6 +29,7 @@ class Delay(object):
         self._lock = threading.RLock()
         self._calls = dict()
         self._futures = dict()
+        self._wrappers = dict()
         self._running = False
 
     def execute(self, ui=None, async=False, n_parallel=1, timeout=None,
@@ -64,7 +65,11 @@ class Delay(object):
                 return
             with self._lock:
                 try:
-                    dest.set_result(src.result())
+                    result = src.result()
+                    wrapper = self._wrappers.get(index)
+                    if wrapper is not None:
+                        result = wrapper(result)
+                    dest.set_result(result)
                 except:
                     e, tb = sys.exc_info()[1:]
                     if six.PY2:
@@ -74,6 +79,8 @@ class Delay(object):
                 finally:
                     del self._calls[index]
                     del self._futures[index]
+                    if index in self._wrappers:
+                        del self._wrappers[index]
 
         for idx, uf, bf in izip(_indices, _futures, fs):
             uf.set_running_or_notify_cancel()
@@ -124,11 +131,14 @@ class Delay(object):
             return delay_future
 
     def register_item(self, action, expr, *args, **kwargs):
+        wrapper = kwargs.pop('wrapper', None)
         with self._lock:
             call_idx = self._idx
             self._idx += 1
             user_future = futures.Future()
             self._calls[call_idx] = (action, expr, args, kwargs)
             self._futures[call_idx] = user_future
+            if wrapper:
+                self._wrappers[call_idx] = wrapper
 
         return user_future

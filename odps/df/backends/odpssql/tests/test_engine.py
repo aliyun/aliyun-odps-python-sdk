@@ -774,7 +774,8 @@ class Test(TestBase):
             (lambda s: s.istitle(), self.expr.name.istitle()),
             (lambda s: to_str(s).isnumeric(), self.expr.name.isnumeric()),
             (lambda s: to_str(s).isdecimal(), self.expr.name.isdecimal()),
-            (lambda s: False, self.expr.name.map(lambda x: None).contains('abc')),
+            (lambda s: None, self.expr.name.map(lambda x: None).contains('abc')),
+            (lambda s: None, self.expr.name.map(lambda x: None).replace(data[0][0], 'test')),
         ]
 
         fields = [it[1].rename('id'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -912,6 +913,48 @@ class Test(TestBase):
             except:
                 pass
 
+    def testFunctionResourcesWithPartition(self):
+        data = self._gen_data(5)
+
+        table_name = tn('pyodps_tmp_function_resource_part_table')
+        self.odps.delete_table(table_name, if_exists=True)
+        t = self.odps.create_table(table_name, Schema.from_lists(['id', 'id2'], ['bigint', 'bigint'],
+                                                                 ['ds'], ['string']))
+        with t.open_writer(partition='ds=ds1', create_partition=True) as w:
+            w.write([1, 2])
+        with t.open_writer(partition='ds=ds2', create_partition=True) as w:
+            w.write([2, 3])
+
+        table_resource_name = 'pyodps_tmp_part_table_resource'
+        try:
+            self.odps.delete_resource(table_resource_name)
+        except:
+            pass
+        table_resource = self.odps.create_resource(table_resource_name, 'table',
+                                                   table_name=table_name, partition='ds=ds1')
+        df = self.odps.get_table(table_name).get_partition('ds=ds2').to_df()
+        try:
+            @output(['n'], ['int'])
+            def func(resources):
+                n1 = next(sum(r) for r in resources[0])
+                n2 = next(sum(r) for r in resources[1])
+                n = [n1 - n2]
+
+                def h(row):
+                    yield row[0] + n[0]
+
+                return h
+
+            expr = self.expr['id',].apply(func, axis=1, resources=[table_resource, df])
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            expected = [[r[1] - 2] for r in data]
+            self.assertEqual(sorted(expected), sorted(result))
+
+        finally:
+            table_resource.drop()
+
     def testThirdPartyLibraries(self):
         import requests
         from odps.compat import BytesIO
@@ -1033,6 +1076,79 @@ class Test(TestBase):
                     self.assertEqual(res, sum([int(r[0].split('-')[0]) for r in data]))
         finally:
             [res.drop() for res in resources + dateutil_resources]
+
+    def testCustomLibraries(self):
+        data = self._gen_data(5)
+
+        import textwrap
+        user_script = textwrap.dedent("""
+        def user_fun(a):
+            return a + 1
+        """)
+        rn = 'test_res_%s' % str(uuid.uuid4()).replace('-', '_')
+        res = self.odps.create_resource(rn + '.py', 'file', file_obj=user_script)
+
+        def get_fun(code, fun_name):
+            g, loc = globals(), dict()
+            six.exec_(code, g, loc)
+            return loc[fun_name]
+
+        f = get_fun(textwrap.dedent("""
+        def f(v):
+            from %s import user_fun
+            return user_fun(v)
+        """ % rn), 'f')
+
+        try:
+            expr = self.expr.id.map(f)
+            r = self.engine.execute(expr, libraries=[rn + '.py'])
+            result = self._get_result(r)
+            expect = [[v[1] + 1] for v in data]
+            self.assertListEqual(result, expect)
+        finally:
+            res.drop()
+
+        import tempfile
+        temp_dir = tempfile.mkdtemp()
+        try:
+            package_dir = os.path.join(temp_dir, 'test_package')
+            os.makedirs(package_dir)
+            with open(os.path.join(package_dir, '__init__.py'), 'w'):
+                pass
+            with open(os.path.join(package_dir, 'adder.py'), 'w') as fo:
+                fo.write(user_script)
+
+            single_dir = os.path.join(temp_dir, 'test_single')
+            os.makedirs(single_dir)
+            with open(os.path.join(single_dir, 'user_script.py'), 'w') as fo:
+                fo.write(user_script)
+
+            f1 = get_fun(textwrap.dedent("""
+            def f1(v):
+                from user_script import user_fun
+                return user_fun(v)
+            """), 'f1')
+
+            expr = self.expr.id.map(f1)
+            r = self.engine.execute(expr, libraries=[os.path.join(single_dir, 'user_script.py')])
+            result = self._get_result(r)
+            expect = [[v[1] + 1] for v in data]
+            self.assertListEqual(result, expect)
+
+            f2 = get_fun(textwrap.dedent("""
+            def f2(v):
+                from test_package.adder import user_fun
+                return user_fun(v)
+            """), 'f2')
+
+            expr = self.expr.id.map(f2)
+            r = self.engine.execute(expr, libraries=[package_dir])
+            result = self._get_result(r)
+            expect = [[v[1] + 1] for v in data]
+            self.assertListEqual(result, expect)
+        finally:
+            import shutil
+            shutil.rmtree(temp_dir)
 
     def testApply(self):
         data = self._gen_data(5)

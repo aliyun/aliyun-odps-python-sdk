@@ -18,13 +18,13 @@
 
 from libc.stdint cimport *
 
-cdef int32_t get_varint32(object input)
+cdef int32_t get_varint32(object input) except? -1
 
-cdef int64_t get_varint64(object input)
+cdef int64_t get_varint64(object input) except? -1
 
-cdef int32_t get_signed_varint32(object input)
+cdef int32_t get_signed_varint32(object input) except? -1
 
-cdef int64_t get_signed_varint64(object input)
+cdef int64_t get_signed_varint64(object input) except? -1
 
 cdef int set_varint32(int32_t varint, bytearray buf)
 

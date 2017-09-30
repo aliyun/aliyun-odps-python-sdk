@@ -43,7 +43,7 @@ cdef class Decoder:
     cpdef int position(self):
         return self._pos
 
-    cpdef int32_t read_field_number(self):
+    cpdef int32_t read_field_number(self) except? -1:
         cdef int32_t tag_and_type
         tag_and_type = self.read_uint32()
         return tag_and_type >> TAG_TYPE_BITS
@@ -56,22 +56,22 @@ cdef class Decoder:
     def __len__(self):
         return self._pos
 
-    cpdef int32_t read_sint32(self):
+    cpdef int32_t read_sint32(self) except? -1:
         return get_signed_varint32(self)
 
-    cpdef uint32_t read_uint32(self):
+    cpdef uint32_t read_uint32(self) except? 0xffffffff:
         return get_varint32(self)
 
-    cpdef int64_t read_sint64(self):
+    cpdef int64_t read_sint64(self) except? -1:
         return get_signed_varint64(self)
 
-    cpdef uint64_t read_uint64(self):
+    cpdef uint64_t read_uint64(self) except? 0xffffffff:
         return get_varint64(self)
 
-    cpdef bint read_bool(self):
+    cpdef bint read_bool(self) except? False:
         return get_varint32(self)
 
-    cpdef double read_double(self):
+    cpdef double read_double(self) except? -1.0:
         cdef char * read_bytes
         cdef double retval
 
@@ -82,7 +82,7 @@ cdef class Decoder:
         memcpy(&retval, read_bytes, sizeof(double))
         return retval
 
-    cpdef float read_float(self):
+    cpdef float read_float(self) except? -1.0:
         cdef char * read_bytes
         cdef float retval
 

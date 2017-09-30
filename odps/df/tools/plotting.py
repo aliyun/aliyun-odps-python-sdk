@@ -16,7 +16,7 @@
 
 from ...compat import Enum, six
 from ...errors import DependencyNotInstalledError
-from ..expr.expressions import CollectionExpr, SequenceExpr, run_at_once, Expr
+from ..expr.expressions import CollectionExpr, SequenceExpr, Expr
 from ..expr.dynamic import DynamicMixin
 from ..types import is_number
 
@@ -90,7 +90,6 @@ def _boxplot_pandas(df, **kwargs):
     return _plot_pandas(df, method='boxplot', **kwargs)
 
 
-@run_at_once
 def _plot_sequence(expr, kind='line', use_cache=None, **kwargs):
     try:
         import pandas as pd
@@ -105,7 +104,6 @@ def _plot_sequence(expr, kind='line', use_cache=None, **kwargs):
     return _plot_pandas(series, kind=kind, **kwargs)
 
 
-@run_at_once
 def _hist_sequence(expr, use_cache=None, **kwargs):
     try:
         import pandas as pd
@@ -116,7 +114,6 @@ def _hist_sequence(expr, use_cache=None, **kwargs):
     return _hist_pandas(series, **kwargs)
 
 
-@run_at_once
 def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
     try:
         import pandas as pd
@@ -173,7 +170,6 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
     return _plot_func(df, kind=kind, **kwargs)
 
 
-@run_at_once
 def _hist_collection(expr, **kwargs):
     try:
         import pandas as pd
@@ -203,7 +199,6 @@ def _hist_collection(expr, **kwargs):
     return _plot_func(df, **kwargs)
 
 
-@run_at_once
 def _boxplot_collection(expr, **kwargs):
     try:
         import pandas as pd

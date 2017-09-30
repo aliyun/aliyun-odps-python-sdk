@@ -345,7 +345,7 @@ class Analyzer(BaseAnalyzer):
         if isinstance(expr, Contains) and expr.regex:
             def func(x, pat, case, flags):
                 if x is None:
-                    return False
+                    return None
 
                 flgs = 0
                 if not case:
@@ -364,6 +364,9 @@ class Analyzer(BaseAnalyzer):
             return
         elif isinstance(expr, StrCount):
             def func(x, pat, flags):
+                if x is None:
+                    return None
+
                 regex = re.compile(pat, flags=flags)
                 return len(regex.findall(x))
 
@@ -380,6 +383,9 @@ class Analyzer(BaseAnalyzer):
             substr = expr.sub
 
             def func(x):
+                if x is None:
+                    return None
+
                 return x.find(substr, start, end)
         elif isinstance(expr, RFind):
             start = expr.start
@@ -387,9 +393,15 @@ class Analyzer(BaseAnalyzer):
             substr = expr.sub
 
             def func(x):
+                if x is None:
+                    return None
+
                 return x.rfind(substr, start, end)
         elif isinstance(expr, Extract):
             def func(x, pat, flags, group):
+                if x is None:
+                    return None
+
                 regex = re.compile(pat, flags=flags)
                 m = regex.search(x)
                 if m:
@@ -407,6 +419,9 @@ class Analyzer(BaseAnalyzer):
         elif isinstance(expr, Replace):
             use_regex = [expr.regex]
             def func(x, pat, repl, n, case, flags):
+                if x is None:
+                    return None
+
                 use_re = use_regex[0] and (not case or len(pat) > 1 or flags)
 
                 if use_re:
@@ -432,12 +447,21 @@ class Analyzer(BaseAnalyzer):
 
             if isinstance(expr, Lstrip):
                 def func(x):
+                    if x is None:
+                        return None
+
                     return x.lstrip(to_strip)
             elif isinstance(expr, Strip):
                 def func(x):
+                    if x is None:
+                        return None
+
                     return x.strip(to_strip)
             elif isinstance(expr, Rstrip):
                 def func(x):
+                    if x is None:
+                        return None
+
                     return x.rstrip(to_strip)
         elif isinstance(expr, Pad):
             side = expr.side
@@ -445,11 +469,11 @@ class Analyzer(BaseAnalyzer):
             width = expr.width
 
             if side == 'left':
-                func = lambda x: x.rjust(width, fillchar)
+                func = lambda x: x.rjust(width, fillchar) if x is not None else None
             elif side == 'right':
-                func = lambda x: x.ljust(width, fillchar)
+                func = lambda x: x.ljust(width, fillchar) if x is not None else None
             elif side == 'both':
-                func = lambda x: x.center(width, fillchar)
+                func = lambda x: x.center(width, fillchar) if x is not None else None
             else:
                 raise NotImplementedError
         elif isinstance(expr, Slice):
@@ -467,6 +491,9 @@ class Analyzer(BaseAnalyzer):
             has_step = step is not None
 
             def func(x, *args):
+                if x is None:
+                    return None
+
                 idx = 0
                 s, e, t = None, None, None
                 for i in range(3):
@@ -487,30 +514,30 @@ class Analyzer(BaseAnalyzer):
             self._sub(expr, sub)
             return
         elif isinstance(expr, Swapcase):
-            func = lambda x: x.swapcase()
+            func = lambda x: x.swapcase() if x is not None else None
         elif isinstance(expr, Title):
-            func = lambda x: x.title()
+            func = lambda x: x.title() if x is not None else None
         elif isinstance(expr, Strptime):
             date_format = expr.date_format
 
             def func(x):
                 from datetime import datetime
-                return datetime.strptime(x, date_format)
+                return datetime.strptime(x, date_format) if x is not None else None
         else:
             if isinstance(expr, Isalnum):
-                func = lambda x: x.isalnum()
+                func = lambda x: x.isalnum() if x is not None else None
             elif isinstance(expr, Isalpha):
-                func = lambda x: x.isalpha()
+                func = lambda x: x.isalpha() if x is not None else None
             elif isinstance(expr, Isdigit):
-                func = lambda x: x.isdigit()
+                func = lambda x: x.isdigit() if x is not None else None
             elif isinstance(expr, Isspace):
-                func = lambda x: x.isspace()
+                func = lambda x: x.isspace() if x is not None else None
             elif isinstance(expr, Islower):
-                func = lambda x: x.islower()
+                func = lambda x: x.islower() if x is not None else None
             elif isinstance(expr, Isupper):
-                func = lambda x: x.isupper()
+                func = lambda x: x.isupper() if x is not None else None
             elif isinstance(expr, Istitle):
-                func = lambda x: x.istitle()
+                func = lambda x: x.istitle() if x is not None else None
             elif isinstance(expr, (Isnumeric, Isdecimal)):
                 def u_safe(s):
                     try:
@@ -519,9 +546,9 @@ class Analyzer(BaseAnalyzer):
                         return s
 
                 if isinstance(expr, Isnumeric):
-                    func = lambda x: u_safe(x).isnumeric()
+                    func = lambda x: u_safe(x).isnumeric() if x is not None else None
                 else:
-                    func = lambda x: u_safe(x).isdecimal()
+                    func = lambda x: u_safe(x).isdecimal() if x is not None else None
 
         if func is not None:
             sub = expr.input.map(func, expr.dtype)

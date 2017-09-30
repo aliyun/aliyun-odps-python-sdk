@@ -615,7 +615,10 @@ class VolumeWriter(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, *_):
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # if an error occurs inside the with block, we do not commit
+        if exc_val is not None:
+            return
         self.close()
 
 

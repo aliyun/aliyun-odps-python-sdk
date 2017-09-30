@@ -819,7 +819,7 @@ DataFrame的计算过程中，一些Collection被多处使用，或者用户需�
 异步和并行执行
 ~~~~~~~~~~~~~~~
 
-DataFrame 支持异步操作，对于立即执行的方法，包括 ``execute``、``persist``、``head``、``tail`` （其他方法不支持），
+DataFrame 支持异步操作，对于立即执行的方法，包括 ``execute``、``persist``、``head``、``tail``、``to_pandas`` （其他方法不支持），
 传入 ``async`` 参数，即可以将一个操作异步执行，``timeout`` 参数指定超时时间，
 异步返回的是 `Future <https://docs.python.org/3/library/concurrent.futures.html#future-objects>`_ 对象。
 
@@ -869,7 +869,7 @@ DataFrame 的并行执行可以使用多线程来并行，单个 expr 的执行�
 比如两个 DataFrame 有共同的依赖，这个依赖将会被执行两遍。
 
 现在我们提供了新的 ``Delay API``，
-来将立即执行的操作（包括 ``execute``、``persist``、``head``、``tail``，其他方法不支持）变成延迟操作，
+来将立即执行的操作（包括 ``execute``、``persist``、``head``、``tail``、``to_pandas``，其他方法不支持）变成延迟操作，
 并返回 `Future <https://docs.python.org/3/library/concurrent.futures.html#future-objects>`_ 对象。
 当用户触发delay执行的时候，会去寻找共同依赖，按用户给定的并发度执行，并支持异步执行。
 

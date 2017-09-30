@@ -114,7 +114,7 @@
                 <exporter>get_input_table_name</exporter>
                 <inputName>input</inputName>
             </param>
-            <param name="inputPartitions">
+            <param name="inputTablePartitions">
                 <exporter>get_input_partitions</exporter>
                 <inputName>input</inputName>
             </param>
@@ -153,7 +153,7 @@
                 <exporter>get_input_table_name</exporter>
                 <inputName>input</inputName>
             </param>
-            <param name="inputPartitions">
+            <param name="inputTablePartitions">
                 <exporter>get_input_partitions</exporter>
                 <inputName>input</inputName>
             </param>
@@ -193,7 +193,7 @@
                 <exporter>get_input_table_name</exporter>
                 <inputName>input</inputName>
             </param>
-            <param name="inputPartitions">
+            <param name="inputTablePartitions">
                 <exporter>get_input_partitions</exporter>
                 <inputName>input</inputName>
             </param>

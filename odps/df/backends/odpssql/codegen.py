@@ -126,6 +126,8 @@ def read_lib(lib, f):
         else:
             mode = 'r:gz' if lib.endswith('.tar.gz') else 'r:bz2'
         return tarfile.open(fileobj=BytesIO(f.read()), mode=mode)
+    if lib.endswith('.py'):
+        return {lib: f}
 
     raise ValueError(
         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
@@ -654,7 +656,7 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
                 elif isinstance(res, TableResource):
                     tp = 'table'
                     name = res.name
-                    fields = tuple(col.name for col in res.get_source_table().schema.columns)
+                    fields = tuple(col.name for col in res.get_source_table().schema.simple_columns)
                     create = False
                     table_name = None
                 else:

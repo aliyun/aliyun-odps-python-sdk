@@ -416,7 +416,7 @@ class OdpsSQLCompiler(Backend):
             self.sub_sql_to_from_clause(expr.input)
         elif isinstance(expr, Summary) and self._limit is not None:
             self.sub_sql_to_from_clause(expr.input)
-        elif isinstance(expr, (GroupByCollectionExpr, MutateCollectionExpr)) and \
+        elif isinstance(expr, (GroupByCollectionExpr, MutateCollectionExpr, RowAppliedCollectionExpr)) and \
                 self._limit is not None:
             self.sub_sql_to_from_clause(expr.input)
         elif isinstance(expr.input, ReshuffledCollectionExpr):

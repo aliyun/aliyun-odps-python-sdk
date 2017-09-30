@@ -340,5 +340,20 @@ class Test(TestBase):
 
         table.drop()
 
+    def testTableWriteError(self):
+        test_table_name = tn('pyodps_t_tmp_test_table_write')
+        schema = Schema.from_lists(['name'], ['string'])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self.odps.create_table(test_table_name, schema)
+        try:
+            with table.open_writer() as writer:
+                writer.write([['Content']])
+                raise ValueError('Mock error')
+        except ValueError as ex:
+            self.assertEqual(str(ex), 'Mock error')
+
+
 if __name__ == '__main__':
     unittest.main()

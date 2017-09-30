@@ -20,6 +20,7 @@ from ...src.types_c cimport BaseRecord
 from ..pb.decoder_c cimport Decoder
 from ..checksum_c cimport Checksum
 
+import sys
 import warnings
 from ..wireconstants import ProtoWireConstants
 from ... import utils, types, compat, options
@@ -35,6 +36,7 @@ cdef:
 
 cdef class BaseTunnelRecordReader:
     def __init__(self, object schema, object input_stream, columns=None):
+        self._last_error = None
         self._schema = schema
         if columns is None:
             self._columns = self._schema.columns
@@ -104,40 +106,55 @@ cdef class BaseTunnelRecordReader:
 
     cdef bytes _read_string(self):
         cdef bytes val
-
-        val = self._reader.read_string()
+        try:
+            val = self._reader.read_string()
+        except:
+            self._last_error = sys.exc_info()
+            raise
         self._crc.update(val)
 
         return val
 
     cdef double _read_double(self):
         cdef double val
-
-        val = self._reader.read_double()
+        try:
+            val = self._reader.read_double()
+        except:
+            self._last_error = sys.exc_info()
+            raise
         self._crc.c_update_float(val)
 
         return val
 
     cdef bint _read_bool(self):
         cdef bint val
-
-        val = self._reader.read_bool()
+        try:
+            val = self._reader.read_bool()
+        except:
+            self._last_error = sys.exc_info()
+            raise
         self._crc.c_update_bool(val)
 
         return val
 
     cdef int64_t _read_bigint(self):
         cdef int64_t val
-
-        val = self._reader.read_sint64()
+        try:
+            val = self._reader.read_sint64()
+        except:
+            self._last_error = sys.exc_info()
+            raise
         self._crc.c_update_long(val)
 
         return val
 
     cdef object _read_datetime(self):
         cdef int64_t val
-
-        val = self._reader.read_sint64()
+        try:
+            val = self._reader.read_sint64()
+        except:
+            self._last_error = sys.exc_info()
+            raise
         self._crc.c_update_long(val)
         return self._to_datetime(val)
 
@@ -166,7 +183,6 @@ cdef class BaseTunnelRecordReader:
 
     cdef void _set_decimal(self, list record, int i):
         cdef bytes val
-
         val = self._reader.read_string()
         self._crc.update(val)
         self._set_record_list_value(record, i, val)
@@ -236,6 +252,9 @@ cdef class BaseTunnelRecordReader:
                     rec_list[i] = val
                 else:
                     raise IOError('Unsupported type %s' % data_type)
+
+            if self._last_error is not None:
+                compat.raise_exc(*self._last_error)
 
         self._curr_cursor += 1
         return record

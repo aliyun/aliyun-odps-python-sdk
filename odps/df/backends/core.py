@@ -20,6 +20,7 @@ from collections import Iterable
 import itertools
 import time
 import types
+import os
 import sys
 import threading
 from operator import itemgetter
@@ -788,16 +789,24 @@ class Engine(object):
 
     def _get_libraries(self, libraries):
         def conv(libs):
-            if isinstance(libs, (six.binary_type, six.text_type, Resource)):
-                return conv([libs, ])
             if libs is None:
                 return None
+            if isinstance(libs, (six.binary_type, six.text_type, Resource)):
+                return conv([libs, ])
             new_libs = []
             for lib in libs:
+                if not isinstance(lib, (Resource, six.string_types)):
+                    raise ValueError('Resource %s not acceptable.' % repr(lib))
                 if isinstance(lib, Resource):
                     new_libs.append(lib)
-                else:
+                elif '/' not in lib and self._odps.exist_resource(lib):
                     new_libs.append(self._odps.get_resource(lib))
+                elif os.path.isfile(lib) and lib.endswith('.py'):
+                    new_libs.append(lib)
+                elif os.path.isdir(lib):
+                    new_libs.append(lib)
+                else:
+                    raise ValueError('Resource %s not acceptable.' % repr(lib))
             return new_libs
 
         libraries = conv(libraries) or []

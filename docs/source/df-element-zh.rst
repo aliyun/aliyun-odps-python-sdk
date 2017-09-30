@@ -477,6 +477,8 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
     1  Iris-versicolor   True
     2   Iris-virginica  False
 
+注：分区表资源在读取时不包含分区字段。
+
 .. _third_party_library:
 
 使用第三方Python库
@@ -594,9 +596,8 @@ logview 的 JSONSummary 中即可找到计数器值。
 调用ODPS内建或者已定义函数
 ------------------------------------
 
-
-要想调用ODPS上的内建或者已定义函数，来生成列，我们可以使用 ``func`` 接口。
-
+要想调用ODPS上的内建或者已定义函数，来生成列，我们可以使用 ``func`` 接口，该接口默认函数返回值为 String，
+可以用 rtype 参数指定返回值。
 
 .. code:: python
 

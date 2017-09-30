@@ -20,9 +20,9 @@ from odps.tests.core import TestBase, tn, pandas_case, global_locked
 from odps.df.backends.context import context
 from odps.compat import unittest
 from odps.models import Schema
-from odps.df import DataFrame
+from odps.df import DataFrame, Delay
 from odps.utils import to_text
-from odps.errors import DependencyNotInstalledError
+from odps.errors import ODPSError, DependencyNotInstalledError
 
 
 class Test(TestBase):
@@ -113,8 +113,28 @@ class Test(TestBase):
         pd_df = expr2.to_pandas()
         self.assertSequenceEqual(data2[0], pd_df.ix[0].tolist())
 
-        wrapeed_pd_df = expr2.to_pandas(wrap=True)
-        self.assertSequenceEqual(data2[0], list(next(wrapeed_pd_df.execute())))
+        wrapped_pd_df = expr2.to_pandas(wrap=True)
+        self.assertSequenceEqual(data2[0], list(next(wrapped_pd_df.execute())))
+
+        pd_df_col = expr2.col0.to_pandas()
+        self.assertSequenceEqual([data2[0][0]], pd_df_col.tolist())
+
+        wrapped_pd_df_col = expr2.col0.to_pandas(wrap=True)
+        self.assertSequenceEqual([data2[0][0]], list(next(wrapped_pd_df_col.execute())))
+
+        pd_df_future = expr2.to_pandas(async=True)
+        self.assertSequenceEqual(data2[0], pd_df_future.result().ix[0].tolist())
+
+        wrapped_pd_df_future = expr2.to_pandas(async=True, wrap=True)
+        self.assertSequenceEqual(data2[0], list(next(wrapped_pd_df_future.result().execute())))
+
+        delay = Delay()
+        pd_df_future = expr2.to_pandas(delay=delay)
+        delay.execute()
+        self.assertSequenceEqual(data2[0], pd_df_future.result().ix[0].tolist())
+
+        exc_future = (expr2.col0 / 0).to_pandas(async=True)
+        self.assertRaises(ODPSError, exc_future.result)
 
     @pandas_case
     def testUnicodePdDataFrame(self):

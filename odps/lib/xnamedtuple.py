@@ -40,7 +40,7 @@ class NamedTupleMixin(object):
         if item in self._name_map:
             return self[self._name_map[item]]
         else:
-            raise AttributeError
+            raise AttributeError("'%s' object has no attribute '%s'" % (type(self).__name__, str(item)))
 
     def asdict(self):
         return OrderedDict(zip(self._names, self))

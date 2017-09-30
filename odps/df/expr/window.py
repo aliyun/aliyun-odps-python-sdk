@@ -266,6 +266,17 @@ def _cumulative_op(expr, op_cls, sort=None, ascending=True, unique=False,
 
 def cumsum(expr, sort=None, ascending=True, unique=False,
            preceding=None, following=None):
+    """
+    Calculate cumulative summation of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :param unique: whether to eliminate duplicate entries
+    :param preceding: the start point of a window
+    :param following: the end point of a window
+    :return: calculated column
+    """
     if expr._data_type == types.boolean:
         output_type = types.int64
     else:
@@ -277,6 +288,17 @@ def cumsum(expr, sort=None, ascending=True, unique=False,
 
 def cummax(expr, sort=None, ascending=True, unique=False,
            preceding=None, following=None):
+    """
+    Calculate cumulative maximum of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :param unique: whether to eliminate duplicate entries
+    :param preceding: the start point of a window
+    :param following: the end point of a window
+    :return: calculated column
+    """
     return _cumulative_op(expr, CumMax, sort=sort, ascending=ascending,
                           unique=unique, preceding=preceding,
                           following=following)
@@ -284,6 +306,17 @@ def cummax(expr, sort=None, ascending=True, unique=False,
 
 def cummin(expr, sort=None, ascending=True, unique=False,
            preceding=None, following=None):
+    """
+    Calculate cumulative minimum of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :param unique: whether to eliminate duplicate entries
+    :param preceding: the start point of a window
+    :param following: the end point of a window
+    :return: calculated column
+    """
     return _cumulative_op(expr, CumMin, sort=sort, ascending=ascending,
                           unique=unique, preceding=preceding,
                           following=following)
@@ -291,6 +324,17 @@ def cummin(expr, sort=None, ascending=True, unique=False,
 
 def cummean(expr, sort=None, ascending=True, unique=False,
             preceding=None, following=None):
+    """
+    Calculate cumulative mean of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :param unique: whether to eliminate duplicate entries
+    :param preceding: the start point of a window
+    :param following: the end point of a window
+    :return: calculated column
+    """
     data_type = _stats_type(expr)
     return _cumulative_op(expr, CumMean, sort=sort, ascending=ascending,
                           unique=unique, preceding=preceding,
@@ -299,6 +343,17 @@ def cummean(expr, sort=None, ascending=True, unique=False,
 
 def cummedian(expr, sort=None, ascending=True, unique=False,
               preceding=None, following=None):
+    """
+    Calculate cumulative median of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :param unique: whether to eliminate duplicate entries
+    :param preceding: the start point of a window
+    :param following: the end point of a window
+    :return: calculated column
+    """
     data_type = _stats_type(expr)
     return _cumulative_op(expr, CumMedian, sort=sort, ascending=ascending,
                           unique=unique, preceding=preceding,
@@ -307,6 +362,17 @@ def cummedian(expr, sort=None, ascending=True, unique=False,
 
 def cumcount(expr, sort=None, ascending=True, unique=False,
              preceding=None, following=None):
+    """
+    Calculate cumulative count of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :param unique: whether to eliminate duplicate entries
+    :param preceding: the start point of a window
+    :param following: the end point of a window
+    :return: calculated column
+    """
     data_type = types.int64
     return _cumulative_op(expr, CumCount, sort=sort, ascending=ascending,
                           unique=unique, preceding=preceding,
@@ -315,6 +381,17 @@ def cumcount(expr, sort=None, ascending=True, unique=False,
 
 def cumstd(expr, sort=None, ascending=True, unique=False,
            preceding=None, following=None):
+    """
+    Calculate cumulative standard deviation of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :param unique: whether to eliminate duplicate entries
+    :param preceding: the start point of a window
+    :param following: the end point of a window
+    :return: calculated column
+    """
     data_type = _stats_type(expr)
     return _cumulative_op(expr, CumStd, sort=sort, ascending=ascending,
                           unique=unique, preceding=preceding,
@@ -343,18 +420,50 @@ def _rank_op(expr, op_cls, data_type, sort=None, ascending=True):
 
 
 def rank(expr, sort=None, ascending=True):
+    """
+    Calculate rank of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :return: calculated column
+    """
     return _rank_op(expr, Rank, types.int64, sort=sort, ascending=ascending)
 
 
 def dense_rank(expr, sort=None, ascending=True):
+    """
+    Calculate dense rank of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :return: calculated column
+    """
     return _rank_op(expr, DenseRank, types.int64, sort=sort, ascending=ascending)
 
 
 def percent_rank(expr, sort=None, ascending=True):
+    """
+    Calculate percentage rank of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :return: calculated column
+    """
     return _rank_op(expr, PercentRank, types.float64, sort=sort, ascending=ascending)
 
 
 def row_number(expr, sort=None, ascending=True):
+    """
+    Calculate row number of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :return: calculated column
+    """
     return _rank_op(expr, RowNumber, types.int64, sort=sort, ascending=ascending)
 
 
@@ -375,11 +484,31 @@ def _shift_op(expr, op_cls, offset, default=None, sort=None, ascending=True):
 
 
 def lag(expr, offset, default=None, sort=None, ascending=True):
+    """
+    Get value in the row ``offset`` rows prior to the current row.
+
+    :param offset: the offset value
+    :param default: default value for the function, when there are no rows satisfying the offset
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :return: calculated column
+    """
     return _shift_op(expr, Lag, offset, default=default,
                      sort=sort, ascending=ascending)
 
 
 def lead(expr, offset, default=None, sort=None, ascending=True):
+    """
+    Get value in the row ``offset`` rows after to the current row.
+
+    :param offset: the offset value
+    :param default: default value for the function, when there are no rows satisfying the offset
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :return: calculated column
+    """
     return _shift_op(expr, Lead, offset, default=default,
                      sort=sort, ascending=ascending)
 

@@ -130,7 +130,8 @@ class ODPSSQLEngine(Engine):
 
     def _run(self, sql, ui, progress_proportion=1, hints=None, priority=None,
              group=None, libraries=None):
-        self._ctx.create_udfs(libraries=self._get_libraries(libraries))
+        libraries = self._ctx.prepare_resources(self._get_libraries(libraries))
+        self._ctx.create_udfs(libraries=libraries)
         instance = self._odps.run_sql(sql, hints=hints, priority=priority, name='PyODPSDataFrameTask')
 
         self._instances.append(instance.id)
@@ -187,8 +188,8 @@ class ODPSSQLEngine(Engine):
     def _compile(self, expr, prettify=False, libraries=None):
         backend = OdpsSQLCompiler(self._ctx, beautify=prettify)
 
-        self._ctx.register_udfs(*gen_udf(expr, UDF_CLASS_NAME,
-                                         libraries=self._get_libraries(libraries)))
+        libraries = self._ctx.prepare_resources(self._get_libraries(libraries))
+        self._ctx.register_udfs(*gen_udf(expr, UDF_CLASS_NAME, libraries=libraries))
 
         return backend.compile(expr)
 

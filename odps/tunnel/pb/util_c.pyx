@@ -16,12 +16,12 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-cdef char read_input_byte(object input):
+cdef int read_input_byte(object input) except? -1:
     cdef bytes input_bytes = input.read(1)
     cdef char *ptr = input_bytes
     return ptr[0]
 
-cdef int32_t get_varint32(object input):
+cdef int32_t get_varint32(object input) except? -1:
     """
     Deserialize a protobuf varint read from input stream; update
     offset based on number of bytes consumed.
@@ -42,7 +42,7 @@ cdef int32_t get_varint32(object input):
             return value
 
 
-cdef int64_t get_varint64(object input):
+cdef int64_t get_varint64(object input) except? -1:
     """
     Deserialize a protobuf varint read from input stream; update
     offset based on number of bytes consumed.
@@ -63,7 +63,7 @@ cdef int64_t get_varint64(object input):
             return value
 
 
-cdef int32_t get_signed_varint32(object input):
+cdef int32_t get_signed_varint32(object input) except? -1:
     """
     Deserialize a signed protobuf varint read from input stream;
     update offset based on number of bytes consumed.
@@ -84,7 +84,7 @@ cdef int32_t get_signed_varint32(object input):
             return <int32_t>((value >> 1) ^ (-(value & 1))) # zigzag decoding
 
 
-cdef int64_t get_signed_varint64(object input):
+cdef int64_t get_signed_varint64(object input) except? -1:
     """
     Deserialize a signed protobuf varint read from input stream;
     update offset based on number of bytes consumed.
