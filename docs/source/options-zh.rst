@@ -12,7 +12,7 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
     from odps import options
     # 设置所有输出表的生命周期（lifecycle 选项）
     options.lifecycle = 30
-    # 使用 Tunnel 下载 string 类型时使用 bytes（tunnel.string_as_bytes 选项）
+    # 使用 Tunnel 下载 string 类型时使用 bytes（tunnel.string_as_binary 选项）
     options.tunnel.string_as_binary = True
 
 下面列出了可配的 ODPS 选项。
