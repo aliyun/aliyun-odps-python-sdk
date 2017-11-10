@@ -23,28 +23,6 @@ from odps.df.backends.odpssql.engine import ODPSSQLEngine, UDF_CLASS_NAME
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.expr.tests.core import MockTable
 
-# required by cloudpickle tests
-six.exec_("""
-import sys
-import base64
-from collections import namedtuple
-import inspect
-import functools
-from odps.compat import OrderedDict
-from odps.lib.cloudpickle import *
-from odps.lib.importer import *
-
-PY2 = sys.version_info[0] == 2
-
-if PY2:
-    string_type = unicode
-else:
-    string_type = str
-""", globals(), locals())
-
-from odps.df.backends.odpssql.codegen import X_NAMED_TUPLE
-six.exec_(X_NAMED_TUPLE, globals(), locals())
-
 
 class ODPSEngine(ODPSSQLEngine):
 
@@ -54,6 +32,12 @@ class ODPSEngine(ODPSSQLEngine):
         self._analyze(expr_dag, expr)
         new_expr = self._rewrite(expr_dag)
         return self._compile(new_expr, prettify=prettify, libraries=libraries)
+
+
+def get_function(source, fun_name):
+    d = dict()
+    six.exec_(source, d, d)
+    return d[fun_name]
 
 
 class Test(TestBase):
@@ -71,8 +55,7 @@ class Test(TestBase):
     def testSimpleLambda(self):
         self.engine.compile(self.expr.id.map(lambda x: x + 1))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udf)
-        udf = locals()[UDF_CLASS_NAME]
+        udf = get_function(udf, UDF_CLASS_NAME)
         self.assertSequenceEqual([4, ], runners.simple_run(udf, [(3, ), ]))
 
     def testSimpleFunction(self):
@@ -86,8 +69,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.id.map(my_func))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udf)
-        udf = locals()[UDF_CLASS_NAME]
+        udf = get_function(udf, UDF_CLASS_NAME)
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-3, ), (0, ), (5, )]))
 
     def testNestFunction(self):
@@ -103,12 +85,12 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.id.map(my_func))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udf, globals(), locals())
-        udf = locals()[UDF_CLASS_NAME]
+        udf = get_function(udf, UDF_CLASS_NAME)
         self.assertSequenceEqual([-2, 0, 2], runners.simple_run(udf, [(-3, ), (0, ), (5, )]))
 
     def testGlobalVarFunction(self):
         global_val = 10
+
         def my_func(x):
             if x < global_val:
                 return -1
@@ -119,12 +101,12 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.id.map(my_func))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udf, globals(), locals())
-        udf = locals()[UDF_CLASS_NAME]
+        udf = get_function(udf, UDF_CLASS_NAME)
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-9, ), (10, ), (15, )]))
 
     def testRefFuncFunction(self):
         global_val = 10
+
         def my_func1(x):
             if x < global_val:
                 return -1
@@ -132,13 +114,13 @@ class Test(TestBase):
                 return 0
             else:
                 return 1
+
         def my_func(y):
             return my_func1(y)
 
         self.engine.compile(self.expr.id.map(my_func))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udf, globals(), locals())
-        udf = locals()[UDF_CLASS_NAME]
+        udf = get_function(udf, UDF_CLASS_NAME)
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-9, ), (10, ), (15, )]))
 
     def testApplyToSequenceFuntion(self):
@@ -147,8 +129,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.apply(my_func, axis=1, reduce=True).rename('test'))
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udf, globals(), locals())
-        udf = locals()[UDF_CLASS_NAME]
+        udf = get_function(udf, UDF_CLASS_NAME)
         self.assertEqual(['name1', 'name2'],
                          runners.simple_run(udf, [('name', 1, None), ('name', 2, None)]))
 
@@ -158,8 +139,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.apply(my_func, axis=1, names=['name', 'id'], types=['string', 'int']))
         udtf = list(self.engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udtf, globals(), locals())
-        udtf = locals()[UDF_CLASS_NAME]
+        udtf = get_function(udtf, UDF_CLASS_NAME)
         self.assertEqual([('name1', 1), ('name2', 2)],
                           runners.simple_run(udtf, [('name1', 1, None), ('name2', 2, None)]))
 
@@ -170,8 +150,7 @@ class Test(TestBase):
 
         self.engine.compile(self.expr.apply(my_func, axis=1, names='name'))
         udtf = list(self.engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udtf, globals(), locals())
-        udtf = locals()[UDF_CLASS_NAME]
+        udtf = get_function(udtf, UDF_CLASS_NAME)
         self.assertEqual(['name1', 'name2', 'name3', 'name4'],
                          runners.simple_run(udtf, [('name1,name2', 1, None), ('name3,name4', 2, None)]))
 
@@ -189,10 +168,10 @@ class Test(TestBase):
 
         self.engine.compile(expr.apply(my_func, axis=1, names=['out_col'], types=['float64']))
         udtf = list(self.engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udtf, globals(), locals())
-        udtf = locals()[UDF_CLASS_NAME]
+        udtf = get_function(udtf, UDF_CLASS_NAME)
         self.assertEqual([20, 40],
                          runners.simple_run(udtf, [('name1', 1, None, 10), ('name2', 2, None, 20)]))
+
 
 if __name__ == '__main__':
     unittest.main()

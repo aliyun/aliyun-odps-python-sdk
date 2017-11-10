@@ -99,6 +99,11 @@ class Test(TestBase):
         self.assertIsInstance(grouped, GroupedSum)
         self.assertIsInstance(grouped._input, Column)
 
+        grouped = self.expr.groupby('string').int64.count()
+        self.assertIsInstance(grouped, Int64SequenceExpr)
+        self.assertIsInstance(grouped, GroupedCount)
+        self.assertIsInstance(grouped._input, Column)
+
     def testMutate(self):
         grouped = self.expr.groupby(['int16', self.expr.datetime]).sort(-self.expr.boolean)
         expr = grouped.mutate(grouped.float64.cumsum(), count=grouped.boolean.cumcount())

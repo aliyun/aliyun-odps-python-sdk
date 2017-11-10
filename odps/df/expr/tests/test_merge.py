@@ -294,5 +294,6 @@ class Test(TestBase):
         self.assertIn('fid', expr.schema.names)
         self.assertIn('fid2', expr.schema.names)
 
+
 if __name__ == '__main__':
     unittest.main()

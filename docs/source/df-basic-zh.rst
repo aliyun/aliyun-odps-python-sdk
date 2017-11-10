@@ -12,7 +12,7 @@
 --------------
 
 通常情况下，你唯一需要直接创建的 Collection 对象是 :class:`DataFrame`，这一对象用于引用数据源，可能是一个 ODPS 表，
-Pandas DataFrame，或sqlalchemy.Table（数据库表）。
+ODPS 分区，Pandas DataFrame或sqlalchemy.Table（数据库表）。
 使用这几种数据源时，相关的操作相同，这意味着你可以不更改数据处理的代码，仅仅修改输入/输出的指向，
 便可以简单地将小数据量上本地测试运行的代码迁移到 ODPS 上，而迁移的正确性由 PyODPS 来保证。
 
@@ -20,23 +20,29 @@ Pandas DataFrame，或sqlalchemy.Table（数据库表）。
 
 .. code:: python
 
-    >>> # 从 ODPS 表创建
     >>> from odps.df import DataFrame
+    >>>
+    >>> # 从 ODPS 表创建
     >>> iris = DataFrame(o.get_table('pyodps_iris'))
     >>> iris2 = o.get_table('pyodps_iris').to_df()  # 使用表的to_df方法
+    >>>
+    >>> # 从 ODPS 分区创建
+    >>> pt_df = DataFrame(o.get_table('partitioned_table').get_partition('pt=20171111'))
+    >>> pt_df2 = o.get_table('partitioned_table').get_partition('pt=20171111').to_df()  # 使用分区的to_df方法
+    >>>
     >>> # 从 Pandas DataFrame 创建
     >>> import pandas as pd
     >>> import numpy as np
     >>> df = DataFrame(pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc')))
+    >>>
     >>> # 从 sqlalchemy Table 创建
     >>> engine = sqlalchemy.create_engine('mysql://root:123456@localhost/movielens')
     >>> metadata = sqlalchemy.MetaData(bind=engine) # 需要绑定到engine
     >>> table = sqlalchemy.Table('top_users', metadata, extend_existing=True, autoload=True)
     >>> users = DataFrame(table)
 
-在用pandas DataFrame初始化时，对于numpy object类型（string也是），PyODPS DataFrame会尝试推断类型，
-如果一整列都为空，则会报错。
-这时，用户可以指定 `unknown_as_string` 为True，会将这些列指定为string类型。
+在用pandas DataFrame初始化时，对于numpy object类型或者string类型，PyODPS DataFrame会尝试推断类型，
+如果一整列都为空，则会报错。这时，用户可以指定 `unknown_as_string` 为True，会将这些列指定为string类型。
 
 用户也可以指定as_type参数，此时会在创建PyODPS DataFrame时进行强制类型转换，as_type参数类型必须是dict。
 
@@ -712,6 +718,18 @@ ResultFrame可以迭代取出每条记录。
 .. code:: python
 
     >>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', partition='ds=test', drop_partition=True, create_partition=True)
+
+如果数据源中没有 ODPS 对象，例如数据源仅为 Pandas，在 persist 时需要手动指定 ODPS 入口对象，
+或者将需要的入口对象标明为全局对象，如：
+
+.. code:: python
+
+    >>> # 假设入口对象为 o
+    >>> # 指定入口对象
+    >>> df.persist('table_name', odps=o)
+    >>> # 或者可将入口对象标记为全局
+    >>> o.to_global()
+    >>> df.persist('table_name')
 
 保存执行结果为 Pandas DataFrame
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -716,10 +716,13 @@ class PandasCompiler(Backend):
             return df.groupby(bys).size()
 
         if isinstance(expr, GroupedNUnique):
-            series = pd.Series(lzip(*(kw.get(i) for i in expr.inputs)))
-        else:
-            series = kw.get(expr.input) if isinstance(expr.input, SequenceExpr) \
-                else pd.Series([kw.get(expr.input)], name=expr.input.name)
+            input_df = pd.concat([kw.get(ip) for ip in expr.inputs], axis=1)
+            bys = self._get_compiled_bys(kw, expr._by, len(input_df))
+            return input_df.groupby(bys).apply(lambda x: pd.Series([len(x.drop_duplicates())]))[0]
+
+        series = kw.get(expr.input) if isinstance(expr.input, SequenceExpr) \
+            else pd.Series([kw.get(expr.input)], name=expr.input.name)
+
         bys = self._get_compiled_bys(kw, expr._by, len(series))
         if isinstance(expr.input, Scalar):
             series = pd.Series(series.repeat(len(bys[0])).values, index=bys[0].index)
@@ -750,9 +753,10 @@ class PandasCompiler(Backend):
             op = 'size' if op == 'count' else op
 
             if isinstance(expr, NUnique):
-                input = pd.Series(lzip(*children_vals))
-            else:
-                input = children_vals[0]
+                inputs = children_vals[:len(expr.inputs)]
+                return len(pd.concat(inputs, axis=1).drop_duplicates())
+
+            input = children_vals[0]
             if isinstance(expr, Count) and isinstance(expr.input, (CollectionExpr, SequenceExpr)):
                 return len(input)
             elif isinstance(expr, (Cat, GroupedCat)):

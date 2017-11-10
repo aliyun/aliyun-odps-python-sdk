@@ -120,7 +120,7 @@ class BaseRewriter(Backend):
         expr.substitute(collection, projected, dag=self._dag)
 
         for col, col_name in to_replace:
-            self._sub(col, projected[col_name])
+            self._sub(col, projected[col_name].rename(col.name))
 
     def _rewrite_reduction_in_filter(self, expr):
         # FIXME how to handle nested reduction?

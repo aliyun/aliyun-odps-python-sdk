@@ -22,6 +22,7 @@ from hashlib import md5
 import pickle
 import shutil
 
+from .compat import six
 from .config import options
 from .core import ODPS
 from .errors import InteractiveError
@@ -63,6 +64,8 @@ class Room(object):
 
             def _config_rooms(access_id, access_key, default_project, endpoint, tunnel_endpoint=None,
                               seahawks_url=None, **kwargs):
+                options.loads(kwargs.get('options', {}))
+
                 options.account = ODPS._build_account(access_id, access_key)
                 options.end_point = endpoint
                 options.default_project = default_project
@@ -142,7 +145,7 @@ class Room(object):
     def display(self):
         schema = Schema.from_lists(['name', 'desc'], ['string'] * 2)
         schema = odps_schema_to_df_schema(schema)
-        frame = ResultFrame(self.list_stores(), schema=schema)
+        frame = ResultFrame(self.list_stores(), schema=schema, pandas=False)
         try:
             import pandas as pd
 
@@ -176,9 +179,15 @@ def _get_room_dir(room_name, mkdir=False):
 
 def setup(access_id, access_key, default_project,
           endpoint=None, tunnel_endpoint=None, seahawks_url=None,
-          room=DEFAULT_ROOM_NAME, **kwargs):
+          room=DEFAULT_ROOM_NAME, with_options=False, **kwargs):
     room_dir = _get_room_dir(room, mkdir=True)
     odps_file = os.path.join(room_dir, ODPS_FILE_NAME)
+
+    if with_options:
+        trivial_types = (six.string_types, six.integer_types, float, type(None))
+        options_dump = dict((k, v) for k, v in six.iteritems(options.dumps())
+                            if isinstance(v, trivial_types))
+        kwargs['options'] = options_dump
 
     if os.path.exists(odps_file):
         raise InteractiveError(

@@ -122,6 +122,7 @@ if PY26:
 
 full_requirements = [
     'jupyter>=1.0.0',
+    'ipython>=4.0.0',
     'numpy>=1.6.0',
     'pandas>=0.17.0',
     'matplotlib>=1.4',

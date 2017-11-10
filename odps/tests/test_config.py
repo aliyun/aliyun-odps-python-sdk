@@ -116,5 +116,17 @@ class Test(TestBase):
         except ImportError:
             pass
 
+    def testDumpAndLoad(self):
+        with option_context() as local_options:
+            local_options.register_option('test.value', 50,
+                                          validator=any_validator(is_null, is_integer))
+            d = local_options.dumps()
+            self.assertEqual(d['test.value'], 50)
+
+            d['test.value'] = 100
+            local_options.loads(d)
+            self.assertEqual(local_options.test.value, 100)
+
+
 if __name__ == '__main__':
     unittest.main()

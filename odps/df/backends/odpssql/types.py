@@ -21,12 +21,16 @@ from ....compat import six
 
 
 _odps_to_df_types = {
+    odps_types.tinyint: df_types.int8,
+    odps_types.smallint: df_types.int16,
+    odps_types.int_: df_types.int32,
     odps_types.bigint: df_types.int64,
+    odps_types.float_: df_types.float32,
     odps_types.double: df_types.float64,
     odps_types.string: df_types.string,
     odps_types.datetime: df_types.datetime,
     odps_types.boolean: df_types.boolean,
-    odps_types.decimal: df_types.decimal
+    odps_types.binary: df_types.binary,
 }
 
 _df_to_odps_types = {
@@ -38,8 +42,8 @@ _df_to_odps_types = {
     df_types.float64: odps_types.double,
     df_types.boolean: odps_types.boolean,
     df_types.string: odps_types.string,
-    df_types.decimal: odps_types.decimal,
-    df_types.datetime: odps_types.datetime
+    df_types.datetime: odps_types.datetime,
+    df_types.binary: odps_types.string,
 }
 
 
@@ -47,7 +51,14 @@ def odps_type_to_df_type(odps_type):
     if isinstance(odps_type, six.string_types):
         odps_type = odps_types.validate_data_type(odps_type)
 
-    return _odps_to_df_types[odps_type]
+    if odps_type in _odps_to_df_types:
+        return _odps_to_df_types[odps_type]
+    elif isinstance(odps_type, odps_types.Decimal):
+        return df_types.decimal
+    elif isinstance(odps_type, (odps_types.Varchar, odps_types.Char)):
+        return df_types.string
+    else:
+        raise KeyError(repr(odps_type))
 
 
 def odps_schema_to_df_schema(odps_schema):
@@ -61,7 +72,12 @@ def df_type_to_odps_type(df_type):
     if isinstance(df_type, six.string_types):
         df_type = df_types.validate_data_type(df_type)
 
-    return _df_to_odps_types[df_type]
+    if df_type in _df_to_odps_types:
+        return _df_to_odps_types[df_type]
+    elif df_type == df_types.decimal:
+        return odps_types.Decimal()
+    else:
+        raise KeyError(repr(df_type))
 
 
 def df_schema_to_odps_schema(df_schema, ignorecase=False):

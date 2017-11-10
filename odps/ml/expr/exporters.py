@@ -204,7 +204,9 @@ get_feature_columns = partial(get_input_field_names, field_role=FieldRole.FEATUR
 get_non_feature_columns = partial(get_input_field_names, field_func=lambda f: FieldRole.FEATURE not in f.role)
 
 
-def get_feature_continuous(expr, input_name):
+def get_feature_continuous(expr, param_name, input_name):
+    if expr._params.get(param_name, None):
+        return expr._params[param_name]
     return [1 if v == FieldContinuity.CONTINUOUS else 0
             for v in get_input_field_continuous(expr, input_name, FieldRole.FEATURE)]
 

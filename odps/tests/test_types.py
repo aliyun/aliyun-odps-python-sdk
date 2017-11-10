@@ -59,8 +59,10 @@ class Test(TestBase):
     def testNullableRecord(self):
         s = Schema.from_lists(
             ['col%s'%i for i in range(8)],
-            ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal',
-             'array<string>', 'map<string,bigint>'])
+            ['tinyint', 'smallint', 'int', 'bigint', 'float', 'double',
+             'string', 'datetime', 'boolean', 'decimal', 'binary', 'decimal(10, 2)',
+             'interval_day_time', 'interval_year_month', 'char(20)', 'varchar(20)',
+             'array<string>', 'map<string,bigint>', 'struct<a:string,b:array<int>>'])
         r = Record(schema=s, values=[None]*8)
         self.assertSequenceEqual(r.values, [None]*8)
 
@@ -124,7 +126,11 @@ class Test(TestBase):
         self.assertEquals( OrderedDict({'a': 1}), r['col7'])
 
     def testImplicitCast(self):
+        tinyint = Tinyint()
+        smallint = Smallint()
+        int_ = Int()
         bigint = Bigint()
+        float = Float()
         double = Double()
         datetime = Datetime()
         bool = Boolean()
@@ -142,6 +148,68 @@ class Test(TestBase):
         self.assertTrue(decimal.can_implicit_cast(double))
         self.assertFalse(bool.can_implicit_cast(double))
         self.assertFalse(datetime.can_implicit_cast(double))
+
+        self.assertTrue(smallint.can_implicit_cast(tinyint))
+        self.assertTrue(int_.can_implicit_cast(tinyint))
+        self.assertTrue(bigint.can_implicit_cast(tinyint))
+        self.assertTrue(int_.can_implicit_cast(smallint))
+        self.assertTrue(bigint.can_implicit_cast(smallint))
+        self.assertTrue(bigint.can_implicit_cast(int_))
+
+        self.assertFalse(tinyint.can_implicit_cast(smallint))
+        self.assertFalse(tinyint.can_implicit_cast(int_))
+        self.assertFalse(tinyint.can_implicit_cast(bigint))
+        self.assertFalse(smallint.can_implicit_cast(int_))
+        self.assertFalse(smallint.can_implicit_cast(bigint))
+        self.assertFalse(int_.can_implicit_cast(bigint))
+
+        self.assertTrue(double.can_implicit_cast(float))
+        self.assertFalse(float.can_implicit_cast(double))
+
+    def testCompositeTypes(self):
+        comp_type = parse_composite_types('decimal')
+        self.assertIsInstance(comp_type, Decimal)
+
+        comp_type = parse_composite_types('decimal(10)')
+        self.assertIsInstance(comp_type, Decimal)
+        self.assertEqual(comp_type.precision, 10)
+
+        comp_type = parse_composite_types('decimal(10, 2)')
+        self.assertIsInstance(comp_type, Decimal)
+        self.assertEqual(comp_type.precision, 10)
+        self.assertEqual(comp_type.scale, 2)
+
+        comp_type = parse_composite_types('varchar(10)')
+        self.assertIsInstance(comp_type, Varchar)
+        self.assertEqual(comp_type.size_limit, 10)
+
+        comp_type = parse_composite_types('char(20)')
+        self.assertIsInstance(comp_type, Char)
+        self.assertEqual(comp_type.size_limit, 20)
+
+        comp_type = parse_composite_types('array<bigint>')
+        self.assertIsInstance(comp_type, Array)
+        self.assertIsInstance(comp_type.value_type, Bigint)
+
+        comp_type = parse_composite_types('map<bigint, string>')
+        self.assertIsInstance(comp_type, Map)
+        self.assertIsInstance(comp_type.key_type, Bigint)
+        self.assertIsInstance(comp_type.value_type, String)
+
+        comp_type = parse_composite_types('struct<abc:int, def:string>')
+        self.assertIsInstance(comp_type, Struct)
+        self.assertEqual(len(comp_type.field_types), 2)
+        self.assertIsInstance(comp_type.field_types['abc'], Int)
+        self.assertIsInstance(comp_type.field_types['def'], String)
+
+        comp_type = parse_composite_types('struct<abc:int, def:map<bigint, string>, ghi:string>')
+        self.assertIsInstance(comp_type, Struct)
+        self.assertEqual(len(comp_type.field_types), 3)
+        self.assertIsInstance(comp_type.field_types['abc'], Int)
+        self.assertIsInstance(comp_type.field_types['def'], Map)
+        self.assertIsInstance(comp_type.field_types['def'].key_type, Bigint)
+        self.assertIsInstance(comp_type.field_types['def'].value_type, String)
+        self.assertIsInstance(comp_type.field_types['ghi'], String)
 
     @bothPyAndC
     def testSetWithCast(self):
@@ -227,6 +295,7 @@ class Test(TestBase):
             self.assertIsInstance(r[0], bytes)
         finally:
             options.tunnel.string_as_binary = False
+
 
 if __name__ == '__main__':
     unittest.main()

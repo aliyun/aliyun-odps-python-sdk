@@ -69,6 +69,8 @@ class BaseMergeDataCollectionExpr(AlgoCollectionExpr):
         for name, _ in self._iter_inputs():
             tn = exporters.get_input_table_partitions(self, name)
             parts.append(tn if tn else '')
+        if all(not tn for tn in parts):
+            return None
         return ','.join(parts)
 
     def _export_selected_cols(self):

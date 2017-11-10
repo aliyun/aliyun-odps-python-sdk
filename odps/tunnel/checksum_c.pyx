@@ -51,10 +51,16 @@ cdef class Checksum:
     cpdef update_long(self, int64_t val):
         self.c_update(<char *>&val, sizeof(int64_t))
 
-    cdef void c_update_float(self, double val):
+    cdef void c_update_float(self, float val):
+        self.c_update(<char *>&val, sizeof(float))
+
+    cpdef update_float(self, float val):
+        self.c_update(<char *>&val, sizeof(float))
+
+    cdef void c_update_double(self, double val):
         self.c_update(<char *>&val, sizeof(double))
 
-    cpdef update_float(self, double val):
+    cpdef update_double(self, double val):
         self.c_update(<char *>&val, sizeof(double))
 
     cdef void c_update(self, char *ptr, size_t length):

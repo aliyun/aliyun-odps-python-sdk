@@ -169,6 +169,24 @@ snappy_case = module_depend_case('snappy')
 sqlalchemy_case = module_depend_case('sqlalchemy')
 
 
+def odps2_typed_case(func):
+    def _wrapped(*args, **kwargs):
+        from odps import options
+        options.sql.use_odps2_extension = True
+
+        old_settings = options.sql.settings
+        options.sql.settings = old_settings or {}
+        options.sql.settings.update({'odps.sql.hive.compatible': True})
+        try:
+            func(*args, **kwargs)
+        finally:
+            options.sql.use_odps2_extension = False
+            options.sql.settings = old_settings
+
+    _wrapped.__name__ = func.__name__
+    return _wrapped
+
+
 def global_locked(lock_key):
 
     def _decorator(func):
@@ -323,6 +341,20 @@ class TestBase(_TestBase):
             assert len(w) == 0
 
             return ret_val
+
+    def assertListAlmostEqual(self, first, second, **kw):
+        self.assertEqual(len(first), len(second))
+        only_float = kw.pop('only_float', True)
+        for f, s in zip(first, second):
+            if only_float:
+                self.assertAlmostEqual(f, s, **kw)
+            else:
+                if isinstance(f, float) and isinstance(s, float):
+                    self.assertAlmostEqual(f, s, **kw)
+                elif isinstance(f, list) and isinstance(s, list):
+                    self.assertListAlmostEqual(f, s, only_float=False, **kw)
+                else:
+                    self.assertEqual(f, s)
 
     @staticmethod
     def waitContainerFilled(container_fun, countdown=10):

@@ -102,14 +102,33 @@
 创建表
 ------
 
-现在知道怎么创建表的Schema，创建一个表就很容易了。
+可以使用表 schema 来创建表，方法如下：
 
 .. code-block:: python
 
    >>> table = o.create_table('my_new_table', schema)
    >>> table = o.create_table('my_new_table', schema, if_not_exists=True)  # 只有不存在表时才创建
+   >>> table = o.create_table('my_new_table', schema, lifecycle=7)  # 设置生命周期
 
-其他还可以设置lifecycle等参数。
+
+更简单的方式是采用“字段名 字段类型”字符串来创建表，方法如下：
+
+.. code-block:: python
+
+   >>> table = o.create_table('my_new_table', 'num bigint, num2 double', if_not_exists=True)
+   >>> # 创建分区表可传入 (表字段列表, 分区字段列表)
+   >>> table = o.create_table('my_new_table', ('num bigint, num2 double', 'pt string'), if_not_exists=True)
+
+
+在未经设置的情况下，创建表时，只允许使用 bigint、double、decimal、string、datetime、boolean、map 和 array 类型。
+如果你的服务位于公共云，或者支持 tinyint、struct 等新类型，可以设置 ``options.sql.use_odps2_extension = True``
+打开这些类型的支持，示例如下：
+
+.. code-block:: python
+
+   >>> from odps import options
+   >>> table = o.create_table('my_new_table', 'cat smallint, content struct<title:varchar(100), body string>')
+
 
 同步表更新
 -------------

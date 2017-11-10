@@ -15,10 +15,9 @@
 # limitations under the License.
 
 from .core import Iterable
-from .table import Table, TableSchema
+from .table import Table
 from .. import serializers, errors
-from ..compat import six, OrderedDict
-from ..utils import to_str
+from ..compat import six
 
 
 class Tables(Iterable):
@@ -82,86 +81,22 @@ class Tables(Iterable):
             for table in tables:
                 yield table
 
-    def _gen_create_table_sql(self, table_name, table_schema, comment=None,
-                              if_not_exists=False, lifecycle=None,
-                              shard_num=None, hub_lifecycle=None):
-        project_name = self._parent.name
-
-        buf = six.StringIO()
-
-        buf.write('CREATE TABLE ')
-        if if_not_exists:
-            buf.write('IF NOT EXISTS ')
-        buf.write('%s.`%s` ' % (project_name, table_name))
-
-        for i, arr in enumerate([table_schema.simple_columns,
-                                 table_schema.partitions]):
-            if i == 1 and not arr:
-                continue
-            if i == 1:
-                buf.write(' PARTITIONED BY ')
-            size = len(arr)
-            buf.write('(')
-            for idx, column in enumerate(arr):
-                buf.write('`%s` %s' % (to_str(column.name), to_str(column.type)))
-                if column.comment:
-                    buf.write(" COMMENT '%s'" % to_str(column.comment))
-                if idx < size - 1:
-                    buf.write(',')
-            buf.write(')')
-            if i == 0 and comment is not None:
-                buf.write(" COMMENT '%s'" % comment)
-
-        if lifecycle is not None:
-            buf.write(' LIFECYCLE %s' % lifecycle)
-        if shard_num is not None:
-            buf.write(' INTO %s SHARDS' % shard_num)
-            if hub_lifecycle is not None:
-                buf.write(' HUBLIFECYCLE %s' % hub_lifecycle)
-
-        return buf.getvalue()
-
     def create(self, table_name, table_schema, comment=None, if_not_exists=False,
                lifecycle=None, shard_num=None, hub_lifecycle=None, async=False):
-
-        def make_schema_dict(schema_repr):
-            if schema_repr is None:
-                return schema_repr
-            if not isinstance(schema_repr, dict):
-                if isinstance(schema_repr, six.string_types):
-                    schema_array = []
-                    for f in schema_repr.split(','):
-                        splited = f.strip().rsplit(' ', 1)
-                        splited[0] = splited[0].strip('`')
-                        schema_array.append(tuple(splited))
-                    schema_repr = schema_array
-                schema_repr = OrderedDict(schema_repr)
-            return schema_repr
-
-        if not isinstance(table_schema, TableSchema):
-            if isinstance(table_schema, tuple):
-                table_schema, partition_schema = table_schema
-            else:
-                partition_schema = None
-            table_schema = make_schema_dict(table_schema)
-            partition_schema = make_schema_dict(partition_schema)
-
-            table_schema = TableSchema.from_dict(table_schema, partition_schema)
-
-        sql = self._gen_create_table_sql(table_name, table_schema, comment=comment,
+        sql = Table.gen_create_table_sql(table_name, table_schema, comment=comment,
                                          if_not_exists=if_not_exists, lifecycle=lifecycle,
-                                         shard_num=shard_num, hub_lifecycle=hub_lifecycle)
+                                         shard_num=shard_num, hub_lifecycle=hub_lifecycle,
+                                         project=self._parent.name)
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLCreateTableTask', query=sql)
+        task.update_sql_settings()
         instance = self._parent.instances.create(task=task)
 
         if not async:
             instance.wait_for_success()
 
-            table = Table(parent=self, client=self._client,
-                          name=table_name, schema=table_schema.to_ignorecase_schema())
-            return table
+            return self[table_name]
         else:
             return instance
 
@@ -187,6 +122,7 @@ class Tables(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLDropTableTask', query=sql)
+        task.update_sql_settings()
         instance = self._parent.instances.create(task=task)
 
         if not async:

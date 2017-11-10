@@ -174,7 +174,7 @@ class FileResource(Resource):
         APPENDREADWRITE = 'a+'
 
     def create(self, overwrite=False, **kw):
-        file_obj = kw.pop('file_obj', None)
+        file_obj = kw.pop('file_obj', kw.pop('fileobj', None))
 
         if file_obj is None:
             raise ValueError('parameter `file_obj` cannot be None, either string or file-like object')

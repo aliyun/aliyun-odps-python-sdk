@@ -139,6 +139,16 @@ class Trunc(Math):
         super(Trunc, self)._init(*args, **kwargs)
 
 
+class Round(Math):
+    __slots__ = ()
+    _args = '_input', '_decimals'
+    _add_args_slots = False
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_decimals', None)
+        super(Round, self)._init(*args, **kwargs)
+
+
 def _math(expr, math_cls, output_type, **kwargs):
     if isinstance(expr, SequenceExpr):
         return math_cls(_input=expr, _data_type=output_type, **kwargs)
@@ -262,6 +272,13 @@ def _trunc(expr, decimals=None):
 
     return truncated
 
+def _round(expr, decimals=0):
+    kw = dict()
+    if decimals is not None and not isinstance(decimals, Scalar):
+        kw['_decimals'] = Scalar(_value=decimals)
+
+    return _math(expr, Round, _get_type(expr), **kw)
+
 
 _number_methods = dict(
     abs=_abs,
@@ -288,7 +305,8 @@ _number_methods = dict(
     degrees=_degrees,
     ceil=_ceil,
     floor=_floor,
-    trunc=_trunc
+    trunc=_trunc,
+    round=_round
 )
 
 

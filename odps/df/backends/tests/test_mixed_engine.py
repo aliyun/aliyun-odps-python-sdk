@@ -262,16 +262,15 @@ class Test(TestBase):
     def testUseCache(self):
         self.engine._selecter.force_odps = True
 
-        df = self.odps_df[self.odps_df['name'] == 'name1']
+        df_cache = self.odps_df[self.odps_df['name'] == 'name1'].cache()
+        df = df_cache[df_cache.id * 2, df_cache.exclude('id')]
         self.assertEqual(len(self.engine.execute(df, head=10)), 2)
 
-        context.get_cached(df).drop()
+        context.get_cached(df_cache).drop()
 
-        self.assertRaises(ODPSError, lambda: self.engine.execute(df['name', 'id']))
-
-        def plot(**_):
-            pass
-        self.assertRaises(ODPSError, lambda: df.plot(x='id', plot_func=plot))
+        self.assertEqual(len(self.engine.execute(df_cache['name', df_cache.id * 2], head=10)), 2)
+        self.assertTrue(context.is_cached(df_cache))
+        self.assertTrue(self.odps.exist_table(context.get_cached(df_cache).name))
 
     def testHeadAndTail(self):
         res = self.odps_df.head(2)

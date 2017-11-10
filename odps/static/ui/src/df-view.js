@@ -24,8 +24,8 @@ String.prototype.rsplit = function(sep, maxsplit) {
     return maxsplit ? [ split.slice(0, -maxsplit).join(sep) ].concat(split.slice(-maxsplit)) : split;
 };
 
-define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', 'pyodps/common', 'echarts.min', 'westeros.min'],
-       function($, IPython, widgets, pyodps, echarts) {
+define('pyodps/df-view', ['jquery', 'base/js/namespace', '@jupyter-widgets/base', 'pyodps/common', 'echarts.min', 'westeros.min'],
+       function($, Jupyter, widgets, pyodps, echarts) {
     "use strict";
     var viewer_counter = 1;
     var df_view_pager_sizes = [1, 5, 1];
@@ -152,10 +152,11 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
     pyodps.register_css('pyodps/chosen');
     pyodps.register_css('pyodps/fonts/custom-font');
 
-    $([IPython.events]).on("kernel_busy.Kernel", function() {
+    $([Jupyter.events]).on("kernel_busy.Kernel", function() {
         $('.cell').not(':has(.output-suppressor)').each(function () {
             $(this).find('div.output_wrapper').show();
         });
+        $('.cell.running .p-Widget:has(.df-view)').remove();
     });
 
     var DFView = widgets.DOMWidgetView.extend({
@@ -163,6 +164,11 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
             var that = this;
             that.listenTo(that.model, 'change:start_sign', that._actual_render);
             that.listenTo(that.model, 'change:error_sign', that._render_error);
+            that.listenTo(that.model, 'change:table_records', that._update_table_records);
+            that.listenTo(that.model, 'change:bar_chart_records', that._update_bar_chart);
+            that.listenTo(that.model, 'change:pie_chart_records', that._update_pie_chart);
+            that.listenTo(that.model, 'change:line_chart_records', that._update_line_chart);
+            that.listenTo(that.model, 'change:scatter_chart_records', that._update_scatter_chart);
             that.send({
                 action: 'start_widget'
             });
@@ -209,12 +215,6 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
                     agg: false
                 },
             };
-
-            that.listenTo(that.model, 'change:table_records', that._update_table_records);
-            that.listenTo(that.model, 'change:bar_chart_records', that._update_bar_chart);
-            that.listenTo(that.model, 'change:pie_chart_records', that._update_pie_chart);
-            that.listenTo(that.model, 'change:line_chart_records', that._update_line_chart);
-            that.listenTo(that.model, 'change:scatter_chart_records', that._update_scatter_chart);
 
             var df_view_obj = $(df_view_html.replace(/\{counter\}/g, viewer_counter));
             viewer_counter += 1;
@@ -384,12 +384,19 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
 
         _switch_display: function(show_df) {
             var cell_obj = this.$el.closest('div.cell');
+            var wrapper_element = cell_obj.find('div.output_wrapper');
             if (show_df) {
-                cell_obj.find('div.output_wrapper').hide();
+                if (wrapper_element.find('.jupyter-widgets-view').length > 0)
+                    wrapper_element.find('.output_area:has(.output_result)').hide();
+                else
+                    wrapper_element.hide();
                 cell_obj.find('div.widget-area').show();
                 cell_obj.find('div.widget-subarea').show();
             } else {
-                cell_obj.find('div.output_wrapper').show();
+                if (wrapper_element.find('.jupyter-widgets-view').length > 0)
+                    wrapper_element.find('.output_area:has(.output_result)').show();
+                else
+                    wrapper_element.show();
                 cell_obj.find('div.widget-area').hide();
                 cell_obj.find('div.widget-subarea').hide();
             }
@@ -584,6 +591,9 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', 'jupyter-js-widgets', '
 
         _clear_widget_spaces: function() {
             $('.widget-subarea').children('div').map(function(idx, o) {
+                if ($(o).text() == '') $(o).remove();
+            });
+            $('.output_area:has(.jupyter-widgets-view)').map(function(idx, o) {
                 if ($(o).text() == '') $(o).remove();
             });
         },

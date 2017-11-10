@@ -577,7 +577,7 @@ def merge_data(*data_frames, **kwargs):
     ex_cols_dict = dict((idx, tp.cols) for idx, tp in enumerate(norm_data_pairs) if tp.cols and tp.exclude)
 
     merge_expr = build_merge_expr(len(norm_data_pairs))
-    arg_dict = dict(_params={'autoRenameCol': auto_rename},
+    arg_dict = dict(_params={'autoRenameCol': str(auto_rename)},
                     selected_cols=sel_cols_dict, excluded_cols=ex_cols_dict)
     for idx, dp in enumerate(norm_data_pairs):
         arg_dict[ML_ARG_PREFIX + 'input%d' % (1 + idx)] = dp.df

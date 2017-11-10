@@ -57,6 +57,71 @@ if TunnelRecordReader is None:
         def count(self):
             return self._curr_cursor
 
+        def _read_field(self, data_type):
+            if data_type == types.float_:
+                val = self._reader.read_float()
+                self._crc.update_float(val)
+            elif data_type == types.double:
+                val = self._reader.read_double()
+                self._crc.update_double(val)
+            elif data_type == types.boolean:
+                val = self._reader.read_bool()
+                self._crc.update_bool(val)
+            elif data_type in types.integer_types:
+                val = self._reader.read_sint64()
+                self._crc.update_long(val)
+            elif data_type == types.string:
+                val = self._reader.read_string()
+                self._crc.update(val)
+            elif data_type == types.binary:
+                val = self._reader.read_string()
+                self._crc.update(val)
+            elif data_type == types.datetime:
+                val = self._reader.read_sint64()
+                self._crc.update_long(val)
+                val = self._to_datetime(val)
+            elif data_type == types.timestamp:
+                l_val = self._reader.read_sint64()
+                self._crc.update_long(l_val)
+                nano_secs = self._reader.read_sint32()
+                self._crc.update_int(nano_secs)
+                try:
+                    import pandas as pd
+                except ImportError:
+                    raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
+                val = pd.Timestamp(self._to_datetime(l_val * 1000)) + pd.Timedelta(nanoseconds=nano_secs)
+            elif data_type == types.interval_day_time:
+                l_val = self._reader.read_sint64()
+                self._crc.update_long(l_val)
+                nano_secs = self._reader.read_sint32()
+                self._crc.update_int(nano_secs)
+                try:
+                    import pandas as pd
+                except ImportError:
+                    raise ImportError('To use INTERVAL_DAY_TIME in pyodps, you need to install pandas.')
+                val = pd.Timedelta(seconds=l_val, nanoseconds=nano_secs)
+            elif data_type == types.interval_year_month:
+                l_val = self._reader.read_sint64()
+                self._crc.update_long(l_val)
+                return compat.Monthdelta(l_val)
+            elif isinstance(data_type, (types.Char, types.Varchar)):
+                val = self._reader.read_string()
+                self._crc.update(val)
+            elif isinstance(data_type, types.Decimal):
+                val = self._reader.read_string()
+                self._crc.update(val)
+            elif isinstance(data_type, types.Array):
+                val = self._read_array(data_type.value_type)
+            elif isinstance(data_type, types.Map):
+                keys = self._read_array(data_type.key_type)
+                values = self._read_array(data_type.value_type)
+                val = compat.OrderedDict(zip(keys, values))
+            elif isinstance(data_type, types.Struct):
+                val = self._read_struct(data_type)
+            else:
+                raise IOError('Unsupported type %s' % data_type)
+            return val
+
         def _read_array(self, value_type):
             res = []
 
@@ -65,22 +130,17 @@ if TunnelRecordReader is None:
                 if self._reader.read_bool():
                     res.append(None)
                 else:
-                    if value_type == types.string:
-                        val = utils.to_text(self._reader.read_string())
-                        self._crc.update(val)
-                    elif value_type == types.bigint:
-                        val = self._reader.read_sint64()
-                        self._crc.update_long(val)
-                    elif value_type == types.double:
-                        val = self._reader.read_double()
-                        self._crc.update_float(val)
-                    elif value_type == types.boolean:
-                        val = self._reader.read_bool()
-                        self._crc.update_bool(val)
-                    else:
-                        raise IOError('Unsupport array type. type: %s' % value_type)
-                    res.append(val)
+                    res.append(self._read_field(value_type))
 
+            return res
+
+        def _read_struct(self, value_type):
+            res = compat.OrderedDict()
+            for k in value_type.field_types:
+                if self._reader.read_bool():
+                    res[k] = None
+                else:
+                    res[k] = self._read_field(value_type.field_types[k])
             return res
 
         def read(self):
@@ -123,41 +183,7 @@ if TunnelRecordReader is None:
                 self._crc.update_int(index)
 
                 i = index - 1
-                data_type = self._columns[i].type
-                if data_type == types.double:
-                    val = self._reader.read_double()
-                    self._crc.update_float(val)
-                    record[i] = val
-                elif data_type == types.boolean:
-                    val = self._reader.read_bool()
-                    self._crc.update_bool(val)
-                    record[i] = val
-                elif data_type == types.bigint:
-                    val = self._reader.read_sint64()
-                    self._crc.update_long(val)
-                    record[i] = val
-                elif data_type == types.string:
-                    val = utils.to_text(self._reader.read_string())
-                    self._crc.update(val)
-                    record[i] = val
-                elif data_type == types.datetime:
-                    val = self._reader.read_sint64()
-                    self._crc.update_long(val)
-                    record[i] = self._to_datetime(val)
-                elif data_type == types.decimal:
-                    val = self._reader.read_string()
-                    self._crc.update(val)
-                    record[i] = val
-                elif isinstance(data_type, types.Array):
-                    val = self._read_array(data_type.value_type)
-                    record[i] = val
-                elif isinstance(data_type, types.Map):
-                    keys = self._read_array(data_type.key_type)
-                    values = self._read_array(data_type.value_type)
-                    val = compat.OrderedDict(zip(keys, values))
-                    record[i] = val
-                else:
-                    raise IOError('Unsupported type %s' % data_type)
+                record[i] = self._read_field(self._columns[i].type)
 
             self._curr_cursor += 1
             return record

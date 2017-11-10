@@ -118,6 +118,12 @@ class Optimizer(Backend):
             # compact projection into Groupby
             selects = []
 
+            for n in expr.traverse(top_down=True, unique=True,
+                                   stop_cond=lambda x: x is expr.input):
+                # stop compact
+                if isinstance(n, (Window, SequenceReduction)):
+                    return
+
             for field in expr._fields:
                 selects.append(self._broadcast_field(field, expr.input) or field)
 

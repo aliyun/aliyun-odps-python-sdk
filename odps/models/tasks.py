@@ -18,7 +18,7 @@ import json  # don't remove
 
 from .core import AbstractXMLRemoteModel
 from .. import serializers, errors, compat
-from ..compat import six
+from ..config import options
 
 
 class Task(AbstractXMLRemoteModel):
@@ -178,6 +178,17 @@ class SQLTask(Task):
             self.properties[key] = '{"odps.sql.udf.strict.mode": "true"}'
 
         return super(SQLTask, self).serial()
+
+    def update_sql_settings(self, value=None, glob=True):
+        settings = dict()
+        if glob:
+            if options.sql.use_odps2_extension:
+                settings['odps.sql.type.system.odps2'] = True
+            if options.sql.settings:
+                settings.update(options.sql.settings)
+        if value:
+            settings.update(value)
+        self.update_settings(settings)
 
     def update_aliases(self, value):
         self._update_property_json('aliases', value)

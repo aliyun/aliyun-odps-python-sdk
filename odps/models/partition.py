@@ -21,6 +21,15 @@ from .. import serializers, types
 
 
 class Partition(LazyLoad):
+    """
+    A partition is a collection of rows in a table whose partition columns are equal to specific
+    values.
+
+    In order to write data into partition, users should call the ``open_writer``
+    method with **with statement**. At the same time, the ``open_reader`` method is used
+    to provide the ability to read records from a partition. The behavior of these
+    methods are the same as those in Table class except that there are no 'partition' params.
+    """
     __slots__ = 'spec', 'creation_time', 'last_meta_modified_time', 'last_modified_time', \
                 'size', '_is_extend_info_loaded', \
                 'is_archived', 'is_exstore', 'lifecycle', \
@@ -131,14 +140,46 @@ class Partition(LazyLoad):
         self._is_extend_info_loaded = True
 
     def to_df(self):
+        """
+        Create a PyODPS DataFrame from this partition.
+
+        :return: DataFrame object
+        """
         from ..df import DataFrame
 
         return DataFrame(self.table).filter_partition(self)
 
-    def drop(self, async=False):
-        return self.parent.delete(self, async=async)
+    def drop(self, async=False, if_exists=False):
+        """
+        Drop this partition.
+
+        :param async: run asynchronously if True
+        :return: None
+        """
+        return self.parent.delete(self, if_exists=if_exists, async=async)
 
     def open_reader(self, **kw):
+        """
+        Open the reader to read the entire records from this partition.
+
+        :param reopen: the reader will reuse last one, reopen is true means open a new reader.
+        :type reopen: bool
+        :param endpoint: the tunnel service URL
+        :param compress_option: compression algorithm, level and strategy
+        :type compress_option: :class:`odps.tunnel.CompressOption`
+        :param compress_algo: compression algorithm, work when ``compress_option`` is not provided,
+                              can be ``zlib``, ``snappy``
+        :param compress_level: used for ``zlib``, work when ``compress_option`` is not provided
+        :param compress_strategy: used for ``zlib``, work when ``compress_option`` is not provided
+        :return: reader, ``count`` means the full size, ``status`` means the tunnel status
+
+        :Example:
+
+        >>> with partition.open_reader() as reader:
+        >>>     count = reader.count  # How many records of a partition
+        >>>     for record in reader[0: count]:
+        >>>         # read all data, actually better to split into reading for many times
+        """
         return self.table.open_reader(str(self), **kw)
 
     def open_writer(self, blocks=None, **kw):

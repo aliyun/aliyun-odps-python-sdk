@@ -27,8 +27,8 @@ except ImportError:
     from string import ascii_letters as letters
 
 from odps.compat import reload_module
-from odps.tests.core import TestBase, to_str, tn, snappy_case
-from odps.compat import unittest, OrderedDict
+from odps.tests.core import TestBase, to_str, tn, snappy_case, pandas_case, odps2_typed_case
+from odps.compat import unittest, OrderedDict, Decimal, Monthdelta
 from odps.models import Schema
 from odps import types, options
 from odps.tunnel import TableTunnel
@@ -507,6 +507,168 @@ class Test(TestBase):
                         self.assertEqual(it1, it2)
 
         table.drop()
+
+    @odps2_typed_case
+    @bothPyAndC
+    def testPrimitiveTypes2(self):
+        table_name = tn('test_hivetunnel_singleton_types')
+        self.odps.delete_table(table_name, if_exists=True)
+
+        table = self.odps.create_table(table_name, 'col1 tinyint, col2 smallint, col3 int, col4 float, col5 binary',
+                                       lifecycle=1)
+        self.assertListEqual(table.schema.types,
+                             [types.tinyint, types.smallint, types.int_, types.float_, types.binary])
+
+        contents = [
+            [127, 32767, 1234321, 10.5432, b'Hello, world!'],
+            [-128, -32768, 4312324, 20.1234, b'Excited!'],
+            [-1, 10, 9875479, 20.1234, b'Bravo!'],
+        ]
+        self.odps.write_table(table_name, contents)
+        written = list(self.odps.read_table(table_name))
+        values = [list(v.values) for v in written]
+        self.assertListAlmostEqual(contents, values, only_float=False, places=4)
+
+        table.drop(if_exists=True)
+
+    @pandas_case
+    @odps2_typed_case
+    @bothPyAndC
+    def testTimestamp(self):
+        import pandas as pd
+        table_name = tn('test_hivetunnel_timestamp_io')
+        self.odps.delete_table(table_name, if_exists=True)
+
+        table = self.odps.create_table(table_name, 'col1 int, col2 timestamp', lifecycle=1)
+        self.assertListEqual(table.schema.types, [types.int_, types.timestamp])
+
+        contents = [
+            [0, pd.Timestamp('2013-09-21 11:23:35.196045321')],
+            [1, pd.Timestamp('1998-02-15 23:59:21.943829154')],
+            [2, pd.Timestamp('2017-10-31 00:12:39.396583106')],
+        ]
+        self.odps.write_table(table_name, contents)
+        written = list(self.odps.read_table(table_name))
+        values = [list(v.values) for v in written]
+        self.assertListEqual(contents, values)
+
+        table.drop(if_exists=True)
+
+    @odps2_typed_case
+    @bothPyAndC
+    def testLengthLimitTypes(self):
+        table_name = tn('test_hivetunnel_length_limit_io')
+        self.odps.delete_table(table_name, if_exists=True)
+
+        table = self.odps.create_table(table_name, 'col1 int, col2 varchar(20), col3 char(30)', lifecycle=1)
+        self.assertEqual(table.schema.types[0], types.int_)
+        self.assertIsInstance(table.schema.types[1], types.Varchar)
+        self.assertEqual(table.schema.types[1].size_limit, 20)
+        self.assertIsInstance(table.schema.types[2], types.Char)
+        self.assertEqual(table.schema.types[2].size_limit, 30)
+
+        contents = [
+            [0, 'agdesfdr', 'sadfklaslkjdvvn'],
+            [1, 'sda;fkd', 'asdlfjjls;admc'],
+            [2, 'aetlkakls;dfj', 'sadffafafsafsaf'],
+        ]
+        self.odps.write_table(table_name, contents)
+        written = list(self.odps.read_table(table_name))
+
+        contents = [r[:2] + [r[2] + ' ' * (30 - len(r[2]))] for r in contents]
+        values = [list(v.values) for v in written]
+        self.assertListEqual(contents, values)
+
+        table.drop(if_exists=True)
+
+    @odps2_typed_case
+    @bothPyAndC
+    def testDecimal2(self):
+        table_name = tn('test_hivetunnel_decimal_io')
+        self.odps.delete_table(table_name, if_exists=True)
+
+        table = self.odps.create_table(table_name, 'col1 int, col2 decimal, '
+                                                   'col3 decimal(10), col4 decimal(10,3)', lifecycle=1)
+        self.assertEqual(table.schema.types[0], types.int_)
+        self.assertIsInstance(table.schema.types[1], types.Decimal)
+        self.assertIsNone(table.schema.types[1].precision)
+        self.assertIsNone(table.schema.types[1].scale)
+        self.assertIsInstance(table.schema.types[2], types.Decimal)
+        self.assertEqual(table.schema.types[2].precision, 10)
+        self.assertIsInstance(table.schema.types[3], types.Decimal)
+        self.assertEqual(table.schema.types[3].precision, 10)
+        self.assertEqual(table.schema.types[3].scale, 3)
+
+        contents = [
+            [0, Decimal('2.34'), Decimal('34567'), Decimal('56.789')],
+            [1, Decimal('11.76'), Decimal('9321'), Decimal('19.125')],
+            [2, Decimal('134.21'), Decimal('1642'), Decimal('999.214')],
+        ]
+        self.odps.write_table(table_name, contents)
+        written = list(self.odps.read_table(table_name))
+        values = [list(v.values) for v in written]
+        self.assertListEqual(contents, values)
+
+        table.drop(if_exists=True)
+
+    @pandas_case
+    @odps2_typed_case
+    @bothPyAndC
+    def testIntervals(self):
+        import pandas as pd
+        empty_table_name = tn('test_hivetunnel_interval_empty')
+        self.odps.delete_table(empty_table_name, if_exists=True)
+        empty_table = self.odps.create_table(empty_table_name, 'col1 int', if_not_exists=True)
+
+        table_name = tn('test_hivetunnel_interval_io')
+        self.odps.delete_table(table_name, if_exists=True)
+        self.odps.execute_sql("create table %s lifecycle 1 as\n"
+                              "select interval_day_time('2 1:2:3') as col1,"
+                              "  interval_year_month('10-11') as col2\n"
+                              "from %s" %
+                              (table_name, empty_table_name))
+        table = self.odps.get_table(table_name)
+        self.assertListEqual(table.schema.types, [types.interval_day_time, types.interval_year_month])
+
+        contents = [
+            [pd.Timedelta(seconds=1048576, nanoseconds=428571428), Monthdelta(13)],
+            [pd.Timedelta(seconds=934567126, nanoseconds=142857142), Monthdelta(-20)],
+            [pd.Timedelta(seconds=91230401, nanoseconds=285714285), Monthdelta(50)],
+        ]
+        self.odps.write_table(table_name, contents)
+        written = list(self.odps.read_table(table_name))
+        values = [list(v.values) for v in written]
+        self.assertListEqual(contents, values)
+
+        table.drop()
+        empty_table.drop()
+
+    @odps2_typed_case
+    @bothPyAndC
+    def testStruct(self):
+        table_name = tn('test_hivetunnel_struct_io')
+        self.odps.delete_table(table_name, if_exists=True)
+
+        col_def = 'col1 int, col2 struct<name:string,age:int,'\
+                  'parents:map<varchar(20),smallint>,hobbies:array<varchar(100)>>'
+        table = self.odps.create_table(table_name, col_def, lifecycle=1)
+        self.assertEqual(table.schema.types[0], types.int_)
+        self.assertIsInstance(table.schema.types[1], types.Struct)
+
+        contents = [
+            [0, {'name': 'user1', 'age': 20, 'parents': {'fa': 5, 'mo': 6},
+                 'hobbies': ['worship', 'yacht']}],
+            [1, {'name': 'user2', 'age': 65, 'parents': {'fa': 2, 'mo': 7},
+                 'hobbies': ['ukelele', 'chess']}],
+            [2, {'name': 'user3', 'age': 32, 'parents': {'fa': 1, 'mo': 3},
+                 'hobbies': ['poetry', 'calligraphy']}],
+        ]
+        self.odps.write_table(table_name, contents)
+        written = list(self.odps.read_table(table_name))
+        values = [list(v.values) for v in written]
+        self.assertListEqual(contents, values)
+
+        table.drop(if_exists=True)
 
 
 if __name__ == '__main__':

@@ -25,12 +25,17 @@ except ImportError as e:
         raise e
     BaseRecordWriter = None
 from ..pb.encoder import Encoder
-from ..pb.wire_format import WIRETYPE_VARINT, WIRETYPE_FIXED64, WIRETYPE_LENGTH_DELIMITED
+from ..pb.wire_format import WIRETYPE_VARINT, WIRETYPE_FIXED32, WIRETYPE_FIXED64,\
+    WIRETYPE_LENGTH_DELIMITED
 from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
 from .stream import CompressOption, SnappyOutputStream, DeflateOutputStream, RequestsIO
 from ... import types, compat, utils, errors, options
 from ...compat import six, raise_exc
+
+
+varint_tag_types = types.integer_types + (types.boolean, types.datetime, types.interval_year_month)
+length_delim_tag_types = (types.string, types.binary, types.timestamp, types.interval_day_time)
 
 
 if BaseRecordWriter is None:
@@ -90,12 +95,20 @@ if BaseRecordWriter is None:
             self._encoder.append_sint64(val)
             self._refresh_buffer()
 
+        def _write_raw_int(self, val):
+            self._encoder.append_sint32(val)
+            self._refresh_buffer()
+
         def _write_raw_uint(self, val):
             self._encoder.append_uint32(val)
             self._refresh_buffer()
 
         def _write_raw_bool(self, val):
             self._encoder.append_bool(val)
+            self._refresh_buffer()
+
+        def _write_raw_float(self, val):
+            self._encoder.append_float(val)
             self._refresh_buffer()
 
         def _write_raw_double(self, val):
@@ -138,37 +151,20 @@ if BaseRecordWriter is None:
                 self._crc.update_int(pb_index)
 
                 data_type = self._columns[i].type
-                if data_type == types.boolean:
+                if data_type in varint_tag_types:
                     self._write_tag(pb_index, WIRETYPE_VARINT)
-                    self._write_bool(val)
-                elif data_type == types.datetime:
-                    val = self._to_milliseconds(val)
-                    self._write_tag(pb_index, WIRETYPE_VARINT)
-                    self._write_long(val)
-                elif data_type == types.string:
-                    self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
-                    self._write_string(val)
+                elif data_type == types.float_:
+                    self._write_tag(pb_index, WIRETYPE_FIXED32)
                 elif data_type == types.double:
                     self._write_tag(pb_index, WIRETYPE_FIXED64)
-                    self._write_double(val)
-                elif data_type == types.bigint:
-                    self._write_tag(pb_index, WIRETYPE_VARINT)
-                    self._write_long(val)
-                elif data_type == types.decimal:
+                elif data_type in length_delim_tag_types:
                     self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
-                    self._write_string(str(val))
-                elif isinstance(data_type, types.Array):
+                elif isinstance(data_type, (types.Char, types.Varchar, types.Decimal, types.Array,
+                                            types.Map, types.Struct)):
                     self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
-                    self._write_raw_uint(len(val))
-                    self._write_array(val, data_type.value_type)
-                elif isinstance(data_type, types.Map):
-                    self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
-                    self._write_raw_uint(len(val))
-                    self._write_array(compat.lkeys(val), data_type.key_type)
-                    self._write_raw_uint(len(val))
-                    self._write_array(compat.lvalues(val), data_type.value_type)
                 else:
                     raise IOError('Invalid data type: %s' % data_type)
+                self._write_field(val, data_type)
 
             checksum = utils.long_to_int(self._crc.getvalue())
             self._write_tag(ProtoWireConstants.TUNNEL_END_RECORD, WIRETYPE_VARINT)
@@ -185,8 +181,12 @@ if BaseRecordWriter is None:
             self._crc.update_long(data)
             self._write_raw_long(data)
 
-        def _write_double(self, data):
+        def _write_float(self, data):
             self._crc.update_float(data)
+            self._write_raw_float(data)
+
+        def _write_double(self, data):
+            self._crc.update_double(data)
             self._write_raw_double(data)
 
         def _write_string(self, data):
@@ -195,17 +195,21 @@ if BaseRecordWriter is None:
             self._crc.update(data)
             self._write_raw_string(data)
 
-        def _write_primitive(self, data, data_type):
-            if data_type == types.string:
-                self._write_string(data)
-            elif data_type == types.bigint:
-                self._write_long(data)
-            elif data_type == types.double:
-                self._write_double(data)
-            elif data_type == types.boolean:
-                self._write_bool(data)
-            else:
-                raise IOError('Not a primitive type in array. type: %s' % data_type)
+        def _write_timestamp(self, data):
+            t_val = int(self._to_milliseconds(data.to_pydatetime(warn=False)) / 1000)
+            nano_val = data.microsecond * 1000 + data.nanosecond
+            self._crc.update_long(t_val)
+            self._write_raw_long(t_val)
+            self._crc.update_int(nano_val)
+            self._write_raw_int(nano_val)
+
+        def _write_interval_day_time(self, data):
+            t_val = data.days * 3600 * 24 + data.seconds
+            nano_val = data.microseconds * 1000 + data.nanoseconds
+            self._crc.update_long(t_val)
+            self._write_raw_long(t_val)
+            self._crc.update_int(nano_val)
+            self._write_raw_int(nano_val)
 
         def _write_array(self, data, data_type):
             for value in data:
@@ -213,7 +217,54 @@ if BaseRecordWriter is None:
                     self._write_raw_bool(True)
                 else:
                     self._write_raw_bool(False)
-                    self._write_primitive(value, data_type)
+                    self._write_field(value, data_type)
+
+        def _write_struct(self, data, data_type):
+            for key, value in six.iteritems(data):
+                if value is None:
+                    self._write_raw_bool(True)
+                else:
+                    self._write_raw_bool(False)
+                    self._write_field(value, data_type.field_types[key])
+
+        def _write_field(self, val, data_type):
+            if data_type == types.boolean:
+                self._write_bool(val)
+            elif data_type == types.datetime:
+                val = self._to_milliseconds(val)
+                self._write_long(val)
+            elif data_type == types.float_:
+                self._write_float(val)
+            elif data_type == types.double:
+                self._write_double(val)
+            elif data_type in types.integer_types:
+                self._write_long(val)
+            elif data_type == types.string:
+                self._write_string(val)
+            elif data_type == types.binary:
+                self._write_string(val)
+            elif data_type == types.timestamp:
+                self._write_timestamp(val)
+            elif data_type == types.interval_day_time:
+                self._write_interval_day_time(val)
+            elif data_type == types.interval_year_month:
+                self._write_long(val.total_months())
+            elif isinstance(data_type, (types.Char, types.Varchar)):
+                self._write_string(val)
+            elif isinstance(data_type, types.Decimal):
+                self._write_string(str(val))
+            elif isinstance(data_type, types.Array):
+                self._write_raw_uint(len(val))
+                self._write_array(val, data_type.value_type)
+            elif isinstance(data_type, types.Map):
+                self._write_raw_uint(len(val))
+                self._write_array(compat.lkeys(val), data_type.key_type)
+                self._write_raw_uint(len(val))
+                self._write_array(compat.lvalues(val), data_type.value_type)
+            elif isinstance(data_type, types.Struct):
+                self._write_struct(val, data_type)
+            else:
+                raise IOError('Invalid data type: %s' % data_type)
 
         @property
         def count(self):

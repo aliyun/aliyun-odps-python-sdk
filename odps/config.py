@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from copy import deepcopy
+import collections
 import contextlib
 import traceback
 import warnings
@@ -47,8 +48,8 @@ class Redirection(object):
         self.getvalue()
         self._warned = False
 
-    def getvalue(self):
-        if self._warn and not self._warned:
+    def getvalue(self, silent=False):
+        if not silent and self._warn and not self._warned:
             in_completer = any(1 for st in traceback.extract_stack()
                                if 'completer' in st[0].lower())
             if not in_completer:
@@ -59,8 +60,8 @@ class Redirection(object):
             conf = getattr(conf, it)
         return conf
 
-    def setvalue(self, value):
-        if self._warn and not self._warned:
+    def setvalue(self, value, silent=False):
+        if not silent and self._warn and not self._warned:
             self._warned = True
             warnings.warn(self._warn)
         conf = self._parent.root
@@ -79,7 +80,7 @@ class PandasRedirection(Redirection):
         except ImportError:
             self._use_pd = False
 
-    def getvalue(self):
+    def getvalue(self, silent=False):
         if self._use_pd:
             import pandas as pd
             from pandas.core.config import OptionError as PandasOptionError
@@ -90,7 +91,7 @@ class PandasRedirection(Redirection):
         else:
             return self._val
 
-    def setvalue(self, value):
+    def setvalue(self, value, silent=False):
         if self._use_pd:
             import pandas as pd
             key = '.'.join(self._items)
@@ -142,7 +143,7 @@ class AttributeDict(dict):
 
     def _setattr(self, key, value, silent=False):
         if not silent and key not in self:
-            raise OptionError('You can only set the value of existing options')
+            raise OptionError("Cannot identify configuration name '%s'." % str(key))
 
         if not isinstance(value, AttributeDict):
             validate = None
@@ -176,6 +177,30 @@ class AttributeDict(dict):
             super(AttributeDict, self).__setattr__(key, value)
         else:
             self._setattr(key, value)
+
+    def loads(self, d):
+        dispatches = collections.defaultdict(dict)
+        for k, v in six.iteritems(d):
+            if '.' in k:
+                sk, rk = k.split('.', 1)
+                dispatches[sk][rk] = v
+            elif isinstance(self[k][0], Redirection):
+                self[k][0].setvalue(v, silent=True)
+            else:
+                setattr(self, k, v)
+        for k, v in six.iteritems(dispatches):
+            self[k].loads(v)
+
+    def dumps(self):
+        result_dict = dict()
+        for k, v in six.iteritems(self):
+            if isinstance(v, AttributeDict):
+                result_dict.update((k + '.' + sk, sv) for sk, sv in six.iteritems(v.dumps()))
+            elif isinstance(v[0], Redirection):
+                result_dict[k] = v[0].getvalue(silent=True)
+            else:
+                result_dict[k] = v[0]
+        return result_dict
 
 
 class Config(object):
@@ -243,6 +268,12 @@ class Config(object):
         if key not in conf:
             raise AttributeError('Option %s not configured, thus failed to unregister.' % option)
         conf.unregister(key)
+
+    def loads(self, d):
+        return self._config.loads(d)
+
+    def dumps(self):
+        return self._config.dumps()
 
 
 @contextlib.contextmanager
@@ -342,6 +373,7 @@ options.register_option('console.use_color', False, validator=is_bool)
 
 # SQL
 options.register_option('sql.settings', None, validator=any_validator(is_null, is_dict))
+options.register_option('sql.use_odps2_extension', False, validator=is_bool)
 
 # DataFrame
 options.register_option('interactive', is_interactive(), validator=is_bool)
@@ -355,6 +387,7 @@ options.register_option('df.analyze', True, validator=is_bool)
 options.register_option('df.use_cache', True, validator=is_bool)
 options.register_option('df.quote', True, validator=is_bool)
 options.register_option('df.dump_udf', False, validator=is_bool)
+options.register_option('df.supersede_libraries', False, validator=is_bool)
 options.register_option('df.libraries', None)
 options.register_option('df.odps.sort.limit', 10000)
 options.register_option('df.sqlalchemy.execution_options', None, validator=any_validator(is_null, is_dict))
@@ -363,7 +396,7 @@ options.register_option('df.seahawks.max_size', 10 * 1024 * 1024 * 1024)  # 10G
 # PyODPS ML
 options.register_option('ml.xflow_project', 'algo_public', validator=is_string)
 options.register_option('ml.dry_run', False, validator=is_bool)
-options.register_option('ml.use_model_transfer', True, validator=is_bool)
+options.register_option('ml.use_model_transfer', False, validator=is_bool)
 options.register_option('ml.use_old_metrics', True, validator=is_bool)
 options.register_option('ml.model_volume', 'pyodps_volume', validator=is_string)
 

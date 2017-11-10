@@ -34,9 +34,12 @@ cdef:
     int64_t BOOL_TYPE_ID = types.boolean._type_id
     int64_t DATETIME_TYPE_ID = types.datetime._type_id
     int64_t STRING_TYPE_ID = types.string._type_id
+    int64_t FLOAT_TYPE_ID = types.float_._type_id
     int64_t DOUBLE_TYPE_ID = types.double._type_id
     int64_t BIGINT_TYPE_ID = types.bigint._type_id
-    int64_t DECIMAL_TYPE_ID = types.decimal._type_id
+    int64_t BINARY_TYPE_ID = types.binary._type_id
+    int64_t TIMESTAMP_TYPE_ID = types.timestamp._type_id
+    int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
 
 
 def init_module():
@@ -108,6 +111,26 @@ cdef object _validate_datetime(object val):
     raise TypeError("Invalid data type: expect datetime, got %s" % type(val))
 
 
+pd_ts = None
+pd_ts_strptime = None
+
+cdef object _validate_timestamp(object val):
+    global pd_ts, pd_ts_strptime
+    if pd_ts is None:
+        try:
+            import pandas as pd
+            pd_ts = pd.Timestamp
+            pd_ts_strptime = pd_ts.strptime
+        except ImportError:
+            raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
+
+    if isinstance(val, pd_ts):
+        return val
+    if isinstance(val, (bytes, unicode)):
+        return pd_ts_strptime(val, '%Y-%m-%d %H:%M:%S')
+    raise TypeError("Invalid data type: expect timestamp, got %s" % type(val))
+
+
 cdef object _validate_decimal(object val):
     cdef:
         object scaled_val
@@ -124,6 +147,12 @@ cdef object _validate_decimal(object val):
             (val, decimal_int_len_max))
 
     return Decimal(str(val))
+
+
+cdef object _validate_float(object val):
+    cdef float flt_val = val
+    return flt_val
+
 
 cdef object _validate_double(object val):
     cdef double dbl_val = val
@@ -145,6 +174,8 @@ cdef object validate_value(object val, object value_type):
     try:
         if type_id == BIGINT_TYPE_ID:
             return _validate_bigint(val)
+        elif type_id == FLOAT_TYPE_ID:
+            return _validate_float(val)
         elif type_id == DOUBLE_TYPE_ID:
             return _validate_double(val)
         elif type_id == STRING_TYPE_ID:
@@ -158,6 +189,10 @@ cdef object validate_value(object val, object value_type):
             return _validate_boolean(val)
         elif type_id == DECIMAL_TYPE_ID:
             return _validate_decimal(val)
+        elif type_id == BINARY_TYPE_ID:
+            return _validate_binary(val)
+        elif type_id == TIMESTAMP_TYPE_ID:
+            return _validate_timestamp(val)
     except TypeError:
         pass
 
@@ -182,6 +217,8 @@ cdef class SchemaSnapshot:
             type_id = self._col_type_ids[i]
             if type_id == BIGINT_TYPE_ID:
                 self._col_validators[i] = _validate_bigint
+            elif type_id == FLOAT_TYPE_ID:
+                self._col_validators[i] = _validate_float
             elif type_id == DOUBLE_TYPE_ID:
                 self._col_validators[i] = _validate_double
             elif type_id == STRING_TYPE_ID:
@@ -195,6 +232,10 @@ cdef class SchemaSnapshot:
                 self._col_validators[i] = _validate_boolean
             elif type_id == DECIMAL_TYPE_ID:
                 self._col_validators[i] = _validate_decimal
+            elif type_id == BINARY_TYPE_ID:
+                self._col_validators[i] = _validate_binary
+            elif type_id == TIMESTAMP_TYPE_ID:
+                self._col_validators[i] = _validate_timestamp
             else:
                 self._col_validators[i] = NULL
 

@@ -139,7 +139,7 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护
     3
 
 
-在交互式环境执行SQL
+在交互式环境执行 SQL
 ---------------------
 
 在 ipython 和 jupyter 里支持 :ref:`使用 SQL 插件的方式运行 SQL <sqlinter>`，且支持 :ref:`参数化查询 <sqlparam>`，
@@ -147,10 +147,10 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护
 
 
 
-设置biz_id
+设置 biz_id
 ------------
 
-需要设置全局options里的biz_id。
+在少数情形下，可能在提交 SQL 时，需要同时提交 biz_id，否则执行会报错。此时，你可以设置全局 options 里的 biz_id。
 
 .. code-block:: python
 

@@ -34,25 +34,17 @@ cdef class ProtobufRecordWriter:
     cdef int _n_columns
 
     cpdef _re_init(self, output)
-
     cpdef flush(self)
-
     cpdef close(self)
-
     cpdef flush_all(self)
-
     cpdef _refresh_buffer(self)
-
     cpdef _write_tag(self, int field_num, int wire_type)
-
     cpdef _write_raw_long(self, int64_t val)
-
+    cpdef _write_raw_int(self, int32_t val)
     cpdef _write_raw_uint(self, uint32_t val)
-
     cpdef _write_raw_bool(self, bint val)
-
+    cpdef _write_raw_float(self, float val)
     cpdef _write_raw_double(self, double val)
-
     cpdef _write_raw_string(self, bytes val)
 
 
@@ -66,17 +58,14 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     cdef SchemaSnapshot _schema_snapshot
 
     cpdef write(self, BaseRecord record)
-
     cpdef _write_bool(self, bint data)
-
     cpdef _write_long(self, int64_t data)
-
+    cpdef _write_float(self, float data)
     cpdef _write_double(self, double data)
-
     cpdef _write_string(self, object data)
-
-    cpdef _write_primitive(self, object data, object data_type)
-
+    cpdef _write_timestamp(self, object data)
+    cpdef _write_interval_day_time(self, object data)
+    cpdef _write_field(self, object val, int data_type_id, object data_type)
     cpdef _write_array(self, object data, object data_type)
-
+    cpdef _write_struct(self, object data, object data_type)
     cpdef close(self)

@@ -52,6 +52,10 @@ class Checksum(object):
         self._update(val)
 
     def update_float(self, val):
+        val = struct.pack('<f', val)
+        self._update(val)
+
+    def update_double(self, val):
         val = struct.pack('<d', val)
         self._update(val)
 

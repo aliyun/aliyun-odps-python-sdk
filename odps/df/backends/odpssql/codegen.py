@@ -28,9 +28,9 @@ from ...expr.utils import get_executed_collection_table_name
 from ...utils import make_copy
 from ....config import options
 from ....lib import cloudpickle
-from ....compat import OrderedDict, six, PY26, PY27
+from ....compat import OrderedDict, six
 from ....models import FileResource, TableResource, ArchiveResource
-from ....utils import to_str, hashable
+from ....utils import to_str
 
 dirname = os.path.dirname(os.path.abspath(cloudpickle.__file__))
 CLOUD_PICKLE_FILE = os.path.join(dirname, 'cloudpickle.py')
@@ -61,11 +61,6 @@ import inspect
 import time
 import os
 import sys
-
-try:
-    import numpy
-except ImportError:
-    pass
 
 from odps.udf import annotate
 from odps.distcache import get_cache_file, get_cache_table, get_cache_archive
@@ -166,7 +161,7 @@ class %(func_cls_name)s(object):
             else:
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))
-        sys.meta_path.append(CompressImporter(*files))
+        sys.meta_path.append(CompressImporter(*files, supersede=%(supersede_libraries)r))
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
@@ -276,7 +271,7 @@ class %(func_cls_name)s(BaseUDTF):
             else:
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))
-        sys.meta_path.append(CompressImporter(*files))
+        sys.meta_path.append(CompressImporter(*files, supersede=%(supersede_libraries)r))
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
@@ -418,7 +413,7 @@ class %(func_cls_name)s(BaseUDAF):
             else:
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))
-        sys.meta_path.append(CompressImporter(*files))
+        sys.meta_path.append(CompressImporter(*files, supersede=%(supersede_libraries)r))
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
@@ -529,6 +524,7 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
         'dump_code': options.df.dump_udf,
         'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
         'libraries': ','.join(libraries if libraries is not None else []),
+        'supersede_libraries': options.df.supersede_libraries,
     }
     if resources:
         func_to_resources[func] = resources
@@ -571,6 +567,7 @@ def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
         'dump_code': options.df.dump_udf,
         'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
         'libraries': ','.join(libraries if libraries is not None else []),
+        'supersede_libraries': options.df.supersede_libraries,
     }
     if resources:
         func_to_resources[func] = resources
@@ -610,6 +607,7 @@ def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
         'dump_code': options.df.dump_udf,
         'input_args': ', '.join('arg{0}'.format(i) for i in range(len(node.input_types))),
         'libraries': ','.join(libraries if libraries is not None else []),
+        'supersede_libraries': options.df.supersede_libraries,
     }
     if resources:
         func_to_resources[func] = resources

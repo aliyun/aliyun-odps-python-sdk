@@ -29,7 +29,7 @@ except ImportError:
 
 from ....models import Table
 from ....config import options
-from ....types import decimal
+from ....types import Decimal
 from ... import types as df_types
 from ...expr.reduction import Max, GroupedMax, Min, GroupedMin
 from ..sqlalchemy.compiler import SQLAlchemyCompiler
@@ -71,7 +71,7 @@ class SeahawksCompiler(SQLAlchemyCompiler):
         table = next(expr.data_source())
 
         if isinstance(table, Table):
-            if any(col.type == decimal for col in table.schema.columns):
+            if any(isinstance(col.type, Decimal) for col in table.schema.columns):
                 # FIXME: decimal and datetime are not supported by seahawks by now
                 raise NotImplementedError
             table = self._mapping_odps_table(table, expr.schema)

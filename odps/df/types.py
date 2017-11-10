@@ -17,7 +17,7 @@
 from datetime import datetime as _datetime
 from decimal import Decimal as _Decimal
 
-from ..types import DataType, Array, Map, ARRAY_RE, MAP_RE
+from ..types import DataType, Array, Map, parse_composite_types
 from ..models import Schema, Column
 from ..compat import OrderedDict, six
 
@@ -129,6 +129,10 @@ class String(Primitive):
     __slots__ = ()
 
 
+class Binary(Primitive):
+    __slots__ = ()
+
+
 class List(Array):
     __slots__ = ()
 
@@ -207,12 +211,13 @@ boolean = Boolean()
 string = String()
 decimal = Decimal()
 datetime = Datetime()
+binary = Binary()
 
 
 _data_types = dict(
     (t.name, t) for t in
     (int8, int16, int32, int64, float32, float64,
-     boolean, string, decimal, datetime)
+     boolean, string, decimal, datetime, binary)
 )
 
 
@@ -229,16 +234,9 @@ def validate_data_type(data_type):
         if data_type in _data_types:
             return _data_types[data_type]
 
-        array_match = ARRAY_RE.match(data_type)
-        if array_match:
-            value_type = array_match.group(1)
-            return List(value_type)
-
-        map_match = MAP_RE.match(data_type)
-        if map_match:
-            key_type = map_match.group(1).strip()
-            value_type = map_match.group(2).strip()
-            return Dict(key_type, value_type)
+        composite_type = parse_composite_types(data_type, array_cls=List, map_cls=Dict)
+        if composite_type:
+            return composite_type
 
     raise ValueError('Invalid data type: %s' % repr(data_type))
 

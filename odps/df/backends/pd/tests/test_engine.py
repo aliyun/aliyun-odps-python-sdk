@@ -109,6 +109,14 @@ class Test(TestBase):
         expr7 = expr5.union(expr6).union(expr4['name', 'id'])
         self.assertGreater(self.engine.execute(expr7.count()), 0)
 
+        expr8 = self.expr.fid.max().cache()
+        expr9 = self.expr.fid / expr8
+        res = self.engine.execute(expr9)
+        result = self._get_result(res)
+        actual_max = max([it[2] for it in data])
+        self.assertListAlmostEqual([it[2] / actual_max for it in data],
+                                   [it[0] for it in result])
+
     def testBatch(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
 
@@ -381,6 +389,8 @@ class Test(TestBase):
             (np.ceil, self.expr.id.ceil()),
             (np.floor, self.expr.id.floor()),
             (lambda v: np.trunc(v * 10.0) / 10.0, self.expr.id.trunc(1)),
+            (round, self.expr.id.round()),
+            (lambda x: round(x, 2), self.expr.id.round(2)),
         ]
 
         fields = [it[1].rename('id' + str(i)) for i, it in enumerate(methods_to_fields)]
@@ -1526,6 +1536,19 @@ class Test(TestBase):
         result = self._get_result(res)
 
         expected = [['name2'], ['name1,name1'], ['name1,name1']]
+        self.assertEqual(sorted(result), sorted(expected))
+
+        # only for pandas backend
+        self.expr._source_data.loc[5] = ['name2', 4, 4.2, None, None, None]
+        expr = self.expr[self.expr.id.isin([2, 4])]
+        expr = expr.groupby('id').agg(n=expr.name.nunique())
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            [4, 2],
+            [2, 1]
+        ]
         self.assertEqual(sorted(result), sorted(expected))
 
     def testMultiNunique(self):

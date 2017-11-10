@@ -88,6 +88,7 @@ class Resources(Iterable):
 
         ctor_kw = kwargs.copy()
         ctor_kw.pop('file_obj', None)
+        ctor_kw.pop('fileobj', None)
         obj = obj or Resource(parent=self, client=self._client, **ctor_kw)
 
         if obj.type == Resource.Type.UNKOWN:

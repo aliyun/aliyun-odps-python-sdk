@@ -18,6 +18,9 @@ Definitions
 .. autoclass:: odps.models.table.TableSchema
     :members:
 
+.. autoclass:: odps.models.partition.Partition
+    :members:
+
 .. autoclass:: odps.models.Record
     :members:
 

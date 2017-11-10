@@ -33,6 +33,10 @@ cdef:
     uint32_t WIRE_TUNNEL_META_CHECKSUM = ProtoWireConstants.TUNNEL_META_CHECKSUM
     uint32_t WIRE_TUNNEL_END_RECORD = ProtoWireConstants.TUNNEL_END_RECORD
 
+cdef:
+    object pd_timestamp = None
+    object pd_timedelta = None
+
 
 cdef class BaseTunnelRecordReader:
     def __init__(self, object schema, object input_stream, columns=None):
@@ -55,12 +59,24 @@ cdef class BaseTunnelRecordReader:
                 self._column_setters[i] = self._set_datetime
             elif data_type == types.string:
                 self._column_setters[i] = self._set_string
+            elif data_type == types.float_:
+                self._column_setters[i] = self._set_float
             elif data_type == types.double:
                 self._column_setters[i] = self._set_double
-            elif data_type == types.bigint:
+            elif data_type in types.integer_types:
                 self._column_setters[i] = self._set_bigint
-            elif data_type == types.decimal:
+            elif data_type == types.binary:
+                self._column_setters[i] = self._set_string
+            elif data_type == types.timestamp:
+                self._column_setters[i] = self._set_timestamp
+            elif data_type == types.interval_day_time:
+                self._column_setters[i] = self._set_interval_day_time
+            elif data_type == types.interval_year_month:
+                self._column_setters[i] = self._set_bigint
+            elif isinstance(data_type, types.Decimal):
                 self._column_setters[i] = self._set_decimal
+            elif isinstance(data_type, (types.Char, types.Varchar)):
+                self._column_setters[i] = self._set_string
             else:
                 self._column_setters[i] = NULL
 
@@ -78,6 +94,53 @@ cdef class BaseTunnelRecordReader:
     def count(self):
         return self._curr_cursor
 
+    cdef object _read_struct(self, object value_type):
+        res = compat.OrderedDict()
+        for k in value_type.field_types:
+            if self._reader.read_bool():
+                res[k] = None
+            else:
+                res[k] = self._read_element(value_type.field_types[k])
+        return res
+
+    cdef object _read_element(self, object data_type):
+        if data_type == types.float_:
+            val = self._read_float()
+        elif data_type == types.double:
+            val = self._read_double()
+        elif data_type == types.boolean:
+            val = self._read_bool()
+        elif data_type in types.integer_types:
+            val = self._read_bigint()
+        elif data_type == types.string:
+            val = self._read_string()
+        elif data_type == types.datetime:
+            val = self._read_datetime()
+        elif data_type == types.binary:
+            val = self._read_string()
+        elif data_type == types.timestamp:
+            val = self._read_timestamp()
+        elif data_type == types.interval_day_time:
+            val = self._read_interval_day_time()
+        elif data_type == types.interval_year_month:
+            val = compat.Monthdelta(self._read_bigint())
+        elif isinstance(data_type, (types.Char, types.Varchar)):
+            val = self._read_string()
+        elif isinstance(data_type, types.Decimal):
+            val = self._read_string()
+            self._crc.update(val)
+        elif isinstance(data_type, types.Array):
+            val = self._read_array(data_type.value_type)
+        elif isinstance(data_type, types.Map):
+            keys = self._read_array(data_type.key_type)
+            values = self._read_array(data_type.value_type)
+            val = compat.OrderedDict(zip(keys, values))
+        elif isinstance(data_type, types.Struct):
+            val = self._read_struct(data_type)
+        else:
+            raise IOError('Unsupported type %s' % data_type)
+        return val
+
     cdef list _read_array(self, object value_type):
         cdef:
             uint32_t size
@@ -89,19 +152,7 @@ cdef class BaseTunnelRecordReader:
             if self._reader.read_bool():
                 res.append(None)
             else:
-                if value_type == types.string:
-                    val = self._read_string()
-                    val = val.decode('utf-8')
-                elif value_type == types.bigint:
-                    val = self._read_bigint()
-                elif value_type == types.double:
-                    val = self._read_double()
-                elif value_type == types.boolean:
-                    val = self._read_bool()
-                else:
-                    raise IOError('Unsupport array type. type: %s' % value_type)
-                res.append(val)
-
+                res.append(self._read_element(value_type))
         return res
 
     cdef bytes _read_string(self):
@@ -115,6 +166,17 @@ cdef class BaseTunnelRecordReader:
 
         return val
 
+    cdef float _read_float(self):
+        cdef float val
+        try:
+            val = self._reader.read_float()
+        except:
+            self._last_error = sys.exc_info()
+            raise
+        self._crc.c_update_float(val)
+
+        return val
+
     cdef double _read_double(self):
         cdef double val
         try:
@@ -122,7 +184,7 @@ cdef class BaseTunnelRecordReader:
         except:
             self._last_error = sys.exc_info()
             raise
-        self._crc.c_update_float(val)
+        self._crc.c_update_double(val)
 
         return val
 
@@ -158,11 +220,63 @@ cdef class BaseTunnelRecordReader:
         self._crc.c_update_long(val)
         return self._to_datetime(val)
 
+    cdef object _read_timestamp(self):
+        cdef:
+            int64_t val
+            int32_t nano_secs
+        global pd_timestamp, pd_timedelta
+
+        if pd_timestamp is None:
+            try:
+                import pandas as pd
+                pd_timestamp = pd.Timestamp
+                pd_timedelta = pd.Timedelta
+            except ImportError:
+                self._last_error = sys.exc_info()
+                raise
+        try:
+            val = self._reader.read_sint64()
+            self._crc.c_update_long(val)
+            nano_secs = self._reader.read_sint32()
+            self._crc.c_update_int(nano_secs)
+        except:
+            self._last_error = sys.exc_info()
+            raise
+        return pd_timestamp(self._to_datetime(val * 1000)) + pd_timedelta(nanoseconds=nano_secs)
+
+    cdef object _read_interval_day_time(self):
+        cdef:
+            int64_t val
+            int32_t nano_secs
+        global pd_timestamp, pd_timedelta
+
+        if pd_timedelta is None:
+            try:
+                import pandas as pd
+                pd_timestamp = pd.Timestamp
+                pd_timedelta = pd.Timedelta
+            except ImportError:
+                self._last_error = sys.exc_info()
+                raise
+        try:
+            val = self._reader.read_sint64()
+            self._crc.c_update_long(val)
+            nano_secs = self._reader.read_sint32()
+            self._crc.c_update_int(nano_secs)
+        except:
+            self._last_error = sys.exc_info()
+            raise
+        return pd_timedelta(seconds=val, nanoseconds=nano_secs)
+
     cdef void _set_record_list_value(self, list record, int i, object value):
         record[i] = self._schema_snapshot.validate_value(i, value)
 
     cdef void _set_string(self, list record, int i):
         cdef object val = self._read_string()
+        self._set_record_list_value(record, i, val)
+
+    cdef void _set_float(self, list record, int i):
+        cdef float val = self._read_float()
         self._set_record_list_value(record, i, val)
 
     cdef void _set_double(self, list record, int i):
@@ -185,6 +299,14 @@ cdef class BaseTunnelRecordReader:
         cdef bytes val
         val = self._reader.read_string()
         self._crc.update(val)
+        self._set_record_list_value(record, i, val)
+
+    cdef void _set_timestamp(self, list record, int i):
+        cdef object val = self._read_timestamp()
+        self._set_record_list_value(record, i, val)
+
+    cdef void _set_interval_day_time(self, list record, int i):
+        cdef object val = self._read_interval_day_time()
         self._set_record_list_value(record, i, val)
 
     cpdef read(self):
@@ -244,12 +366,15 @@ cdef class BaseTunnelRecordReader:
                 data_type = self._schema_snapshot._col_types[i]
                 if isinstance(data_type, types.Array):
                     val = self._read_array(data_type.value_type)
-                    rec_list[i] = val
+                    rec_list[i] = self._schema_snapshot.validate_value(i, val)
                 elif isinstance(data_type, types.Map):
                     keys = self._read_array(data_type.key_type)
                     values = self._read_array(data_type.value_type)
                     val = compat.OrderedDict(zip(keys, values))
-                    rec_list[i] = val
+                    rec_list[i] = self._schema_snapshot.validate_value(i, val)
+                elif isinstance(data_type, types.Struct):
+                    val = self._read_struct(data_type)
+                    rec_list[i] = self._schema_snapshot.validate_value(i, val)
                 else:
                     raise IOError('Unsupported type %s' % data_type)
 

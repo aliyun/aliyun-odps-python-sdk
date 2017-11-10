@@ -32,3 +32,6 @@ class SeahawksTable(Table):
     @property
     def project(self):
         return MockProject()
+
+    def reload(self):
+        return

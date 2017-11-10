@@ -159,19 +159,16 @@ else:
 
         def _handle_msgs(self, _, content, buffers):
             try:
-                self._actual_handle_msgs(content, buffers)
+                action = content.get('action', '')
+                if action == 'start_widget':
+                    self.start_sign = (self.start_sign + 1) % 2
+                elif action == 'fetch_table':
+                    self._handle_fetch_table(content, buffers)
+                elif action == 'aggregate_graph':
+                    self._handle_aggregate_graph(content, buffers)
             except:
                 self.error_sign = (self.error_sign + 1) % 2
                 raise
-
-        def _actual_handle_msgs(self, content, buffers):
-            action = content.get('action', '')
-            if action == 'start_widget':
-                self.start_sign = (self.start_sign + 1) % 2
-            elif action == 'fetch_table':
-                self._handle_fetch_table(content, buffers)
-            elif action == 'aggregate_graph':
-                self._handle_aggregate_graph(content, buffers)
 
 
 def show_df_widget(df, **kwargs):

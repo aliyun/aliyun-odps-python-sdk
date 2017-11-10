@@ -21,6 +21,8 @@ from .. import op, exporters
 from ..core import AlgoExprMixin, AlgoCollectionExpr
 from ...utils import MLField, FieldRole, FieldContinuity, import_class_member, build_model_table_name, ML_ARG_PREFIX
 from ....compat import six
+from ....config import options
+from ....errors import NoSuchObject
 from ....df.expr.collections import CollectionExpr, Expr
 from ....df.expr.dynamic import DynamicMixin
 
@@ -205,6 +207,13 @@ class ODPSModelExpr(AlgoExprMixin, Expr):
 
     def get_cached(self, data):
         if self._is_offline_model:
+            try:
+                if not options.ml.dry_run:
+                    data.reload()
+            except NoSuchObject:
+                from ....df.backends.context import context
+                context.uncache(self)
+                return None
             mod = type(self)(_source_data=data)
         else:
             mod = ODPSModelExpr(_source_data=data, _is_offline_model=False, _model_params=data.params.copy(),

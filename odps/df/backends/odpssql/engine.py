@@ -268,6 +268,9 @@ class ODPSSQLEngine(Engine):
             sub = Scalar(_value_type=expr.dtype)
             sub._value = ValueHolder()
 
+            root = expr_dag.root
+            expr_dag.substitute(root, sub)
+
             execute_node = self._execute(execute_dag, dag, expr, **kwargs)
 
             def callback(res):
@@ -461,15 +464,20 @@ class ODPSSQLEngine(Engine):
                                        '`partition` or `partitions`.')
                 expr = self._reorder(expr, t, cast=cast)
             else:
-                t = None
+                # We don't use `CREATE TABLE ... AS` because it will report `table already exists`
+                # when service retries.
+                if isinstance(expr, CollectionExpr):
+                    schema = types.df_schema_to_odps_schema(expr.schema, ignorecase=True)
+                else:
+                    col_name = expr.name
+                    tp = types.df_type_to_odps_type(expr.dtype)
+                    schema = Schema.from_lists([col_name, ], [tp, ])
+                self._odps.create_table(name, Schema(columns=schema.columns),
+                                        project=project, lifecycle=lifecycle)
 
             sql = self._compile(expr, prettify=False, libraries=libraries)
-            if t:
-                action_str = 'OVERWRITE' if overwrite else 'INTO'
-                format_sql = lambda s: 'INSERT {0} TABLE {1} \n{2}'.format(action_str, table_name, s)
-            else:
-                lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
-                format_sql = lambda s: 'CREATE TABLE {0} {1}AS \n{2}'.format(table_name, lifecycle_str, s)
+            action_str = 'OVERWRITE' if overwrite else 'INTO'
+            format_sql = lambda s: 'INSERT {0} TABLE {1} \n{2}'.format(action_str, table_name, s)
             if isinstance(sql, list):
                 sql[-1] = format_sql(sql[-1])
             else:
@@ -494,7 +502,8 @@ class ODPSSQLEngine(Engine):
                 partition_types = ['string'] * len(partition_names)
                 t = self._odps.create_table(
                     name, TableSchema.from_lists(column_names, column_types,
-                                                 partition_names, partition_types), project=project)
+                                                 partition_names, partition_types),
+                    project=project, lifecycle=lifecycle)
                 if create_partition is None or create_partition is True:
                     t.create_partition(partition)
 
@@ -532,7 +541,8 @@ class ODPSSQLEngine(Engine):
             if self._odps.exist_table(name, project=project) or not create_table:
                 t = self._odps.get_table(name, project=project)
             else:
-                t = self._odps.create_table(name, Schema(columns=columns, partitions=ps), project=project)
+                t = self._odps.create_table(name, Schema(columns=columns, partitions=ps),
+                                            project=project, lifecycle=lifecycle)
             if drop_partition:
                 raise ValueError('Cannot drop partitions when specify `partitions`')
             if create_partition:

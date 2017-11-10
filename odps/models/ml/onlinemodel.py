@@ -499,7 +499,7 @@ class OnlineModel(LazyLoad):
 
             if isinstance(row, odps_types.Record):
                 for col, val in zip(row._columns, row._values):
-                    if col.type == odps_types.decimal:
+                    if isinstance(col.type, odps_types.Decimal):
                         type_code = PREDICT_TYPE_CODES['float']
                         val = float(val)
                     elif type(col.type).__name__ in PREDICT_ODPS_TYPE_CODES:

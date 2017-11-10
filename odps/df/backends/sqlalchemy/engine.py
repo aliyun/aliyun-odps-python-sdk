@@ -244,6 +244,9 @@ class SQLAlchemyEngine(Engine):
             sub = Scalar(_value_type=expr.dtype)
             sub._value = ValueHolder()
 
+            root = expr_dag.root
+            expr_dag.substitute(root, sub)
+
             execute_node = self._execute(execute_dag, dag, expr, **kwargs)
 
             def callback(res):

@@ -275,7 +275,7 @@ def recall_score(df, col_true=None, col_pred='precision_result', pos_label=1, av
     mat, label_list = _run_cm_node(df, col_true, col_pred)
     class_dict = dict((label, idx) for idx, label in enumerate(label_list))
     tps = np.diag(mat)
-    supp_count = np.sum(mat, axis=0)
+    supp_count = np.sum(mat, axis=1)
     if average is None:
         return tps * 1.0 / supp_count
     elif average == 'binary':

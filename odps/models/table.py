@@ -256,6 +256,81 @@ class Table(LazyLoad):
 
         return buf.getvalue()
 
+    @staticmethod
+    def gen_create_table_sql(table_name, table_schema, comment=None, if_not_exists=False,
+                             lifecycle=None, shard_num=None, hub_lifecycle=None,
+                             with_column_comments=True, project=None):
+        buf = six.StringIO()
+        table_name = utils.to_text(table_name)
+        project = utils.to_text(project)
+        comment = utils.to_text(comment)
+
+        buf.write(u'CREATE TABLE ')
+        if if_not_exists:
+            buf.write(u'IF NOT EXISTS ')
+        if project is not None:
+            buf.write(u'%s.`%s` ' % (project, table_name))
+        else:
+            buf.write(u'`%s` ' % table_name)
+
+        if isinstance(table_schema, six.string_types):
+            buf.write(u'(\n')
+            buf.write(table_schema)
+            buf.write(u'\n)')
+            if comment is not None:
+                buf.write(u" COMMENT '%s'" % comment)
+        elif isinstance(table_schema, tuple):
+            buf.write(u'(\n')
+            buf.write(table_schema[0])
+            buf.write(u'\n)')
+            if comment is not None:
+                buf.write(u" COMMENT '%s'" % comment)
+            buf.write(u' PARTITIONED BY ')
+            buf.write(u'(\n')
+            buf.write(table_schema[1])
+            buf.write(u'\n)')
+        else:
+            def write_columns(col_array):
+                size = len(col_array)
+                buf.write(u'(\n')
+                for idx, column in enumerate(col_array):
+                    buf.write(u'  `%s` %s' % (utils.to_text(column.name), utils.to_text(column.type)))
+                    if with_column_comments and column.comment:
+                        buf.write(u" COMMENT '%s'" % utils.to_text(column.comment))
+                    if idx < size - 1:
+                        buf.write(u',\n')
+                buf.write(u'\n)')
+
+            write_columns(table_schema.simple_columns)
+            if comment is not None:
+                buf.write(u" COMMENT '%s'" % comment)
+            if table_schema.partitions:
+                buf.write(u' PARTITIONED BY ')
+                write_columns(table_schema.partitions)
+
+        if lifecycle is not None:
+            buf.write(u' LIFECYCLE %s' % lifecycle)
+        if shard_num is not None:
+            buf.write(u' INTO %s SHARDS' % shard_num)
+            if hub_lifecycle is not None:
+                buf.write(u' HUBLIFECYCLE %s' % hub_lifecycle)
+
+        return buf.getvalue()
+
+    def get_ddl(self, with_comments=True, if_not_exists=False):
+        """
+        Get DDL SQL statement for the given table.
+
+        :param with_comments: append comment for table and each column
+        :return: DDL statement
+        """
+        shard_num = self.shard.shard_num if self.shard is not None else None
+        return self.gen_create_table_sql(
+            self.name, self.schema, self.comment if with_comments else None,
+            if_not_exists=if_not_exists, with_column_comments=with_comments,
+            lifecycle=self.lifecycle, shard_num=shard_num, project=self.project.name
+        )
+
     def head(self, limit, partition=None, columns=None):
         """
         Get the head records of a table or its partition.
@@ -538,18 +613,51 @@ class Table(LazyLoad):
         return Partitions(parent=self, client=self._client)
 
     def create_partition(self, partition_spec, if_not_exists=False, async=False):
+        """
+        Create a partition within the table.
+
+        :param partition_spec: specification of the partition.
+        :param if_not_exists:
+        :param async:
+        :return: partition object
+        :rtype: odps.models.partition.Partition
+        """
         return self.partitions.create(partition_spec, if_not_exists=if_not_exists, async=async)
 
     def delete_partition(self, partition_spec, if_exists=False, async=False):
+        """
+        Delete a partition within the table.
+
+        :param partition_spec: specification of the partition.
+        :param if_exists:
+        :param async:
+        """
         return self.partitions.delete(partition_spec, if_exists=if_exists, async=async)
 
     def exist_partition(self, partition_spec):
+        """
+        Check if a partition exists within the table.
+
+        :param partition_spec: specification of the partition.
+        """
         return partition_spec in self.partitions
 
     def iterate_partitions(self, spec=None):
+        """
+        Create an iiterable object to iterate over partitions.
+
+        :param spec: specification of the partition.
+        """
         return self.partitions.iterate_partitions(spec=spec)
 
     def get_partition(self, partition_spec):
+        """
+        Get a partition with given specifications.
+
+        :param partition_spec: specification of the partition.
+        :return: partition object
+        :rtype: odps.models.partition.Partition
+        """
         return self.partitions[partition_spec]
 
     def truncate(self, async=False):
@@ -570,7 +678,7 @@ class Table(LazyLoad):
 
     def drop(self, async=False, if_exists=False):
         """
-        drop this table.
+        Drop this table.
 
         :param async: run asynchronously if True
         :return: None
@@ -599,6 +707,11 @@ class Table(LazyLoad):
         return Record(schema=self.schema, values=values)
 
     def to_df(self):
+        """
+        Create a PyODPS DataFrame from this table.
+
+        :return: DataFrame object
+        """
         from ..df import DataFrame
 
         return DataFrame(self)

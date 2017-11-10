@@ -55,5 +55,6 @@ class Test(TestBase):
         crc.update(buf)
         self.assertEquals(2917307201, crc.getvalue())
 
+
 if __name__ == '__main__':
     unittest.main()

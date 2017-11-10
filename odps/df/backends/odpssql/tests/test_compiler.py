@@ -37,15 +37,6 @@ from odps.df.backends.errors import CompileError
 from odps.df.expr.tests.core import MockTable
 from odps.df import Scalar, NullScalar, switch, year, month, day, hour, minute, second, millisecond
 
-# required by cloudpickle tests
-six.exec_("""
-import base64
-import time
-import inspect
-from odps.lib.cloudpickle import *
-from odps.lib.importer import *
-""", globals(), locals())
-
 
 ENABLE_PROFILE = False
 
@@ -109,8 +100,9 @@ class Test(TestBase):
 
     def _testify_udf(self, expected, inputs, engine):
         udf = list(engine._ctx._func_to_udfs.values())[0]
-        six.exec_(udf, globals(), locals())
-        udf = locals()[UDF_CLASS_NAME]
+        d = dict()
+        six.exec_(udf, d, d)
+        udf = d[UDF_CLASS_NAME]
         self.assertSequenceEqual(expected, runners.simple_run(udf, inputs))
 
         self._clear_functions(engine)
@@ -1231,6 +1223,21 @@ class Test(TestBase):
                    '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    ') t2 \n' \
                    'WHERE (t2.`id` - t2.`id_mean_0`) < 10'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+    def testWindowRewriteAfterGroupbyCompilation(self):
+        expr = self.expr.groupby('name').agg(id=self.expr.id.sum())
+        expr = expr['name', expr.id.sum().rename('id')]
+        expected = "SELECT t3.`name`, t3.`id_sum_0` AS `id` \n" \
+                   "FROM (\n" \
+                   "  SELECT SUM(t2.`id`) OVER (PARTITION BY 1) AS `id_sum_0`, t2.`name` \n" \
+                   "  FROM (\n" \
+                   "    SELECT t1.`name`, SUM(t1.`id`) AS `id` \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "    GROUP BY t1.`name` \n" \
+                   "  ) t2 \n" \
+                   ") t3"
+
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
     def testReductionCompilation(self):

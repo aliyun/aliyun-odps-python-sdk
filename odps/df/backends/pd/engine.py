@@ -34,7 +34,7 @@ from ....models import Schema, Partition
 from ....errors import ODPSError
 from ....models.table import TableSchema
 from ....lib.importer import CompressImporter
-from .... import compat
+from .... import compat, options
 from ..context import context
 from . import analyzer as ana
 
@@ -155,6 +155,9 @@ class PandasEngine(Engine):
             sub = Scalar(_value_type=expr.dtype)
             sub._value = ValueHolder()
 
+            root = expr_dag.root
+            expr_dag.substitute(root, sub)
+
             execute_node = self._execute(execute_dag, dag, expr, **kwargs)
 
             def callback(res):
@@ -210,7 +213,7 @@ class PandasEngine(Engine):
                     raise ValueError(
                         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
 
-        return CompressImporter(*readers, extract=True)
+        return CompressImporter(*readers, extract=True, supersede=options.df.supersede_libraries)
 
     @with_thirdparty_libs
     def _do_execute(self, expr_dag, expr, ui=None, progress_proportion=1,

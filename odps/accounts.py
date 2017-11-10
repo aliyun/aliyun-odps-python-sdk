@@ -104,7 +104,7 @@ class AliyunAccount(BaseAccount):
         signature = base64.b64encode(hmac.new(
             utils.to_binary(self.secret_access_key), utils.to_binary(canonical_str),
             hashlib.sha1).digest())
-        auth_str = 'ODPS %s:%s' % (self.access_id, utils.to_text(signature))
+        auth_str = 'ODPS %s:%s' % (self.access_id, utils.to_str(signature))
         req.headers['Authorization'] = auth_str
         LOG.debug('headers after signing: ' + repr(req.headers))
 

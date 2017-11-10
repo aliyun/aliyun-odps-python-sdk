@@ -93,6 +93,16 @@ class Test(TestBase):
 
         self.assertTrue(table.is_loaded)
 
+    def testCreateTableDDL(self):
+        test_table_name = tn('pyodps_t_tmp_table_ddl')
+        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
+        self.odps.delete_table(test_table_name, if_exists=True)
+        table = self.odps.create_table(test_table_name, schema, lifecycle=10)
+
+        ddl = table.get_ddl()
+        for col in table.schema.names:
+            self.assertIn(col, ddl)
+
     def testCreateDeleteTable(self):
         test_table_name = tn('pyodps_t_tmp_create_table')
         schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
@@ -106,6 +116,16 @@ class Test(TestBase):
 
         self.assertIsNone(table._getattr('owner'))
         self.assertIsNotNone(table.owner)
+
+        self.assertEqual(table.name, test_table_name)
+        self.assertEqual(table.schema, schema)
+        self.assertEqual(table.lifecycle, 10)
+
+        tables.delete(test_table_name, if_exists=True)
+        self.assertFalse(self.odps.exist_table(test_table_name))
+
+        str_schema = ('id bigint, name string', 'ds string')
+        table = tables.create(test_table_name, str_schema, lifecycle=10)
 
         self.assertEqual(table.name, test_table_name)
         self.assertEqual(table.schema, schema)
@@ -148,7 +168,7 @@ class Test(TestBase):
         }
         """).strip()
         ddl_string_comment = textwrap.dedent(u"""
-        CREATE TABLE table_name (
+        CREATE TABLE `table_name` (
           `序列` BIGINT COMMENT '注释',
           `值` STRING COMMENT '注释2'
         ) PARTITIONED BY (
@@ -156,7 +176,7 @@ class Test(TestBase):
           `ds2` STRING COMMENT '分区注释2'
         )""").strip()
         ddl_string = textwrap.dedent(u"""
-        CREATE TABLE table_name (
+        CREATE TABLE `table_name` (
           `序列` BIGINT,
           `值` STRING
         ) PARTITIONED BY (

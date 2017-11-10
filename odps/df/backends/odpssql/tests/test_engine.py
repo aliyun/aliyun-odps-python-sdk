@@ -28,7 +28,7 @@ import functools
 import time
 
 from odps.df.backends.tests.core import TestBase, to_str, tn
-from odps.compat import unittest, irange as xrange, six, OrderedDict, futures
+from odps.compat import unittest, irange as xrange, six, OrderedDict, futures, BytesIO
 from odps.models import Schema
 from odps import types
 from odps.errors import ODPSError
@@ -41,6 +41,8 @@ from odps.df.backends.odpssql.engine import ODPSSQLEngine
 from odps.df import Scalar, output_names, output_types, output, day, millisecond, agg, func
 from odps.df.backends.errors import CompileError
 from odps import options
+from odps.tunnel.tests.test_tabletunnel import bothPyAndC
+from odps.utils import to_text
 
 
 class ODPSEngine(ODPSSQLEngine):
@@ -353,6 +355,22 @@ class Test(TestBase):
         expr7 = expr5.union(expr6).union(expr4['name', 'id'])
         self.assertGreater(self.engine.execute(expr7.count()), 0)
 
+        expr8 = self.expr.fid.max().cache()
+        expr9 = self.expr.fid / expr8
+        res = self.engine.execute(expr9)
+        result = self._get_result(res)
+        actual_max = max([it[2] for it in data])
+        self.assertListAlmostEqual([it[2] / actual_max for it in data],
+                                   [it[0] for it in result])
+
+        persist_table_name = 'pyodps_test_persist_del' + str(uuid.uuid4()).replace('-', '_')
+        expr10 = self.expr[self.expr.id * 2, 'name', 'fid']
+        self.engine.persist(expr10, persist_table_name, lifecycle=1)
+        self.odps.delete_table(persist_table_name)
+        res = self.engine.execute(expr10[expr10.id * 2, expr10.exclude('id')])
+        result = self._get_result(res)
+        self.assertEqual(len(result[0]), 3)
+
     def testBatch(self):
         data = self._gen_data(10, value_range=(-1000, 1000))
 
@@ -469,6 +487,24 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         self.assertEqual(len(res), 1)
 
+    @bothPyAndC
+    def testNonUTF8(self):
+        data = [
+            ['中文', 4, 5.3, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        const = to_text(data[0]).encode('gbk')
+        expr = self.expr[:1].map_reduce(lambda row: const,
+                                    mapper_output_names=['s'],
+                                    mapper_output_types=['string'])
+        options.tunnel.string_as_binary = True
+        try:
+            res = self._get_result(self.engine.execute(expr))
+            self.assertEqual(res[0][0], const)
+        finally:
+            options.tunnel.string_as_binary = False
+
     def testFunctions(self):
         data = self._gen_data(5, value_range=(-1000, 1000))
 
@@ -504,8 +540,10 @@ class Test(TestBase):
 
     def testElement(self):
         data = self._gen_data(5, nullable_field='name')
+        data = sorted(data, key=lambda v: v[1])
 
         fields = [
+            self.expr.id.rename('_sort_key'),
             self.expr.name.isnull().rename('name1'),
             self.expr.name.notnull().rename('name2'),
             self.expr.name.fillna('test').rename('name3'),
@@ -524,7 +562,7 @@ class Test(TestBase):
             self.expr.birth.unix_timestamp.to_datetime().rename('birth1'),
         ]
 
-        expr = self.expr[fields]
+        expr = self.expr[fields].sort(['_sort_key']).exclude(['_sort_key'])
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
@@ -700,6 +738,8 @@ class Test(TestBase):
             (math.ceil, self.expr.id.ceil()),
             (math.floor, self.expr.id.floor()),
             (math.trunc, self.expr.id.trunc()),
+            (round, self.expr.id.round()),
+            (lambda x: round(x, 2), self.expr.id.round(2)),
         ]
 
         fields = [it[1].rename('id'+str(i)) for i, it in enumerate(methods_to_fields)]
@@ -925,7 +965,7 @@ class Test(TestBase):
         with t.open_writer(partition='ds=ds2', create_partition=True) as w:
             w.write([2, 3])
 
-        table_resource_name = 'pyodps_tmp_part_table_resource'
+        table_resource_name = tn('pyodps_tmp_part_table_resource')
         try:
             self.odps.delete_resource(table_resource_name)
         except:
@@ -1076,6 +1116,46 @@ class Test(TestBase):
                     self.assertEqual(res, sum([int(r[0].split('-')[0]) for r in data]))
         finally:
             [res.drop() for res in resources + dateutil_resources]
+
+        tar_io = BytesIO()
+        pseudo_np_tar = tarfile.open(fileobj=tar_io, mode='w:gz')
+        init_content = b"__version__ = '100.100.100'\n"
+        info = tarfile.TarInfo(name='numpy/__init__.py')
+        info.size = len(init_content)
+        pseudo_np_tar.addfile(info, fileobj=BytesIO(init_content))
+        pseudo_np_tar.addfile(tarfile.TarInfo('numpy/pseudo.so'), fileobj=BytesIO())
+        pseudo_np_tar.close()
+
+        res_name = 'pseudo_numpy_%s.tar.gz' % str(uuid.uuid4())
+        try:
+            res = self.odps.create_resource(res_name, 'archive', fileobj=tar_io.getvalue())
+
+            def fun(_):
+                import numpy
+                return numpy.__version__
+
+            options.sql.settings = {'odps.isolation.session.enable': True}
+
+            expr = self.expr.name.map(fun)
+            r = self.engine.execute(expr)
+            original = self._get_result(r)[0]
+
+            options.df.supersede_libraries = True
+            expr = self.expr.name.map(fun)
+            r = self.engine.execute(expr, libraries=[res_name])
+            result = self._get_result(r)[0]
+            self.assertEqual(result, ['100.100.100'])
+
+            options.df.supersede_libraries = False
+            expr = self.expr.name.map(fun)
+            r = self.engine.execute(expr, libraries=[res_name])
+            result = self._get_result(r)[0]
+            self.assertEqual(result, original)
+        finally:
+            options.df.libraries = []
+            options.df.supersede_libraries = False
+            options.sql.settings = {}
+            res.drop()
 
     def testCustomLibraries(self):
         data = self._gen_data(5)

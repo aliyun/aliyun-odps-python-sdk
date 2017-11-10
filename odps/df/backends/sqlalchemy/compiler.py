@@ -343,6 +343,9 @@ class SQLAlchemyCompiler(Backend):
                 input = self._expr_to_sqlalchemy[expr._input]
                 decimals = 0 if expr._decimals is None else self._expr_to_sqlalchemy[expr._decimals]
                 sa_expr = SATruncate('trunc', input, decimals)
+            elif expr.node_name == 'Round':
+                decimals = 0 if expr._decimals is None else self._expr_to_sqlalchemy[expr._decimals]
+                sa_expr = func.round(self._expr_to_sqlalchemy[expr._input], decimals)
             else:
                 raise NotImplementedError
 

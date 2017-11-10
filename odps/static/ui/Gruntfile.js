@@ -41,7 +41,8 @@ module.exports = function (grunt) {
                     paths: {
                         jquery: "empty:",
                         echarts: "empty:",
-                        "jupyter-js-widgets": "empty:",
+                        "@jupyter-widgets/base": "empty:",
+                        "base/js/utils": "empty:",
                     },
                     include: ['chosen.min', 'westeros.min', 'echarts.min', 'common.min', 'html-notify.min',
                         'ml-retry.min', 'progress.min', 'df-view.min'],
@@ -90,7 +91,6 @@ module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-contrib-requirejs');
     grunt.loadNpmTasks('grunt-contrib-cssmin');
     grunt.loadNpmTasks('grunt-contrib-clean');
-    grunt.loadNpmTasks('grunt-file-append');
 
     grunt.registerTask('default', ['copy', 'uglify', 'requirejs', 'cssmin', 'clean']);
 

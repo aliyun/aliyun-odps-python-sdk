@@ -247,7 +247,9 @@
                 <inputName>input</inputName>
                 <docs>types of feature columns, '1' indicates that features are continuous; '0' means features are
                     discrete. '1,0,0' indicates that the first column is continuous and the second and third column are
-                    discrete in three feature columns. The number of values corresponds to the length of features
+                    discrete in three feature columns. The number of values corresponds to the length of features.
+                    It is preferable to use `df1 = df.continuous(['field1', 'field2']) instead of setting this value
+                    directly.
                 </docs>
             </param>
             <param name="labelColName" required="true">

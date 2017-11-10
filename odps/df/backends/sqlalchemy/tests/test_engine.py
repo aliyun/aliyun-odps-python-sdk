@@ -344,6 +344,8 @@ class Test(TestBase):
             (math.ceil, self.expr.id.ceil()),
             (math.floor, self.expr.id.floor()),
             (math.trunc, self.expr.id.trunc()),
+            (round, self.expr.id.round()),
+            (lambda x: round(x, 2), self.expr.id.round(2)),
         ]
 
         fields = [it[1].rename('id'+str(i)) for i, it in enumerate(methods_to_fields)]

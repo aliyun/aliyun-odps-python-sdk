@@ -28,6 +28,7 @@ from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_ty
 from .. import types
 from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys, six, futures
 from ...config import options
+from ...errors import NoSuchObject
 from ...utils import TEMP_TABLE_PREFIX, to_binary
 from ...models import Schema
 
@@ -1043,6 +1044,14 @@ class CollectionExpr(Expr):
             raise NotImplementedError
 
     def get_cached(self, data):
+        try:
+            if hasattr(data, 'reload'):
+                data.reload()
+        except NoSuchObject:
+            from ..backends.context import context
+            context.uncache(self)
+            return None
+
         coll = CollectionExpr(_source_data=data, _schema=self._schema)
         for attr in CollectionExpr.__slots__:
             if not attr.startswith('_ml_'):
@@ -1370,6 +1379,12 @@ class DatetimeSequenceExpr(SequenceExpr):
         self._data_type = types.datetime
 
 
+class BinarySequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(BinarySequenceExpr, self)._init(*args, **kwargs)
+        self._data_type = types.binary
+
+
 class UnknownSequenceExpr(SequenceExpr):
     def _init(self, *args, **kwargs):
         super(UnknownSequenceExpr, self)._init(*args, **kwargs)
@@ -1677,6 +1692,12 @@ class DatetimeScalar(Scalar):
     def _init(self, *args, **kwargs):
         super(DatetimeScalar, self)._init(*args, **kwargs)
         self._value_type = types.datetime
+
+
+class BinaryScalar(Scalar):
+    def _init(self, *args, **kwargs):
+        super(BinaryScalar, self)._init(*args, **kwargs)
+        self._value_type = types.binary
 
 
 class UnknownScalar(Scalar):

@@ -32,7 +32,8 @@ Date.prototype.format = function (fmt) {
     return fmt;
 };
 
-define('pyodps/progress', ["jquery", "pyodps/common", "jupyter-js-widgets"], function ($, _, widget) {
+define('pyodps/progress', ["jquery", "pyodps/common", "@jupyter-widgets/base", '@jupyter-widgets/controls'],
+    function ($, common, widgets, widget_controls) {
     "use strict";
 
     var dialog_html = '<div class="modal fade" id="pyodps-progress-viewer" role="dialog">'.trim() +
@@ -90,10 +91,12 @@ define('pyodps/progress', ["jquery", "pyodps/common", "jupyter-js-widgets"], fun
 
     var modal;
 
-    var InstancesProgress = widget.DOMWidgetView.extend({
+    var InstancesProgress = widgets.DOMWidgetView.extend({
         initialize: function (attributes, options) {
             var that = this;
             InstancesProgress.__super__.initialize.apply(that, arguments);
+
+            common.add_transient_widgets(that.model.comm.comm_id);
 
             that.groupMsgs = {};
             that.groupOrder = []; // Order of groups by time of insertion
@@ -285,7 +288,16 @@ define('pyodps/progress', ["jquery", "pyodps/common", "jupyter-js-widgets"], fun
         },
     });
 
+    var TransientProgressView = widget_controls.ProgressView.extend({
+        initialize: function (attributes, options) {
+            var that = this;
+            TransientProgressView.__super__.initialize.apply(that, arguments);
+            common.add_transient_widgets(that.model.comm.comm_id);
+        }
+    });
+
     return {
-        InstancesProgress: InstancesProgress
+        InstancesProgress: InstancesProgress,
+        TransientProgressView: TransientProgressView
     };
 });

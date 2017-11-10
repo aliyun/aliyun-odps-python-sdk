@@ -381,6 +381,12 @@ class StringSequenceGroupBy(SequenceGroupBy):
         self._data_type = types.string
 
 
+class BinarySequenceGroupBy(SequenceGroupBy):
+    def _init(self, *args, **kwargs):
+        super(BinarySequenceGroupBy, self)._init(*args, **kwargs)
+        self._data_type = types.binary
+
+
 class DatetimeSequenceGroupBy(SequenceGroupBy):
     def _init(self, *args, **kwargs):
         super(DatetimeSequenceGroupBy, self)._init(*args, **kwargs)

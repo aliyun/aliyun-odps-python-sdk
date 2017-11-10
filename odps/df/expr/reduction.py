@@ -467,7 +467,8 @@ def count(expr):
     if isinstance(expr, SequenceExpr):
         return Count(_value_type=types.int64, _input=expr)
     elif isinstance(expr, SequenceGroupBy):
-        return GroupedCount(_data_type=types.int64, _input=expr.to_column())
+        return GroupedCount(_data_type=types.int64, _input=expr.to_column(),
+                            _grouped=expr.input)
     elif isinstance(expr, CollectionExpr):
         return Count(_value_type=types.int64, _input=expr).rename('count')
     elif isinstance(expr, GroupBy):

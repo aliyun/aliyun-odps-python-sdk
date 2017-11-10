@@ -30,6 +30,13 @@ _SEARCH_ORDER = [
 ]
 
 
+try:
+    os.path.exists('/tmp')
+    ALLOW_BINARY = True
+except:
+    ALLOW_BINARY = False
+
+
 if hasattr(dict, 'itervalues'):
     iterkeys = lambda d: d.iterkeys()
     itervalues = lambda d: d.itervalues()
@@ -69,6 +76,7 @@ class CompressImporter(object):
         self._files = []
         self._prefixes = defaultdict(lambda: set(['']))
         self._extract = kwargs.get('extract', False)
+        self._supersede = kwargs.get('supersede', False)
         self._match_version = kwargs.get('_match_version', True)
         self._local_warned = False
 
@@ -140,9 +148,15 @@ class CompressImporter(object):
                         dir_prefixes.add(ppath)
 
             if bin_package:
+                path_patch = []
                 for p in sorted(dir_prefixes):
-                    if p not in sys.path:
-                        sys.path.append(p)
+                    if p in sys.path or p in path_patch:
+                        continue
+                    path_patch.append(p)
+                if self._supersede:
+                    sys.path = path_patch + sys.path
+                else:
+                    sys.path = sys.path + path_patch
             else:
                 self._files.append(f)
                 if prefixes:
@@ -304,10 +318,3 @@ class CompressImporter(object):
                 del sys.modules[fullmodname]
             raise
         return mod
-
-
-try:
-    os.path.exists('/tmp')
-    ALLOW_BINARY = True
-except:
-    ALLOW_BINARY = False

@@ -700,6 +700,24 @@ def human_file_size(size):
     return "{0:>3s}{1}".format(str_value, suffix)
 
 
+def create_progress_widget():
+    # Import only if an IPython widget, i.e., widget in iPython NB
+    if ipython_major_version < 4:
+        widget_cls = widgets.FloatProgressWidget
+        from IPython.utils.traitlets import Unicode
+    else:
+        widget_cls = widgets.FloatProgress
+        from traitlets import Unicode
+
+    from .ui.common import build_trait
+
+    class TransientProgressBar(widget_cls):
+        _view_name = build_trait(Unicode, 'TransientProgressView', sync=True)
+        _view_module = build_trait(Unicode, 'pyodps/progress', sync=True)
+
+    return TransientProgressBar()
+
+
 class ProgressBar(six.Iterator):
     """
     A class to display a progress bar in the terminal.
@@ -889,13 +907,8 @@ class ProgressBar(six.Iterator):
         # Create and display an empty progress bar widget,
         # if none exists.
         if not hasattr(self, '_widget'):
-            # Import only if an IPython widget, i.e., widget in iPython NB
-            if ipython_major_version < 4:
-                self._widget = widgets.FloatProgressWidget()
-            else:
-                self._widget = widgets.FloatProgress()
-
-            if is_widgets_available():
+            self._widget = create_progress_widget()
+            if in_ipython_frontend() and is_widgets_available():
                 display(self._widget)
             self._widget.value = 0
 

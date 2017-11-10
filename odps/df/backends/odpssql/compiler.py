@@ -758,6 +758,14 @@ class OdpsSQLCompiler(Backend):
                         self._ctx.get_expr_compiled(expr.input),
                         self._ctx.get_expr_compiled(expr._decimals)
                     )
+            elif expr.node_name == 'Round':
+                if expr._decimals is None:
+                    op = 'ROUND'
+                else:
+                    compiled = 'ROUND({0}, {1})'.format(
+                        self._ctx.get_expr_compiled(expr.input),
+                        self._ctx.get_expr_compiled(expr._decimals)
+                    )
             else:
                 raise NotImplementedError
 

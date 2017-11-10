@@ -16,18 +16,16 @@
 /*
  * Cell customization for PyODPS ML
  */
-define('pyodps/ml-retry', ["jquery", "pyodps/common", "jupyter-js-widgets"], function ($, common, widget) {
-    "use strict"
+define('pyodps/ml-retry', ["jquery", "pyodps/common", "@jupyter-widgets/base"], function ($, common, widget) {
+    "use strict";
 
     var retry_html = '<a class="retry-btn" title="Retry"><i class="fa fa-repeat" /></a>';
 
     var MLRetryButton = widget.DOMWidgetView.extend({
-        initialize: function (parameters) {
-            var that = this;
-            that.model.on('change:msg', that._msg_changed, that);
-        },
         render: function() {
-            $(this.$el).closest('.widget-area').find('div').hide();
+            var that = this;
+            $(that.$el).closest('.widget-area').find('div').hide();
+            that.model.on('change:msg', that._msg_changed, that);
         },
         update: function () {
             $(this.$el).closest('.widget-area').find('div').hide();

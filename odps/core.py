@@ -472,11 +472,11 @@ class ODPS(object):
 
         >>> from odps.models.resource import *
         >>>
-        >>> res = odps.create_resource('test_file_resource', 'file', file_obj=open('/to/path/file'))
+        >>> res = odps.create_resource('test_file_resource', 'file', fileobj=open('/to/path/file'))
         >>> assert isinstance(res, FileResource)
         >>> True
         >>>
-        >>> res = odps.create_resource('test_py_resource.py', 'py', file_obj=StringIO('import this'))
+        >>> res = odps.create_resource('test_py_resource.py', 'py', fileobj=StringIO('import this'))
         >>> assert isinstance(res, PyResource)
         >>> True
         >>>
@@ -744,10 +744,7 @@ class ODPS(object):
             del self.get_project(project).tables[drop_table_name]
 
         task = models.SQLTask(query=utils.to_text(sql), **kwargs)
-        if options.sql.settings:
-            task.update_settings(options.sql.settings)
-        if hints:
-            task.update_settings(hints)
+        task.update_sql_settings(hints)
         if aliases:
             task.update_aliases(aliases)
 
