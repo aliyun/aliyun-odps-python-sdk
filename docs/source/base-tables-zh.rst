@@ -178,7 +178,9 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. _table_open_reader:
 
-其次，在table上可以执行 ``open_reader`` 操作来打一个reader来读取数据。记住这里需要使用 **with表达式**。
+其次，在table上可以执行 ``open_reader`` 操作来打一个reader来读取数据。
+
+使用 with 表达式的写法：
 
 .. code-block:: python
 
@@ -186,6 +188,15 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>>     count = reader.count
    >>>     for record in reader[5:10]  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
    >>>         # 处理一条记录
+
+不使用 with 表达式的写法：
+
+.. code-block:: python
+
+   >>> reader = t.open_reader(partition='pt=test')
+   >>> count = reader.count
+   >>> for record in reader[5:10]  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
+   >>>     # 处理一条记录
 
 更简单的调用方法是使用 ODPS 对象的 ``read_table`` 方法，例如
 
@@ -201,7 +212,9 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 向表写数据
 ----------
 
-类似于 ``open_reader``，table对象同样能执行 ``open_writer`` 来打开writer，并写数据。同样记住使用 **with表达式**。
+类似于 ``open_reader``，table对象同样能执行 ``open_writer`` 来打开writer，并写数据。
+
+使用 with 表达式的写法：
 
 .. code-block:: python
 
@@ -221,6 +234,16 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> with t.open_writer(partition='pt=test', blocks=[0, 1]) as writer:  # 这里同是打开两个block
    >>>     writer.write(0, gen_records(block=0))
    >>>     writer.write(1, gen_records(block=1))  # 这里两个写操作可以多线程并行，各个block间是独立的
+   >>>
+
+不使用 with 表达式的写法：
+
+.. code-block:: python
+
+   >>> writer = t.open_writer(partition='pt=test', blocks=[0, 1])
+   >>> writer.write(0, gen_records(block=0))
+   >>> writer.write(1, gen_records(block=1))
+   >>> writer.close()  # 不要忘记关闭 writer，否则数据可能写入不完全
 
 如果分区不存在，可以使用 ``create_partition`` 参数指定创建分区，如
 
@@ -242,6 +265,12 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>>            [333, 'ccc', True],
    >>>            [444, '中文', False]]
    >>> o.write_table('test_table', records, partition='pt=test', create_partition=True)
+
+.. note::
+
+    **注意**\ ：每次调用 write_table，MaxCompute 都会在服务端生成一个文件。这一操作需要较大的时间开销，
+    同时过多的文件会降低后续的查询效率。因此，我们建议在使用 write_table 方法时，一次性写入多组数据，
+    或者传入一个 generator 对象。
 
 删除表
 -------
