@@ -127,6 +127,7 @@
 .. code-block:: python
 
    >>> from odps import options
+   >>> options.sql.use_odps2_extension = True
    >>> table = o.create_table('my_new_table', 'cat smallint, content struct<title:varchar(100), body string>')
 
 
