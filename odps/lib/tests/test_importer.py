@@ -34,12 +34,16 @@ class Test(TestBase):
     def setUp(self):
         super(Test, self).setUp()
         importer.ALLOW_BINARY = True
+        self.sys_modules = sys.modules
         self.sys_path = [p for p in sys.path]
         self.meta_path = [mp for mp in sys.meta_path]
 
     def tearDown(self):
         super(Test, self).tearDown()
         importer.ALLOW_BINARY = True
+        for mod_name in sys.modules:
+            if mod_name not in self.sys_modules:
+                del sys.modules[mod_name]
         sys.path = self.sys_path
         sys.meta_path = self.meta_path
 
@@ -81,6 +85,7 @@ class Test(TestBase):
         self.assertEqual(b, 2)
         from testc.c import c
         self.assertEqual(c, 3)
+        self.assertRaises(ImportError, __import__, 'c', fromlist=[])
         from d import d
         self.assertEqual(d, 4)
 
@@ -116,18 +121,30 @@ class Test(TestBase):
             shutil.rmtree(CompressImporter._extract_path)
             CompressImporter._extract_path = None
 
+        six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
+
         temp_path = tempfile.mkdtemp(prefix='tmp-pyodps-')
         lib_path = os.path.join(temp_path, 'mylib')
         os.makedirs(lib_path)
 
         lib_dict = dict()
         try:
-            six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
-            shutil.copy(six_path, os.path.join(lib_path, 'five.py'))
+            with open(os.path.join(lib_path, '__init__.py'), 'w'):
+                pass
+            shutil.copy(six_path, os.path.join(lib_path, 'fake_six.py'))
             dummy_bin = open(os.path.join(lib_path, 'dummy.so'), 'w')
             dummy_bin.close()
 
-            lib_files = ['five.py', 'dummy.so']
+            sub_lib_path = os.path.join(lib_path, 'sub_path')
+            os.makedirs(sub_lib_path)
+
+            with open(os.path.join(sub_lib_path, '__init__.py'), 'w'):
+                pass
+            shutil.copy(six_path, os.path.join(sub_lib_path, 'fake_six.py'))
+
+            lib_files = ['__init__.py', 'fake_six.py', 'dummy.so',
+                         os.path.join('sub_path', '__init__.py'),
+                         os.path.join('sub_path', 'fake_six.py')]
             lib_dict = dict((os.path.join(lib_path, fn), open(os.path.join(lib_path, fn), 'r'))
                             for fn in lib_files)
 
@@ -135,9 +152,11 @@ class Test(TestBase):
             self.assertRaises(SystemError, CompressImporter, lib_dict)
 
             importer.ALLOW_BINARY = True
-            sys.meta_path.append(CompressImporter(lib_dict))
-            import five
-            self.assertEqual(list(to_binary('abc')), list(five.binary_type(to_binary('abc'))))
+            importer_obj = CompressImporter(lib_dict)
+            sys.meta_path.append(importer_obj)
+            from mylib import fake_six
+            self.assertEqual(list(to_binary('abc')), list(fake_six.binary_type(to_binary('abc'))))
+            self.assertRaises(ImportError, __import__, 'sub_path', fromlist=[])
         finally:
             [f.close() for f in six.itervalues(lib_dict)]
             shutil.rmtree(temp_path)

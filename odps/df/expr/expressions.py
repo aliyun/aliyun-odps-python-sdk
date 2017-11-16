@@ -538,6 +538,27 @@ class CollectionExpr(Expr):
                                   'a tuple or list is required for projection')
         raise ExpressionError('Not supported projection: collection[%s]' % repr_obj(item))
 
+    def _set_field(self, value, value_dag=None):
+        expr = self.copy() if self._proxy is None else self._proxy._input
+
+        if value_dag is None:
+            value_dag = value.to_dag(copy=False, validate=False)
+
+        if value_dag.contains_node(self):
+            value_dag.substitute(self, expr)
+            value = value_dag.root
+
+        if self._proxy is not None:
+            self._proxy._setitem(value, value_dag=value_dag)
+            return
+
+        fields = [f if f != value.name else value for f in self._schema.names]
+        if value.name not in self._schema:
+            fields.append(value)
+        # make the isinstance to check the proxy type
+        self.__class__ = type(self.__class__.__name__, (self.__class__,), {})
+        self._proxy = expr.select(fields)
+
     def __setitem__(self, key, value):
         if not isinstance(value, Expr):
             value = Scalar(value)
@@ -560,23 +581,7 @@ class CollectionExpr(Expr):
             else:
                 default_col = self[column_name]
             value = cond.ifelse(value, default_col).rename(column_name)
-
-        expr = self.copy() if self._proxy is None else self._proxy._input
-
-        dag = value.to_dag(copy=False, validate=False)
-        if dag.contains_node(self):
-            dag.substitute(self, expr)
-            value = dag.root
-
-        if self._proxy is not None:
-            return self._proxy._setitem(value, value_dag=dag)
-
-        fields = [f if f != column_name else value for f in self._schema.names]
-        if column_name not in self._schema:
-            fields.append(value)
-        # make the isinstance to check the proxy type
-        self.__class__ = type(self.__class__.__name__, (self.__class__,), {})
-        self._proxy = expr.select(fields)
+        self._set_field(value)
 
     def __delitem__(self, key):
         if key not in self.schema:
@@ -1799,12 +1804,12 @@ class ProjectCollectionExpr(CollectionExpr):
         self._init_attr('_raw_fields', None)
         super(ProjectCollectionExpr, self)._init(*args, **kwargs)
 
-    def _setitem(self, value, value_dag=None):
+    def _set_field(self, value, value_dag=None):
         from ..backends.context import context
         from .window import Window
 
         if context.is_cached(self):
-            super(ProjectCollectionExpr, self).__setitem__(value.name, value)
+            super(ProjectCollectionExpr, self)._set_field(value, value_dag=value_dag)
             return
 
         if value_dag is None:
@@ -1831,13 +1836,6 @@ class ProjectCollectionExpr(CollectionExpr):
         self._schema = Schema.from_lists([f.name for f in fields],
                                          [f.dtype for f in fields])
         self._fields = fields
-
-    def __setitem__(self, key, value):
-        if not isinstance(value, Expr):
-            value = Scalar(value)
-        value = value.rename(key)
-
-        self._setitem(value)
 
     def _delitem(self, key):
         from ..backends.context import context

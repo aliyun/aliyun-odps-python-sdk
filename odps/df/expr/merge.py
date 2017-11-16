@@ -415,6 +415,10 @@ class OuterJoin(JoinCollectionExpr):
 class JoinFieldMergedCollectionExpr(ProjectCollectionExpr):
     __slots__ = '_rename_map',
 
+    def _set_field(self, value, value_dag=None):
+        # use proxied version directly
+        CollectionExpr._set_field(self, value, value_dag=value_dag)
+
     def _get_fields(self, fields, ret_raw_fields=False):
         selects = []
         raw_selects = []

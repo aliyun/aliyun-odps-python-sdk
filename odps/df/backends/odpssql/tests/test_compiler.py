@@ -1891,6 +1891,30 @@ class Test(TestBase):
                    'ON (t2.`name` == t4.`name`) AND (t2.`id` == t4.`id`)'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(res, prettify=False)))
 
+        left = self.expr.exclude('birth')
+        right = self.expr[:4]
+        res = left.left_join(right, on='id', merge_columns=True)
+        res['rn_id'] = res.groupby('id').sort('birth').row_number()
+
+        expected = 'SELECT t2.`name` AS `name_x`, IF(t2.`id` IS NULL, t4.`id`, t2.`id`) AS `id`, ' \
+                   't2.`fid` AS `fid_x`, t2.`isMale` AS `isMale_x`, t2.`scale` AS `scale_x`, ' \
+                   't4.`name` AS `name_y`, t4.`fid` AS `fid_y`, t4.`isMale` AS `isMale_y`, ' \
+                   't4.`scale` AS `scale_y`, t4.`birth`, ' \
+                   'ROW_NUMBER() OVER (PARTITION BY IF(t2.`id` IS NULL, t4.`id`, t2.`id`) ' \
+                   'ORDER BY t4.`birth`) AS `rn_id` \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, t1.`scale` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1\n' \
+                   ') t2 \n' \
+                   'LEFT OUTER JOIN \n' \
+                   '  (\n' \
+                   '    SELECT * \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table` t3 \n' \
+                   '    LIMIT 4\n' \
+                   '  ) t4\n' \
+                   'ON t2.`id` == t4.`id`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(res, prettify=False)))
+
     def testMapJoin(self):
         joined = self.expr.join(self.expr1, on=[], mapjoin=True)
         expected = \

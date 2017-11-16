@@ -284,6 +284,7 @@ class Test(TestBase):
 
     def testSetitemField(self):
         from odps.df.expr.groupby import GroupByCollectionExpr
+        from odps.df.expr.merge import JoinFieldMergedCollectionExpr
 
         expr = self.expr.copy()
 
@@ -317,6 +318,19 @@ class Test(TestBase):
         self.assertNotIsInstance(expr2, GroupByCollectionExpr)
         self.assertNotIsInstance(expr2, FilterCollectionExpr)
 
+        schema = Schema.from_lists(['name', 'id', 'fid2', 'fid3'],
+                                   [types.string, types.int64, types.float64, types.float64])
+        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table._client = self.config.odps.rest
+        expr3 = CollectionExpr(_source_data=table, _schema=schema)
+
+        expr4 = expr.left_join(expr3, on=[expr.name == expr3.name, expr.id == expr3.id],
+                               merge_columns=True)
+        expr4['fid_1'] = expr4.groupby('id').sort('fid2').row_number()
+        self.assertIsInstance(expr4, ProjectCollectionExpr)
+        self.assertIsNotNone(expr4._proxy)
+        self.assertNotIsInstance(expr4._proxy, JoinFieldMergedCollectionExpr)
+
     def testSetitemConditionField(self):
         from odps.df.expr.arithmetic import And
         from odps.df.expr.element import IfElse
@@ -337,6 +351,13 @@ class Test(TestBase):
 
         expr[expr.id >= 5, expr.name == 'test', 'new_id2'] = expr.id + 2
         self.assertIn('new_id2', expr.schema.names)
+        self.assertIsInstance(expr._fields[-1], IfElse)
+        self.assertIsInstance(expr._fields[-1].input, And)
+        self.assertIsInstance(expr._fields[-1]._else, IfElse)
+
+        expr2 = expr['id', 'name']
+        expr2[expr2.id >= 5, expr2.name == 'test', 'new_id3'] = expr.id + 2
+        self.assertIn('new_id3', expr2.schema.names)
         self.assertIsInstance(expr._fields[-1], IfElse)
         self.assertIsInstance(expr._fields[-1].input, And)
         self.assertIsInstance(expr._fields[-1]._else, IfElse)

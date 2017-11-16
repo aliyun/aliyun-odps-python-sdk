@@ -180,7 +180,7 @@ class Test(MLTestBase):
         merged4._add_case(self.gen_check_params_case({
             'outputTableName': 'merged_table',
             'inputTableNames': TEMP_TABLE_1_NAME + ',' + TEMP_TABLE_2_NAME,
-            'inputPartitionsInfoList': ',',
+            'autoRenameCol': 'False',
             'selectedColNamesList': 'col11,col12;col21,col22'}
         ))
         merged4.persist('merged_table')

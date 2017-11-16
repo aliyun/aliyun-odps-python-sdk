@@ -18,6 +18,7 @@ import json  # don't remove
 
 from .core import AbstractXMLRemoteModel
 from .. import serializers, errors, compat
+from ..compat import six
 from ..config import options
 
 
@@ -196,6 +197,7 @@ class SQLTask(Task):
     @property
     def warnings(self):
         return json.loads(self.get_info('warnings')).get('warnings')
+
 
 try:
     from ..internal.models.tasks import *

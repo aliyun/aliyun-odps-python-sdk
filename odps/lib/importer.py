@@ -131,12 +131,16 @@ class CompressImporter(object):
                 if ALLOW_BINARY:
                     bin_package = True
 
+                rendered_names = set()
                 for name in iterkeys(f):
                     name = name.replace(os.sep, '/')
+                    rendered_names.add(name)
+
+                for name in rendered_names:
                     name = name if name.endswith('/') else (name.rsplit('/', 1)[0] + '/')
                     if name in prefixes or '/tests/' in name:
                         continue
-                    if name + '__init__.py' not in f:
+                    if name + '__init__.py' not in rendered_names:
                         prefixes.add(name)
                         dir_prefixes.add(name)
                     else:
@@ -150,7 +154,14 @@ class CompressImporter(object):
             if bin_package:
                 path_patch = []
                 for p in sorted(dir_prefixes):
-                    if p in sys.path or p in path_patch:
+                    if p in sys.path:
+                        continue
+                    parent_exist = False
+                    for pp in path_patch:
+                        if p[:len(pp)] == pp:
+                            parent_exist = True
+                            break
+                    if parent_exist:
                         continue
                     path_patch.append(p)
                 if self._supersede:
