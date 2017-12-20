@@ -70,7 +70,7 @@ after_success:
   - echo "repository=https://upload.pypi.org/legacy/"  >> ~/.pypirc
   - echo "username=pyodps"                             >> ~/.pypirc
   - echo "password=$PSD"                               >> ~/.pypirc
-  - pip install twine
+  - python -m pip install twine
   # upload only commit with tag
   - if [ "$TRAVIS_TAG" ]; then
     twine upload -r pypi --skip-existing dist/*.whl;
