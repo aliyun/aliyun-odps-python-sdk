@@ -85,7 +85,7 @@ class BaseRewriter(Backend):
                         continue
                     else:
                         traversed.add(id(node))
-                    if isinstance(node, SequenceReduction):
+                    if isinstance(node, SequenceReduction) and not node._need_cache:
                         windows_rewrite = True
                         has_window = True
 

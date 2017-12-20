@@ -38,11 +38,11 @@ PyODPS ML 中获取 DataFrame 的方法与一般的 DataFrame 相同，即
 
     df = DataFrame(o.get_table('ionosphere'))
 
-如果表为分区表，可以使用 filter_partition 方法指定输入的分区名。该方法针对 XFlow 进行了优化。
+如果表为分区表，可以使用 filter_parts 方法指定输入的分区名。该方法针对 XFlow 进行了优化。
 
 .. code-block:: python
 
-    df = DataFrame(o.get_table('ionosphere_parted')).filter_partition('pt=20160101')
+    df = DataFrame(o.get_table('ionosphere_parted')).filter_parts('pt=20160101')
 
 也可以使用 roles 方法指定字段的用途，如
 

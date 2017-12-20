@@ -111,8 +111,8 @@ class Test(TestBase):
                    'SELECT t2.`id`   FROM mocked_project.`pyodps_test_expr_table2` t2 ) t3)'
         self.assertTrue(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
-    def testFilterPartitionPrune(self):
-        expr = self.expr.filter_partition('ds=today')[lambda x: x.fid < 0][
+    def testFilterPartsPrune(self):
+        expr = self.expr.filter_parts('ds=today')[lambda x: x.fid < 0][
             'name', lambda x: x.id + 1]
 
         new_expr = ColumnPruning(expr.to_dag()).prune()

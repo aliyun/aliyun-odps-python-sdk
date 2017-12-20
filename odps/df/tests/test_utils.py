@@ -42,23 +42,23 @@ class Test(TestBase):
     def testFetchTableSize(self):
         df = DataFrame(self.table)
 
-        expr = df.filter_partition(self.pt)
+        expr = df.filter_parts(self.pt)
         dag = expr.to_dag(copy=False)
         self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
 
-        expr = df.filter_partition('ds=today,hh=curr,mm=now')
+        expr = df.filter_parts('ds=today,hh=curr,mm=now')
         dag = expr.to_dag(copy=False)
         self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
 
-        expr = df.filter_partition('ds=today,hh=curr,mm=now2')
+        expr = df.filter_parts('ds=today,hh=curr,mm=now2')
         dag = expr.to_dag(copy=False)
         self.assertIsNone(fetch_data_source_size(dag, df, self.table))
 
-        expr = df.filter_partition('ds=today,hh=curr')
+        expr = df.filter_parts('ds=today,hh=curr')
         dag = expr.to_dag(copy=False)
         self.assertIsNone(fetch_data_source_size(dag, df, self.table))
 
-        expr = df.filter_partition('ds=today,mm=now')
+        expr = df.filter_parts('ds=today,mm=now')
         dag = expr.to_dag(copy=False)
         self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
 

@@ -154,8 +154,8 @@ class PandasEngine(Engine):
             class ValueHolder(object): pass
             sub = Scalar(_value_type=expr.dtype)
             sub._value = ValueHolder()
-
             root = expr_dag.root
+            sub.add_deps(root)
             expr_dag.substitute(root, sub)
 
             execute_node = self._execute(execute_dag, dag, expr, **kwargs)
@@ -294,7 +294,7 @@ class PandasEngine(Engine):
             if odps.exist_table(name, project=project) or not create_table:
                 t = odps.get_table(name, project=project)
             else:
-                t = odps.create_table(name, schema, project=project)
+                t = odps.create_table(name, schema, project=project, lifecycle=lifecycle)
         elif partition is not None:
             if odps.exist_table(name, project=project) or not create_table:
                 t = odps.get_table(name, project=project)
@@ -313,7 +313,8 @@ class PandasEngine(Engine):
                 partition_types = ['string'] * len(partition_names)
                 t = odps.create_table(
                     name, TableSchema.from_lists(column_names, column_types,
-                                                 partition_names, partition_types), project=project)
+                                                 partition_names, partition_types),
+                    project=project, lifecycle=lifecycle)
                 if create_partition is None or create_partition is True:
                     t.create_partition(partition)
         else:
@@ -328,7 +329,8 @@ class PandasEngine(Engine):
                     raise CompileError('Cannot insert into partition table %s without specifying '
                                        '`partition` or `partitions`.')
             else:
-                t = odps.create_table(name, df_schema_to_odps_schema(schema), project=project)
+                t = odps.create_table(name, df_schema_to_odps_schema(schema),
+                                      project=project, lifecycle=lifecycle)
 
         write_table(df, t, ui=ui, cast=cast, overwrite=overwrite, partitions=partitions, partition=partition,
                     progress_proportion=progress_proportion*(1-execute_percent))

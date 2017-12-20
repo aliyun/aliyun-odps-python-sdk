@@ -15,10 +15,10 @@
 from odps.tests.core import TestBase, to_str
 from odps.errors import ODPSError
 from odps.compat import unittest
-from odps.models import SQLTask, Task
+from odps.models import SQLTask, CupidTask, Task
 
 
-template = '''<?xml version="1.0" encoding="utf-8"?>
+sql_template = '''<?xml version="1.0" encoding="utf-8"?>
 <SQL>
   <Name>AnonymousSQLTask</Name>
   <Config>
@@ -29,6 +29,23 @@ template = '''<?xml version="1.0" encoding="utf-8"?>
   </Config>
   <Query><![CDATA[%(sql)s;]]></Query>
 </SQL>
+'''
+
+cupid_template = '''<?xml version="1.0" encoding="utf-8"?>
+<CUPID>
+  <Name>task_1</Name>
+  <Config>
+    <Property>
+      <Name>type</Name>
+      <Value>cupid</Value>
+    </Property>
+    <Property>
+      <Name>settings</Name>
+      <Value>{"odps.cupid.wait.am.start.time": 600}</Value>
+    </Property>
+  </Config>
+  <Plan><![CDATA[plan_text]]></Plan>
+</CUPID>
 '''
 
 
@@ -50,12 +67,22 @@ class Test(TestBase):
 
         task = SQLTask(query=query)
         to_xml = task.serialize()
-        right_xml = template % {'sql': query}
+        right_xml = sql_template % {'sql': query}
 
         self.assertEqual(to_str(to_xml), to_str(right_xml))
 
         task = Task.parse(None, to_xml)
         self.assertIsInstance(task, SQLTask)
+
+    def testCupidTaskToXML(self):
+        task = CupidTask('task_1', 'plan_text', {'odps.cupid.wait.am.start.time': 600})
+        to_xml = task.serialize()
+        right_xml = cupid_template
+
+        self.assertEqual(to_str(to_xml), to_str(right_xml))
+
+        task = Task.parse(None, to_xml)
+        self.assertIsInstance(task, CupidTask)
 
 
 if __name__ == '__main__':

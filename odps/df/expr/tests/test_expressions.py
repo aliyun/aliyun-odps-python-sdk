@@ -227,17 +227,17 @@ class Test(TestBase):
         df2 = self.expr[['id']]
         self.assertRaises(errors.ExpressionError, lambda: df[df2.id])
 
-    def testFilterPartition(self):
-        self.assertRaises(ExpressionError, lambda: self.expr.filter_partition(None))
-        self.assertRaises(ExpressionError, lambda: self.expr.filter_partition('part1=a/part2=1,part1=b/part2=2'))
-        self.assertRaises(ExpressionError, lambda: self.expr2.filter_partition('part1/part2=1,part1=b/part2=2'))
+    def testFilterParts(self):
+        self.assertRaises(ExpressionError, lambda: self.expr.filter_parts(None))
+        self.assertRaises(ExpressionError, lambda: self.expr.filter_parts('part1=a,part2=1/part1=b,part2=2'))
+        self.assertRaises(ExpressionError, lambda: self.expr2.filter_parts('part1,part2=1/part1=b,part2=2'))
 
-        filtered1 = self.expr2.filter_partition('part1=a/part2=1,part1=b/part2=2')
+        filtered1 = self.expr2.filter_parts('part1=a,part2=1/part1=b,part2=2')
         self.assertIsInstance(filtered1, FilterPartitionCollectionExpr)
         self.assertEqual(filtered1.schema, self.expr.schema)
-        self.assertEqual(filtered1.predicate_string, 'part1=a/part2=1,part1=b/part2=2')
+        self.assertEqual(filtered1.predicate_string, 'part1=a,part2=1/part1=b,part2=2')
 
-        filtered2 = self.expr2.filter_partition('part1=a/part2=1,part1=b/part2=2', exclude=False)
+        filtered2 = self.expr2.filter_parts('part1=a,part2=1/part1=b,part2=2', exclude=False)
         self.assertIsInstance(filtered2, FilterCollectionExpr)
 
         try:
@@ -245,7 +245,7 @@ class Test(TestBase):
             from odps.df import DataFrame
             pd_df = pd.DataFrame([['Col1', 1], ['Col2', 2]], columns=['Field1', 'Field2'])
             df = DataFrame(pd_df)
-            self.assertRaises(ExpressionError, lambda: df.filter_partition('Fieldd2=2'))
+            self.assertRaises(ExpressionError, lambda: df.filter_parts('Fieldd2=2'))
         except ImportError:
             pass
 

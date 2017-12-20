@@ -38,7 +38,7 @@ class Test(MLTestBase):
     def test_df_store(self):
         self.delete_table(IONOSPHERE_SORTED_TABLE_PART)
         self.create_ionosphere_two_parts(IONOSPHERE_TABLE_TWO_PARTS)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE_TWO_PARTS)).filter_partition('part1=1,part2=2')
+        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE_TWO_PARTS)).filter_parts('part1=1,part2=2')
         self.odps.delete_table(IONOSPHERE_SORTED_TABLE_PART)
         sorted_df = df.groupby(df['class']).agg(df.a01.count().rename('count')).sort('class', ascending=False)
         sorted_df.persist(IONOSPHERE_SORTED_TABLE_PART)

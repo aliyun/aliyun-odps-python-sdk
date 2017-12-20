@@ -150,9 +150,9 @@ class Task(AbstractXMLRemoteModel):
         return self.instance.put_task_info(self.name, key, value)
 
 
-def format_cdata(query):
+def format_cdata(query, semicolon=False):
     stripped_query = query.strip()
-    if not stripped_query.endswith(';'):
+    if semicolon and not stripped_query.endswith(';'):
         stripped_query += ';'
     return '<![CDATA[%s]]>' % stripped_query
 
@@ -163,7 +163,8 @@ class SQLTask(Task):
     _root = 'SQL'
     _anonymous_sql_task_name = 'AnonymousSQLTask'
 
-    query = serializers.XMLNodeField('Query', serialize_callback=format_cdata)
+    query = serializers.XMLNodeField('Query',
+                                     serialize_callback=lambda s: format_cdata(s, True))
 
     def __init__(self, **kwargs):
         if 'name' not in kwargs:
@@ -197,6 +198,21 @@ class SQLTask(Task):
     @property
     def warnings(self):
         return json.loads(self.get_info('warnings')).get('warnings')
+
+
+class CupidTask(Task):
+    _root = 'CUPID'
+
+    plan = serializers.XMLNodeField('Plan', serialize_callback=format_cdata)
+
+    def __init__(self, name=None, plan=None, hints=None, **kwargs):
+        kwargs['name'] = name
+        kwargs['plan'] = plan
+        super(CupidTask, self).__init__(**kwargs)
+        hints = hints or {}
+        self.set_property('type', 'cupid')
+        if hints:
+            self.set_property('settings', json.dumps(hints))
 
 
 try:

@@ -2258,9 +2258,9 @@ class Test(TestBase):
                    ") t2"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(df, prettify=False)))
 
-    def testFilterPartition(self):
+    def testFilterParts(self):
         df = self.expr3
-        df = df.filter_partition('part1=a/part2=1,part1=b')['id', 'name']
+        df = df.filter_parts('part1=a,part2=1/part1=b')['id', 'name']
 
         expected = "SELECT t2.`id`, t2.`name` \n" \
                    "FROM (\n" \
@@ -2271,7 +2271,7 @@ class Test(TestBase):
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(df, prettify=False)))
 
         df = self.expr3
-        df = df.filter_partition('part1=a/part2=1,part1=b', False)['id', 'name']
+        df = df.filter_parts('part1=a,part2=1/part1=b', False)['id', 'name']
 
         expected = "SELECT t1.`id`, t1.`name` \n" \
                    "FROM mocked_project.`pyodps_test_expr_table2` t1 \n" \

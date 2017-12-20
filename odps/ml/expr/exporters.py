@@ -64,7 +64,9 @@ def get_input_partitions(expr, input_name):
         return None
     if not isinstance(input_expr, FilterPartitionCollectionExpr):
         return None
-    return input_expr._predicate_string
+    predicate = input_expr._predicate_string
+    return ','.join('/'.join(p.split(',')) for p in predicate.split('/'))
+
 
 get_input_table_partitions = get_input_partitions
 

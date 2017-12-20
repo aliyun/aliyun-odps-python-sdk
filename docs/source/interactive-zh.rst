@@ -37,9 +37,6 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
 
     o.get_table('dual')
 
-
-
-
 .. parsed-literal::
 
     odps.Table
@@ -54,9 +51,11 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
         c_bool_a                : boolean         
         c_bool_b                : boolean         
         c_datetime_a            : datetime        
-        c_datetime_b            : datetime        
+        c_datetime_b            : datetime
 
+.. note::
 
+    **注意**\ ：在重新 setup room 后，ODPS 入口对象并不会自动替换，需要再次调用 enter() 以获得新的 Room 对象。
 
 我们可以把常用的ODPS表或者资源都可以存放在room里。
 
@@ -69,9 +68,6 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
 .. code:: python
 
     room.display()
-
-
-
 
 .. raw:: html
 
@@ -100,16 +96,11 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
     </table>
     </div>
 
-
-
 我们通过\ ``room['存储表示例']``\ ，或者像\ ``room.iris``\ ，就可以取出来存储的对象了。
 
 .. code:: python
 
     room['存储表示例']
-
-
-
 
 .. parsed-literal::
 
@@ -127,8 +118,6 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
         c_datetime_a            : datetime        
         c_datetime_b            : datetime        
 
-
-
 删除也很容易，只需要调用drop方法
 
 .. code:: python
@@ -138,9 +127,6 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
 .. code:: python
 
     room.display()
-
-
-
 
 .. raw:: html
 

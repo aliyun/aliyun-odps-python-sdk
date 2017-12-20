@@ -33,8 +33,22 @@
     >>> iris.name.cat(sep=',')
     u'Iris-setosa,Iris-versicolor,Iris-virginica'
 
+如果所有列支持同一种聚合操作，也可以直接在整个 DataFrame 上执行聚合操作：
 
-支持的聚合操作包括：
+.. code:: python
+
+    >>> iris.exclude('category').mean()
+       sepal_length  sepal_width  petal_length  petal_width
+    1      5.843333     3.054000      3.758667     1.198667
+
+需要注意的是，在 DataFrame 上执行 count 获取的是 DataFrame 的总行数：
+
+.. code:: python
+
+    >>> iris.count()
+    150
+
+PyODPS 支持的聚合操作包括：
 
 ================ ========================
  聚合操作         说明

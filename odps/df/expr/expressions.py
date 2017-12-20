@@ -29,7 +29,7 @@ from .. import types
 from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys, six, futures
 from ...config import options
 from ...errors import NoSuchObject
-from ...utils import TEMP_TABLE_PREFIX, to_binary
+from ...utils import TEMP_TABLE_PREFIX, to_binary, deprecated, survey
 from ...models import Schema
 
 
@@ -669,10 +669,20 @@ class CollectionExpr(Expr):
         predicate = reduce(operator.and_, predicates)
         return FilterCollectionExpr(self, predicate, _schema=self._schema)
 
+    @deprecated('The function `filter_partition` is deprecated, please use `filter_parts` instead'
+                "and change the predicate parameter into `pt1=1,pt2=2/pt1=2,pt2=1` form.")
+    @survey
     def filter_partition(self, predicate='', exclude=True):
+        if isinstance(predicate, six.string_types):
+            part_reprs = '/'.join(','.join(p.split('/')) for p in predicate.split(','))
+        else:
+            part_reprs = predicate
+        return self.filter_parts(part_reprs, exclude)
+
+    def filter_parts(self, predicate='', exclude=True):
         """
-        Filter the data by partition string. A partition string looks like `pt1=1/pt2=2,pt1=2/pt2=1`, where
-        comma (,) denotes 'or', while '/' denotes 'and'.
+        Filter the data by partition string. A partition string looks like `pt1=1,pt2=2/pt1=2,pt2=1`, where
+        comma (,) denotes 'and', while (/) denotes 'or'.
 
         :param str|Partition predicate: predicate string of partition filter
         :param bool exclude: True if you want to exclude partition fields, otherwise False. True for default.
@@ -708,18 +718,18 @@ class CollectionExpr(Expr):
         if isinstance(predicate, Partition):
             predicate = predicate.partition_spec
         if isinstance(predicate, PartitionSpec):
-            predicate = '/'.join("%s='%s'" % (k, v) for k, v in six.iteritems(predicate.kv))
+            predicate = ','.join("%s='%s'" % (k, v) for k, v in six.iteritems(predicate.kv))
 
         if isinstance(predicate, list):
-            predicate = ','.join(str(s) for s in predicate)
+            predicate = '/'.join(str(s) for s in predicate)
         elif not isinstance(predicate, six.string_types):
             raise ExpressionError('Only accept string predicates.')
 
         if not predicate:
             predicate_obj = None
         else:
-            part_formatter = lambda p: reduce(operator.and_, map(_parse_partition_predicate, p.split('/')))
-            predicate_obj = reduce(operator.or_, map(part_formatter, predicate.split(',')))
+            part_formatter = lambda p: reduce(operator.and_, map(_parse_partition_predicate, p.split(',')))
+            predicate_obj = reduce(operator.or_, map(part_formatter, predicate.split('/')))
 
         if not source.schema.partitions:
             raise ExpressionError('No partition columns in the collection.')
@@ -1817,7 +1827,7 @@ class ProjectCollectionExpr(CollectionExpr):
 
         for n in value.traverse(top_down=True, unique=True,
                                 stop_cond=lambda x: isinstance(x, Column)):
-            if isinstance(n, Column) and n.input is self:
+            if isinstance(n, Column) and (n.input is self or n.input._proxy is self):
                 source_name = n.source_name
                 idx = self._schema._name_indexes[source_name]
                 field = self._fields[idx]
@@ -1929,7 +1939,7 @@ class FilterPartitionCollectionExpr(CollectionExpr):
 
         if isinstance(self._predicate, Or):
             raise AttributeError('Cannot get data when predicate contains multiple partition specs.')
-        spec = PartitionSpec(self.predicate_string.replace('/', ','))
+        spec = PartitionSpec(self.predicate_string)
         return self.data_table.partitions[spec]
 
 

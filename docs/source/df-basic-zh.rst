@@ -719,6 +719,12 @@ ResultFrame可以迭代取出每条记录。
 
     >>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', partition='ds=test', drop_partition=True, create_partition=True)
 
+写入表时，还可以指定表的生命周期，如下列语句将表的生命周期指定为10天：
+
+.. code:: python
+
+    >>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris5', lifecycle=10)
+
 如果数据源中没有 ODPS 对象，例如数据源仅为 Pandas，在 persist 时需要手动指定 ODPS 入口对象，
 或者将需要的入口对象标明为全局对象，如：
 

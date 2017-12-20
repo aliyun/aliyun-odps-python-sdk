@@ -160,21 +160,21 @@ class Test(TestBase):
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertTrue(all(r is not None for r in res[:, -1]))
 
-            expr = df.filter_partition('name={0}'.format(data[0][0])).count()
+            expr = df.filter_parts('name={0}'.format(data[0][0])).count()
             expr = self.engine._pre_process(expr)
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertGreater(res, 0)
 
-            expr = df.filter_partition('name={0}'.format(data[0][0]))
+            expr = df.filter_parts('name={0}'.format(data[0][0]))
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertGreater(len(res), 0)
 
-            expr = df.filter_partition('name={0}'.format(data[0][0]))['fid', 'id'].count()
+            expr = df.filter_parts('name={0}'.format(data[0][0]))['fid', 'id'].count()
             expr = self.engine._pre_process(expr)
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertGreater(res, 0)
 
-            expr = df.filter_partition('name={0}'.format(data[0][0]))['fid', 'id']
+            expr = df.filter_parts('name={0}'.format(data[0][0]))['fid', 'id']
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertGreater(len(res), 0)
         finally:
@@ -194,7 +194,7 @@ class Test(TestBase):
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertIsNone(res)
 
-            expr = df.filter_partition('name={0},id={1}'.format(data[0][0], data[0][1]))
+            expr = df.filter_parts('name={0}/id={1}'.format(data[0][0], data[0][1]))
             res = self.engine._handle_cases(expr, self.faked_bar)
             self.assertIsNone(res)
 
@@ -209,7 +209,7 @@ class Test(TestBase):
         finally:
             self.odps.delete_table(table_name, if_exists=True)
 
-        table =self.odps.create_table(
+        table = self.odps.create_table(
             table_name, Schema.from_lists(['val'], ['bigint'], ['name', 'id'], ['string', 'bigint']))
         table.create_partition('name=a,id=1')
         with table.open_writer('name=a,id=1') as writer:

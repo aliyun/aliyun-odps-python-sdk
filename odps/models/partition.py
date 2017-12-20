@@ -147,7 +147,7 @@ class Partition(LazyLoad):
         """
         from ..df import DataFrame
 
-        return DataFrame(self.table).filter_partition(self)
+        return DataFrame(self.table).filter_parts(self)
 
     def drop(self, async=False, if_exists=False):
         """

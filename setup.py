@@ -93,6 +93,13 @@ if PY2 and version[:2] < (2, 6):
     raise Exception('PyODPS supports Python 2.6+ (including Python 3+).')
 
 try:
+    import distribute
+    raise Exception("PyODPS cannot be installed when 'distribute' is installed. "
+                    "Please uninstall it before installing PyODPS.")
+except ImportError:
+    pass
+
+try:
     import pip
     for pk in pip.get_installed_distributions():
         if pk.key == 'odps':

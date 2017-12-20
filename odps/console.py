@@ -843,7 +843,10 @@ class ProgressBar(six.Iterator):
 
         # Choose the appropriate environment
         if self._ipython_widget:
-            self._update_ipython_widget(value)
+            try:
+                self._update_ipython_widget(value)
+            except RuntimeError:
+                pass
         else:
             self._update_console(value)
 

@@ -45,7 +45,7 @@ class TestPartitions(MLTestBase):
 
         self.create_ionosphere_one_part(IONOSPHERE_TABLE_ONE_PART)
         df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE_ONE_PART)) \
-            .filter_partition('part=0,part=1').roles(label='class')
+            .filter_parts('part=0/part=1').roles(label='class')
 
         lr = LogisticRegression(epsilon=0.001).set_max_iter(50)
         model = lr.train(df)._add_case(self.gen_check_params_case(
@@ -76,7 +76,7 @@ class TestPartitions(MLTestBase):
 
         self.create_ionosphere_two_parts(IONOSPHERE_TABLE_TWO_PARTS)
         df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE_TWO_PARTS)) \
-            .filter_partition('part1=0/part2=0,part1=1/part2=0').roles(label='class')
+            .filter_parts('part1=0,part2=0/part1=1,part2=0').roles(label='class')
 
         lr = LogisticRegression(epsilon=0.001).set_max_iter(50)
         model = lr.train(df)._add_case(self.gen_check_params_case(

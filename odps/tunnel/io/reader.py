@@ -206,9 +206,12 @@ if TunnelRecordReader is None:
         def get_total_bytes(self):
             return self.n_bytes
 
+        def close(self):
+            if hasattr(self._schema, 'close'):
+                self._schema.close()
+
         def __enter__(self):
             return self
 
         def __exit__(self, *_):
-            if hasattr(self._schema, 'close'):
-                self._schema.close()
+            self.close()

@@ -9,10 +9,12 @@ PyODPS: ODPS Python SDK and data analysis framework
 `PyODPS <https://github.com/aliyun/aliyun-odps-python-sdk>`_ 是ODPS的Python版本的SDK，
 它提供了对ODPS对象的基本操作；并提供了DataFrame框架，能轻松在ODPS上进行数据分析。
 
+.. intinclude:: index-platform-int-zh.rst
+
 安装
 -------
 
-PyODPS支持Python 2.6以上包括Python 3。系统安装了pip后，只需运行：
+PyODPS 支持Python 2.6 以上的 Python 版本，包括Python 3。系统安装了 pip 后，只需运行：
 
 ::
 
@@ -27,7 +29,7 @@ PyODPS 的相关依赖会自动安装。
 快速开始
 ----------
 
-首先，我们需要阿里云的帐号来初始化一个ODPS的入口：
+首先，我们需要阿里云帐号来初始化一个ODPS的入口：
 
 .. code-block:: python
 
