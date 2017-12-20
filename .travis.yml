@@ -71,8 +71,14 @@ after_success:
   - echo "username=pyodps"                             >> ~/.pypirc
   - echo "password=$PSD"                               >> ~/.pypirc
   - curl -O https://bootstrap.pypa.io/get-pip.py
-  - python get-pip.py
-  - python -m pip install twine
+  - if [[ "$OSTYPE" == "darwin"* ]]; then
+      PYENV_ROOT="$HOME/.pyenv"
+      PATH="$PYENV_ROOT/bin:$PATH"
+      eval "$(pyenv init -)"
+      if [${PYTHON} -ge "3.0"]; then
+      	pyenv global $PYTHON
+      fi
+    fi
   # upload only commit with tag
   - if [ "$TRAVIS_TAG" ]; then
     twine upload -r pypi --skip-existing dist/*.whl;
