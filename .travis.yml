@@ -81,6 +81,6 @@ after_success:
   - python -m pip install twine
   # upload only commit with tag
   - if [ "$TRAVIS_TAG" ]; then
-    twine upload -r pypi --skip-existing dist/*.whl;
+    python -m twine upload -r pypi --skip-existing dist/*.whl;
     else echo "Not on a tag, won't deploy to pypi";
     fi
