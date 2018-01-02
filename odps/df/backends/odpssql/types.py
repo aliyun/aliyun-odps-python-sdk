@@ -57,6 +57,11 @@ def odps_type_to_df_type(odps_type):
         return df_types.decimal
     elif isinstance(odps_type, (odps_types.Varchar, odps_types.Char)):
         return df_types.string
+    elif isinstance(odps_type, odps_types.Array):
+        return df_types.List(odps_type_to_df_type(odps_type.value_type))
+    elif isinstance(odps_type, odps_types.Map):
+        return df_types.Dict(odps_type_to_df_type(odps_type.key_type),
+                             odps_type_to_df_type(odps_type.value_type))
     else:
         raise KeyError(repr(odps_type))
 
@@ -76,6 +81,11 @@ def df_type_to_odps_type(df_type):
         return _df_to_odps_types[df_type]
     elif df_type == df_types.decimal:
         return odps_types.Decimal()
+    elif isinstance(df_type, df_types.List):
+        return odps_types.Array(df_type_to_odps_type(df_type.value_type))
+    elif isinstance(df_type, df_types.Dict):
+        return odps_types.Map(df_type_to_odps_type(df_type.key_type),
+                              df_type_to_odps_type(df_type.value_type))
     else:
         raise KeyError(repr(df_type))
 

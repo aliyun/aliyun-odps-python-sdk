@@ -135,6 +135,10 @@ class Test(TestBase):
         self.assertIsInstance(self.expr.name[0: 4], StringSequenceExpr)
         self.assertIsInstance(self.expr.name.sum()[0: 4], StringScalar)
 
+        self.assertIsInstance(self.expr.name.split(','), Split)
+        self.assertIsInstance(self.expr.name.split(','), ListSequenceExpr)
+        self.assertEqual(self.expr.name.split(',').dtype, types.validate_data_type('list<string>'))
+
         self.assertIsInstance(self.expr.name.swapcase(), Swapcase)
         self.assertIsInstance(self.expr.name.swapcase(), StringSequenceExpr)
         self.assertIsInstance(self.expr.name.sum().swapcase(), StringScalar)
@@ -182,6 +186,11 @@ class Test(TestBase):
         self.assertIsInstance(self.expr.name.isdecimal(), Isdecimal)
         self.assertIsInstance(self.expr.name.isdecimal(), BooleanSequenceExpr)
         self.assertIsInstance(self.expr.name.sum().isdecimal(), BooleanScalar)
+
+        self.assertIsInstance(self.expr.name.todict(), StringToDict)
+        self.assertIsInstance(self.expr.name.todict(), DictSequenceExpr)
+        self.assertEqual(self.expr.name.todict().dtype,
+                         types.validate_data_type('dict<string, string>'))
 
 
 if __name__ == '__main__':

@@ -103,7 +103,8 @@ SQL、pandas以及数据库（MySQL和Postgres）。
 
 PyODPS DataFrame包括以下类型：
 
-``int8``\ ，\ ``int16``\ ，\ ``int32``\ ，\ ``int64``\ ，\ ``float32``\ ，\ ``float64``\ ，\ ``boolean``\ ，\ ``string``\ ，\ ``decimal``\ ，\ ``datetime``
+``int8``\ ，\ ``int16``\ ，\ ``int32``\ ，\ ``int64``\ ，\ ``float32``\ ，\ ``float64``\ ，\ ``boolean``\ ，\
+``string``\ ，\ ``decimal``\ ，\ ``datetime``\ ，\ ``list``\ ，\ ``dict``
 
 ODPS的字段和DataFrame的类型映射关系如下：
 
@@ -116,9 +117,11 @@ ODPS的字段和DataFrame的类型映射关系如下：
  datetime   datetime
  boolean    boolean
  decimal    decimal
+ array      list
+ map        dict
 ========== ================
 
-目前DataFrame不支持ODPS中的array和map类型，未来的版本会支持。
+目前 DataFrame 暂不支持 MaxCompute 2.0 中新增的 Timestamp 及 Struct 类型，未来的版本会支持。
 
 在 Sequence 中可以通过 sequence.dtype 获取数据类型：
 
@@ -560,6 +563,41 @@ Collection 提供了数据过滤的功能，
  attribute                取对象属性
  index, slice, Subscript  切片操作
 ======================== ==========================================================================================
+
+.. _dflateralview:
+
+并列多行输出
+~~~~~~~~~~~~
+对于 list 及 map 类型的列，explode 方法会将该列转换为多行输出。使用 apply 方法也可以输出多行。
+为了进行聚合等操作，常常需要将这些输出和原表中的列合并。此时可以使用 DataFrame 提供的并列多行输出功能，
+写法为将多行输出函数生成的集合与原集合中的列名一起映射。
+
+并列多行输出的例子如下：
+
+.. code:: python
+
+    >>> df
+       id         a             b
+    0   1  [a1, b1]  [a2, b2, c2]
+    1   2      [c1]      [d2, e2]
+    >>> df[df.id, df.a.explode(), df.b]
+       id   a             b
+    0   1  a1  [a2, b2, c2]
+    1   1  b1  [a2, b2, c2]
+    2   2  c1      [d2, e2]
+    >>> df[df.id, df.a.explode(), df.b.explode()]
+       id   a   b
+    0   1  a1  a2
+    1   1  a1  b2
+    2   1  a1  c2
+    3   1  b1  a2
+    4   1  b1  b2
+    5   1  b1  c2
+    6   2  c1  d2
+    7   2  c1  e2
+
+关于 explode 使用并列输出的具体文档可参考 :ref:`dfcollections`，对于 apply 方法使用并列输出的例子可参考 :ref:`dfudtfapp`。
+
 
 限制条数
 ~~~~~~~~

@@ -67,7 +67,7 @@ class TestPartitions(MLTestBase):
         model = lr.train(df)._add_case(self.gen_check_params_case(
             {'labelColName': 'class', 'modelName': MODEL_NAME,
              'inputTableName': IONOSPHERE_TABLE_ONE_PART, 'epsilon': '0.001',
-             'inputTablePartitions': "part='0'", 'regularizedLevel': '1', 'regularizedType': 'l1',
+             'inputTablePartitions': "part=0", 'regularizedLevel': '1', 'regularizedType': 'l1',
              'maxIter': '50', 'featureColNames': ','.join('a%02d' % i for i in range(1, 35))}))
         model.persist(MODEL_NAME)
 

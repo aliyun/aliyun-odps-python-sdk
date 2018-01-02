@@ -96,7 +96,7 @@ class AliyunAccount(BaseAccount):
 
     def sign_request(self, req, endpoint):
         url = req.url[len(endpoint):]
-        url_components = urlparse(unquote(url))
+        url_components = urlparse(unquote(url), allow_fragments=False)
 
         canonical_str = self._build_canonical_str(url_components, req)
         LOG.debug('canonical string: ' + canonical_str)
@@ -251,7 +251,7 @@ class SignServerAccount(BaseAccount):
 
     def sign_request(self, req, endpoint):
         url = req.url[len(endpoint):]
-        url_components = urlparse(unquote(url))
+        url_components = urlparse(unquote(url), allow_fragments=False)
 
         canonical_str = self._build_canonical_str(url_components, req)
         LOG.debug('canonical string: ' + canonical_str)

@@ -27,9 +27,9 @@ from odps.compat import unittest, six, total_seconds
 from odps.udf.tools import runners
 from odps.models import Schema
 from odps.utils import to_timestamp, to_milliseconds
-from odps.df import output, func
+from odps.df import output, func, make_list, make_dict
 from odps.df.types import validate_data_type
-from odps.df.expr.expressions import CollectionExpr, BuiltinFunction, RandomScalar
+from odps.df.expr.expressions import CollectionExpr, BuiltinFunction, RandomScalar, ExpressionError
 from odps.df.backends.odpssql.engine import ODPSSQLEngine, UDF_CLASS_NAME
 from odps.df.backends.odpssql.compiler import BINARY_OP_COMPILE_DIC, \
     MATH_COMPILE_DIC, DATE_PARTS_DIC
@@ -72,6 +72,11 @@ class Test(TestBase):
                                     ['part1', 'part2'], datatypes('string', 'int64'))
         table3 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
         self.expr3 = CollectionExpr(_source_data=table3, _schema=schema2)
+
+        schema3 = Schema.from_lists(['id', 'name', 'relatives', 'hobbies'],
+                                   datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
+        table4 = MockTable(name='pyodps_test_expr_table', schema=schema3)
+        self.expr4 = CollectionExpr(_source_data=table4, _schema=schema3)
 
         # turn off the column pruning and predicate pushdown
         # for the purpose not to modify the case
@@ -829,6 +834,11 @@ class Test(TestBase):
         data = ['ab' * 15, 'def']
         self._testify_udf([d[-5:] for d in data], [(d, -5, 1) for d in data], engine)
 
+        expect = 'SELECT SPLIT(t1.`name`, \':\') AS `name` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr.name.split(':'), prettify=False)))
+
         engine = ODPSEngine(self.odps)
         engine.compile(self.expr.name.title())
         data = ['Abc Def', 'ADEFddEE']
@@ -877,6 +887,11 @@ class Test(TestBase):
         engine = ODPSEngine(self.odps)
         engine.compile(self.expr.name.isdecimal())
         self._testify_udf([to_str(d).isdecimal() for d in data], [(d,) for d in data], engine)
+
+        expect = 'SELECT STR_TO_MAP(t1.`name`, \',\', \':\') AS `name` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr.name.todict(',', ':'), prettify=False)))
 
     def testValueCounts(self):
         labels = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79']
@@ -986,6 +1001,81 @@ class Test(TestBase):
         engine = ODPSEngine(self.odps)
         engine.compile(self.expr.birth.strftime('%Y'))
         self._testify_udf([d.strftime('%Y') for d in data], [(d,) for d in data], engine)
+
+    def testCompositeCompilation(self):
+        expect = 'SELECT ARRAY(5, t1.`id`, t1.`fid`) AS `arr` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        expr = make_list(5, self.expr.id, self.expr.fid).rename('arr')
+        self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expect = 'SELECT MAP(\'id\', t1.`id`, \'fid\', t1.`fid`) AS `dict` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        expr = make_dict('id', self.expr.id, 'fid', self.expr.fid).rename('dict')
+        self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expect = 'SELECT SIZE(t1.`hobbies`) AS `hobbies` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.hobbies.len(), prettify=False)))
+
+        expect = 'SELECT SIZE(t1.`relatives`) AS `relatives` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.relatives.len(), prettify=False)))
+
+        expect = 'SELECT SORT_ARRAY(t1.`hobbies`) AS `hobbies` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.hobbies.sort(), prettify=False)))
+
+        expect = 'SELECT ARRAY_CONTAINS(t1.`hobbies`, t1.`name`) AS `hobbies` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.hobbies.contains(self.expr4.name),
+                                                              prettify=False)))
+
+        expect = 'SELECT MAP_KEYS(t1.`relatives`) AS `relatives` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.relatives.keys(), prettify=False)))
+
+        expect = 'SELECT MAP_VALUES(t1.`relatives`) AS `relatives` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.relatives.values(), prettify=False)))
+
+        expect = 'SELECT t1.`relatives`[\'abc\'] AS `relatives` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.relatives['abc'], prettify=False)))
+
+        expect = 'SELECT t1.`relatives`[t1.`name`] AS `relatives` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.relatives[self.expr4.name], prettify=False)))
+
+        expect = 'SELECT EXPLODE(t1.`relatives`) AS (`relatives_key`, `relatives_value`) \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.relatives.explode(), prettify=False)))
+
+        expect = 'SELECT t1.`id`, t1.`name`, t2.`hobbies` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                 'LATERAL VIEW EXPLODE(t1.`hobbies`) t2 AS `hobbies`'
+        expr = self.expr4[self.expr4.id, self.expr4.name, self.expr4.hobbies.explode()]
+        self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expect = 'SELECT t1.`id`, t1.`name`, t2.`hobbies_pos`, t2.`hobbies` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                 'LATERAL VIEW POSEXPLODE(t1.`hobbies`) t2 AS `hobbies_pos`, `hobbies`'
+        expr = self.expr4[self.expr4.id, self.expr4.name, self.expr4.hobbies.explode(pos=True)]
+        self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expect = 'SELECT t1.`id`, t1.`name`, t2.`relatives_key`, t2.`relatives_value` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                 'LATERAL VIEW EXPLODE(t1.`relatives`) t2 AS `relatives_key`, `relatives_value`'
+        expr = self.expr4[self.expr4.id, self.expr4.name, self.expr4.relatives.explode()]
+        self.assertEqual(to_str(expect), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
     def testSortCompilation(self):
         expr = self.expr.sort(['name', -self.expr.id])[:50]
@@ -1362,6 +1452,18 @@ class Test(TestBase):
                    'GROUP BY t1.`name`'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.groupby(['name']).name.tolist()
+        expected = 'SELECT COLLECT_LIST(t1.`name`) AS `name_tolist` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`name`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['name']).name.tolist(unique=True)
+        expected = 'SELECT COLLECT_SET(t1.`name`) AS `name_tolist` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`name`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
         expr = self.expr.limit(10).count()
         expected = 'SELECT COUNT(1) AS `count` \n' \
                    'FROM (\n' \
@@ -1562,7 +1664,7 @@ class Test(TestBase):
 
         self.assertEqual(to_str(expected),
                          to_str(ODPSEngine(self.odps).compile(joined[lambda x, y: y.name.rename('new_name'), e.id],
-                                                    prettify=False)))
+                                                              prettify=False)))
 
         joined = e.join(e1, ['fid', 'id'])
 
@@ -2309,6 +2411,181 @@ class Test(TestBase):
         df_cmp = df[(df.name == 'test') & df.id.isin([1, 2, 3]) | ((-df.fid > -2) & (-df.fid < -3))]
         self.assertEqual(to_str(ODPSEngine(self.odps).compile(df_cmp, prettify=False)),
                          to_str(ODPSEngine(self.odps).compile(df_res, prettify=False)))
+
+    def testLateralView(self):
+        @output(['name', 'id'], ['string', 'int64'])
+        def mapper(row):
+            for _ in range(10):
+                yield row
+
+        self.assertRaises(ExpressionError, lambda: self.expr[
+            self.expr['name', self.expr.id].apply(mapper, axis=1).apply(mapper, axis=1),
+            self.expr.exclude('name', 'id')])
+
+        expected = 'SELECT t1.`id` AS `r_id`, t1.`id` * 2 AS `r_id2`, t2.`name`, t2.`id`, ' \
+                   't1.`fid`, t1.`isMale`, t1.`scale`, t1.`birth`, 5 AS `five` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'LATERAL VIEW {0}(t1.`name`, t1.`id`) t2 AS `name`, `id`'
+
+        expr = self.expr[self.expr.id.rename('r_id'), (self.expr.id * 2).rename('r_id2'),
+                         self.expr['name', self.expr.id].apply(mapper, axis=1),
+                         self.expr.exclude('name', 'id'), Scalar(5).rename('five')]
+        engine = ODPSEngine(self.odps)
+        res = to_str(engine.compile(expr, prettify=False))
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), res)
+
+        expected = 'SELECT t2.`id`, t3.`hobbies` \n' \
+                   'FROM (\n' \
+                   '  SELECT * \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  WHERE t1.`id` < 5\n' \
+                   ') t2 \n' \
+                   'LATERAL VIEW EXPLODE(t2.`hobbies`) t3 AS `hobbies`'
+        expr = self.expr4[self.expr4.id < 5][self.expr4.id, self.expr4.hobbies.explode()]
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expected = 'SELECT t2.`fid`, t3.`name`, t3.`id` \n' \
+                   'FROM (\n' \
+                   '  SELECT * \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  WHERE t1.`id` < 5\n' \
+                   ') t2 \n' \
+                   'LATERAL VIEW {0}(t2.`name`, t2.`id`) t3 AS `name`, `id`'
+
+        expr = self.expr[self.expr.id < 5][self.expr.fid, self.expr['name', self.expr.id].apply(mapper, axis=1)]
+        engine = ODPSEngine(self.odps)
+        res = to_str(engine.compile(expr, prettify=False))
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), res)
+
+        expected = 'SELECT t2.`name`, t2.`id`, t1.`fid`, t1.`isMale`, t1.`scale`, t1.`birth` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'LATERAL VIEW {0}(t1.`name`, t1.`id` * 2) t2 AS `name`, `id`'
+
+        expr = self.expr[self.expr['name', self.expr.id * 2].apply(mapper, axis=1),
+                         self.expr.exclude('name', 'id')]
+        engine = ODPSEngine(self.odps)
+        res = to_str(engine.compile(expr, prettify=False))
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), res)
+
+        expected = 'SELECT t1.`id` * 2 AS `r_id`, t1.`id`, t1.`name`, t1.`relatives`, t1.`hobbies`, ' \
+                   't2.`r_hobbies`, t3.`r_rel_key`, t3.`r_rel_value` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'LATERAL VIEW EXPLODE(t1.`hobbies`) t2 AS `r_hobbies` \n' \
+                   'LATERAL VIEW EXPLODE(t1.`relatives`) t3 AS `r_rel_key`, `r_rel_value`'
+        expr = self.expr4[self.expr4.id.rename('r_id') * 2, self.expr4,
+                          self.expr4.hobbies.explode('r_hobbies'),
+                          self.expr4.relatives.explode(['r_rel_key', 'r_rel_value'])]
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expected = 'SELECT t1.`id` * 2 AS `r_id`, t1.`name` AS `r_name`, t2.`r_hobbies`, ' \
+                   't3.`r_rel_key`, t3.`r_rel_value` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'LATERAL VIEW EXPLODE(t1.`hobbies`) t2 AS `r_hobbies` \n' \
+                   'LATERAL VIEW EXPLODE(t1.`relatives`) t3 AS `r_rel_key`, `r_rel_value`'
+        expr = self.expr4[self.expr4.id.rename('r_id') * 2, self.expr4.name.rename('r_name'),
+                          self.expr4.hobbies.explode('r_hobbies'),
+                          self.expr4.relatives.explode(['r_rel_key', 'r_rel_value'])]
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expected = 'SELECT t1.`r_id`, CONCAT(t1.`r_name`, t3.`r_rel_key`) AS `t_sum1`, ' \
+                   'CONCAT(t3.`r_rel_key`, t3.`r_rel_value`) AS `t_sum2` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'LATERAL VIEW EXPLODE(t1.`hobbies`) t2 AS `r_hobbies` \n' \
+                   'LATERAL VIEW EXPLODE(t1.`relatives`) t3 AS `r_rel_key`, `r_rel_value`'
+        expr = expr[expr.r_id, (expr.r_name + expr.r_rel_key).rename('t_sum1'),
+                    (expr.r_rel_key + expr.r_rel_value).rename('t_sum2')]
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expected = 'SELECT t2.`name`, t2.`id`, t3.`relatives` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'LATERAL VIEW {0}(t1.`name`, t1.`id`) t2 AS `name`, `id` \n' \
+                   'LATERAL VIEW EXPLODE(MAP_VALUES(t1.`relatives`)) t3 AS `relatives`'
+
+        expr = self.expr4[self.expr4['name', 'id'].apply(mapper, axis=1),
+                          self.expr4.relatives.values().explode()]
+        engine = ODPSEngine(self.odps)
+        res = to_str(engine.compile(expr, prettify=False))
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), res)
+
+        expected = 'SELECT t2.`id`, t2.`name`, t3.`hobbies` \n' \
+                   'FROM (\n' \
+                   '  SELECT * \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  WHERE t1.`id` < 10\n' \
+                   ') t2 \n' \
+                   'LATERAL VIEW EXPLODE(t2.`hobbies`) t3 AS `hobbies`'
+        expr_if = self.expr4[self.expr4.id < 10]
+        expr = expr_if[expr_if.id, expr_if.name, expr_if.hobbies.explode()]
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expected = 'SELECT * \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`id`, t1.`name`, t1.`hobbies`, t2.`relatives_key`, t2.`relatives_value` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  LATERAL VIEW EXPLODE(t1.`relatives`) t2 AS `relatives_key`, `relatives_value` \n' \
+                   ') t3 \n' \
+                   'WHERE t3.`relatives_key` IS NOT NULL'
+        expr_explode = self.expr4[self.expr4.id, self.expr4.name, self.expr4.hobbies,
+                                  self.expr4.relatives.explode()]
+        expr_if = expr_explode[expr_explode.relatives_key.notnull()]
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr_if, prettify=False)))
+
+        expected = 'SELECT t6.`id`, CONCAT(t6.`name`, t6.`relatives_value`) AS `nrv` \n' \
+                   'FROM (\n' \
+                   '  SELECT t4.`id`, t4.`name`, t4.`relatives_key`, t4.`relatives_value`, t5.`hobbies` \n' \
+                   '  FROM (\n' \
+                   '    SELECT * \n' \
+                   '    FROM (\n' \
+                   '      SELECT t1.`id`, t1.`name`, t1.`hobbies`, t2.`relatives_key`, t2.`relatives_value` \n' \
+                   '      FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '      LATERAL VIEW EXPLODE(t1.`relatives`) t2 AS `relatives_key`, `relatives_value` \n' \
+                   '    ) t3 \n' \
+                   '    WHERE t3.`relatives_key` IS NOT NULL\n' \
+                   '  ) t4 \n' \
+                   '  LATERAL VIEW EXPLODE(t4.`hobbies`) t5 AS `hobbies` \n' \
+                   ') t6 \n' \
+                   'WHERE LENGTH(t6.`hobbies`) > 5'
+        expr_explode2 = expr_if[expr_if.exclude('hobbies'), expr_if.hobbies.explode()]
+        expr = expr_explode2[expr_explode2.hobbies.len() > 5] \
+            [expr_explode2.id, (expr_explode2.name + expr_explode2.relatives_value).rename('nrv')]
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr4[self.expr4.id < 10][self.expr4.id, self.expr4.hobbies.explode('r_hobbies'),
+                                              self.expr4.relatives.explode(['r_rel_key', 'r_rel_value']),
+                                              Scalar(5).rename('five')]
+
+        @output(expr.schema.names, expr.schema.types)
+        def reducer(keys):
+            def h(row):
+                yield row
+            return h
+
+        expected = 'SELECT {0}(t6.`id`, t6.`r_hobbies`, t6.`r_rel_key`, t6.`r_rel_value`, t6.`five`) ' \
+                   'AS (`id`, `r_hobbies`, `r_rel_key`, `r_rel_value`, `five`) \n' \
+                   'FROM (\n' \
+                   '  SELECT * \n' \
+                   '  FROM (\n' \
+                   '    SELECT t2.`id`, t3.`r_hobbies`, t4.`r_rel_key`, t4.`r_rel_value`, 5 AS `five` \n' \
+                   '    FROM (\n' \
+                   '      SELECT * \n' \
+                   '      FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '      WHERE t1.`id` < 10\n' \
+                   '    ) t2 \n' \
+                   '    LATERAL VIEW EXPLODE(t2.`hobbies`) t3 AS `r_hobbies` \n' \
+                   '    LATERAL VIEW EXPLODE(t2.`relatives`) t4 AS `r_rel_key`, `r_rel_value` \n' \
+                   '  ) t5 \n' \
+                   '  DISTRIBUTE BY t5.`id` \n' \
+                   '  SORT BY id\n' \
+                   ') t6'
+        expr = expr.map_reduce(reducer=reducer, group='id')
+        engine = ODPSEngine(self.odps)
+        res = to_str(engine.compile(expr, prettify=False))
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), res)
 
 
 if __name__ == '__main__':

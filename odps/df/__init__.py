@@ -20,6 +20,7 @@ from .core import DataFrame, CollectionExpr
 from .expr.expressions import SequenceExpr, Scalar, BuiltinFunction, RandomScalar
 from .expr.element import switch, FuncFactory
 from .expr.datetimes import year, month, day, hour, minute, second, millisecond
+from .expr.composites import make_list, make_dict
 from .expr.reduction import aggregate, agg
 from .utils import output_types, output_names, output
 from .delay import Delay

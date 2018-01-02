@@ -211,5 +211,16 @@ class Test(TestBase):
             self.assertIsInstance(expr, Aggregation)
             self.assertIsInstance(expr.dtype, types.Float)
 
+    def testToList(self):
+        expr = self.expr.int64.tolist()
+        self.assertIsInstance(expr, ListScalar)
+        self.assertEqual(expr.dtype, types.validate_data_type('list<int64>'))
+
+        expr = self.expr.tolist()
+        self.assertIsInstance(expr, Summary)
+        self.assertLessEqual(len(expr.fields), len(types._data_types))
+        self.assertTrue(all(isinstance(node, ToList) for node in expr.fields))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -357,12 +357,13 @@ def sample(expr, parts=None, columns=None, i=None, n=None, frac=None, replace=Fa
 
 class RowAppliedCollectionExpr(CollectionExpr):
     __slots__ = '_func', '_func_args', '_func_kwargs', '_close_func', \
-                '_resources', '_raw_inputs'
+                '_resources', '_raw_inputs', '_lateral_view'
     _args = '_input', '_fields', '_collection_resources'
     node_name = 'Apply'
 
     def _init(self, *args, **kwargs):
         self._init_attr('_raw_inputs', None)
+        self._init_attr('_lateral_view', False)
         super(RowAppliedCollectionExpr, self)._init(*args, **kwargs)
 
     @property

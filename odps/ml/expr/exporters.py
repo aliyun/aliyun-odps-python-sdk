@@ -20,6 +20,7 @@ from ..utils import ML_ARG_PREFIX
 from ..enums import FieldRole, FieldContinuity
 from ...compat import six
 from ...df.expr.core import Node
+from ...df.backends.context import context
 from ...df.expr.collections import FilterPartitionCollectionExpr
 
 """
@@ -43,7 +44,7 @@ def get_input_table_name(expr, input_name):
     input_expr = get_ml_input(expr, input_name)
     if input_expr is None:
         return None
-    if isinstance(input_expr, FilterPartitionCollectionExpr):
+    if isinstance(input_expr, FilterPartitionCollectionExpr) and not context.is_cached(input_expr):
         try:
             ds = next(input_expr.data_source())
         except StopIteration:
@@ -62,10 +63,17 @@ def get_input_partitions(expr, input_name):
     input_expr = get_ml_input(expr, input_name)
     if input_expr is None:
         return None
-    if not isinstance(input_expr, FilterPartitionCollectionExpr):
+    if not isinstance(input_expr, FilterPartitionCollectionExpr) or context.is_cached(input_expr):
         return None
     predicate = input_expr._predicate_string
-    return ','.join('/'.join(p.split(',')) for p in predicate.split('/'))
+
+    def _quote_remover(filter_str):
+        parts = filter_str.split('=', 1)
+        if parts[1].startswith("'") and parts[1].endswith("'"):
+            parts[1] = parts[1][1:-1]
+        return '='.join(parts)
+
+    return ','.join('/'.join([_quote_remover(s) for s in p.split(',')]) for p in predicate.split('/'))
 
 
 get_input_table_partitions = get_input_partitions

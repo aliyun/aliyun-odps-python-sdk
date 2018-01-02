@@ -882,6 +882,10 @@ class IntervalYearMonth(OdpsPrimitive):
 class CompositeMixin(DataType):
     _singleton = False
 
+    @classmethod
+    def parse_composite(cls, args):
+        raise NotImplementedError
+
     def validate_composite_values(self, value):
         raise NotImplementedError
 
@@ -923,6 +927,15 @@ class SizeLimitedString(String, CompositeMixin):
         raise ValueError(
             "InvalidData: Length of string(%d) is more than %sM.'" %
             (len(val), self.size_limit))
+
+    @classmethod
+    def parse_composite(cls, args):
+        if len(args) != 1:
+            raise ValueError('%s() only accept one length argument.' % cls.__name__.upper())
+        try:
+            return cls(int(args[0]))
+        except TypeError:
+            raise ValueError('%s() only accept an integer length argument.' % cls.__name__.upper())
 
     def validate_composite_values(self, value):
         self.validate_value(value)
@@ -1027,6 +1040,15 @@ class Decimal(CompositeMixin):
             value = value.decode('utf-8')
         return _builtin_decimal.Decimal(value)
 
+    @classmethod
+    def parse_composite(cls, args):
+        if len(args) > 2:
+            raise ValueError('%s() accepts no more than two arguments.' % cls.__name__.upper())
+        try:
+            return cls(*[int(v) for v in args])
+        except TypeError:
+            raise ValueError('%s() only accept integers as arguments.' % cls.__name__.upper())
+
     def validate_composite_values(self, value):
         if value is None and self.nullable:
             return value
@@ -1072,6 +1094,12 @@ class Array(CompositeMixin):
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
         return value
+
+    @classmethod
+    def parse_composite(cls, args):
+        if len(args) != 1:
+            raise ValueError('%s<> only accept one type.' % cls.__name__.upper())
+        return cls(args[0])
 
     def validate_composite_values(self, value):
         if value is None and self.nullable:
@@ -1125,6 +1153,12 @@ class Map(CompositeMixin):
         self._can_cast_or_throw(value, data_type)
         return value
 
+    @classmethod
+    def parse_composite(cls, args):
+        if len(args) != 2:
+            raise ValueError('%s<> should be supplied with exactly two types.' % cls.__name__.upper())
+        return cls(*args)
+
     def validate_composite_values(self, value):
         if value is None and self.nullable:
             return value
@@ -1172,12 +1206,26 @@ class Struct(CompositeMixin):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
-        return isinstance(other, Map) and self == other and \
+        return isinstance(other, Struct) and self == other and \
                self.nullable == other.nullable
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
         return value
+
+    @classmethod
+    def parse_composite(cls, args):
+        if any(not isinstance(a, tuple) and ':' not in a
+               for a in args):
+            raise ValueError('Every field defined in STRUCT should be given a name.')
+
+        def conv_type_tuple(type_tuple):
+            if isinstance(type_tuple, tuple):
+                return type_tuple
+            else:
+                return tuple(v.strip('`') for v in type_tuple.split(':', 1))
+
+        return cls(conv_type_tuple(a) for a in args)
 
     def validate_composite_values(self, value):
         if value is None and self.nullable:
@@ -1213,13 +1261,18 @@ _odps_primitive_data_types = dict(
 )
 
 
-def parse_composite_types(type_str, **kwargs):
-    varchar_cls = kwargs.get('varchar_cls', Varchar)
-    char_cls = kwargs.get('char_cls', Char)
-    decimal_cls = kwargs.get('decimal_cls', Decimal)
-    array_cls = kwargs.get('array_cls', Array)
-    map_cls = kwargs.get('map_cls', Map)
-    struct_cls = kwargs.get('struct_cls', Struct)
+_composite_handlers = dict(
+    varchar=Varchar,
+    char=Char,
+    decimal=Decimal,
+    array=Array,
+    map=Map,
+    struct=Struct,
+)
+
+
+def parse_composite_types(type_str, handlers=None):
+    handlers = handlers or _composite_handlers
 
     def _create_composite_type(typ, *args):
         prefix = None
@@ -1227,49 +1280,9 @@ def parse_composite_types(type_str, **kwargs):
             prefix, typ = typ.split(':')
             prefix = prefix.strip().strip('`')
             typ = typ.strip()
-        if typ == 'varchar':
-            if len(args) != 1:
-                raise ValueError('VARCHAR() only accept one length argument.')
-            try:
-                ctype = varchar_cls(int(args[0]))
-            except TypeError:
-                raise ValueError('VARCHAR() only accept an integer length argument.')
-        elif typ == 'char':
-            if len(args) != 1:
-                raise ValueError('CHAR() only accept one length argument.')
-            try:
-                ctype = char_cls(int(args[0]))
-            except TypeError:
-                raise ValueError('CHAR() only accept an integer length argument.')
-        elif typ == 'decimal':
-            if len(args) > 2:
-                raise ValueError('DECIMAL() accepts no more than two arguments.')
-            try:
-                ctype = decimal_cls(*[int(v) for v in args])
-            except TypeError:
-                raise ValueError('DECIMAL() only accept integers as arguments.')
-        elif typ == 'array':
-            if len(args) != 1:
-                raise ValueError('ARRAY<> only accept one type.')
-            ctype = array_cls(args[0])
-        elif typ == 'map':
-            if len(args) != 2:
-                raise ValueError('MAP<> should be supplied with exactly two types.')
-            ctype = map_cls(*args)
-        elif typ == 'struct':
-            if any(not isinstance(a, tuple) and ':' not in a
-                   for a in args):
-                raise ValueError('Every field defined in STRUCT should be given a name.')
-
-            def conv_type_tuple(type_tuple):
-                if isinstance(type_tuple, tuple):
-                    return type_tuple
-                else:
-                    return tuple(v.strip('`') for v in type_tuple.split(':', 1))
-
-            ctype = struct_cls(conv_type_tuple(a) for a in args)
-        else:
+        if typ not in handlers:
             raise ValueError('Composite type %s not supported.' % typ.upper())
+        ctype = handlers[typ].parse_composite(args)
 
         if prefix is None:
             return ctype

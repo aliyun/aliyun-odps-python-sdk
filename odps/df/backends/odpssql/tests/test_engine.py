@@ -3128,7 +3128,7 @@ class Test(TestBase):
             table2.drop()
 
     def testFilterOrder(self):
-        table_name = tn('pyodps_test_division_error')
+        table_name = tn('pyodps_test_sql_engine_filter_order')
         self.odps.delete_table(table_name, if_exists=True)
         table = self.odps.create_table(table_name, 'divided bigint, divisor bigint', lifecycle=1)
 
@@ -3142,6 +3142,293 @@ class Test(TestBase):
             res = self.engine.execute(expr)
             result = self._get_result(res)
             self.assertEqual(result, [[5, ]])
+        finally:
+            table.drop()
+
+    def testLateralView(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+
+        datatypes = lambda *types: [validate_data_type(t) for t in types]
+        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+                                   datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
+        odps_schema = df_schema_to_odps_schema(schema)
+        table_name = tn('pyodps_test_engine_lateral_view1')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(name=table_name, schema=odps_schema)
+        expr_in = CollectionExpr(_source_data=table, _schema=schema)
+
+        try:
+            self.odps.write_table(table_name, data)
+
+            @output(['name', 'id'], ['string', 'int64'])
+            def mapper(row):
+                for idx in range(row.id):
+                    yield '%s_%d' % (row.name, idx), row.id * idx
+
+            expected = [
+                [5.3, 'name1_0', 0], [5.3, 'name1_1', 4], [5.3, 'name1_2', 8], [5.3, 'name1_3', 12],
+                [3.5, 'name2_0', 0], [3.5, 'name2_1', 2],
+                [4.2, 'name1_0', 0], [4.2, 'name1_1', 4], [4.2, 'name1_2', 8], [4.2, 'name1_3', 12],
+                [2.2, 'name1_0', 0], [2.2, 'name1_1', 3], [2.2, 'name1_2', 6],
+                [4.1, 'name1_0', 0], [4.1, 'name1_1', 3], [4.1, 'name1_2', 6],
+            ]
+
+            expr = expr_in[expr_in.fid, expr_in['name', 'id'].apply(mapper, axis=1)]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                [5.3, 'name1_0', 0],
+                [3.5, 'name2_0', 0],
+                [4.2, 'name1_0', 0],
+                [2.2, 'name1_0', 0], [2.2, 'name1_1', 2],
+                [4.1, 'name1_0', 0], [4.1, 'name1_1', 2],
+            ]
+
+            expr = expr_in[expr_in.fid, expr_in['name', expr_in.id % 2 + 1].apply(mapper, axis=1)]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                [5, 3.5, 'name2_0', 0, '0'], [5, 3.5, 'name2_1', 2, '0'],
+                [5, 2.2, 'name1_0', 0, '0'], [5, 2.2, 'name1_0', 0, '1'], [5, 2.2, 'name1_1', 3, '0'],
+                [5, 2.2, 'name1_1', 3, '1'], [5, 2.2, 'name1_2', 6, '0'], [5, 2.2, 'name1_2', 6, '1'],
+                [5, 4.1, 'name1_0', 0, '0'], [5, 4.1, 'name1_0', 0, '1'], [5, 4.1, 'name1_1', 3, '0'],
+                [5, 4.1, 'name1_1', 3, '1'], [5, 4.1, 'name1_2', 6, '0'], [5, 4.1, 'name1_2', 6, '1'],
+            ]
+
+            @output(['bin_id'], ['string'])
+            def mapper2(row):
+                for idx in range(row.id % 2 + 1):
+                    yield str(idx)
+
+            expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
+                                           expr_in['name', 'id'].apply(mapper, axis=1),
+                                           expr_in['id', ].apply(mapper2, axis=1)]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            @output(['bin_id'], ['string'])
+            def mapper3(row):
+                for idx in range(row.ren_id % 2 + 1):
+                    yield str(idx)
+
+            expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
+                                           expr_in['name', 'id'].apply(mapper, axis=1),
+                                           expr_in[expr_in.id.rename('ren_id'), ].apply(mapper3, axis=1)]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                ['name1_0', 12.6], ['name1_1', 12.6], ['name1_2', 12.6],
+                ['name2_0', 3.5], ['name2_1', 3.5]
+            ]
+
+            @output(['name', 'id'], ['string', 'float'])
+            def reducer(keys):
+                sums = [0.0]
+
+                def h(row, done):
+                    sums[0] += row.fid
+                    if done:
+                        yield tuple(keys) + (sums[0], )
+
+                return h
+
+            expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
+                                           expr_in['name', 'id'].apply(mapper, axis=1),
+                                           expr_in['id', ].apply(mapper2, axis=1)]
+            expr = expr.map_reduce(reducer=reducer, group='name')
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertListAlmostEqual(sorted(result), sorted(expected), only_float=False)
+        finally:
+            table.drop()
+
+    def testComposites(self):
+        data = [
+            ['name1', 4, 5.3, {'a': 123.2, 'b': 567.1}, ['YTY', 'HKG', 'SHA', 'PEK']],
+            ['name2', 2, 3.5, {'c': 512.1, 'b': 711.2}, None],
+            ['name1', 4, 4.2, None, ['Hawaii', 'Texas']],
+            ['name1', 3, 2.2, {'u': 115.4, 'v': 312.1}, ['Washington', 'London', 'Paris', 'Frankfort']],
+            ['name1', 3, 4.1, {'w': 923.2, 'x': 456.1}, ['Moscow', 'Warsaw', 'Prague', 'Belgrade']],
+        ]
+
+        datatypes = lambda *types: [validate_data_type(t) for t in types]
+        schema = Schema.from_lists(['name', 'grade', 'score', 'detail', 'locations'],
+                                   datatypes('string', 'int64', 'float64',
+                                             'dict<string, float64>', 'list<string>'))
+        odps_schema = df_schema_to_odps_schema(schema)
+        table_name = tn('pyodps_test_engine_composites1')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(name=table_name, schema=odps_schema)
+        expr_in = CollectionExpr(_source_data=table, _schema=schema)
+
+        try:
+            self.odps.write_table(table_name, data)
+
+            expected = [
+                ['name1', 3, 'Washington', 'u', 115.4], ['name1', 3, 'Washington', 'v', 312.1],
+                ['name1', 3, 'London', 'u', 115.4], ['name1', 3, 'London', 'v', 312.1],
+                ['name1', 3, 'Paris', 'u', 115.4], ['name1', 3, 'Paris', 'v', 312.1],
+                ['name1', 3, 'Frankfort', 'u', 115.4], ['name1', 3, 'Frankfort', 'v', 312.1]
+            ]
+
+            expr = expr_in[expr_in.score < 4][expr_in.name, expr_in.grade, expr_in.locations.explode(),
+                                              expr_in.detail.explode()]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                ['name1', 3, 0, 'Washington', 'u', 115.4],
+                ['name1', 3, 0, 'Washington', 'v', 312.1],
+                ['name1', 3, 1, 'London', 'u', 115.4],
+                ['name1', 3, 1, 'London', 'v', 312.1],
+                ['name1', 3, 2, 'Paris', 'u', 115.4],
+                ['name1', 3, 2, 'Paris', 'v', 312.1],
+                ['name1', 3, 3, 'Frankfort', 'u', 115.4],
+                ['name1', 3, 3, 'Frankfort', 'v', 312.1]
+            ]
+
+            expr = expr_in[expr_in.score < 4][expr_in.name, expr_in.grade, expr_in.locations.explode(pos=True),
+                                              expr_in.detail.explode()]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                ['name1', 123.2], ['name1', 567.1],
+                ['name2', 711.2], ['name2', 512.1],
+                ['name1', 115.4], ['name1', 312.1],
+                ['name1', 923.2], ['name1', 456.1]
+            ]
+
+            expr = expr_in[expr_in.name, expr_in.detail.values().explode()]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                ['name1', 4.0, 2.0, False, False, ['HKG', 'PEK', 'SHA', 'YTY'],
+                 ['a', 'b'], [123.2, 567.1], None, 'YTY', 'PEK'],
+                ['name2', None, 2.0, None, None, None,
+                 ['b', 'c'], [512.1, 711.2], None, None, None],
+                ['name1', 2.0, None, False, False, ['Hawaii', 'Texas'],
+                 None, None, None, 'Hawaii', None],
+                ['name1', 4.0, 2.0, False, False, ['Frankfort', 'London', 'Paris', 'Washington'],
+                 ['u', 'v'], [115.4, 312.1], 115.4, 'Washington', 'Paris'],
+                ['name1', 4.0, 2.0, True, False, ['Belgrade', 'Moscow', 'Prague', 'Warsaw'],
+                 ['w', 'x'], [456.1, 923.2], None, 'Moscow', 'Prague']
+            ]
+
+            expr = expr_in[expr_in.name, expr_in.locations.len().rename('loc_len'),
+                           expr_in.detail.len().rename('detail_len'),
+                           expr_in.locations.contains('Moscow').rename('has_mos'),
+                           expr_in.locations.contains(expr_in.name).rename('has_name'),
+                           expr_in.locations.sort().rename('loc_sort'),
+                           expr_in.detail.keys().sort().rename('detail_keys'),
+                           expr_in.detail.values().sort().rename('detail_values'),
+                           expr_in.detail['u'].rename('detail_u'),
+                           expr_in.locations[0].rename('loc_0'),
+                           expr_in.locations[expr_in.grade - 1].rename('loc_id')]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                ['name1', [4, 4, 3, 3]],
+                ['name2', [2]]
+            ]
+
+            expr = expr_in.groupby(expr_in.name).agg(agg_grades=expr_in.grade.tolist())
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                ['name1', [3, 4]],
+                ['name2', [2]]
+            ]
+
+            expr = expr_in.groupby(expr_in.name).agg(agg_grades=expr_in.grade.tolist(unique=True).sort())
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [[['name1', 'name2', 'name1', 'name1', 'name1'], [4, 2, 4, 3, 3]]]
+
+            expr = expr_in['name', 'grade'].tolist()
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [[['name1', 'name2'], [2, 3, 4]]]
+
+            expr = expr_in['name', 'grade'].tolist(unique=True)
+            expr = expr[tuple(f.sort() for f in expr.columns)]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+        finally:
+            table.drop()
+
+    def testStringSplits(self):
+        data = [
+            ['name1:a,name3:5', 4],
+            ['name2:4,name7:1', 2],
+            ['name1:1', 4],
+            ['name1:4,name5:6,name4:1', 3],
+            ['name1:2,name10:1', 3],
+        ]
+
+        datatypes = lambda *types: [validate_data_type(t) for t in types]
+        schema = Schema.from_lists(['name', 'id'],
+                                   datatypes('string', 'int64'))
+        odps_schema = df_schema_to_odps_schema(schema)
+        table_name = tn('pyodps_test_engine_composites1')
+        self.odps.delete_table(table_name, if_exists=True)
+        table = self.odps.create_table(name=table_name, schema=odps_schema)
+        expr_in = CollectionExpr(_source_data=table, _schema=schema)
+
+        try:
+            self.odps.write_table(table_name, data)
+
+            expected = [
+                [4, ['name1:a', 'name3:5']],
+                [2, ['name2:4', 'name7:1']],
+                [4, ['name1:1']],
+                [3, ['name1:4', 'name5:6', 'name4:1']],
+                [3, ['name1:2', 'name10:1']],
+            ]
+
+            expr = expr_in[expr_in.id, expr_in.name.split(',')]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                [4, {'name1': 'a', 'name3': '5'}],
+                [2, {'name2': '4', 'name7': '1'}],
+                [4, {'name1': '1'}],
+                [3, {'name1': '4', 'name5': '6', 'name4': '1'}],
+                [3, {'name1': '2', 'name10': '1'}],
+            ]
+
+            expr = expr_in[expr_in.id, expr_in.name.todict(kv_delim=':')]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
         finally:
             table.drop()
 

@@ -109,8 +109,16 @@ class Test(TestBase):
         self.assertTrue(table.exist_partition(partition))
         self.assertFalse(table.exist_partition('s=a_non_exist_partition'))
 
+        row_contents = ['index', None]
+        with partition.open_writer() as writer:
+            writer.write([row_contents])
+        with partition.open_reader() as reader:
+            for rec in reader:
+                self.assertListEqual(row_contents, list(rec.values))
+
         self.odps.delete_table(test_table_name)
         self.assertFalse(table.exist_partition(partition))
+
 
 if __name__ == '__main__':
     unittest.main()

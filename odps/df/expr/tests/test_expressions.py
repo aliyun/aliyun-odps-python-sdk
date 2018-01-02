@@ -39,6 +39,12 @@ class Test(TestBase):
         table2._client = self.config.odps.rest
         self.expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
 
+        schema3 = Schema.from_lists(['id', 'name', 'relatives', 'hobbies'],
+                                    [types.int64, types.string, types.Dict(types.string, types.string),
+                                     types.List(types.string)])
+        table3 = MockTable(name='pyodps_test_expr_table3', schema=schema3)
+        self.expr3 = CollectionExpr(_source_data=table3, _schema=schema3)
+
     def testDir(self):
         expr_dir = dir(self.expr)
         self.assertIn('id', expr_dir)
@@ -406,6 +412,45 @@ class Test(TestBase):
         self.assertEqual(expr3.schema.names, ['id', 'new_id2'])
         self.assertIsInstance(expr3, ProjectCollectionExpr)
         self.assertNotIsInstance(expr3, DistinctCollectionExpr)
+
+    def testLateralView(self):
+        from odps.df.expr.collections import RowAppliedCollectionExpr
+
+        expr = self.expr3.copy()
+
+        expr1 = expr[expr.id, expr.relatives.explode(), expr.hobbies.explode()]
+        self.assertIsInstance(expr1, LateralViewCollectionExpr)
+        self.assertEqual(len(expr1.lateral_views), 2)
+        self.assertIsInstance(expr1.lateral_views[0], RowAppliedCollectionExpr)
+        self.assertTrue(expr1.lateral_views[0]._lateral_view)
+        self.assertIsInstance(expr1.lateral_views[1], RowAppliedCollectionExpr)
+        self.assertTrue(expr1.lateral_views[1]._lateral_view)
+
+        expr2 = expr.relatives.explode(['r_key', 'r_value'])
+        expr2 = expr2[expr2.r_key.rename('rk'), expr2]
+        self.assertIsInstance(expr2, ProjectCollectionExpr)
+        self.assertNotIsInstance(expr2, LateralViewCollectionExpr)
+
+        left = expr.relatives.explode(['r_key', 'r_value'])
+        joined = left.join(expr, on=(left.r_key == expr.name))
+        expr3 = joined['name', left]
+        self.assertIsInstance(expr3, ProjectCollectionExpr)
+        self.assertNotIsInstance(expr3, LateralViewCollectionExpr)
+
+        left = expr.relatives.explode(['name', 'r_value'])
+        joined = left.left_join(expr, on='name', merge_columns=True)
+        expr4 = joined['id', left]
+        self.assertIsInstance(expr4, ProjectCollectionExpr)
+        self.assertNotIsInstance(expr4, LateralViewCollectionExpr)
+
+        u1 = expr.relatives.explode(['name', 'r_value'])
+        u2 = expr.relatives.explode(['name', 'r_value'])
+        u3 = expr[expr.name, expr.hobbies.explode('r_value')]
+        unioned = u1.union(u2).union(u3)
+        expr5 = unioned[Scalar('unioned').rename('scalar'), u1]
+        self.assertIsInstance(expr5, ProjectCollectionExpr)
+        self.assertNotIsInstance(expr5, LateralViewCollectionExpr)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -69,8 +69,15 @@ class Test(TestBase):
         res = self.odps.create_resource(resource_name, 'table', table_name=test_table_name)
         self.assertIsInstance(res, TableResource)
         self.assertEqual(res.get_source_table().name, test_table_name)
+        self.assertEqual(res.table.name, test_table_name)
         self.assertIsNone(res.get_source_table_partition())
         self.assertIs(res, self.odps.get_resource(resource_name))
+
+        with res.open_writer() as writer:
+            writer.write([0, FILE_CONTENT])
+        with res.open_reader() as reader:    
+            rec = list(reader)[0]
+            self.assertEqual(rec[1], FILE_CONTENT)
 
         del res.parent[resource_name]  # delete from cache
 
@@ -89,7 +96,10 @@ class Test(TestBase):
         res = res.update(partition=test_table_partition)
         self.assertIsInstance(res, TableResource)
         self.assertEqual(res.get_source_table().name, test_table_name)
+        self.assertEqual(res.table.name, test_table_name)
         self.assertEqual(str(res.get_source_table_partition()),
+                         str(types.PartitionSpec(test_table_partition)))
+        self.assertEqual(str(res.partition.spec),
                          str(types.PartitionSpec(test_table_partition)))
         self.assertIs(res, self.odps.get_resource(resource_name))
 
@@ -101,6 +111,12 @@ class Test(TestBase):
         self.assertEqual(str(res.get_source_table_partition()),
                          str(types.PartitionSpec(test_table_partition)))
         self.assertIs(res, self.odps.get_resource(resource_name))
+
+        with res.open_writer() as writer:
+            writer.write([0, FILE_CONTENT])
+        with res.open_reader() as reader:    
+            rec = list(reader)[0]
+            self.assertEqual(rec[1], FILE_CONTENT)
 
         self.odps.delete_resource(resource_name)
         self.odps.delete_table(test_table_name)

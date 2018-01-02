@@ -199,7 +199,7 @@ class TableUploadSession(serializers.JSONSerializableModel):
         params = {'uploads': 1}
         headers = {'Content-Length': 0}
         if self._partition_spec is not None and \
-                        len(self._partition_spec) > 0:
+                len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
 
         url = self._table.resource()

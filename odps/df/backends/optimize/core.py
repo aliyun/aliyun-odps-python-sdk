@@ -161,6 +161,8 @@ class Optimizer(Backend):
     def visit_apply_collection(self, expr):
         if not options.df.optimize:
             return
+        if expr._lateral_view:
+            return
         if isinstance(expr.input, JoinCollectionExpr) and expr.input._mapjoin:
             return
         self._visit_need_compact_collection(expr)
@@ -190,6 +192,10 @@ class Optimizer(Backend):
                     not any(isinstance(n, Window) for n in node._fields):
                 valid = True
                 for it in itertools.chain(*(node.all_path(to_compact[-1]))):
+                    if isinstance(it, CollectionExpr) and \
+                            any(isinstance(n.input, LateralViewCollectionExpr) for n in it.columns):
+                        valid = False
+                        break
                     if isinstance(it, SequenceReduction):
                         valid = False
                         break

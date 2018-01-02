@@ -756,7 +756,8 @@ class CollectionExpr(Expr):
                 return False
         return True
 
-    def _backtrack_field(self, field, collection):
+    @staticmethod
+    def _backtrack_field(field, collection):
         from .window import RankOp
 
         for col in field.traverse(top_down=True, unique=True,
@@ -818,14 +819,76 @@ class CollectionExpr(Expr):
             return selects, raw_selects
         return selects
 
+    @classmethod
+    def _backtrack_lateral_view(cls, lv, collection):
+        if isinstance(lv.input, ProjectCollectionExpr):
+            src_inputs = (lv.input, lv.input.input)
+        else:
+            src_inputs = (lv.input,)
+        lv_copy = lv.copy(_id=None, _lateral_view=True)
+
+        cur = collection
+        while cur not in src_inputs and isinstance(cur, (ProjectCollectionExpr, FilterCollectionExpr)):
+            cur = cur.input
+        if cur not in src_inputs:
+            raise ExpressionError("Input of 'apply' in lateral views can only be "
+                                  "simple column selections")
+        if cur is lv.input:
+            apply_src = lv_copy
+        else:
+            apply_src = lv_copy.input
+
+        if collection is apply_src.input:
+            return lv_copy
+
+        for f in apply_src._fields:
+            cls._backtrack_field(f, collection)
+        lv_copy.substitute(apply_src.input, collection)
+        return lv_copy
+
+    def _filter_lateral_views(self, fields):
+        from .collections import RowAppliedCollectionExpr
+        from .merge import JoinFieldMergedCollectionExpr, JoinCollectionExpr, UnionCollectionExpr
+
+        walk_through_collections = (JoinCollectionExpr, UnionCollectionExpr,
+                                    JoinFieldMergedCollectionExpr)
+
+        lateral_views = []
+        for field in fields:
+            if not isinstance(field, RowAppliedCollectionExpr):
+                continue
+            else:
+                is_lv = True
+                stop_cond = lambda n: n is not self and isinstance(n, CollectionExpr) \
+                                      and not isinstance(n, walk_through_collections)
+                for coll in self.traverse(unique=True, stop_cond=stop_cond):
+                    if coll is field:
+                        is_lv = False
+                        break
+                if is_lv:
+                    lateral_views.append(field)
+        return lateral_views
+
     def _project(self, fields):
-        selects = self._get_fields(fields)
+        field_lvs = self._filter_lateral_views(fields)
+        lv_id_set = set(id(f) for f in field_lvs)
 
-        if all(isinstance(it, Scalar) for it in selects):
+        selects = []
+        lateral_views = []
+        for idx, field in enumerate(fields):
+            if id(field) not in lv_id_set:
+                s = self._get_fields([field])
+                selects.extend(s)
+            else:
+                lv = self._backtrack_lateral_view(field, self)
+                lateral_views.append(lv)
+                selects.extend(lv.columns)
+
+        names = [f.name for f in selects]
+        typos = [f.dtype for f in selects]
+
+        if not lateral_views and all(isinstance(it, Scalar) for it in selects):
             return self._summary(selects)
-
-        names = [select.name for select in selects]
-        typos = [select.dtype for select in selects]
 
         if len(names) != len(set(names)):
             counts = defaultdict(lambda: 0)
@@ -834,8 +897,12 @@ class CollectionExpr(Expr):
             raise ExpressionError('Duplicate column names: %s' %
                                   ', '.join(n for n in counts if counts[n] > 1))
 
-        return ProjectCollectionExpr(self, _fields=selects,
-                                     _schema=types.Schema.from_lists(names, typos))
+        if lateral_views:
+            return LateralViewCollectionExpr(self, _fields=selects, _lateral_views=lateral_views,
+                                             _schema=types.Schema.from_lists(names, typos))
+        else:
+            return ProjectCollectionExpr(self, _fields=selects,
+                                         _schema=types.Schema.from_lists(names, typos))
 
     def select(self, *fields, **kw):
         """
@@ -1400,6 +1467,16 @@ class BinarySequenceExpr(SequenceExpr):
         self._data_type = types.binary
 
 
+class ListSequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(ListSequenceExpr, self)._init(*args, **kwargs)
+
+
+class DictSequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(DictSequenceExpr, self)._init(*args, **kwargs)
+
+
 class UnknownSequenceExpr(SequenceExpr):
     def _init(self, *args, **kwargs):
         super(UnknownSequenceExpr, self)._init(*args, **kwargs)
@@ -1715,6 +1792,14 @@ class BinaryScalar(Scalar):
         self._value_type = types.binary
 
 
+class ListScalar(Scalar):
+    pass
+
+
+class DictScalar(Scalar):
+    pass
+
+
 class UnknownScalar(Scalar):
     def _init(self, *args, **kwargs):
         super(UnknownScalar, self)._init(*args, **kwargs)
@@ -1894,6 +1979,32 @@ class ProjectCollectionExpr(CollectionExpr):
         visitor.visit_project_collection(self)
 
 
+class LateralViewCollectionExpr(ProjectCollectionExpr):
+    _args = '_input', '_fields', '_lateral_views'
+    node_name = 'LateralView'
+
+    def _init(self, *args, **kwargs):
+        self._init_attr('_lateral_views', None)
+        super(LateralViewCollectionExpr, self)._init(*args, **kwargs)
+        self._redirect_lateral_views()
+
+    def _redirect_lateral_views(self):
+        # dealing with cases like df[df['a', 'b'].apply(..., axis=1), df.c]
+        for lv in self.lateral_views:
+            if lv.input is self.input:
+                continue
+            for f, f_o in zip(lv._fields, lv.input._fields):
+                lv.substitute(f, f_o)
+            lv.substitute(lv.input, self.input)
+
+    @property
+    def lateral_views(self):
+        return self._lateral_views
+
+    def accept(self, visitor):
+        visitor.visit_lateral_view(self)
+
+
 class FilterPartitionCollectionExpr(CollectionExpr):
     __slots__ = '_predicate_string',
 
@@ -2028,6 +2139,7 @@ from . import math
 from . import strings
 from . import datetimes
 from . import merge
+from . import composites
 from ..tools import *
 
 

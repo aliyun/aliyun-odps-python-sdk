@@ -24,11 +24,11 @@ from ..core import Backend
 from ...expr.expressions import *
 from ...expr.arithmetic import Power
 from ...expr.reduction import GroupedSequenceReduction, GroupedCount, Count, \
-    GroupedCat, Cat, NUnique, GroupedNUnique
+    GroupedCat, Cat, NUnique, GroupedNUnique, ToList, GroupedToList
 from ...expr.merge import JoinCollectionExpr
 from ...expr.datetimes import DTScalar
 from ...expr.collections import PivotCollectionExpr
-from ...expr import arithmetic, element
+from ...expr import arithmetic, element, composites
 from ...utils import traverse_until_source
 from ....dag import DAG
 from ..errors import CompileError
@@ -100,6 +100,34 @@ JOIN_DICT = {
     'LEFT OUTER': 'left',
     'RIGHT OUTER': 'right',
     'FULL OUTER': 'outer'
+}
+
+
+def _explode(obj):
+    if obj and isinstance(obj, tuple):
+        obj = obj[0]
+    if obj is None:
+        return
+    if isinstance(obj, dict):
+        for k, v in six.iteritems(obj):
+            yield k, v
+    else:
+        for v in obj:
+            yield v
+
+
+def _pos_explode(obj):
+    if obj and isinstance(obj, tuple):
+        obj = obj[0]
+    if obj is None:
+        return
+    for idx, v in enumerate(obj):
+        yield idx, v
+
+
+BUILTIN_FUNCS = {
+    'EXPLODE': _explode,
+    'POSEXPLODE': _pos_explode,
 }
 
 
@@ -389,6 +417,12 @@ class PandasCompiler(Backend):
                         return m.group(group)
                 df = self._merge_values([expr.input, expr._pat, expr._flags, expr._group], kw)
                 return pd.Series([extract(*r[1]) for r in df.iterrows()])
+            elif op == 'split':
+                return input.apply(lambda v: v.split(kv['pat'], kv['n']) if v is not None else None)
+            elif op == 'stringtodict':
+                def _parse_dict(x):
+                    return dict(it.split(kv['kv_delim'], 1) for it in x.split(kv['item_delim']))
+                return input.apply(lambda v: _parse_dict(v) if v is not None else None)
             else:
                 if op == 'slice':
                     kv['stop'] = kv.pop('end', None)
@@ -730,6 +764,12 @@ class PandasCompiler(Backend):
         if isinstance(expr, GroupedCat):
             return series.groupby(bys).apply(lambda x: kw.get(expr._sep).join(x))
 
+        if isinstance(expr, GroupedToList):
+            if expr._unique:
+                return series.groupby(bys).apply(lambda x: list(set(x)))
+            else:
+                return series.groupby(bys).apply(list)
+
         kv = dict()
         if hasattr(expr, '_ddof'):
             kv['ddof'] = expr._ddof
@@ -764,6 +804,11 @@ class PandasCompiler(Backend):
                 kv['na_rep'] = expr._na_rep.value \
                     if isinstance(expr._na_rep, Scalar) else expr._na_rep
                 return getattr(getattr(input, 'str'), 'cat')(**kv)
+            elif isinstance(expr, (ToList, GroupedToList)):
+                if expr._unique:
+                    return list(set(input))
+                else:
+                    return list(input)
             return getattr(input, op)(**kv)
 
         self._add_node(expr, handle)
@@ -958,7 +1003,12 @@ class PandasCompiler(Backend):
             names = [f.name for f in expr.fields]
             t = xnamedtuple('NamedArgs', names)
 
+            expr._func_args = expr._func_args or ()
+            expr._func_kwargs = expr._func_kwargs or {}
+
             func = expr._func
+            if isinstance(func, six.string_types) and func.upper() in BUILTIN_FUNCS:
+                func = BUILTIN_FUNCS[func.upper()]
             if inspect.isfunction(func):
                 if resources:
                     func = func(resources)
@@ -978,23 +1028,145 @@ class PandasCompiler(Backend):
                 raise NotImplementedError
 
             rows = []
+            indices = []
+            idx = 0
             for s in input.iterrows():
                 row = t(*s[1])
                 res = func(row, *expr._func_args, **expr._func_kwargs)
+                expand_num = 0
                 if is_generator_function:
                     for l in res:
                         rows.append(conv(l))
+                        expand_num += 1
                 else:
                     if res:
                         rows.append(conv(res))
+                        expand_num += 1
+                indices.extend([s[0]] * expand_num)
+                idx = max(idx, s[0] + 1)
             if close_func:
+                expand_num = 0
                 if is_close_generator_function:
                     for l in close_func(*expr._func_args, **expr._func_kwargs):
                         rows.append(conv(l))
+                        expand_num += 1
                 else:
                     rows.append(close_func(*expr._func_args, **expr._func_kwargs))
-            return self._check_output_types(pd.DataFrame(rows, columns=expr.schema.names),
-                                            expr.schema.types)
+                    expand_num += 1
+                indices.extend([idx] * expand_num)
+            if expr._lateral_view:
+                out_df = pd.DataFrame(rows, columns=expr.schema.names,
+                                      index=pd.Int64Index(indices))
+            else:
+                out_df = pd.DataFrame(rows, columns=expr.schema.names)
+            return self._check_output_types(out_df, expr.schema.types)
+
+        self._add_node(expr, handle)
+
+    def visit_lateral_view(self, expr):
+        def handle(kw):
+            lv_sources = dict()
+            for lv in expr.lateral_views:
+                for col_name in lv.schema.names:
+                    lv_sources[col_name] = lv
+
+            children = expr.children()
+
+            fields = self._get_children_vals(kw, children=children)[1:len(expr._fields) + 1]
+            names = expr.schema.names
+
+            idx = reduce(operator.and_, (set(f.index.tolist()) for f, e in zip(fields, expr._fields)
+                                         if isinstance(e, SequenceExpr)))
+            idx = pd.Int64Index(sorted(idx))
+            result = pd.DataFrame(index=idx)
+            lv_visited = set()
+            for i in range(len(fields)):
+                f = fields[i]
+                if names[i] in lv_sources:
+                    lv_src = lv_sources[names[i]]
+                    if lv_src in lv_visited:
+                        continue
+                    lv_visited.add(lv_src)
+                    f = kw[lv_src]
+                elif not isinstance(f, pd.Series):
+                    f = pd.Series([f] * len(idx), index=idx, name=names[i])
+                result = result.join(f)
+
+            return result
+
+        self._add_node(expr, handle)
+
+    def visit_composite_op(self, expr):
+        def handle(kw):
+            def _zip_args(fields):
+                zip_args = []
+                seq_index = None
+                for it in fields:
+                    if isinstance(it, SequenceExpr):
+                        zip_args.append(kw[it])
+                        seq_index = kw[it].index
+                    else:
+                        zip_args.append(itertools.repeat(kw[it]))
+                return seq_index, zip_args
+
+            children_vals = self._get_children_vals(kw, expr)
+            _input = children_vals[0]
+            if isinstance(expr, composites.ListDictLength):
+                return _input.apply(lambda v: len(v) if v is not None else None)
+            elif isinstance(expr, composites.ListDictGetItem):
+                _value = children_vals[1]
+                if isinstance(expr.input.dtype, df_types.List):
+                    item_fun = lambda s, k: s[k] if s is not None and k is not None and len(s) > k else None
+                else:
+                    item_fun = lambda s, k: s.get(k) if s is not None else None
+                if isinstance(expr, Scalar):
+                    return item_fun(_input, _value)
+                else:
+                    if isinstance(expr.input, Scalar):
+                        return _value.apply(lambda v: item_fun(_input, v))
+                    if isinstance(expr._key, Scalar):
+                        return _input.apply(lambda v: item_fun(v, _value))
+                    seq_values = [item_fun(k, v) for k, v in compat.izip(_input, _value)]
+                    return pd.Series(seq_values, index=_input.index, name=expr.name)
+            elif isinstance(expr, composites.ListContains):
+                _value = children_vals[1]
+                contains_fun = lambda s, k: k in s if s is not None else None
+                if isinstance(expr, Scalar):
+                    return contains_fun(_input, _value)
+                else:
+                    if isinstance(expr.input, Scalar):
+                        return _value.apply(lambda v: contains_fun(_input, v))
+                    if isinstance(expr._value, Scalar):
+                        return _input.apply(lambda v: contains_fun(v, _value))
+                    seq_values = [contains_fun(k, v) for k, v in compat.izip(_input, _value)]
+                    return pd.Series(seq_values, index=_input.index, name=expr.name)
+            elif isinstance(expr, composites.ListSort):
+                return _input.apply(lambda l: sorted(l) if l is not None else None)
+            elif isinstance(expr, composites.DictKeys):
+                return _input.apply(lambda d: list(six.iterkeys(d)) if d is not None else None)
+            elif isinstance(expr, composites.DictValues):
+                return _input.apply(lambda d: list(six.itervalues(d)) if d is not None else None)
+            elif isinstance(expr, composites.ListBuilder):
+                if isinstance(expr, Scalar):
+                    return [kw[v] for v in expr._values]
+                else:
+                    seq_index, zip_args = _zip_args(expr._values)
+                    seq_values = []
+                    for r in compat.izip(*zip_args):
+                        seq_values.append(list(r))
+                    return pd.Series(seq_values, index=seq_index, name=expr.name)
+            elif isinstance(expr, composites.DictBuilder):
+                if isinstance(expr, Scalar):
+                    return OrderedDict((kw[k], kw[v]) for k, v in compat.izip(expr._keys, expr._values))
+                else:
+                    seq_index, zip_args = _zip_args(expr._keys + expr._values)
+                    seq_values = []
+                    dict_len = len(expr._values)
+                    for r in zip(*zip_args):
+                        seq_values.append(OrderedDict((k, v) for k, v in compat.izip(r[:dict_len], r[dict_len:])))
+                    return pd.Series(seq_values, index=seq_index, name=expr.name)
+            else:
+                raise NotImplementedError
 
         self._add_node(expr, handle)
 

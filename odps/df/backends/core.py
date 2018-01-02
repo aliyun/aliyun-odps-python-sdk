@@ -60,6 +60,9 @@ class Backend(object):
     def visit_apply_collection(self, expr):
         raise NotImplementedError
 
+    def visit_lateral_view(self, expr):
+        raise NotImplementedError
+
     def visit_filter_collection(self, expr):
         raise NotImplementedError
 
@@ -88,6 +91,9 @@ class Backend(object):
         raise NotImplementedError
 
     def visit_datetime_op(self, expr):
+        raise NotImplementedError
+
+    def visit_composite_op(self, expr):
         raise NotImplementedError
 
     def visit_groupby(self, expr):

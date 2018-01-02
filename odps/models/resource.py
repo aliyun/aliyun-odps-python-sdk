@@ -592,15 +592,6 @@ class TableResource(Resource):
                                         partition_spec)
 
     def get_source_table(self):
-        """
-        Get the table object.
-
-        :return: source table
-        :rtype: :class:`odps.models.Table`
-
-        .. seealso:: :class:`odps.models.Table`
-        """
-
         if self.source_table_name is None:
             return
 
@@ -616,12 +607,6 @@ class TableResource(Resource):
         return Projects(client=self._client)[project_name].tables[table_name]
 
     def get_source_table_partition(self):
-        """
-        Get the source table partition.
-
-        :return: the source table partition
-        """
-
         if self.source_table_name is None:
             return
 
@@ -631,6 +616,44 @@ class TableResource(Resource):
 
         partition = splits[1].split(')', 1)[0].strip()
         return types.PartitionSpec(partition)
+
+    @property
+    def table(self):
+        """
+        Get the table object.
+
+        :return: source table
+        :rtype: :class:`odps.models.Table`
+
+        .. seealso:: :class:`odps.models.Table`
+        """
+
+        return self.get_source_table()
+
+    @property
+    def partition(self):
+        """
+        Get the source table partition.
+
+        :return: the source table partition
+        """
+
+        pt = self.get_source_table_partition()
+        if pt is None:
+            return
+        return self.get_source_table().get_partition(pt)
+
+    def open_reader(self, **kwargs):
+        """
+        Open reader on the table resource
+        """
+        return self.get_source_table().open_reader(partition=self.get_source_table_partition(), **kwargs)
+
+    def open_writer(self, **kwargs):
+        """
+        Open writer on the table resource
+        """
+        return self.get_source_table().open_writer(partition=self.get_source_table_partition(), **kwargs)
 
     def update(self, project_name=None, table_name=None, partition=None):
         """

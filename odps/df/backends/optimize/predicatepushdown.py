@@ -19,7 +19,7 @@ import itertools
 
 from ..core import Backend
 from ...expr.expressions import ProjectCollectionExpr, FilterCollectionExpr, \
-    Column, SequenceExpr
+    LateralViewCollectionExpr, Column, SequenceExpr
 from ...expr.element import IsIn
 from ...expr.merge import InnerJoin
 from ...expr.arithmetic import And
@@ -69,15 +69,37 @@ class PredicatePushdown(Backend):
             if len(filters) > 1:
                 new_expr = Optimizer.get_compact_filters(self._dag, *filters)
                 expr._predicate = new_expr.predicate
-
         if isinstance(input, ProjectCollectionExpr):
             if any(isinstance(seq, (Window, SequenceReduction))
                    for seq in itertools.chain(*input.all_path(input.input, strict=True))):
                 # if any reduction like sum or window op exists, skip
                 return
             sub()
-            self._push_down_through_projection(expr.predicate, expr, input)
-            self._dag.substitute(expr, expr.input)
+            predicate = expr.predicate
+            remain = None
+            if isinstance(input, LateralViewCollectionExpr):
+                udtf_columns = set()
+                for lv in input.lateral_views:
+                    udtf_columns.update(lv.schema.names)
+                pushes = []
+                remains = []
+                for p in predicates:
+                    cols = [col.source_name for path in p.all_path(input, strict=True)
+                            for col in path if isinstance(col, Column)]
+                    if not (set(cols) & udtf_columns):
+                        pushes.append(p)
+                    else:
+                        remains.append(p)
+                if not pushes:
+                    return
+                predicate = reduce(operator.and_, pushes)
+                if remains:
+                    remain = reduce(operator.and_, remains)
+            self._push_down_through_projection(predicate, expr, input)
+            if remain is None:
+                self._dag.substitute(expr, expr.input)
+            else:
+                expr.substitute(expr._predicate, remain, dag=self._dag)
         elif isinstance(input, InnerJoin):
             sub()
             remains = []

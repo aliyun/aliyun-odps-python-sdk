@@ -304,11 +304,11 @@ class TestBase(_TestBase):
                 try:
                     if numpy.isnan(t):
                         return None
-                except TypeError:
+                except (TypeError, ValueError):
                     pass
                 if isinstance(t, pandas.Timestamp):
                     t = t.to_pydatetime()
-                elif pandas.isnull(t):
+                elif not isinstance(t, (list, dict, tuple)) and pandas.isnull(t):
                     t = None
                 return t
 

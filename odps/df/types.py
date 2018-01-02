@@ -138,15 +138,11 @@ class List(Array):
 
     def __init__(self, value_type, nullable=True):
         DataType.__init__(self, nullable=nullable)
-        value_type = validate_data_type(value_type)
-        if not isinstance(value_type, Integer) and not isinstance(value_type, Float) and \
-                value_type not in (string, boolean, decimal):
-            raise ValueError('Invalid value type: %s' % repr(value_type))
-        self.value_type = value_type
+        self.value_type = validate_data_type(value_type)
 
     @property
     def CLASS_NAME(self):
-        return '%s%s' % (self.value_type.CLASS_NAME, 'List')
+        return 'List'
 
     def _equals(self, other):
         if isinstance(other, six.string_types):
@@ -169,19 +165,12 @@ class Dict(Map):
 
     def __init__(self, key_type, value_type, nullable=True):
         DataType.__init__(self, nullable=nullable)
-        key_type = validate_data_type(key_type)
-        if not isinstance(key_type, Integer) and key_type != string:
-            raise ValueError('Invalid key type: %s' % repr(key_type))
-        value_type = validate_data_type(value_type)
-        if not isinstance(value_type, Integer) and not isinstance(value_type, Float) and \
-                value_type != string:
-            raise ValueError('Invalid value type: %s' % repr(value_type))
-        self.key_type = key_type
-        self.value_type = value_type
+        self.key_type = validate_data_type(key_type)
+        self.value_type = validate_data_type(value_type)
 
     @property
     def CLASS_NAME(self):
-        return '%s%s%s' % (self.key_type.CLASS_NAME, self.value_type.CLASS_NAME, 'Dict')
+        return 'Dict'
 
     def _equals(self, other):
         if isinstance(other, six.string_types):
@@ -221,6 +210,12 @@ _data_types = dict(
 )
 
 
+_composite_handlers = dict(
+    list=List,
+    dict=Dict,
+)
+
+
 def validate_data_type(data_type):
     if isinstance(data_type, DataType):
         return data_type
@@ -234,7 +229,7 @@ def validate_data_type(data_type):
         if data_type in _data_types:
             return _data_types[data_type]
 
-        composite_type = parse_composite_types(data_type, array_cls=List, map_cls=Dict)
+        composite_type = parse_composite_types(data_type, _composite_handlers)
         if composite_type:
             return composite_type
 

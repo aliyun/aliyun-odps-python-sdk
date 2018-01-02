@@ -183,4 +183,4 @@ class Partition(LazyLoad):
         return self.table.open_reader(str(self), **kw)
 
     def open_writer(self, blocks=None, **kw):
-        return self.table.open_reader(str(self), blocks=blocks, **kw)
+        return self.table.open_writer(str(self), blocks=blocks, **kw)

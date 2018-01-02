@@ -219,7 +219,8 @@ class BaseAnalyzer(Backend):
                         val = getattr(row, value_name)
                         idx = len(columns) * val_idx + columns.index(col)
                         if values[idx] is not None:
-                            raise ValueError('Row contains duplicate entries')
+                            raise ValueError(
+                                'Row contains duplicate entries, rows: {0}, column: {1}'.format(keys, col))
                         values[idx] = val
                     if done:
                         yield keys + tuple(values)

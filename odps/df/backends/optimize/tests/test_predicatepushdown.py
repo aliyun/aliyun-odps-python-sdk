@@ -44,6 +44,11 @@ class Test(TestBase):
         table3 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
         self.expr3 = CollectionExpr(_source_data=table3, _schema=schema2)
 
+        schema3 = Schema.from_lists(['id', 'name', 'relatives', 'hobbies'],
+                                    datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
+        table4 = MockTable(name='pyodps_test_expr_table', schema=schema)
+        self.expr4 = CollectionExpr(_source_data=table4, _schema=schema3)
+
         self.maxDiff = None
 
     def testFilterPushdownThroughProjection(self):
@@ -438,6 +443,33 @@ class Test(TestBase):
                    "WHEN 19 < (CAST(t1.`e` AS BIGINT) / CAST(t1.`c` AS BIGINT)) THEN '19' END) == '9'"
 
         self.assertEqual(str(expected), str(ODPSEngine(self.odps).compile(p2[p2.f_cut == '9'], prettify=False)))
+
+    def testFilterPushdownThroughLateralView(self):
+        expr = self.expr4[self.expr4.id, self.expr4.name, self.expr4.hobbies.explode('hobby')]
+        expr2 = expr[expr.hobby.notnull() & (expr.id < 4)]
+
+        expected = 'SELECT * \n' \
+                   'FROM (\n' \
+                   '  SELECT t2.`id`, t2.`name`, t3.`hobby` \n' \
+                   '  FROM (\n' \
+                   '    SELECT * \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '    WHERE t1.`id` < 4\n' \
+                   '  ) t2 \n' \
+                   '  LATERAL VIEW EXPLODE(t2.`hobbies`) t3 AS `hobby` \n' \
+                   ') t4 \n' \
+                   'WHERE t4.`hobby` IS NOT NULL'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr2, prettify=False)))
+
+        expected = 'SELECT * \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`id`, t1.`name`, t2.`hobby` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  LATERAL VIEW EXPLODE(t1.`hobbies`) t2 AS `hobby` \n' \
+                   ') t3 \n' \
+                   'WHERE (t3.`hobby` IS NOT NULL) OR (t3.`id` < 4)'
+        expr3 = expr[expr.hobby.notnull() | (expr.id < 4)]
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr3, prettify=False)))
 
 
 if __name__ == '__main__':

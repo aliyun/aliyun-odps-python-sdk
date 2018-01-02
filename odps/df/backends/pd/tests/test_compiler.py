@@ -46,5 +46,6 @@ class Test(TestBase):
         self.assertIsInstance(topos[2][0], Column)
         self.assertIsInstance(topos[3][0], ProjectCollectionExpr)
 
+
 if __name__ == '__main__':
     unittest.main()

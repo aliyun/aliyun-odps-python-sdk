@@ -308,6 +308,15 @@ class GroupedCat(GroupedSequenceReduction):
             self._na_rep = Scalar(_value=self._na_rep)
 
 
+class ToList(SequenceReduction):
+    __slots__ = '_unique',
+
+
+class GroupedToList(GroupedSequenceReduction):
+    __slots__ = '_unique',
+    node_name = 'tolist'
+
+
 class Aggregation(SequenceReduction):
     __slots__ = '_aggregator', '_func_args', '_func_kwargs', '_resources', '_raw_inputs'
     _args = '_inputs', '_collection_resources', '_by'
@@ -719,6 +728,21 @@ def agg(*args, **kwargs):
     return aggregate(*args, **kwargs)
 
 
+def tolist(expr, **kwargs):
+    """
+    Pack all data in the sequence into a list
+    :param expr:
+    :param unique: make every elements in the sequence to be unique
+    :return:
+    """
+    unique = kwargs.get('unique', kwargs.get('_unique', False))
+    output_type = None
+
+    if isinstance(expr, (SequenceExpr, SequenceGroupBy)):
+        output_type = types.List(expr._data_type)
+    return _reduction(expr, ToList, output_type, _unique=unique)
+
+
 _number_sequence_methods = dict(
     var=var,
     std=std,
@@ -737,6 +761,7 @@ _sequence_methods = dict(
     count=count,
     size=count,
     nunique=nunique,
+    tolist=tolist,
 )
 
 number_sequences = [globals().get(repr(t).capitalize() + SequenceExpr.__name__)

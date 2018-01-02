@@ -148,7 +148,7 @@ class Test(TestBase):
         self.assertIsInstance(expr['scale'] // d, arithmetic.FloorDivide)
         self.assertIsInstance(expr['scale'] // expr['scale'], arithmetic.FloorDivide)
 
-        # comparision
+        # comparison
         self.assertIsInstance(expr['id'] == expr['fid'], arithmetic.Equal)
         self.assertIsInstance(expr['id'] == 20, arithmetic.Equal)
         self.assertIsInstance(expr['fid'] == 20, arithmetic.Equal)

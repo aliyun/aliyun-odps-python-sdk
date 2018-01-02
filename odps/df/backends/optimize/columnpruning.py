@@ -17,7 +17,8 @@
 from ..core import Backend
 from ...expr.core import ExprProxy
 from ...expr.expressions import Column, CollectionExpr, FilterCollectionExpr
-from ...expr.collections import SortedCollectionExpr, SliceCollectionExpr
+from ...expr.collections import SortedCollectionExpr, SliceCollectionExpr, \
+    RowAppliedCollectionExpr, LateralViewCollectionExpr
 from ...expr.merge import JoinCollectionExpr, UnionCollectionExpr
 from ....models import Schema
 from ...utils import is_project_expr, traverse_until_source
@@ -69,6 +70,22 @@ class ColumnPruning(Backend):
                 cols = self._remain_columns[proxy]
                 if p._lhs is expr or p._rhs is expr:
                     columns = columns.union(cols)
+            elif isinstance(p, LateralViewCollectionExpr):
+                proxy = ExprProxy(p)
+                if proxy not in self._remain_columns:
+                    continue
+                col_lists = self._remain_columns[proxy]
+                sources = [p.input]
+                sources.extend(p.lateral_views)
+
+                found = False
+                for clist, coll in zip(col_lists, sources):
+                    if coll is expr:
+                        columns = columns.union(clist)
+                        found = True
+                        break
+                if not found:
+                    continue
             else:
                 proxy = ExprProxy(p)
                 if proxy not in self._remain_columns:
@@ -85,6 +102,13 @@ class ColumnPruning(Backend):
         return False, sorted(columns)
 
     def _need_project_on_source(self, expr):
+        def filter_parent(p):
+            if not isinstance(p, CollectionExpr):
+                return False
+            if isinstance(p, RowAppliedCollectionExpr) and p._lateral_view:
+                return False
+            return True
+
         def no_project(node):
             if is_project_expr(node):
                 # has been projected out, just skip
@@ -94,8 +118,7 @@ class ColumnPruning(Backend):
                 return True
             if isinstance(node, (FilterCollectionExpr, SortedCollectionExpr,
                                  SliceCollectionExpr)) or node is expr:
-                collection_parents = [n for n in parents
-                                      if isinstance(n, CollectionExpr)]
+                collection_parents = [n for n in parents if filter_parent(n)]
                 if len(collection_parents) == 1 and no_project(collection_parents[0]):
                     return True
             return False
@@ -126,6 +149,23 @@ class ColumnPruning(Backend):
         # the apply cannot be pruned because the input
         # and output of apply is defined by the user
         return
+
+    def visit_lateral_view(self, expr):
+        prune, columns = self._need_prune(expr)
+        columns = columns or expr.schema.names
+        col_set = set(columns)
+
+        remain_input_cols = [n.source_name for n in expr._fields
+                             if isinstance(n, Column) and n.input is expr.input and n.name in col_set]
+        input_cols = [remain_input_cols]
+        for lv in expr.lateral_views:
+            input_cols.append(lv.schema.names)
+
+        self._remain_columns[ExprProxy(expr)] = tuple(input_cols)
+
+        if not prune:
+            return
+        expr._schema = Schema(columns=[expr._schema[col] for col in columns])
 
     def _visit_all_columns_project_collection(self, expr):
         prune, columns = self._need_prune(expr)

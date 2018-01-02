@@ -390,13 +390,14 @@ bfill 等价于 fillna(method='bfill')
 对所有行/列调用自定义函数
 ------------------------
 
+.. _dfudtfapp:
 
 对一行数据使用自定义函数
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-要对一行数据使用自定义函数，可以使用apply方法，axis参数必须为1，表示在行上操作。
+要对一行数据使用自定义函数，可以使用 apply 方法，axis 参数必须为 1，表示在行上操作。
 
-apply的自定义函数接收一个参数，为上一步Collection的一行数据，用户可以通过属性、或者偏移取得一个字段的数据。
+apply 的自定义函数接收一个参数，为上一步 Collection 的一行数据，用户可以通过属性、或者偏移取得一个字段的数据。
 
 .. code:: python
 
@@ -406,11 +407,11 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
     1       7.9
     2       7.9
 
-``reduce``\ 为True时，表示返回结果为Sequence，否则返回结果为Collection。
+``reduce``\ 为 True 时，表示返回结果为Sequence，否则返回结果为Collection。
 ``names``\ 和 ``types``\ 参数分别指定返回的Sequence或Collection的字段名和类型。
 如果类型不指定，将会默认为string类型。
 
-在apply的自定义函数中，reduce为False时，也可以使用 ``yield``\ 关键字来返回多行结果。
+在 apply 的自定义函数中，reduce 为 False 时，也可以使用 ``yield``\ 关键字来返回多行结果。
 
 .. code:: python
 
@@ -439,7 +440,7 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
     >>> iris.apply(handle, axis=1).count()
     300
 
-也可以使用 map-only 的map_reduce，和 axis=1 的apply操作是等价的。
+也可以使用 map-only 的 map_reduce，和 axis=1 的apply操作是等价的。
 
 .. code:: python
 
@@ -451,6 +452,19 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
 .. code:: python
 
     >>> iris['name', 'sepallength'].apply('your_func', axis=1, names=['name2', 'sepallength2'], types=['string', 'float'])
+
+使用 apply 对行操作，且 ``reduce``\ 为 False 时，可以使用 :ref:`dflateralview` 与已有的行结合，用于后续聚合等操作。
+
+.. code:: python
+  
+    >>> from odps.df import output
+    >>>
+    >>> @output(['iris_add', 'iris_sub'], ['float', 'float'])
+    >>> def handle(row):
+    >>>     yield row.sepallength - row.sepalwidth, row.sepallength + row.sepalwidth
+    >>>     yield row.petallength - row.petalwidth, row.petallength + row.petalwidth
+    >>>
+    >>> iris[iris.category, iris.apply(handle, axis=1)]
 
 对所有列调用自定义聚合
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -485,7 +499,6 @@ apply的自定义函数接收一个参数，为上一步Collection的一行数�
 
 引用资源
 ~~~~~~~~~~~~~
-
 
 类似于对 :ref:`map <map>` 方法的resources参数，每个resource可以是ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。
 

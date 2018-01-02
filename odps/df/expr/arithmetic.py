@@ -54,7 +54,7 @@ class Arithmetic(BinOp):
     __slots__ = ()
 
 
-class Comparision(BinOp):
+class Comparison(BinOp):
     __slots__ = ()
 
 
@@ -102,27 +102,27 @@ class Power(Arithmetic):
     __slots__ = ()
 
 
-class Greater(Comparision):
+class Greater(Comparison):
     __slots__ = ()
 
 
-class Less(Comparision):
+class Less(Comparison):
     __slots__ = ()
 
 
-class Equal(Comparision):
+class Equal(Comparison):
     __slots__ = ()
 
 
-class NotEqual(Comparision):
+class NotEqual(Comparison):
     __slots__ = ()
 
 
-class GreaterEqual(Comparision):
+class GreaterEqual(Comparison):
     __slots__ = ()
 
 
-class LessEqual(Comparision):
+class LessEqual(Comparison):
     __slots__ = ()
 
 

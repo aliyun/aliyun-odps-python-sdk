@@ -79,3 +79,27 @@
    >>> table_resource = o.get_resource('test_table_resource')
    >>> table_resource.update(partition='pt=test2', project_name='my_project2')
 
+获取表及分区
+~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   >>> table_resource = o.get_resource('test_table_resource')
+   >>> table = table_resource.table
+   >>> print(table.name)
+   >>> partition = table_resource.partition
+   >>> print(partition.spec)
+
+读写内容
+~~~~~~~~
+
+.. code-block:: python
+
+   >>> table_resource = o.get_resource('test_table_resource')
+   >>> with table_resource.open_writer() as writer:
+   >>>     writer.write([0, 'aaaa'])
+   >>>     writer.write([1, 'bbbbb'])
+   >>> with table_resource.open_reader() as reader:
+   >>>     for rec in reader:
+   >>>         print(rec)
+

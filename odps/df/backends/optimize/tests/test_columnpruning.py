@@ -22,7 +22,7 @@ from odps.df import Scalar, NullScalar, BuiltinFunction, output
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.expressions import CollectionExpr, ProjectCollectionExpr, \
-    FilterCollectionExpr
+    FilterCollectionExpr, LateralViewCollectionExpr
 from odps.df.backends.optimize.columnpruning import ColumnPruning
 from odps.df.backends.odpssql.tests.test_compiler import ODPSEngine
 
@@ -46,6 +46,11 @@ class Test(TestBase):
                                     ['part1', 'part2'], datatypes('string', 'int64'))
         table3 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
         self.expr3 = CollectionExpr(_source_data=table3, _schema=Schema(columns=schema2.columns))
+
+        schema3 = Schema.from_lists(['id', 'name', 'relatives', 'hobbies'],
+                                    datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
+        table4 = MockTable(name='pyodps_test_expr_table', schema=schema)
+        self.expr4 = CollectionExpr(_source_data=table4, _schema=schema3)
 
     def testProjectPrune(self):
         expr = self.expr.select('name', 'id')
@@ -308,6 +313,24 @@ class Test(TestBase):
                    ') t3'
 
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+    def testLateralViewPrune(self):
+        expr = self.expr4['name', 'id', self.expr4.hobbies.explode()]
+        new_expr = ColumnPruning(expr.to_dag()).prune()
+        self.assertIsInstance(new_expr, LateralViewCollectionExpr)
+        self.assertIsNotNone(new_expr.input._source_data)
+
+        expected = 'SELECT t1.`name`, t1.`id`, t2.`hobbies` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'LATERAL VIEW EXPLODE(t1.`hobbies`) t2 AS `hobbies`'
+        self.assertEqual(expected, ODPSEngine(self.odps).compile(expr, prettify=False))
+
+        expected = 'SELECT t1.`id`, t2.`hobbies` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'LATERAL VIEW EXPLODE(t1.`hobbies`) t2 AS `hobbies`'
+
+        expr2 = expr[expr.id, expr.hobbies]
+        self.assertEqual(expected, ODPSEngine(self.odps).compile(expr2, prettify=False))
 
 
 if __name__ == '__main__':

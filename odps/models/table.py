@@ -386,6 +386,7 @@ class Table(LazyLoad):
                               can be ``zlib``, ``snappy``
         :param compress_level: used for ``zlib``, work when ``compress_option`` is not provided
         :param compress_strategy: used for ``zlib``, work when ``compress_option`` is not provided
+        :param download_id: use existing download_id to download table contents
         :return: reader, ``count`` means the full size, ``status`` means the tunnel status
 
         :Example:
@@ -400,10 +401,12 @@ class Table(LazyLoad):
 
         reopen = kw.pop('reopen', False)
         endpoint = kw.pop('endpoint', None)
+        download_id = kw.pop('download_id', None)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint)
-        download_ids = self._download_ids
-        download_id = download_ids.get(partition) if not reopen else None
+        if download_id is None:
+            download_ids = self._download_ids
+            download_id = download_ids.get(partition) if not reopen else None
         download_session = tunnel.create_download_session(table=self, partition_spec=partition,
                                                           download_id=download_id, **kw)
 
@@ -414,6 +417,10 @@ class Table(LazyLoad):
         class RecordReader(readers.AbstractRecordReader):
             def __init__(self):
                 self._it = iter(self)
+
+            @property
+            def download_id():
+                return download_session.id
 
             @property
             def count(self):
@@ -469,6 +476,7 @@ class Table(LazyLoad):
         :param create_partition: if true, the partition will be created if not exist
         :type create_partition: bool
         :param endpoint: the tunnel service URL
+        :param upload_id: use existing upload_id to upload data
         :param compress_option: compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :param compress_algo: compression algorithm, work when ``compress_option`` is not provided,
@@ -493,6 +501,7 @@ class Table(LazyLoad):
         commit = kw.pop('commit', True)
         create_partition = kw.pop('create_partition', False)
         endpoint = kw.pop('endpoint', None)
+        upload_id = kw.pop('upload_id', None)
 
         if partition and not isinstance(partition, odps_types.PartitionSpec):
             partition = odps_types.PartitionSpec(partition)
@@ -500,8 +509,9 @@ class Table(LazyLoad):
             self.create_partition(partition, if_not_exists=True)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint)
-        upload_ids = self._upload_ids
-        upload_id = upload_ids.get(partition) if not reopen else None
+        if upload_id is None:
+            upload_ids = self._upload_ids
+            upload_id = upload_ids.get(partition) if not reopen else None
         upload_session = tunnel.create_upload_session(table=self, partition_spec=partition,
                                                       upload_id=upload_id, **kw)
 
@@ -523,6 +533,10 @@ class Table(LazyLoad):
             def __init__(self, table):
                 self._table = table
                 self._closed = False
+
+            @property
+            def upload_id(self):
+                return upload_session.id
 
             @property
             def status(self):

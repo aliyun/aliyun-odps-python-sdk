@@ -25,9 +25,7 @@ from ...expr.element import MappedExpr, Func
 from ...expr.window import CumSum
 from ...expr.datetimes import DTScalar
 from ...expr.collections import RowAppliedCollectionExpr
-from ...expr import element
-from ...expr import strings
-from ...expr import datetimes
+from ...expr import element, strings, datetimes, composites
 from ...utils import is_source_collection, traverse_until_source
 from ... import types as df_types
 from . import types
@@ -150,7 +148,7 @@ class OdpsSQLCompiler(Backend):
     @classmethod
     def _retrieve_until_find_root(cls, expr):
         for node in traverse_until_source(expr, top_down=True, unique=True):
-            if isinstance(node, (JoinCollectionExpr, UnionCollectionExpr)) and \
+            if isinstance(node, (JoinCollectionExpr, UnionCollectionExpr, LateralViewCollectionExpr)) and \
                     not all(n is None for n in node.args):
                 yield node
             else:
@@ -248,6 +246,38 @@ class OdpsSQLCompiler(Backend):
 
         self._callbacks.append(cb)
 
+    def _compile_lateral_view(self, expr, traversed):
+        travs = set()
+        compiled_input, trav = self._compile(expr.input, return_traversed=True)
+        travs.update(trav)
+
+        if not is_source_collection(expr.input) and not isinstance(expr.input, LateralViewCollectionExpr):
+            compiled_input = '(\n{0}\n) {1}'.format(utils.indent(compiled_input, self._indent_size),
+                                                    self._ctx.get_collection_alias(expr.input, create=True)[0])
+        else:
+            compiled_input = self._ctx.get_expr_compiled(expr.input)
+
+        from_lines = [compiled_input]
+        for lview in expr.lateral_views:
+            self._compile(lview)
+            from_lines.append(self._ctx.get_expr_compiled(lview))
+        from_clause = ' \n'.join(from_lines)
+
+        traversed.update(travs)
+
+        self._sub_compiles[expr].append(from_clause)
+
+        args = expr.args
+        self._ctx._expr_raw_args[id(expr)] = args
+        for arg_name in expr._args:
+            setattr(expr, arg_name, None)
+
+        def cb():
+            for arg_name, arg in zip(expr._args, args):
+                setattr(expr, arg_name, arg)
+
+        self._callbacks.append(cb)
+
     def _compile(self, expr, traversed=None,
                  return_traversed=False, root_expr=None):
         roots = self._retrieve_until_find_root(expr)
@@ -261,6 +291,8 @@ class OdpsSQLCompiler(Backend):
                     self._compile_join_node(root, traversed)
                 elif isinstance(root, UnionCollectionExpr):
                     self._compile_union_node(root, traversed)
+                elif isinstance(root, LateralViewCollectionExpr):
+                    self._compile_lateral_view(root, traversed)
                 elif isinstance(root, (element.IsIn, element.NotIn)):
                     self._compile_in_node(root, traversed)
                 root.accept(self)
@@ -391,6 +423,12 @@ class OdpsSQLCompiler(Backend):
                 args = self._ctx._expr_raw_args[id(collection)]  # get the args which are substituted out
                 lhs, rhs = args[0], args[1]
                 collection = (lhs, rhs)[idx]
+            elif isinstance(collection, LateralViewCollectionExpr):
+                args = self._ctx._expr_raw_args[id(collection)]  # get the args which are substituted out
+                for lv in args[2]:
+                    if column_name in lv.schema._name_indexes:
+                        return lv, column_name
+                return args[0], column_name
             elif self._ctx.get_collection_alias(collection, silent=True):
                 return collection, column_name
             elif isinstance(getattr(collection, 'input', None), CollectionExpr):
@@ -542,7 +580,13 @@ class OdpsSQLCompiler(Backend):
         compiled = self._join_select_fields(compiled_fields)
 
         self._ctx.add_expr_compiled(expr, compiled)
+
         self.add_select_clause(expr, compiled)
+
+    def visit_lateral_view(self, expr):
+        compiled = self._sub_compiles[expr][0]
+        self._ctx.add_expr_compiled(expr, compiled)
+        self.add_from_clause(expr, compiled)
 
     def visit_filter_collection(self, expr):
         predicate = expr.args[1]
@@ -846,6 +890,12 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, strings.Repeat):
             compiled = 'REPEAT(%s, %s)' % (
                 input, self._ctx.get_expr_compiled(expr._repeats))
+        elif isinstance(expr, strings.Split):
+            if expr.n != -1:
+                raise NotImplementedError
+            compiled = 'SPLIT(%s, \'%s\')' % (input, expr.pat)
+        elif isinstance(expr, strings.StringToDict):
+            compiled = 'STR_TO_MAP(%s, \'%s\', \'%s\')' % (input, expr.item_delim, expr.kv_delim)
 
         if compiled is not None:
             self._ctx.add_expr_compiled(expr, compiled)
@@ -868,6 +918,43 @@ class OdpsSQLCompiler(Backend):
             compiled = 'DATETRUNC(%s, %r)' % (input, 'dd')
         elif isinstance(expr, datetimes.UnixTimestamp):
             compiled = 'UNIX_TIMESTAMP(%s)' % input
+
+        if compiled is not None:
+            self._ctx.add_expr_compiled(expr, compiled)
+        else:
+            raise NotImplementedError
+
+    def visit_composite_op(self, expr):
+        if getattr(expr, 'input', None) is not None:
+            input = self._ctx.get_expr_compiled(expr.input)
+        else:
+            input = None
+
+        compiled = None
+        if isinstance(expr, composites.ListDictLength):
+            compiled = 'SIZE(%s)' % input
+        elif isinstance(expr, composites.ListDictGetItem):
+            compiled = '%s[%s]' % (input, self._ctx.get_expr_compiled(expr._key))
+        elif isinstance(expr, composites.ListSort):
+            compiled = 'SORT_ARRAY(%s)' % input
+        elif isinstance(expr, composites.ListContains):
+            compiled = 'ARRAY_CONTAINS(%s, %s)' % (
+                input,
+                self._ctx.get_expr_compiled(expr._value)
+            )
+        elif isinstance(expr, composites.DictKeys):
+            compiled = 'MAP_KEYS(%s)' % input
+        elif isinstance(expr, composites.DictValues):
+            compiled = 'MAP_VALUES(%s)' % input
+        elif isinstance(expr, composites.ListBuilder):
+            compiled = 'ARRAY(%s)' % ', '.join(
+                self._ctx.get_expr_compiled(it) for it in expr._values
+            )
+        elif isinstance(expr, composites.DictBuilder):
+            compiled = 'MAP(%s)' % ', '.join(
+                '%s, %s' % (self._ctx.get_expr_compiled(it1), self._ctx.get_expr_compiled(it2))
+                for it1, it2 in zip(expr._keys, expr._values)
+            )
 
         if compiled is not None:
             self._ctx.add_expr_compiled(expr, compiled)
@@ -965,6 +1052,9 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, (Cat, GroupedCat)):
             compiled = 'WM_CONCAT(%s, %s)' % (self._ctx.get_expr_compiled(expr._sep),
                                               self._ctx.get_expr_compiled(expr.input))
+        elif isinstance(expr, (ToList, GroupedToList)):
+            func_name = 'COLLECT_SET' if expr._unique else 'COLLECT_LIST'
+            compiled = '%s(%s)' % (func_name, self._ctx.get_expr_compiled(expr.input))
         else:
             node_name = expr.node_name
 
@@ -1085,12 +1175,17 @@ class OdpsSQLCompiler(Backend):
                 and not is_func_created:
             func_args = [repr(arg) for arg in expr._func_args]
             args.extend(func_args)
-        compiled = '{0}({1}) AS ({2})'.format(
-            func_name, ', '.join(args),
-            ', '.join(self._quote(n) for n in expr.schema.names))
+
+        func_call = '{0}({1})'.format(func_name, ', '.join(args))
+        field_list = ', '.join(self._quote(n) for n in expr.schema.names)
+        if expr._lateral_view:
+            compiled = 'LATERAL VIEW {0} {1} AS {2}'.format(
+                func_call, self._ctx.get_collection_alias(expr, create=True)[0], field_list)
+        else:
+            compiled = '{0} AS ({1})'.format(func_call, field_list)
+            self.add_select_clause(expr, compiled)
 
         self._ctx.add_expr_compiled(expr, compiled)
-        self.add_select_clause(expr, compiled)
 
     def _wrap_typed(self, expr, compiled):
         if expr._source_data_type != expr._data_type:

@@ -204,7 +204,7 @@ DataFrame API提供了一系列针对string类型的Sequence或者Scalar的操�
 string相关操作包括：
 
 ============= ===========================================================================================================================================================================
- string 操作   算法类型
+ string 操作   说明
 ============= ===========================================================================================================================================================================
  capitalize
  contains      包含某个字符串，如果 regex 参数为 True，则是包含某个正则表达式，默认为 True
@@ -224,6 +224,7 @@ string相关操作包括：
  lstrip        在左侧删除空格（包括空行符）
  rstrip        在右侧删除空格（包括空行符）
  strip         在左右两侧删除空格（包括空行符）
+ split         将字符串按分隔符拆分为若干个字符串（返回 list<string> 类型）
  pad           在指定的位置（left，right 或者 both）用指定填充字符（用 ``fillchar`` 指定，默认空格）来对齐
  repeat        重复指定 ``n`` 次
  slice         切片操作
@@ -239,6 +240,7 @@ string相关操作包括：
  istitle       同 str.istitle
  isnumeric     同 str.isnumeric
  isdecimal     同 str.isdecimal
+ todict        将字符串按分隔符拆分为一个 dict，传入的两个参数分别为项目分隔符和 Key-Value 分隔符（返回 dict<string, string> 类型）
  strptime      按格式化读取成时间，时间格式和Python标准库相同，详细参考 `Python 时间格式化 <https://docs.python.org/2/library/datetime.html#strftime-and-strptime-behavior>`_
 ============= ===========================================================================================================================================================================
 
@@ -317,6 +319,104 @@ PyODPS 也支持时间的加减操作，比如可以通过以下方法得到前3
  second
  millisecond
 ============= =======
+
+.. _dfcollections:
+
+集合类型相关操作
+----------------
+PyODPS 支持的集合类型有 List 和 Map。这两个类型都可以使用下标获取集合中的某个项目，另有 len 方法，可获得集合的大小。
+
+同时，两种集合均有 explode 方法，用于展开集合中的内容。对于 List，explode 默认返回一列，当传入参数 pos 时，
+将返回两列，其中一列为值在数组中的编号（类似 Python 的 enumerate 函数）。对于 Map，explode 会返回两列，
+分别表示 keys 及 values。explode 中也可以传入列名，作为最后生成的列。
+
+示例如下：
+
+.. code:: python
+    
+    >>> df
+       id         a                            b
+    0   1  [a1, b1]  {'a2': 0, 'b2': 1, 'c2': 2}
+    1   2      [c1]           {'d2': 3, 'e2': 4}
+    >>> df[df.id, df.a[0], df.b['b2']]
+       id   a    b
+    0   1  a1    1
+    1   2  c1  NaN
+    >>> df[df.id, df.a.len(), df.b.len()]
+       id  a  b
+    0   1  2  3
+    1   2  1  2
+    >>> df.a.explode()
+        a
+    0  a1
+    1  b1
+    2  c1
+    >>> df.a.explode(pos=True)
+       a_pos   a
+    0      0  a1
+    1      1  b1
+    2      0  c1
+    >>> # 指定列名
+    >>> df.a.explode(['pos', 'value'], pos=True)
+       pos value
+    0    0    a1
+    1    1    b1
+    2    0    c1
+    >>> df.b.explode()
+      b_key  b_value
+    0    a2        0
+    1    b2        1
+    2    c2        2
+    3    d2        3
+    4    e2        4
+    >>> # 指定列名
+    >>> df.b.explode(['key', 'value'])
+      key  value
+    0  a2      0
+    1  b2      1
+    2  c2      2
+    3  d2      3
+    4  e2      4
+    
+explode 也可以和 :ref:`dflateralview` 结合，以将原有列和 explode 的结果相结合，例子如下：
+
+.. code:: python
+
+    >>> df[df.id, df.a.explode()]
+       id   a
+    0   1  a1
+    1   1  b1
+    2   2  c1
+    >>> df[df.id, df.a.explode(), df.b.explode()]
+       id   a b_key  b_value
+    0   1  a1    a2        0
+    1   1  a1    b2        1
+    2   1  a1    c2        2
+    3   1  b1    a2        0
+    4   1  b1    b2        1
+    5   1  b1    c2        2
+    6   2  c1    d2        3
+    7   2  c1    e2        4
+    
+
+除了下标、len 和 explode 两个共有方法以外，List 还支持下列方法：
+
+============= ==================================
+ list 操作     说明
+============= ==================================
+ contains(v)   列表是否包含某个元素
+ sort          返回排序后的列表（返回值为 List）
+============= ==================================
+
+Dict 还支持下列方法：
+
+============= ==================================
+ dict 操作     说明
+============= ==================================
+ keys          获取 Dict keys（返回值为 List）
+ values        获取 Dict values（返回值为 List）
+============= ==================================
+
 
 其他元素操作（isin，notin，cut）
 -------------------------------

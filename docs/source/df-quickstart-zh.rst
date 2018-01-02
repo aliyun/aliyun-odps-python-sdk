@@ -4,13 +4,16 @@
 快速开始
 ========
 
+在本例子中，我们拿movielens
+100K来做例子。现在我们已经有三张表了，分别是\ ``pyodps_ml_100k_movies``\ （电影相关的数据），\ ``pyodps_ml_100k_users``\ （用户相关的数据），\ ``pyodps_ml_100k_ratings``\ （评分有关的数据）。
+
+如果你的运行环境没有提供 ODPS 对象，你需要自己创建该对象：
+
 .. code:: python
 
+    >>> from odps import ODPS
     >>> o = ODPS('**your-access-id**', '**your-secret-access-key**',
     >>>          project='**your-project**', endpoint='**your-end-point**'))
-
-我们拿movielens
-100K来做例子。现在我们已经有三张表了，分别是\ ``pyodps_ml_100k_movies``\ （电影相关的数据），\ ``pyodps_ml_100k_users``\ （用户相关的数据），\ ``pyodps_ml_100k_ratings``\ （评分有关的数据）。
 
 创建一个DataFrame对象十分容易，只需传入Table对象即可。
 

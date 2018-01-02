@@ -257,6 +257,11 @@ class Isdecimal(StringOp):
     _add_args_slots = False
 
 
+class StringToDict(StringOp):
+    _args = '_input', '_item_delim', '_kv_delim'
+    _add_args_slots = False
+
+
 def _string_op(expr, output_expr_cls, output_type=None, **kwargs):
     output_type = output_type or types.string
     if isinstance(expr, (StringSequenceExpr, StringScalar)):
@@ -523,8 +528,8 @@ def _split(expr, pat=None, n=-1):
 
     :param expr:
     :param pat: Separator to split on. If None, splits on whitespace
-    :param n: None, 0 and -1 will be interpreted as return all splits
-    :return: sequence or scalar
+    :param n: not supported right now
+    :return: list sequence or scalar
     """
 
     return _string_op(expr, Split, output_type=types.List(types.string),
@@ -780,6 +785,19 @@ def _isdecimal(expr):
     return _string_op(expr, Isdecimal, output_type=types.boolean)
 
 
+def _todict(expr, item_delim=',', kv_delim='='):
+    """
+    Convert the string sequence / expr into a string dict given item and key-value delimiters.
+
+    :param expr:
+    :param item_delim: delimiter between data items
+    :param kv_delim: delimiter between keys and values
+    :return: dict sequence or scalar
+    """
+    return _string_op(expr, StringToDict, _item_delim=item_delim, _kv_delim=kv_delim,
+                      output_type=types.Dict(types.string, types.string))
+
+
 _string_methods = dict(
     capitalize=_capitalize,
     contains=_contains,
@@ -798,6 +816,7 @@ _string_methods = dict(
     upper=_upper,
     lstrip=_lstrip,
     rstrip=_rstrip,
+    split=_split,
     strip=_strip,
     pad=_pad,
     repeat=_repeat,
@@ -815,7 +834,8 @@ _string_methods = dict(
     isupper=_isupper,
     istitle=_istitle,
     isnumeric=_isnumeric,
-    isdecimal=_isdecimal
+    isdecimal=_isdecimal,
+    todict=_todict,
 )
 
 

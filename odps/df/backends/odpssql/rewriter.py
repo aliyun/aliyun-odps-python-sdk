@@ -18,6 +18,7 @@ from ..rewriter import BaseRewriter
 from ...expr.reduction import Cat, GroupedCat
 from ...expr.window import *
 from ...expr.merge import *
+from ...expr.expressions import LateralViewCollectionExpr
 from ...expr.utils import get_attrs
 from ....errors import NoSuchObject
 from ...utils import is_source_collection
@@ -65,6 +66,16 @@ class Rewriter(BaseRewriter):
                             for parent in parents):
                 to_sub = expr[expr]
                 self._sub(expr, to_sub, parents)
+
+    def visit_lateral_view(self, expr):
+        parents = self._parents(expr)
+        if not parents or \
+                not any(isinstance(parent, (ProjectCollectionExpr, LateralViewCollectionExpr))
+                        for parent in parents):
+            to_sub = ProjectCollectionExpr(
+                _input=expr, _schema=expr.schema, _fields=expr._fields
+            )
+            self._sub(expr, to_sub, parents)
 
     def _handle_function(self, expr, raw_inputs):
         # Since Python UDF cannot support decimal field,
