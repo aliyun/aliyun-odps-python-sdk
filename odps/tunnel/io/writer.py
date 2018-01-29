@@ -294,7 +294,6 @@ class RecordWriter(BaseRecordWriter):
     """
 
     def __init__(self, schema, request_callback, compress_option=None, encoding='utf-8'):
-        super(RecordWriter, self).__init__(schema, encoding)
         self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
 
         if compress_option is None:
@@ -310,7 +309,7 @@ class RecordWriter(BaseRecordWriter):
             out = SnappyOutputStream(self._req_io)
         else:
             raise errors.InvalidArgument('Invalid compression algorithm.')
-        super(RecordWriter, self).__init__(schema, out)
+        super(RecordWriter, self).__init__(schema, out, encoding=encoding)
         self._req_io.start()
 
     def write(self, record):
@@ -337,7 +336,6 @@ class BufferredRecordWriter(BaseRecordWriter):
 
     def __init__(self, schema, request_callback, compress_option=None,
                  encoding='utf-8', buffer_size=None):
-        super(BufferredRecordWriter, self).__init__(schema, encoding)
         self._buffer_size = buffer_size or self.BUFFER_SIZE
         self._request_callback = request_callback
         self._block_id = 0
@@ -360,7 +358,7 @@ class BufferredRecordWriter(BaseRecordWriter):
         else:
             raise errors.InvalidArgument('Invalid compression algorithm.')
 
-        super(BufferredRecordWriter, self).__init__(schema, out)
+        super(BufferredRecordWriter, self).__init__(schema, out, encoding=encoding)
 
     def write(self, record):
         super(BufferredRecordWriter, self).write(record)

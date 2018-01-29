@@ -41,3 +41,4 @@ class TunnelError(RuntimeError):
             error.code = obj['InvalidArgument']
             
         return error
+

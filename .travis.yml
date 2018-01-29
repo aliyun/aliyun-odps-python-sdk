@@ -75,7 +75,7 @@ after_success:
       PATH="$PYENV_ROOT/bin:$PATH";
       eval "$(pyenv init -)";
       if [ "$PYTHON" == "3."* ]; then
-      	pyenv global $PYTHON;
+        pyenv global $PYTHON;
       fi;
     fi
   - python -m pip install twine

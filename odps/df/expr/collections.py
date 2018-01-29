@@ -503,18 +503,23 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
             if isinstance(types, list):
                 types = tuple(types)
             elif isinstance(types, six.string_types):
-                types = (types, )
+                types = (types,)
 
             types = tuple(validate_data_type(t) for t in types)
         if reduce:
             from .element import MappedExpr
+            from ..backends.context import context
 
             if names is not None and len(names) > 1:
                 raise ValueError('When reduce, at most one name can be specified')
             name = names[0] if names is not None else None
+            if not types and kwargs.get('rtype', None) is not None:
+                types = [kwargs.pop('rtype')]
             tp = types[0] if types is not None else (utils.get_annotation_rtype(func) or string)
-            inputs = [e.copy() for e in expr._fields] if hasattr(expr, '_fields') and expr._fields is not None \
-                else [expr[n] for n in expr.schema.names]
+            if not context.is_cached(expr) and (hasattr(expr, '_fields') and expr._fields is not None):
+                inputs = [e.copy() for e in expr._fields]
+            else:
+                inputs = [expr[n] for n in expr.schema.names]
             return MappedExpr(_func=func, _func_args=args, _func_kwargs=kwargs,
                               _name=name, _data_type=tp,
                               _inputs=inputs, _multiple=True,
@@ -1405,7 +1410,9 @@ def fillna(expr, value=None, method=None, subset=None):
     if subset is None:
         sel_col_names = expr.schema.names
     else:
-        sel_col_names = [expr._get_field(c).name for c in utils.to_list(subset)]
+        # when c is in expr._fields, _get_field may do substitution which will cause error
+        subset = (c.copy() if isinstance(c, Expr) else c for c in utils.to_list(subset))
+        sel_col_names = [expr._get_field(c).name for c in subset]
 
     if method is not None and value is not None:
         raise ValueError('The argument `method` is not compatible with `value`.')

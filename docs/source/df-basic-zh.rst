@@ -41,7 +41,7 @@ ODPS 分区，Pandas DataFrame或sqlalchemy.Table（数据库表）。
     >>> table = sqlalchemy.Table('top_users', metadata, extend_existing=True, autoload=True)
     >>> users = DataFrame(table)
 
-在用pandas DataFrame初始化时，对于numpy object类型或者string类型，PyODPS DataFrame会尝试推断类型，
+在用 pandas DataFrame 初始化时，对于 numpy object 类型或者 string 类型，PyODPS DataFrame 会尝试推断类型，
 如果一整列都为空，则会报错。这时，用户可以指定 `unknown_as_string` 为True，会将这些列指定为string类型。
 
 用户也可以指定as_type参数，此时会在创建PyODPS DataFrame时进行强制类型转换，as_type参数类型必须是dict。

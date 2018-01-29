@@ -410,8 +410,11 @@ def _put_objects(odps, objs):
         if isinstance(odps.account, AliyunAccount):
             ObjectRepositoryLib.add_odps_info(odps)
         file_dir = os.path.join(TEMP_ROOT, biz_id, odps_key)
-        if not os.path.exists(file_dir):
-            os.makedirs(file_dir)
+        try:
+            if not os.path.exists(file_dir):
+                os.makedirs(file_dir)
+        except OSError:
+            pass
         file_name = os.path.join(file_dir, 'temp_objs_{0}__{1}.his'.format(SESSION_KEY, os.getpid()))
         _obj_repos[odps_key] = ObjectRepository(file_name)
     [_obj_repos[odps_key].put(o, False) for o in objs]

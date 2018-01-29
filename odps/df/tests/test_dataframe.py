@@ -293,5 +293,25 @@ class Test(TestBase):
         df3 = df.join(df2, on=('head', 'name'))
         df3.head(10)
 
+    def testFillna(self):
+        test_table_name = tn('pyodps_test_dataframe_fillna')
+        self.odps.delete_table(test_table_name, if_exists=True)
+        table = self.odps.create_table(
+            test_table_name, Schema.from_lists(['val1', 'val2', 'val3', 'val4'], ['bigint'] * 4,
+                                               ['name'], ['string']))
+        table.create_partition('name=a')
+
+        df = DataFrame(table.get_partition('name=a'))
+
+        columns = df.columns[:3]
+        df2 = df[columns].fillna(0, subset=columns[:2])
+        df2.head()
+
+        def sum_val(row):
+            return sum(row)
+
+        df2['new_field'] = df2.apply(sum_val, axis=1, reduce=True, rtype='int')
+        df2.head()
+
 if __name__ == '__main__':
     unittest.main()
