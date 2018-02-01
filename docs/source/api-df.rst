@@ -27,3 +27,11 @@ DataFrame Reference
 .. autoclass:: odps.df.expr.groupby.GroupBy
     :members:
     :inherited-members:
+
+.. autoclass:: odps.df.expr.groupby.SequenceGroupBy
+    :members:
+    :inherited-members:
+
+.. autoclass:: odps.df.expr.groupby.Int64SequenceGroupBy
+    :members:
+    :inherited-members:
