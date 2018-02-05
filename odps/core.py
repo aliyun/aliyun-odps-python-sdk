@@ -1158,7 +1158,7 @@ class ODPS(object):
         project = self.get_project(name=project)
         return name in project.xflows
 
-    def run_xflow(self, xflow_name, xflow_project=None, parameters=None, project=None):
+    def run_xflow(self, xflow_name, xflow_project=None, parameters=None, project=None, hints=None):
         """
         Run xflow by given name, xflow project, paremeters asynchronously.
 
@@ -1169,6 +1169,8 @@ class ODPS(object):
         :param parameters: parameters
         :type parameters: dict
         :param project: project name, if not provided, will be the default project
+        :param hints: execution hints
+        :type hints: dict
         :return: instance
         :rtype: :class:`odps.models.Instance`
 
@@ -1180,9 +1182,10 @@ class ODPS(object):
         if isinstance(xflow_project, models.Project):
             xflow_project = xflow_project.name
         return project.xflows.run_xflow(
-            xflow_name=xflow_name, xflow_project=xflow_project, project=project, parameters=parameters)
+            xflow_name=xflow_name, xflow_project=xflow_project, project=project, parameters=parameters,
+            hints=hints)
 
-    def execute_xflow(self, xflow_name, xflow_project=None, parameters=None, project=None):
+    def execute_xflow(self, xflow_name, xflow_project=None, parameters=None, project=None, hints=None):
         """
         Run xflow by given name, xflow project, paremeters, block until xflow executed successfully.
 
@@ -1193,6 +1196,8 @@ class ODPS(object):
         :param parameters: parameters
         :type parameters: dict
         :param project: project name, if not provided, will be the default project
+        :param hints: execution hints
+        :type hints: dict
         :return: instance
         :rtype: :class:`odps.models.Instance`
 
@@ -1200,7 +1205,7 @@ class ODPS(object):
         """
 
         inst = self.run_xflow(
-            xflow_name, xflow_project=xflow_project, parameters=parameters, project=project)
+            xflow_name, xflow_project=xflow_project, parameters=parameters, project=project, hints=hints)
         inst.wait_for_success()
         return inst
 

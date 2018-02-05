@@ -512,6 +512,10 @@ petalwidth，则图表变为下图。可见在 petallength - petalwidth 维度�
 
 完成绘图后，可单击“下载”保存绘制的图表。
 
+.. note::
+
+    **注意**\ ：使用此功能需要安装 Pandas ，并保证 ipywidgets 被正确安装。
+
 进度展示
 --------
 

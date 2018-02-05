@@ -126,6 +126,20 @@ def read_lib(lib, f):
 
     raise ValueError(
         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
+
+
+# Use this method to make testThirdPartyLibraries happy
+np_generic = None
+def load_np_generic():
+    global np_generic
+    
+    try:
+        from numpy import generic
+        np_generic = generic
+    except ImportError:
+        class PseudoNpGeneric(object):
+            pass
+        np_generic = PseudoNpGeneric
 ''' % {
     'cloudpickle': CLOUD_PICKLE,
     'memimport': MEM_IMPORT,
@@ -136,7 +150,6 @@ def read_lib(lib, f):
 UDF_TMPL = '''
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(object):
-
     def __init__(self):
         unpickler_kw = dict(impl=%(implementation)s, dump_code=%(dump_code)s)
         rs = loads(base64.b64decode('%(resources)s'), **unpickler_kw)
@@ -162,6 +175,8 @@ class %(func_cls_name)s(object):
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))
         sys.meta_path.append(CompressImporter(*files, supersede=%(supersede_libraries)r))
+        
+        load_np_generic()
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
@@ -215,10 +230,14 @@ class %(func_cls_name)s(object):
         t = self.to_type
 
         if t == 'datetime' and isinstance(arg, datetime):
+            if isinstance(arg, np_generic):
+                arg = arg.item()
             return self._to_milliseconds(arg)
         elif t == 'string' and isinstance(arg, Decimal):
             return str(arg)
         else:
+            if isinstance(arg, np_generic):
+                arg = arg.item()
             return arg
 
     def evaluate(self, %(input_args)s):
@@ -272,6 +291,8 @@ class %(func_cls_name)s(BaseUDTF):
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))
         sys.meta_path.append(CompressImporter(*files, supersede=%(supersede_libraries)r))
+        
+        load_np_generic()
 
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
@@ -338,12 +359,16 @@ class %(func_cls_name)s(BaseUDTF):
         res = []
         for t, arg in zip(self.to_types, args):
             if t == 'datetime' and isinstance(arg, datetime):
+                if isinstance(arg, np_generic):
+                    arg = arg.item()
                 res.append(self._to_milliseconds(arg))
             elif t == 'string' and isinstance(arg, Decimal):
                 res.append(str(arg))
             elif PY2 and t == 'string' and isinstance(arg, string_type):
                 res.append(arg.encode('utf-8'))
             else:
+                if isinstance(arg, np_generic):
+                    arg = arg.item()
                 res.append(arg)
         return res
 
@@ -414,6 +439,8 @@ class %(func_cls_name)s(BaseUDAF):
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))
         sys.meta_path.append(CompressImporter(*files, supersede=%(supersede_libraries)r))
+        
+        load_np_generic()
 
         encoded_func_args = '%(func_args_str)s'
         func_args_str = base64.b64decode(encoded_func_args)
@@ -462,10 +489,14 @@ class %(func_cls_name)s(BaseUDAF):
         t = self.to_type
 
         if t == 'datetime' and isinstance(arg, datetime):
+            if isinstance(arg, np_generic):
+                arg = arg.item()
             return self._to_milliseconds(arg)
         elif t == 'string' and isinstance(arg, Decimal):
             return str(arg)
         else:
+            if isinstance(arg, np_generic):
+                arg = arg.item()
             return arg
 
     def new_buffer(self):

@@ -229,6 +229,9 @@ DataFrame 提供了一个\ ``value_counts``\ 操作，能返回按某列分组�
     >>> to_agg = agg([iris.sepalwidth, iris.sepallength], 'your_func', rtype='float')
     >>> iris.groupby('name').agg(to_agg.rename('val'))  # 对多列聚合
 
+.. warning::
+    目前，受限于 Python UDF，自定义聚合无法支持将 list / dict 类型作为初始输入或最终输出结果。
+
 HyperLogLog 计数
 ----------------
 

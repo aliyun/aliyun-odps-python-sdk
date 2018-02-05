@@ -1300,7 +1300,7 @@ class SequenceExpr(TypedExpr):
         else:
             self._source_data_type = self._data_type
 
-    def cache(self):
+    def cache(self, mem=False):
         raise ExpressionError('Cache operation does not support for sequence.')
 
     def head(self, n=None, **kwargs):

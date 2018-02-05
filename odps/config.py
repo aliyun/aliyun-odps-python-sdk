@@ -395,6 +395,7 @@ options.register_option('df.seahawks.max_size', 10 * 1024 * 1024 * 1024)  # 10G
 
 # PyODPS ML
 options.register_option('ml.xflow_project', 'algo_public', validator=is_string)
+options.register_option('ml.xflow_settings', None, validator=any_validator(is_null, is_dict))
 options.register_option('ml.dry_run', False, validator=is_bool)
 options.register_option('ml.use_model_transfer', False, validator=is_bool)
 options.register_option('ml.use_old_metrics', True, validator=is_bool)

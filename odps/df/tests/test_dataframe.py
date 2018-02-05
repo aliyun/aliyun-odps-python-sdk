@@ -66,6 +66,27 @@ class Test(TestBase):
         df = DataFrame(pd_df, as_type={'b': 'int'})
         self.assertEqual(df.schema.get_type('b').name, 'int64')
 
+        pd_df = pd.DataFrame({'a': [1, 2, 3], 'b': [[1, 2], [3, 4, 5], [6]]})
+
+        self.assertRaises(TypeError, DataFrame, pd_df)
+
+        df = DataFrame(pd_df, as_type={'b': 'list<int64>'})
+        self.assertEqual(df.schema.get_type('b').name, 'list<int64>')
+
+        df = DataFrame(pd_df, as_type={'b': 'list<string>'})
+        self.assertEqual(df.schema.get_type('b').name, 'list<string>')
+
+        pd_df = pd.DataFrame({'a': [1, 2, 3],
+                              'b': [{1: 'a', 2: 'b'}, {3: 'c', 4: 'd', 5: None}, {6: 'f'}]})
+
+        self.assertRaises(TypeError, DataFrame, pd_df)
+
+        df = DataFrame(pd_df, as_type={'b': 'dict<int64, string>'})
+        self.assertEqual(df.schema.get_type('b').name, 'dict<int64,string>')
+
+        df = DataFrame(pd_df, as_type={'b': 'dict<string, string>'})
+        self.assertEqual(df.schema.get_type('b').name, 'dict<string,string>')
+
     def testHeadAndTail(self):
         df = DataFrame(self.table)
 
@@ -312,6 +333,7 @@ class Test(TestBase):
 
         df2['new_field'] = df2.apply(sum_val, axis=1, reduce=True, rtype='int')
         df2.head()
+
 
 if __name__ == '__main__':
     unittest.main()

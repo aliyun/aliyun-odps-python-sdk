@@ -410,7 +410,7 @@ class Instance(LazyLoad):
         for _ in range(options.retry_times):
             try:
                 return self.status == Instance.Status.TERMINATED
-            except errors.InternalServerError:
+            except (errors.InternalServerError, errors.RequestTimeTooSkewed):
                 if not retry:
                     raise
 
@@ -428,7 +428,7 @@ class Instance(LazyLoad):
             try:
                 statuses = self.get_task_statuses()
                 break
-            except errors.InternalServerError:
+            except (errors.InternalServerError, errors.RequestTimeTooSkewed):
                 if not retry:
                     raise
         return all(task.status == Instance.Task.TaskStatus.SUCCESS

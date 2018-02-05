@@ -14,8 +14,10 @@
 # limitations under the License.
 
 import json
+import calendar
 import operator
 import logging
+from datetime import datetime
 
 from . import utils
 from .compat import six, reduce, ElementTree as ET, ElementTreeParseError as ETParseError
@@ -47,7 +49,10 @@ def parse_response(resp):
         if len(resp.content) > 0:
             obj = json.loads(resp.text)
             msg = obj['Message']
-            code = obj['Code']
+            code = obj.get('Code')
+            host_id = obj.get('HostId')
+            if request_id is None:
+                request_id = obj.get('RequestId')
         else:
             return
     clz = globals().get(code, ODPSError)
@@ -153,9 +158,7 @@ class DataHealthManagerError(ODPSError):
 
 
 class ServerDefinedException(ODPSError):
-
-    def __str__(self):
-        return super(ServerDefinedException, self).__str__()
+    pass
 
 
 # A long list of server defined exceptions
@@ -226,3 +229,27 @@ class DataVersionError(InternalServerError):
 
 class InstanceTypeNotSupported(ServerDefinedException):
     pass
+
+
+class RequestTimeTooSkewed(ServerDefinedException):
+    def __init__(self, msg, *args, **kwargs):
+        super(RequestTimeTooSkewed, self).__init__(msg, *args, **kwargs)
+        try:
+            parts = msg.split(',')
+            kv_dict = dict(tuple(s.strip() for s in p.split(':', 1)) for p in parts)
+            self.max_interval_date = int(kv_dict['max_interval_date'])
+            self.expire_date = self._parse_error_date(kv_dict['expire_date'])
+            self.now_date = self._parse_error_date(kv_dict['now_date'])
+        except:
+            self.max_interval_date = None
+            self.expire_date = None
+            self.now_date = None
+
+    @staticmethod
+    def _parse_error_date(date_str):
+        date_obj = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+        micros = date_obj.microsecond
+        return datetime.fromtimestamp(calendar.timegm(date_obj.timetuple())).replace(microsecond=micros)
+
+# Handling error code typo in ODPS error message
+RequestTimeTooSkewd = RequestTimeTooSkewed

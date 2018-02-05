@@ -21,15 +21,24 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 
 停止一个instance可以在odps入口使用 ``stop_instance``，或者对instance对象调用 ``stop`` 方法。
 
-获取logview地址
+获取 LogView 地址
 ---------------
 
-通过调用 ``get_logview_address`` 方法即可。
+对于 SQL 等任务，通过调用 ``get_logview_address`` 方法即可。
 
 .. code-block:: python
 
    >>> instance = o.run_sql('desc pyodps_iris')
    >>> print(instance.get_logview_address())
+
+对于 XFlow 任务，需要枚举其子任务，再获取子任务的 LogView：
+
+.. code-block:: python
+
+    >>> instance = o.run_xflow('AppendID', 'algo_public',
+                               {'inputTableName': 'input_table', 'outputTableName': 'output_table'})
+    >>> for sub_inst_name, sub_inst in six.iteritems(o.get_xflow_sub_instances(instance)):
+    >>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))
 
 任务实例状态
 -------------

@@ -682,7 +682,7 @@ class Table(LazyLoad):
         :return: None
         """
         from .tasks import SQLTask
-        task = SQLTask(name='SQLAddPartitionTask', query='truncate table %s' % self.name)
+        task = SQLTask(name='SQLTruncateTableTask', query='truncate table %s.%s' % (self.project.name, self.name))
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
         if not async:

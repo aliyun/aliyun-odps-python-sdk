@@ -58,7 +58,7 @@ else:
             else:
                 return trait_cls().tag(**metadata)
 
-    class HTMLNotifier(widgets.Widget):
+    class HTMLNotifier(widgets.DOMWidget):
         _view_name = build_trait(Unicode, 'HTMLNotifier', sync=True)
         _view_module = build_trait(Unicode, 'pyodps/html-notify', sync=True)
         msg = build_trait(Unicode, 'msg', sync=True)

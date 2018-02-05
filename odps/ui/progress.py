@@ -21,7 +21,7 @@ import logging
 from .common import build_trait
 from ..config import options
 from ..compat import OrderedDict, six
-from ..errors import InternalServerError
+from ..errors import InternalServerError, RequestTimeTooSkewed
 from ..models.instance import Instance
 from ..serializers import JSONSerializableModel, JSONNodeField, JSONNodesReferencesField
 
@@ -151,7 +151,7 @@ def reload_instance_status(odps, group_id, instance_id):
     for itr in range(options.retry_times):
         try:
             return _reload_instance_status(odps, group_id, instance_id)
-        except InternalServerError:
+        except (InternalServerError, RequestTimeTooSkewed):
             if itr != 2:
                 time.sleep(PROGRESS_RETRY_DELAY)
 

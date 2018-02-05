@@ -17,11 +17,12 @@
 from ..models import Table
 from ..models.partition import Partition
 from ..compat import six, izip
+from ..types import CompositeMixin
 from .expr.utils import get_attrs
 from .expr.expressions import CollectionExpr
 from .types import validate_data_type
 from .backends.odpssql.types import odps_schema_to_df_schema
-from .backends.pd.types import pd_to_df_schema,  df_type_to_np_type
+from .backends.pd.types import pd_to_df_schema, df_type_to_np_type, cast_composite_sequence
 from .backends.sqlalchemy.types import sqlalchemy_to_df_schema
 
 try:
@@ -110,11 +111,14 @@ class DataFrame(CollectionExpr):
                     if not isinstance(as_type, dict):
                         raise TypeError('as_type must be dict')
                     for col_name, df_type in six.iteritems(as_type):
-                        pd_type = df_type_to_np_type(df_type)
                         if col_name not in data:
                             raise ValueError('col(%s) does not exist in pd.DataFrame' % col_name)
                         try:
-                            data[col_name] = data[col_name][data[col_name].notnull()].astype(pd_type)
+                            if isinstance(df_type, CompositeMixin):
+                                data[col_name] = cast_composite_sequence(data[col_name], df_type)
+                            else:
+                                pd_type = df_type_to_np_type(df_type)
+                                data[col_name] = data[col_name][data[col_name].notnull()].astype(pd_type)
                         except TypeError:
                             raise TypeError('Cannot cast col(%s) to data type: %s' % (col_name, df_type))
                 schema = pd_to_df_schema(data, as_type=as_type,
@@ -173,4 +177,3 @@ class DataFrame(CollectionExpr):
     @property
     def data(self):
         return self._source_data
-

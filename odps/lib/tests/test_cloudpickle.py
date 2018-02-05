@@ -31,7 +31,10 @@ import uuid
 from odps.compat import six, unittest, PY27
 from odps.lib.cloudpickle import loads, dumps
 from odps.utils import to_binary
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, numpy_case
+
+# if bytecode needed in debug, switch it on
+DUMP_CODE = False
 
 CROSS_VAR_PICKLE_CODE = """
 import base64
@@ -60,13 +63,13 @@ client_impl = (sys.version_info[0],
                platform.python_implementation().lower())
 result_obj = {method_ref}()
 result_tuple = (
-    base64.b64encode(dumps(result_obj)),
+    base64.b64encode(dumps(result_obj, dump_code={dump_code})),
     client_impl,
 )
 with open(r'{pickled_file}', 'w') as f:
     f.write(to_str(base64.b64encode(pickle.dumps(result_tuple, protocol=0))))
     f.close()
-""".replace('{module_name}', __name__)
+""".replace('{module_name}', __name__).replace('{dump_code}', repr(DUMP_CODE))
 
 
 def pickled_runner(q, pickled, args, kwargs, **kw):
@@ -77,7 +80,7 @@ def pickled_runner(q, pickled, args, kwargs, **kw):
             wrapper = loads(wrapper)
         else:
             wrapper = lambda v, a, kw: v(*a, **kw)
-        deserial = loads(base64.b64decode(pickled), impl=impl)
+        deserial = loads(base64.b64decode(pickled), impl=impl, dump_code=DUMP_CODE)
         q.put(wrapper(deserial, args, kwargs))
     except:
         traceback.print_exc()
@@ -111,7 +114,10 @@ def _gen_nested_yield_obj():
             self._o_closure = out_closure
 
         def nested_method(self, add_val):
-            return self._o_closure + add_val + self.inner_gain
+            if add_val < 5:
+                return self._o_closure + add_val * 2 + self.inner_gain
+            else:
+                return self._o_closure + add_val + self.inner_gain
 
     class _FuncClass(object):
         def __init__(self):
@@ -138,7 +144,7 @@ if six.PY2:
         def _gen_nested_class_obj():
             class BuildCls(BuildBase):
                 __metaclass__ = BuildMeta
-                a = 10
+                a = out_closure
 
                 def b(self, add_val):
                     print(self.a)
@@ -153,7 +159,7 @@ else:
 
         def _gen_nested_class_obj():
             class BuildCls(BuildBase, metaclass=BuildMeta):
-                a = 10
+                a = out_closure
 
                 def b(self, add_val):
                     print(self.a)
@@ -165,6 +171,7 @@ else:
     my_locs = locals().copy()
     six.exec_(py3_code, globals(), my_locs)
     _gen_class_builder_func = my_locs.get('_gen_class_builder_func')
+
 
 if sys.version_info[:2] < (3, 6):
     def _gen_format_string_func():
@@ -187,6 +194,105 @@ else:
     my_locs = locals().copy()
     six.exec_(py36_code, globals(), my_locs)
     _gen_format_string_func = my_locs.get('_gen_format_string_func')
+
+
+if sys.version_info[:2] < (3, 6):
+    def _gen_build_unpack_func():
+        out_closure = (1, 2, 3)
+
+        def merge_kws(a, b, *args, **kwargs):
+            kwargs.update(dict(a=a, b=b))
+            kwargs.update((str(idx), v) for idx, v in enumerate(args))
+            return kwargs
+
+        def _gen_fun(arg):
+            t = out_closure + (4, ) + (5, 6, 7) + (arg, )
+            l = list(out_closure) + [4, ] + [5, 6, 7]
+            s = set(out_closure) | set([4]) | set([5, 6, 7])
+            m = {'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5}
+            wk = merge_kws(3, 4, 5, *(out_closure + (1, 2, 3)), **dict(m=1, n=2, p=3, q=4, r=5))
+            return t, l, s, m, wk
+
+        return _gen_fun
+else:
+    py36_code = textwrap.dedent("""
+    def _gen_build_unpack_func():
+        out_closure = (1, 2, 3)
+
+        def merge_kws(a, b, *args, **kwargs):
+            kwargs.update(dict(a=a, b=b))
+            kwargs.update((str(idx), v) for idx, v in enumerate(args))
+            return kwargs
+
+        def _gen_fun(arg):
+            t = (*out_closure, *(4, ), *(5, 6, 7), *(arg, ))
+            l = [*out_closure, *(4, ), *[5, 6, 7]]
+            s = {*out_closure, *[4], *[5, 6, 7]}
+            m = {**dict(a=1, b=2), **dict(c=3), **dict(d=4, e=5)}
+            wk = merge_kws(3, 4, 5, *out_closure, *[1, 2, 3], **dict(m=1, n=2), **dict(p=3, q=4, r=5))
+            return t, l, s, m, wk
+
+        return _gen_fun
+    """)
+    my_locs = locals().copy()
+    six.exec_(py36_code, globals(), my_locs)
+    _gen_build_unpack_func = my_locs.get('_gen_build_unpack_func')
+
+
+if sys.version_info[:2] < (3, 6):
+    def _gen_matmul_func():
+        out_closure = [[4, 9, 2], [3, 5, 7], [8, 1, 6]]
+
+        def _gen_fun(arg):
+            import numpy as np
+            a = np.array(out_closure)
+            b = np.array([9, 5, arg])
+            c = np.dot(a, b)
+            return repr(c)
+
+        return _gen_fun
+else:
+    py36_code = textwrap.dedent("""
+    def _gen_matmul_func():
+        out_closure = [[4, 9, 2], [3, 5, 7], [8, 1, 6]]
+
+        def _gen_fun(arg):
+            import numpy as np
+            a = np.array(out_closure)
+            b = np.array([9, 5, arg])
+            c = a @ b
+            return repr(c)
+
+        return _gen_fun
+    """)
+    my_locs = locals().copy()
+    six.exec_(py36_code, globals(), my_locs)
+    _gen_matmul_func = my_locs.get('_gen_matmul_func')
+
+
+def _gen_try_except_func():
+    out_closure = dict(k=12.0)
+
+    def _gen_fun(arg):
+        ex = None
+        agg = arg
+
+        def _cl():
+            print(ex)
+
+        try:
+            agg *= out_closure['not_exist']
+        except KeyError as ex:
+            agg += 1
+
+        try:
+            agg -= out_closure['k']
+        except KeyError as ex:
+            _cl()
+            agg /= 10
+        return agg
+
+    return _gen_fun
 
 
 def _gen_nested_fun():
@@ -242,6 +348,34 @@ class Test(TestBase):
             return
         func = _gen_format_string_func()
         py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_format_string_func))
+        self.assertEqual(run_pickled(py3_serial, 20), func(20))
+
+    @unittest.skipIf(not PY27, 'Ignored under Python 3')
+    def test3to2BuildUnpack(self):
+        executable = self.config.get('test', 'py3_executable')
+        if not executable:
+            return
+        func = _gen_build_unpack_func()
+        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_build_unpack_func))
+        self.assertEqual(run_pickled(py3_serial, 20), func(20))
+
+    @unittest.skipIf(not PY27, 'Ignored under Python 3')
+    @numpy_case
+    def test3to2MatMul(self):
+        executable = self.config.get('test', 'py3_executable')
+        if not executable:
+            return
+        func = _gen_matmul_func()
+        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_matmul_func))
+        self.assertEqual(run_pickled(py3_serial, 20), func(20))
+
+    @unittest.skipIf(not PY27, 'Ignored under Python 3')
+    def test3to2TryExcept(self):
+        executable = self.config.get('test', 'py3_executable')
+        if not executable:
+            return
+        func = _gen_try_except_func()
+        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_try_except_func))
         self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
     @unittest.skipIf(not PY27, 'Ignored under Python 3')

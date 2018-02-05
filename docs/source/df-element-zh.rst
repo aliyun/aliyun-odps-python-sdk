@@ -476,6 +476,9 @@ DataFrame函数支持对Sequence使用map，它会对它的每个元素调用自
     3          5.6
     4          6.0
 
+.. warning::
+    目前，受限于 Python UDF，自定义函数无法支持将 list / dict 类型作为输入或输出。
+
 如果map前后，Sequence的类型发生了变化，则需要显式指定map后的类型。
 
 .. code:: python

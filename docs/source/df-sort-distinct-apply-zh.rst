@@ -497,6 +497,9 @@ apply 的自定义函数接收一个参数，为上一步 Collection 的一行�
        sepallength_aggregation  sepalwidth_aggregation  petallength_aggregation  petalwidth_aggregation
     0                 5.843333                   3.054                 3.758667                1.198667
 
+.. warning::
+    目前，受限于 Python UDF，自定义函数无法支持将 list / dict 类型作为初始输入或最终输出结果。
+
 引用资源
 ~~~~~~~~~~~~~
 

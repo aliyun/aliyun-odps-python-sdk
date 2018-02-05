@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
+from odps.tests.core import TestBase, numpy_case
 from odps.compat import unittest, six, PY26
 from odps.models import Schema
 from odps.udf.tools import runners
@@ -71,6 +71,25 @@ class Test(TestBase):
         udf = list(self.engine._ctx._func_to_udfs.values())[0]
         udf = get_function(udf, UDF_CLASS_NAME)
         self.assertSequenceEqual([-1, 0, 1], runners.simple_run(udf, [(-3, ), (0, ), (5, )]))
+
+    @numpy_case
+    def testSimpleNumpyFunction(self):
+        import numpy as np
+
+        def my_func(x):
+            if x < 0:
+                return np.int32(-1)
+            elif x == 0:
+                return np.int32(0)
+            else:
+                return np.int32(1)
+
+        self.engine.compile(self.expr.id.map(my_func))
+        udf = list(self.engine._ctx._func_to_udfs.values())[0]
+        udf = get_function(udf, UDF_CLASS_NAME)
+        run_result = runners.simple_run(udf, [(-3, ), (0, ), (5, )])
+        self.assertSequenceEqual([-1, 0, 1], run_result)
+        self.assertFalse(any(isinstance(v, np.generic) for v in run_result))
 
     def testNestFunction(self):
         def my_func(x):
@@ -143,6 +162,19 @@ class Test(TestBase):
         self.assertEqual([('name1', 1), ('name2', 2)],
                           runners.simple_run(udtf, [('name1', 1, None), ('name2', 2, None)]))
 
+    @numpy_case
+    def testApplyNumpyFunction(self):
+        import numpy as np
+
+        def my_func(row):
+            return row.name, np.int32(row.id)
+
+        self.engine.compile(self.expr.apply(my_func, axis=1, names=['name', 'id'], types=['string', 'int']))
+        udtf = list(self.engine._ctx._func_to_udfs.values())[0]
+        udtf = get_function(udtf, UDF_CLASS_NAME)
+        run_result = runners.simple_run(udtf, [('name1', 1, None), ('name2', 2, None)])
+        self.assertEqual([('name1', 1), ('name2', 2)], run_result)
+
     def testApplyGeneratorFunction(self):
         def my_func(row):
             for n in row.name.split(','):
@@ -153,6 +185,58 @@ class Test(TestBase):
         udtf = get_function(udtf, UDF_CLASS_NAME)
         self.assertEqual(['name1', 'name2', 'name3', 'name4'],
                          runners.simple_run(udtf, [('name1,name2', 1, None), ('name3,name4', 2, None)]))
+
+    def testAggFunction(self):
+        class Agg(object):
+            def buffer(self):
+                return ['']
+
+            def __call__(self, buffer, val):
+                if not buffer[0]:
+                    buffer[0] = val
+                else:
+                    buffer[0] += ',' + val
+
+            def merge(self, buffer, pbuffer):
+                if not pbuffer[0]:
+                    return
+                elif not buffer[0]:
+                    buffer[0] = pbuffer[0]
+                else:
+                    buffer[0] += ',' + pbuffer[0]
+
+            def getvalue(self, buffer):
+                return buffer[0]
+
+        self.engine.compile(self.expr.name.agg(Agg))
+        udaf = list(self.engine._ctx._func_to_udfs.values())[0]
+        udaf = get_function(udaf, UDF_CLASS_NAME)
+        self.assertEqual(['name1,name2,name3,name4'],
+                         runners.simple_run(udaf, [('name1,name2',), ('name3,name4',)]))
+
+    @numpy_case
+    def testAggNumpyFunction(self):
+        import numpy as np
+
+        class Agg(object):
+            def buffer(self):
+                return [np.int32(1)]
+
+            def __call__(self, buffer, val):
+                buffer[0] *= val
+
+            def merge(self, buffer, pbuffer):
+                buffer[0] *= pbuffer[0]
+
+            def getvalue(self, buffer):
+                return buffer[0]
+
+        self.engine.compile(self.expr.id.agg(Agg))
+        udaf = list(self.engine._ctx._func_to_udfs.values())[0]
+        udaf = get_function(udaf, UDF_CLASS_NAME)
+        result = runners.simple_run(udaf, [(3,), (6,), (5,)])
+        self.assertEqual([90], result)
+        self.assertNotIsInstance(result, np.generic)
 
     @unittest.skipIf(PY26, 'Ignored under Python 2.6')
     def testBizarreField(self):

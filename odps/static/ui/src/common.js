@@ -124,8 +124,7 @@ define('pyodps/common', ['jquery', 'base/js/namespace', '@jupyter-widgets/base']
                 }
             }
         };
-        _hide_empty_widgets();
-        window.setTimeout(_hide_empty_widgets, 100);
+        window.setTimeout(_hide_empty_widgets, 500);
     };
 
     $([Jupyter.events]).on('kernel_idle.Kernel', _auto_close_widgets);

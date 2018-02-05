@@ -25,7 +25,7 @@ except ImportError:
 
 from ... import types
 from ....models import Schema
-from ....compat import six
+from ....compat import six, OrderedDict
 
 _np_to_df_types = dict()
 _df_to_np_types = dict()
@@ -113,3 +113,19 @@ def df_schema_to_pd_dtypes(df_schema):
     import pandas as pd
     return pd.Series(dtypes, index=names)
 
+
+def cast_composite_sequence(pd_seq, df_type):
+    def _cast(v, df_type):
+        if v is None:
+            return None
+        elif isinstance(df_type, types.Primitive):
+            return df_type_to_np_type(df_type).type(v)
+        elif isinstance(df_type, types.List) and isinstance(v, list):
+            return [_cast(it, df_type.value_type) for it in v]
+        elif isinstance(df_type, types.Dict) and isinstance(v, dict):
+            return OrderedDict((_cast(it_key, df_type.key_type), _cast(it_value, df_type.value_type))
+                               for it_key, it_value in six.iteritems(v))
+        else:
+            raise TypeError('Cannot convert value %r into dtype %s' % (v, df_type))
+
+    return pd_seq.map(lambda v: _cast(v, df_type))

@@ -18,7 +18,7 @@ from .core import Iterable, XMLRemoteModel
 from .xflow import XFlow
 from .instances import Instances
 from .instance import Instance
-from .. import serializers, errors, compat
+from .. import serializers, errors, compat, options
 from ..compat import six
 
 
@@ -99,14 +99,15 @@ class XFlows(Iterable):
         return xflow
 
     class XFlowInstance(XMLRemoteModel):
-        __slots__ = 'xflow_project', 'xflow_name', 'parameters'
-
+        __slots__ = 'xflow_project', 'xflow_name', 'parameters', 'properties'
         _root = 'XflowInstance'
 
         xflow_project = serializers.XMLNodeField('Project')
         xflow_name = serializers.XMLNodeField('Xflow')
         parameters = serializers.XMLNodePropertiesField(
             'Parameters', 'Parameter', key_tag='Key', value_tag='Value', required=True)
+        properties = serializers.XMLNodePropertiesField('Config', 'Property',
+                                                        key_tag='Name', value_tag='Value')
 
     class AnonymousSubmitXFlowInstance(XMLRemoteModel):
         _root = 'Instance'
@@ -120,8 +121,13 @@ class XFlows(Iterable):
         inst = XFlows.AnonymousSubmitXFlowInstance(instance=xflow_instance)
         return inst.serialize()
 
-    def run_xflow(self, xflow_instance=None, project=None, **kw):
+    def run_xflow(self, xflow_instance=None, project=None, hints=None, **kw):
         project = project or self.parent
+        hints = hints or {}
+        if options.ml.xflow_settings:
+            hints.update(options.ml.xflow_settings)
+        if hints:
+            kw['properties'] = hints
         return project.instances.create(
             xml=self._gen_xflow_instance_xml(xflow_instance=xflow_instance, **kw))
 

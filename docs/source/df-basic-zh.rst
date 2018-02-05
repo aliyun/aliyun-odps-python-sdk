@@ -44,7 +44,9 @@ ODPS 分区，Pandas DataFrame或sqlalchemy.Table（数据库表）。
 在用 pandas DataFrame 初始化时，对于 numpy object 类型或者 string 类型，PyODPS DataFrame 会尝试推断类型，
 如果一整列都为空，则会报错。这时，用户可以指定 `unknown_as_string` 为True，会将这些列指定为string类型。
 
-用户也可以指定as_type参数，此时会在创建PyODPS DataFrame时进行强制类型转换，as_type参数类型必须是dict。
+用户也可以指定 as_type 参数。若类型为基本类型，会在创建 PyODPS DataFrame 时进行强制类型转换。
+如果 Pandas DataFrame 中包含 list 或者 dict 列，该列的类型不会被推断，必须手动使用 as_type 指定。
+as_type 参数类型必须是dict。
 
 .. code:: python
 
@@ -58,6 +60,12 @@ ODPS 分区，Pandas DataFrame或sqlalchemy.Table（数据库表）。
       name                  string
       null_col1             string   # 无法识别，通过unknown_as_string设置成string类型
       null_col2             float64  # 强制转换成float类型
+    }
+    >>> df4 = DataFrame(df3, as_type={'list_col': 'list<int64>'})
+    >>> df4.dtypes
+    odps.Schema {
+      id        int64
+      list_col  list<int64>  # 无法识别且无法自动转换，通过 as_type 设置
     }
 
 Sequence
@@ -98,30 +106,31 @@ Sequence
 列类型
 ~~~~~~
 
-DataFrame包括自己的类型系统，在使用Table初始化的时候，ODPS的类型会被进行转换。这样做的好处是，能支持更多的计算后端。目前，DataFrame的执行后端支持ODPS
-SQL、pandas以及数据库（MySQL和Postgres）。
+DataFrame包括自己的类型系统，在使用Table初始化的时候，ODPS的类型会被进行转换。这样做的好处是，能支持更多的计算后端。
+目前，DataFrame的执行后端支持ODPS SQL、pandas以及数据库（MySQL和Postgres）。
 
-PyODPS DataFrame包括以下类型：
+PyODPS DataFrame 包括以下类型：
 
 ``int8``\ ，\ ``int16``\ ，\ ``int32``\ ，\ ``int64``\ ，\ ``float32``\ ，\ ``float64``\ ，\ ``boolean``\ ，\
 ``string``\ ，\ ``decimal``\ ，\ ``datetime``\ ，\ ``list``\ ，\ ``dict``
 
 ODPS的字段和DataFrame的类型映射关系如下：
 
-========== ================
- ODPS类型   DataFrame类型
-========== ================
- bigint     int64
- double     float64
- string     string
- datetime   datetime
- boolean    boolean
- decimal    decimal
- array      list
- map        dict
-========== ================
+============================= ============================
+ ODPS类型                      DataFrame类型
+============================= ============================
+ bigint                        int64
+ double                        float64
+ string                        string
+ datetime                      datetime
+ boolean                       boolean
+ decimal                       decimal
+ array<value_type>             list<value_type>
+ map<key_type, value_type>     dict<key_type, value_type>
+============================= ============================
 
-目前 DataFrame 暂不支持 MaxCompute 2.0 中新增的 Timestamp 及 Struct 类型，未来的版本会支持。
+list 和 dict 必须填写其包含值的类型，否则会报错。目前 DataFrame 暂不支持 MaxCompute 2.0 中新增的
+Timestamp 及 Struct 类型，未来的版本会支持。
 
 在 Sequence 中可以通过 sequence.dtype 获取数据类型：
 

@@ -101,6 +101,7 @@ df.odps.sort.limit      DataFrame有排序操作时，默认添加的limit条数
 ====================== ============================================ ===============
 选项                    说明	                                     默认值
 ====================== ============================================ ===============
+ml.xflow_settings       Xflow 执行配置                               None
 ml.xflow_project        默认 Xflow 工程名                            algo_public
 ml.use_model_transfer   是否使用 ModelTransfer 获取模型 PMML         False
 ml.model_volume         在使用 ModelTransfer 时使用的 Volume 名称    pyodps_volume

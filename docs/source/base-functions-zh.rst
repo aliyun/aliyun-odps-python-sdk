@@ -44,3 +44,4 @@ ODPS用户可以编写自定义 `函数 <https://docs.aliyun.com/#/pub/odps/basi
    >>> function.class_type = 'my_udf2.Test'
    >>> function.resources = [new_resource, ]
    >>> function.update()  # 更新函数
+
