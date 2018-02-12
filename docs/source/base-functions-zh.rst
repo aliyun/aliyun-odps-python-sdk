@@ -22,7 +22,7 @@ ODPS用户可以编写自定义 `函数 <https://docs.aliyun.com/#/pub/odps/basi
 
 .. note::
 
-    注意，公共云由于安全原因，暂不支持使用Python UDF。
+    注意，公共云由于安全原因，使用 Python UDF 需要申请。
 
 删除函数
 ---------
