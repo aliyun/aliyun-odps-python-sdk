@@ -20,7 +20,7 @@ from odps.config import options
 from odps.tests.core import TestBase, tn
 from odps.compat import unittest
 from odps.ipython.magics import ODPSSql
-
+from odps.df.backends.frame import ResultFrame
 try:
     import IPython
     has_ipython = True
@@ -40,9 +40,26 @@ class Test(TestBase):
     @unittest.skipIf(not has_ipython, 'Skipped when no IPython is detected.')
     def testExecuteSql(self):
         FakeShell = namedtuple('FakeShell', 'user_ns')
-
-        magic_class = ODPSSql(FakeShell(user_ns={}))
+        user_ns = {}
+        magic_class = ODPSSql(FakeShell(user_ns=user_ns))
         magic_class._odps = self.odps
+
+        test1_sql = """res <<
+        select 123 as result
+        union
+        --comment
+        select 321 result;
+        """
+        result = magic_class.execute('', test1_sql)
+        self.assertIsNone(result)
+        self.assertIsNotNone(user_ns['res'])
+        self.assertIsInstance(user_ns['res'], ResultFrame)
+
+        self.assertListEqual(self._get_result(user_ns['res']), [[123], [321]])
+
+        result = magic_class.execute("res2 << select '123'")
+        self.assertIsNone(result)
+        self.assertListEqual(self._get_result(user_ns['res2']), [['123']])
 
         test_table_name = tn('pyodps_t_test_sql_magic')
         test_content = [['line1'], ['line2']]

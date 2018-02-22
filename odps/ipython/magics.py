@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -134,14 +134,29 @@ else:
 
         @line_cell_magic('sql')
         def execute(self, line, cell=''):
+
+            def parse_sql_flags(sql):
+                words = sql.split()
+                flags = {
+                    'result_var': None
+                }
+                if not words:
+                    return (flags, "")
+                num_words = len(words)
+                trimmed_sql = sql
+                if num_words >= 2 and words[1] == '<<':
+                    flags['result_var'] = words[0]
+                    trimmed_sql = "\n".join(words[2:])
+
+                return (flags, trimmed_sql.strip())
+
             self._set_odps()
 
             content = line + '\n' + cell
-            content = content.strip()
+            (flags, content) = parse_sql_flags(content)
 
             sql = None
             hints = dict()
-
             splits = content.split(';')
             for s in splits:
                 stripped = s.strip()
@@ -156,11 +171,9 @@ else:
                     if sql is None:
                         sql = s
                     else:
-                        sql = '%s;%s' % (sql, s)
-
+                        sql = "\n".join(sql, s)
             # replace user defined parameters
             sql = replace_sql_parameters(sql, self.shell.user_ns)
-
             if sql:
                 progress_ui = init_progress_ui()
                 group_id = create_instance_group('SQL Query')
@@ -234,7 +247,12 @@ else:
                                     res = reader.raw
 
                     html_notify('SQL execution succeeded')
-                    return res
+                    if flags['result_var']:
+                        result_var = flags['result_var']
+                        self.shell.user_ns.update({result_var: res})
+                        return None
+                    else:
+                        return res
                 finally:
                     progress_ui.close()
 
