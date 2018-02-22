@@ -625,16 +625,25 @@ def escape_odps_string(src):
 
 def replace_sql_parameters(sql, ns):
     param_re = re.compile(r':([a-zA-Z_][a-zA-Z0-9_]*)')
+    def is_numeric(val):
+        return isinstance(val, (six.integer_types, float))
+
+    def format_string(val):
+        return "'{0}'".format(escape_odps_string(str(val)))
+    def format_numeric(val):
+        return repr(val)
 
     def replace(matched):
         name = matched.group(1)
         val = ns.get(name)
         if val is None:
             return matched.group(0)
-        elif isinstance(val, (six.integer_types, float)):
-            return repr(val)
+        elif is_numeric(val):
+            return format_numeric(val)
+        elif isinstance(val, tuple):
+            return '({0})'.format(', '.join(map(lambda v: format_numeric(v) if is_numeric(v) else format_string(v), val)))
         else:
-            return "'{0}'".format(escape_odps_string(str(val)))
+            return format_string(val)
 
     return param_re.sub(replace, sql)
 
