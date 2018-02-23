@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -55,18 +55,35 @@ class Test(TestBase):
     def testReplaceSqlParameters(self):
         cases = [
         {
+            'ns': {
+                'dss': ['20180101', '20180102', '20180101'],
+            },
+            'sql': 'select * from dual where id in :dss',
+            'expected': ["select * from dual where id in ('20180101', '20180102', '20180101')"]
+        },
+        {
+            'ns': {
+                'dss': set(['20180101', '20180102', '20180101']),
+            },
+            'sql': 'select * from dual where id in :dss',
+            'expected': [
+                "select * from dual where id in ('20180101', '20180102')",
+                "select * from dual where id in ('20180102', '20180101')"
+            ]
+        },
+        {
             'ns': {'test1': 'new_test1', 'test3': 'new_\'test3\''},
             'sql': 'select :test1 from dual where :test2 > 0 and f=:test3.abc',
-            'expected': "select 'new_test1' from dual where :test2 > 0 and f='new_\\'test3\\''.abc"
+            'expected': ["select 'new_test1' from dual where :test2 > 0 and f='new_\\'test3\\''.abc"]
         },
         {
             'ns': {
                 'dss': ('20180101', '20180102', 20180101),
             },
             'sql': 'select * from dual where id in :dss',
-            'expected': "select * from dual where id in ('20180101', '20180102', 20180101)"
+            'expected': ["select * from dual where id in ('20180101', '20180102', 20180101)"]
         },
-          {
+        {
             'ns': {
                 'ds': '20180101',
                 'dss': ('20180101', 20180101),
@@ -75,11 +92,11 @@ class Test(TestBase):
                 'prices': (123, '123', 6.4)
             },
             'sql': 'select * from dual where ds = :ds or ds in :dss and id = :id and price > :price or price in :prices',
-            'expected': "select * from dual where ds = '20180101' or ds in ('20180101', 20180101) and id = 21312 and price > 6.4 or price in (123, '123', 6.4)"
+            'expected': ["select * from dual where ds = '20180101' or ds in ('20180101', 20180101) and id = 21312 and price > 6.4 or price in (123, '123', 6.4)"]
         }
         ]
         for case in cases:
-            self.assertEqual(case['expected'], utils.replace_sql_parameters(case['sql'], case['ns']))
+            self.assertIn(utils.replace_sql_parameters(case['sql'], case['ns']), case['expected'])
 
     def testExperimental(self):
         @utils.experimental('Experimental method')

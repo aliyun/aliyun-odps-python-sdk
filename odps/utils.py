@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -628,10 +628,18 @@ def replace_sql_parameters(sql, ns):
     def is_numeric(val):
         return isinstance(val, (six.integer_types, float))
 
+    def is_sequence(val):
+        return isinstance(val, (tuple, set, list))
+
     def format_string(val):
         return "'{0}'".format(escape_odps_string(str(val)))
+
     def format_numeric(val):
         return repr(val)
+
+    def format_sequence(val):
+        escaped = [format_numeric(v) if is_numeric(v) else format_string(v) for v in val]
+        return '({0})'.format(', '.join(escaped))
 
     def replace(matched):
         name = matched.group(1)
@@ -640,8 +648,8 @@ def replace_sql_parameters(sql, ns):
             return matched.group(0)
         elif is_numeric(val):
             return format_numeric(val)
-        elif isinstance(val, tuple):
-            return '({0})'.format(', '.join(map(lambda v: format_numeric(v) if is_numeric(v) else format_string(v), val)))
+        elif is_sequence(val):
+            return format_sequence(val)
         else:
             return format_string(val)
 
