@@ -172,6 +172,10 @@ class Expr(Node):
 
     def execute(self, **kwargs):
         """
+        :param hints: settings for SQL, e.g. `odps.sql.mapper.split.size`
+        :type hints: dict
+        :param priority: instance priority, 9 as default
+        :type priority: int
         :return: execution result
         :rtype: :class:`odps.df.backends.frame.ResultFrame`
         """
@@ -214,8 +218,23 @@ class Expr(Node):
         :type partition: string or PartitionSpec
         :param lifecycle: table lifecycle. If absent, `options.lifecycle` will be used.
         :type lifecycle: int
+        :param project: project name, if not provided, will be the default project
+        :param hints: settings for SQL, e.g. `odps.sql.mapper.split.size`
+        :type hints: dict
+        :param priority: instance priority, 9 as default
+        :type priority: int
         :param overwrite: overwrite the table, True as default
         :type overwrite: bool
+        :param drop_table: drop table if exists, False as default
+        :type drop_table: bool
+        :param create_table: create table first if not exits, True as default
+        :type create_table: bool
+        :param drop_partition: drop partition if exists, False as default
+        :type drop_partition: bool
+        :param create_partition: create partition if not exists, None as default
+        :type create_partition: bool
+        :param cast: cast all columns' types as the existed table, False as default
+        :type cast: bool
         :return: :class:`odps.df.DataFrame`
 
         :Example:
