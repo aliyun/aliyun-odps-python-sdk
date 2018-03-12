@@ -1,10 +1,58 @@
 .. _models:
 
-模型
-========
+XFlow 和模型
+=============
 
-ODPS 提供了两种模型。一种模型为离线模型（OfflineModel），另一种模型为在线模型（OnlineModel）。离线模型为分类 / 回归算法使用
-训练数据得到的模型，而在线模型是部署离线模型或自定义流程从而形成的在线服务。
+XFlow
+------
+
+XFlow 是 ODPS 对算法包的封装，使用 PyODPS 可以执行 XFlow。对于下面的 PAI 命令：
+
+.. code::
+
+    PAI -name AlgoName -project algo_public -Dparam1=param_value1 -Dparam2=param_value2 ...
+
+可以使用如下方法调用：
+
+.. code:: python
+
+    >>> # 异步调用
+    >>> inst = o.run_xflow('AlgoName', 'algo_public',
+                           parameters={'param1': 'param_value1', 'param2': 'param_value2', ...})
+
+或者使用同步调用：
+
+.. code:: python
+
+    >>> # 同步调用
+    >>> inst = o.execute_xflow('AlgoName', 'algo_public',
+                               parameters={'param1': 'param_value1', 'param2': 'param_value2', ...})
+
+这两个方法都会返回一个 Instance 对象。由于 XFlow 的一个 Instance 包含若干个子 Instance，
+需要使用下面的方法来获得每个 Instance 的 LogView：
+
+.. code-block:: python
+
+    >>> for sub_inst_name, sub_inst in six.iteritems(o.get_xflow_sub_instances(inst)):
+    >>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))
+
+需要注意的是，get_xflow_sub_instances 返回的是 Instance 当前的子 Instance，可能会随时间变化，因而可能需要定时查询。
+
+在调用 run_xflow 或者 execute_xflow 时，也可以指定运行参数，指定的方法与 SQL 类似：
+
+.. code-block:: python
+
+    >>> parameters = {'param1': 'param_value1', 'param2': 'param_value2', ...}
+    >>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters, hints={'odps.xxx.yyy': 10})
+
+使用 options.ml.xflow_settings 可以配置全局设置：
+
+.. code-block:: python
+
+    >>> from odps import options
+    >>> options.ml.xflow_settings = {'odps.xxx.yyy': 10}
+    >>> parameters = {'param1': 'param_value1', 'param2': 'param_value2', ...}
+    >>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters)
 
 离线模型
 ---------
