@@ -205,6 +205,9 @@ class ODPS(object):
         :rtype: bool
         """
 
+        if '.' in name:
+            project, name = name.split('.', 1)
+
         project = self.get_project(name=project)
         return name in project.tables
 
@@ -251,6 +254,9 @@ class ODPS(object):
         :type async: bool
         :return: None if not async else odps instance
         """
+
+        if isinstance(name, six.string_types) and '.' in name:
+            project, name = name.split('.', 1)
 
         project = self.get_project(name=project)
         return project.tables.delete(name, if_exists=if_exists, async=async)

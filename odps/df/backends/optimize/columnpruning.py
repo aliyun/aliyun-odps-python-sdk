@@ -97,7 +97,8 @@ class ColumnPruning(Backend):
             return False, set()
 
         if len(set(expr.schema.names) - columns) > 0:
-            return True, sorted(columns)
+            order = dict((c, i) for i, c in enumerate(expr.schema.names))
+            return True, sorted(columns, key=order.get)
 
         return False, sorted(columns)
 

@@ -29,9 +29,12 @@ def change_input(expr, src_input, new_input, get_field, dag):
                 field = field.rename(p.name)
             else:
                 field = field.copy()
-            parents = [it for it in dag.successors(p)
-                       if it._node_id in traversed]
-            dag.substitute(p, field, parents=parents)
+            if p is expr:
+                p.substitute(src_input, new_input, dag=dag)
+            else:
+                parents = [it for it in dag.successors(p)
+                           if it._node_id in traversed]
+                dag.substitute(p, field, parents=parents)
         else:
             assert isinstance(p, CollectionExpr)
             p.substitute(src_input, new_input, dag=dag)

@@ -19,6 +19,7 @@ from ...expr.reduction import Cat, GroupedCat
 from ...expr.window import *
 from ...expr.merge import *
 from ...expr.expressions import LateralViewCollectionExpr
+from ...expr.element import Func
 from ...expr.utils import get_attrs
 from ....errors import NoSuchObject
 from ...utils import is_source_collection
@@ -87,6 +88,9 @@ class Rewriter(BaseRewriter):
                 return expr.dtype != types.decimal
             else:
                 return all(t != types.decimal for t in expr.schema.types)
+
+        if isinstance(expr, Func):
+            return
 
         if all(input.dtype != types.decimal for input in raw_inputs) and \
                 no_output_decimal():

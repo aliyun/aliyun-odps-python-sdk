@@ -473,7 +473,7 @@ class JoinFieldMergedCollectionExpr(ProjectCollectionExpr):
         for expr in root.traverse(top_down=True, unique=True,
                                   stop_cond=lambda x: isinstance(x, Column) or x is self):
             if isinstance(expr, Column):
-                if expr.input is self:
+                if expr.input is self or expr.input is joined_expr:
                     has_path = True
                     continue
                 if expr.input is joined_expr._lhs:

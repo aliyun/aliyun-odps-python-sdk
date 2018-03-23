@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -622,15 +622,14 @@ class OdpsSQLCompiler(Backend):
 
     def visit_element_op(self, expr):
         if isinstance(expr, element.IsNull):
-            compiled = '{0} IS NULL'.format(
-                self._ctx.get_expr_compiled(expr.input))
+            compiled = '{0} IS NULL'.format(self._parenthesis(expr.input))
         elif isinstance(expr, element.NotNull):
-            compiled = '{0} IS NOT NULL'.format(
-                self._ctx.get_expr_compiled(expr.input))
+            compiled = '{0} IS NOT NULL'.format(self._parenthesis(expr.input))
         elif isinstance(expr, element.FillNa):
-            compiled = 'IF(%(input)s IS NULL, %(value)s, %(input)s)' % {
-                'input': self._ctx.get_expr_compiled(expr.input),
+            compiled = 'IF(%(input)s IS NULL, %(value)s, %(else_value)s)' % {
+                'input': self._parenthesis(expr.input),
                 'value': self._ctx.get_expr_compiled(expr._fill_value),
+                'else_value': self._ctx.get_expr_compiled(expr.input),
             }
         elif isinstance(expr, element.IsIn):
             if expr.values is not None:
@@ -1052,6 +1051,12 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, (Cat, GroupedCat)):
             compiled = 'WM_CONCAT(%s, %s)' % (self._ctx.get_expr_compiled(expr._sep),
                                               self._ctx.get_expr_compiled(expr.input))
+        elif isinstance(expr, (Quantile, GroupedQuantile)):
+            if not isinstance(expr._prob, (list, set)):
+                probs_expr = expr._prob
+            else:
+                probs_expr = 'ARRAY(' + ', '.join(str(p) for p in expr._prob) + ')'
+            compiled = 'PERCENTILE(%s, %s)' % (self._ctx.get_expr_compiled(expr.input), probs_expr)
         elif isinstance(expr, (ToList, GroupedToList)):
             func_name = 'COLLECT_SET' if expr._unique else 'COLLECT_LIST'
             compiled = '%s(%s)' % (func_name, self._ctx.get_expr_compiled(expr.input))

@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -182,6 +182,15 @@ class Mean(SequenceReduction):
 
 class GroupedMean(GroupedSequenceReduction):
     node_name = 'mean'
+
+
+class Quantile(SequenceReduction):
+    __slots__ = '_prob',
+
+
+class GroupedQuantile(GroupedSequenceReduction):
+    __slots__ = '_prob',
+    node_name = 'quantile'
 
 
 class Moment(SequenceReduction):
@@ -499,6 +508,7 @@ def var(expr, **kw):
     Variance
 
     :param expr:
+    :param ddof: degree of freedom
     :param kw:
     :return:
     """
@@ -563,6 +573,22 @@ def median(expr):
 
     output_type = _stats_type(expr)
     return _reduction(expr, Median, output_type)
+
+
+def quantile(expr, prob=None, **kw):
+    """
+    Percentile value.
+
+    :param expr:
+    :param prob: probability or list of probabilities, in [0, 1]
+    :return:
+    """
+
+    prob = kw.get('_prob', prob)
+    output_type = _stats_type(expr)
+    if isinstance(prob, (list, set)) and not isinstance(expr, GroupBy):
+        output_type = types.List(output_type)
+    return _reduction(expr, Quantile, output_type, _prob=prob)
 
 
 def any_(expr):
@@ -753,6 +779,7 @@ _number_sequence_methods = dict(
     kurt=kurtosis,
     median=median,
     sum=sum_,
+    quantile=quantile,
 )
 
 _sequence_methods = dict(

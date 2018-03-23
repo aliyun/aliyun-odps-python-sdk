@@ -14,6 +14,8 @@ PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，�
     options.lifecycle = 30
     # 使用 Tunnel 下载 string 类型时使用 bytes（tunnel.string_as_binary 选项）
     options.tunnel.string_as_binary = True
+    # PyODPS DataFrame 用 ODPS 执行时，参照下面 dataframe 相关配置，sort 时设置 limit 到一个比较大的值
+    options.df.odps.sort.limit = 100000000
 
 下面列出了可配的 ODPS 选项。
 

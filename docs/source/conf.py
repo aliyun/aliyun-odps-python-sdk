@@ -93,7 +93,7 @@ language = None
 try:
     import odps.internal
     with_internal = True
-    exclude_patterns = ['*-pub.rst', '*-pub-*.rst']
+    exclude_patterns = ['*-ext.rst', '*-ext-*.rst']
 except ImportError:
     with_internal = False
     exclude_patterns = ['*-int.rst', '*-int-*.rst']
@@ -322,6 +322,14 @@ class IncludeInternal(Include):
             return []
 
 
+class IncludeExternal(Include):
+    def run(self):
+        if with_internal:
+            return []
+        else:
+            return Include.run(self)
+
+
 # config for internal label
 def setup(app):
     if with_internal:
@@ -330,3 +338,4 @@ def setup(app):
         app.add_stylesheet('theme_override.css')
 
     app.add_directive('intinclude', IncludeInternal)
+    app.add_directive('extinclude', IncludeExternal)

@@ -94,7 +94,7 @@ class Test(TestBase):
                                 self.expr.name.lower().contains('pyodps', regex=False)).name.nunique()
         expected = "SELECT COUNT(DISTINCT t2.`name`) AS `name_nunique` \n" \
                    "FROM (\n" \
-                   "  SELECT t1.`id`, t1.`name` \n" \
+                   "  SELECT t1.`name`, t1.`id` \n" \
                    "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
                    "  WHERE ((t1.`id` >= 2) AND (t1.`id` <= 6)) AND INSTR(TOLOWER(t1.`name`), 'pyodps') > 0 \n" \
                    ") t2"
@@ -469,6 +469,51 @@ class Test(TestBase):
                    ') t3 \n' \
                    'WHERE (t3.`hobby` IS NOT NULL) OR (t3.`id` < 4)'
         expr3 = expr[expr.hobby.notnull() | (expr.id < 4)]
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr3, prettify=False)))
+
+    def testFilterPushdownJoinFilterProjection(self):
+        expr = self.expr.join(self.expr3, on='id')
+        expr2 = expr[expr.scale < 5]
+        expr3 = expr2['name_x', 'id', 'fid_y']
+        expr4 = expr3.query('name_x > "b" and fid_y < 3')
+
+        expected = "SELECT t2.`name` AS `name_x`, t2.`id`, t4.`fid` AS `fid_y` \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`name`, t1.`id`, t1.`scale` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "  WHERE (t1.`name` > 'b') AND (t1.`scale` < 5)\n" \
+                   ") t2 \n" \
+                   "INNER JOIN \n" \
+                   "  (\n" \
+                   "    SELECT t3.`id`, t3.`fid` \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table2` t3 \n" \
+                   "    WHERE t3.`fid` < 3\n" \
+                   "  ) t4\n" \
+                   "ON t2.`id` == t4.`id`"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr4, prettify=False)))
+
+    def testFilterPushdownJoinUnion(self):
+        expr = self.expr.union(self.expr1)
+        expr2 = expr.join(self.expr3, on='name', suffixes=('', '_2'))
+        expr3 = expr2.filter(expr2.id < 3, expr2.fid > 4, expr2.isMale)
+
+        expected = "SELECT t3.`name`, t3.`id`, t3.`fid`, t3.`isMale`, t3.`scale`, t3.`birth`, " \
+                   "t4.`id` AS `id_2`, t4.`fid` AS `fid_2`, t4.`part1`, t4.`part2` \n" \
+                   "FROM (\n" \
+                   "  SELECT * \n" \
+                   "  FROM (\n" \
+                   "    SELECT * \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "    WHERE ((t1.`fid` > 4) AND (t1.`id` < 3)) AND t1.`isMale` \n" \
+                   "    UNION ALL\n" \
+                   "      SELECT * \n" \
+                   "      FROM mocked_project.`pyodps_test_expr_table1` t2 \n" \
+                   "      WHERE ((t2.`fid` > 4) AND (t2.`id` < 3)) AND t2.`isMale`\n" \
+                   "  ) t3\n" \
+                   ") t3 \n" \
+                   "INNER JOIN \n" \
+                   "  mocked_project.`pyodps_test_expr_table2` t4\n" \
+                   "ON t3.`name` == t4.`name`"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr3, prettify=False)))
 
 

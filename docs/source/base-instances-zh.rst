@@ -37,7 +37,7 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 
     >>> instance = o.run_xflow('AppendID', 'algo_public',
                                {'inputTableName': 'input_table', 'outputTableName': 'output_table'})
-    >>> for sub_inst_name, sub_inst in six.iteritems(o.get_xflow_sub_instances(instance)):
+    >>> for sub_inst_name, sub_inst in o.get_xflow_sub_instances(instance).items():
     >>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))
 
 任务实例状态

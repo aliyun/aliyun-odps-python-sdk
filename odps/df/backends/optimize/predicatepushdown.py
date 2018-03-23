@@ -20,7 +20,7 @@ import itertools
 from ..core import Backend
 from ...expr.expressions import ProjectCollectionExpr, FilterCollectionExpr, \
     LateralViewCollectionExpr, Column, SequenceExpr
-from ...expr.element import IsIn
+from ...expr.element import IsIn, Func, MappedExpr
 from ...expr.merge import InnerJoin
 from ...expr.arithmetic import And
 from ...expr.reduction import SequenceReduction
@@ -34,9 +34,10 @@ from ....compat import reduce
 class PredicatePushdown(Backend):
     def __init__(self, dag):
         self._dag = dag
+        self._traversed = set()
 
     def pushdown(self):
-        for node in traverse_until_source(self._dag, top_down=True):
+        for node in traverse_until_source(self._dag, top_down=True, traversed=self._traversed):
             try:
                 node.accept(self)
             except NotImplementedError:
@@ -49,7 +50,7 @@ class PredicatePushdown(Backend):
 
         predicates = self._split_filter_into_predicates(expr)
 
-        if any(isinstance(seq, (Window, SequenceReduction))
+        if any(isinstance(seq, (Window, SequenceReduction, Func))
                for seq in itertools.chain(*expr.all_path(expr.input, strict=True))):
             # if any reduction like sum or window op exists, skip
             return
@@ -68,13 +69,19 @@ class PredicatePushdown(Backend):
         def sub():
             if len(filters) > 1:
                 new_expr = Optimizer.get_compact_filters(self._dag, *filters)
+                old_predicate = expr._predicate
                 expr._predicate = new_expr.predicate
+                self._dag.substitute(old_predicate, expr._predicate, parents=[expr])
+                [self._traversed.add(id(i)) for i in filters[1:]]
+                return True
         if isinstance(input, ProjectCollectionExpr):
-            if any(isinstance(seq, (Window, SequenceReduction))
-                   for seq in itertools.chain(*input.all_path(input.input, strict=True))):
+            if any(isinstance(seq, (Window, SequenceReduction, MappedExpr))
+                   for seq in input.traverse(top_down=True, unique=True,
+                                             stop_cond=lambda x: x is input.input)):
                 # if any reduction like sum or window op exists, skip
                 return
-            sub()
+            if sub():
+                predicates = self._split_filter_into_predicates(expr)
             predicate = expr.predicate
             remain = None
             if isinstance(input, LateralViewCollectionExpr):
@@ -101,7 +108,8 @@ class PredicatePushdown(Backend):
             else:
                 expr.substitute(expr._predicate, remain, dag=self._dag)
         elif isinstance(input, InnerJoin):
-            sub()
+            if sub():
+                predicates = self._split_filter_into_predicates(expr)
             remains = []
             predicates = predicates[::-1]
             for i, predicate in enumerate(predicates):

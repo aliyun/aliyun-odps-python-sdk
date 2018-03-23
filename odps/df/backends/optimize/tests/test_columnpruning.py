@@ -52,6 +52,10 @@ class Test(TestBase):
         table4 = MockTable(name='pyodps_test_expr_table', schema=schema)
         self.expr4 = CollectionExpr(_source_data=table4, _schema=schema3)
 
+        schema4 = Schema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'))
+        table5 = MockTable(name='pyodps_test_expr_table2', schema=schema4)
+        self.expr5 = CollectionExpr(_source_data=table5, _schema=Schema(columns=schema4.columns))
+
     def testProjectPrune(self):
         expr = self.expr.select('name', 'id')
         new_expr = ColumnPruning(expr.to_dag()).prune()
@@ -331,6 +335,22 @@ class Test(TestBase):
 
         expr2 = expr[expr.id, expr.hobbies]
         self.assertEqual(expected, ODPSEngine(self.odps).compile(expr2, prettify=False))
+
+    def testUnionKeepOrder(self):
+        expr = self.expr5
+        expr2 = self.expr3['fid', 'id', 'name']
+        expr3 = expr.union(expr2)['fid', 'id']
+
+        expected = 'SELECT t3.`fid`, t3.`id` \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`id`, t1.`fid` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table2` t1 \n' \
+                   '  UNION ALL\n' \
+                   '    SELECT t2.`id`, t2.`fid` \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table2` t2\n' \
+                   ') t3'
+
+        self.assertEqual(expected, ODPSEngine(self.odps).compile(expr3, prettify=False))
 
 
 if __name__ == '__main__':

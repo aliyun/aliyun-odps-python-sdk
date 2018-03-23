@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -1976,6 +1976,21 @@ class Test(TestBase):
             meanv2 = mean([v ** 2 for v in vct])
             return (meanv2 - meanv ** 2) * len(vct) / (len(vct) - ddof)
 
+        def quantile(vct, percent):
+            if not vct:
+                return None
+            if isinstance(percent, (list, set)):
+                return [quantile(vct, p) for p in percent]
+            vct = sorted(vct)
+            k = (len(vct) - 1) * percent
+            f = math.floor(k)
+            c = math.ceil(k)
+            if f == c:
+                return vct[int(k)]
+            d0 = vct[int(f)] * (c - k)
+            d1 = vct[int(c)] * (k - f)
+            return d0 + d1
+
         def moment(vct, order, central=False, absolute=False):
             abs_fun = abs if absolute else lambda x: x
             if central:
@@ -2030,6 +2045,8 @@ class Test(TestBase):
             (partial(stats, 'id', skew), self.expr.id.skew()),
             (partial(stats, 'id', kurtosis), self.expr.id.kurtosis()),
             (partial(stats, 'id', median), self.expr.id.median()),
+            (partial(stats, 'id', lambda x: quantile(x, 0.3)), self.expr.id.quantile(0.3)),
+            (partial(stats, 'id', lambda x: quantile(x, [0.3, 0.6])), self.expr.id.quantile([0.3, 0.6])),
             (partial(stats, 'id', sum), self.expr.id.sum()),
             (partial(stats, 'id', min), self.expr.id.min()),
             (partial(stats, 'id', max), self.expr.id.max()),
@@ -2059,6 +2076,8 @@ class Test(TestBase):
             second = [it[i] for it in result][0]
             if isinstance(first, float):
                 self.assertAlmostEqual(first, second)
+            elif isinstance(first, list):
+                self.assertListAlmostEqual(first, second)
             else:
                 if first != second:
                     pass
@@ -2077,6 +2096,8 @@ class Test(TestBase):
 
             if isinstance(first, float):
                 self.assertAlmostEqual(first, second)
+            elif isinstance(first, list):
+                self.assertListAlmostEqual(first, second)
             else:
                 self.assertEqual(first, second)
 

@@ -121,7 +121,7 @@
 
 
 在未经设置的情况下，创建表时，只允许使用 bigint、double、decimal、string、datetime、boolean、map 和 array 类型。
-如果你的服务位于公共云，或者支持 tinyint、struct 等新类型，可以设置 ``options.sql.use_odps2_extension = True``
+如果你使用的是位于公共云上的服务，或者支持 tinyint、struct 等新类型，可以设置 ``options.sql.use_odps2_extension = True``
 打开这些类型的支持，示例如下：
 
 .. code-block:: python

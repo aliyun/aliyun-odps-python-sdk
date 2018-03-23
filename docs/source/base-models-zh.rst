@@ -33,7 +33,7 @@ XFlow 是 ODPS 对算法包的封装，使用 PyODPS 可以执行 XFlow。对于
 
 .. code-block:: python
 
-    >>> for sub_inst_name, sub_inst in six.iteritems(o.get_xflow_sub_instances(inst)):
+    >>> for sub_inst_name, sub_inst in o.get_xflow_sub_instances(inst).items():
     >>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))
 
 需要注意的是，get_xflow_sub_instances 返回的是 Instance 当前的子 Instance，可能会随时间变化，因而可能需要定时查询。

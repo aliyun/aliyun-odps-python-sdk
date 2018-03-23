@@ -43,7 +43,6 @@ ODPS 分区，Pandas DataFrame或sqlalchemy.Table（数据库表）。
 
 在用 pandas DataFrame 初始化时，对于 numpy object 类型或者 string 类型，PyODPS DataFrame 会尝试推断类型，
 如果一整列都为空，则会报错。这时，用户可以指定 `unknown_as_string` 为True，会将这些列指定为string类型。
-
 用户也可以指定 as_type 参数。若类型为基本类型，会在创建 PyODPS DataFrame 时进行强制类型转换。
 如果 Pandas DataFrame 中包含 list 或者 dict 列，该列的类型不会被推断，必须手动使用 as_type 指定。
 as_type 参数类型必须是dict。
@@ -374,6 +373,19 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     3  Iris-setosa
     4  Iris-setosa
 
+此外，在 0.7.2 以后版本的 PyODPS 中，支持对数据进行条件赋值，例如
+
+.. code:: python
+
+    >>> iris[iris.sepallength > 5.0, 'sepalwidth'] = iris.sepalwidth * 2
+    >>> iris.head(5)
+       sepallength  sepalwidth  petallength  petalwidth         name
+    0          5.1        14.0          1.4         0.2  Iris-setosa
+    1          4.9         6.0          1.4         0.2  Iris-setosa
+    2          4.7         6.4          1.3         0.2  Iris-setosa
+    3          4.6         6.2          1.5         0.2  Iris-setosa
+    4          5.0         7.2          1.4         0.2  Iris-setosa
+
 引入常数和随机数
 ~~~~~~~~~~~~~~~~
 DataFrame 支持在 collection 中追加一列常数。追加常数需要使用 :class:`Scalar`，引入时需要手动指定列名，如
@@ -402,6 +414,34 @@ DataFrame 支持在 collection 中追加一列常数。追加常数需要使用 
     2           4.7          3.2           1.3          0.2  Iris-setosa  None
     3           4.6          3.1           1.5          0.2  Iris-setosa  None
     4           5.0          3.6           1.4          0.2  Iris-setosa  None
+
+
+在 PyODPS 0.7.12 及以后版本中，引入了简化写法：
+
+.. code:: python
+
+    >>> iris['id'] = 1
+    >>> iris
+       sepallength  sepalwidth  petallength  petalwidth         name  id
+    0          5.1         3.5          1.4         0.2  Iris-setosa   1
+    1          4.9         3.0          1.4         0.2  Iris-setosa   1
+    2          4.7         3.2          1.3         0.2  Iris-setosa   1
+    3          4.6         3.1          1.5         0.2  Iris-setosa   1
+    4          5.0         3.6          1.4         0.2  Iris-setosa   1
+
+
+需要注意的是，这种写法无法自动识别空值的类型，所以在增加空值列时，仍然要使用
+
+.. code:: python
+
+    >>> iris['null_col'] = NullScalar('float')
+    >>> iris
+       sepallength  sepalwidth  petallength  petalwidth         name  null_col
+    0          5.1         3.5          1.4         0.2  Iris-setosa      None
+    1          4.9         3.0          1.4         0.2  Iris-setosa      None
+    2          4.7         3.2          1.3         0.2  Iris-setosa      None
+    3          4.6         3.1          1.5         0.2  Iris-setosa      None
+    4          5.0         3.6          1.4         0.2  Iris-setosa      None
 
 
 DataFrame 也支持在 collection 中增加一列随机数列，该列类型为 float，范围为 0 - 1，每行数值均不同。
@@ -683,12 +723,12 @@ DataFrame上的所有操作并不会立即执行，只有当用户显式调用\ 
       odps.Table
         name: odps_test_sqltask_finance.`pyodps_iris`
         schema:
-          sepallength           : double      
-          sepalwidth            : double      
-          petallength           : double      
-          petalwidth            : double      
-          name                  : string      
-    
+          sepallength           : double
+          sepalwidth            : double
+          petallength           : double
+          petalwidth            : double
+          name                  : string
+
     Collection: ref_1
       Filter[collection]
         collection: ref_0
@@ -697,7 +737,7 @@ DataFrame上的所有操作并不会立即执行，只有当用户显式调用\ 
             sepallength = Column[sequence(float64)] 'sepallength' from collection ref_0
             Scalar[int8]
               5
-    
+
     Slice[collection]
       collection: ref_1
       stop:
@@ -824,9 +864,9 @@ ResultFrame可以迭代取出每条记录。
     >>>
     >>> iris[iris.sepallength < 5].exclude('sepallength')[:5].execute()
     Sql compiled:
-    SELECT t1.`sepalwidth`, t1.`petallength`, t1.`petalwidth`, t1.`name` 
-    FROM odps_test_sqltask_finance.`pyodps_iris` t1 
-    WHERE t1.`sepallength` < 5 
+    SELECT t1.`sepalwidth`, t1.`petallength`, t1.`petalwidth`, t1.`name`
+    FROM odps_test_sqltask_finance.`pyodps_iris` t1
+    WHERE t1.`sepallength` < 5
     LIMIT 5
     logview:
     http://logview

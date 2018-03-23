@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -1834,12 +1834,20 @@ class Test(TestBase):
                     return 0.0
                 return buffer[0] / buffer[1]
 
+        def quantile(col, prob):
+            if isinstance(prob, (list, set)):
+                return [quantile(col, p) for p in prob]
+            else:
+                return col.quantile(prob)
+
         methods_to_fields = [
             (lambda s: df.id.mean(), self.expr.id.mean()),
             (lambda s: len(df), self.expr.count()),
             (lambda s: df.id.var(ddof=0), self.expr.id.var(ddof=0)),
             (lambda s: df.id.std(ddof=0), self.expr.id.std(ddof=0)),
             (lambda s: df.id.median(), self.expr.id.median()),
+            (lambda s: quantile(df.id, 0.3), self.expr.id.quantile(0.3)),
+            (lambda s: quantile(df.id, [0.3, 0.6]), self.expr.id.quantile([0.3, 0.6])),
             (lambda s: df.id.sum(), self.expr.id.sum()),
             (lambda s: (df.id ** 3).mean(), self.expr.id.moment(3)),
             (lambda s: df.id.var(ddof=0), self.expr.id.moment(2, central=True)),
@@ -1877,6 +1885,8 @@ class Test(TestBase):
             second = [it[i] for it in result][0]
             if isinstance(first, float):
                 self.assertAlmostEqual(first, second)
+            elif isinstance(first, list):
+                self.assertListAlmostEqual(first, second)
             else:
                 self.assertEqual(first, second)
 
@@ -1896,6 +1906,8 @@ class Test(TestBase):
 
             if isinstance(first, float):
                 self.assertAlmostEqual(first, second)
+            elif isinstance(first, list):
+                self.assertListAlmostEqual(first, second)
             else:
                 self.assertEqual(first, second)
 

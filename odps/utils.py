@@ -196,17 +196,6 @@ def underline_to_camel(name):
     return parts[0] + ''.join(v.title() for v in parts[1:])
 
 
-def camel_to_underscore(chars):
-    ret = []
-    for c in chars:
-        if c in string.uppercase:
-            ret.append('_')
-            ret.append(c.lower())
-        else:
-            ret.append(c)
-    return ''.join(ret)
-
-
 def long_to_int(value):
     if value & 0x80000000:
         return int(-((value ^ 0xFFFFFFFF) + 1))
@@ -625,6 +614,7 @@ def escape_odps_string(src):
 
 def replace_sql_parameters(sql, ns):
     param_re = re.compile(r':([a-zA-Z_][a-zA-Z0-9_]*)')
+
     def is_numeric(val):
         return isinstance(val, (six.integer_types, float))
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -260,6 +260,12 @@ class Test(TestBase):
                    "FROM mocked_project.`pyodps_test_expr_table` t1"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr[1 + self.expr.id, self.expr.fid]
+        expr = expr[expr.id.fillna(0), expr.fid]
+        expected = "SELECT IF((1 + t1.`id`) IS NULL, 0, 1 + t1.`id`) AS `id`, t1.`fid` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
         expr = self.expr.filter(func.sample(5, 1, 'name', 'id', rtype='boolean'))
         expected = "SELECT * \n" \
                    "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
@@ -423,6 +429,16 @@ class Test(TestBase):
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expect),
                          to_str(ODPSEngine(self.odps).compile(self.expr.id.fillna(100), prettify=False)))
+
+        expect = 'SELECT (1 + t1.`id`) IS NULL AS `id` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile((1 + self.expr.id).isnull(), prettify=False)))
+
+        expect = 'SELECT (1 + t1.`id`) IS NOT NULL AS `id` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile((1 + self.expr.id).notnull(), prettify=False)))
 
         expr = self.expr.id.isin([1, 2, 3]).rename('id')
         expect = 'SELECT t1.`id` IN (1, 2, 3) AS `id` \n' \
@@ -1440,6 +1456,22 @@ class Test(TestBase):
                    'GROUP BY t1.`id`'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.groupby(['id']).quantile(0.25)
+        expected = 'SELECT t1.`id`, PERCENTILE(t1.`fid`, 0.25) AS `fid_quantile`, ' \
+                   'PERCENTILE(t1.`id`, 0.25) AS `id_quantile`, ' \
+                   'PERCENTILE(t1.`scale`, 0.25) AS `scale_quantile` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`id`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['id']).quantile([0.25, 0.5, 0.75])
+        expected = 'SELECT t1.`id`, PERCENTILE(t1.`fid`, ARRAY(0.25, 0.5, 0.75)) AS `fid_quantile`, ' \
+                   'PERCENTILE(t1.`id`, ARRAY(0.25, 0.5, 0.75)) AS `id_quantile`, ' \
+                   'PERCENTILE(t1.`scale`, ARRAY(0.25, 0.5, 0.75)) AS `scale_quantile` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`id`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
         expr = self.expr.groupby(['name']).any()
         expected = 'SELECT t1.`name`, MAX(IF(t1.`isMale`, 1, 0)) == 1 AS `isMale_any` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
@@ -2200,6 +2232,31 @@ class Test(TestBase):
                    "ORDER BY id, name_x \n" \
                    "LIMIT 10000"
         self.assertEqual(to_str(expected), to_str(engine.compile(expr, prettify=False)))
+
+    def testLeftJoinMergeColumnsApplyReduce(self):
+        expr = self.expr.left_join(self.expr1, on='id', merge_columns=True)
+
+        def func(_):
+            return 1
+
+        expr['id2'] = expr.apply(func, reduce=True, axis=1, types='float')
+
+        expected = "SELECT t1.`name` AS `name_x`, IF(t1.`id` IS NULL, t2.`id`, t1.`id`) AS `id`, " \
+                   "t1.`fid` AS `fid_x`, t1.`isMale` AS `isMale_x`, t1.`scale` AS `scale_x`, " \
+                   "t1.`birth` AS `birth_x`, t2.`name` AS `name_y`, t2.`fid` AS `fid_y`, " \
+                   "t2.`isMale` AS `isMale_y`, t2.`scale` AS `scale_y`, t2.`birth` AS `birth_y`, " \
+                   "{0}(t1.`name`, IF(t1.`id` IS NULL, t2.`id`, t1.`id`), t1.`fid`, t1.`isMale`, " \
+                   "CAST(t1.`scale` AS STRING), t1.`birth`, t2.`name`, t2.`fid`, t2.`isMale`, " \
+                   "CAST(t2.`scale` AS STRING), t2.`birth`) AS `id2` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "LEFT OUTER JOIN \n" \
+                   "  mocked_project.`pyodps_test_expr_table1` t2\n" \
+                   "ON t1.`id` == t2.`id`"
+
+        engine = ODPSEngine(self.odps)
+        res = engine.compile(expr, prettify=False)
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
 
     def testAsType(self):
         e = self.expr

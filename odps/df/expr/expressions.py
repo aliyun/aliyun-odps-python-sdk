@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -206,7 +206,7 @@ class Expr(Node):
     def persist(self, name, partitions=None, partition=None, lifecycle=None, project=None, **kwargs):
         """
         Persist the execution into a new table. If `partitions` not specified,
-        will create a new table without partitions if the table does not exist, 
+        will create a new table without partitions if the table does not exist,
         and insert the SQL result into it.
         If `partitions` are specified, they will be the partition fields of the new table.
         If `partition` is specified, the data will be inserted into the exact partition of the table.
@@ -579,10 +579,12 @@ class CollectionExpr(Expr):
         self._proxy = expr.select(fields)
 
     def __setitem__(self, key, value):
-        if not isinstance(value, Expr):
+        if not isinstance(value, Expr) and value is not None:
             value = Scalar(value)
 
         if not isinstance(key, tuple):
+            if value is None:
+                raise ValueError('Cannot determine type for column %s with None value.' % key)
             column_name = key
             value = value.rename(column_name)
         else:
@@ -596,9 +598,13 @@ class CollectionExpr(Expr):
                 cond = reduce(operator.and_, conds)
             column_name = key[-1]
             if column_name not in self._schema:
+                if value is None:
+                    raise ValueError('Cannot determine type for column %s with None value.' % key)
                 default_col = Scalar(_value_type=value.dtype)
             else:
                 default_col = self[column_name]
+                if value is None:
+                    value = Scalar(_value_type=default_col.dtype)
             value = cond.ifelse(value, default_col).rename(column_name)
         self._set_field(value)
 

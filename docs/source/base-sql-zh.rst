@@ -6,6 +6,12 @@ SQL
 PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 ``execute_sql`` 或者 ``run_sql`` 方法的返回值是 `运行实例 <instances-zh.html>`_ 。
 
+.. note::
+
+    并非所有在 ODPS Console 中可以执行的命令都是 ODPS 可以接受的 SQL 语句。
+    在调用非 DDL / DML 语句时，请使用其他方法，例如 GRANT / REVOKE 等语句请使用
+    run_security_query 方法，PAI 命令请使用 run_xflow 或 execute_xflow 方法。
+
 .. _execute_sql:
 
 执行SQL
@@ -57,8 +63,9 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
    >>> with o.execute_sql('desc dual').open_reader() as reader:
    >>>     print(reader.raw)
 
-如果 `options.tunnel.use_instance_tunnel == True`，那么 PyODPS 会默认调用 Instance Tunnel，否则会调用旧的 Result 接口。
-如果你使用了版本较低的 MaxCompute 服务，PyODPS 会自动降级到旧的 Result 接口。如果 Instance Tunnel 的结果不合预期，
+如果 `options.tunnel.use_instance_tunnel == True`，在调用 open_reader 时，PyODPS 会默认调用 Instance Tunnel，
+否则会调用旧的 Result 接口。如果你使用了版本较低的 MaxCompute 服务，或者调用 Instance Tunnel 出现了问题，PyODPS
+会给出警告并自动降级到旧的 Result 接口，可根据警告信息判断导致降级的原因。如果 Instance Tunnel 的结果不合预期，
 请将该选项设为 `False`。在调用 open_reader 时，也可以使用 ``use_tunnel`` 参数来指定使用何种结果接口，例如
 
 .. code-block:: python
