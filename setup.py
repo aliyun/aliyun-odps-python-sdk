@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -197,7 +197,7 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
         extensions = [
             Extension('odps.src.types_c', ['odps/src/types_c.pyx'], **extension_kw),
             Extension('odps.src.utils_c', ['odps/src/utils_c.pyx'], **extension_kw),
-            Extension('odps.src.crc32c_c', ['odps/src/crc32c/*.pyx'], **extension_kw),
+            Extension('odps.src.crc32c_c', ['odps/src/crc32c_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.util_c', ['odps/tunnel/pb/util_c.pyx'], **extension_kw),
