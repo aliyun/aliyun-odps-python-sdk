@@ -1,12 +1,12 @@
 # encoding: utf-8
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -61,8 +61,9 @@ def train_test(train_size=None, test_size=None):
 
 
 def cross_val_score(trainer, df, col_true=None, col_pred=None, col_score=None, scoring=None, cv=None,
-                    fit_params=None, ui=None, async=False, n_parallel=1, timeout=None,
-                    close_and_notify=True):
+                    fit_params=None, ui=None, async_=False, n_parallel=1, timeout=None,
+                    close_and_notify=True, **kw):
+    async_ = kw.get('async', async_)
     if cv is None:
         cv = k_fold()
     elif isinstance(cv, six.integer_types):
@@ -85,7 +86,7 @@ def cross_val_score(trainer, df, col_true=None, col_pred=None, col_score=None, s
         metrics_expr = scoring(df=predicted, execute_now=False, **kwargs)
         futures.append(metrics_expr.execute(delay=delay))
 
-    delay.execute(ui=ui, async=async, n_parallel=n_parallel, timeout=timeout, close_and_notify=close_and_notify)
+    delay.execute(ui=ui, async_=async_, n_parallel=n_parallel, timeout=timeout, close_and_notify=close_and_notify)
 
     results = [f.result() for f in futures]
     if _has_numpy:

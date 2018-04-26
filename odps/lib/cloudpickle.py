@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -135,6 +135,7 @@ CALL_FUNCTION = opcode.opmap['CALL_FUNCTION']
 CALL_FUNCTION_EX_PY36 = 142
 CALL_FUNCTION_KW = opcode.opmap.get('CALL_FUNCTION_KW')
 CALL_METHOD_PYPY = 202
+CALL_METHOD_PY37 = 161
 COMPARE_OP = opcode.opmap.get('COMPARE_OP')
 DELETE_DEREF_PY3 = 138
 DUP_TOP = dis.opmap.get('DUP_TOP')
@@ -164,6 +165,7 @@ LOAD_CONST = opcode.opmap['LOAD_CONST']
 LOAD_DEREF = opcode.opmap['LOAD_DEREF']
 LOAD_FAST = opcode.opmap['LOAD_FAST']
 LOAD_LOCALS = opcode.opmap.get('LOAD_LOCALS')
+LOAD_METHOD_PY37 = 160
 LOOKUP_METHOD_PYPY = 201
 MAKE_CLOSURE = opcode.opmap.get('MAKE_CLOSURE')
 MAKE_FUNCTION = opcode.opmap['MAKE_FUNCTION']
@@ -1672,3 +1674,20 @@ class Cp36_Cp35(Py36CodeRewriter):
     @op_translator(FORMAT_VALUE_PY36)
     def handle_format_value(self, arg):
         return self.write_replacement_call(self._format_value, 2 + (1 if arg & 0x04 else 0), arg)
+
+    @op_translator(LOAD_METHOD_PY37)
+    def handle_load_method(self, arg):
+        none_id = self.patch_consts(None)
+        return sum([
+            self.write_instruction(LOAD_ATTR, arg),
+            self.write_instruction(LOAD_CONST, none_id),
+            self.write_instruction(ROT_TWO),
+        ])
+
+    @op_translator(CALL_METHOD_PY37)
+    def handle_call_method(self, arg):
+        return sum([
+            self.write_instruction(CALL_FUNCTION, arg),
+            self.write_instruction(ROT_TWO),
+            self.write_instruction(POP_TOP),
+        ])

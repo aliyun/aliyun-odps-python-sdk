@@ -188,6 +188,14 @@ class Instance(LazyLoad):
         key = serializers.XMLNodeField('Key')
         value = serializers.XMLNodeField('Value')
 
+    class TaskCost(object):
+        __slots__ = 'cpu_cost', 'memory_cost', 'input_size'
+
+        def __init__(self, cpu_cost=None, memory_cost=None, input_size=None):
+            self.cpu_cost = cpu_cost
+            self.memory_cost = memory_cost
+            self.input_size = input_size
+
     class DownloadSessionCreationError(errors.InternalServerError):
         pass
 
@@ -353,6 +361,37 @@ class Instance(LazyLoad):
         """
 
         return compat.lkeys(self.get_task_statuses())
+
+    def get_task_cost(self, task_name):
+        """
+        Get task cost
+
+        :param task_name: name of the task
+        :return: task cost
+        :rtype: Instance.TaskCost
+
+        :Example:
+
+        >>> cost = instance.get_task_cost(instance.get_task_names()[0])
+        >>> cost.cpu_cost
+        200
+        >>> cost.memory_cost
+        4096
+        >>> cost.input_size
+        0
+        """
+        summary = self.get_task_summary(task_name)
+        if summary is None:
+            return None
+
+        if 'Cost' in summary:
+            task_cost = summary['Cost']
+
+            cpu_cost = task_cost.get('CPU')
+            memory = task_cost.get('Memory')
+            input_size = task_cost.get('Input')
+
+            return Instance.TaskCost(cpu_cost, memory, input_size)
 
     def get_task_info(self, task_name, key):
         """

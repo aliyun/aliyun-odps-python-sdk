@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -223,7 +223,8 @@ class ExecuteDAG(DAG):
 
             raise
 
-    def _run_in_parallel(self, ui, n_parallel, async=False, timeout=None, progress_proportion=1.0):
+    def _run_in_parallel(self, ui, n_parallel, async_=False, timeout=None, progress_proportion=1.0, **kw):
+        async_ = kw.get('async', async_)
         submits_lock = threading.RLock()
         submits = dict()
         user_wait = dict()
@@ -310,7 +311,7 @@ class ExecuteDAG(DAG):
                     with submits_lock:
                         submits[call] = executor.submit(run, call)
 
-            if not async:
+            if not async_:
                 dones, _ = futures.wait(user_wait.values())
                 for done in dones:
                     done.result()
@@ -322,16 +323,17 @@ class ExecuteDAG(DAG):
                 futures.wait(user_wait.values(), timeout=timeout)
 
         actual_run()
-        if not async:
+        if not async_:
             return [it[1].result() for it in sorted(result_wait.items(), key=itemgetter(0))]
         else:
             return [it[1] for it in sorted(result_wait.items(), key=itemgetter(0))]
 
-    def execute(self, ui=None, async=False, n_parallel=1, timeout=None,
-                close_and_notify=True, progress_proportion=1.0):
-        ui = ui or init_progress_ui(lock=async)
+    def execute(self, ui=None, async_=False, n_parallel=1, timeout=None,
+                close_and_notify=True, progress_proportion=1.0, **kw):
+        async_ = kw.get('async', async_)
+        ui = ui or init_progress_ui(lock=async_)
         succeeded = False
-        if not async:
+        if not async_:
             try:
                 if n_parallel <= 1:
                     results = self._run(ui, progress_proportion)
@@ -349,7 +351,7 @@ class ExecuteDAG(DAG):
                         ui.notify('DataFrame execution failed')
         else:
             try:
-                fs = self._run_in_parallel(ui, n_parallel, async=async, timeout=timeout,
+                fs = self._run_in_parallel(ui, n_parallel, async_=async_, timeout=timeout,
                                            progress_proportion=progress_proportion)
                 succeeded = True
                 return fs
@@ -531,7 +533,7 @@ class Engine(object):
     def _action(self, *exprs_args_kwargs, **kwargs):
         ui = kwargs.pop('ui', None)
         progress_proportion = kwargs.pop('progress_proportion', 1.0)
-        async = kwargs.pop('async', False)
+        async_ = kwargs.pop('async_', kwargs.pop('async', False))
         n_parallel = kwargs.pop('n_parallel', 1)
         timeout = kwargs.pop('timeout', None)
         batch = kwargs.pop('batch', False)
@@ -551,7 +553,7 @@ class Engine(object):
 
         dag = self.compile(*transform(*exprs_args_kwargs))
         try:
-            res = self._execute_dag(dag, ui=ui, async=async, n_parallel=n_parallel,
+            res = self._execute_dag(dag, ui=ui, async_=async_, n_parallel=n_parallel,
                                     timeout=timeout, progress_proportion=progress_proportion)
         except KeyboardInterrupt:
             self.stop()
@@ -714,7 +716,8 @@ class Engine(object):
         if existing_ui:
             return existing_ui
 
-        ui = init_progress_ui(lock=kwargs.get('async', False), use_console=not kwargs.get('async', False))
+        async_ = kwargs.get('async_', kwargs.get('async', False))
+        ui = init_progress_ui(lock=async_, use_console=not async_)
         ui.status('Preparing')
         return ui
 
@@ -788,9 +791,10 @@ class Engine(object):
                 dag.add_edge(dag_node, node)
 
     @classmethod
-    def _execute_dag(cls, dag, ui=None, async=False, n_parallel=1, timeout=None, close_and_notify=True,
-                     progress_proportion=1.0):
-        return dag.execute(ui=ui, async=async, n_parallel=n_parallel, timeout=timeout,
+    def _execute_dag(cls, dag, ui=None, async_=False, n_parallel=1, timeout=None, close_and_notify=True,
+                     progress_proportion=1.0, **kw):
+        async_ = kw.pop('async', async_)
+        return dag.execute(ui=ui, async_=async_, n_parallel=n_parallel, timeout=timeout,
                            close_and_notify=close_and_notify, progress_proportion=progress_proportion)
 
     def _get_libraries(self, libraries):

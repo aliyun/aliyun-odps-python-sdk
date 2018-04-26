@@ -14,8 +14,12 @@
 
 import sys
 import os
+import shutil
+import atexit
+import tempfile
+import codecs
+import re
 from sphinx.directives import Include
-import shlex
 
 dirname = os.path.dirname
 
@@ -62,7 +66,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'PyODPS'
-copyright = u'2014-2017, The Alibaba Group Holding Ltd.'
+copyright = u'2014-2018, The Alibaba Group Holding Ltd.'
 author = u'Qin Xuye'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -90,13 +94,16 @@ language = None
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-try:
-    import odps.internal
-    with_internal = True
-    exclude_patterns = ['*-ext.rst', '*-ext-*.rst']
-except ImportError:
-    with_internal = False
-    exclude_patterns = ['*-int.rst', '*-int-*.rst']
+if 'gettext' not in sys.argv:
+    try:
+        import odps.internal
+        with_internal = True
+        exclude_patterns = ['*-ext.rst', '*-ext-*.rst']
+    except ImportError:
+        with_internal = False
+        exclude_patterns = ['*-int.rst', '*-int-*.rst']
+else:
+    with_internal = None
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -124,7 +131,6 @@ pygments_style = 'sphinx'
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
-
 
 # -- Options for HTML output ----------------------------------------------
 
@@ -313,9 +319,24 @@ intersphinx_mapping = {'https://docs.python.org/': None}
 
 mathjax_path = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
 
+# -- Extension configuration -------------------------------------------------
+
+if any('sphinx-intl' in a for a in sys.argv) or 'gettext' in sys.argv or on_rtd:
+    locale_dirs = ['locale/']
+    locale_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'locale')
+else:
+    temp_lc_dir = tempfile.mkdtemp(prefix='pyodps-po-')
+    locale_dir = os.path.join(temp_lc_dir, 'locale')
+    shutil.copytree('locale', locale_dir)
+    locale_dirs = [locale_dir]
+    atexit.register(shutil.rmtree, temp_lc_dir)
+gettext_compact = False
+
 
 class IncludeInternal(Include):
     def run(self):
+        if with_internal is None:
+            return []
         if with_internal:
             return Include.run(self)
         else:
@@ -324,10 +345,48 @@ class IncludeInternal(Include):
 
 class IncludeExternal(Include):
     def run(self):
+        if with_internal is None:
+            return []
         if with_internal:
             return []
         else:
             return Include.run(self)
+
+
+def merge_po(dest_file, *src_files):
+    from collections import OrderedDict
+    pairs = OrderedDict()
+    for src_file in src_files:
+        lines = []
+        last_msg_id = None
+        for line in codecs.open(src_file, 'r', encoding='utf-8'):
+            if line.startswith('#'):
+                continue
+            if not line.strip():
+                continue
+            if line.startswith('msgid'):
+                if last_msg_id:
+                    msg_txt = '\n'.join(lines)
+                    pairs[last_msg_id] = msg_txt
+                    last_msg_id = None
+                lines = [line.strip('\n')]
+            elif line.startswith('msgstr'):
+                if lines:
+                    last_msg_id = '\n'.join(lines)
+                lines = [line.strip('\n')]
+            else:
+                lines.append(line.strip('\n'))
+
+        if last_msg_id:
+            msg_txt = '\n'.join(lines)
+            pairs[last_msg_id] = msg_txt
+
+    with codecs.open(dest_file, 'w', encoding='utf-8') as outf:
+        for k, v in pairs.items():
+            outf.write(k)
+            outf.write('\n')
+            outf.write(v)
+            outf.write('\n\n')
 
 
 # config for internal label
@@ -339,3 +398,38 @@ def setup(app):
 
     app.add_directive('intinclude', IncludeInternal)
     app.add_directive('extinclude', IncludeExternal)
+
+    if with_internal is None:
+        return
+
+    lang = app.config.language
+    if lang is None:
+        return
+
+    if with_internal:
+        inc_pattern = re.compile('\n *\.\. *intinclude:: *([^\s]+)')
+    else:
+        inc_pattern = re.compile('\n *\.\. *extinclude:: *([^\s]+)')
+
+    conf_root = os.path.dirname(os.path.abspath(__file__))
+    for root, _, files in os.walk(conf_root):
+        for f in files:
+            if not f.lower().endswith('.rst'):
+                continue
+
+            dest_po_file, _ = os.path.splitext(f)
+            dest_po_file = os.path.join(locale_dir, lang, 'LC_MESSAGES', dest_po_file + '.po')
+            with codecs.open(os.path.join(root, f), 'r') as inf:
+                content = inf.read()
+            src_po_files = []
+            for match in inc_pattern.finditer(content):
+                src_po_file, _ = os.path.splitext(match.group(1))
+                src_po_file = os.path.join(locale_dir, lang, 'LC_MESSAGES', src_po_file + '.po')
+                if os.path.exists(src_po_file):
+                    src_po_files.append(src_po_file)
+
+            if src_po_files:
+                if os.path.exists(dest_po_file):
+                    src_po_files = [dest_po_file] + src_po_files
+                print('Merge %s <- %s' % (dest_po_file, ','.join(src_po_files)))
+                merge_po(dest_po_file, *src_po_files)

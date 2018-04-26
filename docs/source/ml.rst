@@ -9,9 +9,9 @@ PyODPS ML 是 ODPS 提供的算法支持。用户可以使用 PyODPS ML 利用 O
 .. toctree::
     :maxdepth: 1
 
-    ml-quickstart-zh
-    ml-basic-zh
-    ml-algo-ext-zh
-    ml-algo-int-zh
-    ml-assess-zh
-    ml-customize-int-zh
+    ml-quickstart
+    ml-basic
+    ml-algo-ext
+    ml-algo-int
+    ml-assess
+    ml-customize-int

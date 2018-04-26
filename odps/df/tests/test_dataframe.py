@@ -143,10 +143,10 @@ class Test(TestBase):
         wrapped_pd_df_col = expr2.col0.to_pandas(wrap=True)
         self.assertSequenceEqual([data2[0][0]], list(next(wrapped_pd_df_col.execute())))
 
-        pd_df_future = expr2.to_pandas(async=True)
+        pd_df_future = expr2.to_pandas(async_=True)
         self.assertSequenceEqual(data2[0], pd_df_future.result().ix[0].tolist())
 
-        wrapped_pd_df_future = expr2.to_pandas(async=True, wrap=True)
+        wrapped_pd_df_future = expr2.to_pandas(async_=True, wrap=True)
         self.assertSequenceEqual(data2[0], list(next(wrapped_pd_df_future.result().execute())))
 
         delay = Delay()
@@ -154,7 +154,7 @@ class Test(TestBase):
         delay.execute()
         self.assertSequenceEqual(data2[0], pd_df_future.result().ix[0].tolist())
 
-        exc_future = (expr2.col0 / 0).to_pandas(async=True)
+        exc_future = (expr2.col0 / 0).to_pandas(async_=True)
         self.assertRaises(ODPSError, exc_future.result)
 
     @pandas_case

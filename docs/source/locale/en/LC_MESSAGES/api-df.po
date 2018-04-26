@@ -1,0 +1,2141 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/api-df.rst:4
+msgid "DataFrame Reference"
+msgstr ""
+
+#: odps.df.DataFrame:1 of
+msgid "Main entrance of PyODPS DataFrame."
+msgstr ""
+
+#: odps.df.DataFrame:3 of
+msgid "Users can initial a DataFrame by :class:`odps.models.Table`."
+msgstr ""
+
+#: odps.df.CollectionExpr.all odps.df.CollectionExpr.any
+#: odps.df.CollectionExpr.append_id odps.df.CollectionExpr.apply
+#: odps.df.CollectionExpr.applymap odps.df.CollectionExpr.bfill
+#: odps.df.CollectionExpr.bloom_filter odps.df.CollectionExpr.concat
+#: odps.df.CollectionExpr.count odps.df.CollectionExpr.distinct
+#: odps.df.CollectionExpr.drop odps.df.CollectionExpr.dropna
+#: odps.df.CollectionExpr.except_ odps.df.CollectionExpr.exclude
+#: odps.df.CollectionExpr.execute odps.df.CollectionExpr.extract_kv
+#: odps.df.CollectionExpr.ffill odps.df.CollectionExpr.fillna
+#: odps.df.CollectionExpr.filter odps.df.CollectionExpr.filter_parts
+#: odps.df.CollectionExpr.groupby odps.df.CollectionExpr.head
+#: odps.df.CollectionExpr.inner_join odps.df.CollectionExpr.intersect
+#: odps.df.CollectionExpr.join odps.df.CollectionExpr.kurt
+#: odps.df.CollectionExpr.kurtosis odps.df.CollectionExpr.label_field
+#: odps.df.CollectionExpr.left_join odps.df.CollectionExpr.limit
+#: odps.df.CollectionExpr.map_reduce odps.df.CollectionExpr.max
+#: odps.df.CollectionExpr.mean odps.df.CollectionExpr.median
+#: odps.df.CollectionExpr.melt odps.df.CollectionExpr.min
+#: odps.df.CollectionExpr.min_max_scale odps.df.CollectionExpr.moment
+#: odps.df.CollectionExpr.nunique odps.df.CollectionExpr.outer_join
+#: odps.df.CollectionExpr.persist odps.df.CollectionExpr.pivot
+#: odps.df.CollectionExpr.pivot_table odps.df.CollectionExpr.quantile
+#: odps.df.CollectionExpr.query odps.df.CollectionExpr.reshuffle
+#: odps.df.CollectionExpr.right_join odps.df.CollectionExpr.roles
+#: odps.df.CollectionExpr.sample odps.df.CollectionExpr.select
+#: odps.df.CollectionExpr.setdiff odps.df.CollectionExpr.size
+#: odps.df.CollectionExpr.skew odps.df.CollectionExpr.sort
+#: odps.df.CollectionExpr.sort_values odps.df.CollectionExpr.split
+#: odps.df.CollectionExpr.std odps.df.CollectionExpr.std_scale
+#: odps.df.CollectionExpr.sum odps.df.CollectionExpr.switch
+#: odps.df.CollectionExpr.tail odps.df.CollectionExpr.to_kv
+#: odps.df.CollectionExpr.to_pandas odps.df.CollectionExpr.union
+#: odps.df.CollectionExpr.var odps.df.CollectionExpr.weight_field
+#: odps.df.DataFrame odps.df.DataFrame.batch_persist odps.df.NullScalar
+#: odps.df.RandomScalar odps.df.RandomScalar.between odps.df.RandomScalar.cut
+#: odps.df.RandomScalar.execute odps.df.RandomScalar.fillna
+#: odps.df.RandomScalar.hash odps.df.RandomScalar.isin
+#: odps.df.RandomScalar.isnull odps.df.RandomScalar.map
+#: odps.df.RandomScalar.notin odps.df.RandomScalar.notnull
+#: odps.df.RandomScalar.persist odps.df.RandomScalar.switch odps.df.Scalar
+#: odps.df.Scalar.between odps.df.Scalar.cut odps.df.Scalar.execute
+#: odps.df.Scalar.fillna odps.df.Scalar.hash odps.df.Scalar.isin
+#: odps.df.Scalar.isnull odps.df.Scalar.map odps.df.Scalar.notin
+#: odps.df.Scalar.notnull odps.df.Scalar.persist odps.df.Scalar.switch
+#: odps.df.SequenceExpr.astype odps.df.SequenceExpr.between
+#: odps.df.SequenceExpr.concat odps.df.SequenceExpr.count
+#: odps.df.SequenceExpr.cut odps.df.SequenceExpr.drop
+#: odps.df.SequenceExpr.except_ odps.df.SequenceExpr.execute
+#: odps.df.SequenceExpr.fillna odps.df.SequenceExpr.hash
+#: odps.df.SequenceExpr.head odps.df.SequenceExpr.hll_count
+#: odps.df.SequenceExpr.intersect odps.df.SequenceExpr.isin
+#: odps.df.SequenceExpr.isnull odps.df.SequenceExpr.map
+#: odps.df.SequenceExpr.max odps.df.SequenceExpr.min odps.df.SequenceExpr.notin
+#: odps.df.SequenceExpr.notnull odps.df.SequenceExpr.nunique
+#: odps.df.SequenceExpr.persist odps.df.SequenceExpr.role
+#: odps.df.SequenceExpr.setdiff odps.df.SequenceExpr.size
+#: odps.df.SequenceExpr.switch odps.df.SequenceExpr.tail
+#: odps.df.SequenceExpr.to_pandas odps.df.SequenceExpr.union
+#: odps.df.SequenceExpr.value_counts odps.df.expr.groupby.GroupBy.all
+#: odps.df.expr.groupby.GroupBy.any odps.df.expr.groupby.GroupBy.count
+#: odps.df.expr.groupby.GroupBy.dense_rank odps.df.expr.groupby.GroupBy.execute
+#: odps.df.expr.groupby.GroupBy.kurt odps.df.expr.groupby.GroupBy.kurtosis
+#: odps.df.expr.groupby.GroupBy.max odps.df.expr.groupby.GroupBy.mean
+#: odps.df.expr.groupby.GroupBy.median odps.df.expr.groupby.GroupBy.min
+#: odps.df.expr.groupby.GroupBy.min_rank odps.df.expr.groupby.GroupBy.moment
+#: odps.df.expr.groupby.GroupBy.nunique
+#: odps.df.expr.groupby.GroupBy.percent_rank
+#: odps.df.expr.groupby.GroupBy.persist odps.df.expr.groupby.GroupBy.quantile
+#: odps.df.expr.groupby.GroupBy.rank odps.df.expr.groupby.GroupBy.row_number
+#: odps.df.expr.groupby.GroupBy.size odps.df.expr.groupby.GroupBy.skew
+#: odps.df.expr.groupby.GroupBy.std odps.df.expr.groupby.GroupBy.sum
+#: odps.df.expr.groupby.GroupBy.var
+#: odps.df.expr.groupby.Int64SequenceGroupBy.count
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum
+#: odps.df.expr.groupby.Int64SequenceGroupBy.dense_rank
+#: odps.df.expr.groupby.Int64SequenceGroupBy.execute
+#: odps.df.expr.groupby.Int64SequenceGroupBy.hll_count
+#: odps.df.expr.groupby.Int64SequenceGroupBy.kurt
+#: odps.df.expr.groupby.Int64SequenceGroupBy.kurtosis
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lag
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lead
+#: odps.df.expr.groupby.Int64SequenceGroupBy.max
+#: odps.df.expr.groupby.Int64SequenceGroupBy.mean
+#: odps.df.expr.groupby.Int64SequenceGroupBy.median
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank
+#: odps.df.expr.groupby.Int64SequenceGroupBy.moment
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nunique
+#: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist
+#: odps.df.expr.groupby.Int64SequenceGroupBy.quantile
+#: odps.df.expr.groupby.Int64SequenceGroupBy.rank
+#: odps.df.expr.groupby.Int64SequenceGroupBy.row_number
+#: odps.df.expr.groupby.Int64SequenceGroupBy.size
+#: odps.df.expr.groupby.Int64SequenceGroupBy.skew
+#: odps.df.expr.groupby.Int64SequenceGroupBy.std
+#: odps.df.expr.groupby.Int64SequenceGroupBy.sum
+#: odps.df.expr.groupby.Int64SequenceGroupBy.var
+#: odps.df.expr.groupby.SequenceGroupBy.count
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount
+#: odps.df.expr.groupby.SequenceGroupBy.cummax
+#: odps.df.expr.groupby.SequenceGroupBy.cummin
+#: odps.df.expr.groupby.SequenceGroupBy.dense_rank
+#: odps.df.expr.groupby.SequenceGroupBy.execute
+#: odps.df.expr.groupby.SequenceGroupBy.hll_count
+#: odps.df.expr.groupby.SequenceGroupBy.lag
+#: odps.df.expr.groupby.SequenceGroupBy.lead
+#: odps.df.expr.groupby.SequenceGroupBy.max
+#: odps.df.expr.groupby.SequenceGroupBy.min
+#: odps.df.expr.groupby.SequenceGroupBy.min_rank
+#: odps.df.expr.groupby.SequenceGroupBy.nunique
+#: odps.df.expr.groupby.SequenceGroupBy.percent_rank
+#: odps.df.expr.groupby.SequenceGroupBy.persist
+#: odps.df.expr.groupby.SequenceGroupBy.rank
+#: odps.df.expr.groupby.SequenceGroupBy.row_number
+#: odps.df.expr.groupby.SequenceGroupBy.size of
+msgid "Parameters"
+msgstr ""
+
+#: odps.df.DataFrame:5 of
+msgid "ODPS table or pandas DataFrame"
+msgstr ""
+
+#: odps.df.CollectionExpr odps.df.CollectionExpr.apply
+#: odps.df.CollectionExpr.applymap odps.df.CollectionExpr.bloom_filter
+#: odps.df.CollectionExpr.concat odps.df.CollectionExpr.continuous
+#: odps.df.CollectionExpr.discrete odps.df.CollectionExpr.distinct
+#: odps.df.CollectionExpr.drop odps.df.CollectionExpr.erase_key_value
+#: odps.df.CollectionExpr.extract_kv odps.df.CollectionExpr.inner_join
+#: odps.df.CollectionExpr.join odps.df.CollectionExpr.key_value
+#: odps.df.CollectionExpr.left_join odps.df.CollectionExpr.map_reduce
+#: odps.df.CollectionExpr.melt odps.df.CollectionExpr.outer_join
+#: odps.df.CollectionExpr.persist odps.df.CollectionExpr.pivot
+#: odps.df.CollectionExpr.pivot_table odps.df.CollectionExpr.right_join
+#: odps.df.CollectionExpr.sample odps.df.CollectionExpr.sort
+#: odps.df.CollectionExpr.sort_values odps.df.CollectionExpr.switch
+#: odps.df.CollectionExpr.to_kv odps.df.CollectionExpr.union odps.df.DataFrame
+#: odps.df.RandomScalar odps.df.RandomScalar.map odps.df.RandomScalar.persist
+#: odps.df.RandomScalar.switch odps.df.Scalar odps.df.Scalar.map
+#: odps.df.Scalar.persist odps.df.Scalar.switch odps.df.SequenceExpr.astype
+#: odps.df.SequenceExpr.concat odps.df.SequenceExpr.continuous
+#: odps.df.SequenceExpr.discrete odps.df.SequenceExpr.drop
+#: odps.df.SequenceExpr.erase_key_value odps.df.SequenceExpr.hll_count
+#: odps.df.SequenceExpr.key_value odps.df.SequenceExpr.map
+#: odps.df.SequenceExpr.persist odps.df.SequenceExpr.switch
+#: odps.df.SequenceExpr.union odps.df.expr.groupby.GroupBy.persist
+#: odps.df.expr.groupby.Int64SequenceGroupBy.hll_count
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist
+#: odps.df.expr.groupby.SequenceGroupBy.hll_count
+#: odps.df.expr.groupby.SequenceGroupBy.persist of
+msgid "Example"
+msgstr ""
+
+#: odps.df.DataFrame.batch_persist:1 of
+msgid "Persist multiple DataFrames into ODPS."
+msgstr ""
+
+#: odps.df.DataFrame.batch_persist:3 of
+msgid "DataFrames to persist."
+msgstr ""
+
+#: odps.df.DataFrame.batch_persist:4 of
+msgid ""
+"Table names to persist to. Use (table, partition) tuple to store to a "
+"table partition."
+msgstr ""
+
+#: odps.df.DataFrame.batch_persist:5 of
+msgid "args for Expr.persist"
+msgstr ""
+
+#: odps.df.DataFrame.batch_persist:6 of
+msgid "kwargs for Expr.persist"
+msgstr ""
+
+#: odps.df.CollectionExpr.except_ odps.df.CollectionExpr.intersect
+#: odps.df.CollectionExpr.setdiff odps.df.DataFrame.batch_persist
+#: odps.df.SequenceExpr.except_ odps.df.SequenceExpr.intersect
+#: odps.df.SequenceExpr.setdiff of
+msgid "Examples"
+msgstr ""
+
+#: odps.df.CollectionExpr.view:1 odps.df.DataFrame.view:1 of
+msgid "Clone a same collection. useful for self-join."
+msgstr ""
+
+#: odps.df.CollectionExpr.all odps.df.CollectionExpr.any
+#: odps.df.CollectionExpr.append_id odps.df.CollectionExpr.apply
+#: odps.df.CollectionExpr.applymap odps.df.CollectionExpr.ast
+#: odps.df.CollectionExpr.bfill odps.df.CollectionExpr.bloom_filter
+#: odps.df.CollectionExpr.compile odps.df.CollectionExpr.concat
+#: odps.df.CollectionExpr.count odps.df.CollectionExpr.distinct
+#: odps.df.CollectionExpr.drop odps.df.CollectionExpr.dropna
+#: odps.df.CollectionExpr.except_ odps.df.CollectionExpr.exclude
+#: odps.df.CollectionExpr.execute odps.df.CollectionExpr.extract_kv
+#: odps.df.CollectionExpr.ffill odps.df.CollectionExpr.fillna
+#: odps.df.CollectionExpr.filter odps.df.CollectionExpr.filter_parts
+#: odps.df.CollectionExpr.groupby odps.df.CollectionExpr.head
+#: odps.df.CollectionExpr.inner_join odps.df.CollectionExpr.intersect
+#: odps.df.CollectionExpr.join odps.df.CollectionExpr.kurt
+#: odps.df.CollectionExpr.kurtosis odps.df.CollectionExpr.left_join
+#: odps.df.CollectionExpr.limit odps.df.CollectionExpr.map_reduce
+#: odps.df.CollectionExpr.max odps.df.CollectionExpr.mean
+#: odps.df.CollectionExpr.median odps.df.CollectionExpr.melt
+#: odps.df.CollectionExpr.min odps.df.CollectionExpr.min_max_scale
+#: odps.df.CollectionExpr.moment odps.df.CollectionExpr.nunique
+#: odps.df.CollectionExpr.outer_join odps.df.CollectionExpr.persist
+#: odps.df.CollectionExpr.pivot odps.df.CollectionExpr.pivot_table
+#: odps.df.CollectionExpr.quantile odps.df.CollectionExpr.query
+#: odps.df.CollectionExpr.reshuffle odps.df.CollectionExpr.right_join
+#: odps.df.CollectionExpr.roles odps.df.CollectionExpr.sample
+#: odps.df.CollectionExpr.select odps.df.CollectionExpr.setdiff
+#: odps.df.CollectionExpr.size odps.df.CollectionExpr.skew
+#: odps.df.CollectionExpr.sort odps.df.CollectionExpr.sort_values
+#: odps.df.CollectionExpr.split odps.df.CollectionExpr.std
+#: odps.df.CollectionExpr.std_scale odps.df.CollectionExpr.sum
+#: odps.df.CollectionExpr.switch odps.df.CollectionExpr.tail
+#: odps.df.CollectionExpr.to_kv odps.df.CollectionExpr.to_pandas
+#: odps.df.CollectionExpr.union odps.df.CollectionExpr.var
+#: odps.df.CollectionExpr.verify odps.df.CollectionExpr.view
+#: odps.df.DataFrame.view odps.df.NullScalar odps.df.RandomScalar.ast
+#: odps.df.RandomScalar.between odps.df.RandomScalar.compile
+#: odps.df.RandomScalar.cut odps.df.RandomScalar.execute
+#: odps.df.RandomScalar.fillna odps.df.RandomScalar.hash
+#: odps.df.RandomScalar.isin odps.df.RandomScalar.isnull
+#: odps.df.RandomScalar.map odps.df.RandomScalar.notin
+#: odps.df.RandomScalar.notnull odps.df.RandomScalar.persist
+#: odps.df.RandomScalar.switch odps.df.RandomScalar.verify odps.df.Scalar.ast
+#: odps.df.Scalar.between odps.df.Scalar.compile odps.df.Scalar.cut
+#: odps.df.Scalar.execute odps.df.Scalar.fillna odps.df.Scalar.hash
+#: odps.df.Scalar.isin odps.df.Scalar.isnull odps.df.Scalar.map
+#: odps.df.Scalar.notin odps.df.Scalar.notnull odps.df.Scalar.persist
+#: odps.df.Scalar.switch odps.df.Scalar.verify odps.df.SequenceExpr.ast
+#: odps.df.SequenceExpr.astype odps.df.SequenceExpr.between
+#: odps.df.SequenceExpr.compile odps.df.SequenceExpr.concat
+#: odps.df.SequenceExpr.count odps.df.SequenceExpr.cut
+#: odps.df.SequenceExpr.drop odps.df.SequenceExpr.dtype
+#: odps.df.SequenceExpr.except_ odps.df.SequenceExpr.execute
+#: odps.df.SequenceExpr.fillna odps.df.SequenceExpr.hash
+#: odps.df.SequenceExpr.head odps.df.SequenceExpr.hll_count
+#: odps.df.SequenceExpr.intersect odps.df.SequenceExpr.isin
+#: odps.df.SequenceExpr.isnull odps.df.SequenceExpr.map
+#: odps.df.SequenceExpr.max odps.df.SequenceExpr.min odps.df.SequenceExpr.notin
+#: odps.df.SequenceExpr.notnull odps.df.SequenceExpr.nunique
+#: odps.df.SequenceExpr.persist odps.df.SequenceExpr.role
+#: odps.df.SequenceExpr.setdiff odps.df.SequenceExpr.size
+#: odps.df.SequenceExpr.switch odps.df.SequenceExpr.tail
+#: odps.df.SequenceExpr.to_pandas odps.df.SequenceExpr.union
+#: odps.df.SequenceExpr.value_counts odps.df.SequenceExpr.verify
+#: odps.df.expr.groupby.GroupBy.all odps.df.expr.groupby.GroupBy.any
+#: odps.df.expr.groupby.GroupBy.ast odps.df.expr.groupby.GroupBy.compile
+#: odps.df.expr.groupby.GroupBy.count odps.df.expr.groupby.GroupBy.dense_rank
+#: odps.df.expr.groupby.GroupBy.execute odps.df.expr.groupby.GroupBy.kurt
+#: odps.df.expr.groupby.GroupBy.kurtosis odps.df.expr.groupby.GroupBy.max
+#: odps.df.expr.groupby.GroupBy.mean odps.df.expr.groupby.GroupBy.median
+#: odps.df.expr.groupby.GroupBy.min odps.df.expr.groupby.GroupBy.min_rank
+#: odps.df.expr.groupby.GroupBy.moment odps.df.expr.groupby.GroupBy.nunique
+#: odps.df.expr.groupby.GroupBy.percent_rank
+#: odps.df.expr.groupby.GroupBy.persist odps.df.expr.groupby.GroupBy.quantile
+#: odps.df.expr.groupby.GroupBy.rank odps.df.expr.groupby.GroupBy.row_number
+#: odps.df.expr.groupby.GroupBy.size odps.df.expr.groupby.GroupBy.skew
+#: odps.df.expr.groupby.GroupBy.std odps.df.expr.groupby.GroupBy.sum
+#: odps.df.expr.groupby.GroupBy.var odps.df.expr.groupby.GroupBy.verify
+#: odps.df.expr.groupby.Int64SequenceGroupBy.ast
+#: odps.df.expr.groupby.Int64SequenceGroupBy.compile
+#: odps.df.expr.groupby.Int64SequenceGroupBy.count
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum
+#: odps.df.expr.groupby.Int64SequenceGroupBy.dense_rank
+#: odps.df.expr.groupby.Int64SequenceGroupBy.execute
+#: odps.df.expr.groupby.Int64SequenceGroupBy.hll_count
+#: odps.df.expr.groupby.Int64SequenceGroupBy.kurt
+#: odps.df.expr.groupby.Int64SequenceGroupBy.kurtosis
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lag
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lead
+#: odps.df.expr.groupby.Int64SequenceGroupBy.max
+#: odps.df.expr.groupby.Int64SequenceGroupBy.mean
+#: odps.df.expr.groupby.Int64SequenceGroupBy.median
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank
+#: odps.df.expr.groupby.Int64SequenceGroupBy.moment
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nunique
+#: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist
+#: odps.df.expr.groupby.Int64SequenceGroupBy.quantile
+#: odps.df.expr.groupby.Int64SequenceGroupBy.rank
+#: odps.df.expr.groupby.Int64SequenceGroupBy.row_number
+#: odps.df.expr.groupby.Int64SequenceGroupBy.size
+#: odps.df.expr.groupby.Int64SequenceGroupBy.skew
+#: odps.df.expr.groupby.Int64SequenceGroupBy.std
+#: odps.df.expr.groupby.Int64SequenceGroupBy.sum
+#: odps.df.expr.groupby.Int64SequenceGroupBy.var
+#: odps.df.expr.groupby.Int64SequenceGroupBy.verify
+#: odps.df.expr.groupby.SequenceGroupBy.ast
+#: odps.df.expr.groupby.SequenceGroupBy.compile
+#: odps.df.expr.groupby.SequenceGroupBy.count
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount
+#: odps.df.expr.groupby.SequenceGroupBy.cummax
+#: odps.df.expr.groupby.SequenceGroupBy.cummin
+#: odps.df.expr.groupby.SequenceGroupBy.dense_rank
+#: odps.df.expr.groupby.SequenceGroupBy.execute
+#: odps.df.expr.groupby.SequenceGroupBy.hll_count
+#: odps.df.expr.groupby.SequenceGroupBy.lag
+#: odps.df.expr.groupby.SequenceGroupBy.lead
+#: odps.df.expr.groupby.SequenceGroupBy.max
+#: odps.df.expr.groupby.SequenceGroupBy.min
+#: odps.df.expr.groupby.SequenceGroupBy.min_rank
+#: odps.df.expr.groupby.SequenceGroupBy.nunique
+#: odps.df.expr.groupby.SequenceGroupBy.percent_rank
+#: odps.df.expr.groupby.SequenceGroupBy.persist
+#: odps.df.expr.groupby.SequenceGroupBy.rank
+#: odps.df.expr.groupby.SequenceGroupBy.row_number
+#: odps.df.expr.groupby.SequenceGroupBy.size
+#: odps.df.expr.groupby.SequenceGroupBy.verify of
+msgid "Returns"
+msgstr ""
+
+#: odps.df.CollectionExpr:1 of
+msgid "Collection represents for the two-dimensions data."
+msgstr ""
+
+#: odps.df.CollectionExpr.all:1 odps.df.expr.groupby.GroupBy.all:1 of
+msgid "All is True."
+msgstr ""
+
+#: odps.df.CollectionExpr.any:1 odps.df.expr.groupby.GroupBy.any:1 of
+msgid "Any is True."
+msgstr ""
+
+#: odps.df.CollectionExpr.append_id:1 of
+msgid "Append an ID column to current column to form a new DataFrame."
+msgstr ""
+
+#: odps.df.CollectionExpr.append_id:3 of
+msgid "name of appended ID field."
+msgstr ""
+
+#: odps.df.CollectionExpr.append_id:5 of
+msgid "DataFrame with ID field"
+msgstr ""
+
+#: odps.df.CollectionExpr.append_id odps.df.CollectionExpr.ast
+#: odps.df.CollectionExpr.compile odps.df.CollectionExpr.continuous
+#: odps.df.CollectionExpr.discrete odps.df.CollectionExpr.erase_key_value
+#: odps.df.CollectionExpr.exclude odps.df.CollectionExpr.exclude_fields
+#: odps.df.CollectionExpr.execute odps.df.CollectionExpr.extract_kv
+#: odps.df.CollectionExpr.filter odps.df.CollectionExpr.filter_parts
+#: odps.df.CollectionExpr.groupby odps.df.CollectionExpr.head
+#: odps.df.CollectionExpr.key_value odps.df.CollectionExpr.label_field
+#: odps.df.CollectionExpr.min_max_scale odps.df.CollectionExpr.query
+#: odps.df.CollectionExpr.select odps.df.CollectionExpr.select_features
+#: odps.df.CollectionExpr.std_scale odps.df.CollectionExpr.tail
+#: odps.df.CollectionExpr.to_kv odps.df.CollectionExpr.verify
+#: odps.df.CollectionExpr.weight_field odps.df.RandomScalar.ast
+#: odps.df.RandomScalar.compile odps.df.RandomScalar.execute
+#: odps.df.RandomScalar.verify odps.df.Scalar.ast odps.df.Scalar.compile
+#: odps.df.Scalar.execute odps.df.Scalar.verify odps.df.SequenceExpr.ast
+#: odps.df.SequenceExpr.compile odps.df.SequenceExpr.continuous
+#: odps.df.SequenceExpr.discrete odps.df.SequenceExpr.erase_key_value
+#: odps.df.SequenceExpr.execute odps.df.SequenceExpr.head
+#: odps.df.SequenceExpr.key_value odps.df.SequenceExpr.value_counts
+#: odps.df.SequenceExpr.verify odps.df.expr.groupby.GroupBy.ast
+#: odps.df.expr.groupby.GroupBy.compile odps.df.expr.groupby.GroupBy.execute
+#: odps.df.expr.groupby.GroupBy.verify
+#: odps.df.expr.groupby.Int64SequenceGroupBy.ast
+#: odps.df.expr.groupby.Int64SequenceGroupBy.compile
+#: odps.df.expr.groupby.Int64SequenceGroupBy.execute
+#: odps.df.expr.groupby.Int64SequenceGroupBy.verify
+#: odps.df.expr.groupby.SequenceGroupBy.ast
+#: odps.df.expr.groupby.SequenceGroupBy.compile
+#: odps.df.expr.groupby.SequenceGroupBy.execute
+#: odps.df.expr.groupby.SequenceGroupBy.verify of
+msgid "Return type"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:1 of
+msgid "Apply a function to a row when axis=1 or column when axis=0."
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:4 of
+msgid "function to apply"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:5 of
+msgid "row when axis=1 else column"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:6 of
+msgid "output names"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:7 of
+msgid "output types"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:8 of
+msgid "if True will return a sequence else return a collection"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:9 of
+msgid "resources to read"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:10 of
+msgid "args for function"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:11 of
+msgid "kwargs for function"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:16 of
+msgid "Apply a function to a row:"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:28 of
+msgid "Apply a function to a column:"
+msgstr ""
+
+#: odps.df.CollectionExpr.applymap:1 of
+msgid "Call func on each element of this collection."
+msgstr ""
+
+#: odps.df.CollectionExpr.applymap:3 odps.df.RandomScalar.map:3
+#: odps.df.Scalar.map:3 odps.df.SequenceExpr.map:3 of
+msgid ""
+"lambda, function, :class:`odps.models.Function`, or str which is the name"
+" of :class:`odps.models.Funtion`"
+msgstr ""
+
+#: odps.df.CollectionExpr.applymap:5 odps.df.RandomScalar.map:5
+#: odps.df.Scalar.map:5 odps.df.SequenceExpr.map:5 of
+msgid "if not provided, will be the dtype of this sequence"
+msgstr ""
+
+#: odps.df.CollectionExpr.applymap:6 of
+msgid "columns to apply this function on"
+msgstr ""
+
+#: odps.df.CollectionExpr.applymap:7 of
+msgid "columns to skip when applying the function"
+msgstr ""
+
+#: odps.df.CollectionExpr.applymap:8 of
+msgid "a new collection"
+msgstr ""
+
+#: odps.df.CollectionExpr.ast:1 odps.df.RandomScalar.ast:1 odps.df.Scalar.ast:1
+#: odps.df.SequenceExpr.ast:1 odps.df.expr.groupby.GroupBy.ast:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.ast:1
+#: odps.df.expr.groupby.SequenceGroupBy.ast:1 of
+msgid "Return the AST string."
+msgstr ""
+
+#: odps.df.CollectionExpr.ast:3 odps.df.RandomScalar.ast:3 odps.df.Scalar.ast:3
+#: odps.df.SequenceExpr.ast:3 odps.df.expr.groupby.GroupBy.ast:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.ast:3
+#: odps.df.expr.groupby.SequenceGroupBy.ast:3 of
+msgid "AST tree"
+msgstr ""
+
+#: odps.df.CollectionExpr.bfill:1 of
+msgid ""
+"Fill NA/NaN values with the backward method. Equivalent to "
+"fillna(method='bfill')."
+msgstr ""
+
+#: odps.df.CollectionExpr.bfill:3 odps.df.CollectionExpr.ffill:3 of
+msgid "input DataFrame."
+msgstr ""
+
+#: odps.df.CollectionExpr.bfill:4 odps.df.CollectionExpr.ffill:4
+#: odps.df.CollectionExpr.fillna:6 of
+msgid "Labels along other axis to consider."
+msgstr ""
+
+#: odps.df.CollectionExpr.bfill:5 odps.df.CollectionExpr.dropna:7
+#: odps.df.CollectionExpr.ffill:5 odps.df.CollectionExpr.fillna:7 of
+msgid "DataFrame"
+msgstr ""
+
+#: odps.df.CollectionExpr.bloom_filter:1 of
+msgid "Filter collection on the `on` sequence by BloomFilter built by `column`"
+msgstr ""
+
+#: odps.df.CollectionExpr.bloom_filter:4 of
+msgid "sequence or column name"
+msgstr ""
+
+#: odps.df.CollectionExpr.bloom_filter:5 of
+msgid "instance of Column"
+msgstr ""
+
+#: odps.df.CollectionExpr.bloom_filter:6 of
+msgid "numbers of capacity"
+msgstr ""
+
+#: odps.df.CollectionExpr.bloom_filter:8 odps.df.SequenceExpr.hll_count:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.hll_count:4
+#: odps.df.expr.groupby.SequenceGroupBy.hll_count:4 of
+msgid "error rate"
+msgstr ""
+
+#: odps.df.CollectionExpr.bloom_filter:10 odps.df.CollectionExpr.concat:7
+#: odps.df.CollectionExpr.distinct:3 odps.df.CollectionExpr.drop:7
+#: odps.df.CollectionExpr.except_:7 odps.df.CollectionExpr.groupby:3
+#: odps.df.CollectionExpr.inner_join:12 odps.df.CollectionExpr.intersect:3
+#: odps.df.CollectionExpr.intersect:6 odps.df.CollectionExpr.join:14
+#: odps.df.CollectionExpr.left_join:18 odps.df.CollectionExpr.melt:7
+#: odps.df.CollectionExpr.melt:13 odps.df.CollectionExpr.outer_join:18
+#: odps.df.CollectionExpr.pivot:4 odps.df.CollectionExpr.pivot:8
+#: odps.df.CollectionExpr.pivot_table:3 odps.df.CollectionExpr.pivot_table:9
+#: odps.df.CollectionExpr.reshuffle:7 odps.df.CollectionExpr.right_join:18
+#: odps.df.CollectionExpr.sample:3 odps.df.CollectionExpr.sample:13
+#: odps.df.CollectionExpr.setdiff:7 odps.df.CollectionExpr.sort:3
+#: odps.df.CollectionExpr.sort_values:3 odps.df.CollectionExpr.union:6
+#: odps.df.SequenceExpr.concat:7 odps.df.SequenceExpr.drop:7
+#: odps.df.SequenceExpr.except_:7 odps.df.SequenceExpr.intersect:3
+#: odps.df.SequenceExpr.intersect:6 odps.df.SequenceExpr.setdiff:7
+#: odps.df.SequenceExpr.union:6 of
+msgid "collection"
+msgstr ""
+
+#: odps.df.CollectionExpr.columns:1 of
+msgid "*return* -- columns :rtype: list which each element is a Column"
+msgstr ""
+
+#: odps.df.CollectionExpr.compile:1 odps.df.RandomScalar.compile:1
+#: odps.df.Scalar.compile:1 odps.df.SequenceExpr.compile:1
+#: odps.df.expr.groupby.GroupBy.compile:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.compile:1
+#: odps.df.expr.groupby.SequenceGroupBy.compile:1 of
+msgid "Compile this expression into an ODPS SQL"
+msgstr ""
+
+#: odps.df.CollectionExpr.compile:3 odps.df.RandomScalar.compile:3
+#: odps.df.Scalar.compile:3 odps.df.SequenceExpr.compile:3
+#: odps.df.expr.groupby.GroupBy.compile:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.compile:3
+#: odps.df.expr.groupby.SequenceGroupBy.compile:3 of
+msgid "compiled DAG"
+msgstr ""
+
+#: odps.df.CollectionExpr.concat:1 odps.df.SequenceExpr.concat:1 of
+msgid "Concat collections."
+msgstr ""
+
+#: odps.df.CollectionExpr.concat:3 odps.df.CollectionExpr.inner_join:8
+#: odps.df.CollectionExpr.join:8 odps.df.CollectionExpr.left_join:8
+#: odps.df.CollectionExpr.outer_join:8 odps.df.CollectionExpr.right_join:8
+#: odps.df.CollectionExpr.union:3 odps.df.SequenceExpr.concat:3
+#: odps.df.SequenceExpr.union:3 of
+msgid "left collection"
+msgstr ""
+
+#: odps.df.CollectionExpr.concat:4 odps.df.SequenceExpr.concat:4 of
+msgid "right collections, can be a DataFrame object or a list of DataFrames"
+msgstr ""
+
+#: odps.df.CollectionExpr.concat:5 odps.df.SequenceExpr.concat:5 of
+msgid "whether to remove duplicate entries. only available when axis == 0"
+msgstr ""
+
+#: odps.df.CollectionExpr.concat:6 odps.df.SequenceExpr.concat:6 of
+msgid ""
+"when axis == 0, the DataFrames are merged vertically, otherwise "
+"horizontally."
+msgstr ""
+
+#: odps.df.CollectionExpr.concat:9 odps.df.SequenceExpr.concat:9 of
+msgid "Note that axis==1 can only be used under Pandas DataFrames or XFlow."
+msgstr ""
+
+#: odps.df.CollectionExpr.continuous:1 of
+msgid "Set fields to be continuous."
+msgstr ""
+
+#: odps.df.CollectionExpr.count:1 odps.df.CollectionExpr.size:1
+#: odps.df.SequenceExpr.count:1 odps.df.SequenceExpr.size:1
+#: odps.df.expr.groupby.GroupBy.count:1 odps.df.expr.groupby.GroupBy.size:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.count:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.size:1
+#: odps.df.expr.groupby.SequenceGroupBy.count:1
+#: odps.df.expr.groupby.SequenceGroupBy.size:1 of
+msgid "Value counts"
+msgstr ""
+
+#: odps.df.CollectionExpr.discrete:1 of
+msgid "Set fields to be discrete."
+msgstr ""
+
+#: odps.df.CollectionExpr.distinct:1 of
+msgid ""
+"Get collection with duplicate rows removed, optionally only considering "
+"certain columns"
+msgstr ""
+
+#: odps.df.CollectionExpr.distinct:4 of
+msgid "sequence or sequences"
+msgstr ""
+
+#: odps.df.CollectionExpr.distinct:5 of
+msgid "dinstinct collection"
+msgstr ""
+
+#: odps.df.CollectionExpr.drop:1 odps.df.SequenceExpr.drop:1 of
+msgid "Drop data from a DataFrame."
+msgstr ""
+
+#: odps.df.CollectionExpr.drop:3 odps.df.CollectionExpr.except_:4
+#: odps.df.CollectionExpr.setdiff:4 odps.df.SequenceExpr.drop:3
+#: odps.df.SequenceExpr.except_:4 odps.df.SequenceExpr.setdiff:4 of
+msgid "collection to drop data from"
+msgstr ""
+
+#: odps.df.CollectionExpr.drop:4 odps.df.SequenceExpr.drop:4 of
+msgid "data to be removed"
+msgstr ""
+
+#: odps.df.CollectionExpr.drop:5 odps.df.SequenceExpr.drop:5 of
+msgid "0 for deleting rows, 1 for columns."
+msgstr ""
+
+#: odps.df.CollectionExpr.drop:6 odps.df.SequenceExpr.drop:6 of
+msgid "columns of data to select, only useful when axis == 0"
+msgstr ""
+
+#: odps.df.CollectionExpr.dropna:1 of
+msgid ""
+"Return object with labels on given axis omitted where alternately any or "
+"all of the data are missing"
+msgstr ""
+
+#: odps.df.CollectionExpr.dropna:3 odps.df.CollectionExpr.extract_kv:4
+#: odps.df.CollectionExpr.fillna:3 odps.df.CollectionExpr.min_max_scale:3
+#: odps.df.CollectionExpr.to_kv:3 of
+msgid "input DataFrame"
+msgstr ""
+
+#: odps.df.CollectionExpr.dropna:4 of
+msgid ""
+"can be ‘any’ or ‘all’. If 'any' is specified any NA values are present, "
+"drop that label. If 'all' is specified and all values are NA, drop that "
+"label."
+msgstr ""
+
+#: odps.df.CollectionExpr.dropna:5 of
+msgid "require that many non-NA values"
+msgstr ""
+
+#: odps.df.CollectionExpr.dropna:6 of
+msgid ""
+"Labels along other axis to consider, e.g. if you are dropping rows these "
+"would be a list of columns to include"
+msgstr ""
+
+#: odps.df.CollectionExpr.erase_key_value:1
+#: odps.df.SequenceExpr.erase_key_value:1 of
+msgid "Erase key-value represented fields."
+msgstr ""
+
+#: odps.df.CollectionExpr.except_:1 odps.df.CollectionExpr.setdiff:1
+#: odps.df.SequenceExpr.except_:1 odps.df.SequenceExpr.setdiff:1 of
+msgid ""
+"Exclude data from a collection, like `except` clause in SQL. All "
+"collections involved should have same schema."
+msgstr ""
+
+#: odps.df.CollectionExpr.except_:5 odps.df.CollectionExpr.intersect:4
+#: odps.df.CollectionExpr.setdiff:5 odps.df.SequenceExpr.except_:5
+#: odps.df.SequenceExpr.intersect:4 odps.df.SequenceExpr.setdiff:5 of
+msgid "collection or list of collections"
+msgstr ""
+
+#: odps.df.CollectionExpr.except_:6 odps.df.CollectionExpr.setdiff:6
+#: odps.df.SequenceExpr.except_:6 odps.df.SequenceExpr.setdiff:6 of
+msgid "whether to preserve duplicate entries"
+msgstr ""
+
+#: odps.df.CollectionExpr.exclude:1 of
+msgid "Projection columns which not included in the fields"
+msgstr ""
+
+#: odps.df.CollectionExpr.exclude:3 of
+msgid "field names"
+msgstr ""
+
+#: odps.df.CollectionExpr.exclude:4 odps.df.CollectionExpr.filter:4
+#: odps.df.CollectionExpr.filter_parts:6 odps.df.CollectionExpr.query:4
+#: odps.df.CollectionExpr.select:5 of
+msgid "new collection"
+msgstr ""
+
+#: odps.df.CollectionExpr.exclude:5 odps.df.CollectionExpr.select:6 of
+msgid ":class:`odps.df.expr.expression.CollectionExpr`"
+msgstr ""
+
+#: odps.df.CollectionExpr.exclude_fields:1 of
+msgid "Exclude one or more fields from feature fields."
+msgstr ""
+
+#: odps.df.CollectionExpr.execute:1 odps.df.CollectionExpr.persist:15
+#: odps.df.RandomScalar.execute:1 odps.df.RandomScalar.persist:15
+#: odps.df.Scalar.execute:1 odps.df.Scalar.persist:15
+#: odps.df.SequenceExpr.execute:1 odps.df.SequenceExpr.persist:15
+#: odps.df.expr.groupby.GroupBy.execute:1
+#: odps.df.expr.groupby.GroupBy.persist:15
+#: odps.df.expr.groupby.Int64SequenceGroupBy.execute:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:15
+#: odps.df.expr.groupby.SequenceGroupBy.execute:1
+#: odps.df.expr.groupby.SequenceGroupBy.persist:15 of
+msgid "settings for SQL, e.g. `odps.sql.mapper.split.size`"
+msgstr ""
+
+#: odps.df.CollectionExpr.execute:3 odps.df.CollectionExpr.persist:17
+#: odps.df.RandomScalar.execute:3 odps.df.RandomScalar.persist:17
+#: odps.df.Scalar.execute:3 odps.df.Scalar.persist:17
+#: odps.df.SequenceExpr.execute:3 odps.df.SequenceExpr.persist:17
+#: odps.df.expr.groupby.GroupBy.execute:3
+#: odps.df.expr.groupby.GroupBy.persist:17
+#: odps.df.expr.groupby.Int64SequenceGroupBy.execute:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:17
+#: odps.df.expr.groupby.SequenceGroupBy.execute:3
+#: odps.df.expr.groupby.SequenceGroupBy.persist:17 of
+msgid "instance priority, 9 as default"
+msgstr ""
+
+#: odps.df.CollectionExpr.execute:5 odps.df.RandomScalar.execute:5
+#: odps.df.Scalar.execute:5 odps.df.SequenceExpr.execute:5
+#: odps.df.expr.groupby.GroupBy.execute:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.execute:5
+#: odps.df.expr.groupby.SequenceGroupBy.execute:5 of
+msgid "execution result"
+msgstr ""
+
+#: odps.df.CollectionExpr.execute:6 odps.df.CollectionExpr.head:5
+#: odps.df.CollectionExpr.tail:5 odps.df.RandomScalar.execute:6
+#: odps.df.Scalar.execute:6 odps.df.SequenceExpr.execute:6
+#: odps.df.expr.groupby.GroupBy.execute:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.execute:6
+#: odps.df.expr.groupby.SequenceGroupBy.execute:6 of
+msgid ":class:`odps.df.backends.frame.ResultFrame`"
+msgstr ""
+
+#: odps.df.CollectionExpr.extract_kv:1 of
+msgid ""
+"Extract values in key-value represented columns into standalone columns. "
+"New column names will be the name of the key-value column followed by an "
+"underscore and the key."
+msgstr ""
+
+#: odps.df.CollectionExpr.extract_kv:5 of
+msgid "the key-value columns to be extracted."
+msgstr ""
+
+#: odps.df.CollectionExpr.extract_kv:6 odps.df.CollectionExpr.to_kv:5 of
+msgid "delimiter between key and value."
+msgstr ""
+
+#: odps.df.CollectionExpr.extract_kv:7 odps.df.CollectionExpr.to_kv:6 of
+msgid "delimiter between key-value pairs."
+msgstr ""
+
+#: odps.df.CollectionExpr.extract_kv:8 of
+msgid "type of value columns to generate."
+msgstr ""
+
+#: odps.df.CollectionExpr.extract_kv:9 of
+msgid "default value for missing key-value pairs."
+msgstr ""
+
+#: odps.df.CollectionExpr.extract_kv:11 of
+msgid "extracted data frame"
+msgstr ""
+
+#: odps.df.CollectionExpr.ffill:1 of
+msgid ""
+"Fill NA/NaN values with the forward method. Equivalent to "
+"fillna(method='ffill')."
+msgstr ""
+
+#: odps.df.CollectionExpr.fillna:1 of
+msgid "Fill NA/NaN values using the specified method"
+msgstr ""
+
+#: odps.df.CollectionExpr.fillna:4 of
+msgid "can be ‘backfill’, ‘bfill’, ‘pad’, ‘ffill’ or None"
+msgstr ""
+
+#: odps.df.CollectionExpr.fillna:5 odps.df.RandomScalar.fillna:4
+#: odps.df.Scalar.fillna:4 odps.df.SequenceExpr.fillna:4 of
+msgid "value to fill into"
+msgstr ""
+
+#: odps.df.CollectionExpr.filter:1 of
+msgid "Filter the data by predicates"
+msgstr ""
+
+#: odps.df.CollectionExpr.filter:3 of
+msgid "the conditions to filter"
+msgstr ""
+
+#: odps.df.CollectionExpr.filter:5 odps.df.CollectionExpr.filter_parts:7
+#: odps.df.CollectionExpr.query:5 odps.df.SequenceExpr.head:5
+#: odps.df.SequenceExpr.value_counts:11 of
+msgid ":class:`odps.df.expr.expressions.CollectionExpr`"
+msgstr ""
+
+#: odps.df.CollectionExpr.filter_parts:1 of
+msgid ""
+"Filter the data by partition string. A partition string looks like "
+"`pt1=1,pt2=2/pt1=2,pt2=1`, where comma (,) denotes 'and', while (/) "
+"denotes 'or'."
+msgstr ""
+
+#: odps.df.CollectionExpr.filter_parts:4 of
+msgid "predicate string of partition filter"
+msgstr ""
+
+#: odps.df.CollectionExpr.filter_parts:5 of
+msgid ""
+"True if you want to exclude partition fields, otherwise False. True for "
+"default."
+msgstr ""
+
+#: odps.df.CollectionExpr.groupby:1 of
+msgid "Group collection by a series of sequences."
+msgstr ""
+
+#: odps.df.CollectionExpr.groupby:4 odps.df.CollectionExpr.groupby:5 of
+msgid "columns to group"
+msgstr ""
+
+#: odps.df.CollectionExpr.groupby:6 of
+msgid "GroupBy instance"
+msgstr ""
+
+#: odps.df.CollectionExpr.groupby:7 of
+msgid ":class:`odps.df.expr.groupby.GroupBy`"
+msgstr ""
+
+#: odps.df.CollectionExpr.head:1 of
+msgid "Return the first n rows. Execute at once."
+msgstr ""
+
+#: odps.df.CollectionExpr.head:4 odps.df.CollectionExpr.tail:4
+#: odps.df.SequenceExpr.head:4 of
+msgid "result frame"
+msgstr ""
+
+#: odps.df.CollectionExpr.inner_join:1 of
+msgid "Inner join two collections."
+msgstr ""
+
+#: odps.df.CollectionExpr.inner_join:3 odps.df.CollectionExpr.join:3
+#: odps.df.CollectionExpr.left_join:3 odps.df.CollectionExpr.outer_join:3
+#: odps.df.CollectionExpr.right_join:3 of
+msgid ""
+"If `on` is not specified, we will find the common fields of the left and "
+"right collection. `suffixes` means that if column names conflict, the "
+"suffixes will be added automatically. For example, both left and right "
+"has a field named `col`, there will be col_x, and col_y in the joined "
+"collection."
+msgstr ""
+
+#: odps.df.CollectionExpr.inner_join:9 odps.df.CollectionExpr.join:9
+#: odps.df.CollectionExpr.left_join:9 odps.df.CollectionExpr.outer_join:9
+#: odps.df.CollectionExpr.right_join:9 odps.df.CollectionExpr.union:4
+#: odps.df.SequenceExpr.union:4 of
+msgid "right collection"
+msgstr ""
+
+#: odps.df.CollectionExpr.inner_join:10 odps.df.CollectionExpr.join:10
+#: odps.df.CollectionExpr.left_join:10 odps.df.CollectionExpr.outer_join:10
+#: odps.df.CollectionExpr.right_join:10 of
+msgid "fields to join on"
+msgstr ""
+
+#: odps.df.CollectionExpr.inner_join:11 odps.df.CollectionExpr.left_join:11
+#: odps.df.CollectionExpr.outer_join:11 odps.df.CollectionExpr.right_join:11 of
+msgid "when name conflict, the suffixes will be added to both columns."
+msgstr ""
+
+#: odps.df.CollectionExpr.intersect:1 odps.df.SequenceExpr.intersect:1 of
+msgid "Calc intersection among datasets,"
+msgstr ""
+
+#: odps.df.CollectionExpr.intersect:5 odps.df.SequenceExpr.intersect:5 of
+msgid "whether to preserve duolicate entries"
+msgstr ""
+
+#: odps.df.CollectionExpr.join:1 of
+msgid "Join two collections."
+msgstr ""
+
+#: odps.df.CollectionExpr.join:11 of
+msgid "'inner', 'left', 'right', or 'outer'"
+msgstr ""
+
+#: odps.df.CollectionExpr.join:12 of
+msgid "when name conflict, the suffix will be added to both columns."
+msgstr ""
+
+#: odps.df.CollectionExpr.join:13 odps.df.CollectionExpr.left_join:12
+#: odps.df.CollectionExpr.outer_join:12 odps.df.CollectionExpr.right_join:12 of
+msgid "set use mapjoin or not, default value False."
+msgstr ""
+
+#: odps.df.CollectionExpr.key_value:1 odps.df.SequenceExpr.key_value:1 of
+msgid "Set fields to be key-value represented."
+msgstr ""
+
+#: odps.df.CollectionExpr.kurt:1 odps.df.CollectionExpr.kurtosis:1
+#: odps.df.expr.groupby.GroupBy.kurt:1 odps.df.expr.groupby.GroupBy.kurtosis:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.kurt:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.kurtosis:1 of
+msgid "Calculate kurtosis of the sequence"
+msgstr ""
+
+#: odps.df.CollectionExpr.label_field:1 of
+msgid "Select one field as the label field."
+msgstr ""
+
+#: odps.df.CollectionExpr.label_field:3 odps.df.CollectionExpr.weight_field:3
+#: of
+msgid "Note that this field will be exclude from feature fields."
+msgstr ""
+
+#: odps.df.CollectionExpr.label_field:5 of
+msgid "Selected label field"
+msgstr ""
+
+#: odps.df.CollectionExpr.left_join:1 of
+msgid "Left join two collections."
+msgstr ""
+
+#: odps.df.CollectionExpr.left_join:13 odps.df.CollectionExpr.outer_join:13
+#: odps.df.CollectionExpr.right_join:13 of
+msgid ""
+"whether to merge columns with the same name into one column without "
+"suffix. If the value is True, columns in the predicate with same names "
+"will be merged, with non-null value. If the value is 'left' or 'right', "
+"the values of predicates on the left / right collection will be taken. "
+"You can also pass a dictionary to describe the behavior of each column, "
+"such as { 'a': 'auto', 'b': 'left' }."
+msgstr ""
+
+#: odps.df.CollectionExpr.limit:1 of
+msgid "limit n records"
+msgstr ""
+
+#: odps.df.CollectionExpr.limit:3 of
+msgid "n records"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:1 of
+msgid "MapReduce API, mapper or reducer should be provided."
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:4 of
+msgid "mapper function or class"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:5 of
+msgid "reducer function or class"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:6 of
+msgid "the keys to group after mapper"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:7 of
+msgid "the keys to sort after mapper"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:8 odps.df.CollectionExpr.reshuffle:6 of
+msgid "True if ascending else False"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:9 of
+msgid "combiner function or class, combiner's output should be equal to mapper"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:10 of
+msgid "combiner's buffer size, 1024 as default"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:11 of
+msgid "mapper's output names"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:12 of
+msgid "mapper's output types"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:13 of
+msgid "the resources for mapper"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:14 of
+msgid "reducer's output names"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:15 of
+msgid "reducer's output types"
+msgstr ""
+
+#: odps.df.CollectionExpr.map_reduce:16 of
+msgid "the resources for reducer"
+msgstr ""
+
+#: odps.df.CollectionExpr.max:1 odps.df.SequenceExpr.max:1
+#: odps.df.expr.groupby.GroupBy.max:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.max:1
+#: odps.df.expr.groupby.SequenceGroupBy.max:1 of
+msgid "Max value"
+msgstr ""
+
+#: odps.df.CollectionExpr.mean:1 odps.df.expr.groupby.GroupBy.mean:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.mean:1 of
+msgid "Arithmetic mean."
+msgstr ""
+
+#: odps.df.CollectionExpr.median:1 odps.df.expr.groupby.GroupBy.median:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.median:1 of
+msgid "Median value."
+msgstr ""
+
+#: odps.df.CollectionExpr.melt:1 of
+msgid ""
+"“Unpivots” a DataFrame from wide format to long format, optionally "
+"leaving identifier variables set."
+msgstr ""
+
+#: odps.df.CollectionExpr.melt:3 of
+msgid ""
+"This function is useful to massage a DataFrame into a format where one or"
+" more columns are identifier variables (id_vars), while all other "
+"columns, considered measured variables (value_vars), are “unpivoted” to "
+"the row axis, leaving just two non-identifier columns, ‘variable’ and "
+"‘value’."
+msgstr ""
+
+#: odps.df.CollectionExpr.melt:8 of
+msgid "column(s) to use as identifier variables."
+msgstr ""
+
+#: odps.df.CollectionExpr.melt:9 of
+msgid ""
+"column(s) to unpivot. If not specified, uses all columns that are not set"
+" as id_vars."
+msgstr ""
+
+#: odps.df.CollectionExpr.melt:10 of
+msgid ""
+"name to use for the ‘variable’ column. If None it uses frame.columns.name"
+" or ‘variable’."
+msgstr ""
+
+#: odps.df.CollectionExpr.melt:11 of
+msgid "name to use for the ‘value’ column."
+msgstr ""
+
+#: odps.df.CollectionExpr.melt:12 of
+msgid "whether to ignore NaN values in data."
+msgstr ""
+
+#: odps.df.CollectionExpr.min:1 odps.df.SequenceExpr.min:1
+#: odps.df.expr.groupby.GroupBy.min:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min:1
+#: odps.df.expr.groupby.SequenceGroupBy.min:1 of
+msgid "Min value"
+msgstr ""
+
+#: odps.df.CollectionExpr.min_max_scale:1 of
+msgid ""
+"Resize a data frame by max / min values, i.e., (X - min(X)) / (max(X) - "
+"min(X))"
+msgstr ""
+
+#: odps.df.CollectionExpr.min_max_scale:4 of
+msgid "the target range to resize the value into, i.e., v * (b - a) + a"
+msgstr ""
+
+#: odps.df.CollectionExpr.min_max_scale:5 of
+msgid ""
+"determine whether input data should be kept. If True, scaled input data "
+"will be appended to the data frame with `suffix`"
+msgstr ""
+
+#: odps.df.CollectionExpr.min_max_scale:6 of
+msgid ""
+"columns names to resize. If set to None, float or int-typed columns will "
+"be normalized if the column is not specified as a group column."
+msgstr ""
+
+#: odps.df.CollectionExpr.min_max_scale:7 odps.df.CollectionExpr.std_scale:8 of
+msgid "determine scale groups. Scaling will be done in each group separately."
+msgstr ""
+
+#: odps.df.CollectionExpr.min_max_scale:8 odps.df.CollectionExpr.std_scale:9 of
+msgid "column suffix to be appended to the scaled columns."
+msgstr ""
+
+#: odps.df.CollectionExpr.min_max_scale:10 odps.df.CollectionExpr.std_scale:11
+#: of
+msgid "resized data frame"
+msgstr ""
+
+#: odps.df.CollectionExpr.moment:1 odps.df.expr.groupby.GroupBy.moment:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.moment:1 of
+msgid "Calculate the n-th order moment of the sequence"
+msgstr ""
+
+#: odps.df.CollectionExpr.moment:4 odps.df.expr.groupby.GroupBy.moment:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.moment:4 of
+msgid "moment order, must be an integer"
+msgstr ""
+
+#: odps.df.CollectionExpr.moment:5 odps.df.expr.groupby.GroupBy.moment:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.moment:5 of
+msgid "if central moments are to be computed."
+msgstr ""
+
+#: odps.df.CollectionExpr.nunique:1 odps.df.SequenceExpr.nunique:1
+#: odps.df.expr.groupby.GroupBy.nunique:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nunique:1
+#: odps.df.expr.groupby.SequenceGroupBy.nunique:1 of
+msgid "The distinct count."
+msgstr ""
+
+#: odps.df.CollectionExpr.outer_join:1 of
+msgid "Outer join two collections."
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:1 odps.df.RandomScalar.persist:1
+#: odps.df.Scalar.persist:1 odps.df.SequenceExpr.persist:1
+#: odps.df.expr.groupby.GroupBy.persist:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:1
+#: odps.df.expr.groupby.SequenceGroupBy.persist:1 of
+msgid ""
+"Persist the execution into a new table. If `partitions` not specified, "
+"will create a new table without partitions if the table does not exist, "
+"and insert the SQL result into it. If `partitions` are specified, they "
+"will be the partition fields of the new table. If `partition` is "
+"specified, the data will be inserted into the exact partition of the "
+"table."
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:7 odps.df.RandomScalar.persist:7
+#: odps.df.Scalar.persist:7 odps.df.SequenceExpr.persist:7
+#: odps.df.expr.groupby.GroupBy.persist:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:7
+#: odps.df.expr.groupby.SequenceGroupBy.persist:7 of
+msgid "table name"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:8 odps.df.RandomScalar.persist:8
+#: odps.df.Scalar.persist:8 odps.df.SequenceExpr.persist:8
+#: odps.df.expr.groupby.GroupBy.persist:8
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:8
+#: odps.df.expr.groupby.SequenceGroupBy.persist:8 of
+msgid "list of string, the partition fields"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:10 odps.df.RandomScalar.persist:10
+#: odps.df.Scalar.persist:10 odps.df.SequenceExpr.persist:10
+#: odps.df.expr.groupby.GroupBy.persist:10
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:10
+#: odps.df.expr.groupby.SequenceGroupBy.persist:10 of
+msgid "persist to a specified partition"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:12 odps.df.RandomScalar.persist:12
+#: odps.df.Scalar.persist:12 odps.df.SequenceExpr.persist:12
+#: odps.df.expr.groupby.GroupBy.persist:12
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:12
+#: odps.df.expr.groupby.SequenceGroupBy.persist:12 of
+msgid "table lifecycle. If absent, `options.lifecycle` will be used."
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:14 odps.df.RandomScalar.persist:14
+#: odps.df.Scalar.persist:14 odps.df.SequenceExpr.persist:14
+#: odps.df.expr.groupby.GroupBy.persist:14
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:14
+#: odps.df.expr.groupby.SequenceGroupBy.persist:14 of
+msgid "project name, if not provided, will be the default project"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:19 odps.df.RandomScalar.persist:19
+#: odps.df.Scalar.persist:19 odps.df.SequenceExpr.persist:19
+#: odps.df.expr.groupby.GroupBy.persist:19
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:19
+#: odps.df.expr.groupby.SequenceGroupBy.persist:19 of
+msgid "overwrite the table, True as default"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:21 odps.df.RandomScalar.persist:21
+#: odps.df.Scalar.persist:21 odps.df.SequenceExpr.persist:21
+#: odps.df.expr.groupby.GroupBy.persist:21
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:21
+#: odps.df.expr.groupby.SequenceGroupBy.persist:21 of
+msgid "drop table if exists, False as default"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:23 odps.df.RandomScalar.persist:23
+#: odps.df.Scalar.persist:23 odps.df.SequenceExpr.persist:23
+#: odps.df.expr.groupby.GroupBy.persist:23
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:23
+#: odps.df.expr.groupby.SequenceGroupBy.persist:23 of
+msgid "create table first if not exits, True as default"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:25 odps.df.RandomScalar.persist:25
+#: odps.df.Scalar.persist:25 odps.df.SequenceExpr.persist:25
+#: odps.df.expr.groupby.GroupBy.persist:25
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:25
+#: odps.df.expr.groupby.SequenceGroupBy.persist:25 of
+msgid "drop partition if exists, False as default"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:27 odps.df.RandomScalar.persist:27
+#: odps.df.Scalar.persist:27 odps.df.SequenceExpr.persist:27
+#: odps.df.expr.groupby.GroupBy.persist:27
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:27
+#: odps.df.expr.groupby.SequenceGroupBy.persist:27 of
+msgid "create partition if not exists, None as default"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:29 odps.df.RandomScalar.persist:29
+#: odps.df.Scalar.persist:29 odps.df.SequenceExpr.persist:29
+#: odps.df.expr.groupby.GroupBy.persist:29
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:29
+#: odps.df.expr.groupby.SequenceGroupBy.persist:29 of
+msgid "cast all columns' types as the existed table, False as default"
+msgstr ""
+
+#: odps.df.CollectionExpr.persist:31 odps.df.RandomScalar.persist:31
+#: odps.df.Scalar.persist:31 odps.df.SequenceExpr.persist:31
+#: odps.df.expr.groupby.GroupBy.persist:31
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:31
+#: odps.df.expr.groupby.SequenceGroupBy.persist:31 of
+msgid ":class:`odps.df.DataFrame`"
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot:1 of
+msgid ""
+"Produce ‘pivot’ table based on 3 columns of this DataFrame. Uses unique "
+"values from rows / columns and fills with values."
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot:5 of
+msgid "use to make new collection's grouped rows"
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot:6 of
+msgid "use to make new collection's columns"
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot:7 of
+msgid "values to use for populating new collection's values"
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot_table:1 of
+msgid "Create a spreadsheet-style pivot table as a DataFrame."
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot_table:4 of
+msgid "column to aggregate"
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot_table:5 of
+msgid "rows to group"
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot_table:6 of
+msgid "keys to group by on the pivot table column"
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot_table:7 of
+msgid "aggregate function or functions"
+msgstr ""
+
+#: odps.df.CollectionExpr.pivot_table:8 of
+msgid "value to replace missing value with, default None"
+msgstr ""
+
+#: odps.df.CollectionExpr.quantile:1 odps.df.expr.groupby.GroupBy.quantile:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.quantile:1 of
+msgid "Percentile value."
+msgstr ""
+
+#: odps.df.CollectionExpr.quantile:4 odps.df.expr.groupby.GroupBy.quantile:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.quantile:4 of
+msgid "probability or list of probabilities, in [0, 1]"
+msgstr ""
+
+#: odps.df.CollectionExpr.query:1 of
+msgid "Query the data with a boolean expression."
+msgstr ""
+
+#: odps.df.CollectionExpr.query:3 of
+msgid ""
+"the query string, you can use '@' character refer to environment "
+"variables."
+msgstr ""
+
+#: odps.df.CollectionExpr.reshuffle:1 of
+msgid "Reshuffle data."
+msgstr ""
+
+#: odps.df.CollectionExpr.reshuffle:4 of
+msgid "the sequence or scalar to shuffle by. RandomScalar as default"
+msgstr ""
+
+#: odps.df.CollectionExpr.reshuffle:5 of
+msgid "the sequence or scalar to sort."
+msgstr ""
+
+#: odps.df.CollectionExpr.right_join:1 of
+msgid "Right join two collections."
+msgstr ""
+
+#: odps.df.CollectionExpr.roles:1 of
+msgid "Set roles of fields"
+msgstr ""
+
+#: odps.df.CollectionExpr.roles:3 of
+msgid "Clear feature roles on fields"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:1 of
+msgid "Sample collection."
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:4 of
+msgid "how many parts to hash"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:5 of
+msgid "the columns to sample"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:6 of
+msgid "the part to sample out, can be a list of parts, must be from 0 to parts-1"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:7 of
+msgid ""
+"how many rows to sample. If `strata` is specified, `n` should be a dict "
+"with values in the strata column as dictionary keys and corresponding "
+"sample size as values"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:8 of
+msgid ""
+"how many fraction to sample. If `strata` is specified, `n` should be a "
+"dict with values in the strata column as dictionary keys and "
+"corresponding sample weight as values"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:9 of
+msgid "whether to perform replace sampling"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:10 of
+msgid "the column name of weights"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:11 of
+msgid "the name of strata column"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:12 of
+msgid "the random seed when performing sampling"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:15 of
+msgid ""
+"Note that n, frac, replace, weights, strata and random_state can only be "
+"used under Pandas DataFrames or XFlow."
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:20 of
+msgid "Sampling with parts:"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:26 of
+msgid "Sampling with fraction or weights, replacement option can be specified:"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:32 of
+msgid "Sampling with weight column:"
+msgstr ""
+
+#: odps.df.CollectionExpr.sample:37 of
+msgid ""
+"Stratified sampling. Note that currently we do not support stratified "
+"sampling with replacement."
+msgstr ""
+
+#: odps.df.CollectionExpr.select:1 of
+msgid "Projection columns. Remember to avoid column names' conflict."
+msgstr ""
+
+#: odps.df.CollectionExpr.select:3 of
+msgid "columns to project"
+msgstr ""
+
+#: odps.df.CollectionExpr.select:4 of
+msgid "columns and their names to project"
+msgstr ""
+
+#: odps.df.CollectionExpr.select_features:1 of
+msgid "Select one or more fields as feature fields."
+msgstr ""
+
+#: odps.df.CollectionExpr.skew:1 odps.df.expr.groupby.GroupBy.skew:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.skew:1 of
+msgid "Calculate skewness of the sequence"
+msgstr ""
+
+#: odps.df.CollectionExpr.sort:1 odps.df.CollectionExpr.sort_values:1 of
+msgid "Sort the collection by values. `sort` is an alias name for `sort_values`"
+msgstr ""
+
+#: odps.df.CollectionExpr.sort:4 odps.df.CollectionExpr.sort_values:4 of
+msgid "the sequence or sequences to sort"
+msgstr ""
+
+#: odps.df.CollectionExpr.sort:5 odps.df.CollectionExpr.sort_values:5 of
+msgid ""
+"Sort ascending vs. descending. Sepecify list for multiple sort orders. If"
+" this is a list of bools, must match the length of the by"
+msgstr ""
+
+#: odps.df.CollectionExpr.sort:7 odps.df.CollectionExpr.sort_values:7 of
+msgid "Sorted collection"
+msgstr ""
+
+#: odps.df.CollectionExpr.split:1 of
+msgid "Split the current column into two column objects with certain ratio."
+msgstr ""
+
+#: odps.df.CollectionExpr.split:3 of
+msgid "Split ratio"
+msgstr ""
+
+#: odps.df.CollectionExpr.split:5 of
+msgid "two split DataFrame objects"
+msgstr ""
+
+#: odps.df.CollectionExpr.std:1 odps.df.expr.groupby.GroupBy.std:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.std:1 of
+msgid "Standard deviation."
+msgstr ""
+
+#: odps.df.CollectionExpr.std_scale:1 of
+msgid "Resize a data frame by mean and standard error."
+msgstr ""
+
+#: odps.df.CollectionExpr.std_scale:3 of
+msgid "Input DataFrame"
+msgstr ""
+
+#: odps.df.CollectionExpr.std_scale:4 of
+msgid "Determine whether the output will be subtracted by means"
+msgstr ""
+
+#: odps.df.CollectionExpr.std_scale:5 of
+msgid "Determine whether the output will be divided by standard deviations"
+msgstr ""
+
+#: odps.df.CollectionExpr.std_scale:6 of
+msgid ""
+"Determine whether input data should be kept. If True, scaled input data "
+"will be appended to the data frame with `suffix`"
+msgstr ""
+
+#: odps.df.CollectionExpr.std_scale:7 of
+msgid ""
+"Columns names to resize. If set to None, float or int-typed columns will "
+"be normalized if the column is not specified as a group column."
+msgstr ""
+
+#: odps.df.CollectionExpr.sum:1 odps.df.expr.groupby.GroupBy.sum:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.sum:1 of
+msgid "Sum value"
+msgstr ""
+
+#: odps.df.CollectionExpr.switch:1 odps.df.RandomScalar.switch:1
+#: odps.df.Scalar.switch:1 odps.df.SequenceExpr.switch:1 of
+msgid "Similar to the case-when in SQL. Refer to the example below"
+msgstr ""
+
+#: odps.df.CollectionExpr.switch:6 odps.df.RandomScalar.between:4
+#: odps.df.RandomScalar.cut:3 odps.df.RandomScalar.cut:11
+#: odps.df.RandomScalar.fillna:3 odps.df.RandomScalar.fillna:5
+#: odps.df.RandomScalar.isin:4 odps.df.RandomScalar.isnull:3
+#: odps.df.RandomScalar.isnull:4 odps.df.RandomScalar.notin:4
+#: odps.df.RandomScalar.notnull:3 odps.df.RandomScalar.notnull:4
+#: odps.df.RandomScalar.switch:6 odps.df.Scalar.between:4 odps.df.Scalar.cut:3
+#: odps.df.Scalar.cut:11 odps.df.Scalar.fillna:3 odps.df.Scalar.fillna:5
+#: odps.df.Scalar.isin:4 odps.df.Scalar.isnull:3 odps.df.Scalar.isnull:4
+#: odps.df.Scalar.notin:4 odps.df.Scalar.notnull:3 odps.df.Scalar.notnull:4
+#: odps.df.Scalar.switch:6 odps.df.SequenceExpr.between:4
+#: odps.df.SequenceExpr.cut:3 odps.df.SequenceExpr.cut:11
+#: odps.df.SequenceExpr.fillna:3 odps.df.SequenceExpr.fillna:5
+#: odps.df.SequenceExpr.hll_count:7 odps.df.SequenceExpr.isin:4
+#: odps.df.SequenceExpr.isnull:3 odps.df.SequenceExpr.isnull:4
+#: odps.df.SequenceExpr.notin:4 odps.df.SequenceExpr.notnull:3
+#: odps.df.SequenceExpr.notnull:4 odps.df.SequenceExpr.switch:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.hll_count:7
+#: odps.df.expr.groupby.SequenceGroupBy.hll_count:7 of
+msgid "sequence or scalar"
+msgstr ""
+
+#: odps.df.CollectionExpr.tail:1 odps.df.SequenceExpr.tail:1 of
+msgid "Return the last n rows. Execute at once."
+msgstr ""
+
+#: odps.df.CollectionExpr.to_kv:1 of
+msgid "Merge values in specified columns into a key-value represented column."
+msgstr ""
+
+#: odps.df.CollectionExpr.to_kv:4 of
+msgid "the columns to be merged."
+msgstr ""
+
+#: odps.df.CollectionExpr.to_kv:7 of
+msgid "name of the new key-value column"
+msgstr ""
+
+#: odps.df.CollectionExpr.to_kv:9 of
+msgid "converted data frame"
+msgstr ""
+
+#: odps.df.CollectionExpr.to_pandas:1 of
+msgid "Convert to pandas DataFrame. Execute at once."
+msgstr ""
+
+#: odps.df.CollectionExpr.to_pandas:3 odps.df.SequenceExpr.to_pandas:3 of
+msgid "if True, wrap the pandas DataFrame into a PyODPS DataFrame"
+msgstr ""
+
+#: odps.df.CollectionExpr.to_pandas:4 of
+msgid "pandas DataFrame"
+msgstr ""
+
+#: odps.df.CollectionExpr.tolist:1 odps.df.SequenceExpr.tolist:1
+#: odps.df.expr.groupby.GroupBy.tolist:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.tolist:1
+#: odps.df.expr.groupby.SequenceGroupBy.tolist:1 of
+msgid ""
+"Pack all data in the sequence into a list :param expr: :param unique: "
+"make every elements in the sequence to be unique :return:"
+msgstr ""
+
+#: odps.df.CollectionExpr.union:1 odps.df.SequenceExpr.union:1 of
+msgid "Union two collections."
+msgstr ""
+
+#: odps.df.CollectionExpr.var:1 odps.df.expr.groupby.GroupBy.var:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.var:1 of
+msgid "Variance"
+msgstr ""
+
+#: odps.df.CollectionExpr.var:4 odps.df.expr.groupby.GroupBy.var:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.var:4 of
+msgid "degree of freedom"
+msgstr ""
+
+#: odps.df.CollectionExpr.verify:1 odps.df.RandomScalar.verify:1
+#: odps.df.Scalar.verify:1 odps.df.SequenceExpr.verify:1
+#: odps.df.expr.groupby.GroupBy.verify:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.verify:1
+#: odps.df.expr.groupby.SequenceGroupBy.verify:1 of
+msgid "Verify if this expression can be compiled into ODPS SQL."
+msgstr ""
+
+#: odps.df.CollectionExpr.verify:3 odps.df.RandomScalar.verify:3
+#: odps.df.Scalar.verify:3 odps.df.SequenceExpr.verify:3
+#: odps.df.expr.groupby.GroupBy.verify:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.verify:3
+#: odps.df.expr.groupby.SequenceGroupBy.verify:3 of
+msgid "True if compilation succeed else False"
+msgstr ""
+
+#: odps.df.CollectionExpr.weight_field:1 of
+msgid "Select one field as the weight field."
+msgstr ""
+
+#: odps.df.CollectionExpr.weight_field:5 of
+msgid "Selected weight field"
+msgstr ""
+
+#: odps.df.SequenceExpr:1 of
+msgid "Sequence represents for 1-dimension data."
+msgstr ""
+
+#: odps.df.SequenceExpr.astype:1 of
+msgid "Cast to a new data type."
+msgstr ""
+
+#: odps.df.SequenceExpr.astype:3 of
+msgid "the new data type"
+msgstr ""
+
+#: odps.df.SequenceExpr.astype:4 of
+msgid "casted sequence"
+msgstr ""
+
+#: odps.df.RandomScalar.between:1 odps.df.Scalar.between:1
+#: odps.df.SequenceExpr.between:1 of
+msgid ""
+"Return a boolean sequence or scalar show whether each element is between "
+"`left` and `right`."
+msgstr ""
+
+#: odps.df.RandomScalar.between:5 odps.df.Scalar.between:5
+#: odps.df.SequenceExpr.between:5 of
+msgid "left value"
+msgstr ""
+
+#: odps.df.RandomScalar.between:6 odps.df.Scalar.between:6
+#: odps.df.SequenceExpr.between:6 of
+msgid "right value"
+msgstr ""
+
+#: odps.df.RandomScalar.between:7 odps.df.Scalar.between:7
+#: odps.df.SequenceExpr.between:7 of
+msgid "if true, will be left <= expr <= right, else will be left < expr < right"
+msgstr ""
+
+#: odps.df.RandomScalar.between:8 odps.df.RandomScalar.isin:6
+#: odps.df.RandomScalar.notin:6 odps.df.Scalar.between:8 odps.df.Scalar.isin:6
+#: odps.df.Scalar.notin:6 odps.df.SequenceExpr.between:8
+#: odps.df.SequenceExpr.isin:6 odps.df.SequenceExpr.notin:6 of
+msgid "boolean sequence or scalar"
+msgstr ""
+
+#: odps.df.SequenceExpr.continuous:1 of
+msgid "Set sequence to be continuous."
+msgstr ""
+
+#: odps.df.RandomScalar.cut:1 odps.df.Scalar.cut:1 odps.df.SequenceExpr.cut:1
+#: of
+msgid "Return indices of half-open bins to which each value of `expr` belongs."
+msgstr ""
+
+#: odps.df.RandomScalar.cut:4 odps.df.Scalar.cut:4 odps.df.SequenceExpr.cut:4
+#: of
+msgid "list of scalars"
+msgstr ""
+
+#: odps.df.RandomScalar.cut:5 odps.df.Scalar.cut:5 odps.df.SequenceExpr.cut:5
+#: of
+msgid ""
+"indicates whether the bins include the rightmost edge or not. If right =="
+" True(the default), then the bins [1, 2, 3, 4] indicate (1, 2], (2, 3], "
+"(3, 4]"
+msgstr ""
+
+#: odps.df.RandomScalar.cut:7 odps.df.Scalar.cut:7 odps.df.SequenceExpr.cut:7
+#: of
+msgid ""
+"Usesd as labes for the resulting bins. Must be of the same length as the "
+"resulting bins."
+msgstr ""
+
+#: odps.df.RandomScalar.cut:8 odps.df.Scalar.cut:8 odps.df.SequenceExpr.cut:8
+#: of
+msgid "Whether the first interval should be left-inclusive or not."
+msgstr ""
+
+#: odps.df.RandomScalar.cut:9 odps.df.Scalar.cut:9 odps.df.SequenceExpr.cut:9
+#: of
+msgid "include the bin below the leftmost edge or not"
+msgstr ""
+
+#: odps.df.RandomScalar.cut:10 odps.df.Scalar.cut:10
+#: odps.df.SequenceExpr.cut:10 of
+msgid "include the bin above the rightmost edge or not"
+msgstr ""
+
+#: odps.df.SequenceExpr.discrete:1 of
+msgid "Set sequence to be discrete."
+msgstr ""
+
+#: odps.df.SequenceExpr.dtype:1 of
+msgid ""
+"*Return the data type. Available types* -- int8, int16, int32, int64, "
+"float32, float64, boolean, string, decimal, datetime"
+msgstr ""
+
+#: odps.df.SequenceExpr.dtype:3 of
+msgid "the data type"
+msgstr ""
+
+#: odps.df.RandomScalar.fillna:1 odps.df.Scalar.fillna:1
+#: odps.df.SequenceExpr.fillna:1 of
+msgid "Fill null with value."
+msgstr ""
+
+#: odps.df.RandomScalar.hash:1 odps.df.Scalar.hash:1
+#: odps.df.SequenceExpr.hash:1 of
+msgid "Calculate the hash value."
+msgstr ""
+
+#: odps.df.RandomScalar.hash:4 odps.df.Scalar.hash:4
+#: odps.df.SequenceExpr.hash:4 of
+msgid "hash function"
+msgstr ""
+
+#: odps.df.SequenceExpr.head:1 of
+msgid "Return first n rows. Execute at once."
+msgstr ""
+
+#: odps.df.SequenceExpr.hll_count:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.hll_count:1
+#: odps.df.expr.groupby.SequenceGroupBy.hll_count:1 of
+msgid "Calculate HyperLogLog count"
+msgstr ""
+
+#: odps.df.SequenceExpr.hll_count:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.hll_count:6
+#: odps.df.expr.groupby.SequenceGroupBy.hll_count:6 of
+msgid "the splitter to split the column value"
+msgstr ""
+
+#: odps.df.RandomScalar.isin:1 odps.df.Scalar.isin:1
+#: odps.df.SequenceExpr.isin:1 of
+msgid ""
+"Return a boolean sequence or scalar showing whether each element is "
+"exactly contained in the passed `values`."
+msgstr ""
+
+#: odps.df.RandomScalar.isin:5 odps.df.RandomScalar.notin:5
+#: odps.df.Scalar.isin:5 odps.df.Scalar.notin:5 odps.df.SequenceExpr.isin:5
+#: odps.df.SequenceExpr.notin:5 of
+msgid "`list` object or sequence"
+msgstr ""
+
+#: odps.df.RandomScalar.isnull:1 odps.df.Scalar.isnull:1
+#: odps.df.SequenceExpr.isnull:1 of
+msgid ""
+"Return a sequence or scalar according to the input indicating if the "
+"values are null."
+msgstr ""
+
+#: odps.df.RandomScalar.map:1 odps.df.Scalar.map:1 odps.df.SequenceExpr.map:1
+#: of
+msgid "Call func on each element of this sequence."
+msgstr ""
+
+#: odps.df.RandomScalar.map:6 odps.df.Scalar.map:6 odps.df.SequenceExpr.map:6
+#: of
+msgid "a new sequence"
+msgstr ""
+
+#: odps.df.RandomScalar.notin:1 odps.df.Scalar.notin:1
+#: odps.df.SequenceExpr.notin:1 of
+msgid ""
+"Return a boolean sequence or scalar showing whether each element is not "
+"contained in the passed `values`."
+msgstr ""
+
+#: odps.df.RandomScalar.notnull:1 odps.df.Scalar.notnull:1
+#: odps.df.SequenceExpr.notnull:1 of
+msgid ""
+"Return a sequence or scalar according to the input indicating if the "
+"values are not null."
+msgstr ""
+
+#: odps.df.SequenceExpr.role:1 of
+msgid "Set role of current column"
+msgstr ""
+
+#: odps.df.SequenceExpr.role:3 of
+msgid "name of the role to be selected."
+msgstr ""
+
+#: odps.df.SequenceExpr.to_pandas:1 of
+msgid "Convert to pandas Series. Execute at once."
+msgstr ""
+
+#: odps.df.SequenceExpr.to_pandas:4 of
+msgid "pandas Series"
+msgstr ""
+
+#: odps.df.SequenceExpr.value_counts:1 of
+msgid "Return object containing counts of unique values."
+msgstr ""
+
+#: odps.df.SequenceExpr.value_counts:3 of
+msgid ""
+"The resulting object will be in descending order so that the first "
+"element is the most frequently-occuring element. Exclude NA values by "
+"default"
+msgstr ""
+
+#: odps.df.SequenceExpr.value_counts:6 of
+msgid "sequence"
+msgstr ""
+
+#: odps.df.SequenceExpr.value_counts:7 of
+msgid "if sort"
+msgstr ""
+
+#: odps.df.SequenceExpr.value_counts:9 of
+msgid "Don’t include counts of None, default False"
+msgstr ""
+
+#: odps.df.SequenceExpr.value_counts:10 of
+msgid "collection with two columns"
+msgstr ""
+
+#: odps.df.Scalar:1 of
+msgid "Represent for the scalar type."
+msgstr ""
+
+#: odps.df.Scalar:3 of
+msgid "value of the scalar"
+msgstr ""
+
+#: odps.df.Scalar:4 of
+msgid "value type of the scalar"
+msgstr ""
+
+#: odps.df.NullScalar:1 of
+msgid "Creates a Scalar representing typed None values."
+msgstr ""
+
+#: odps.df.NullScalar:3 of
+msgid "type of the scalar"
+msgstr ""
+
+#: odps.df.NullScalar:4 of
+msgid "Scalar with None value"
+msgstr ""
+
+#: odps.df.RandomScalar:1 of
+msgid "Represent for the random scalar type."
+msgstr ""
+
+#: odps.df.RandomScalar:3 of
+msgid "random seed, None by default"
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.dense_rank:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.dense_rank:1
+#: odps.df.expr.groupby.SequenceGroupBy.dense_rank:1 of
+msgid "Calculate dense rank of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.dense_rank:3
+#: odps.df.expr.groupby.GroupBy.min_rank:3
+#: odps.df.expr.groupby.GroupBy.percent_rank:3
+#: odps.df.expr.groupby.GroupBy.rank:3
+#: odps.df.expr.groupby.GroupBy.row_number:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.dense_rank:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lag:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lead:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.rank:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.row_number:3
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount:3
+#: odps.df.expr.groupby.SequenceGroupBy.cummax:3
+#: odps.df.expr.groupby.SequenceGroupBy.cummin:3
+#: odps.df.expr.groupby.SequenceGroupBy.dense_rank:3
+#: odps.df.expr.groupby.SequenceGroupBy.lag:5
+#: odps.df.expr.groupby.SequenceGroupBy.lead:5
+#: odps.df.expr.groupby.SequenceGroupBy.min_rank:3
+#: odps.df.expr.groupby.SequenceGroupBy.percent_rank:3
+#: odps.df.expr.groupby.SequenceGroupBy.rank:3
+#: odps.df.expr.groupby.SequenceGroupBy.row_number:3 of
+msgid "expression for calculation"
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.dense_rank:4
+#: odps.df.expr.groupby.GroupBy.min_rank:4
+#: odps.df.expr.groupby.GroupBy.percent_rank:4
+#: odps.df.expr.groupby.GroupBy.rank:4
+#: odps.df.expr.groupby.GroupBy.row_number:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.dense_rank:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lag:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lead:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.rank:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.row_number:4
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount:4
+#: odps.df.expr.groupby.SequenceGroupBy.cummax:4
+#: odps.df.expr.groupby.SequenceGroupBy.cummin:4
+#: odps.df.expr.groupby.SequenceGroupBy.dense_rank:4
+#: odps.df.expr.groupby.SequenceGroupBy.lag:6
+#: odps.df.expr.groupby.SequenceGroupBy.lead:6
+#: odps.df.expr.groupby.SequenceGroupBy.min_rank:4
+#: odps.df.expr.groupby.SequenceGroupBy.percent_rank:4
+#: odps.df.expr.groupby.SequenceGroupBy.rank:4
+#: odps.df.expr.groupby.SequenceGroupBy.row_number:4 of
+msgid "name of the sort column"
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.dense_rank:5
+#: odps.df.expr.groupby.GroupBy.min_rank:5
+#: odps.df.expr.groupby.GroupBy.percent_rank:5
+#: odps.df.expr.groupby.GroupBy.rank:5
+#: odps.df.expr.groupby.GroupBy.row_number:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.dense_rank:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lag:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lead:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.rank:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.row_number:5
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount:5
+#: odps.df.expr.groupby.SequenceGroupBy.cummax:5
+#: odps.df.expr.groupby.SequenceGroupBy.cummin:5
+#: odps.df.expr.groupby.SequenceGroupBy.dense_rank:5
+#: odps.df.expr.groupby.SequenceGroupBy.lag:7
+#: odps.df.expr.groupby.SequenceGroupBy.lead:7
+#: odps.df.expr.groupby.SequenceGroupBy.min_rank:5
+#: odps.df.expr.groupby.SequenceGroupBy.percent_rank:5
+#: odps.df.expr.groupby.SequenceGroupBy.rank:5
+#: odps.df.expr.groupby.SequenceGroupBy.row_number:5 of
+msgid "whether to sort in ascending order"
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.dense_rank:6
+#: odps.df.expr.groupby.GroupBy.min_rank:6
+#: odps.df.expr.groupby.GroupBy.percent_rank:6
+#: odps.df.expr.groupby.GroupBy.rank:6
+#: odps.df.expr.groupby.GroupBy.row_number:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:9
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:9
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:9
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:9
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin:9
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd:9
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum:9
+#: odps.df.expr.groupby.Int64SequenceGroupBy.dense_rank:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lag:8
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lead:8
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.rank:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.row_number:6
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount:9
+#: odps.df.expr.groupby.SequenceGroupBy.cummax:9
+#: odps.df.expr.groupby.SequenceGroupBy.cummin:9
+#: odps.df.expr.groupby.SequenceGroupBy.dense_rank:6
+#: odps.df.expr.groupby.SequenceGroupBy.lag:8
+#: odps.df.expr.groupby.SequenceGroupBy.lead:8
+#: odps.df.expr.groupby.SequenceGroupBy.min_rank:6
+#: odps.df.expr.groupby.SequenceGroupBy.percent_rank:6
+#: odps.df.expr.groupby.SequenceGroupBy.rank:6
+#: odps.df.expr.groupby.SequenceGroupBy.row_number:6 of
+msgid "calculated column"
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.min_rank:1 odps.df.expr.groupby.GroupBy.rank:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.rank:1
+#: odps.df.expr.groupby.SequenceGroupBy.min_rank:1
+#: odps.df.expr.groupby.SequenceGroupBy.rank:1 of
+msgid "Calculate rank of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.percent_rank:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:1
+#: odps.df.expr.groupby.SequenceGroupBy.percent_rank:1 of
+msgid "Calculate percentage rank of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.row_number:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.row_number:1
+#: odps.df.expr.groupby.SequenceGroupBy.row_number:1 of
+msgid "Calculate row number of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:1
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount:1 of
+msgid "Calculate cumulative count of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum:6
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount:6
+#: odps.df.expr.groupby.SequenceGroupBy.cummax:6
+#: odps.df.expr.groupby.SequenceGroupBy.cummin:6 of
+msgid "whether to eliminate duplicate entries"
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum:7
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount:7
+#: odps.df.expr.groupby.SequenceGroupBy.cummax:7
+#: odps.df.expr.groupby.SequenceGroupBy.cummin:7 of
+msgid "the start point of a window"
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:8
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:8
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:8
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:8
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin:8
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd:8
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum:8
+#: odps.df.expr.groupby.SequenceGroupBy.cumcount:8
+#: odps.df.expr.groupby.SequenceGroupBy.cummax:8
+#: odps.df.expr.groupby.SequenceGroupBy.cummin:8 of
+msgid "the end point of a window"
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:1
+#: odps.df.expr.groupby.SequenceGroupBy.cummax:1 of
+msgid "Calculate cumulative maximum of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummin:1
+#: odps.df.expr.groupby.SequenceGroupBy.cummin:1 of
+msgid "Calculate cumulative minimum of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lag:1
+#: odps.df.expr.groupby.SequenceGroupBy.lag:1 of
+msgid "Get value in the row ``offset`` rows prior to the current row."
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lag:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lead:3
+#: odps.df.expr.groupby.SequenceGroupBy.lag:3
+#: odps.df.expr.groupby.SequenceGroupBy.lead:3 of
+msgid "the offset value"
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lag:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lead:4
+#: odps.df.expr.groupby.SequenceGroupBy.lag:4
+#: odps.df.expr.groupby.SequenceGroupBy.lead:4 of
+msgid ""
+"default value for the function, when there are no rows satisfying the "
+"offset"
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.lead:1
+#: odps.df.expr.groupby.SequenceGroupBy.lead:1 of
+msgid "Get value in the row ``offset`` rows after to the current row."
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:1 of
+msgid "Calculate cumulative mean of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:1 of
+msgid "Calculate cumulative median of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumstd:1 of
+msgid "Calculate cumulative standard deviation of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cumsum:1 of
+msgid "Calculate cumulative summation of a sequence expression."
+msgstr ""
+

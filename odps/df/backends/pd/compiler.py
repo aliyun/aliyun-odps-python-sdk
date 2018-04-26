@@ -665,6 +665,8 @@ class PandasCompiler(Backend):
             if isinstance(aggfunc, six.string_types):
                 if aggfunc == 'count':
                     return getattr(np, 'size')
+                if aggfunc == 'nunique':
+                    return lambda x: np.size(np.unique(x))
                 return getattr(np, aggfunc)
             if inspect.isclass(aggfunc):
                 aggfunc = aggfunc()
@@ -1230,7 +1232,7 @@ class PandasCompiler(Backend):
             sort_names = [str(uuid.uuid4()) for _ in sort]
             by_names = [str(uuid.uuid4()) for _ in bys]
             input_names = [input.name] if isinstance(input, pd.Series) else input.columns.tolist()
-            df = pd.DataFrame(pd.concat([input] + sort + bys, axis=1).values,
+            df = pd.DataFrame(pd.concat([input] + sort + [pd.Series(b) for b in bys], axis=1).values,
                               columns=input_names + sort_names + by_names,
                               index=input.index)
             df.sort_values(sort_names, inplace=True)
@@ -1252,8 +1254,11 @@ class PandasCompiler(Backend):
                     raise NotImplementedError
 
             res = grouped.apply(f)
-            for _ in bys:
-                res = res.reset_index(level=0, drop=True)
+            if isinstance(res, pd.DataFrame):
+                res = res.iloc[0]
+            else:
+                for _ in bys:
+                    res = res.reset_index(level=0, drop=True)
             return res
 
         self._add_node(expr, handle)

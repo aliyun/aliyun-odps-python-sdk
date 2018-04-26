@@ -1,0 +1,61 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/ml-quickstart.rst:6
+msgid "快速开始"
+msgstr ""
+
+#: ../../source/ml-quickstart.rst:8
+msgid "开启 Jupyter Notebook，并新建一个记事本，创建一个 ODPS 对象："
+msgstr ""
+
+#: ../../source/ml-quickstart.rst:16
+msgid "此后，创建一个范例数据集，使用 DataFrame 筛选一部分字段（注意不要遗漏标签），并查看数据的统计信息："
+msgstr ""
+
+#: ../../source/ml-quickstart.rst:30
+msgid "此后，对该数据集进行归一化，然后拆分并使用随机森林对训练集进行训练，查看输出的第一棵决策树："
+msgstr ""
+
+#: ../../source/ml-quickstart.rst:43
+msgid ""
+"如果逐条执行上述语句，会发现只有 execute 被调用时，所有代码才会执行。这是由于 PyODPS ML "
+"采用了延迟执行的方式。关于这一方式的具体细节将在“延迟执行”一节中详述。 执行完成后，显示决策树如下："
+msgstr ""
+
+#: ../../source/ml-quickstart.rst:48
+msgid "模型对象包含一个 predict 方法，可以对测试集进行预测。下面我们进行预测，将预测结果保存回 ODPS 并使用 DataFrame 进行统计："
+msgstr ""
+
+#: ../../source/ml-quickstart.rst:59
+msgid "统计结果以表格显示："
+msgstr ""
+
+#: ../../source/ml-quickstart.rst:88
+msgid "输出预测结果后，我们便可以计算预测结果的 ROC 曲线，并使用 matplotlib 进行绘制："
+msgstr ""
+
+#: ../../source/ml-quickstart.rst:100
+msgid "IPython 给出了绘制好的 ROC 曲线如下："
+msgstr ""
+
+#: ../../source/ml-quickstart.rst:104
+msgid "pyodps/notebooks/ml_intro.ipynb 中给出了这个例子的 Notebook。"
+msgstr ""
+

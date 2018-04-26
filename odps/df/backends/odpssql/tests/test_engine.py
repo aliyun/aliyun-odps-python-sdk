@@ -285,7 +285,7 @@ class Test(TestBase):
 
         expr = self.expr.id.sum()
 
-        future = self.engine.execute(expr, async=True, priority=4, ret_instance=True)
+        future = self.engine.execute(expr, async_=True, priority=4, ret_instance=True)
         self.assertFalse(future.done())
         inst, res = future.result()
 
@@ -396,7 +396,7 @@ class Test(TestBase):
         expr1 = expr.id.sum()
         expr2 = expr.id.mean()
 
-        fs = self.engine.execute([expr, expr1, expr2], n_parallel=2, async=True, timeout=1)
+        fs = self.engine.execute([expr, expr1, expr2], n_parallel=2, async_=True, timeout=1)
         self.assertEqual(len(fs), 3)
 
         futures.wait((fs[0], ), timeout=120)
@@ -1541,6 +1541,9 @@ class Test(TestBase):
         self.assertEqual(len(self.engine.execute(expr9)), 3)
         expr10 = expr8.distinct()
         self.assertEqual(len(self.engine.execute(expr10)), 3)
+
+        expr11 = expr.pivot_table(rows='name', columns='id', values='fid', aggfunc='nunique')
+        self.assertEqual(len(self.engine.execute(expr11)), 2)
 
     def testExtractKV(self):
         from odps.df import DataFrame

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -381,10 +381,11 @@ class OnlineModel(LazyLoad):
         self._project = self.project.name
         return super(OnlineModel, self).serial()
 
-    def update(self, async=False, **kw):
+    def update(self, async_=False, **kw):
         """
         Update online model parameters to server.
         """
+        async_ = kw.get('async', async_)
         headers = {'Content-Type': 'application/xml'}
 
         new_kw = dict()
@@ -403,11 +404,12 @@ class OnlineModel(LazyLoad):
         self._client.put(self.resource(), data, headers=headers)
         self.reload()
 
-        if not async:
+        if not async_:
             self.wait_for_service()
 
-    def drop(self, async=False):
-        self.parent.delete(self, async=async)
+    def drop(self, async_=False, **kw):
+        async_ = kw.get('async', async_)
+        self.parent.delete(self, async_=async_)
 
     def wait_for_service(self, interval=1):
         """

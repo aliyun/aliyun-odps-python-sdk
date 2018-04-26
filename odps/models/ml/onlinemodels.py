@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -89,7 +89,7 @@ class OnlineModels(Iterable):
 
     def create(self, obj=None, **kwargs):
         kwargs.setdefault('qos', 100)
-        async = kwargs.pop('async', False)
+        async_ = kwargs.pop('async_', kwargs.pop('async', False))
 
         if callable(getattr(kwargs.get('predictor'), 'upload_files', None)):
             kwargs.get('predictor').upload_files(self.odps)
@@ -107,12 +107,13 @@ class OnlineModels(Iterable):
 
         online_model.reload()
 
-        if async:
+        if async_:
             return online_model
         online_model.wait_for_service()
         return online_model
 
-    def delete(self, name, async=False):
+    def delete(self, name, async_=False, **kw):
+        async_ = kw.get('async', async_)
         if not isinstance(name, OnlineModel):
             online_model = OnlineModel(name=name, client=self._client, parent=self)
         else:
@@ -124,6 +125,6 @@ class OnlineModels(Iterable):
 
         self._client.delete(url)
 
-        if async:
+        if async_:
             return
         online_model.wait_for_deletion()

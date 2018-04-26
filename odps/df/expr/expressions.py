@@ -146,7 +146,7 @@ class Expr(Node):
             result = getattr(engine, method)(*args, **kwargs)
             if wrapper is None:
                 return result
-            async_ = kwargs.get('async', False)
+            async_ = kwargs.get('async_', kwargs.get('async', False))
             if async_:
                 user_future = futures.Future()
 

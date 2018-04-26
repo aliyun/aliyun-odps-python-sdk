@@ -1,0 +1,86 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/df-merge.rst:4
+msgid "数据合并"
+msgstr ""
+
+#: ../../source/df-merge.rst:50
+msgid "Join 操作"
+msgstr ""
+
+#: ../../source/df-merge.rst:52
+msgid ""
+"DataFrame 也支持对两个 Collection 执行 join 的操作，如果不指定 join 的条件，那么 DataFrame "
+"API会寻找名字相同的列，并作为 join 的条件。"
+msgstr ""
+
+#: ../../source/df-merge.rst:63
+msgid "我们也可以显式指定join的条件。有以下几种方式："
+msgstr ""
+
+#: ../../source/df-merge.rst:73
+msgid "在join时，on条件两边的字段名称相同时，只会选择一个，其他类型的join则会被重命名。"
+msgstr ""
+
+#: ../../source/df-merge.rst:84
+msgid ""
+"可以看到，\\ ``movie_id``\\ 被重命名为movie\\_id\\_x，以及movie\\_id\\_y，这和\\ "
+"``suffixes``\\ 参数有关（默认是\\ ``('_x', '_y')``\\ ）， 当遇到重名的列时，就会被重命名为指定的后缀。"
+msgstr ""
+
+#: ../../source/df-merge.rst:103
+msgid "也可以直接写等于表达式。"
+msgstr ""
+
+#: ../../source/df-merge.rst:113
+msgid "self-join的时候，可以调用\\ ``view``\\ 方法，这样就可以分别取字段。"
+msgstr ""
+
+#: ../../source/df-merge.rst:129
+msgid ""
+"除了\\ ``join``\\ 以外，DataFrame还支持\\ ``left_join``\\ ，\\ ``right_join``\\ "
+"，和\\ ``outer_join``\\ 。在执行上述外连接操作时， 默认会将重名列加上 _x 和 _y 后缀，可通过在 suffixes "
+"参数中传入一个二元 tuple 来自定义后缀。"
+msgstr ""
+
+#: ../../source/df-merge.rst:132
+msgid "如果需要在外连接中避免对谓词中相等的列取重复列，可以指定 merge_columns 选项，该选项会自动选择两列中的非空值作为新列的值："
+msgstr ""
+
+#: ../../source/df-merge.rst:138
+msgid "要使用 **mapjoin**\\ 也很简单，只需将mapjoin设为True，执行时会对右表做mapjoin操作。"
+msgstr ""
+
+#: ../../source/df-merge.rst:140
+msgid "用户也能join分别来自ODPS和pandas的Collection，或者join分别来自ODPS和数据库的Collection，此时计算会在ODPS上执行。"
+msgstr ""
+
+#: ../../source/df-merge.rst:143
+msgid "Union操作"
+msgstr ""
+
+#: ../../source/df-merge.rst:145
+msgid "现在有两张表，字段和类型都一致（可以顺序不同），我们可以使用union或者concat来把它们合并成一张表。"
+msgstr ""
+
+#: ../../source/df-merge.rst:158
+msgid "用户也能union分别来自ODPS和pandas的Collection，或者union分别来自ODPS和数据库的Collection，此时计算会在ODPS上执行。"
+msgstr ""
+

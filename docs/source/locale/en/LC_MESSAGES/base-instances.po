@@ -1,0 +1,95 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/base-instances.rst:4
+msgid "任务实例"
+msgstr ""
+
+#: ../../source/base-instances.rst:6
+msgid ""
+"Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实例化， 以 `ODPS实例 "
+"<https://help.aliyun.com/document_detail/27825.html>`_ 的形式存在。"
+msgstr ""
+
+#: ../../source/base-instances.rst:10
+msgid "基本操作"
+msgstr ""
+
+#: ../../source/base-instances.rst:12
+msgid ""
+"可以调用 ``list_instances`` 来获取项目空间下的所有instance，``exist_instance`` "
+"能判断是否存在某instance， ``get_instance`` 能获取实例。"
+msgstr ""
+
+#: ../../source/base-instances.rst:22
+msgid "停止一个instance可以在odps入口使用 ``stop_instance``，或者对instance对象调用 ``stop`` 方法。"
+msgstr ""
+
+#: ../../source/base-instances.rst:25
+msgid "获取 LogView 地址"
+msgstr ""
+
+#: ../../source/base-instances.rst:27
+msgid "对于 SQL 等任务，通过调用 ``get_logview_address`` 方法即可。"
+msgstr ""
+
+#: ../../source/base-instances.rst:34
+msgid "对于 XFlow 任务，需要枚举其子任务，再获取子任务的 LogView："
+msgstr ""
+
+#: ../../source/base-instances.rst:44
+msgid "任务实例状态"
+msgstr ""
+
+#: ../../source/base-instances.rst:46
+msgid ""
+"一个instance的状态可以是 ``Running``、``Suspended`` 或者 ``Terminated``，用户可以通过 "
+"``status`` 属性来获取状态。 ``is_terminated`` "
+"方法返回当前instance是否已经执行完成，``is_successful`` 方法返回当前instance是否正确完成执行， "
+"任务处于运行中或者执行失败都会返回False。"
+msgstr ""
+
+#: ../../source/base-instances.rst:62
+msgid ""
+"调用 ``wait_for_completion`` 方法会阻塞直到instance执行完成，``wait_for_success`` "
+"方法同样会阻塞，不同的是， 如果最终任务执行失败，则会抛出相关异常。"
+msgstr ""
+
+#: ../../source/base-instances.rst:66
+msgid "子任务操作"
+msgstr ""
+
+#: ../../source/base-instances.rst:68
+msgid "一个Instance真正运行时，可能包含一个或者多个子任务，我们称为Task，要注意这个Task不同于ODPS的计算单元。"
+msgstr ""
+
+#: ../../source/base-instances.rst:70
+msgid "我们可以通过 ``get_task_names`` 来获取所有的Task任务，它返回一个所有子任务的名称列表。"
+msgstr ""
+
+#: ../../source/base-instances.rst:77
+msgid ""
+"拿到Task的名称，我们就可以通过 ``get_task_result`` 来获取这个Task的执行结果。 "
+"``get_task_results`` 以字典的形式返回每个Task的执行结果"
+msgstr ""
+
+#: ../../source/base-instances.rst:91
+msgid "有时候我们需要在任务实例运行时显示所有子任务的运行进程。使用 ``get_task_progress`` 能获得Task当前的运行进度。"
+msgstr ""
+

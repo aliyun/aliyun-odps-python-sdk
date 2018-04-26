@@ -1,0 +1,681 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/ml-basic.rst:7
+msgid "基本概念"
+msgstr ""
+
+#: ../../source/ml-basic.rst:9
+msgid ""
+"PyODPS ML 中用户需要接触的对象有三种，分别是 `DataFrame`、`Model` 和 "
+"`Algorithm`，分别对应数据、模型和算法。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:11
+msgid "在使用 PyODPS ML 之前，需要初始化 :class:`ODPS` 对象。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:15
+msgid "使用数据"
+msgstr ""
+
+#: ../../source/ml-basic.rst:17
+msgid ""
+"PyODPS ML 使用 :class:`DataFrame` 维护数据。在 DataFrame 的基础上，PyODPS ML "
+"增加了在算法中使用的元数据信息，包括"
+msgstr ""
+
+#: ../../source/ml-basic.rst:20
+msgid "属性"
+msgstr ""
+
+#: ../../source/ml-basic.rst:20
+msgid "说明"
+msgstr ""
+
+#: ../../source/ml-basic.rst:22
+msgid "字段类型"
+msgstr ""
+
+#: ../../source/ml-basic.rst:22
+msgid "字段在ODPS中的类型"
+msgstr ""
+
+#: ../../source/ml-basic.rst:23 ../../source/ml-basic.rst:92
+msgid "字段作用"
+msgstr ""
+
+#: ../../source/ml-basic.rst:23
+msgid "字段在算法中的作用，包括特征、权重、标签等通用类型以及图算法中的起始顶点、终止顶点等特殊类型"
+msgstr ""
+
+#: ../../source/ml-basic.rst:24
+msgid "字段连续性"
+msgstr ""
+
+#: ../../source/ml-basic.rst:24
+msgid "字段的连续性，默认对 BigInt、String 和 DateTime 为离散，其余为连续，对GBDT等算法有意义"
+msgstr ""
+
+#: ../../source/ml-basic.rst:25
+msgid "字段稀疏性"
+msgstr ""
+
+#: ../../source/ml-basic.rst:25
+msgid "指定字段是否稀疏，以及稀疏字段的 KV 和项目间分隔符"
+msgstr ""
+
+#: ../../source/ml-basic.rst:28
+msgid ""
+"加入这些信息的目的在于将数据本身的属性和算法参数相分离。用户在某个数据上调用不同类型的算法时，无需反复考虑哪些字段需要 "
+"作为算法的输入，PyODPS ML 将帮助用户完成上述所有的步骤。如果对某字段调用相关方法后，后续没有在该字段上调用与之冲突的设置 "
+"方法或算法节点，那么该字段上的设置将不会变化。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:33
+msgid "生成数据集"
+msgstr ""
+
+#: ../../source/ml-basic.rst:35
+msgid "PyODPS ML 中获取 DataFrame 的方法与一般的 DataFrame 相同，即"
+msgstr ""
+
+#: ../../source/ml-basic.rst:41
+msgid "如果表为分区表，可以使用 filter_parts 方法指定输入的分区名。该方法针对 XFlow 进行了优化。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:47
+msgid "也可以使用 roles 方法指定字段的用途，如"
+msgstr ""
+
+#: ../../source/ml-basic.rst:53
+msgid ""
+"DataFrame 也可以通过其他 DataFrame 通过变换得到。这一变换可以通过调用 DataFrame 上的方法完成，，也可以调用用 "
+"PyODPS ML 中 的算法获得。大多数方法调用后都会返回一个新的 DataFrame 对象。除了标准的 DataFrame "
+"方法外，PyODPS ML 还增加了下述方法："
+msgstr ""
+
+#: ../../source/ml-basic.rst:57
+msgid "方法类型"
+msgstr ""
+
+#: ../../source/ml-basic.rst:57
+msgid "方法名"
+msgstr ""
+
+#: ../../source/ml-basic.rst:59
+msgid "字段作用设置"
+msgstr ""
+
+#: ../../source/ml-basic.rst:59
+msgid "select_features, exclude_fields, label_field, weight_field, xxxx_fields"
+msgstr ""
+
+#: ../../source/ml-basic.rst:60
+msgid "字段连续性设置"
+msgstr ""
+
+#: ../../source/ml-basic.rst:60
+msgid "set_continuous, set_discrete"
+msgstr ""
+
+#: ../../source/ml-basic.rst:61
+msgid "字段稀疏性设置"
+msgstr ""
+
+#: ../../source/ml-basic.rst:61
+msgid "set_key_value, erase_key_value"
+msgstr ""
+
+#: ../../source/ml-basic.rst:62
+msgid "数据变换"
+msgstr ""
+
+#: ../../source/ml-basic.rst:62
+msgid "append_id, split, sql_transform"
+msgstr ""
+
+#: ../../source/ml-basic.rst:63
+msgid "数据摘要"
+msgstr ""
+
+#: ../../source/ml-basic.rst:63
+msgid "calc_summary"
+msgstr ""
+
+#: ../../source/ml-basic.rst:67
+msgid "获取字段列表"
+msgstr ""
+
+#: ../../source/ml-basic.rst:68
+msgid "字段列表可以通过 DataFrame 的 dtypes 属性获得，通过 Jupyter Notebook 可以直接看到字段作用："
+msgstr ""
+
+#: ../../source/ml-basic.rst:81
+msgid "保存数据集"
+msgstr ""
+
+#: ../../source/ml-basic.rst:83
+msgid "使用 DataFrame 的相关方法可以将数据保存回 ODPS，如"
+msgstr ""
+
+#: ../../source/ml-basic.rst:94
+msgid "PyODPS ML 中，可以指定各个字段的作用，这些作用将在 DataFrame 传入的算法中使用。一个字段可以有多个作用，用于针对不同的算法。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:96
+msgid "PyODPS ML 中的字段作用有："
+msgstr ""
+
+#: ../../source/ml-basic.rst:99
+msgid "作用名"
+msgstr ""
+
+#: ../../source/ml-basic.rst:99
+msgid "定义于"
+msgstr ""
+
+#: ../../source/ml-basic.rst:99
+msgid "排除特征"
+msgstr ""
+
+#: ../../source/ml-basic.rst:99
+msgid "描述"
+msgstr ""
+
+#: ../../source/ml-basic.rst:101
+msgid "FEATURE"
+msgstr ""
+
+#: ../../source/ml-basic.rst:101 ../../source/ml-basic.rst:102
+#: ../../source/ml-basic.rst:103 ../../source/ml-basic.rst:104
+#: ../../source/ml-basic.rst:105 ../../source/ml-basic.rst:106
+msgid "通用"
+msgstr ""
+
+#: ../../source/ml-basic.rst:101
+msgid "特征字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:102
+msgid "LABEL"
+msgstr ""
+
+#: ../../source/ml-basic.rst:102 ../../source/ml-basic.rst:103
+#: ../../source/ml-basic.rst:107 ../../source/ml-basic.rst:108
+#: ../../source/ml-basic.rst:109 ../../source/ml-basic.rst:110
+#: ../../source/ml-basic.rst:111 ../../source/ml-basic.rst:112
+#: ../../source/ml-basic.rst:115 ../../source/ml-basic.rst:119
+#: ../../source/ml-basic.rst:120 ../../source/ml-basic.rst:123
+#: ../../source/ml-basic.rst:124
+msgid "是"
+msgstr ""
+
+#: ../../source/ml-basic.rst:102
+msgid "标签字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:103
+msgid "WEIGHT"
+msgstr ""
+
+#: ../../source/ml-basic.rst:103
+msgid "权重字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:104
+msgid "PREDICTED_CLASS"
+msgstr ""
+
+#: ../../source/ml-basic.rst:104 ../../source/ml-basic.rst:105
+#: ../../source/ml-basic.rst:106 ../../source/ml-basic.rst:113
+#: ../../source/ml-basic.rst:114 ../../source/ml-basic.rst:116
+#: ../../source/ml-basic.rst:117 ../../source/ml-basic.rst:118
+#: ../../source/ml-basic.rst:121 ../../source/ml-basic.rst:122
+#: ../../source/ml-basic.rst:125
+msgid "否"
+msgstr ""
+
+#: ../../source/ml-basic.rst:104
+msgid "预测类别（算法自动标注）"
+msgstr ""
+
+#: ../../source/ml-basic.rst:105
+msgid "PREDICTED_SCORE"
+msgstr ""
+
+#: ../../source/ml-basic.rst:105
+msgid "预测类别分值（算法自动标注）"
+msgstr ""
+
+#: ../../source/ml-basic.rst:106
+msgid "PREDICTED_VALUE"
+msgstr ""
+
+#: ../../source/ml-basic.rst:106
+msgid "预测值（算法自动标注）"
+msgstr ""
+
+#: ../../source/ml-basic.rst:107
+msgid "FROM_VERTEX"
+msgstr ""
+
+#: ../../source/ml-basic.rst:107 ../../source/ml-basic.rst:108
+#: ../../source/ml-basic.rst:109 ../../source/ml-basic.rst:110
+#: ../../source/ml-basic.rst:111 ../../source/ml-basic.rst:112
+#: ../../source/ml-basic.rst:113 ../../source/ml-basic.rst:114
+msgid "复杂网络"
+msgstr ""
+
+#: ../../source/ml-basic.rst:107
+msgid "源顶点"
+msgstr ""
+
+#: ../../source/ml-basic.rst:108
+msgid "TO_VERTEX"
+msgstr ""
+
+#: ../../source/ml-basic.rst:108
+msgid "目标顶点"
+msgstr ""
+
+#: ../../source/ml-basic.rst:109
+msgid "VERTEX_ID"
+msgstr ""
+
+#: ../../source/ml-basic.rst:109
+msgid "顶点 ID"
+msgstr ""
+
+#: ../../source/ml-basic.rst:110
+msgid "VERTEX_LABEL"
+msgstr ""
+
+#: ../../source/ml-basic.rst:110
+msgid "顶点标签"
+msgstr ""
+
+#: ../../source/ml-basic.rst:111
+msgid "FROM_VERTEX_LABEL"
+msgstr ""
+
+#: ../../source/ml-basic.rst:111
+msgid "源点标签字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:112
+msgid "TO_VERTEX_LABEL"
+msgstr ""
+
+#: ../../source/ml-basic.rst:112
+msgid "目标点标签字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:113
+msgid "VERTEX_WEIGHT"
+msgstr ""
+
+#: ../../source/ml-basic.rst:113
+msgid "顶点权重字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:114
+msgid "EDGE_WEIGHT"
+msgstr ""
+
+#: ../../source/ml-basic.rst:114
+msgid "边权重字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:115
+msgid "DOC_ID"
+msgstr ""
+
+#: ../../source/ml-basic.rst:115 ../../source/ml-basic.rst:116
+#: ../../source/ml-basic.rst:117 ../../source/ml-basic.rst:118
+msgid "NLP"
+msgstr ""
+
+#: ../../source/ml-basic.rst:115
+msgid "文档 ID 字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:116
+msgid "DOC_CONTENT"
+msgstr ""
+
+#: ../../source/ml-basic.rst:116
+msgid "文档内容字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:117
+msgid "WORD"
+msgstr ""
+
+#: ../../source/ml-basic.rst:117
+msgid "单词字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:118
+msgid "WORD_COUNT"
+msgstr ""
+
+#: ../../source/ml-basic.rst:118
+msgid "单词计数字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:119
+msgid "REC_USER_ID"
+msgstr ""
+
+#: ../../source/ml-basic.rst:119 ../../source/ml-basic.rst:120
+#: ../../source/ml-basic.rst:121 ../../source/ml-basic.rst:122
+msgid "推荐"
+msgstr ""
+
+#: ../../source/ml-basic.rst:119
+msgid "用户 ID 字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:120
+msgid "REC_ITEM"
+msgstr ""
+
+#: ../../source/ml-basic.rst:120
+msgid "商品字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:121
+msgid "REC_SEQUENCE"
+msgstr ""
+
+#: ../../source/ml-basic.rst:121
+msgid "事务顺序字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:122
+msgid "REC_PAYLOAD"
+msgstr ""
+
+#: ../../source/ml-basic.rst:122
+msgid "商品计数字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:123
+msgid "TS_GROUP"
+msgstr ""
+
+#: ../../source/ml-basic.rst:123 ../../source/ml-basic.rst:124
+#: ../../source/ml-basic.rst:125
+msgid "时间序列"
+msgstr ""
+
+#: ../../source/ml-basic.rst:123
+msgid "时间序列分组字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:124
+msgid "TS_SEQ"
+msgstr ""
+
+#: ../../source/ml-basic.rst:124
+msgid "时间序列序号字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:125
+msgid "TS_VALUE"
+msgstr ""
+
+#: ../../source/ml-basic.rst:125
+msgid "时间序列值字段"
+msgstr ""
+
+#: ../../source/ml-basic.rst:128
+msgid "需要注意的是，在 DataFrame 上标注这些内容并不意味着算法一定支持这些标签，需要参考算法文档是否有相关字段选择参数再作判断。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:130
+msgid ""
+"PyODPS ML 默认一个 DataFrame 上的所有字段均为特征字段。xxx_field 方法可以将某个字段设为其他作用，而 "
+"exclude_fields 会 将字段排除出特征。大多数 xxx_field "
+"方法会在设置字段作用的同时将该字段排除出特征字段，但这并不是肯定的，如上表所示。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:133
+msgid "设置字段作用的例子如下："
+msgstr ""
+
+#: ../../source/ml-basic.rst:140
+msgid "此外，为了简便标签的设置，也可以使用 roles 方法进行设置，例子如下："
+msgstr ""
+
+#: ../../source/ml-basic.rst:147
+msgid "稀疏数据"
+msgstr ""
+
+#: ../../source/ml-basic.rst:148
+msgid ""
+"部分算法支持使用 Key-Value 格式输入稀疏数据，这在高维情形下会非常有用。用户可以通过 `DataFrame.key_value` "
+"标注一个字符串 字段为稀疏字段，并指定其分隔符。设置方法为指定列名，同时指定分隔符。也可以使用 "
+"`DataFrame.erase_key_value` 清除字段上的 Key-Value 标注。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:156
+msgid ""
+"由于算法的限制，PyODPS ML 仅支持对一个数据集采用一种分隔符。对于不支持稀疏的算法（其参数中无 Delimiter 选项），使用稀疏字段会"
+" 导致算法执行出错。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:160
+msgid "连续性"
+msgstr ""
+
+#: ../../source/ml-basic.rst:161
+msgid ""
+"对于决策树等算法，字段连续性决定了该字段在算法中的处理方式。为了方便地处理连续性，PyODPS ML 规定，默认 double 和 bigint "
+"类型字段 为连续字段，其他字段为离散字段。如果需要手工设置字段连续性，可以使用 `DataFrame.continuous` 和 "
+"`DataFrame.discrete` 这两个方法。使用方式如下："
+msgstr ""
+
+#: ../../source/ml-basic.rst:175
+msgid "模型"
+msgstr ""
+
+#: ../../source/ml-basic.rst:177
+msgid ""
+"模型是 PyODPS ML 中训练算法输出的训练结果。根据算法的不同，PyODPS ML 提供了不同类型的模型，其中包括 PMML 模型（即 "
+"ODPS 线下模型）、 、表模型等。所有的模型都以 :class:`MLModel` 为基类，提供 ``predict`` "
+"方法用于在数据集上进行预测。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:181
+msgid "PMML 模型"
+msgstr ""
+
+#: ../../source/ml-basic.rst:182
+msgid "PMML 模型（:class:`PmmlModel`）针对 ODPS 中的线下模型（OfflineModel），提供了模型载入、存储和预测的功能。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:184
+msgid "PyODPS ML 中无法显示创建一个模型。模型需要通过算法生成，例如下面通过逻辑回归算法生成一个模型："
+msgstr ""
+
+#: ../../source/ml-basic.rst:190
+msgid "生成模型后，可将其存储为 ODPS 线下模型（OfflineModel），此后可使用 PmmlModel 的构造函数从 ODPS 中重新读取："
+msgstr ""
+
+#: ../../source/ml-basic.rst:197
+msgid ""
+"使用 :func:`PmmlModel.execute` 方法可以获取模型的 Pmml，该方法返回一个 :class:`PmmlResult` "
+"对象，可获取其 pmml 属性："
+msgstr ""
+
+#: ../../source/ml-basic.rst:204
+msgid "目前，PyODPS ML 支持对结果中的随机森林模型以及逻辑回归模型进行可视化。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:206
+msgid ""
+"对于随机森林模型，:class:`PmmlResult` 中可通过下标读取每一颗决策树。在决策树中，可以通过 root 属性获得根节点，并对 "
+"决策树进行遍历。在 Jupyter Notebook 中，也可以直接对节点进行可视化，如下面的代码，在模型中获取 ID 为 0 "
+"的决策树。如果安装有 GraphViz，那么将显示 SVG 格式的决策树，否则将显示文本格式的决策树："
+msgstr ""
+
+#: ../../source/ml-basic.rst:215
+msgid "对于逻辑回归模型，迭代 :func:`PmmlResult` 方法可以获得各个计算公式。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:217
+msgid ""
+"可以使用模型的 :func:`PmmlModel.predict` 方法对数据集进行预测操作。该方法的输出为一个新的 "
+"DataFrame，除了原有列之外，还会附加 三个新字段。不同算法对这些字段的定义可能会不同。常见的预测结果列见下表："
+msgstr ""
+
+#: ../../source/ml-basic.rst:221
+msgid "字段名"
+msgstr ""
+
+#: ../../source/ml-basic.rst:221
+msgid "类型"
+msgstr ""
+
+#: ../../source/ml-basic.rst:221
+msgid "注释"
+msgstr ""
+
+#: ../../source/ml-basic.rst:223
+msgid "prediction_result"
+msgstr ""
+
+#: ../../source/ml-basic.rst:223 ../../source/ml-basic.rst:225
+msgid "string"
+msgstr ""
+
+#: ../../source/ml-basic.rst:223
+msgid "分类算法预测标签，回归算法不适用"
+msgstr ""
+
+#: ../../source/ml-basic.rst:224
+msgid "prediction_score"
+msgstr ""
+
+#: ../../source/ml-basic.rst:224
+msgid "double"
+msgstr ""
+
+#: ../../source/ml-basic.rst:224
+msgid "分类算法权重值，对回归算法为预测结果"
+msgstr ""
+
+#: ../../source/ml-basic.rst:225
+msgid "prediction_detail"
+msgstr ""
+
+#: ../../source/ml-basic.rst:225
+msgid "分类算法各个类别的权重值，回归算法不适用"
+msgstr ""
+
+#: ../../source/ml-basic.rst:228
+msgid "预测时，只需要将需要预测的数据集作为参数并设置其特征即可，默认使用全部字段作为特征："
+msgstr ""
+
+#: ../../source/ml-basic.rst:235
+msgid "表模型"
+msgstr ""
+
+#: ../../source/ml-basic.rst:236
+msgid ""
+"表模型（:class:`TablesModel`）为 PyODPS ML 为方便部分将 ODPS 表作为输出的算法而设计，对应 ODPS "
+"中的一张或几张表。这些表的表名 组成为 ``otm_模型名__表后缀``。例如，当模型名为 output_model，其中包含一张后缀为 "
+"model 的表时，该表在 ODPS 中的实际名称为 otm_output_model__model。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:240
+msgid ""
+"与 PMML 模型类似，PyODPS ML 无法显示创建一个表模型，需要通过使用 TablesModel 的算法输出，例如下面通过核 SVM "
+"算法生成一个表模型："
+msgstr ""
+
+#: ../../source/ml-basic.rst:246
+msgid "生成模型后，可存储为 ODPS 表，调用方法为 :func:`TablesModel.persist` ："
+msgstr ""
+
+#: ../../source/ml-basic.rst:252
+msgid ""
+"可通过 list_tables_model 函数列出某个 Project 内的所有 TablesModel，也可以通过 TablesModel "
+"的构造函数进行 载入："
+msgstr ""
+
+#: ../../source/ml-basic.rst:260
+msgid "表模型也拥有 predict 方法，可对数据集进行预测，但输出列不确定，一部分分类算法不支持输出 predict 列，具体需要参考各算法文档。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:263
+msgid "推荐模型"
+msgstr ""
+
+#: ../../source/ml-basic.rst:264
+msgid ""
+"推荐模型建立在表模型基础上，除了正常的 predict 方法外，还拥有 recommend 方法，可计算推荐结果。 该模型也可使用 "
+":func:`TablesModel` 的构造函数进行加载，PyODPS ML 会自动判别类型。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:270
+msgid "执行"
+msgstr ""
+
+#: ../../source/ml-basic.rst:274
+msgid "延迟执行"
+msgstr ""
+
+#: ../../source/ml-basic.rst:276
+msgid ""
+"在 PyODPS ML 中，我们将每个算法看作一个 Node，每个 Node 有若干个输入和输出，我们称之为 Port 。不同 Node "
+"间通过数据的流动相连， 形成一个有向无环图。在 PyODPS ML 中，每个输出 Port 可以唯一绑定一个 DataFrame 或者 "
+"MLModel，而每一行用户代码都会通过 DataFrame 提供的上游 Node 信息将该 Node 与下游 Node 相连。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:280
+msgid ""
+"PyODPS ML 不会立即执行每一个 Node 对应的操作，而是等到 IO、Collect 或者 Metrics "
+"操作被执行时，方才执行先前相关的操作。如下面的 代码段："
+msgstr ""
+
+#: ../../source/ml-basic.rst:289
+msgid ""
+"代码中的标准化（std_scale）操作会被执行，因为 df1 这条链路上执行了 persist "
+"操作。而归一化（min_max_scale）操作则不会被执行， 因为其链路中并不存在任何触发执行的代码。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:292
+msgid ""
+"采用延迟执行的好处有三。首先，对于存在分支的流程，延迟执行能帮助 PyODPS ML 决定哪些步骤可以并行化，从而能够尽可能地利用计算资源。 "
+"其次，对于多个输出的情形，例如 TripleLDA，如果用户书写了下面的代码"
+msgstr ""
+
+#: ../../source/ml-basic.rst:299
+msgid "PyODPS ML 可以使用 GC 获得真正需要的输出个数，从而避免了多余的输出操作。最后，延迟执行也能够帮助用户更快地搭建算法流程。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:301
+msgid ""
+"如果需要某个步骤立即执行，也可以在相应的 DataFrame 或 Model 上执行 persist() "
+"方法。此时，该数据对象对应的节点及所有依赖节点都将被执行。"
+msgstr ""
+

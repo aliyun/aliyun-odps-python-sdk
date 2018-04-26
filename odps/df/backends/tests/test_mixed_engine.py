@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -448,7 +448,7 @@ class Test(TestBase):
 
     def testAsync(self):
         expr = self.odps_df[self.odps_df.name == 'name1']
-        future = self.engine.execute(expr, async=True)
+        future = self.engine.execute(expr, async_=True)
         self.assertFalse(future.done())
         res = future.result()
         self.assertEqual(len(res), 2)
@@ -460,7 +460,7 @@ class Test(TestBase):
         dag = self.engine.compile(expr)
         self.assertEqual(len(dag.nodes()), 3)
 
-        f = self.engine.execute(expr, async=True, n_parallel=2)
+        f = self.engine.execute(expr, async_=True, n_parallel=2)
 
         result = f.result().values
 
@@ -475,7 +475,7 @@ class Test(TestBase):
         expr2 = self.odps_df[self.odps_df.id > 3].cache()
         expr3 = expr1.union(expr2)
 
-        self.engine.execute([expr1, expr2, expr3], n_parallel=2, async=True)
+        self.engine.execute([expr1, expr2, expr3], n_parallel=2, async_=True)
         time.sleep(2)
 
         instance_ids = self.engine._odpssql_engine._instances
@@ -495,7 +495,7 @@ class Test(TestBase):
         expr1 = self.odps_df[self.odps_df.id / 0 < 0].cache()
         expr2 = expr1.count()
 
-        fs = self.engine.execute(expr2, async=True)
+        fs = self.engine.execute(expr2, async_=True)
         self.assertRaises(DagDependencyError, fs.result)
 
     def testAppendIDCache(self):

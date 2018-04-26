@@ -9,7 +9,7 @@ PyODPS: ODPS Python SDK and data analysis framework
 `PyODPS <https://github.com/aliyun/aliyun-odps-python-sdk>`_ 是ODPS的Python版本的SDK，
 它提供了对ODPS对象的基本操作；并提供了DataFrame框架，能轻松在ODPS上进行数据分析。
 
-.. intinclude:: index-platform-int-zh.rst
+.. intinclude:: index-platform-int.rst
 
 安装
 -------
@@ -47,13 +47,13 @@ PyODPS 的相关依赖会自动安装。
 .. toctree::
    :maxdepth: 1
 
-   installation-int-zh
-   installation-ext-zh
-   platform-int-zh
-   base-zh
-   df-zh
-   ml-zh
-   interactive-zh
-   options-zh
-   faq-zh
+   installation-int
+   installation-ext
+   platform-int
+   base
+   df
+   ml
+   interactive
+   options
+   faq
    api

@@ -1,0 +1,700 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/df-basic.rst:5
+msgid "基本概念"
+msgstr ""
+
+#: ../../source/df-basic.rst:7
+msgid ""
+"在使用 DataFrame 时，你需要了解三个对象上的操作：\\ ``Collection``\\ (``DataFrame``) ，\\ "
+"``Sequence``\\ ，\\ ``Scalar``\\ 。 "
+"这三个对象分别表示表结构（或者二维结构）、列（一维结构）、标量。需要注意的是，这些对象仅在使用 Pandas 数据创建后会包含实际数据， 而在 "
+"ODPS 表上创建的对象中并不包含实际的数据，而仅仅包含对这些数据的操作，实质的存储和计算会在 ODPS 中进行。"
+msgstr ""
+
+#: ../../source/df-basic.rst:12
+msgid "创建 DataFrame"
+msgstr ""
+
+#: ../../source/df-basic.rst:14
+msgid ""
+"通常情况下，你唯一需要直接创建的 Collection 对象是 :class:`DataFrame`，这一对象用于引用数据源，可能是一个 ODPS"
+" 表， ODPS 分区，Pandas DataFrame或sqlalchemy.Table（数据库表）。 "
+"使用这几种数据源时，相关的操作相同，这意味着你可以不更改数据处理的代码，仅仅修改输入/输出的指向， "
+"便可以简单地将小数据量上本地测试运行的代码迁移到 ODPS 上，而迁移的正确性由 PyODPS 来保证。"
+msgstr ""
+
+#: ../../source/df-basic.rst:19
+msgid ""
+"创建 DataFrame 非常简单，只需将 Table 对象、 pandas DataFrame 对象或者 sqlalchemy Table "
+"对象传入即可。"
+msgstr ""
+
+#: ../../source/df-basic.rst:44
+msgid ""
+"在用 pandas DataFrame 初始化时，对于 numpy object 类型或者 string 类型，PyODPS DataFrame "
+"会尝试推断类型， 如果一整列都为空，则会报错。这时，用户可以指定 `unknown_as_string` "
+"为True，会将这些列指定为string类型。 用户也可以指定 as_type 参数。若类型为基本类型，会在创建 PyODPS DataFrame"
+" 时进行强制类型转换。 如果 Pandas DataFrame 中包含 list 或者 dict 列，该列的类型不会被推断，必须手动使用 "
+"as_type 指定。 as_type 参数类型必须是dict。"
+msgstr ""
+
+#: ../../source/df-basic.rst:71
+msgid "Sequence"
+msgstr ""
+
+#: ../../source/df-basic.rst:73
+msgid ""
+":class:`SequenceExpr` 代表了二维数据集中的一列。你不应当手动创建 SequenceExpr，而应当从一个 "
+"Collection 中获取。"
+msgstr ""
+
+#: ../../source/df-basic.rst:77
+msgid "获取列"
+msgstr ""
+
+#: ../../source/df-basic.rst:79
+msgid "你可以使用 collection.column_name 取出一列，例如"
+msgstr ""
+
+#: ../../source/df-basic.rst:92
+msgid ""
+"如果列名存储在一个字符串变量中，除了使用 getattr(df, 'column_name') 达到相同的效果外，也可以使用 "
+"df[column_name] 的形式，例如"
+msgstr ""
+
+#: ../../source/df-basic.rst:106
+msgid "列类型"
+msgstr ""
+
+#: ../../source/df-basic.rst:108
+msgid ""
+"DataFrame包括自己的类型系统，在使用Table初始化的时候，ODPS的类型会被进行转换。这样做的好处是，能支持更多的计算后端。 "
+"目前，DataFrame的执行后端支持ODPS SQL、pandas以及数据库（MySQL和Postgres）。"
+msgstr ""
+
+#: ../../source/df-basic.rst:111
+msgid "PyODPS DataFrame 包括以下类型："
+msgstr ""
+
+#: ../../source/df-basic.rst:113
+msgid ""
+"``int8``\\ ，\\ ``int16``\\ ，\\ ``int32``\\ ，\\ ``int64``\\ ，\\ "
+"``float32``\\ ，\\ ``float64``\\ ，\\ ``boolean``\\ ，\\ ``string``\\ ，\\ "
+"``decimal``\\ ，\\ ``datetime``\\ ，\\ ``list``\\ ，\\ ``dict``"
+msgstr ""
+
+#: ../../source/df-basic.rst:116
+msgid "ODPS的字段和DataFrame的类型映射关系如下："
+msgstr ""
+
+#: ../../source/df-basic.rst:119
+msgid "ODPS类型"
+msgstr ""
+
+#: ../../source/df-basic.rst:119
+msgid "DataFrame类型"
+msgstr ""
+
+#: ../../source/df-basic.rst:121
+msgid "bigint"
+msgstr ""
+
+#: ../../source/df-basic.rst:121
+msgid "int64"
+msgstr ""
+
+#: ../../source/df-basic.rst:122
+msgid "double"
+msgstr ""
+
+#: ../../source/df-basic.rst:122
+msgid "float64"
+msgstr ""
+
+#: ../../source/df-basic.rst:123
+msgid "string"
+msgstr ""
+
+#: ../../source/df-basic.rst:124
+msgid "datetime"
+msgstr ""
+
+#: ../../source/df-basic.rst:125
+msgid "boolean"
+msgstr ""
+
+#: ../../source/df-basic.rst:126
+msgid "decimal"
+msgstr ""
+
+#: ../../source/df-basic.rst:127
+msgid "array<value_type>"
+msgstr ""
+
+#: ../../source/df-basic.rst:127
+msgid "list<value_type>"
+msgstr ""
+
+#: ../../source/df-basic.rst:128
+msgid "map<key_type, value_type>"
+msgstr ""
+
+#: ../../source/df-basic.rst:128
+msgid "dict<key_type, value_type>"
+msgstr ""
+
+#: ../../source/df-basic.rst:131
+msgid ""
+"list 和 dict 必须填写其包含值的类型，否则会报错。目前 DataFrame 暂不支持 MaxCompute 2.0 中新增的 "
+"Timestamp 及 Struct 类型，未来的版本会支持。"
+msgstr ""
+
+#: ../../source/df-basic.rst:134
+msgid "在 Sequence 中可以通过 sequence.dtype 获取数据类型："
+msgstr ""
+
+#: ../../source/df-basic.rst:141
+msgid "如果要修改一列的类型，可以使用 astype 方法。该方法输入一个类型，并返回类型转换后的 Sequence。例如，"
+msgstr ""
+
+#: ../../source/df-basic.rst:155
+msgid "列名"
+msgstr ""
+
+#: ../../source/df-basic.rst:157
+msgid "在 DataFrame 的计算过程中，一个 Sequence 必须要有列名。在很多情况下，DataFrame 会起一个名字。比如："
+msgstr ""
+
+#: ../../source/df-basic.rst:167
+msgid ""
+"可以看到，\\ ``sepalwidth``\\ 取最大值后被命名为\\ ``sepalwidth_max``\\ 。还有一些操作，比如一个 "
+"Sequence 做加法，加上一个 Scalar，这时，会被命名为这个 Sequence 的名字。其它情况下，需要用户去自己命名。"
+msgstr ""
+
+#: ../../source/df-basic.rst:170
+msgid "Sequence 提供 rename 方法对一列进行重命名，用法示例如下："
+msgstr ""
+
+#: ../../source/df-basic.rst:184
+msgid "简单的列变换"
+msgstr ""
+
+#: ../../source/df-basic.rst:186
+msgid ""
+"你可以对一个 Sequence 进行运算，返回一个新的 Sequence，正如对简单的 Python 变量进行运算一样。对数值列， "
+"Sequence 支持四则运算，而对字符串则支持字符串相加等操作。例如，"
+msgstr ""
+
+#: ../../source/df-basic.rst:199
+msgid "而"
+msgstr ""
+
+#: ../../source/df-basic.rst:211
+msgid "注意到两列参与运算，因而 PyODPS 无法确定最终显示的列名，需要手动指定。详细的列变换说明，请参见 :ref:`dfelement`。"
+msgstr ""
+
+#: ../../source/df-basic.rst:214
+msgid "Collection"
+msgstr ""
+
+#: ../../source/df-basic.rst:215
+msgid ""
+"DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`，可视为一张 ODPS "
+"表或一张电子表单，DataFrame 对象也是 CollectionExpr 的特例。CollectionExpr "
+"中包含针对二维数据集的列操作、筛选、变换等大量操作。"
+msgstr ""
+
+#: ../../source/df-basic.rst:219
+msgid "获取类型"
+msgstr ""
+
+#: ../../source/df-basic.rst:221
+msgid ""
+"``dtypes``\\ 可以用来获取 CollectionExpr 中所有列的类型。``dtypes`` 返回的是 :ref:`Schema类型"
+" <table_schema>` 。"
+msgstr ""
+
+#: ../../source/df-basic.rst:236
+msgid "列选择和增删"
+msgstr ""
+
+#: ../../source/df-basic.rst:238
+msgid "如果要从一个 CollectionExpr 中选取部分列，产生新的数据集，可以使用 expr[columns] 语法。例如，"
+msgstr ""
+
+#: ../../source/df-basic.rst:252
+msgid ""
+"**注意**\\ ：如果需要选择的列只有一列，需要在 columns 后加上逗号或者显示标记为列表，例如 df[df.sepal_length, "
+"] 或 df[[df.sepal_length]]，否则返回的将是一个 Sequence 对象，而不是 Collection。"
+msgstr ""
+
+#: ../../source/df-basic.rst:255
+msgid "如果想要在新的数据集中排除已有数据集的某些列，可使用 exclude 方法："
+msgstr ""
+
+#: ../../source/df-basic.rst:267
+msgid "0.7.2 以后的 PyODPS 支持另一种写法，即在数据集上直接排除相应的列："
+msgstr ""
+
+#: ../../source/df-basic.rst:281
+msgid "如果我们需要在已有数据集中引入某一列变换的结果，也可以使用 expr[columns] 语法，并将新列作为 columns 的一部分。"
+msgstr ""
+
+#: ../../source/df-basic.rst:283
+msgid "下面的例子将 iris 中的 sepalwidth 列加一后重命名为 sepalwidthplus1 并追加到数据集末尾，形成新的数据集："
+msgstr ""
+
+#: ../../source/df-basic.rst:302
+msgid ""
+"使用 `df[df, new_sequence]` 需要注意的是，变换后的列名与原列名可能相同，如果需要与原 collection 合并， "
+"请将该列重命名。"
+msgstr ""
+
+#: ../../source/df-basic.rst:305
+msgid "0.7.2 以后版本的 PyODPS 支持直接在当前数据集中追加，写法为"
+msgstr ""
+
+#: ../../source/df-basic.rst:325
+msgid "我们也可以先将原列通过 exclude 方法进行排除，再将变换后的新列并入，而不必担心重名。"
+msgstr ""
+
+#: ../../source/df-basic.rst:337
+msgid "对于 0.7.2 以后版本的 PyODPS，如果想在当前数据集上直接覆盖，则可以写"
+msgstr ""
+
+#: ../../source/df-basic.rst:350
+msgid ""
+"增删列以创建新数据集的另一种方法是调用 select 方法，将需要选择的列作为参数输入。如果需要重命名，使用 Keyword "
+"参数输入，并将新的列名作为参数名即可。"
+msgstr ""
+
+#: ../../source/df-basic.rst:363
+msgid ""
+"此外，我们也可以传入一个 lambda 表达式，它接收一个参数，接收上一步的结果。在执行时，PyODPS 会检查这些 lambda "
+"表达式，传入上一步生成的 collection 并将其替换为正确的列。"
+msgstr ""
+
+#: ../../source/df-basic.rst:376
+msgid "此外，在 0.7.2 以后版本的 PyODPS 中，支持对数据进行条件赋值，例如"
+msgstr ""
+
+#: ../../source/df-basic.rst:390
+msgid "引入常数和随机数"
+msgstr ""
+
+#: ../../source/df-basic.rst:391
+msgid "DataFrame 支持在 collection 中追加一列常数。追加常数需要使用 :class:`Scalar`，引入时需要手动指定列名，如"
+msgstr ""
+
+#: ../../source/df-basic.rst:405
+msgid "如果需要指定一个空值列，可以使用 :class:`NullScalar`，需要提供字段类型。"
+msgstr ""
+
+#: ../../source/df-basic.rst:419
+msgid "在 PyODPS 0.7.12 及以后版本中，引入了简化写法："
+msgstr ""
+
+#: ../../source/df-basic.rst:433
+msgid "需要注意的是，这种写法无法自动识别空值的类型，所以在增加空值列时，仍然要使用"
+msgstr ""
+
+#: ../../source/df-basic.rst:447
+msgid ""
+"DataFrame 也支持在 collection 中增加一列随机数列，该列类型为 float，范围为 0 - 1，每行数值均不同。 "
+"追加随机数列需要使用 :class:`RandomScalar`，参数为随机数种子，可省略。"
+msgstr ""
+
+#: ../../source/df-basic.rst:462
+msgid "过滤数据"
+msgstr ""
+
+#: ../../source/df-basic.rst:464
+msgid "Collection 提供了数据过滤的功能，"
+msgstr ""
+
+#: ../../source/df-basic.rst:466
+msgid "我们试着查询\\ ``sepallength``\\ 大于5的几条数据。"
+msgstr ""
+
+#: ../../source/df-basic.rst:478
+msgid "多个查询条件："
+msgstr ""
+
+#: ../../source/df-basic.rst:491
+msgid "或条件："
+msgstr ""
+
+#: ../../source/df-basic.rst:506
+msgid "**记住，与和或条件必须使用&和|，不能使用and和or。**"
+msgstr ""
+
+#: ../../source/df-basic.rst:509
+msgid "非条件："
+msgstr ""
+
+#: ../../source/df-basic.rst:522
+msgid "我们也可以显式调用filter方法，提供多个与条件"
+msgstr ""
+
+#: ../../source/df-basic.rst:535
+msgid "同样对于连续的操作，我们可以使用lambda表达式"
+msgstr ""
+
+#: ../../source/df-basic.rst:548
+msgid "对于Collection，如果它包含一个列是boolean类型，则可以直接使用该列作为过滤条件。"
+msgstr ""
+
+#: ../../source/df-basic.rst:563
+msgid "因此，记住对Collection取单个squence的操作时，只有boolean列是合法的，即对Collection作过滤操作。"
+msgstr ""
+
+#: ../../source/df-basic.rst:575
+msgid ""
+"同时，我们也支持Pandas中的\\ ``query``\\方法，用查询语句来做数据的筛选，在表达式中直接使用列名如\\ "
+"``sepallength``\\进行操作， 另外在查询语句中\\ ``&``\\和\\ ``and``\\都表示与操作，\\ "
+"``|``\\和\\ ``or``\\都表示或操作。"
+msgstr ""
+
+#: ../../source/df-basic.rst:589
+msgid "当表达式中需要使用到本地变量时，需要在该变量前加一个\\ ``@``\\ 前缀。"
+msgstr ""
+
+#: ../../source/df-basic.rst:603
+msgid "目前\\ ``query``\\支持的语法包括："
+msgstr ""
+
+#: ../../source/df-basic.rst:606
+msgid "语法"
+msgstr ""
+
+#: ../../source/df-basic.rst:606 ../../source/df-basic.rst:689
+msgid "说明"
+msgstr ""
+
+#: ../../source/df-basic.rst:608
+msgid "name"
+msgstr ""
+
+#: ../../source/df-basic.rst:608
+msgid "没有 \\ ``@``\\ 前缀的都当做列名处理，有前缀的会获取本地变量"
+msgstr ""
+
+#: ../../source/df-basic.rst:609
+msgid "operator"
+msgstr ""
+
+#: ../../source/df-basic.rst:609
+msgid ""
+"支持部分运算符：\\ ``+``\\，\\ ``-``\\，\\ ``*``\\，\\ ``/``\\，\\ ``//``\\，\\ "
+"``%``\\，\\ ``**``\\, \\ ``==``\\，\\ ``!=``\\，\\ ``<``\\，\\ ``<=``\\，\\ "
+"``>``\\，\\ ``>=``\\，\\ ``in``\\，\\ ``not in``\\"
+msgstr ""
+
+#: ../../source/df-basic.rst:611
+msgid "bool"
+msgstr ""
+
+#: ../../source/df-basic.rst:611
+msgid "与或非操作，其中 \\ ``&``\\ 和 \\ ``and``\\ 表示与，\\ ``|``\\ 和 \\ ``or``\\ 表示或"
+msgstr ""
+
+#: ../../source/df-basic.rst:612
+msgid "attribute"
+msgstr ""
+
+#: ../../source/df-basic.rst:612
+msgid "取对象属性"
+msgstr ""
+
+#: ../../source/df-basic.rst:613
+msgid "index, slice, Subscript"
+msgstr ""
+
+#: ../../source/df-basic.rst:613
+msgid "切片操作"
+msgstr ""
+
+#: ../../source/df-basic.rst:619
+msgid "并列多行输出"
+msgstr ""
+
+#: ../../source/df-basic.rst:620
+msgid ""
+"对于 list 及 map 类型的列，explode 方法会将该列转换为多行输出。使用 apply 方法也可以输出多行。 "
+"为了进行聚合等操作，常常需要将这些输出和原表中的列合并。此时可以使用 DataFrame 提供的并列多行输出功能， "
+"写法为将多行输出函数生成的集合与原集合中的列名一起映射。"
+msgstr ""
+
+#: ../../source/df-basic.rst:624
+msgid "并列多行输出的例子如下："
+msgstr ""
+
+#: ../../source/df-basic.rst:648
+msgid ""
+"关于 explode 使用并列输出的具体文档可参考 :ref:`dfcollections`，对于 apply 方法使用并列输出的例子可参考 "
+":ref:`dfudtfapp`。"
+msgstr ""
+
+#: ../../source/df-basic.rst:652
+msgid "限制条数"
+msgstr ""
+
+#: ../../source/df-basic.rst:662
+msgid "值得注意的是，目前切片对于ODPS SQL后端不支持start和step。我们也可以使用limit方法"
+msgstr ""
+
+#: ../../source/df-basic.rst:674
+msgid "**另外，切片操作只能作用在collection上，不能作用于sequence。**"
+msgstr ""
+
+#: ../../source/df-basic.rst:677
+msgid "执行"
+msgstr ""
+
+#: ../../source/df-basic.rst:682
+msgid "延迟执行"
+msgstr ""
+
+#: ../../source/df-basic.rst:684
+msgid ""
+"DataFrame上的所有操作并不会立即执行，只有当用户显式调用\\ ``execute``\\ "
+"方法，或者一些立即执行的方法时（内部调用的就是\\ ``execute``\\ ），才会真正去执行。"
+msgstr ""
+
+#: ../../source/df-basic.rst:686
+msgid "这些立即执行的方法包括："
+msgstr ""
+
+#: ../../source/df-basic.rst:689
+msgid "方法"
+msgstr ""
+
+#: ../../source/df-basic.rst:689
+msgid "返回值"
+msgstr ""
+
+#: ../../source/df-basic.rst:691
+msgid "persist"
+msgstr ""
+
+#: ../../source/df-basic.rst:691
+msgid "将执行结果保存到ODPS表"
+msgstr ""
+
+#: ../../source/df-basic.rst:691
+msgid "PyODPS DataFrame"
+msgstr ""
+
+#: ../../source/df-basic.rst:692
+msgid "execute"
+msgstr ""
+
+#: ../../source/df-basic.rst:692
+msgid "执行并返回全部结果"
+msgstr ""
+
+#: ../../source/df-basic.rst:692 ../../source/df-basic.rst:693
+#: ../../source/df-basic.rst:694
+msgid "ResultFrame"
+msgstr ""
+
+#: ../../source/df-basic.rst:693
+msgid "head"
+msgstr ""
+
+#: ../../source/df-basic.rst:693
+msgid "查看开头N行数据，这个方法会执行所有结果，并取开头N行数据"
+msgstr ""
+
+#: ../../source/df-basic.rst:694
+msgid "tail"
+msgstr ""
+
+#: ../../source/df-basic.rst:694
+msgid "查看结尾N行数据，这个方法会执行所有结果，并取结尾N行数据"
+msgstr ""
+
+#: ../../source/df-basic.rst:695
+msgid "to_pandas"
+msgstr ""
+
+#: ../../source/df-basic.rst:695
+msgid "转化为 Pandas DataFrame 或者 Series，wrap 参数为 True 的时候，返回 PyODPS DataFrame 对象"
+msgstr ""
+
+#: ../../source/df-basic.rst:695
+msgid "wrap为True返回PyODPS DataFrame，False（默认）返回pandas DataFrame"
+msgstr ""
+
+#: ../../source/df-basic.rst:696
+msgid "plot，hist，boxplot"
+msgstr ""
+
+#: ../../source/df-basic.rst:696
+msgid "画图有关"
+msgstr ""
+
+#: ../../source/df-basic.rst:701
+msgid ""
+"**注意**\\ ：在交互式环境下，PyODPS DataFrame会在打印或者repr的时候，调用\\ ``execute``\\ "
+"方法，这样省去了用户手动去调用execute。"
+msgstr ""
+
+#: ../../source/df-basic.rst:714
+msgid "如果想关闭自动调用执行，则需要手动设置"
+msgstr ""
+
+#: ../../source/df-basic.rst:747
+msgid "此时打印或者repr对象，会显示整棵抽象语法树。"
+msgstr ""
+
+#: ../../source/df-basic.rst:752
+msgid "ResultFrame是结果集合，不能参与后续计算。"
+msgstr ""
+
+#: ../../source/df-basic.rst:755
+msgid "ResultFrame可以迭代取出每条记录。"
+msgstr ""
+
+#: ../../source/df-basic.rst:769
+msgid "保存执行结果为 ODPS 表"
+msgstr ""
+
+#: ../../source/df-basic.rst:771
+msgid "对 Collection，我们可以调用\\ ``persist``\\ 方法，参数为表名。返回一个新的DataFrame对象"
+msgstr ""
+
+#: ../../source/df-basic.rst:784
+msgid "``persist``\\ 可以传入partitions参数，这样会创建一个表，它的分区是partitions所指定的字段。"
+msgstr ""
+
+#: ../../source/df-basic.rst:801
+msgid ""
+"如果想写入已经存在的表的某个分区，``persist``\\ 可以传入partition参数，指明写入表的哪个分区（如ds=******）。 "
+"这时要注意，该DataFrame的每个字段都必须在该表存在，且类型相同。drop_partition和create_partition参数只有在此时有效,"
+" 分别表示是否要删除（如果分区存在）或创建（如果分区不存在）该分区。"
+msgstr ""
+
+#: ../../source/df-basic.rst:809
+msgid "写入表时，还可以指定表的生命周期，如下列语句将表的生命周期指定为10天："
+msgstr ""
+
+#: ../../source/df-basic.rst:815
+msgid ""
+"如果数据源中没有 ODPS 对象，例如数据源仅为 Pandas，在 persist 时需要手动指定 ODPS 入口对象， "
+"或者将需要的入口对象标明为全局对象，如："
+msgstr ""
+
+#: ../../source/df-basic.rst:828
+msgid "保存执行结果为 Pandas DataFrame"
+msgstr ""
+
+#: ../../source/df-basic.rst:830
+msgid "我们可以使用 ``to_pandas``\\ 方法，如果wrap参数为True，将返回PyODPS DataFrame对象。"
+msgstr ""
+
+#: ../../source/df-basic.rst:841
+msgid "立即运行设置运行参数"
+msgstr ""
+
+#: ../../source/df-basic.rst:843
+msgid ""
+"对于立即执行的方法，比如 ``execute``、``persist``、``to_pandas`` 等，可以设置运行时参数（仅对ODPS "
+"SQL后端有效 ）。"
+msgstr ""
+
+#: ../../source/df-basic.rst:845
+msgid "一种方法是设置全局参数。详细参考 :ref:`SQL设置运行参数 <sql_hints>` 。"
+msgstr ""
+
+#: ../../source/df-basic.rst:847
+msgid "也可以在这些立即执行的方法上，使用 ``hints`` 参数。这样，这些参数只会作用于当前的计算过程。"
+msgstr ""
+
+#: ../../source/df-basic.rst:856
+msgid "运行时显示详细信息"
+msgstr ""
+
+#: ../../source/df-basic.rst:858
+msgid "有时，用户需要查看运行时instance的logview时，需要修改全局配置："
+msgstr ""
+
+#: ../../source/df-basic.rst:881
+msgid "用户可以指定自己的日志记录函数，比如像这样："
+msgstr ""
+
+#: ../../source/df-basic.rst:903
+msgid "缓存中间Collection计算结果"
+msgstr ""
+
+#: ../../source/df-basic.rst:905
+msgid ""
+"DataFrame的计算过程中，一些Collection被多处使用，或者用户需要查看中间过程的执行结果， 这时用户可以使用 ``cache``\\"
+" 标记某个collection需要被优先计算。"
+msgstr ""
+
+#: ../../source/df-basic.rst:910
+msgid "值得注意的是，``cache``\\ 延迟执行，调用cache不会触发立即计算。"
+msgstr ""
+
+#: ../../source/df-basic.rst:931
+msgid "异步和并行执行"
+msgstr ""
+
+#: ../../source/df-basic.rst:933
+msgid ""
+"DataFrame 支持异步操作，对于立即执行的方法，包括 "
+"``execute``、``persist``、``head``、``tail``、``to_pandas`` （其他方法不支持）， 传入 "
+"``async`` 参数，即可以将一个操作异步执行，``timeout`` 参数指定超时时间， 异步返回的是 `Future "
+"<https://docs.python.org/3/library/concurrent.futures.html#future-"
+"objects>`_ 对象。"
+msgstr ""
+
+#: ../../source/df-basic.rst:956
+msgid ""
+"DataFrame 的并行执行可以使用多线程来并行，单个 expr 的执行可以通过 ``n_parallel`` 参数来指定并发度。 比如，当一个"
+" DataFrame 的执行依赖的多个 cache 的 DataFrame 能够并行执行时，该参数就会生效。"
+msgstr ""
+
+#: ../../source/df-basic.rst:979
+msgid "当同时执行多个 expr 时，我们可以用多线程执行，但会面临一个问题， 比如两个 DataFrame 有共同的依赖，这个依赖将会被执行两遍。"
+msgstr ""
+
+#: ../../source/df-basic.rst:982
+msgid ""
+"现在我们提供了新的 ``Delay API``， 来将立即执行的操作（包括 "
+"``execute``、``persist``、``head``、``tail``、``to_pandas``，其他方法不支持）变成延迟操作， "
+"并返回 `Future <https://docs.python.org/3/library/concurrent.futures.html"
+"#future-objects>`_ 对象。 当用户触发delay执行的时候，会去寻找共同依赖，按用户给定的并发度执行，并支持异步执行。"
+msgstr ""
+
+#: ../../source/df-basic.rst:1004
+msgid ""
+"可以看到上面的例子里，共同依赖的对象会先执行，然后再以并发度为3分别执行future1到future3。 当 ``n_parallel`` "
+"为1时，执行时间会达到37s。"
+msgstr ""
+
+#: ../../source/df-basic.rst:1007
+msgid ""
+"``delay.execute`` 也接受 ``async`` 操作来指定是否异步执行，当异步的时候，也可以指定 ``timeout`` "
+"参数来指定超时时间。"
+msgstr ""
+

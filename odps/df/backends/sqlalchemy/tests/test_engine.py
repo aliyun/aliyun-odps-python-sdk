@@ -120,7 +120,7 @@ class Test(TestBase):
 
         expr = self.expr.id.sum()
 
-        future = self.engine.execute(expr, async=True, priority=4)
+        future = self.engine.execute(expr, async_=True, priority=4)
         self.assertFalse(future.done())
         res = future.result()
 
@@ -173,7 +173,7 @@ class Test(TestBase):
         expr1 = expr.id.sum()
         expr2 = expr.id.mean()
 
-        fs = self.engine.execute([expr, expr1, expr2], n_parallel=2, async=True, timeout=1)
+        fs = self.engine.execute([expr, expr1, expr2], n_parallel=2, async_=True, timeout=1)
         self.assertEqual(len(fs), 3)
 
         self.assertEqual(fs[1].result(), expect1)

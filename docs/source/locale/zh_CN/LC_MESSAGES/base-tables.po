@@ -1,0 +1,207 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/base-tables.rst:4
+msgid "表"
+msgstr ""
+
+#: ../../source/base-tables.rst:6
+msgid ""
+"`表 <https://docs.aliyun.com/#/pub/odps/basic/definition&table>`_ "
+"是ODPS的数据存储单元。"
+msgstr ""
+
+#: ../../source/base-tables.rst:9 ../../source/base-tables.rst:300
+msgid "基本操作"
+msgstr ""
+
+#: ../../source/base-tables.rst:11
+msgid "我们可以用 ODPS 入口对象的 ``list_tables`` 来列出项目空间下的所有表。"
+msgstr ""
+
+#: ../../source/base-tables.rst:18
+msgid "通过调用 ``exist_table`` 来判断表是否存在。"
+msgstr ""
+
+#: ../../source/base-tables.rst:20
+msgid "通过调用 ``get_table`` 来获取表。"
+msgstr ""
+
+#: ../../source/base-tables.rst:59
+msgid "通过提供 ``project`` 参数，来跨project获取表。"
+msgstr ""
+
+#: ../../source/base-tables.rst:69
+msgid "创建表的Schema"
+msgstr ""
+
+#: ../../source/base-tables.rst:71
+msgid "有两种方法来初始化。第一种方式通过表的列、以及可选的分区来初始化。"
+msgstr ""
+
+#: ../../source/base-tables.rst:92
+msgid "第二种方法是使用 ``Schema.from_lists``，这种方法更容易调用，但显然无法直接设置列和分区的注释了。"
+msgstr ""
+
+#: ../../source/base-tables.rst:103
+msgid "创建表"
+msgstr ""
+
+#: ../../source/base-tables.rst:105
+msgid "可以使用表 schema 来创建表，方法如下："
+msgstr ""
+
+#: ../../source/base-tables.rst:114
+msgid "更简单的方式是采用“字段名 字段类型”字符串来创建表，方法如下："
+msgstr ""
+
+#: ../../source/base-tables.rst:123
+msgid ""
+"在未经设置的情况下，创建表时，只允许使用 bigint、double、decimal、string、datetime、boolean、map 和 "
+"array 类型。 如果你使用的是位于公共云上的服务，或者支持 tinyint、struct 等新类型，可以设置 "
+"``options.sql.use_odps2_extension = True`` 打开这些类型的支持，示例如下："
+msgstr ""
+
+#: ../../source/base-tables.rst:135
+msgid "同步表更新"
+msgstr ""
+
+#: ../../source/base-tables.rst:137
+msgid "有时候，一个表可能被别的程序做了更新，比如schema有了变化。此时可以调用 ``reload`` 方法来更新。"
+msgstr ""
+
+#: ../../source/base-tables.rst:145
+msgid "行记录Record"
+msgstr ""
+
+#: ../../source/base-tables.rst:147
+msgid "Record表示表的一行记录，我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。"
+msgstr ""
+
+#: ../../source/base-tables.rst:169
+msgid "获取表数据"
+msgstr ""
+
+#: ../../source/base-tables.rst:171
+msgid "有若干种方法能够获取表数据。首先，如果只是查看每个表的开始的小于1万条数据，则可以使用 ``head`` 方法。"
+msgstr ""
+
+#: ../../source/base-tables.rst:182
+msgid "其次，在table上可以执行 ``open_reader`` 操作来打一个reader来读取数据。"
+msgstr ""
+
+#: ../../source/base-tables.rst:184 ../../source/base-tables.rst:218
+msgid "使用 with 表达式的写法："
+msgstr ""
+
+#: ../../source/base-tables.rst:193 ../../source/base-tables.rst:240
+msgid "不使用 with 表达式的写法："
+msgstr ""
+
+#: ../../source/base-tables.rst:202
+msgid "更简单的调用方法是使用 ODPS 对象的 ``read_table`` 方法，例如"
+msgstr ""
+
+#: ../../source/base-tables.rst:214
+msgid "向表写数据"
+msgstr ""
+
+#: ../../source/base-tables.rst:216
+msgid "类似于 ``open_reader``，table对象同样能执行 ``open_writer`` 来打开writer，并写数据。"
+msgstr ""
+
+#: ../../source/base-tables.rst:249
+msgid "如果分区不存在，可以使用 ``create_partition`` 参数指定创建分区，如"
+msgstr ""
+
+#: ../../source/base-tables.rst:260
+msgid "更简单的写数据方法是使用 ODPS 对象的 write_table 方法，例如"
+msgstr ""
+
+#: ../../source/base-tables.rst:272
+msgid ""
+"**注意**\\ ：每次调用 write_table，MaxCompute 都会在服务端生成一个文件。这一操作需要较大的时间开销， "
+"同时过多的文件会降低后续的查询效率。因此，我们建议在使用 write_table 方法时，一次性写入多组数据， 或者传入一个 generator "
+"对象。"
+msgstr ""
+
+#: ../../source/base-tables.rst:277
+msgid "删除表"
+msgstr ""
+
+#: ../../source/base-tables.rst:286
+msgid "创建DataFrame"
+msgstr ""
+
+#: ../../source/base-tables.rst:288
+msgid ""
+"PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询和操作ODPS数据。 使用 ``to_df`` "
+"方法，即可转化为 DataFrame 对象。"
+msgstr ""
+
+#: ../../source/base-tables.rst:297
+msgid "表分区"
+msgstr ""
+
+#: ../../source/base-tables.rst:302
+msgid "遍历表全部分区："
+msgstr ""
+
+#: ../../source/base-tables.rst:311
+msgid "判断分区是否存在："
+msgstr ""
+
+#: ../../source/base-tables.rst:317
+msgid "获取分区："
+msgstr ""
+
+#: ../../source/base-tables.rst:328
+msgid "创建分区"
+msgstr ""
+
+#: ../../source/base-tables.rst:335
+msgid "删除分区"
+msgstr ""
+
+#: ../../source/base-tables.rst:345
+msgid "数据上传下载通道"
+msgstr ""
+
+#: ../../source/base-tables.rst:350
+msgid ""
+"不推荐直接使用tunnel接口（难用且复杂），推荐直接使用表的 :ref:`写 <table_write>` 和 :ref:`读 "
+"<table_read>` 接口。"
+msgstr ""
+
+#: ../../source/base-tables.rst:354
+msgid "ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据。"
+msgstr ""
+
+#: ../../source/base-tables.rst:356
+msgid "**注意**，如果安装了 **Cython**，在安装pyodps时会编译C代码，加速Tunnel的上传和下载。"
+msgstr ""
+
+#: ../../source/base-tables.rst:359
+msgid "上传"
+msgstr ""
+
+#: ../../source/base-tables.rst:382
+msgid "下载"
+msgstr ""
+

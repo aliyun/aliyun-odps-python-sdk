@@ -1359,6 +1359,9 @@ class Test(TestBase):
         expr10 = expr8.distinct()
         self.assertEqual(len(self.engine.execute(expr10)), 3)
 
+        expr11 = self.expr.pivot_table(rows='name', columns='id', values='fid', aggfunc='nunique')
+        self.assertEqual(len(self.engine.execute(expr11)), 2)
+
     def testMelt(self):
         import pandas as pd
         data = [
@@ -1754,17 +1757,18 @@ class Test(TestBase):
             self.expr.groupby('name').dense_rank('fid', ascending=False),
             self.expr.groupby('name').row_number(sort=['id', 'fid'], ascending=[True, False]),
             self.expr.groupby('name').percent_rank('id'),
+            self.expr.groupby(Scalar(1)).id.rank().rename('rank2')
         ]
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
         expected = [
-            [4, 3, 2, 3, float(2) / 3],
-            [2, 1, 1, 1, 0.0],
-            [4, 3, 3, 4, float(2) / 3],
-            [3, 1, 4, 2, float(0) / 3],
-            [3, 1, 1, 1, float(0) / 3]
+            [4, 3, 2, 3, float(2) / 3, 4],
+            [2, 1, 1, 1, 0.0, 1],
+            [4, 3, 3, 4, float(2) / 3, 4],
+            [3, 1, 4, 2, float(0) / 3, 2],
+            [3, 1, 1, 1, float(0) / 3, 2]
         ]
         self.assertEqual(sorted(expected), sorted(result))
 

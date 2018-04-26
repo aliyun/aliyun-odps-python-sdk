@@ -32,8 +32,9 @@ class Delay(object):
         self._wrappers = dict()
         self._running = False
 
-    def execute(self, ui=None, async=False, n_parallel=1, timeout=None,
-                close_and_notify=True):
+    def execute(self, ui=None, async_=False, n_parallel=1, timeout=None,
+                close_and_notify=True, **kw):
+        async_ = kw.get('async', async_)
 
         if self._running:
             raise RuntimeError('Cannot execute on an executing delay object.')
@@ -47,9 +48,9 @@ class Delay(object):
         from .backends.engine import get_default_engine
         engine = get_default_engine(*[call[1] for call in _calls])
 
-        ui = ui or Engine._create_ui(async=async, n_parallel=n_parallel)
+        ui = ui or Engine._create_ui(async_=async_, n_parallel=n_parallel)
 
-        batch_kw = dict(ui=ui, async=True, n_parallel=n_parallel, timeout=timeout,
+        batch_kw = dict(ui=ui, async_=True, n_parallel=n_parallel, timeout=timeout,
                         close_and_notify=close_and_notify)
         fs = engine.batch(*_calls, **batch_kw)
 
@@ -88,7 +89,7 @@ class Delay(object):
             if bf.done():
                 relay_future(bf, idx, uf)
 
-        if not async:
+        if not async_:
             try:
                 futures.wait(_futures, timeout)
                 for uf in _futures:

@@ -128,10 +128,11 @@ def _exist_tables_model(self, name, project=None):
     return _get_tables_model(self, name, project=project).exists()
 
 
-def _delete_tables_model(self, name, project=None, async=False, if_exists=False):
+def _delete_tables_model(self, name, project=None, async_=False, if_exists=False, **kw):
+    async_ = kw.pop('async', async_)
     prefix = build_model_table_name(name, '')
     for tb in self.list_tables(project=project, prefix=prefix):
-        tb.drop(async=async, if_exists=if_exists)
+        tb.drop(async_=async_, if_exists=if_exists)
 
 
 def install_plugin():

@@ -66,7 +66,7 @@ class Test(TestBase):
         delay = Delay()
         filtered = self.df[self.df.id > 0].cache()
         sub_futures = [make_filter(filtered, i).execute(delay=delay) for i in range(1, 4)]
-        future = delay.execute(async=True, n_parallel=3)
+        future = delay.execute(async_=True, n_parallel=3)
         self.assertRaises(RuntimeError, lambda: delay.execute())
 
         for i in range(1, 4):

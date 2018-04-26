@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -100,7 +100,8 @@ class Partitions(Iterable):
             for partition in partitions:
                 yield partition
 
-    def create(self, partition_spec, if_not_exists=False, async=False):
+    def create(self, partition_spec, if_not_exists=False, async_=False, **kw):
+        async_ = kw.get('async', async_)
         partition_spec = self._get_partition_spec(partition_spec)
 
         buf = six.StringIO()
@@ -115,13 +116,14 @@ class Partitions(Iterable):
         task = SQLTask(name='SQLAddPartitionTask', query=buf.getvalue())
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
-        if not async:
+        if not async_:
             instance.wait_for_success()
             return self[partition_spec]
         else:
             return instance
 
-    def delete(self, partition_spec, if_exists=False, async=False):
+    def delete(self, partition_spec, if_exists=False, async_=False, **kw):
+        async_ = kw.get('async', async_)
         if isinstance(partition_spec, Partition):
             partition_spec = partition_spec.partition_spec
         else:
@@ -139,7 +141,7 @@ class Partitions(Iterable):
         task = SQLTask(name='SQLDropPartitionTask', query=buf.getvalue())
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
-        if not async:
+        if not async_:
             instance.wait_for_success()
         else:
             return instance

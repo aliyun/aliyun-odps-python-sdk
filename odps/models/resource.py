@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -552,7 +552,7 @@ class TableResource(Resource):
         super(TableResource, self).__init__(**kw)
 
         self._init(project_name=project_name, table_name=table_name,
-                   partition=partition_spec)
+                   partition=partition_spec, create=True)
 
     def create(self, overwrite=False, **kw):
         if self.name is None or len(self.name.strip()) == 0:
@@ -575,11 +575,21 @@ class TableResource(Resource):
             return self.parent[self.name]
         return self
 
-    def _init(self, project_name=None, table_name=None, partition=None):
-        project_name = project_name or self._project
-        if project_name is not None and project_name != self._project:
-            from .projects import Projects
-            self._parent = Projects(_client=self._client)[project_name].resources
+    def _init(self, create=False, project_name=None, table_name=None, **kw):
+        if table_name is not None and '.' in table_name:
+            project_name, table_name = table_name.split('.', 1)
+
+        try:
+            if not create:
+                old_project_name, old_table_name, old_partition = self.get_project_table_partition()
+            else:
+                old_project_name, old_table_name, old_partition = None, None, None
+        except AttributeError:
+            old_project_name, old_table_name, old_partition = None, None, None
+
+        project_name = project_name or old_project_name or self._project
+        table_name = table_name or old_table_name
+        partition = kw.get('partition', old_partition)
 
         if table_name is not None:
             self.source_table_name = '%s.%s' % (project_name, table_name)
@@ -587,22 +597,33 @@ class TableResource(Resource):
         if partition is not None:
             if not isinstance(partition, types.PartitionSpec):
                 partition_spec = types.PartitionSpec(partition)
+            else:
+                partition_spec = partition
             self.source_table_name = '%s partition(%s)' \
                                      % (self.source_table_name.split(' partition(')[0],
                                         partition_spec)
 
-    def get_source_table(self):
+    def get_project_table_partition(self):
         if self.source_table_name is None:
-            return
+            raise AttributeError('source_table_name not defined.')
 
         splits = self.source_table_name.split(' partition(')
-        src = splits[0]
+        if len(splits) < 2:
+            partition = None
+        else:
+            partition = splits[1].split(')', 1)[0].strip()
 
+        src = splits[0]
         if '.' not in src:
             raise ValueError('Malformed source table name: %s' % src)
 
-        project_name, table_name = tuple(src.split('.', 1))
+        return tuple(src.split('.', 1)) + (partition, )
 
+    def get_source_table(self):
+        try:
+            project_name, table_name, _ = self.get_project_table_partition()
+        except AttributeError:
+            return
         from .projects import Projects
         return Projects(client=self._client)[project_name].tables[table_name]
 
@@ -655,7 +676,7 @@ class TableResource(Resource):
         """
         return self.get_source_table().open_writer(partition=self.get_source_table_partition(), **kwargs)
 
-    def update(self, project_name=None, table_name=None, partition=None):
+    def update(self, project_name=None, table_name=None, *args, **kw):
         """
         Update this resource.
 
@@ -664,9 +685,9 @@ class TableResource(Resource):
         :param partition: the source table's partition
         :return: self
         """
-
-        self._init(project_name=project_name, table_name=table_name,
-                   partition=partition)
+        if len(args) > 0:
+            kw['partition'] = args[0]
+        self._init(project_name=project_name, table_name=table_name, **kw)
         resources = self.parent
         return resources.update(self)
 

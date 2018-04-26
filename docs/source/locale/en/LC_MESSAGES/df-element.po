@@ -1,0 +1,863 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/df-element.rst:4
+msgid "列运算"
+msgstr ""
+
+#: ../../source/df-element.rst:16
+msgid "对于一个Sequence来说，对它加上一个常量、或者执行sin函数的这类操作时，是作用于每个元素上的。接下来会详细说明。"
+msgstr ""
+
+#: ../../source/df-element.rst:19
+msgid "NULL相关（isnull，notnull，fillna）"
+msgstr ""
+
+#: ../../source/df-element.rst:21
+msgid ""
+"DataFrame "
+"API提供了几个和NULL相关的内置函数，比如isnull来判断是否某字段是NULL，notnull则相反，fillna是将NULL填充为用户指定的值。"
+msgstr ""
+
+#: ../../source/df-element.rst:35
+msgid "逻辑判断（ifelse，switch）"
+msgstr ""
+
+#: ../../source/df-element.rst:37
+msgid "``ifelse``\\ 作用于boolean类型的字段，当条件成立时，返回第0个参数，否则返回第1个参数。"
+msgstr ""
+
+#: ../../source/df-element.rst:50
+msgid "switch用于多条件判断的情况。"
+msgstr ""
+
+#: ../../source/df-element.rst:73
+msgid "PyODPS 0.7.8 以上版本支持根据条件修改数据集某一列的一部分值，写法为："
+msgstr ""
+
+#: ../../source/df-element.rst:88
+msgid "数学运算"
+msgstr ""
+
+#: ../../source/df-element.rst:90
+msgid "对于数字类型的字段，支持+，-，\\*，/等操作，也支持log、sin等数学计算。"
+msgstr ""
+
+#: ../../source/df-element.rst:116
+msgid "算术运算支持的操作包括："
+msgstr ""
+
+#: ../../source/df-element.rst:119
+msgid "算术操作"
+msgstr ""
+
+#: ../../source/df-element.rst:119 ../../source/df-element.rst:207
+#: ../../source/df-element.rst:270 ../../source/df-element.rst:312
+#: ../../source/df-element.rst:405 ../../source/df-element.rst:414
+msgid "说明"
+msgstr ""
+
+#: ../../source/df-element.rst:121
+msgid "abs"
+msgstr ""
+
+#: ../../source/df-element.rst:121
+msgid "绝对值"
+msgstr ""
+
+#: ../../source/df-element.rst:122
+msgid "sqrt"
+msgstr ""
+
+#: ../../source/df-element.rst:122
+msgid "平方根"
+msgstr ""
+
+#: ../../source/df-element.rst:123
+msgid "sin"
+msgstr ""
+
+#: ../../source/df-element.rst:124
+msgid "sinh"
+msgstr ""
+
+#: ../../source/df-element.rst:125
+msgid "cos"
+msgstr ""
+
+#: ../../source/df-element.rst:126
+msgid "cosh"
+msgstr ""
+
+#: ../../source/df-element.rst:127
+msgid "tan"
+msgstr ""
+
+#: ../../source/df-element.rst:128
+msgid "tanh"
+msgstr ""
+
+#: ../../source/df-element.rst:129
+msgid "arccos"
+msgstr ""
+
+#: ../../source/df-element.rst:130
+msgid "arccosh"
+msgstr ""
+
+#: ../../source/df-element.rst:131
+msgid "arcsin"
+msgstr ""
+
+#: ../../source/df-element.rst:132
+msgid "arcsinh"
+msgstr ""
+
+#: ../../source/df-element.rst:133
+msgid "arctan"
+msgstr ""
+
+#: ../../source/df-element.rst:134
+msgid "arctanh"
+msgstr ""
+
+#: ../../source/df-element.rst:135
+msgid "exp"
+msgstr ""
+
+#: ../../source/df-element.rst:135
+msgid "指数函数"
+msgstr ""
+
+#: ../../source/df-element.rst:136
+msgid "expm1"
+msgstr ""
+
+#: ../../source/df-element.rst:136
+msgid "指数减1"
+msgstr ""
+
+#: ../../source/df-element.rst:137
+msgid "log"
+msgstr ""
+
+#: ../../source/df-element.rst:137
+msgid "传入参数表示底是几"
+msgstr ""
+
+#: ../../source/df-element.rst:138
+msgid "log2"
+msgstr ""
+
+#: ../../source/df-element.rst:139
+msgid "log10"
+msgstr ""
+
+#: ../../source/df-element.rst:140
+msgid "log1p"
+msgstr ""
+
+#: ../../source/df-element.rst:140
+msgid "log(1+x)"
+msgstr ""
+
+#: ../../source/df-element.rst:141
+msgid "radians"
+msgstr ""
+
+#: ../../source/df-element.rst:141
+msgid "给定角度计算弧度"
+msgstr ""
+
+#: ../../source/df-element.rst:142
+msgid "degrees"
+msgstr ""
+
+#: ../../source/df-element.rst:142
+msgid "给定弧度计算角度"
+msgstr ""
+
+#: ../../source/df-element.rst:143
+msgid "ceil"
+msgstr ""
+
+#: ../../source/df-element.rst:143
+msgid "不小于输入值的最小整数"
+msgstr ""
+
+#: ../../source/df-element.rst:144
+msgid "floor"
+msgstr ""
+
+#: ../../source/df-element.rst:144
+msgid "向下取整，返回比输入值小的整数值"
+msgstr ""
+
+#: ../../source/df-element.rst:145
+msgid "trunc"
+msgstr ""
+
+#: ../../source/df-element.rst:145
+msgid "将输入值截取到指定小数点位置"
+msgstr ""
+
+#: ../../source/df-element.rst:148
+msgid "对于sequence，也支持其于其他sequence或者scalar的比较。"
+msgstr ""
+
+#: ../../source/df-element.rst:160
+msgid ""
+"值得主意的是，DataFrame API不支持连续操作，比如\\ ``3 <= iris.sepallength <= 5``\\ "
+"，但是提供了between这个函数来进行是否在某个区间的判断。"
+msgstr ""
+
+#: ../../source/df-element.rst:173
+msgid "默认情况下，between包含两边的区间，如果计算开区间，则需要设inclusive=False。"
+msgstr ""
+
+#: ../../source/df-element.rst:186
+msgid "String 相关操作"
+msgstr ""
+
+#: ../../source/df-element.rst:188
+msgid "DataFrame API提供了一系列针对string类型的Sequence或者Scalar的操作。"
+msgstr ""
+
+#: ../../source/df-element.rst:204
+msgid "string相关操作包括："
+msgstr ""
+
+#: ../../source/df-element.rst:207
+msgid "string 操作"
+msgstr ""
+
+#: ../../source/df-element.rst:209
+msgid "capitalize"
+msgstr ""
+
+#: ../../source/df-element.rst:210
+msgid "contains"
+msgstr ""
+
+#: ../../source/df-element.rst:210
+msgid "包含某个字符串，如果 regex 参数为 True，则是包含某个正则表达式，默认为 True"
+msgstr ""
+
+#: ../../source/df-element.rst:211
+msgid "count"
+msgstr ""
+
+#: ../../source/df-element.rst:211
+msgid "指定字符串出现的次数"
+msgstr ""
+
+#: ../../source/df-element.rst:212
+msgid "endswith"
+msgstr ""
+
+#: ../../source/df-element.rst:212
+msgid "以某个字符串结尾"
+msgstr ""
+
+#: ../../source/df-element.rst:213
+msgid "startswith"
+msgstr ""
+
+#: ../../source/df-element.rst:213
+msgid "以某个字符串开头"
+msgstr ""
+
+#: ../../source/df-element.rst:214
+msgid "extract"
+msgstr ""
+
+#: ../../source/df-element.rst:214
+msgid "抽取出某个正则表达式，如果 group 不指定，则返回满足整个 pattern 的子串；否则，返回第几个 group"
+msgstr ""
+
+#: ../../source/df-element.rst:215
+msgid "find"
+msgstr ""
+
+#: ../../source/df-element.rst:215
+msgid "返回第一次出现的子串位置，若不存在则返回-1"
+msgstr ""
+
+#: ../../source/df-element.rst:216
+msgid "rfind"
+msgstr ""
+
+#: ../../source/df-element.rst:216
+msgid "从右查找返回子串第一次出现的位置，不存在则返回-1"
+msgstr ""
+
+#: ../../source/df-element.rst:217
+msgid "replace"
+msgstr ""
+
+#: ../../source/df-element.rst:217
+msgid "将某个 pattern 的子串全部替换成另一个子串， ``n`` 参数若指定，则替换n次"
+msgstr ""
+
+#: ../../source/df-element.rst:218
+msgid "get"
+msgstr ""
+
+#: ../../source/df-element.rst:218
+msgid "返回某个位置上的字符串"
+msgstr ""
+
+#: ../../source/df-element.rst:219
+msgid "len"
+msgstr ""
+
+#: ../../source/df-element.rst:219
+msgid "返回字符串的长度"
+msgstr ""
+
+#: ../../source/df-element.rst:220
+msgid "ljust"
+msgstr ""
+
+#: ../../source/df-element.rst:220
+msgid "若未达到指定的 ``width`` 的长度，则在右侧填充 ``fillchar`` 指定的字符串（默认空格）"
+msgstr ""
+
+#: ../../source/df-element.rst:221
+msgid "rjust"
+msgstr ""
+
+#: ../../source/df-element.rst:221
+msgid "若未达到指定的 ``width`` 的长度，则在左侧填充 ``fillchar`` 指定的字符串（默认空格）"
+msgstr ""
+
+#: ../../source/df-element.rst:222
+msgid "lower"
+msgstr ""
+
+#: ../../source/df-element.rst:222
+msgid "变为全部小写"
+msgstr ""
+
+#: ../../source/df-element.rst:223
+msgid "upper"
+msgstr ""
+
+#: ../../source/df-element.rst:223
+msgid "变为全部大写"
+msgstr ""
+
+#: ../../source/df-element.rst:224
+msgid "lstrip"
+msgstr ""
+
+#: ../../source/df-element.rst:224
+msgid "在左侧删除空格（包括空行符）"
+msgstr ""
+
+#: ../../source/df-element.rst:225
+msgid "rstrip"
+msgstr ""
+
+#: ../../source/df-element.rst:225
+msgid "在右侧删除空格（包括空行符）"
+msgstr ""
+
+#: ../../source/df-element.rst:226
+msgid "strip"
+msgstr ""
+
+#: ../../source/df-element.rst:226
+msgid "在左右两侧删除空格（包括空行符）"
+msgstr ""
+
+#: ../../source/df-element.rst:227
+msgid "split"
+msgstr ""
+
+#: ../../source/df-element.rst:227
+msgid "将字符串按分隔符拆分为若干个字符串（返回 list<string> 类型）"
+msgstr ""
+
+#: ../../source/df-element.rst:228
+msgid "pad"
+msgstr ""
+
+#: ../../source/df-element.rst:228
+msgid "在指定的位置（left，right 或者 both）用指定填充字符（用 ``fillchar`` 指定，默认空格）来对齐"
+msgstr ""
+
+#: ../../source/df-element.rst:229
+msgid "repeat"
+msgstr ""
+
+#: ../../source/df-element.rst:229
+msgid "重复指定 ``n`` 次"
+msgstr ""
+
+#: ../../source/df-element.rst:230
+msgid "slice"
+msgstr ""
+
+#: ../../source/df-element.rst:230
+msgid "切片操作"
+msgstr ""
+
+#: ../../source/df-element.rst:231
+msgid "swapcase"
+msgstr ""
+
+#: ../../source/df-element.rst:231
+msgid "对调大小写"
+msgstr ""
+
+#: ../../source/df-element.rst:232
+msgid "title"
+msgstr ""
+
+#: ../../source/df-element.rst:232
+msgid "同 str.title"
+msgstr ""
+
+#: ../../source/df-element.rst:233
+msgid "zfill"
+msgstr ""
+
+#: ../../source/df-element.rst:233
+msgid "长度没达到指定 ``width`` ，则左侧填充0"
+msgstr ""
+
+#: ../../source/df-element.rst:234
+msgid "isalnum"
+msgstr ""
+
+#: ../../source/df-element.rst:234
+msgid "同 str.isalnum"
+msgstr ""
+
+#: ../../source/df-element.rst:235
+msgid "isalpha"
+msgstr ""
+
+#: ../../source/df-element.rst:235
+msgid "同 str.isalpha"
+msgstr ""
+
+#: ../../source/df-element.rst:236
+msgid "isdigit"
+msgstr ""
+
+#: ../../source/df-element.rst:236
+msgid "是否都是数字，同 str.isdigit"
+msgstr ""
+
+#: ../../source/df-element.rst:237
+msgid "isspace"
+msgstr ""
+
+#: ../../source/df-element.rst:237
+msgid "是否都是空格，同 str.isspace"
+msgstr ""
+
+#: ../../source/df-element.rst:238
+msgid "islower"
+msgstr ""
+
+#: ../../source/df-element.rst:238
+msgid "是否都是小写，同 str.islower"
+msgstr ""
+
+#: ../../source/df-element.rst:239
+msgid "isupper"
+msgstr ""
+
+#: ../../source/df-element.rst:239
+msgid "是否都是大写，同 str.isupper"
+msgstr ""
+
+#: ../../source/df-element.rst:240
+msgid "istitle"
+msgstr ""
+
+#: ../../source/df-element.rst:240
+msgid "同 str.istitle"
+msgstr ""
+
+#: ../../source/df-element.rst:241
+msgid "isnumeric"
+msgstr ""
+
+#: ../../source/df-element.rst:241
+msgid "同 str.isnumeric"
+msgstr ""
+
+#: ../../source/df-element.rst:242
+msgid "isdecimal"
+msgstr ""
+
+#: ../../source/df-element.rst:242
+msgid "同 str.isdecimal"
+msgstr ""
+
+#: ../../source/df-element.rst:243
+msgid "todict"
+msgstr ""
+
+#: ../../source/df-element.rst:243
+msgid ""
+"将字符串按分隔符拆分为一个 dict，传入的两个参数分别为项目分隔符和 Key-Value 分隔符（返回 dict<string, string>"
+" 类型）"
+msgstr ""
+
+#: ../../source/df-element.rst:244
+msgid "strptime"
+msgstr ""
+
+#: ../../source/df-element.rst:244
+msgid ""
+"按格式化读取成时间，时间格式和Python标准库相同，详细参考 `Python 时间格式化 "
+"<https://docs.python.org/2/library/datetime.html#strftime-and-strptime-"
+"behavior>`_"
+msgstr ""
+
+#: ../../source/df-element.rst:248
+msgid "时间相关操作"
+msgstr ""
+
+#: ../../source/df-element.rst:250
+msgid "对于datetime类型Sequence或者Scalar，可以调用时间相关的内置函数。"
+msgstr ""
+
+#: ../../source/df-element.rst:267
+msgid "与时间相关的属性包括："
+msgstr ""
+
+#: ../../source/df-element.rst:270
+msgid "时间相关属性"
+msgstr ""
+
+#: ../../source/df-element.rst:272 ../../source/df-element.rst:314
+msgid "year"
+msgstr ""
+
+#: ../../source/df-element.rst:273 ../../source/df-element.rst:315
+msgid "month"
+msgstr ""
+
+#: ../../source/df-element.rst:274 ../../source/df-element.rst:316
+msgid "day"
+msgstr ""
+
+#: ../../source/df-element.rst:275 ../../source/df-element.rst:317
+msgid "hour"
+msgstr ""
+
+#: ../../source/df-element.rst:276 ../../source/df-element.rst:318
+msgid "minute"
+msgstr ""
+
+#: ../../source/df-element.rst:277 ../../source/df-element.rst:319
+msgid "second"
+msgstr ""
+
+#: ../../source/df-element.rst:278
+msgid "weekofyear"
+msgstr ""
+
+#: ../../source/df-element.rst:278
+msgid "返回日期位于那一年的第几周。周一作为一周的第一天"
+msgstr ""
+
+#: ../../source/df-element.rst:279
+msgid "weekday"
+msgstr ""
+
+#: ../../source/df-element.rst:279
+msgid "返回日期当前周的第几天"
+msgstr ""
+
+#: ../../source/df-element.rst:280
+msgid "dayofweek"
+msgstr ""
+
+#: ../../source/df-element.rst:280
+msgid "同 weekday"
+msgstr ""
+
+#: ../../source/df-element.rst:281
+msgid "strftime"
+msgstr ""
+
+#: ../../source/df-element.rst:281
+msgid ""
+"格式化时间，时间格式和 Python 标准库相同，详细参考 `Python 时间格式化 "
+"<https://docs.python.org/2/library/datetime.html#strftime-and-strptime-"
+"behavior>`_"
+msgstr ""
+
+#: ../../source/df-element.rst:284
+msgid "PyODPS 也支持时间的加减操作，比如可以通过以下方法得到前3天的日期。两个日期列相减得到相差的毫秒数。"
+msgstr ""
+
+#: ../../source/df-element.rst:309
+msgid "支持的时间类型包括："
+msgstr ""
+
+#: ../../source/df-element.rst:312
+msgid "属性"
+msgstr ""
+
+#: ../../source/df-element.rst:320
+msgid "millisecond"
+msgstr ""
+
+#: ../../source/df-element.rst:326
+msgid "集合类型相关操作"
+msgstr ""
+
+#: ../../source/df-element.rst:327
+msgid "PyODPS 支持的集合类型有 List 和 Map。这两个类型都可以使用下标获取集合中的某个项目，另有 len 方法，可获得集合的大小。"
+msgstr ""
+
+#: ../../source/df-element.rst:329
+msgid ""
+"同时，两种集合均有 explode 方法，用于展开集合中的内容。对于 List，explode 默认返回一列，当传入参数 pos 时， "
+"将返回两列，其中一列为值在数组中的编号（类似 Python 的 enumerate 函数）。对于 Map，explode 会返回两列， 分别表示 "
+"keys 及 values。explode 中也可以传入列名，作为最后生成的列。"
+msgstr ""
+
+#: ../../source/df-element.rst:333
+msgid "示例如下："
+msgstr ""
+
+#: ../../source/df-element.rst:381
+msgid "explode 也可以和 :ref:`dflateralview` 结合，以将原有列和 explode 的结果相结合，例子如下："
+msgstr ""
+
+#: ../../source/df-element.rst:402
+msgid "除了下标、len 和 explode 两个共有方法以外，List 还支持下列方法："
+msgstr ""
+
+#: ../../source/df-element.rst:405
+msgid "list 操作"
+msgstr ""
+
+#: ../../source/df-element.rst:407
+msgid "contains(v)"
+msgstr ""
+
+#: ../../source/df-element.rst:407
+msgid "列表是否包含某个元素"
+msgstr ""
+
+#: ../../source/df-element.rst:408
+msgid "sort"
+msgstr ""
+
+#: ../../source/df-element.rst:408
+msgid "返回排序后的列表（返回值为 List）"
+msgstr ""
+
+#: ../../source/df-element.rst:411
+msgid "Dict 还支持下列方法："
+msgstr ""
+
+#: ../../source/df-element.rst:414
+msgid "dict 操作"
+msgstr ""
+
+#: ../../source/df-element.rst:416
+msgid "keys"
+msgstr ""
+
+#: ../../source/df-element.rst:416
+msgid "获取 Dict keys（返回值为 List）"
+msgstr ""
+
+#: ../../source/df-element.rst:417
+msgid "values"
+msgstr ""
+
+#: ../../source/df-element.rst:417
+msgid "获取 Dict values（返回值为 List）"
+msgstr ""
+
+#: ../../source/df-element.rst:422
+msgid "其他元素操作（isin，notin，cut）"
+msgstr ""
+
+#: ../../source/df-element.rst:424
+msgid "``isin``\\ 给出Sequence里的元素是否在某个集合元素里。\\ ``notin``\\ 是相反动作。"
+msgstr ""
+
+#: ../../source/df-element.rst:437
+msgid "cut提供离散化的操作，可以将Sequence的数据拆成几个区段。"
+msgstr ""
+
+#: ../../source/df-element.rst:449
+msgid "``include_under``\\ 和\\ ``include_over``\\ 可以分别包括向下和向上的区间。"
+msgstr ""
+
+#: ../../source/df-element.rst:465
+msgid "使用自定义函数"
+msgstr ""
+
+#: ../../source/df-element.rst:467
+msgid "DataFrame函数支持对Sequence使用map，它会对它的每个元素调用自定义函数。比如："
+msgstr ""
+
+#: ../../source/df-element.rst:480
+msgid "目前，受限于 Python UDF，自定义函数无法支持将 list / dict 类型作为输入或输出。"
+msgstr ""
+
+#: ../../source/df-element.rst:482
+msgid "如果map前后，Sequence的类型发生了变化，则需要显式指定map后的类型。"
+msgstr ""
+
+#: ../../source/df-element.rst:494
+msgid "如果在函数中包含闭包，需要注意的是，函数外闭包变量值的变化会引起函数内该变量值的变化。例如，"
+msgstr ""
+
+#: ../../source/df-element.rst:502
+msgid ""
+"结果为 dfs 中每个 SequenceExpr 均为 ``df.sepal_length + "
+"9``。为解决此问题，可以将函数作为另一函数的返回值，或者使用 partial，如"
+msgstr ""
+
+#: ../../source/df-element.rst:513
+msgid "或"
+msgstr ""
+
+#: ../../source/df-element.rst:522
+msgid "map也支持使用现有的UDF函数，传入的参数是str类型（函数名）或者 :ref:`Function对象 <functions>` 。"
+msgstr ""
+
+#: ../../source/df-element.rst:524
+msgid ""
+"map传入Python函数的实现使用了ODPS Python UDF，因此，如果用户所在的Project不支持Python "
+"UDF，则map函数无法使用。除此以外，所有 Python UDF 的限制在此都适用。"
+msgstr ""
+
+#: ../../source/df-element.rst:527
+msgid ""
+"目前，第三方库（包含C）只能使用\\ ``numpy``\\ ，第三方库使用参考 :ref:`使用第三方Python库 "
+"<third_party_library>`。"
+msgstr ""
+
+#: ../../source/df-element.rst:529
+msgid ""
+"除了调用自定义函数，DataFrame还提供了很多内置函数，这些函数中部分使用了map函数来实现，因此，如果\\ "
+"**用户所在Project未开通Python UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提供Python UDF支持）**\\ 。"
+msgstr ""
+
+#: ../../source/df-element.rst:534
+msgid ""
+"由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS"
+" Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常 "
+"执行。"
+msgstr ""
+
+#: ../../source/df-element.rst:541
+msgid "引用资源"
+msgstr ""
+
+#: ../../source/df-element.rst:543
+msgid ""
+"自定义函数也能读取ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。 "
+"此时，自定义函数需要写成函数闭包或callable的类。"
+msgstr ""
+
+#: ../../source/df-element.rst:583
+msgid "注：分区表资源在读取时不包含分区字段。"
+msgstr ""
+
+#: ../../source/df-element.rst:588
+msgid "使用第三方Python库"
+msgstr ""
+
+#: ../../source/df-element.rst:590
+msgid ""
+"现在用户可以把第三方 Python 包作为资源上传到 MaxCompute，支持的格式有 whl、egg、zip 以及 tar.gz。 "
+"在全局或者在立即执行的方法时，指定需要使用的包文件。即可以在自定义函数中使用第三方库。"
+msgstr ""
+
+#: ../../source/df-element.rst:593
+msgid "值得注意的是，第三方库的依赖库，也必须指定，否则依然会有导入错误。"
+msgstr ""
+
+#: ../../source/df-element.rst:595
+msgid "下面我们会以 python-dateutil 这个包作为例子。"
+msgstr ""
+
+#: ../../source/df-element.rst:597
+msgid ""
+"首先，我们可以使用pip download命令，下载包以及其依赖到某个路径。 这里下载后会出现两个包：six-1.10.0-py2.py3"
+"-none-any.whl和python_dateutil-2.5.3-py2.py3-none-any.whl "
+"（这里注意需要下载支持linux环境的包）"
+msgstr ""
+
+#: ../../source/df-element.rst:605
+msgid "然后我们分别把两个文件上传到ODPS资源"
+msgstr ""
+
+#: ../../source/df-element.rst:613
+msgid "现在我们有个DataFrame，只有一个string类型字段。"
+msgstr ""
+
+#: ../../source/df-element.rst:622
+msgid "全局配置使用到的三方库："
+msgstr ""
+
+#: ../../source/df-element.rst:638
+msgid "或者，通过立即运行方法的 ``libraries`` 参数指定："
+msgstr ""
+
+#: ../../source/df-element.rst:652
+msgid ""
+"PyODPS 默认支持执行纯 Python 且不含文件操作的第三方库。在较新版本的 MaxCompute 服务下，PyODPS "
+"也支持执行带有二进制代码或带有文件操作的 Python 库。这些库的后缀必须是 cp27-cp27m-manylinux1_x86_64， 以 "
+"archive 格式上传，whl 后缀的包需要重命名为 zip。同时，作业需要开启 "
+"``odps.isolation.session.enable`` 选项，或者在 Project 级别开启 "
+"Isolation。下面的例子展示了如何上传并使用 scipy 中的特殊函数："
+msgstr ""
+
+#: ../../source/df-element.rst:673
+msgid ""
+"对于只提供源码的二进制包，可以在 Linux Shell 中打包成 Wheel 再上传，Mac 和 Windows 中生成的 Wheel 包无法在"
+" MaxCompute 中使用："
+msgstr ""
+
+#: ../../source/df-element.rst:682
+msgid "使用计数器"
+msgstr ""
+
+#: ../../source/df-element.rst:696
+msgid "logview 的 JSONSummary 中即可找到计数器值。"
+msgstr ""
+
+#: ../../source/df-element.rst:700
+msgid "调用ODPS内建或者已定义函数"
+msgstr ""
+
+#: ../../source/df-element.rst:702
+msgid ""
+"要想调用ODPS上的内建或者已定义函数，来生成列，我们可以使用 ``func`` 接口，该接口默认函数返回值为 String， 可以用 rtype"
+" 参数指定返回值。"
+msgstr ""
+

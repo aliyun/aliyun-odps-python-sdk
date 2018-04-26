@@ -11,12 +11,12 @@ PyODPS 提供了 DataFrame API，它提供了类似 pandas 的接口，但是能
 .. toctree::
    :maxdepth: 1
 
-   df-quickstart-zh
-   df-basic-zh
-   df-element-zh
-   df-agg-zh
-   df-sort-distinct-apply-zh
-   df-merge-zh
-   df-window-zh
-   df-plot-zh
-   df-debug-instruction-zh
+   df-quickstart
+   df-basic
+   df-element
+   df-agg
+   df-sort-distinct-apply
+   df-merge
+   df-window
+   df-plot
+   df-debug-instruction

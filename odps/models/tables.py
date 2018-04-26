@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -82,7 +82,8 @@ class Tables(Iterable):
                 yield table
 
     def create(self, table_name, table_schema, comment=None, if_not_exists=False,
-               lifecycle=None, shard_num=None, hub_lifecycle=None, async=False):
+               lifecycle=None, shard_num=None, hub_lifecycle=None, async_=False, **kw):
+        async_ = kw.get('async', async_)
         sql = Table.gen_create_table_sql(table_name, table_schema, comment=comment,
                                          if_not_exists=if_not_exists, lifecycle=lifecycle,
                                          shard_num=shard_num, hub_lifecycle=hub_lifecycle,
@@ -93,7 +94,7 @@ class Tables(Iterable):
         task.update_sql_settings()
         instance = self._parent.instances.create(task=task)
 
-        if not async:
+        if not async_:
             instance.wait_for_success()
 
             return self[table_name]
@@ -112,7 +113,8 @@ class Tables(Iterable):
 
         return buf.getvalue()
 
-    def delete(self, table_name, if_exists=False, async=False):
+    def delete(self, table_name, if_exists=False, async_=False, **kw):
+        async_ = kw.get('async', async_)
         if isinstance(table_name, Table):
             table_name = table_name.name
 
@@ -125,7 +127,7 @@ class Tables(Iterable):
         task.update_sql_settings()
         instance = self._parent.instances.create(task=task)
 
-        if not async:
+        if not async_:
             instance.wait_for_success()
         else:
             return instance
