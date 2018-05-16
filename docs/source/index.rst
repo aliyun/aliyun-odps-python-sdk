@@ -52,7 +52,6 @@ PyODPS 的相关依赖会自动安装。
    platform-int-zh
    base-zh
    df-zh
-   ml-zh
    interactive-zh
    options-zh
    faq-zh
