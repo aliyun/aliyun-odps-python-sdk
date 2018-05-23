@@ -52,7 +52,6 @@ PyODPS 的相关依赖会自动安装。
    platform-int
    base
    df
-   ml
    interactive
    options
    faq
