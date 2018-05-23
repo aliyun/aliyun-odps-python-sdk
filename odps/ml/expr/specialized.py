@@ -59,8 +59,10 @@ class BaseMergeDataCollectionExpr(AlgoCollectionExpr):
 
     def _export_input_table_names(self):
         tables = []
-        for name, _ in self._iter_inputs():
+        for name, expr in self._iter_inputs():
             tn = exporters.get_input_table_name(self, name)
+            if expr is not None and not tn:
+                return None
             tables.append(tn if tn else '')
         return ','.join(tables)
 

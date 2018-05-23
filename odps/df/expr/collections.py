@@ -517,7 +517,8 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
                 types = [kwargs.pop('rtype')]
             tp = types[0] if types is not None else (utils.get_annotation_rtype(func) or string)
             if not context.is_cached(expr) and (hasattr(expr, '_fields') and expr._fields is not None):
-                inputs = [e.copy() for e in expr._fields]
+                inputs = [e.copy_tree(stop_cond=lambda x: any(i is expr.input for i in x.children()))
+                          for e in expr._fields]
             else:
                 inputs = [expr[n] for n in expr.schema.names]
             return MappedExpr(_func=func, _func_args=args, _func_kwargs=kwargs,

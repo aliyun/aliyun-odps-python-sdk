@@ -313,6 +313,7 @@ texinfo_documents = [
 
 # napoleon_google_docstring = False
 
+gettext_additional_targets = ['literal-block', 'image', 'raw']
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}

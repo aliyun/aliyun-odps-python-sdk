@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -53,6 +53,14 @@ msgstr ""
 msgid "创建文件资源可以通过给定资源名、文件类型、以及一个file-like的对象（或者是字符串对象）来创建，比如"
 msgstr ""
 
+#: ../../source/base-resources.rst:23
+msgid ""
+"resource = o.create_resource('test_file_resource', 'file', "
+"file_obj=open('/to/path/file'))  # 使用file-like的对象\n"
+"resource = o.create_resource('test_py_resource', 'py', file_obj='import "
+"this')  # 使用字符串"
+msgstr ""
+
 #: ../../source/base-resources.rst:29
 msgid "读取和修改文件资源"
 msgstr ""
@@ -61,6 +69,25 @@ msgstr ""
 msgid ""
 "对文件资源调用 ``open`` 方法，或者在odps入口调用 ``open_resource`` 都能打开一个资源， 打开后的对象会是file-"
 "like的对象。 类似于Python内置的 ``open`` 方法，文件资源也支持打开的模式。我们看例子："
+msgstr ""
+
+#: ../../source/base-resources.rst:35
+msgid ""
+">>> with resource.open('r') as fp:  # 以读模式打开\n"
+">>>     content = fp.read()  # 读取全部的内容\n"
+">>>     fp.seek(0)  # 回到资源开头\n"
+">>>     lines = fp.readlines()  # 读成多行\n"
+">>>     fp.write('Hello World')  # 报错，读模式下无法写资源\n"
+">>>\n"
+">>> with o.open_resource('test_file_resource', mode='r+') as fp:  # "
+"读写模式打开\n"
+">>>     fp.read()\n"
+">>>     fp.tell()  # 当前位置\n"
+">>>     fp.seek(10)\n"
+">>>     fp.truncate()  # 截断后面的内容\n"
+">>>     fp.writelines(['Hello\\n', 'World\\n'])  # 写入多行\n"
+">>>     fp.write('Hello World')\n"
+">>>     fp.flush()  # 手动调用会将更新提交到ODPS"
 msgstr ""
 
 #: ../../source/base-resources.rst:52
@@ -105,15 +132,48 @@ msgstr ""
 msgid "创建表资源"
 msgstr ""
 
+#: ../../source/base-resources.rst:70
+msgid ""
+">>> o.create_resource('test_table_resource', 'table', "
+"table_name='my_table', partition='pt=test')"
+msgstr ""
+
 #: ../../source/base-resources.rst:75
 msgid "更新表资源"
+msgstr ""
+
+#: ../../source/base-resources.rst:77
+msgid ""
+">>> table_resource = o.get_resource('test_table_resource')\n"
+">>> table_resource.update(partition='pt=test2', "
+"project_name='my_project2')"
 msgstr ""
 
 #: ../../source/base-resources.rst:83
 msgid "获取表及分区"
 msgstr ""
 
+#: ../../source/base-resources.rst:85
+msgid ""
+">>> table_resource = o.get_resource('test_table_resource')\n"
+">>> table = table_resource.table\n"
+">>> print(table.name)\n"
+">>> partition = table_resource.partition\n"
+">>> print(partition.spec)"
+msgstr ""
+
 #: ../../source/base-resources.rst:94
 msgid "读写内容"
+msgstr ""
+
+#: ../../source/base-resources.rst:96
+msgid ""
+">>> table_resource = o.get_resource('test_table_resource')\n"
+">>> with table_resource.open_writer() as writer:\n"
+">>>     writer.write([0, 'aaaa'])\n"
+">>>     writer.write([1, 'bbbbb'])\n"
+">>> with table_resource.open_reader() as reader:\n"
+">>>     for rec in reader:\n"
+">>>         print(rec)"
 msgstr ""
 

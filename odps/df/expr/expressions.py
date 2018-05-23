@@ -723,9 +723,11 @@ class CollectionExpr(Expr):
                 raise ExpressionError('Illegal partition predicate.')
             field_name, field_value = [s.strip() for s in p.split('=', 1)]
             if not hasattr(source, 'schema'):
-                raise ExpressionError('filter_partition can only be applied on ODPS DataFrames.')
+                raise ExpressionError('filter_partition can only be applied on ODPS DataFrames')
+            if field_name not in source.schema:
+                raise ExpressionError('Column `%s` not exists in input collection' % field_name)
             if field_name not in source.schema._partition_schema:
-                raise ExpressionError('Partition specifications should not be applied on common columns.')
+                raise ExpressionError('`%s` is not a partition column' % field_name)
             part_col = self[field_name]
             if field_value.startswith('\'') or field_value.startswith('\"'):
                 encoding = 'string-escape' if six.PY2 else 'unicode-escape'

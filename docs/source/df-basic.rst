@@ -278,7 +278,8 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     3         3.1         0.2  Iris-setosa
     4         3.6         0.2  Iris-setosa
 
-如果我们需要在已有数据集中引入某一列变换的结果，也可以使用 expr[columns] 语法，并将新列作为 columns 的一部分。
+如果我们需要在已有 collection 中添加某一列变换的结果，也可以使用 expr[expr, new_sequence] 语法，
+新增的列会作为新 collection 的一部分。
 
 下面的例子将 iris 中的 sepalwidth 列加一后重命名为 sepalwidthplus1 并追加到数据集末尾，形成新的数据集：
 
@@ -347,7 +348,7 @@ DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`�
     3          4.6         6.2          1.5         0.2  Iris-setosa
     4          5.0         7.2          1.4         0.2  Iris-setosa
 
-增删列以创建新数据集的另一种方法是调用 select 方法，将需要选择的列作为参数输入。如果需要重命名，使用 Keyword
+增删列以创建新 collection 的另一种方法是调用 select 方法，将需要选择的列作为参数输入。如果需要重命名，使用 keyword
 参数输入，并将新的列名作为参数名即可。
 
 .. code:: python

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -32,6 +32,14 @@ msgstr ""
 msgid "接着确保 setuptools 和 requests 的版本，对于非 Windows 用户可以安装 Cython 加速 Tunnel 上传下载："
 msgstr ""
 
+#: ../../source/installation-ext.rst:12
+msgid ""
+"pip install setuptools>=3.0\n"
+"pip install requests>=2.4.0\n"
+"pip install greenlet>=0.4.10  # 可选，安装后能加速 Tunnel 上传\n"
+"pip install cython>=0.19.0  # 可选，不建议 Windows 用户安装"
+msgstr ""
+
 #: ../../source/installation-ext.rst:20
 msgid ""
 "安装有 `合适版本 <https://wiki.python.org/moin/WindowsCompilers>`_ Visual C++ 和 "
@@ -42,12 +50,24 @@ msgstr ""
 msgid "接着就可以安装PyODPS："
 msgstr ""
 
+#: ../../source/installation-ext.rst:25
+msgid "pip install pyodps"
+msgstr ""
+
 #: ../../source/installation-ext.rst:30
 msgid "检查安装完成："
 msgstr ""
 
+#: ../../source/installation-ext.rst:32
+msgid "python -c \"from odps import ODPS\""
+msgstr ""
+
 #: ../../source/installation-ext.rst:37
 msgid "如果使用的python不是系统默认的python版本，安装完pip则可以："
+msgstr ""
+
+#: ../../source/installation-ext.rst:39
+msgid "/home/tops/bin/python2.7 -m pip install setuptools>=3.0"
 msgstr ""
 
 #: ../../source/installation-ext.rst:44

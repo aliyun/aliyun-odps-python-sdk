@@ -235,6 +235,7 @@ class Test(TestBase):
 
     def testFilterParts(self):
         self.assertRaises(ExpressionError, lambda: self.expr.filter_parts(None))
+        self.assertRaises(ExpressionError, lambda: self.expr.filter_parts('part3=a'))
         self.assertRaises(ExpressionError, lambda: self.expr.filter_parts('part1=a,part2=1/part1=b,part2=2'))
         self.assertRaises(ExpressionError, lambda: self.expr2.filter_parts('part1,part2=1/part1=b,part2=2'))
 

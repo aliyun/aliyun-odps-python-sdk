@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-17 10:30+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -32,71 +32,285 @@ msgstr ""
 msgid "如果你的运行环境没有提供 ODPS 对象，你需要自己创建该对象："
 msgstr ""
 
+#: ../../source/df-quickstart.rst:17
+msgid ""
+">>> from odps import ODPS\n"
+">>> o = ODPS('**your-access-id**', '**your-secret-access-key**',\n"
+">>>          project='**your-project**', endpoint='**your-end-point**'))"
+msgstr ""
+
 #: ../../source/df-quickstart.rst:18
 msgid "创建一个DataFrame对象十分容易，只需传入Table对象即可。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:24
+msgid ""
+">>> from odps.df import DataFrame\n"
+">>> users = DataFrame(o.get_table('pyodps_ml_100k_users'))"
 msgstr ""
 
 #: ../../source/df-quickstart.rst:25
 msgid "我们可以通过dtypes属性来查看这个DataFrame有哪些字段，分别是什么类型"
 msgstr ""
 
+#: ../../source/df-quickstart.rst:38
+msgid ""
+">>> users.dtypes\n"
+"odps.Schema {\n"
+"  user_id             int64\n"
+"  age                 int64\n"
+"  sex                 string\n"
+"  occupation          string\n"
+"  zip_code            string\n"
+"}"
+msgstr ""
+
 #: ../../source/df-quickstart.rst:39
 msgid "通过head方法，我们能取前N条数据，这让我们能快速预览数据。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:55
+msgid ""
+">>> users.head(10)\n"
+"   user_id  age  sex     occupation  zip_code\n"
+"0        1   24    M     technician     85711\n"
+"1        2   53    F          other     94043\n"
+"2        3   23    M         writer     32067\n"
+"3        4   24    M     technician     43537\n"
+"4        5   33    F          other     15213\n"
+"5        6   42    M      executive     98101\n"
+"6        7   57    M  administrator     91344\n"
+"7        8   36    M  administrator     05201\n"
+"8        9   29    M        student     01002\n"
+"9       10   53    M         lawyer     90703"
 msgstr ""
 
 #: ../../source/df-quickstart.rst:56
 msgid "有时候，我们并不需要都看到所有字段，我们可以从中筛选出一部分。"
 msgstr ""
 
+#: ../../source/df-quickstart.rst:67
+msgid ""
+">>> users[['user_id', 'age']].head(5)\n"
+"   user_id  age\n"
+"0        1   24\n"
+"1        2   53\n"
+"2        3   23\n"
+"3        4   24\n"
+"4        5   33"
+msgstr ""
+
 #: ../../source/df-quickstart.rst:68
 msgid "有时候我们只是排除个别字段。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:79
+msgid ""
+">>> users.exclude('zip_code', 'age').head(5)\n"
+"   user_id  sex  occupation\n"
+"0        1    M  technician\n"
+"1        2    F       other\n"
+"2        3    M      writer\n"
+"3        4    M  technician\n"
+"4        5    F       other"
 msgstr ""
 
 #: ../../source/df-quickstart.rst:80
 msgid "又或者，排除掉一些字段的同时，得通过计算得到一些新的列，比如我想将sex为M的置为True，否则为False，并取名叫sex\\_bool。"
 msgstr ""
 
+#: ../../source/df-quickstart.rst:91
+msgid ""
+">>> users.select(users.exclude('zip_code', 'sex'), sex_bool=users.sex == "
+"'M').head(5)\n"
+"   user_id  age  occupation  sex_bool\n"
+"0        1   24  technician      True\n"
+"1        2   53       other     False\n"
+"2        3   23      writer      True\n"
+"3        4   24  technician      True\n"
+"4        5   33       other     False"
+msgstr ""
+
 #: ../../source/df-quickstart.rst:92
 msgid "现在，让我们看看年龄在20到25岁之间的人有多少个"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:98
+msgid ""
+">>> users[users.age.between(20, 25)].count()\n"
+"195"
 msgstr ""
 
 #: ../../source/df-quickstart.rst:99
 msgid "接下来，我们看看男女用户分别有多少。"
 msgstr ""
 
+#: ../../source/df-quickstart.rst:107
+msgid ""
+">>> users.groupby(users.sex).agg(count=users.count())\n"
+"   sex  count\n"
+"0    F    273\n"
+"1    M    670"
+msgstr ""
+
 #: ../../source/df-quickstart.rst:108
 msgid "用户按职业划分，从高到底，人数最多的前10职业是哪些呢？"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:125
+msgid ""
+">>> df = "
+"users.groupby('occupation').agg(count=users['occupation'].count())\n"
+">>> df.sort(df['count'], ascending=False)[:10]\n"
+"      occupation  count\n"
+"0        student    196\n"
+"1          other    105\n"
+"2       educator     95\n"
+"3  administrator     79\n"
+"4       engineer     67\n"
+"5     programmer     66\n"
+"6      librarian     51\n"
+"7         writer     45\n"
+"8      executive     32\n"
+"9      scientist     31"
 msgstr ""
 
 #: ../../source/df-quickstart.rst:126
 msgid "DataFrame API提供了value\\_counts这个方法来快速达到同样的目的。"
 msgstr ""
 
+#: ../../source/df-quickstart.rst:142
+msgid ""
+">>> users.occupation.value_counts()[:10]\n"
+"      occupation  count\n"
+"0        student    196\n"
+"1          other    105\n"
+"2       educator     95\n"
+"3  administrator     79\n"
+"4       engineer     67\n"
+"5     programmer     66\n"
+"6      librarian     51\n"
+"7         writer     45\n"
+"8      executive     32\n"
+"9      scientist     31"
+msgstr ""
+
 #: ../../source/df-quickstart.rst:143
 msgid "让我们用更直观的图来看这份数据。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:148
+msgid ">>> %matplotlib inline"
 msgstr ""
 
 #: ../../source/df-quickstart.rst:149
 msgid "我们可以用个横向的柱状图来可视化"
 msgstr ""
 
+#: ../../source/df-quickstart.rst:155
+msgid ""
+">>> users['occupation'].value_counts().plot(kind='barh', x='occupation', "
+"ylabel='prefession')\n"
+"<matplotlib.axes._subplots.AxesSubplot at 0x10653cfd0>"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:158
+msgid ".. image:: _static/df-value-count-plot.png"
+msgstr ""
+
 #: ../../source/df-quickstart.rst:159
 msgid "我们将年龄分成30组，来看个年龄分布的直方图"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:165
+msgid ""
+">>> users.age.hist(bins=30, title=\"Distribution of users' ages\", "
+"xlabel='age', ylabel='count of users')\n"
+"<matplotlib.axes._subplots.AxesSubplot at 0x10667a510>"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:168
+msgid ".. image:: _static/df-age-hist.png"
 msgstr ""
 
 #: ../../source/df-quickstart.rst:169
 msgid "好了，现在我们把这三张表联合起来，只需要使用join就可以了。join完成后我们把它保存成一张新的表。"
 msgstr ""
 
+#: ../../source/df-quickstart.rst:194
+msgid ""
+">>> movies = DataFrame(o.get_table('pyodps_ml_100k_movies'))\n"
+">>> ratings = DataFrame(o.get_table('pyodps_ml_100k_ratings'))\n"
+">>>\n"
+">>> o.delete_table('pyodps_ml_100k_lens', if_exists=True)\n"
+">>> lens = "
+"movies.join(ratings).join(users).persist('pyodps_ml_100k_lens')\n"
+">>>\n"
+">>> lens.dtypes\n"
+"odps.Schema {\n"
+"  movie_id                            int64\n"
+"  title                               string\n"
+"  release_date                        string\n"
+"  video_release_date                  string\n"
+"  imdb_url                            string\n"
+"  user_id                             int64\n"
+"  rating                              int64\n"
+"  unix_timestamp                      int64\n"
+"  age                                 int64\n"
+"  sex                                 string\n"
+"  occupation                          string\n"
+"  zip_code                            string\n"
+"}"
+msgstr ""
+
 #: ../../source/df-quickstart.rst:195
 msgid "现在我们把年龄分成从0到80岁，分成8个年龄段，"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:201
+msgid ""
+">>> labels = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', "
+"'60-69', '70-79']\n"
+">>> cut_lens = lens[lens, lens.age.cut(range(0, 81, 10), right=False, "
+"labels=labels).rename('年龄分组')]"
 msgstr ""
 
 #: ../../source/df-quickstart.rst:202
 msgid "我们取分组和年龄唯一的前10条看看。"
 msgstr ""
 
+#: ../../source/df-quickstart.rst:218
+msgid ""
+">>> cut_lens['年龄分组', 'age'].distinct()[:10]\n"
+"   年龄分组  age\n"
+"0       0-9    7\n"
+"1     10-19   10\n"
+"2     10-19   11\n"
+"3     10-19   13\n"
+"4     10-19   14\n"
+"5     10-19   15\n"
+"6     10-19   16\n"
+"7     10-19   17\n"
+"8     10-19   18\n"
+"9     10-19   19"
+msgstr ""
+
 #: ../../source/df-quickstart.rst:219
 msgid "最后，我们来看看在各个年龄分组下，用户的评分总数和评分均值分别是多少。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:232
+msgid ""
+">>> cut_lens.groupby('年龄分组').agg(cut_lens.rating.count().rename('评分总数'), "
+"cut_lens.rating.mean().rename('评分均值'))\n"
+"     年龄分组  评分均值  评分总数\n"
+"0       0-9  3.767442        43\n"
+"1     10-19  3.486126      8181\n"
+"2     20-29  3.467333     39535\n"
+"3     30-39  3.554444     25696\n"
+"4     40-49  3.591772     15021\n"
+"5     50-59  3.635800      8704\n"
+"6     60-69  3.648875      2623\n"
+"7     70-79  3.649746       197"
 msgstr ""
 

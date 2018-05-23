@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -37,6 +37,13 @@ msgid ""
 "能判断是否存在某instance， ``get_instance`` 能获取实例。"
 msgstr ""
 
+#: ../../source/base-instances.rst:15
+msgid ""
+">>> for instance in o.list_instances():\n"
+">>>     print(instance.id)\n"
+">>> o.exist_instance('my_instance_id')"
+msgstr ""
+
 #: ../../source/base-instances.rst:22
 msgid "停止一个instance可以在odps入口使用 ``stop_instance``，或者对instance对象调用 ``stop`` 方法。"
 msgstr ""
@@ -49,8 +56,25 @@ msgstr ""
 msgid "对于 SQL 等任务，通过调用 ``get_logview_address`` 方法即可。"
 msgstr ""
 
+#: ../../source/base-instances.rst:29
+msgid ""
+">>> instance = o.run_sql('desc pyodps_iris')\n"
+">>> print(instance.get_logview_address())"
+msgstr ""
+
 #: ../../source/base-instances.rst:34
 msgid "对于 XFlow 任务，需要枚举其子任务，再获取子任务的 LogView："
+msgstr ""
+
+#: ../../source/base-instances.rst:36
+#, python-format
+msgid ""
+">>> instance = o.run_xflow('AppendID', 'algo_public',\n"
+"                           {'inputTableName': 'input_table', "
+"'outputTableName': 'output_table'})\n"
+">>> for sub_inst_name, sub_inst in "
+"o.get_xflow_sub_instances(instance).items():\n"
+">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
 msgstr ""
 
 #: ../../source/base-instances.rst:44
@@ -63,6 +87,18 @@ msgid ""
 "``status`` 属性来获取状态。 ``is_terminated`` "
 "方法返回当前instance是否已经执行完成，``is_successful`` 方法返回当前instance是否正确完成执行， "
 "任务处于运行中或者执行失败都会返回False。"
+msgstr ""
+
+#: ../../source/base-instances.rst:50
+msgid ""
+">>> instance = o.get_instance('2016042605520945g9k5pvyi2')\n"
+">>> instance.status\n"
+"<Status.TERMINATED: 'Terminated'>\n"
+">>> from odps.models import Instance\n"
+">>> instance.status == Instance.Status.TERMINATED\n"
+"True\n"
+">>> instance.status.value\n"
+"'Terminated'"
 msgstr ""
 
 #: ../../source/base-instances.rst:62
@@ -83,13 +119,45 @@ msgstr ""
 msgid "我们可以通过 ``get_task_names`` 来获取所有的Task任务，它返回一个所有子任务的名称列表。"
 msgstr ""
 
+#: ../../source/base-instances.rst:72
+msgid ""
+">>> instance.get_task_names()\n"
+"['SQLDropTableTask']"
+msgstr ""
+
 #: ../../source/base-instances.rst:77
 msgid ""
 "拿到Task的名称，我们就可以通过 ``get_task_result`` 来获取这个Task的执行结果。 "
 "``get_task_results`` 以字典的形式返回每个Task的执行结果"
 msgstr ""
 
+#: ../../source/base-instances.rst:80
+msgid ""
+">>> instance = o.execute_sql('select * from pyodps_iris limit 1')\n"
+">>> instance.get_task_names()\n"
+"['AnonymousSQLTask']\n"
+">>> instance.get_task_result('AnonymousSQLTask')\n"
+"'\"sepallength\",\"sepalwidth\",\"petallength\",\"petalwidth\",\"name\"\\n5.1,3.5,1.4,0.2"
+",\"Iris-setosa\"\\n'\n"
+">>> instance.get_task_results()\n"
+"OrderedDict([('AnonymousSQLTask',\n"
+"           "
+"'\"sepallength\",\"sepalwidth\",\"petallength\",\"petalwidth\",\"name\"\\n5.1,3.5,1.4,0.2"
+",\"Iris-setosa\"\\n')])"
+msgstr ""
+
 #: ../../source/base-instances.rst:91
 msgid "有时候我们需要在任务实例运行时显示所有子任务的运行进程。使用 ``get_task_progress`` 能获得Task当前的运行进度。"
+msgstr ""
+
+#: ../../source/base-instances.rst:93
+msgid ""
+">>> while not instance.is_terminated():\n"
+">>>     for task_name in instance.get_task_names():\n"
+">>>         print(instance.id, "
+"instance.get_task_progress(task_name).get_stage_progress_formatted_string())"
+"\n"
+">>>     time.sleep(10)\n"
+"20160519101349613gzbzufck2 2016-05-19 18:14:03 M1_Stg1_job0:0/1/1[100%]"
 msgstr ""
 

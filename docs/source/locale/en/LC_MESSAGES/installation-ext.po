@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,7 +19,7 @@ msgstr ""
 
 #: ../../source/installation-ext.rst:5
 msgid "安装指南"
-msgstr "Installation"
+msgstr "Installation instructions"
 
 #: ../../source/installation-ext.rst:7
 msgid ""
@@ -27,30 +27,68 @@ msgid ""
 "<https://pip.pypa.io/en/stable/installing/>`_ ， 推荐使用 `阿里云镜像 "
 "<http://mirrors.aliyun.com/help/pypi>`_ 加快下载速度。"
 msgstr ""
+"We recommend that you use pip to install Python on MaxCompute (PyODPS) "
+"when you have access to the Internet. For more information about "
+"installing pip, see `instructions on installing pip "
+"<https://pip.pypa.io/en/stable/installing/>`_ ."
 
 #: ../../source/installation-ext.rst:10
 msgid "接着确保 setuptools 和 requests 的版本，对于非 Windows 用户可以安装 Cython 加速 Tunnel 上传下载："
 msgstr ""
+"Make sure that you install the correct versions of setuptools and "
+"requests. If you do not use the Windows operating system, you can install"
+" Cython by the following code to increase the Tunnel upload and download "
+"speed:"
+
+#: ../../source/installation-ext.rst:12
+msgid ""
+"pip install setuptools>=3.0\n"
+"pip install requests>=2.4.0\n"
+"pip install greenlet>=0.4.10  # 可选，安装后能加速 Tunnel 上传\n"
+"pip install cython>=0.19.0  # 可选，不建议 Windows 用户安装"
+msgstr ""
+"pip install setuptools>=3.0\n"
+"pip install requests>=2.4.0\n"
+"pip install greenlet>=0.4.10  # optional; tunnel upload can be accelerated\n"
+"pip install cython>=0.19.0  # optional; not recommended for Windows users"
 
 #: ../../source/installation-ext.rst:20
 msgid ""
 "安装有 `合适版本 <https://wiki.python.org/moin/WindowsCompilers>`_ Visual C++ 和 "
 "Cython 的 Windows 用户也可使用 Tunnel 加速功能。"
 msgstr ""
+"If you have installed `correct "
+"<https://wiki.python.org/moin/WindowsCompilers>`_ Visual C++ and Cython "
+"versions in the Windows operating system, you can also increase the speed"
+" of the process by using Tunnel."
 
 #: ../../source/installation-ext.rst:23
 msgid "接着就可以安装PyODPS："
+msgstr "Install PyODPS by using the following code:"
+
+#: ../../source/installation-ext.rst:25
+msgid "pip install pyodps"
 msgstr ""
 
 #: ../../source/installation-ext.rst:30
 msgid "检查安装完成："
+msgstr "Check whether the installation has been completed:"
+
+#: ../../source/installation-ext.rst:32
+msgid "python -c \"from odps import ODPS\""
 msgstr ""
 
 #: ../../source/installation-ext.rst:37
 msgid "如果使用的python不是系统默认的python版本，安装完pip则可以："
 msgstr ""
+"If your version of Python is not the default version, run the following "
+"code after installing pip:"
+
+#: ../../source/installation-ext.rst:39
+msgid "/home/tops/bin/python2.7 -m pip install setuptools>=3.0"
+msgstr ""
 
 #: ../../source/installation-ext.rst:44
 msgid "其余类似。"
-msgstr ""
+msgstr "Repeat these steps to install your version of Python."
 

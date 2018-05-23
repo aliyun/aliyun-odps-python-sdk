@@ -303,6 +303,14 @@ def _contains(expr, pat, case=True, flags=0, regex=True):
     :return: sequence or scalar
     """
 
+    if regex and isinstance(pat, six.string_types):
+        import re
+        try:
+            re.compile(pat, flags=flags)
+        except:
+            raise ValueError('Failed to compile regular expression, '
+                             'please check re.compile("{0}")'.format(pat))
+
     return _string_op(expr, Contains, output_type=types.boolean,
                       _pat=pat, _case=case, _flags=flags, _regex=regex)
 

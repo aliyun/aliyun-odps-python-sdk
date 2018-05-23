@@ -259,13 +259,15 @@ class Table(LazyLoad):
     @staticmethod
     def gen_create_table_sql(table_name, table_schema, comment=None, if_not_exists=False,
                              lifecycle=None, shard_num=None, hub_lifecycle=None,
-                             with_column_comments=True, project=None):
+                             with_column_comments=True, project=None, **kw):
+        from ..utils import escape_odps_string
+
         buf = six.StringIO()
         table_name = utils.to_text(table_name)
         project = utils.to_text(project)
         comment = utils.to_text(comment)
 
-        buf.write(u'CREATE TABLE ')
+        buf.write(u'CREATE%s TABLE ' % (' EXTERNAL' if 'storage_handler' in kw else ''))
         if if_not_exists:
             buf.write(u'IF NOT EXISTS ')
         if project is not None:
@@ -276,19 +278,19 @@ class Table(LazyLoad):
         if isinstance(table_schema, six.string_types):
             buf.write(u'(\n')
             buf.write(table_schema)
-            buf.write(u'\n)')
+            buf.write(u'\n)\n')
             if comment is not None:
-                buf.write(u" COMMENT '%s'" % comment)
+                buf.write(u"COMMENT '%s'\n" % escape_odps_string(comment))
         elif isinstance(table_schema, tuple):
             buf.write(u'(\n')
             buf.write(table_schema[0])
-            buf.write(u'\n)')
+            buf.write(u'\n)\n')
             if comment is not None:
-                buf.write(u" COMMENT '%s'" % comment)
-            buf.write(u' PARTITIONED BY ')
+                buf.write(u"COMMENT '%s'\n" % escape_odps_string(comment))
+            buf.write(u'PARTITIONED BY ')
             buf.write(u'(\n')
             buf.write(table_schema[1])
-            buf.write(u'\n)')
+            buf.write(u'\n)\n')
         else:
             def write_columns(col_array):
                 size = len(col_array)
@@ -299,23 +301,42 @@ class Table(LazyLoad):
                         buf.write(u" COMMENT '%s'" % utils.to_text(column.comment))
                     if idx < size - 1:
                         buf.write(u',\n')
-                buf.write(u'\n)')
+                buf.write(u'\n)\n')
 
             write_columns(table_schema.simple_columns)
             if comment is not None:
-                buf.write(u" COMMENT '%s'" % comment)
+                buf.write(u"COMMENT '%s'\n" % comment)
             if table_schema.partitions:
-                buf.write(u' PARTITIONED BY ')
+                buf.write(u'PARTITIONED BY ')
                 write_columns(table_schema.partitions)
 
-        if lifecycle is not None:
-            buf.write(u' LIFECYCLE %s' % lifecycle)
-        if shard_num is not None:
-            buf.write(u' INTO %s SHARDS' % shard_num)
-            if hub_lifecycle is not None:
-                buf.write(u' HUBLIFECYCLE %s' % hub_lifecycle)
+        storage_handler = kw.get('storage_handler')
+        serde_properties = kw.get('serde_properties')
+        location = kw.get('location')
+        resources = kw.get('resources')
+        if storage_handler:
+            buf.write("STORED BY '%s'\n" % escape_odps_string(storage_handler))
+            if serde_properties:
+                buf.write('WITH SERDEPROPERTIES (\n')
+                for idx, k in enumerate(serde_properties):
+                    buf.write("  '%s' = '%s'" % (escape_odps_string(k), escape_odps_string(serde_properties[k])))
+                    if idx + 1 < len(serde_properties):
+                        buf.write(',')
+                    buf.write('\n')
+                buf.write(')\n')
+            if location:
+                buf.write("LOCATION '%s'\n" % location)
+            if resources:
+                buf.write("USING '%s'\n" % resources)
 
-        return buf.getvalue()
+        if lifecycle is not None and lifecycle > 0:
+            buf.write(u'LIFECYCLE %s\n' % lifecycle)
+        if shard_num is not None:
+            buf.write(u'INTO %s SHARDS' % shard_num)
+            if hub_lifecycle is not None:
+                buf.write(u' HUBLIFECYCLE %s\n' % hub_lifecycle)
+
+        return buf.getvalue().strip()
 
     def get_ddl(self, with_comments=True, if_not_exists=False):
         """
@@ -328,7 +349,9 @@ class Table(LazyLoad):
         return self.gen_create_table_sql(
             self.name, self.schema, self.comment if with_comments else None,
             if_not_exists=if_not_exists, with_column_comments=with_comments,
-            lifecycle=self.lifecycle, shard_num=shard_num, project=self.project.name
+            lifecycle=self.lifecycle, shard_num=shard_num, project=self.project.name,
+            storage_handler=self.storage_handler, serde_properties=self.serde_properties,
+            location=self.location, resources=self.resources,
         )
 
     def head(self, limit, partition=None, columns=None):

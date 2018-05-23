@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -355,6 +355,12 @@ class FuncFactory(object):
             raise TypeError('Function name should be provided, expect str, got %s' % type(item))
 
         def gen_func(*args, **kwargs):
+            func_name = item
+            project = kwargs.pop('project', None)
+            if project:
+                func_name = '%s:%s' % (project, item)
+
+            expr_name = kwargs.pop('name', None)
             rtype = kwargs.pop('rtype', types.string)
             rtype = types.validate_data_type(rtype)
             is_seq = kwargs.pop('seq', None)
@@ -362,7 +368,16 @@ class FuncFactory(object):
             args = tuple(arg if isinstance(arg, Expr) else Scalar(_value=arg) for arg in args)
             is_seq = is_seq if is_seq is not None else any(isinstance(arg, SequenceExpr) for arg in args)
             kw = {'_value_type': rtype} if not is_seq else {'_data_type': rtype}
-            return Func(_func_name=item, _inputs=args, **kw)
+
+            if expr_name is None:
+                exprs = tuple(arg for arg in args if isinstance(arg, SequenceExpr))
+                if len(exprs) == 1:
+                    expr_name = exprs[0].name
+
+            if expr_name:
+                return Func(_func_name=func_name, _inputs=args, **kw).rename(expr_name)
+            else:
+                return Func(_func_name=func_name, _inputs=args, **kw)
 
         return gen_func
 

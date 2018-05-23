@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,30 +17,79 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.5.3\n"
 
+#: ../../source/df-window.rst:6
+msgid "from odps.df import DataFrame"
+msgstr ""
+
+#: ../../source/df-window.rst:10
+msgid "iris = DataFrame(o.get_table('pyodps_iris'))"
+msgstr ""
+
 #: ../../source/df-window.rst:12 ../../source/df-window.rst:55
 msgid "窗口函数"
-msgstr ""
+msgstr "Window functions"
 
 #: ../../source/df-window.rst:14
 msgid "DataFrame API也支持使用窗口函数："
 msgstr ""
+"The DataFrame application program interface (API) supports window "
+"functions:"
+
+#: ../../source/df-window.rst:31
+msgid ""
+">>> grouped = iris.groupby('name')\n"
+">>> grouped.mutate(grouped.sepallength.cumsum(), "
+"grouped.sort('sepallength').row_number()).head(10)\n"
+"          name  sepallength_sum  row_number\n"
+"0  Iris-setosa            250.3           1\n"
+"1  Iris-setosa            250.3           2\n"
+"2  Iris-setosa            250.3           3\n"
+"3  Iris-setosa            250.3           4\n"
+"4  Iris-setosa            250.3           5\n"
+"5  Iris-setosa            250.3           6\n"
+"6  Iris-setosa            250.3           7\n"
+"7  Iris-setosa            250.3           8\n"
+"8  Iris-setosa            250.3           9\n"
+"9  Iris-setosa            250.3          10"
+msgstr ""
 
 #: ../../source/df-window.rst:32
 msgid "窗口函数可以使用在列选择中："
+msgstr "You can use Window functions to select columns:"
+
+#: ../../source/df-window.rst:43
+msgid ""
+">>> iris['name', 'sepallength', "
+"iris.groupby('name').sort('sepallength').sepallength.cumcount()].head(5)"
+"\n"
+"          name  sepallength  sepallength_count\n"
+"0  Iris-setosa          4.3                  1\n"
+"1  Iris-setosa          4.4                  2\n"
+"2  Iris-setosa          4.4                  3\n"
+"3  Iris-setosa          4.4                  4\n"
+"4  Iris-setosa          4.5                  5"
 msgstr ""
 
 #: ../../source/df-window.rst:44
 msgid "窗口函数按标量聚合时，和分组聚合的处理方式一致。"
 msgstr ""
+"To use window functions to aggregate by scalar, follow the processing "
+"method of grouping and aggregation."
+
+#: ../../source/df-window.rst:51
+msgid ""
+">>> from odps.df import Scalar\n"
+">>> iris.groupby(Scalar(1)).sort('sepallength').sepallength.cumcount()"
+msgstr ""
 
 #: ../../source/df-window.rst:52
 msgid "DataFrame API支持的窗口函数包括："
-msgstr ""
+msgstr "The DataFrame API supports the following window functions:"
 
 #: ../../source/df-window.rst:55 ../../source/df-window.rst:75
 #: ../../source/df-window.rst:84 ../../source/df-window.rst:93
 msgid "说明"
-msgstr ""
+msgstr "Description"
 
 #: ../../source/df-window.rst:57
 msgid "cumsum"
@@ -48,7 +97,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:57 ../../source/df-window.rst:63
 msgid "计算累积和"
-msgstr ""
+msgstr "Calculates the cumulative sum."
 
 #: ../../source/df-window.rst:58
 msgid "cummean"
@@ -56,7 +105,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:58
 msgid "计算累积均值"
-msgstr ""
+msgstr "Calculates the cumulative mean."
 
 #: ../../source/df-window.rst:59
 msgid "cummedian"
@@ -64,7 +113,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:59
 msgid "计算累积中位数"
-msgstr ""
+msgstr "Calculates the cumulative median."
 
 #: ../../source/df-window.rst:60
 msgid "cumstd"
@@ -72,7 +121,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:60
 msgid "计算累积标准差"
-msgstr ""
+msgstr "Calculates the cumulative standard deviation."
 
 #: ../../source/df-window.rst:61
 msgid "cummax"
@@ -80,7 +129,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:61
 msgid "计算累积最大值"
-msgstr ""
+msgstr "Calculates the cumulative maximum."
 
 #: ../../source/df-window.rst:62
 msgid "cummin"
@@ -88,7 +137,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:62
 msgid "计算累积最小值"
-msgstr ""
+msgstr "Calculates the cumulative minimum."
 
 #: ../../source/df-window.rst:63
 msgid "cumcount"
@@ -101,6 +150,9 @@ msgstr ""
 #: ../../source/df-window.rst:64
 msgid "按偏移量取当前行之前第几行的值，如当前行号为rn，则取行号为rn-offset的值"
 msgstr ""
+"Retrieves the value in the row with the offset before the current row. "
+"For example, you can retrieve the value in the row rn-offset when the "
+"current row is rn."
 
 #: ../../source/df-window.rst:65
 msgid "lead"
@@ -109,6 +161,9 @@ msgstr ""
 #: ../../source/df-window.rst:65
 msgid "按偏移量取当前行之后第几行的值，如当前行号为rn则取行号为rn+offset的值"
 msgstr ""
+"Retrieves the value in the row with the offset following the current row."
+" For example, you can retrieve the value in the row rn+offset when the "
+"current row is rn."
 
 #: ../../source/df-window.rst:66
 msgid "rank"
@@ -116,7 +171,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:66
 msgid "计算排名"
-msgstr ""
+msgstr "Calculates the rank."
 
 #: ../../source/df-window.rst:67
 msgid "dense_rank"
@@ -124,7 +179,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:67
 msgid "计算连续排名"
-msgstr ""
+msgstr "Calculates the dense rank."
 
 #: ../../source/df-window.rst:68
 msgid "percent_rank"
@@ -132,7 +187,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:68
 msgid "计算一组数据中某行的相对排名"
-msgstr ""
+msgstr "Calculates the relative rank."
 
 #: ../../source/df-window.rst:69
 msgid "row_number"
@@ -140,16 +195,18 @@ msgstr ""
 
 #: ../../source/df-window.rst:69
 msgid "计算行号，从1开始"
-msgstr ""
+msgstr "Calculates the row number, starting from 1."
 
 #: ../../source/df-window.rst:72
 msgid "其中，rank、dense_rank、percent_rank 和 row_number 支持下列参数："
 msgstr ""
+"In the preceding window functions, rank, dense_rank, percent_rank, and "
+"row_number support the following parameters:"
 
 #: ../../source/df-window.rst:75 ../../source/df-window.rst:84
 #: ../../source/df-window.rst:93
 msgid "参数名"
-msgstr ""
+msgstr "Parameter"
 
 #: ../../source/df-window.rst:77
 msgid "sort"
@@ -157,7 +214,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:77
 msgid "排序关键字，默认为空"
-msgstr ""
+msgstr "This is the sorting keyword, which is null by default."
 
 #: ../../source/df-window.rst:78
 msgid "ascending"
@@ -166,10 +223,14 @@ msgstr ""
 #: ../../source/df-window.rst:78
 msgid "排序时，是否依照升序排序，默认 True"
 msgstr ""
+"You can specify this parameter to enable or disable the ascending order "
+"in sorting. This parameter is set to True by default."
 
 #: ../../source/df-window.rst:81
 msgid "lag 和 lead 除 rank 的参数外，还支持下列参数："
 msgstr ""
+"In addition to the rank parameter, the lag and lead window functions "
+"support the following parameters:"
 
 #: ../../source/df-window.rst:86
 msgid "offset"
@@ -178,6 +239,8 @@ msgstr ""
 #: ../../source/df-window.rst:86
 msgid "取数据的行距离当前行的行数"
 msgstr ""
+"Indicates the number of rows that are between the current row and the row"
+" where you retrieve data."
 
 #: ../../source/df-window.rst:87
 msgid "default"
@@ -186,12 +249,17 @@ msgstr ""
 #: ../../source/df-window.rst:87
 msgid "当 offset 指定的行不存在时的返回值"
 msgstr ""
+"Returns this value when the row that has been specified in the offset "
+"does not exist."
 
 #: ../../source/df-window.rst:90
 msgid ""
 "而 cumsum、cummax、cummin、cummean、cummedian、cumcount 和 cumstd 除 rank "
 "的上述参数外，还支持下列参数："
 msgstr ""
+"In addition to the rank parameter, the cumsum, cummax, cummin, cummean, "
+"cummedian, cumcount, and cumstd window functions support the following "
+"parameters:"
 
 #: ../../source/df-window.rst:95
 msgid "unique"
@@ -200,6 +268,8 @@ msgstr ""
 #: ../../source/df-window.rst:95
 msgid "是否排除重复值，默认 False"
 msgstr ""
+"Enables or disables deduplication of data. This parameter is set to False"
+" by default."
 
 #: ../../source/df-window.rst:96
 msgid "preceding"
@@ -207,7 +277,7 @@ msgstr ""
 
 #: ../../source/df-window.rst:96
 msgid "窗口范围起点"
-msgstr ""
+msgstr "Specifies the start of windowing."
 
 #: ../../source/df-window.rst:97
 msgid "following"
@@ -215,5 +285,5 @@ msgstr ""
 
 #: ../../source/df-window.rst:97
 msgid "窗口范围终点"
-msgstr ""
+msgstr "Specifies the end of windowing."
 

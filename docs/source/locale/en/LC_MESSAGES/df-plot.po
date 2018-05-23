@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-17 10:30+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,19 +19,71 @@ msgstr ""
 
 #: ../../source/df-plot.rst:4
 msgid "绘图"
-msgstr ""
+msgstr "Plotting"
 
 #: ../../source/df-plot.rst:6
 msgid "PyODPS DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** 和 **matplotlib** 的安装。"
 msgstr ""
+"PyODPS DataFrame provides plotting. To enable plotting, install the "
+"**pandas** and **matplotlib** libraries."
 
 #: ../../source/df-plot.rst:9
 msgid "接下来的例子都是在jupyter中运行。"
+msgstr "The following examples run in Jupyter:"
+
+#: ../../source/df-plot.rst:18
+msgid ""
+">>> from odps.df import DataFrame\n"
+">>> iris = DataFrame(o.get_table('pyodps_iris'))\n"
+">>> %matplotlib inline\n"
+">>> iris.sepalwidth.plot()\n"
+"<matplotlib.axes._subplots.AxesSubplot at 0x10c2b3510>"
+msgstr ""
+
+#: ../../source/df-plot.rst:20
+msgid ".. image:: _static/df-plot-iris-sequence.png"
+msgstr ""
+
+#: ../../source/df-plot.rst:25
+msgid ""
+">>> iris.plot()\n"
+"<matplotlib.axes._subplots.AxesSubplot at 0x10db7e690>"
+msgstr ""
+
+#: ../../source/df-plot.rst:27
+msgid ".. image:: _static/df-plot-iris-collection.png"
+msgstr ""
+
+#: ../../source/df-plot.rst:32
+msgid ""
+">>> iris.groupby('name').sum().plot(kind='bar', x='name', stacked=True, "
+"rot=30)\n"
+"<matplotlib.axes._subplots.AxesSubplot at 0x10c5f2090>"
+msgstr ""
+
+#: ../../source/df-plot.rst:34
+msgid ".. image:: _static/df-plot-iris-sum.png"
+msgstr ""
+
+#: ../../source/df-plot.rst:42
+msgid ""
+">>> iris.hist(sharex=True)\n"
+"array([[<matplotlib.axes._subplots.AxesSubplot object at 0x10e013f90>,\n"
+"        <matplotlib.axes._subplots.AxesSubplot object at 0x10e2d1c10>],\n"
+"       [<matplotlib.axes._subplots.AxesSubplot object at 0x10e353f10>,\n"
+"        <matplotlib.axes._subplots.AxesSubplot object at 0x10e3c4410>]], "
+"dtype=object)"
+msgstr ""
+
+#: ../../source/df-plot.rst:44
+msgid ".. image:: _static/df-plot-iris-hist.png"
 msgstr ""
 
 #: ../../source/df-plot.rst:45
 msgid "参数\\ ``kind``\\ 表示了绘图的类型，支持的包括："
 msgstr ""
+"The \\ ``kind``\\ parameter specifies the plotting type, and supports the"
+" following types:"
 
 #: ../../source/df-plot.rst:48
 msgid "kind"
@@ -39,7 +91,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:48 ../../source/df-plot.rst:68
 msgid "说明"
-msgstr ""
+msgstr "Description"
 
 #: ../../source/df-plot.rst:50
 msgid "line"
@@ -47,7 +99,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:50
 msgid "线图"
-msgstr ""
+msgstr "Line chart"
 
 #: ../../source/df-plot.rst:51
 msgid "bar"
@@ -55,7 +107,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:51
 msgid "竖向柱状图"
-msgstr ""
+msgstr "Vertical bar chart"
 
 #: ../../source/df-plot.rst:52
 msgid "barh"
@@ -63,7 +115,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:52
 msgid "横向柱状图"
-msgstr ""
+msgstr "Horizontal bar chart"
 
 #: ../../source/df-plot.rst:53
 msgid "hist"
@@ -71,7 +123,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:53
 msgid "直方图"
-msgstr ""
+msgstr "Histogram"
 
 #: ../../source/df-plot.rst:54
 msgid "box"
@@ -79,7 +131,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:54
 msgid "boxplot"
-msgstr ""
+msgstr "Boxplot"
 
 #: ../../source/df-plot.rst:55
 msgid "kde"
@@ -87,7 +139,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:55
 msgid "核密度估计"
-msgstr ""
+msgstr "Kernel density estimation"
 
 #: ../../source/df-plot.rst:56
 msgid "density"
@@ -95,7 +147,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:56
 msgid "和kde相同"
-msgstr ""
+msgstr "Same as kernel density estimation"
 
 #: ../../source/df-plot.rst:57
 msgid "area"
@@ -107,7 +159,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:58
 msgid "饼图"
-msgstr ""
+msgstr "Pie chart"
 
 #: ../../source/df-plot.rst:59
 msgid "scatter"
@@ -115,7 +167,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:59
 msgid "散点图"
-msgstr ""
+msgstr "Scatter chart"
 
 #: ../../source/df-plot.rst:60
 msgid "hexbin"
@@ -126,14 +178,16 @@ msgid ""
 "详细参数可以参考Pandas文档：http://pandas.pydata.org/pandas-"
 "docs/stable/generated/pandas.DataFrame.plot.html"
 msgstr ""
+"For more information, see pandas.DataFrame.plot: http://pandas.pydata.org"
+"/pandas-docs/stable/generated/pandas.DataFrame.plot.html"
 
 #: ../../source/df-plot.rst:65
 msgid "除此之外，plot函数还增加了几个参数，方便进行绘图。"
-msgstr ""
+msgstr "The plot function also provides the following parameters for plotting:"
 
 #: ../../source/df-plot.rst:68
 msgid "参数"
-msgstr ""
+msgstr "Parameter"
 
 #: ../../source/df-plot.rst:70
 msgid "xlabel"
@@ -141,7 +195,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:70
 msgid "x轴名"
-msgstr ""
+msgstr "X axis name"
 
 #: ../../source/df-plot.rst:71
 msgid "ylabel"
@@ -149,7 +203,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:71
 msgid "y轴名"
-msgstr ""
+msgstr "Y axis name"
 
 #: ../../source/df-plot.rst:72
 msgid "xlabelsize"
@@ -157,7 +211,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:72
 msgid "x轴名大小"
-msgstr ""
+msgstr "Size of x axis name"
 
 #: ../../source/df-plot.rst:73
 msgid "ylabelsize"
@@ -165,7 +219,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:73
 msgid "y轴名大小"
-msgstr ""
+msgstr "Size of y axis name"
 
 #: ../../source/df-plot.rst:74
 msgid "labelsize"
@@ -173,7 +227,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:74
 msgid "轴名大小"
-msgstr ""
+msgstr "Axis name size"
 
 #: ../../source/df-plot.rst:75
 msgid "title"
@@ -181,7 +235,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:75
 msgid "标题"
-msgstr ""
+msgstr "Title"
 
 #: ../../source/df-plot.rst:76
 msgid "titlesize"
@@ -189,7 +243,7 @@ msgstr ""
 
 #: ../../source/df-plot.rst:76
 msgid "标题大小"
-msgstr ""
+msgstr "Title size"
 
 #: ../../source/df-plot.rst:77
 msgid "annotate"
@@ -197,5 +251,5 @@ msgstr ""
 
 #: ../../source/df-plot.rst:77
 msgid "是否标记值"
-msgstr ""
+msgstr "Annotation"
 

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -29,6 +29,12 @@ msgstr ""
 
 #: ../../source/base-projects.rst:9
 msgid "我们通过 ODPS 入口对象的 ``get_project`` 来取到某个项目空间。"
+msgstr ""
+
+#: ../../source/base-projects.rst:11
+msgid ""
+"project = o.get_project('my_project')  # 取到某个项目\n"
+"project = o.get_project()              # 取到默认项目"
 msgstr ""
 
 #: ../../source/base-projects.rst:16

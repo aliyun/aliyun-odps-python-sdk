@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-22 22:05+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,6 +19,16 @@ msgstr ""
 
 #: ../../source/df-element.rst:4
 msgid "列运算"
+msgstr ""
+
+#: ../../source/df-element.rst:9
+msgid "from odps.df import DataFrame"
+msgstr ""
+
+#: ../../source/df-element.rst:15
+msgid ""
+"iris = DataFrame(o.get_table('pyodps_iris'))\n"
+"lens = DataFrame(o.get_table('pyodps_ml_100k_lens'))"
 msgstr ""
 
 #: ../../source/df-element.rst:16
@@ -35,6 +45,17 @@ msgid ""
 "API提供了几个和NULL相关的内置函数，比如isnull来判断是否某字段是NULL，notnull则相反，fillna是将NULL填充为用户指定的值。"
 msgstr ""
 
+#: ../../source/df-element.rst:33
+msgid ""
+">>> iris.sepallength.isnull().head(5)\n"
+"   sepallength\n"
+"0        False\n"
+"1        False\n"
+"2        False\n"
+"3        False\n"
+"4        False"
+msgstr ""
+
 #: ../../source/df-element.rst:35
 msgid "逻辑判断（ifelse，switch）"
 msgstr ""
@@ -43,12 +64,61 @@ msgstr ""
 msgid "``ifelse``\\ 作用于boolean类型的字段，当条件成立时，返回第0个参数，否则返回第1个参数。"
 msgstr ""
 
+#: ../../source/df-element.rst:49
+msgid ""
+">>> (iris.sepallength > 5).ifelse('gt5', 'lte5').rename('cmp5').head(5)\n"
+"   cmp5\n"
+"0   gt5\n"
+"1  lte5\n"
+"2  lte5\n"
+"3  lte5\n"
+"4  lte5"
+msgstr ""
+
 #: ../../source/df-element.rst:50
 msgid "switch用于多条件判断的情况。"
 msgstr ""
 
+#: ../../source/df-element.rst:61
+msgid ""
+">>> iris.sepallength.switch(4.9, 'eq4.9', 5.0, 'eq5.0', "
+"default='noeq').rename('equalness').head(5)\n"
+"   equalness\n"
+"0       noeq\n"
+"1      eq4.9\n"
+"2       noeq\n"
+"3       noeq\n"
+"4      eq5.0"
+msgstr ""
+
+#: ../../source/df-element.rst:72
+msgid ""
+">>> from odps.df import switch\n"
+">>> switch(iris.sepallength == 4.9, 'eq4.9', iris.sepallength == 5.0, "
+"'eq5.0', default='noeq').rename('equalness').head(5)\n"
+"   equalness\n"
+"0       noeq\n"
+"1      eq4.9\n"
+"2       noeq\n"
+"3       noeq\n"
+"4      eq5.0"
+msgstr ""
+
 #: ../../source/df-element.rst:73
 msgid "PyODPS 0.7.8 以上版本支持根据条件修改数据集某一列的一部分值，写法为："
+msgstr ""
+
+#: ../../source/df-element.rst:86
+msgid ""
+">>> iris[iris.sepallength > 5, 'cmp5'] = 'gt5'\n"
+">>> iris[iris.sepallength <= 5, 'cmp5'] = 'lte5'\n"
+">>> iris.head(5)\n"
+"   cmp5\n"
+"0   gt5\n"
+"1  lte5\n"
+"2  lte5\n"
+"3  lte5\n"
+"4  lte5"
 msgstr ""
 
 #: ../../source/df-element.rst:88
@@ -57,6 +127,31 @@ msgstr ""
 
 #: ../../source/df-element.rst:90
 msgid "对于数字类型的字段，支持+，-，\\*，/等操作，也支持log、sin等数学计算。"
+msgstr ""
+
+#: ../../source/df-element.rst:101
+msgid ""
+">>> (iris.sepallength * 10).log().head(5)\n"
+"   sepallength\n"
+"0     3.931826\n"
+"1     3.891820\n"
+"2     3.850148\n"
+"3     3.828641\n"
+"4     3.912023"
+msgstr ""
+
+#: ../../source/df-element.rst:115
+msgid ""
+">>> fields = [iris.sepallength,\n"
+">>>           (iris.sepallength / 2).rename('sepallength除以2'),\n"
+">>>           (iris.sepallength ** 2).rename('sepallength的平方')]\n"
+">>> iris[fields].head(5)\n"
+"   sepallength  sepallength除以2  sepallength的平方\n"
+"0          5.1              2.55             26.01\n"
+"1          4.9              2.45             24.01\n"
+"2          4.7              2.35             22.09\n"
+"3          4.6              2.30             21.16\n"
+"4          5.0              2.50             25.00"
 msgstr ""
 
 #: ../../source/df-element.rst:116
@@ -221,14 +316,47 @@ msgstr ""
 msgid "对于sequence，也支持其于其他sequence或者scalar的比较。"
 msgstr ""
 
+#: ../../source/df-element.rst:159
+msgid ""
+">>> (iris.sepallength < 5).head(5)\n"
+"   sepallength\n"
+"0        False\n"
+"1         True\n"
+"2         True\n"
+"3         True\n"
+"4        False"
+msgstr ""
+
 #: ../../source/df-element.rst:160
 msgid ""
 "值得主意的是，DataFrame API不支持连续操作，比如\\ ``3 <= iris.sepallength <= 5``\\ "
 "，但是提供了between这个函数来进行是否在某个区间的判断。"
 msgstr ""
 
+#: ../../source/df-element.rst:172
+msgid ""
+">>> (iris.sepallength.between(3, 5)).head(5)\n"
+"   sepallength\n"
+"0        False\n"
+"1         True\n"
+"2         True\n"
+"3         True\n"
+"4         True"
+msgstr ""
+
 #: ../../source/df-element.rst:173
 msgid "默认情况下，between包含两边的区间，如果计算开区间，则需要设inclusive=False。"
+msgstr ""
+
+#: ../../source/df-element.rst:184
+msgid ""
+">>> (iris.sepallength.between(3, 5, inclusive=False)).head(5)\n"
+"   sepallength\n"
+"0        False\n"
+"1         True\n"
+"2         True\n"
+"3         True\n"
+"4        False"
 msgstr ""
 
 #: ../../source/df-element.rst:186
@@ -237,6 +365,21 @@ msgstr ""
 
 #: ../../source/df-element.rst:188
 msgid "DataFrame API提供了一系列针对string类型的Sequence或者Scalar的操作。"
+msgstr ""
+
+#: ../../source/df-element.rst:203
+msgid ""
+">>> fields = [\n"
+">>>     iris.name.upper().rename('upper_name'),\n"
+">>>     iris.name.extract('Iris(.*)', group=1)\n"
+">>> ]\n"
+">>> iris[fields].head(5)\n"
+"    upper_name     name\n"
+"0  IRIS-SETOSA  -setosa\n"
+"1  IRIS-SETOSA  -setosa\n"
+"2  IRIS-SETOSA  -setosa\n"
+"3  IRIS-SETOSA  -setosa\n"
+"4  IRIS-SETOSA  -setosa"
 msgstr ""
 
 #: ../../source/df-element.rst:204
@@ -544,6 +687,22 @@ msgstr ""
 msgid "对于datetime类型Sequence或者Scalar，可以调用时间相关的内置函数。"
 msgstr ""
 
+#: ../../source/df-element.rst:266
+msgid ""
+">>> df = lens[[lens.unix_timestamp.astype('datetime').rename('dt')]]\n"
+">>> df[df.dt,\n"
+">>>    df.dt.year.rename('year'),\n"
+">>>    df.dt.month.rename('month'),\n"
+">>>    df.dt.day.rename('day'),\n"
+">>>    df.dt.hour.rename('hour')].head(5)\n"
+"                    dt  year  month  day  hour\n"
+"0  1998-04-08 11:02:00  1998      4    8    11\n"
+"1  1998-04-08 10:57:55  1998      4    8    10\n"
+"2  1998-04-08 10:45:26  1998      4    8    10\n"
+"3  1998-04-08 10:25:52  1998      4    8    10\n"
+"4  1998-04-08 10:44:19  1998      4    8    10"
+msgstr ""
+
 #: ../../source/df-element.rst:267
 msgid "与时间相关的属性包括："
 msgstr ""
@@ -615,6 +774,28 @@ msgstr ""
 msgid "PyODPS 也支持时间的加减操作，比如可以通过以下方法得到前3天的日期。两个日期列相减得到相差的毫秒数。"
 msgstr ""
 
+#: ../../source/df-element.rst:308
+msgid ""
+">>> df\n"
+"                           a                          b\n"
+"0 2016-12-06 16:43:12.460001 2016-12-06 17:43:12.460018\n"
+"1 2016-12-06 16:43:12.460012 2016-12-06 17:43:12.460021\n"
+"2 2016-12-06 16:43:12.460015 2016-12-06 17:43:12.460022\n"
+">>> from odps.df import day\n"
+">>> df.a - day(3)\n"
+"                           a\n"
+"0 2016-12-03 16:43:12.460001\n"
+"1 2016-12-03 16:43:12.460012\n"
+"2 2016-12-03 16:43:12.460015\n"
+">>> (df.b - df.a).dtype\n"
+"int64\n"
+">>> (df.b - df.a).rename('a')\n"
+"         a\n"
+"0  3600000\n"
+"1  3600000\n"
+"2  3600000"
+msgstr ""
+
 #: ../../source/df-element.rst:309
 msgid "支持的时间类型包括："
 msgstr ""
@@ -632,22 +813,88 @@ msgid "集合类型相关操作"
 msgstr ""
 
 #: ../../source/df-element.rst:327
-msgid "PyODPS 支持的集合类型有 List 和 Map。这两个类型都可以使用下标获取集合中的某个项目，另有 len 方法，可获得集合的大小。"
+msgid "PyODPS 支持的集合类型有 List 和 Dict。这两个类型都可以使用下标获取集合中的某个项目，另有 len 方法，可获得集合的大小。"
 msgstr ""
 
 #: ../../source/df-element.rst:329
 msgid ""
 "同时，两种集合均有 explode 方法，用于展开集合中的内容。对于 List，explode 默认返回一列，当传入参数 pos 时， "
-"将返回两列，其中一列为值在数组中的编号（类似 Python 的 enumerate 函数）。对于 Map，explode 会返回两列， 分别表示 "
-"keys 及 values。explode 中也可以传入列名，作为最后生成的列。"
+"将返回两列，其中一列为值在数组中的编号（类似 Python 的 enumerate 函数）。对于 Dict，explode 会返回两列， 分别表示"
+" keys 及 values。explode 中也可以传入列名，作为最后生成的列。"
 msgstr ""
 
 #: ../../source/df-element.rst:333
 msgid "示例如下："
 msgstr ""
 
+#: ../../source/df-element.rst:380
+msgid ""
+">>> df\n"
+"   id         a                            b\n"
+"0   1  [a1, b1]  {'a2': 0, 'b2': 1, 'c2': 2}\n"
+"1   2      [c1]           {'d2': 3, 'e2': 4}\n"
+">>> df[df.id, df.a[0], df.b['b2']]\n"
+"   id   a    b\n"
+"0   1  a1    1\n"
+"1   2  c1  NaN\n"
+">>> df[df.id, df.a.len(), df.b.len()]\n"
+"   id  a  b\n"
+"0   1  2  3\n"
+"1   2  1  2\n"
+">>> df.a.explode()\n"
+"    a\n"
+"0  a1\n"
+"1  b1\n"
+"2  c1\n"
+">>> df.a.explode(pos=True)\n"
+"   a_pos   a\n"
+"0      0  a1\n"
+"1      1  b1\n"
+"2      0  c1\n"
+">>> # 指定列名\n"
+">>> df.a.explode(['pos', 'value'], pos=True)\n"
+"   pos value\n"
+"0    0    a1\n"
+"1    1    b1\n"
+"2    0    c1\n"
+">>> df.b.explode()\n"
+"  b_key  b_value\n"
+"0    a2        0\n"
+"1    b2        1\n"
+"2    c2        2\n"
+"3    d2        3\n"
+"4    e2        4\n"
+">>> # 指定列名\n"
+">>> df.b.explode(['key', 'value'])\n"
+"  key  value\n"
+"0  a2      0\n"
+"1  b2      1\n"
+"2  c2      2\n"
+"3  d2      3\n"
+"4  e2      4"
+msgstr ""
+
 #: ../../source/df-element.rst:381
 msgid "explode 也可以和 :ref:`dflateralview` 结合，以将原有列和 explode 的结果相结合，例子如下："
+msgstr ""
+
+#: ../../source/df-element.rst:401
+msgid ""
+">>> df[df.id, df.a.explode()]\n"
+"   id   a\n"
+"0   1  a1\n"
+"1   1  b1\n"
+"2   2  c1\n"
+">>> df[df.id, df.a.explode(), df.b.explode()]\n"
+"   id   a b_key  b_value\n"
+"0   1  a1    a2        0\n"
+"1   1  a1    b2        1\n"
+"2   1  a1    c2        2\n"
+"3   1  b1    a2        0\n"
+"4   1  b1    b2        1\n"
+"5   1  b1    c2        2\n"
+"6   2  c1    d2        3\n"
+"7   2  c1    e2        4"
 msgstr ""
 
 #: ../../source/df-element.rst:402
@@ -706,12 +953,48 @@ msgstr ""
 msgid "``isin``\\ 给出Sequence里的元素是否在某个集合元素里。\\ ``notin``\\ 是相反动作。"
 msgstr ""
 
+#: ../../source/df-element.rst:436
+msgid ""
+">>> iris.sepallength.isin([4.9, 5.1]).rename('sepallength').head(5)\n"
+"   sepallength\n"
+"0         True\n"
+"1         True\n"
+"2        False\n"
+"3        False\n"
+"4        False"
+msgstr ""
+
 #: ../../source/df-element.rst:437
 msgid "cut提供离散化的操作，可以将Sequence的数据拆成几个区段。"
 msgstr ""
 
+#: ../../source/df-element.rst:448
+msgid ""
+">>> iris.sepallength.cut(range(6), labels=['0-1', '1-2', '2-3', '3-4', "
+"'4-5']).rename('sepallength_cut').head(5)\n"
+"   sepallength_cut\n"
+"0             None\n"
+"1              4-5\n"
+"2              4-5\n"
+"3              4-5\n"
+"4              4-5"
+msgstr ""
+
 #: ../../source/df-element.rst:449
 msgid "``include_under``\\ 和\\ ``include_over``\\ 可以分别包括向下和向上的区间。"
+msgstr ""
+
+#: ../../source/df-element.rst:461
+msgid ""
+">>> labels = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-']\n"
+">>> iris.sepallength.cut(range(6), labels=labels, "
+"include_over=True).rename('sepallength_cut').head(5)\n"
+"   sepallength_cut\n"
+"0               5-\n"
+"1              4-5\n"
+"2              4-5\n"
+"3              4-5\n"
+"4              4-5"
 msgstr ""
 
 #: ../../source/df-element.rst:465
@@ -722,6 +1005,17 @@ msgstr ""
 msgid "DataFrame函数支持对Sequence使用map，它会对它的每个元素调用自定义函数。比如："
 msgstr ""
 
+#: ../../source/df-element.rst:478
+msgid ""
+">>> iris.sepallength.map(lambda x: x + 1).head(5)\n"
+"   sepallength\n"
+"0          6.1\n"
+"1          5.9\n"
+"2          5.7\n"
+"3          5.6\n"
+"4          6.0"
+msgstr ""
+
 #: ../../source/df-element.rst:480
 msgid "目前，受限于 Python UDF，自定义函数无法支持将 list / dict 类型作为输入或输出。"
 msgstr ""
@@ -730,8 +1024,26 @@ msgstr ""
 msgid "如果map前后，Sequence的类型发生了变化，则需要显式指定map后的类型。"
 msgstr ""
 
+#: ../../source/df-element.rst:493
+msgid ""
+">>> iris.sepallength.map(lambda x: 't'+str(x), 'string').head(5)\n"
+"   sepallength\n"
+"0         t5.1\n"
+"1         t4.9\n"
+"2         t4.7\n"
+"3         t4.6\n"
+"4         t5.0"
+msgstr ""
+
 #: ../../source/df-element.rst:494
 msgid "如果在函数中包含闭包，需要注意的是，函数外闭包变量值的变化会引起函数内该变量值的变化。例如，"
+msgstr ""
+
+#: ../../source/df-element.rst:501
+msgid ""
+">>> dfs = []\n"
+">>> for i in range(10):\n"
+">>>     dfs.append(df.sepal_length.map(lambda x: x + i))"
 msgstr ""
 
 #: ../../source/df-element.rst:502
@@ -740,8 +1052,26 @@ msgid ""
 "9``。为解决此问题，可以将函数作为另一函数的返回值，或者使用 partial，如"
 msgstr ""
 
+#: ../../source/df-element.rst:512
+msgid ""
+">>> dfs = []\n"
+">>> def get_mapper(i):\n"
+">>>     return lambda x: x + i\n"
+">>> for i in range(10):\n"
+">>>     dfs.append(df.sepal_length.map(get_mapper(i)))"
+msgstr ""
+
 #: ../../source/df-element.rst:513
 msgid "或"
+msgstr ""
+
+#: ../../source/df-element.rst:521
+msgid ""
+">>> import functools\n"
+">>> dfs = []\n"
+">>> for i in range(10):\n"
+">>>     dfs.append(df.sepal_length.map(functools.partial(lambda v, x: x +"
+" v, i)))"
 msgstr ""
 
 #: ../../source/df-element.rst:522
@@ -783,6 +1113,47 @@ msgid ""
 "此时，自定义函数需要写成函数闭包或callable的类。"
 msgstr ""
 
+#: ../../source/df-element.rst:555
+msgid ""
+">>> file_resource = o.create_resource('pyodps_iris_file', 'file', "
+"file_obj='Iris-setosa')\n"
+">>>\n"
+">>> iris_names_collection = iris.distinct('name')[:2]\n"
+">>> iris_names_collection\n"
+"       sepallength\n"
+"0      Iris-setosa\n"
+"1  Iris-versicolor"
+msgstr ""
+
+#: ../../source/df-element.rst:582
+msgid ""
+">>> def myfunc(resources):  # resources按调用顺序传入\n"
+">>>     names = set()\n"
+">>>     fileobj = resources[0] # 文件资源是一个file-like的object\n"
+">>>     for l in fileobj:\n"
+">>>         names.add(l)\n"
+">>>     collection = resources[1]\n"
+">>>     for r in collection:\n"
+">>>         names.add(r.name)  # 这里可以通过字段名或者偏移来取\n"
+">>>     def h(x):\n"
+">>>         if x in names:\n"
+">>>             return True\n"
+">>>         else:\n"
+">>>             return False\n"
+">>>     return h\n"
+">>>\n"
+">>> df = iris.distinct('name')\n"
+">>> df = df[df.name,\n"
+">>>         df.name.map(myfunc, resources=[file_resource, "
+"iris_names_collection], rtype='boolean').rename('isin')]\n"
+">>>\n"
+">>> df\n"
+"              name   isin\n"
+"0      Iris-setosa   True\n"
+"1  Iris-versicolor   True\n"
+"2   Iris-virginica  False"
+msgstr ""
+
 #: ../../source/df-element.rst:583
 msgid "注：分区表资源在读取时不包含分区字段。"
 msgstr ""
@@ -812,20 +1183,69 @@ msgid ""
 "（这里注意需要下载支持linux环境的包）"
 msgstr ""
 
+#: ../../source/df-element.rst:601
+msgid "$ pip download python-dateutil -d /to/path/"
+msgstr ""
+
 #: ../../source/df-element.rst:605
 msgid "然后我们分别把两个文件上传到ODPS资源"
+msgstr ""
+
+#: ../../source/df-element.rst:612
+msgid ""
+">>> # 这里要确保资源名的后缀是正确的文件类型\n"
+">>> odps.create_resource('six.whl', 'file', "
+"file_obj=open('six-1.10.0-py2.py3-none-any.whl'))\n"
+">>> odps.create_resource('python_dateutil.whl', 'file', "
+"file_obj=open('python_dateutil-2.5.3-py2.py3-none-any.whl'))"
 msgstr ""
 
 #: ../../source/df-element.rst:613
 msgid "现在我们有个DataFrame，只有一个string类型字段。"
 msgstr ""
 
+#: ../../source/df-element.rst:621
+msgid ""
+">>> df\n"
+"               datestr\n"
+"0  2016-08-26 14:03:29\n"
+"1  2015-08-26 14:03:29"
+msgstr ""
+
 #: ../../source/df-element.rst:622
 msgid "全局配置使用到的三方库："
 msgstr ""
 
+#: ../../source/df-element.rst:637
+msgid ""
+">>> from odps import options\n"
+">>>\n"
+">>> def get_year(t):\n"
+">>>     from dateutil.parser import parse\n"
+">>>     return parse(t).strftime('%Y')\n"
+">>>\n"
+">>> options.df.libraries = ['six.whl', 'python_dateutil.whl']\n"
+">>> df.datestr.map(get_year)\n"
+"   datestr\n"
+"0     2016\n"
+"1     2015"
+msgstr ""
+
 #: ../../source/df-element.rst:638
 msgid "或者，通过立即运行方法的 ``libraries`` 参数指定："
+msgstr ""
+
+#: ../../source/df-element.rst:651
+msgid ""
+">>> def get_year(t):\n"
+">>>     from dateutil.parser import parse\n"
+">>>     return parse(t).strftime('%Y')\n"
+">>>\n"
+">>> df.datestr.map(get_year).execute(libraries=['six.whl', "
+"'python_dateutil.whl'])\n"
+"   datestr\n"
+"0     2016\n"
+"1     2015"
 msgstr ""
 
 #: ../../source/df-element.rst:652
@@ -837,14 +1257,48 @@ msgid ""
 "Isolation。下面的例子展示了如何上传并使用 scipy 中的特殊函数："
 msgstr ""
 
+#: ../../source/df-element.rst:672
+msgid ""
+">>> # 对于含有二进制代码的包，必须使用 Archive 方式上传资源，whl 后缀需要改为 zip\n"
+">>> odps.create_resource('scipy.zip', 'archive', "
+"file_obj=open('scipy-0.19.0-cp27-cp27m-manylinux1_x86_64.whl'))\n"
+">>>\n"
+">>> # 如果 Project 开启了 Isolation，下面的选项不是必需的\n"
+">>> options.sql.settings = { 'odps.isolation.session.enable': True }\n"
+">>>\n"
+">>> def psi(value):\n"
+">>>     # 建议在函数内部 import 第三方库，以防止不同操作系统下二进制包结构差异造成执行错误\n"
+">>>     from scipy.special import psi\n"
+">>>     return float(psi(value))\n"
+">>>\n"
+">>> df.float_col.map(psi).execute(libraries=['scipy.zip'])"
+msgstr ""
+
 #: ../../source/df-element.rst:673
 msgid ""
 "对于只提供源码的二进制包，可以在 Linux Shell 中打包成 Wheel 再上传，Mac 和 Windows 中生成的 Wheel 包无法在"
 " MaxCompute 中使用："
 msgstr ""
 
+#: ../../source/df-element.rst:676
+msgid "python setup.py bdist_wheel"
+msgstr ""
+
 #: ../../source/df-element.rst:682
 msgid "使用计数器"
+msgstr ""
+
+#: ../../source/df-element.rst:684
+msgid ""
+"from odps.udf import get_execution_context\n"
+"\n"
+"def h(x):\n"
+"    ctx = get_execution_context()\n"
+"    counters = ctx.get_counters()\n"
+"    counters.get_counter('df', 'add_one').increment(1)\n"
+"    return x + 1\n"
+"\n"
+"df.field.map(h)"
 msgstr ""
 
 #: ../../source/df-element.rst:696
@@ -857,7 +1311,22 @@ msgstr ""
 
 #: ../../source/df-element.rst:702
 msgid ""
-"要想调用ODPS上的内建或者已定义函数，来生成列，我们可以使用 ``func`` 接口，该接口默认函数返回值为 String， 可以用 rtype"
-" 参数指定返回值。"
+"要想调用 ODPS 上的内建或者已定义函数，来生成列，我们可以使用 ``func`` 接口，该接口默认函数返回值为 String， 可以用 "
+"rtype 参数指定返回值。"
+msgstr ""
+
+#: ../../source/df-element.rst:715
+msgid ""
+">>> from odps.df import func\n"
+">>>\n"
+">>> iris[iris.name, func.rand(rtype='float').rename('rand')][:4]\n"
+">>> iris[iris.name, func.rand(10, rtype='float').rename('rand')][:4]\n"
+">>> # 调用 ODPS 上定义的 UDF，列名无法确定时需要手动指定\n"
+">>> iris[iris.name, func.your_udf(iris.sepalwidth, iris.sepallength, "
+"rtype='float').rename('new_col')]\n"
+">>> # 从其他 Project 调用 UDF，也可通过 name 参数指定列名\n"
+">>> iris[iris.name, func.your_udf(iris.sepalwidth, iris.sepallength, "
+"rtype='float', project='udf_project',\n"
+">>>                               name='new_col')]"
 msgstr ""
 

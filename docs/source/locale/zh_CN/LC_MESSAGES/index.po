@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -35,6 +35,10 @@ msgstr ""
 msgid "PyODPS 支持Python 2.6 以上的 Python 版本，包括Python 3。系统安装了 pip 后，只需运行："
 msgstr ""
 
+#: ../../source/index.rst:21
+msgid "pip install pyodps"
+msgstr ""
+
 #: ../../source/index.rst:23
 msgid "PyODPS 的相关依赖会自动安装。"
 msgstr ""
@@ -55,6 +59,15 @@ msgstr ""
 
 #: ../../source/index.rst:32
 msgid "首先，我们需要阿里云帐号来初始化一个ODPS的入口："
+msgstr ""
+
+#: ../../source/index.rst:34
+msgid ""
+"from odps import ODPS\n"
+"\n"
+"o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-"
+"default-project**',\n"
+"            endpoint='**your-end-point**')"
 msgstr ""
 
 #: ../../source/index.rst:41

@@ -19,15 +19,15 @@ msgstr ""
 
 #: ../../source/faq-ext.rst:1
 msgid "**安装失败 / 出现问题**"
-msgstr ""
+msgstr "**Installation failure/error**"
 
 #: ../../source/faq-ext.rst:3
 msgid "请参考 `PyODPS 安装常见问题解决 <https://yq.aliyun.com/articles/277333>`_ 。"
-msgstr ""
+msgstr "For more information, see `PyODPS installation FAQ (Chinese version only) <https://yq.aliyun.com/articles/277333>`_ ."
 
 #: ../../source/faq-ext.rst:5
 msgid "**提示 Project not found**"
-msgstr ""
+msgstr "**Project not found error**"
 
 #: ../../source/faq-ext.rst:7
 msgid ""
@@ -35,10 +35,15 @@ msgid ""
 "<https://help.aliyun.com/document_detail/34951.html#h2-maxcompute-"
 "region-3>`_ 。 此外还需要注意 ODPS 入口对象参数位置是否填写正确。"
 msgstr ""
+"This error is caused by an error in the configuration of Endpoint. "
+"For more information, see `MaxCompute activation and service connections "
+"by region <https://www.alibabacloud.com/help/en/doc-detail/34951.htm#"
+"MaxCompute%20activation%20and%20service%20connections%20by%20region>`_ . "
+"Check to see if the ODPS object parameter position is correct."
 
 #: ../../source/faq-ext.rst:11
 msgid "**如何申请开通公共云 Python UDF**"
-msgstr ""
+msgstr "**How to request activation of Python UDFs in public cloud?**"
 
 #: ../../source/faq-ext.rst:13
 msgid ""
@@ -46,4 +51,6 @@ msgid ""
 "<https://page.aliyun.com/form/odps_py/pc/index.htm>`_ "
 "申请开通，审批进度等信息可通过工单咨询。"
 msgstr ""
-
+"MaxCompute currently provides open beta versions of Python user-defined functions (UDFs) in the public cloud. "
+"You can click `here <https://page.aliyun.com/form/odps_py/pc/index.htm>`_ to request for activation. "
+"For more information about the approval progress, submit a ticket."

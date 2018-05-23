@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -566,8 +566,8 @@ class ODPSSQLEngine(Engine):
         log('Sql compiled:')
         log(sql)
 
-        self._run(sql, ui, progress_proportion=progress_proportion,
-                  hints=hints, priority=priority, group=group, libraries=libraries)
+        instance = self._run(sql, ui, progress_proportion=progress_proportion,
+                             hints=hints, priority=priority, group=group, libraries=libraries)
         self._ctx.close()  # clear udfs and resources generated
         t = self._odps.get_table(name, project=project)
         if should_cache and not is_source_collection(src_expr):
@@ -578,5 +578,9 @@ class ODPSSQLEngine(Engine):
             df = DataFrame(t)
             for k in partition.keys:
                 filters.append(df[k] == partition[k])
-            return df.filter(*filters)
-        return DataFrame(t)
+            res = df.filter(*filters)
+        else:
+            res = DataFrame(t)
+        if kw.get('ret_instance', False) is True:
+            return instance, res
+        return res

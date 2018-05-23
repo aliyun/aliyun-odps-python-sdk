@@ -1,0 +1,17 @@
+.. _platform:
+
+***********************
+工具平台使用指南
+***********************
+
+PyODPS 可在 DataWorks 等数据开发平台中作为节点调用。这些平台提供了 PyODPS 运行环境，**不需要**
+手动创建 ODPS 入口对象，免除了手动配置的麻烦，而且还提供了调度执行的能力。对于想从平台迁移到自行部署 PyODPS
+环境的用户，下面也提供了迁移注意事项。
+
+.. toctree::
+   :maxdepth: 1
+
+   platform-d2
+   platform-pai-studio-int
+   platform-migrate-ext
+   platform-migrate-int

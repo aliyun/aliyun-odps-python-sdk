@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-17 10:30+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -27,6 +27,54 @@ msgstr ""
 
 #: ../../source/df-plot.rst:9
 msgid "接下来的例子都是在jupyter中运行。"
+msgstr ""
+
+#: ../../source/df-plot.rst:18
+msgid ""
+">>> from odps.df import DataFrame\n"
+">>> iris = DataFrame(o.get_table('pyodps_iris'))\n"
+">>> %matplotlib inline\n"
+">>> iris.sepalwidth.plot()\n"
+"<matplotlib.axes._subplots.AxesSubplot at 0x10c2b3510>"
+msgstr ""
+
+#: ../../source/df-plot.rst:20
+msgid ".. image:: _static/df-plot-iris-sequence.png"
+msgstr ""
+
+#: ../../source/df-plot.rst:25
+msgid ""
+">>> iris.plot()\n"
+"<matplotlib.axes._subplots.AxesSubplot at 0x10db7e690>"
+msgstr ""
+
+#: ../../source/df-plot.rst:27
+msgid ".. image:: _static/df-plot-iris-collection.png"
+msgstr ""
+
+#: ../../source/df-plot.rst:32
+msgid ""
+">>> iris.groupby('name').sum().plot(kind='bar', x='name', stacked=True, "
+"rot=30)\n"
+"<matplotlib.axes._subplots.AxesSubplot at 0x10c5f2090>"
+msgstr ""
+
+#: ../../source/df-plot.rst:34
+msgid ".. image:: _static/df-plot-iris-sum.png"
+msgstr ""
+
+#: ../../source/df-plot.rst:42
+msgid ""
+">>> iris.hist(sharex=True)\n"
+"array([[<matplotlib.axes._subplots.AxesSubplot object at 0x10e013f90>,\n"
+"        <matplotlib.axes._subplots.AxesSubplot object at 0x10e2d1c10>],\n"
+"       [<matplotlib.axes._subplots.AxesSubplot object at 0x10e353f10>,\n"
+"        <matplotlib.axes._subplots.AxesSubplot object at 0x10e3c4410>]], "
+"dtype=object)"
+msgstr ""
+
+#: ../../source/df-plot.rst:44
+msgid ".. image:: _static/df-plot-iris-hist.png"
 msgstr ""
 
 #: ../../source/df-plot.rst:45

@@ -49,7 +49,7 @@ PyODPS 的相关依赖会自动安装。
 
    installation-int
    installation-ext
-   platform-int
+   platform
    base
    df
    interactive

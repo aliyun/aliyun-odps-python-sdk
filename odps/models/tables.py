@@ -83,11 +83,11 @@ class Tables(Iterable):
 
     def create(self, table_name, table_schema, comment=None, if_not_exists=False,
                lifecycle=None, shard_num=None, hub_lifecycle=None, async_=False, **kw):
-        async_ = kw.get('async', async_)
+        async_ = kw.pop('async', async_)
         sql = Table.gen_create_table_sql(table_name, table_schema, comment=comment,
                                          if_not_exists=if_not_exists, lifecycle=lifecycle,
                                          shard_num=shard_num, hub_lifecycle=hub_lifecycle,
-                                         project=self._parent.name)
+                                         project=self._parent.name, **kw)
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLCreateTableTask', query=sql)

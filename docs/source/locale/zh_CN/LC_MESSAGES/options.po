@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,6 +23,18 @@ msgstr ""
 
 #: ../../source/options.rst:8
 msgid "PyODPS 提供了一系列的配置选项，可通过 ``odps.options`` 获得，如下面的例子："
+msgstr ""
+
+#: ../../source/options.rst:10
+msgid ""
+"from odps import options\n"
+"# 设置所有输出表的生命周期（lifecycle 选项）\n"
+"options.lifecycle = 30\n"
+"# 使用 Tunnel 下载 string 类型时使用 bytes（tunnel.string_as_binary 选项）\n"
+"options.tunnel.string_as_binary = True\n"
+"# PyODPS DataFrame 用 ODPS 执行时，参照下面 dataframe 相关配置，sort 时设置 limit 到一个比较大的值"
+"\n"
+"options.df.odps.sort.limit = 100000000"
 msgstr ""
 
 #: ../../source/options.rst:20

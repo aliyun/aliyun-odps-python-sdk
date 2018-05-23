@@ -518,7 +518,23 @@ class Test(TestBase):
         expr = expr.join(self.odps_df, on=['name'])
         tablename = tn('pyodps_test_append_id_persist')
         self.odps.delete_table(tablename, if_exists=True)
-        expr.persist(tablename, partitions=['name'])
+        expr.persist(tablename, partitions=['name'], lifecycle=1)
+
+    def testHorzConcat(self):
+        options.ml.dry_run = False
+        options.verbose = True
+
+        table_name = tn('test_horz_concat_table2_xxx_yyy')
+        self.odps.delete_table(table_name, if_exists=True)
+
+        result_table_name = tn('test_horz_concat_result')
+        self.odps.delete_table(result_table_name, if_exists=True)
+
+        self.odps_df[self.odps_df.name, (self.odps_df.id * 2).rename('ren_id')].persist(table_name)
+        df2 = self.odps.get_table(table_name).to_df()
+        df2 = df2[:3]
+        expr = self.odps_df.concat(df2.ren_id, axis=1)
+        expr.persist(result_table_name, lifecycle=1)
 
     def testAsTypeMapReduce(self):
         expr = self.odps_df[self.odps_df.exclude('id'), self.odps_df.id.astype('float')]

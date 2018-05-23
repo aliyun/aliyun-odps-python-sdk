@@ -1219,17 +1219,17 @@ class OdpsSQLCompiler(Backend):
 
         if isinstance(preceding, tuple):
             window_clause = 'ROWS BETWEEN {0} PRECEDING AND {1} PRECEDING' \
-                .format(*preceding)
+                .format(*[self._ctx.get_expr_compiled(p) for p in preceding])
         elif isinstance(following, tuple):
             window_clause = 'ROWS BETWEEN {0} FOLLOWING AND {1} FOLLOWING' \
-                .format(*following)
+                .format(*[self._ctx.get_expr_compiled(f) for f in following])
         elif preceding is not None and following is not None:
             window_clause = 'ROWS BETWEEN {0} PRECEDING AND {1} FOLLOWING' \
-                .format(preceding, following)
+                .format(self._ctx.get_expr_compiled(preceding), self._ctx.get_expr_compiled(following))
         elif preceding is not None:
-            window_clause = 'ROWS {0} PRECEDING'.format(preceding)
+            window_clause = 'ROWS {0} PRECEDING'.format(self._ctx.get_expr_compiled(preceding))
         elif following is not None:
-            window_clause = 'ROWS {0} FOLLOWING'.format(following)
+            window_clause = 'ROWS {0} FOLLOWING'.format(self._ctx.get_expr_compiled(following))
         else:
             window_clause = ''
 

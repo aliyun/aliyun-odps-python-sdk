@@ -272,6 +272,17 @@ class Test(TestBase):
                    "WHERE sample(5, 1, 'name', 'id')"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.select(func.sample(self.expr.id, 1, 'name', 'id', rtype='boolean', project='udf_proj'))
+        expected = "SELECT udf_proj:sample(t1.`id`, 1, 'name', 'id') AS `id` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.select(func.sample(self.expr.id, self.expr.fid, 'name', 'id', rtype='boolean',
+                                            name='renamed'))
+        expected = "SELECT sample(t1.`id`, t1.`fid`, 'name', 'id') AS `renamed` \n" \
+                   "FROM mocked_project.`pyodps_test_expr_table` t1"
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
         expr = self.expr.filter(self.expr.id < 10)[self.expr.name, self.expr.id]
         expected = "SELECT t1.`name`, t1.`id` \n" \
                    "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
@@ -318,6 +329,24 @@ class Test(TestBase):
         engine = ODPSEngine(self.odps)
 
         expected = "SELECT t2.`name`, {0}(t2.`name`) AS `name2` \n" \
+                   "FROM (\n" \
+                   "  SELECT DISTINCT t1.`name`, t1.`id` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   ") t2 \n" \
+                   "WHERE t2.`id` > 0"
+        res = engine.compile(expr, prettify=False)
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
+
+        expr = self.expr['name', 'id'].distinct()
+        expr = expr[expr.id > 0]
+        expr = expr[expr.exclude('id'), (expr.name + 'new').rename('name3')]
+        expr = expr[expr, expr.apply(lambda row: row[0], axis=1, reduce=True, types='string').rename('name2')]
+
+        engine = ODPSEngine(self.odps)
+
+        expected = "SELECT t2.`name`, CONCAT(t2.`name`, 'new') AS `name3`, " \
+                   "{0}(t2.`name`, CONCAT(t2.`name`, 'new')) AS `name2` \n" \
                    "FROM (\n" \
                    "  SELECT DISTINCT t1.`name`, t1.`id` \n" \
                    "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
@@ -1566,6 +1595,17 @@ class Test(TestBase):
 
         expr = self.expr.groupby('name').isMale.cumsum()
         expected = 'SELECT SUM(IF(t1.`isMale`, 1, 0)) OVER (PARTITION BY t1.`name`) AS `isMale_sum` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby('name').id.cummedian(preceding=2)
+        expected = 'SELECT MEDIAN(t1.`id`) OVER (PARTITION BY t1.`name` ROWS 2 PRECEDING) AS `id_median` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby('name').id.cummedian(preceding=2, following=3)
+        expected = 'SELECT MEDIAN(t1.`id`) OVER (PARTITION BY t1.`name` ' \
+                   'ROWS BETWEEN 2 PRECEDING AND 3 FOLLOWING) AS `id_median` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -187,14 +187,34 @@ msgstr ""
 msgid "PyODPS ML 中的算法有两种可能的调用方式。以大写字母开头的算法需要先利用算法参数创建算法对象，再调用该对象的方法，传入需要处理的 数据集，如"
 msgstr ""
 
+#: ../../source/ml-algo-ext.rst:55
+msgid ""
+"labeled = df.label_field('label')\n"
+"algo = LogisticRegression(epsilon=0.01)\n"
+"model = algo.train(labeled)"
+msgstr ""
+
 #: ../../source/ml-algo-ext.rst:61
 msgid "对于算法对象而言，除了在初始化时指定参数外，也可以通过 set 方法或属性值指定参数，如"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:63
+msgid ""
+"# 构造后调用 set 方法\n"
+"lr = LogisticRegression().set_epsilon(0.01).set_max_iter(1000)\n"
+"# 构造后为属性赋值\n"
+"lr = LogisticRegression()\n"
+"lr.epsilon, lr.max_iter = 0.01, 1000"
 msgstr ""
 
 #: ../../source/ml-algo-ext.rst:71
 msgid ""
 "全小写并使用下划线连接的算法名可以直接以函数的形式进行调用。调用时，将输入数据作为参数列表的开头，算法参数以关键字参数的形式 "
 "传入即可调用。例如下面的例子中，df 为输入数据集，interval_num 为算法参数。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:74
+msgid "hist, bins = histograms(df, interval_num=20)"
 msgstr ""
 
 #: ../../source/ml-algo-ext.rst:81
@@ -207,10 +227,28 @@ msgstr ""
 msgid "如果输出只有一个，则 transform 方法的输出即为 DataFrame，如下面的 KNN 例子所示："
 msgstr ""
 
+#: ../../source/ml-algo-ext.rst:86
+msgid ""
+"labeled = df.label_field('class')\n"
+"predicted = KNN(k=5).transform(labeled, to_be_predict)\n"
+"predicted.persist('predicted')"
+msgstr ""
+
 #: ../../source/ml-algo-ext.rst:92
 msgid ""
 "如果有多个输出，transform 方法会返回一个 ``namedtuple`` 对象，其中的元素为输出数据集，可直接赋值，也可以根据 API "
 "文档给出的 输出名称进行引用。如下面的例子："
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:95
+msgid ""
+"# TripleLDA 有6个输出，我们只取第一个\n"
+"topic_word, _, _, _, _, _ = "
+"TripleLDA(topic_num=10).transform(word_count_df)\n"
+"# K-Means 有两个输出，我们先取 namedtuple，再利用名称取出各个数据集\n"
+"out_tuple = KMeans(k=3).transform(df)\n"
+"idx_df = out_tuple.index # 样本归属\n"
+"centroid_df = out_tuple.centroid # 聚类中心点"
 msgstr ""
 
 #: ../../source/ml-algo-ext.rst:104
@@ -234,6 +272,14 @@ msgstr ""
 msgid "一个完整的使用训练算法的例子如下："
 msgstr ""
 
+#: ../../source/ml-algo-ext.rst:117
+msgid ""
+"# 使用训练集训练模型\n"
+"model = LogisticRegression(epsilon=0.01).train(train)\n"
+"# 对测试集进行预测\n"
+"predicted = model.predict(test)"
+msgstr ""
+
 #: ../../source/ml-algo-ext.rst:127
 msgid ""
 "度量算法大都使用函数进行包装，但输出为数值或多个对象组成的 tuple。用户可以根据这些返回值获取数据集的信息，例如准确率、AUC、 "
@@ -246,5 +292,16 @@ msgstr ""
 
 #: ../../source/ml-algo-ext.rst:132
 msgid "我们以计算并绘制直方图作为使用度量算法的例子："
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:134
+msgid ""
+"from odps.ml.statistics import *\n"
+"# 调用算法\n"
+"hists = histograms(ionosphere)\n"
+"# 获取一列的直方图数据\n"
+"hist, bins = hists['a04']\n"
+"# 绘图\n"
+"plt.bar(bins[:-1], hist, width=bins[1] - bins[0])"
 msgstr ""
 

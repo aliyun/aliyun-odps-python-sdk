@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,12 +16,12 @@
 
 from __future__ import print_function
 
-import inspect
 import re
 from collections import namedtuple
 
 from ..compat import six, getargspec
 from .. import ODPS, options, utils
+from ..inter import list_rooms
 
 PROJECT_REGEX = re.compile('.*project *= *(?P<project>[^\(\),]+)')
 NAME_REGEX = re.compile('.*name *= *(?P<name>[^\(\),]+)')
@@ -31,6 +31,22 @@ TEMP_TABLE_PREFIXES = [
     'pai_temp_',
     'temp_xlib_table_'
 ]
+
+
+class RoomCompleter(object):
+    def __init__(self, ipython=None):
+        self._ipython = ipython
+        self._regex_str = r'^%(enter|setup|teardown|stores) +'
+
+    def register(self):
+        self._ipython.set_hook('complete_command', self, re_key=self._regex_str)
+
+    def __call__(self, completer, event):
+        cursor_text = event.text_until_cursor
+        _, prefix = cursor_text.split(' ', 1)
+        prefix = prefix.strip()
+        rooms = [n for n in list_rooms() if n.startswith(prefix)]
+        return rooms[:options.completion_size]
 
 
 class BaseCompleter(object):
@@ -152,5 +168,5 @@ class ObjectCompleter(BaseCompleter):
 
 
 def load_ipython_extension(ipython):
-    completer = ObjectCompleter(ipython)
-    completer.register()
+    ObjectCompleter(ipython).register()
+    RoomCompleter(ipython).register()

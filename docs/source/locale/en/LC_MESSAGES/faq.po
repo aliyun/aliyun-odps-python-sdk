@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,87 +19,119 @@ msgstr ""
 
 #: ../../source/faq.rst:5
 msgid "常见问题"
-msgstr "Frequently Asked Questions"
+msgstr "Frequently asked questions"
 
 #: ../../source/faq.rst:10
 msgid "**读取数据时报\"project is protected\"**"
-msgstr "**Reporting \"project is protected\" when reading data**"
+msgstr ""
+"**An error occurred while reading data: \"project is protected\". How can"
+" I deal with this error?**"
 
 #: ../../source/faq.rst:12
 msgid "Project 上的安全策略禁止读取表中的数据，此时，如果想使用全部数据，有以下选项可用："
 msgstr ""
-"The security policy on your project prohibits reading data from tables. "
-"When you need to read all data from your tables, measures listed below "
-"can be used:"
+"The project security policy disables reading data from tables. To "
+"retrieve all the data, you can apply the following solutions:"
 
 #: ../../source/faq.rst:14
 msgid "联系 Project Owner 增加例外规则"
-msgstr "Ask your project owner to add exceptional rules for you"
+msgstr "Contact the Project Owner to add exceptions."
 
 #: ../../source/faq.rst:15
 msgid "使用 DataWorks 或其他脱敏工具先对数据进行脱敏，导出到非保护 Project，再进行读取"
 msgstr ""
+"Use DataWorks or other masking tool to mask the data and export the data "
+"as an unprotected project before reading."
 
 #: ../../source/faq.rst:17
 msgid "如果只想查看部分数据，有以下选项"
-msgstr ""
+msgstr "To retrieve part of the data, you can apply the following solutions:"
 
 #: ../../source/faq.rst:19
 msgid "改用 ``o.execute_sql('select * from <table_name>').open_reader()``"
-msgstr "Use ``o.execute_sql('select * from <table_name>').open_reader()`` instead"
+msgstr "Use ``o.execute_sql('select * from <table_name>').open_reader()``"
 
 #: ../../source/faq.rst:20
 msgid "改用 :ref:`DataFrame <df>`，``o.get_table('<table_name>').to_df()``"
-msgstr ""
+msgstr "Use :ref:`DataFrame <df>`, ``o.get_table('<table_name>').to_df()``"
 
 #: ../../source/faq.rst:22
 msgid "**出现 ImportError，并且在 ipython 或者 jupyter 下使用**"
 msgstr ""
+"**An error occurred while using IPython and Jupyter: ImportError. How can"
+" I deal with this error?**"
 
 #: ../../source/faq.rst:24
 msgid ""
 "如果 ``from odps import errors`` 也不行，则是缺少 ipython 组件，执行 ``pip install -U "
 "jupyter`` 解决。"
 msgstr ""
+"If running ``from odps import errors`` does not fix the error, you need "
+"to execute ``pip install -U jupyter`` to install the ipython component."
 
 #: ../../source/faq.rst:26
 msgid "**执行 SQL 通过 open_reader 只能取到最多1万条记录，如何取多余1万条？**"
 msgstr ""
+"**I can only retrieve a maximum of 10,000 items of data by executing SQL "
+"command open_reader. How can I retrieve more than 10,000 items of data?**"
 
 #: ../../source/faq.rst:28
 msgid ""
 "使用 ``create table as select ...`` 把SQL的结果保存成表，再使用 :ref:`table.open_reader"
 " <table_open_reader>` 来读取。"
 msgstr ""
+"Use ``create table as select ...`` to save the SQL execution result to a "
+"table, and use :ref:`table.open_reader <table_open_reader>` to read data."
 
 #: ../../source/faq.rst:30
 msgid ""
 "**上传 pandas DataFrame 到 ODPS 时报错：ODPSError: ODPS entrance should be "
 "provided**"
 msgstr ""
+"**An error occurred while uploading pandas DataFrame to MaxCompute ODPS: "
+"ODPSError: ODPS entrance should be provided. How can I deal with this "
+"error?**"
 
 #: ../../source/faq.rst:32
 msgid "原因是没有找到全局的ODPS入口，有三个方法："
 msgstr ""
+"You need to set the ODPS object to global in one of the three following "
+"ways:"
 
 #: ../../source/faq.rst:34
 #, python-format
 msgid "使用 :ref:`room 机制 <cl>` ，``%enter`` 的时候，会配置全局入口"
 msgstr ""
+"When using :ref:`room mechanism <cl>` , ``%enter`` , configure the global"
+" ODPS object."
 
 #: ../../source/faq.rst:35
 msgid "对odps入口调用 ``to_global`` 方法"
-msgstr ""
+msgstr "Call the ``to_global`` method when using the ODPS object."
 
 #: ../../source/faq.rst:36
 msgid "使用odps参数，``DataFrame(pd_df).persist('your_table', odps=odps)``"
 msgstr ""
+"Use the MaxCompute parameter ``DataFrame(pd_df).persist('your_table', "
+"odps=odps)``."
 
 #: ../../source/faq.rst:38
 msgid "**在 DataFrame 中如何使用 max_pt ？**"
-msgstr ""
+msgstr "**How can I use max_pt in DataFrame?**"
 
 #: ../../source/faq.rst:40
 msgid "使用 ``odps.df.func`` 模块来调用 ODPS 内建函数"
 msgstr ""
+"Use the ``odps.df.func`` module to call the built-in functions of "
+"MaxCompute."
+
+#: ../../source/faq.rst:42
+msgid ""
+"from odps.df import func\n"
+"df = o.get_table('your_table').to_df()\n"
+"df[df.ds == func.max_pt('your_project.your_table')]  # ds 是分区字段"
+msgstr ""
+"from odps.df import func\n"
+"df = o.get_table('your_table').to_df()\n"
+"df[df.ds == func.max_pt('your_project.your_table')]  # ds is a partition column"
 

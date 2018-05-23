@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-16 20:23+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -87,14 +87,62 @@ msgstr ""
 #: odps.df.SequenceExpr.setdiff odps.df.SequenceExpr.size
 #: odps.df.SequenceExpr.switch odps.df.SequenceExpr.tail
 #: odps.df.SequenceExpr.to_pandas odps.df.SequenceExpr.union
-#: odps.df.SequenceExpr.value_counts odps.df.expr.groupby.GroupBy.all
-#: odps.df.expr.groupby.GroupBy.any odps.df.expr.groupby.GroupBy.count
-#: odps.df.expr.groupby.GroupBy.dense_rank odps.df.expr.groupby.GroupBy.execute
-#: odps.df.expr.groupby.GroupBy.kurt odps.df.expr.groupby.GroupBy.kurtosis
-#: odps.df.expr.groupby.GroupBy.max odps.df.expr.groupby.GroupBy.mean
-#: odps.df.expr.groupby.GroupBy.median odps.df.expr.groupby.GroupBy.min
-#: odps.df.expr.groupby.GroupBy.min_rank odps.df.expr.groupby.GroupBy.moment
-#: odps.df.expr.groupby.GroupBy.nunique
+#: odps.df.SequenceExpr.value_counts
+#: odps.df.expr.expressions.Int64SequenceExpr.kurt
+#: odps.df.expr.expressions.Int64SequenceExpr.kurtosis
+#: odps.df.expr.expressions.Int64SequenceExpr.mean
+#: odps.df.expr.expressions.Int64SequenceExpr.median
+#: odps.df.expr.expressions.Int64SequenceExpr.moment
+#: odps.df.expr.expressions.Int64SequenceExpr.quantile
+#: odps.df.expr.expressions.Int64SequenceExpr.skew
+#: odps.df.expr.expressions.Int64SequenceExpr.std
+#: odps.df.expr.expressions.Int64SequenceExpr.sum
+#: odps.df.expr.expressions.Int64SequenceExpr.to_datetime
+#: odps.df.expr.expressions.Int64SequenceExpr.var
+#: odps.df.expr.expressions.StringSequenceExpr.capitalize
+#: odps.df.expr.expressions.StringSequenceExpr.cat
+#: odps.df.expr.expressions.StringSequenceExpr.contains
+#: odps.df.expr.expressions.StringSequenceExpr.endswith
+#: odps.df.expr.expressions.StringSequenceExpr.extract
+#: odps.df.expr.expressions.StringSequenceExpr.find
+#: odps.df.expr.expressions.StringSequenceExpr.get
+#: odps.df.expr.expressions.StringSequenceExpr.isalnum
+#: odps.df.expr.expressions.StringSequenceExpr.isalpha
+#: odps.df.expr.expressions.StringSequenceExpr.isdecimal
+#: odps.df.expr.expressions.StringSequenceExpr.isdigit
+#: odps.df.expr.expressions.StringSequenceExpr.islower
+#: odps.df.expr.expressions.StringSequenceExpr.isnumeric
+#: odps.df.expr.expressions.StringSequenceExpr.isspace
+#: odps.df.expr.expressions.StringSequenceExpr.istitle
+#: odps.df.expr.expressions.StringSequenceExpr.isupper
+#: odps.df.expr.expressions.StringSequenceExpr.len
+#: odps.df.expr.expressions.StringSequenceExpr.ljust
+#: odps.df.expr.expressions.StringSequenceExpr.lower
+#: odps.df.expr.expressions.StringSequenceExpr.lstrip
+#: odps.df.expr.expressions.StringSequenceExpr.pad
+#: odps.df.expr.expressions.StringSequenceExpr.repeat
+#: odps.df.expr.expressions.StringSequenceExpr.replace
+#: odps.df.expr.expressions.StringSequenceExpr.rfind
+#: odps.df.expr.expressions.StringSequenceExpr.rjust
+#: odps.df.expr.expressions.StringSequenceExpr.rstrip
+#: odps.df.expr.expressions.StringSequenceExpr.slice
+#: odps.df.expr.expressions.StringSequenceExpr.split
+#: odps.df.expr.expressions.StringSequenceExpr.startswith
+#: odps.df.expr.expressions.StringSequenceExpr.strip
+#: odps.df.expr.expressions.StringSequenceExpr.strptime
+#: odps.df.expr.expressions.StringSequenceExpr.sum
+#: odps.df.expr.expressions.StringSequenceExpr.swapcase
+#: odps.df.expr.expressions.StringSequenceExpr.title
+#: odps.df.expr.expressions.StringSequenceExpr.todict
+#: odps.df.expr.expressions.StringSequenceExpr.upper
+#: odps.df.expr.expressions.StringSequenceExpr.zfill
+#: odps.df.expr.groupby.GroupBy.all odps.df.expr.groupby.GroupBy.any
+#: odps.df.expr.groupby.GroupBy.count odps.df.expr.groupby.GroupBy.dense_rank
+#: odps.df.expr.groupby.GroupBy.execute odps.df.expr.groupby.GroupBy.kurt
+#: odps.df.expr.groupby.GroupBy.kurtosis odps.df.expr.groupby.GroupBy.max
+#: odps.df.expr.groupby.GroupBy.mean odps.df.expr.groupby.GroupBy.median
+#: odps.df.expr.groupby.GroupBy.min odps.df.expr.groupby.GroupBy.min_rank
+#: odps.df.expr.groupby.GroupBy.moment odps.df.expr.groupby.GroupBy.nunique
 #: odps.df.expr.groupby.GroupBy.percent_rank
 #: odps.df.expr.groupby.GroupBy.persist odps.df.expr.groupby.GroupBy.quantile
 #: odps.df.expr.groupby.GroupBy.rank odps.df.expr.groupby.GroupBy.row_number
@@ -284,6 +332,54 @@ msgstr ""
 #: odps.df.SequenceExpr.switch odps.df.SequenceExpr.tail
 #: odps.df.SequenceExpr.to_pandas odps.df.SequenceExpr.union
 #: odps.df.SequenceExpr.value_counts odps.df.SequenceExpr.verify
+#: odps.df.expr.expressions.Int64SequenceExpr.kurt
+#: odps.df.expr.expressions.Int64SequenceExpr.kurtosis
+#: odps.df.expr.expressions.Int64SequenceExpr.mean
+#: odps.df.expr.expressions.Int64SequenceExpr.median
+#: odps.df.expr.expressions.Int64SequenceExpr.moment
+#: odps.df.expr.expressions.Int64SequenceExpr.quantile
+#: odps.df.expr.expressions.Int64SequenceExpr.skew
+#: odps.df.expr.expressions.Int64SequenceExpr.std
+#: odps.df.expr.expressions.Int64SequenceExpr.sum
+#: odps.df.expr.expressions.Int64SequenceExpr.to_datetime
+#: odps.df.expr.expressions.Int64SequenceExpr.var
+#: odps.df.expr.expressions.StringSequenceExpr.capitalize
+#: odps.df.expr.expressions.StringSequenceExpr.cat
+#: odps.df.expr.expressions.StringSequenceExpr.contains
+#: odps.df.expr.expressions.StringSequenceExpr.endswith
+#: odps.df.expr.expressions.StringSequenceExpr.extract
+#: odps.df.expr.expressions.StringSequenceExpr.find
+#: odps.df.expr.expressions.StringSequenceExpr.get
+#: odps.df.expr.expressions.StringSequenceExpr.isalnum
+#: odps.df.expr.expressions.StringSequenceExpr.isalpha
+#: odps.df.expr.expressions.StringSequenceExpr.isdecimal
+#: odps.df.expr.expressions.StringSequenceExpr.isdigit
+#: odps.df.expr.expressions.StringSequenceExpr.islower
+#: odps.df.expr.expressions.StringSequenceExpr.isnumeric
+#: odps.df.expr.expressions.StringSequenceExpr.isspace
+#: odps.df.expr.expressions.StringSequenceExpr.istitle
+#: odps.df.expr.expressions.StringSequenceExpr.isupper
+#: odps.df.expr.expressions.StringSequenceExpr.len
+#: odps.df.expr.expressions.StringSequenceExpr.ljust
+#: odps.df.expr.expressions.StringSequenceExpr.lower
+#: odps.df.expr.expressions.StringSequenceExpr.lstrip
+#: odps.df.expr.expressions.StringSequenceExpr.pad
+#: odps.df.expr.expressions.StringSequenceExpr.repeat
+#: odps.df.expr.expressions.StringSequenceExpr.replace
+#: odps.df.expr.expressions.StringSequenceExpr.rfind
+#: odps.df.expr.expressions.StringSequenceExpr.rjust
+#: odps.df.expr.expressions.StringSequenceExpr.rstrip
+#: odps.df.expr.expressions.StringSequenceExpr.slice
+#: odps.df.expr.expressions.StringSequenceExpr.split
+#: odps.df.expr.expressions.StringSequenceExpr.startswith
+#: odps.df.expr.expressions.StringSequenceExpr.strip
+#: odps.df.expr.expressions.StringSequenceExpr.strptime
+#: odps.df.expr.expressions.StringSequenceExpr.sum
+#: odps.df.expr.expressions.StringSequenceExpr.swapcase
+#: odps.df.expr.expressions.StringSequenceExpr.title
+#: odps.df.expr.expressions.StringSequenceExpr.todict
+#: odps.df.expr.expressions.StringSequenceExpr.upper
+#: odps.df.expr.expressions.StringSequenceExpr.zfill
 #: odps.df.expr.groupby.GroupBy.all odps.df.expr.groupby.GroupBy.any
 #: odps.df.expr.groupby.GroupBy.ast odps.df.expr.groupby.GroupBy.compile
 #: odps.df.expr.groupby.GroupBy.count odps.df.expr.groupby.GroupBy.dense_rank
@@ -953,6 +1049,8 @@ msgid "Set fields to be key-value represented."
 msgstr ""
 
 #: odps.df.CollectionExpr.kurt:1 odps.df.CollectionExpr.kurtosis:1
+#: odps.df.expr.expressions.Int64SequenceExpr.kurt:1
+#: odps.df.expr.expressions.Int64SequenceExpr.kurtosis:1
 #: odps.df.expr.groupby.GroupBy.kurt:1 odps.df.expr.groupby.GroupBy.kurtosis:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.kurt:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.kurtosis:1 of
@@ -1058,12 +1156,16 @@ msgstr ""
 msgid "Max value"
 msgstr ""
 
-#: odps.df.CollectionExpr.mean:1 odps.df.expr.groupby.GroupBy.mean:1
+#: odps.df.CollectionExpr.mean:1
+#: odps.df.expr.expressions.Int64SequenceExpr.mean:1
+#: odps.df.expr.groupby.GroupBy.mean:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.mean:1 of
 msgid "Arithmetic mean."
 msgstr ""
 
-#: odps.df.CollectionExpr.median:1 odps.df.expr.groupby.GroupBy.median:1
+#: odps.df.CollectionExpr.median:1
+#: odps.df.expr.expressions.Int64SequenceExpr.median:1
+#: odps.df.expr.groupby.GroupBy.median:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.median:1 of
 msgid "Median value."
 msgstr ""
@@ -1149,17 +1251,23 @@ msgstr ""
 msgid "resized data frame"
 msgstr ""
 
-#: odps.df.CollectionExpr.moment:1 odps.df.expr.groupby.GroupBy.moment:1
+#: odps.df.CollectionExpr.moment:1
+#: odps.df.expr.expressions.Int64SequenceExpr.moment:1
+#: odps.df.expr.groupby.GroupBy.moment:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.moment:1 of
 msgid "Calculate the n-th order moment of the sequence"
 msgstr ""
 
-#: odps.df.CollectionExpr.moment:4 odps.df.expr.groupby.GroupBy.moment:4
+#: odps.df.CollectionExpr.moment:4
+#: odps.df.expr.expressions.Int64SequenceExpr.moment:4
+#: odps.df.expr.groupby.GroupBy.moment:4
 #: odps.df.expr.groupby.Int64SequenceGroupBy.moment:4 of
 msgid "moment order, must be an integer"
 msgstr ""
 
-#: odps.df.CollectionExpr.moment:5 odps.df.expr.groupby.GroupBy.moment:5
+#: odps.df.CollectionExpr.moment:5
+#: odps.df.expr.expressions.Int64SequenceExpr.moment:5
+#: odps.df.expr.groupby.GroupBy.moment:5
 #: odps.df.expr.groupby.Int64SequenceGroupBy.moment:5 of
 msgid "if central moments are to be computed."
 msgstr ""
@@ -1327,12 +1435,16 @@ msgstr ""
 msgid "value to replace missing value with, default None"
 msgstr ""
 
-#: odps.df.CollectionExpr.quantile:1 odps.df.expr.groupby.GroupBy.quantile:1
+#: odps.df.CollectionExpr.quantile:1
+#: odps.df.expr.expressions.Int64SequenceExpr.quantile:1
+#: odps.df.expr.groupby.GroupBy.quantile:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.quantile:1 of
 msgid "Percentile value."
 msgstr ""
 
-#: odps.df.CollectionExpr.quantile:4 odps.df.expr.groupby.GroupBy.quantile:4
+#: odps.df.CollectionExpr.quantile:4
+#: odps.df.expr.expressions.Int64SequenceExpr.quantile:4
+#: odps.df.expr.groupby.GroupBy.quantile:4
 #: odps.df.expr.groupby.Int64SequenceGroupBy.quantile:4 of
 msgid "probability or list of probabilities, in [0, 1]"
 msgstr ""
@@ -1457,7 +1569,9 @@ msgstr ""
 msgid "Select one or more fields as feature fields."
 msgstr ""
 
-#: odps.df.CollectionExpr.skew:1 odps.df.expr.groupby.GroupBy.skew:1
+#: odps.df.CollectionExpr.skew:1
+#: odps.df.expr.expressions.Int64SequenceExpr.skew:1
+#: odps.df.expr.groupby.GroupBy.skew:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.skew:1 of
 msgid "Calculate skewness of the sequence"
 msgstr ""
@@ -1492,7 +1606,9 @@ msgstr ""
 msgid "two split DataFrame objects"
 msgstr ""
 
-#: odps.df.CollectionExpr.std:1 odps.df.expr.groupby.GroupBy.std:1
+#: odps.df.CollectionExpr.std:1
+#: odps.df.expr.expressions.Int64SequenceExpr.std:1
+#: odps.df.expr.groupby.GroupBy.std:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.std:1 of
 msgid "Standard deviation."
 msgstr ""
@@ -1525,7 +1641,10 @@ msgid ""
 "be normalized if the column is not specified as a group column."
 msgstr ""
 
-#: odps.df.CollectionExpr.sum:1 odps.df.expr.groupby.GroupBy.sum:1
+#: odps.df.CollectionExpr.sum:1
+#: odps.df.expr.expressions.Int64SequenceExpr.sum:1
+#: odps.df.expr.expressions.StringSequenceExpr.sum:1
+#: odps.df.expr.groupby.GroupBy.sum:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.sum:1 of
 msgid "Sum value"
 msgstr ""
@@ -1552,6 +1671,26 @@ msgstr ""
 #: odps.df.SequenceExpr.isnull:3 odps.df.SequenceExpr.isnull:4
 #: odps.df.SequenceExpr.notin:4 odps.df.SequenceExpr.notnull:3
 #: odps.df.SequenceExpr.notnull:4 odps.df.SequenceExpr.switch:6
+#: odps.df.expr.expressions.Int64SequenceExpr.to_datetime:3
+#: odps.df.expr.expressions.Int64SequenceExpr.to_datetime:4
+#: odps.df.expr.expressions.StringSequenceExpr.capitalize:4
+#: odps.df.expr.expressions.StringSequenceExpr.contains:3
+#: odps.df.expr.expressions.StringSequenceExpr.contains:9
+#: odps.df.expr.expressions.StringSequenceExpr.endswith:6
+#: odps.df.expr.expressions.StringSequenceExpr.extract:7
+#: odps.df.expr.expressions.StringSequenceExpr.find:9
+#: odps.df.expr.expressions.StringSequenceExpr.get:5
+#: odps.df.expr.expressions.StringSequenceExpr.ljust:7
+#: odps.df.expr.expressions.StringSequenceExpr.lower:4
+#: odps.df.expr.expressions.StringSequenceExpr.pad:7
+#: odps.df.expr.expressions.StringSequenceExpr.repeat:5
+#: odps.df.expr.expressions.StringSequenceExpr.replace:10
+#: odps.df.expr.expressions.StringSequenceExpr.rfind:9
+#: odps.df.expr.expressions.StringSequenceExpr.rjust:7
+#: odps.df.expr.expressions.StringSequenceExpr.rstrip:6
+#: odps.df.expr.expressions.StringSequenceExpr.startswith:6
+#: odps.df.expr.expressions.StringSequenceExpr.strip:6
+#: odps.df.expr.expressions.StringSequenceExpr.upper:4
 #: odps.df.expr.groupby.Int64SequenceGroupBy.hll_count:7
 #: odps.df.expr.groupby.SequenceGroupBy.hll_count:7 of
 msgid "sequence or scalar"
@@ -1602,12 +1741,16 @@ msgstr ""
 msgid "Union two collections."
 msgstr ""
 
-#: odps.df.CollectionExpr.var:1 odps.df.expr.groupby.GroupBy.var:1
+#: odps.df.CollectionExpr.var:1
+#: odps.df.expr.expressions.Int64SequenceExpr.var:1
+#: odps.df.expr.groupby.GroupBy.var:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.var:1 of
 msgid "Variance"
 msgstr ""
 
-#: odps.df.CollectionExpr.var:4 odps.df.expr.groupby.GroupBy.var:4
+#: odps.df.CollectionExpr.var:4
+#: odps.df.expr.expressions.Int64SequenceExpr.var:4
+#: odps.df.expr.groupby.GroupBy.var:4
 #: odps.df.expr.groupby.Int64SequenceGroupBy.var:4 of
 msgid "degree of freedom"
 msgstr ""
@@ -1677,7 +1820,16 @@ msgstr ""
 #: odps.df.RandomScalar.between:8 odps.df.RandomScalar.isin:6
 #: odps.df.RandomScalar.notin:6 odps.df.Scalar.between:8 odps.df.Scalar.isin:6
 #: odps.df.Scalar.notin:6 odps.df.SequenceExpr.between:8
-#: odps.df.SequenceExpr.isin:6 odps.df.SequenceExpr.notin:6 of
+#: odps.df.SequenceExpr.isin:6 odps.df.SequenceExpr.notin:6
+#: odps.df.expr.expressions.StringSequenceExpr.isalnum:5
+#: odps.df.expr.expressions.StringSequenceExpr.isalpha:5
+#: odps.df.expr.expressions.StringSequenceExpr.isdecimal:5
+#: odps.df.expr.expressions.StringSequenceExpr.isdigit:5
+#: odps.df.expr.expressions.StringSequenceExpr.islower:5
+#: odps.df.expr.expressions.StringSequenceExpr.isnumeric:6
+#: odps.df.expr.expressions.StringSequenceExpr.isspace:5
+#: odps.df.expr.expressions.StringSequenceExpr.istitle:5
+#: odps.df.expr.expressions.StringSequenceExpr.isupper:5 of
 msgid "boolean sequence or scalar"
 msgstr ""
 
@@ -1855,6 +2007,395 @@ msgstr ""
 
 #: odps.df.SequenceExpr.value_counts:10 of
 msgid "collection with two columns"
+msgstr ""
+
+#: odps.df.expr.expressions.Int64SequenceExpr.to_datetime:1 of
+msgid ""
+"Return a sequence or scalar that is the datetime value of the current "
+"numeric sequence or scalar."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.capitalize:1 of
+msgid ""
+"Convert strings in the Sequence or string scalar to be capitalized. "
+"Equivalent to str.capitalize()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.cat:1 of
+msgid "Concatenate strings in sequence with given separator"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.cat:4 of
+msgid "other sequences"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.cat:5 of
+msgid "string or None, default None"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.cat:6 of
+msgid "string or None default None, if None, NA in the sequence are ignored"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.contains:1 of
+msgid ""
+"Return boolean sequence whether given pattern/regex is contained in each "
+"string in the sequence"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.contains:4
+#: odps.df.expr.expressions.StringSequenceExpr.replace:5 of
+msgid "Character sequence or regular expression"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.contains:5 of
+msgid "If True, case sensitive"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.contains:7 of
+msgid "re module flags, e.g. re.IGNORECASE"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.contains:8 of
+msgid "If True use regex, otherwise use string finder"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.endswith:1 of
+msgid ""
+"Return boolean sequence or scalar indicating whether each string in the "
+"sequence or scalar ends with passed pattern. Equivalent to "
+"str.endswith()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.endswith:5
+#: odps.df.expr.expressions.StringSequenceExpr.startswith:5 of
+msgid "Character sequence"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.extract:1 of
+msgid "Find group in each string in the Series using passed regular expression."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.extract:4 of
+msgid "Pattern or regular expression"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.extract:5 of
+msgid "re module, e.g. re.IGNORECASE"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.extract:6 of
+msgid "if None as group 0"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.find:1 of
+msgid ""
+"Return lowest indexes in each strings in the sequence or scalar where the"
+" substring is fully contained between [start:end]. Return -1 on failure. "
+"Equivalent to standard str.find()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.find:6 of
+msgid "substring being searched"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.find:7 of
+msgid "left edge index"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.find:8 of
+msgid "right edge index"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.get:1 of
+msgid ""
+"Extract element from lists, tuples, or strings in each element in the "
+"sequence or scalar"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.get:4 of
+msgid "Integer index(location)"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.isalnum:1 of
+msgid ""
+"Check whether all characters in each string in the sequence or scalar are"
+" alphanumeric. Equivalent to str.isalnum()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.isalpha:1 of
+msgid ""
+"Check whether all characters in each string in the sequence or scalar are"
+" alphabetic. Equivalent to str.isalpha()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.isdecimal:1 of
+msgid ""
+"Check whether all characters in each string in the sequence or scalar are"
+" decimal. Equivalent to str.isdecimal()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.isdigit:1 of
+msgid ""
+"Check whether all characters in each string in the sequence or scalar are"
+" digits. Equivalent to str.isdigit()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.islower:1 of
+msgid ""
+"Check whether all characters in each string in the sequence or scalar are"
+" lowercase. Equivalent to str.islower()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.isnumeric:1 of
+msgid ""
+"Check whether all characters in each string in the sequence or scalar are"
+" numeric. Equivalent to str.isnumeric()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.isspace:1 of
+msgid ""
+"Check whether all characters in each string in the sequence or scalar are"
+" whitespace. Equivalent to str.isspace()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.istitle:1 of
+msgid ""
+"Check whether all characters in each string in the sequence or scalar are"
+" titlecase. Equivalent to str.istitle()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.isupper:1 of
+msgid ""
+"Check whether all characters in each string in the sequence or scalar are"
+" uppercase. Equivalent to str.isupper()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.len:1 of
+msgid "Compute length of each string in the sequence or scalar"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.len:4 of
+msgid "lengths"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.ljust:1 of
+msgid ""
+"Filling right side of strings in the sequence or scalar with an "
+"additional character. Equivalent to str.ljust()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.ljust:5
+#: odps.df.expr.expressions.StringSequenceExpr.rjust:5 of
+msgid ""
+"Minimum width of resulting string; additional characters will be filled "
+"with `fillchar`"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.ljust:6
+#: odps.df.expr.expressions.StringSequenceExpr.rjust:6 of
+msgid "Additional character for filling, default is whitespace."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.lower:1 of
+msgid ""
+"Convert strings in the sequence or scalar lowercase. Equivalent to "
+"str.lower()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.lstrip:1 of
+msgid ""
+"Strip whitespace (including newlines) from each string in the sequence or"
+" scalar from left side. Equivalent to str.lstrip()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.lstrip:6 of
+msgid "sequence or sclaar"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.pad:1 of
+msgid ""
+"Pad strings in the sequence or scalar with an additional character to "
+"specified side."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.pad:4 of
+msgid ""
+"Minimum width of resulting string; additional characters will be filled "
+"with spaces"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.pad:5 of
+msgid "{‘left’, ‘right’, ‘both’}, default ‘left’"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.pad:6 of
+msgid "Additional character for filling, default is whitespace"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.repeat:1 of
+msgid ""
+"Duplicate each string in the sequence or scalar by indicated number of "
+"times."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.repeat:4 of
+msgid "times"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.replace:1 of
+msgid ""
+"Replace occurrence of pattern/regex in the sequence or scalar with some "
+"other string. Equivalent to str.replace()"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.replace:6 of
+msgid "Replacement"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.replace:7 of
+msgid "Number of replacements to make from start"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.replace:8 of
+msgid "if True, case sensitive"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.replace:9 of
+msgid "re module flag, e.g. re.IGNORECASE"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.rfind:1 of
+msgid ""
+"Return highest indexes in each strings in the sequence or scalar where "
+"the substring is fully contained between [start:end]. Return -1 on "
+"failure. Equivalent to standard str.rfind()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.rjust:1 of
+msgid ""
+"Filling left side of strings in the sequence or scalar with an additional"
+" character. Equivalent to str.rjust()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.rstrip:1 of
+msgid ""
+"Strip whitespace (including newlines) from each string in the sequence or"
+" scalar from right side. Equivalent to str.rstrip()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.slice:1 of
+msgid "Slice substrings from each element in the sequence or scalar"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.slice:4
+#: odps.df.expr.expressions.StringSequenceExpr.slice:5
+#: odps.df.expr.expressions.StringSequenceExpr.slice:6 of
+msgid "int or None"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.slice:7 of
+msgid "sliced"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.split:1 of
+msgid ""
+"Split each string (a la re.split) in the Series/Index by given pattern, "
+"propagating NA values. Equivalent to str.split()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.split:5 of
+msgid "Separator to split on. If None, splits on whitespace"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.split:6 of
+msgid "not supported right now"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.split:7 of
+msgid "list sequence or scalar"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.startswith:1 of
+msgid ""
+"Return boolean sequence or scalar indicating whether each string in the "
+"sequence or scalar starts with passed pattern. Equivalent to "
+"str.startswith()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.strip:1 of
+msgid ""
+"Strip whitespace (including newlines) from each string in the sequence or"
+" scalar from left and right sides. Equivalent to str.strip()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.strptime:1 of
+msgid ""
+"Return datetimes specified by date_format, which supports the same string"
+" format as the python standard library. Details of the string format can "
+"be found in python string format doc"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.strptime:6 of
+#, python-format
+msgid "date format string (e.g. “%Y-%m-%d”)"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.swapcase:1 of
+msgid ""
+"Convert strings in the sequence or scalar to be swapcased. Equivalent to "
+"str.swapcase()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.swapcase:4
+#: odps.df.expr.expressions.StringSequenceExpr.title:5 of
+msgid "converted"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.title:1 of
+msgid ""
+"Convert strings in the sequence or scalar to titlecase. Equivalent to "
+"str.title()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.todict:1 of
+msgid ""
+"Convert the string sequence / expr into a string dict given item and key-"
+"value delimiters."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.todict:4 of
+msgid "delimiter between data items"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.todict:5 of
+msgid "delimiter between keys and values"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.todict:6 of
+msgid "dict sequence or scalar"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.upper:1 of
+msgid ""
+"Convert strings in the sequence or scalar uppercase. Equivalent to "
+"str.upper()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.zfill:1 of
+msgid ""
+"Filling left side of strings in the sequence or scalar with 0. Equivalent"
+" to str.zfill()."
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.zfill:4 of
+msgid ""
+"Minimum width of resulting string; additional characters will be filled "
+"with 0"
+msgstr ""
+
+#: odps.df.expr.expressions.StringSequenceExpr.zfill:5 of
+msgid "filled"
 msgstr ""
 
 #: odps.df.Scalar:1 of

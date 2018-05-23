@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -59,6 +59,10 @@ msgid ""
 "predict 方法时都会被设置。 因而，在调用时，一般将算法名作为函数名，将带有原始标签和预测结果标签的数据集传入，即可获得评估结果，如下所示："
 msgstr ""
 
+#: ../../source/ml-assess.rst:25
+msgid "acc = accuracy_score(predicted)"
+msgstr ""
+
 #: ../../source/ml-assess.rst:29
 msgid ""
 "如果这些字段名不存在，也可以手动通过参数传递。需要注意的的是，一部分算法不提供 PREDICTED_SCORE，计算 AUC、ROC 等评价指标时"
@@ -75,5 +79,11 @@ msgstr ""
 
 #: ../../source/ml-assess.rst:36
 msgid "可以使用 matplotlib 等包绘制 PyODPS ML 评估算法返回的坐标数据，例如下面绘制 ROC 曲线的例子："
+msgstr ""
+
+#: ../../source/ml-assess.rst:38
+msgid ""
+"fpr, tpr, thresh = roc_curve(predicted)\n"
+"plt.plot(fpr, tpr)"
 msgstr ""
 

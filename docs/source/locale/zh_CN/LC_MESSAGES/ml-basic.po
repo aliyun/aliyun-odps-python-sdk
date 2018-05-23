@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,12 +96,26 @@ msgstr ""
 msgid "PyODPS ML 中获取 DataFrame 的方法与一般的 DataFrame 相同，即"
 msgstr ""
 
+#: ../../source/ml-basic.rst:37
+msgid "df = DataFrame(o.get_table('ionosphere'))"
+msgstr ""
+
 #: ../../source/ml-basic.rst:41
 msgid "如果表为分区表，可以使用 filter_parts 方法指定输入的分区名。该方法针对 XFlow 进行了优化。"
 msgstr ""
 
+#: ../../source/ml-basic.rst:43
+msgid ""
+"df = "
+"DataFrame(o.get_table('ionosphere_parted')).filter_parts('pt=20160101')"
+msgstr ""
+
 #: ../../source/ml-basic.rst:47
 msgid "也可以使用 roles 方法指定字段的用途，如"
+msgstr ""
+
+#: ../../source/ml-basic.rst:49
+msgid "df = DataFrame(o.get_table('iris')).roles(label='category')"
 msgstr ""
 
 #: ../../source/ml-basic.rst:53
@@ -167,12 +181,27 @@ msgstr ""
 msgid "字段列表可以通过 DataFrame 的 dtypes 属性获得，通过 Jupyter Notebook 可以直接看到字段作用："
 msgstr ""
 
+#: ../../source/ml-basic.rst:72
+msgid ""
+"odps.Schema {\n"
+"  sepal_length            float64        FEATURE\n"
+"  sepal_width             float64        FEATURE\n"
+"  petal_length            float64        FEATURE\n"
+"  petal_width             float64        FEATURE\n"
+"  category                string         LABEL\n"
+"}"
+msgstr ""
+
 #: ../../source/ml-basic.rst:81
 msgid "保存数据集"
 msgstr ""
 
 #: ../../source/ml-basic.rst:83
 msgid "使用 DataFrame 的相关方法可以将数据保存回 ODPS，如"
+msgstr ""
+
+#: ../../source/ml-basic.rst:85
+msgid "df.persist('result_table')"
 msgstr ""
 
 #: ../../source/ml-basic.rst:94
@@ -461,8 +490,18 @@ msgstr ""
 msgid "设置字段作用的例子如下："
 msgstr ""
 
+#: ../../source/ml-basic.rst:135
+msgid ""
+"df = DataFrame(o.get_table('iris'))\n"
+"labeled = dataset.label_field('category')"
+msgstr ""
+
 #: ../../source/ml-basic.rst:140
 msgid "此外，为了简便标签的设置，也可以使用 roles 方法进行设置，例子如下："
+msgstr ""
+
+#: ../../source/ml-basic.rst:142
+msgid "marked_df = df.roles(label='category')"
 msgstr ""
 
 #: ../../source/ml-basic.rst:147
@@ -474,6 +513,10 @@ msgid ""
 "部分算法支持使用 Key-Value 格式输入稀疏数据，这在高维情形下会非常有用。用户可以通过 `DataFrame.key_value` "
 "标注一个字符串 字段为稀疏字段，并指定其分隔符。设置方法为指定列名，同时指定分隔符。也可以使用 "
 "`DataFrame.erase_key_value` 清除字段上的 Key-Value 标注。"
+msgstr ""
+
+#: ../../source/ml-basic.rst:152
+msgid "kv_df = df.key_value('f1 f2', kv=':', item=',')"
 msgstr ""
 
 #: ../../source/ml-basic.rst:156
@@ -491,6 +534,12 @@ msgid ""
 "对于决策树等算法，字段连续性决定了该字段在算法中的处理方式。为了方便地处理连续性，PyODPS ML 规定，默认 double 和 bigint "
 "类型字段 为连续字段，其他字段为离散字段。如果需要手工设置字段连续性，可以使用 `DataFrame.continuous` 和 "
 "`DataFrame.discrete` 这两个方法。使用方式如下："
+msgstr ""
+
+#: ../../source/ml-basic.rst:165
+msgid ""
+"new_df = df.continuous('f1 f2')\n"
+"new_df2 = df.discrete('f1 f2')"
 msgstr ""
 
 #: ../../source/ml-basic.rst:175
@@ -516,14 +565,30 @@ msgstr ""
 msgid "PyODPS ML 中无法显示创建一个模型。模型需要通过算法生成，例如下面通过逻辑回归算法生成一个模型："
 msgstr ""
 
+#: ../../source/ml-basic.rst:186
+msgid "pmml_model = LogisticRegression().train(df)"
+msgstr ""
+
 #: ../../source/ml-basic.rst:190
 msgid "生成模型后，可将其存储为 ODPS 线下模型（OfflineModel），此后可使用 PmmlModel 的构造函数从 ODPS 中重新读取："
+msgstr ""
+
+#: ../../source/ml-basic.rst:192
+msgid ""
+"pmml_model.persist('model_name')\n"
+"reloaded_model = PmmlModel(o.get_offline_model('model_name'))"
 msgstr ""
 
 #: ../../source/ml-basic.rst:197
 msgid ""
 "使用 :func:`PmmlModel.execute` 方法可以获取模型的 Pmml，该方法返回一个 :class:`PmmlResult` "
 "对象，可获取其 pmml 属性："
+msgstr ""
+
+#: ../../source/ml-basic.rst:199
+msgid ""
+"result = pmml_model.execute()\n"
+"print(result.pmml)"
 msgstr ""
 
 #: ../../source/ml-basic.rst:204
@@ -535,6 +600,12 @@ msgid ""
 "对于随机森林模型，:class:`PmmlResult` 中可通过下标读取每一颗决策树。在决策树中，可以通过 root 属性获得根节点，并对 "
 "决策树进行遍历。在 Jupyter Notebook 中，也可以直接对节点进行可视化，如下面的代码，在模型中获取 ID 为 0 "
 "的决策树。如果安装有 GraphViz，那么将显示 SVG 格式的决策树，否则将显示文本格式的决策树："
+msgstr ""
+
+#: ../../source/ml-basic.rst:210
+msgid ""
+"result = model.execute()\n"
+"result[0]"
 msgstr ""
 
 #: ../../source/ml-basic.rst:215
@@ -595,6 +666,10 @@ msgstr ""
 msgid "预测时，只需要将需要预测的数据集作为参数并设置其特征即可，默认使用全部字段作为特征："
 msgstr ""
 
+#: ../../source/ml-basic.rst:230
+msgid "predicted = pmml_model.predict(input_df.exclude_fields('label'))"
+msgstr ""
+
 #: ../../source/ml-basic.rst:235
 msgid "表模型"
 msgstr ""
@@ -612,14 +687,28 @@ msgid ""
 "算法生成一个表模型："
 msgstr ""
 
+#: ../../source/ml-basic.rst:242
+msgid "tables_model = KernelSVM().train(input_df)"
+msgstr ""
+
 #: ../../source/ml-basic.rst:246
 msgid "生成模型后，可存储为 ODPS 表，调用方法为 :func:`TablesModel.persist` ："
+msgstr ""
+
+#: ../../source/ml-basic.rst:248
+msgid "tables_model.persist('model_name')"
 msgstr ""
 
 #: ../../source/ml-basic.rst:252
 msgid ""
 "可通过 list_tables_model 函数列出某个 Project 内的所有 TablesModel，也可以通过 TablesModel "
 "的构造函数进行 载入："
+msgstr ""
+
+#: ../../source/ml-basic.rst:255
+msgid ""
+"model = o.get_tables_model('model_prefix')\n"
+"tables_model = TablesModel(model)"
 msgstr ""
 
 #: ../../source/ml-basic.rst:260
@@ -657,6 +746,13 @@ msgid ""
 "操作被执行时，方才执行先前相关的操作。如下面的 代码段："
 msgstr ""
 
+#: ../../source/ml-basic.rst:283
+msgid ""
+"df1, df2 = DataFrame(o.get_table('iris')).split(0.5)\n"
+"df1.std_scale().persist('iris_part_std')\n"
+"df2.min_max_scale()"
+msgstr ""
+
 #: ../../source/ml-basic.rst:289
 msgid ""
 "代码中的标准化（std_scale）操作会被执行，因为 df1 这条链路上执行了 persist "
@@ -667,6 +763,10 @@ msgstr ""
 msgid ""
 "采用延迟执行的好处有三。首先，对于存在分支的流程，延迟执行能帮助 PyODPS ML 决定哪些步骤可以并行化，从而能够尽可能地利用计算资源。 "
 "其次，对于多个输出的情形，例如 TripleLDA，如果用户书写了下面的代码"
+msgstr ""
+
+#: ../../source/ml-basic.rst:295
+msgid "word_stats, _, _, _, _, _ = TripleLDA(topic_num=2).transform(freq)"
 msgstr ""
 
 #: ../../source/ml-basic.rst:299

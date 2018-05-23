@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -98,5 +98,12 @@ msgstr ""
 
 #: ../../source/faq.rst:40
 msgid "使用 ``odps.df.func`` 模块来调用 ODPS 内建函数"
+msgstr ""
+
+#: ../../source/faq.rst:42
+msgid ""
+"from odps.df import func\n"
+"df = o.get_table('your_table').to_df()\n"
+"df[df.ds == func.max_pt('your_project.your_table')]  # ds 是分区字段"
 msgstr ""
 

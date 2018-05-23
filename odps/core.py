@@ -239,9 +239,10 @@ class ODPS(object):
         if lifecycle is None and options.lifecycle is not None:
             lifecycle = options.lifecycle
         project = self.get_project(name=project)
+        async_ = kw.pop('async', async_)
         return project.tables.create(name, schema, comment=comment, if_not_exists=if_not_exists,
                                      lifecycle=lifecycle, shard_num=shard_num,
-                                     hub_lifecycle=hub_lifecycle, async_=kw.get('async', async_))
+                                     hub_lifecycle=hub_lifecycle, async_=async_, **kw)
 
     def delete_table(self, name, project=None, if_exists=False, async_=False, **kw):
         """

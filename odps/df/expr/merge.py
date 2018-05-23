@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -878,7 +878,11 @@ def union(left, right, distinct=False):
 
 
 def __horz_concat(left, rights):
+    from ..utils import to_collection
+
+    left = to_collection(left)
     for right in rights:
+        right = to_collection(right)
         left, right = _make_different_sources(left, right)
         left = ConcatCollectionExpr(_lhs=left, _rhs=right)
     return left
@@ -899,6 +903,8 @@ def concat(left, rights, distinct=False, axis=0):
     :Example:
     >>> df['name', 'id'].concat(df2['score'], axis=1)
     """
+    from ..utils import to_collection
+
     if isinstance(rights, Node):
         rights = [rights, ]
     if not rights:
@@ -908,6 +914,8 @@ def concat(left, rights, distinct=False, axis=0):
         for right in rights:
             left = union(left, right, distinct=distinct)
         return left
+    else:
+        rights = [to_collection(r) for r in rights]
 
     ConcatCollectionExpr.validate_input(left, *rights)
 
@@ -920,13 +928,13 @@ def concat(left, rights, distinct=False, axis=0):
 def _drop(expr, data, axis=0, columns=None):
     """
     Drop data from a DataFrame.
-    
+
     :param expr: collection to drop data from
     :param data: data to be removed
     :param axis: 0 for deleting rows, 1 for columns.
     :param columns: columns of data to select, only useful when axis == 0
     :return: collection
-    
+
     :Example:
     >>> import pandas as pd
     >>> df1 = DataFrame(pd.DataFrame({'a': [1, 2, 3], 'b': [4, 5, 6], 'c': [7, 8, 9]}))
@@ -977,12 +985,12 @@ def setdiff(left, *rights, **kwargs):
     """
     Exclude data from a collection, like `except` clause in SQL. All collections involved should
     have same schema.
-    
+
     :param left: collection to drop data from
     :param rights: collection or list of collections
     :param distinct: whether to preserve duplicate entries
     :return: collection
-    
+
     :Examples:
     >>> import pandas as pd
     >>> df1 = DataFrame(pd.DataFrame({'a': [1, 2, 3, 3, 3], 'b': [1, 2, 3, 3, 3]}))
@@ -1034,24 +1042,24 @@ def setdiff(left, *rights, **kwargs):
 def intersect(left, *rights, **kwargs):
     """
     Calc intersection among datasets,
-    
+
     :param left: collection
     :param rights: collection or list of collections
     :param distinct: whether to preserve duolicate entries
     :return: collection
-    
+
     :Examples:
     >>> import pandas as pd
     >>> df1 = DataFrame(pd.DataFrame({'a': [1, 2, 3, 3, 3], 'b': [1, 2, 3, 3, 3]}))
     >>> df2 = DataFrame(pd.DataFrame({'a': [1, 3, 3], 'b': [1, 3, 3]}))
     >>> df1.intersect(df2)
        a  b
-    0  1  1 
+    0  1  1
     1  3  3
     2  3  3
     >>> df1.intersect(df2, distinct=True)
        a  b
-    0  1  1 
+    0  1  1
     1  3  3
     """
     import time

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,6 +16,14 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.5.3\n"
+
+#: ../../source/df-window.rst:6
+msgid "from odps.df import DataFrame"
+msgstr ""
+
+#: ../../source/df-window.rst:10
+msgid "iris = DataFrame(o.get_table('pyodps_iris'))"
+msgstr ""
 
 #: ../../source/df-window.rst:12 ../../source/df-window.rst:55
 msgid "窗口函数"
@@ -25,12 +33,49 @@ msgstr ""
 msgid "DataFrame API也支持使用窗口函数："
 msgstr ""
 
+#: ../../source/df-window.rst:31
+msgid ""
+">>> grouped = iris.groupby('name')\n"
+">>> grouped.mutate(grouped.sepallength.cumsum(), "
+"grouped.sort('sepallength').row_number()).head(10)\n"
+"          name  sepallength_sum  row_number\n"
+"0  Iris-setosa            250.3           1\n"
+"1  Iris-setosa            250.3           2\n"
+"2  Iris-setosa            250.3           3\n"
+"3  Iris-setosa            250.3           4\n"
+"4  Iris-setosa            250.3           5\n"
+"5  Iris-setosa            250.3           6\n"
+"6  Iris-setosa            250.3           7\n"
+"7  Iris-setosa            250.3           8\n"
+"8  Iris-setosa            250.3           9\n"
+"9  Iris-setosa            250.3          10"
+msgstr ""
+
 #: ../../source/df-window.rst:32
 msgid "窗口函数可以使用在列选择中："
 msgstr ""
 
+#: ../../source/df-window.rst:43
+msgid ""
+">>> iris['name', 'sepallength', "
+"iris.groupby('name').sort('sepallength').sepallength.cumcount()].head(5)"
+"\n"
+"          name  sepallength  sepallength_count\n"
+"0  Iris-setosa          4.3                  1\n"
+"1  Iris-setosa          4.4                  2\n"
+"2  Iris-setosa          4.4                  3\n"
+"3  Iris-setosa          4.4                  4\n"
+"4  Iris-setosa          4.5                  5"
+msgstr ""
+
 #: ../../source/df-window.rst:44
 msgid "窗口函数按标量聚合时，和分组聚合的处理方式一致。"
+msgstr ""
+
+#: ../../source/df-window.rst:51
+msgid ""
+">>> from odps.df import Scalar\n"
+">>> iris.groupby(Scalar(1)).sort('sepallength').sepallength.cumcount()"
 msgstr ""
 
 #: ../../source/df-window.rst:52

@@ -14,6 +14,12 @@ DataFrame Reference
     :members:
     :inherited-members:
 
+.. autoclass:: odps.df.expr.expressions.Int64SequenceExpr
+    :members:
+
+.. autoclass:: odps.df.expr.expressions.StringSequenceExpr
+    :members:
+
 .. autoclass:: odps.df.Scalar
     :members:
     :inherited-members:

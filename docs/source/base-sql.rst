@@ -4,13 +4,13 @@ SQL
 =====
 
 PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
-``execute_sql`` 或者 ``run_sql`` 方法的返回值是 `运行实例 <instances-zh.html>`_ 。
+``execute_sql`` 或者 ``run_sql`` 方法的返回值是 :ref:`运行实例 <instances>` 。
 
 .. note::
 
     并非所有在 ODPS Console 中可以执行的命令都是 ODPS 可以接受的 SQL 语句。
     在调用非 DDL / DML 语句时，请使用其他方法，例如 GRANT / REVOKE 等语句请使用
-    run_security_query 方法，PAI 命令请使用 run_xflow 或 execute_xflow 方法。
+    ``run_security_query`` 方法，PAI 命令请使用 ``run_xflow`` 或 ``execute_xflow`` 方法。
 
 .. _execute_sql:
 
@@ -121,7 +121,7 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护
     )
 
     data = [[1, ], ]
-    # 写入一行数据，只有一行，一个值1
+    # 写入一行数据，只包含一个值1
     o.write_table(table, 0, [table.new_record(it) for it in data])
 
     with o.execute_sql(

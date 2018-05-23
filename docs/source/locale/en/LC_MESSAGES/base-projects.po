@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,23 +19,36 @@ msgstr ""
 
 #: ../../source/base-projects.rst:4
 msgid "项目空间"
-msgstr ""
+msgstr "Projects"
 
 #: ../../source/base-projects.rst:6
 msgid ""
 "`项目空间 <https://docs.aliyun.com/#/pub/odps/basic/definition&project>`_ "
 "是ODPS的基本组织单元， 有点类似于Database的概念。"
 msgstr ""
+"A `project "
+"<https://www.alibabacloud.com/help/en/doc-detail/27818.htm>`_ is a "
+"basic organizational unit of MaxCompute, which is similar to a database."
 
 #: ../../source/base-projects.rst:9
 msgid "我们通过 ODPS 入口对象的 ``get_project`` 来取到某个项目空间。"
 msgstr ""
+"Call the member function of ODPS entry project, ``get_project``, to "
+"obtain a project, as shown in the following code:"
+
+#: ../../source/base-projects.rst:11
+msgid ""
+"project = o.get_project('my_project')  # 取到某个项目\n"
+"project = o.get_project()              # 取到默认项目"
+msgstr ""
+"project = o.get_project('my_project')  # get project object by name\n"
+"project = o.get_project()              # get default project"
 
 #: ../../source/base-projects.rst:16
 msgid "如果不提供参数，则取到默认项目空间。"
-msgstr ""
+msgstr "If parameters are not input, the default project will be returned."
 
 #: ../../source/base-projects.rst:18
 msgid "``exist_project`` 方法能检验某个项目空间是否存在。"
-msgstr ""
+msgstr "You can call ``exist_project`` to check whether a project exists."
 

@@ -300,7 +300,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
             if hasattr(self, attr):
                 setattr(target, attr, getattr(self, attr, None))
 
-    def copy_tree(self, on_copy=None, extra=False):
+    def copy_tree(self, on_copy=None, extra=False, stop_cond=None):
         if on_copy is not None and not isinstance(on_copy, Iterable):
             on_copy = [on_copy, ]
 
@@ -312,9 +312,11 @@ class Node(six.with_metaclass(NodeMetaclass)):
             try:
                 return expr_id_to_copied[n._node_id]
             except KeyError:
+                if stop_cond is not None:
+                    return n
                 raise
 
-        for node in self.traverse(unique=True, extra=extra):
+        for node in self.traverse(unique=True, extra=extra, stop_cond=stop_cond):
             node = utils.get_proxied_expr(node)
             attr_dict = node._attr_dict()
 

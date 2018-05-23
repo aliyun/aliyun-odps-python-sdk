@@ -19,43 +19,70 @@ msgstr ""
 
 #: ../../source/base-instances.rst:4
 msgid "任务实例"
-msgstr ""
+msgstr "Instance"
 
 #: ../../source/base-instances.rst:6
 msgid ""
 "Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实例化， 以 `ODPS实例 "
 "<https://help.aliyun.com/document_detail/27825.html>`_ 的形式存在。"
 msgstr ""
+"Tasks such as SQLTask are the basic computing units in MaxCompute. When executed, "
+"a Task is instantiated as a `MaxCompute instance <https://www.alibabacloud.com/help/en/doc-detail/27825.htm>`_."
 
 #: ../../source/base-instances.rst:10
 msgid "基本操作"
-msgstr ""
+msgstr "Basic operations"
 
 #: ../../source/base-instances.rst:12
 msgid ""
 "可以调用 ``list_instances`` 来获取项目空间下的所有instance，``exist_instance`` "
 "能判断是否存在某instance， ``get_instance`` 能获取实例。"
 msgstr ""
+"You can call ``list_instances`` to retrieve all the instances in the project. You can use ``exist_instance`` to determine if an instance exists, and use ``get_instance`` to retrieve instances."
+
+#: ../../source/base-instances.rst:15
+msgid ""
+">>> for instance in o.list_instances():\n"
+">>>     print(instance.id)\n"
+">>> o.exist_instance('my_instance_id')"
+msgstr ""
 
 #: ../../source/base-instances.rst:22
 msgid "停止一个instance可以在odps入口使用 ``stop_instance``，或者对instance对象调用 ``stop`` 方法。"
-msgstr ""
+msgstr "You can call ``stop_instance`` on an odps object to stop an instance, or call the ``stop`` method on an instance object."
 
 #: ../../source/base-instances.rst:25
 msgid "获取 LogView 地址"
-msgstr ""
+msgstr "Retrieve LogView address"
 
 #: ../../source/base-instances.rst:27
 msgid "对于 SQL 等任务，通过调用 ``get_logview_address`` 方法即可。"
+msgstr "For a SQL task, you can call the ``get_logview_address`` method to retrieve the LogView address."
+
+#: ../../source/base-instances.rst:29
+msgid ""
+">>> instance = o.run_sql('desc pyodps_iris')\n"
+">>> print(instance.get_logview_address())"
 msgstr ""
 
 #: ../../source/base-instances.rst:34
 msgid "对于 XFlow 任务，需要枚举其子任务，再获取子任务的 LogView："
+msgstr "For an XFlow task, you need to enumerate its subtasks and retrieve their LogView as follows:"
+
+#: ../../source/base-instances.rst:36
+#, python-format
+msgid ""
+">>> instance = o.run_xflow('AppendID', 'algo_public',\n"
+"                           {'inputTableName': 'input_table', "
+"'outputTableName': 'output_table'})\n"
+">>> for sub_inst_name, sub_inst in "
+"o.get_xflow_sub_instances(instance).items():\n"
+">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
 msgstr ""
 
 #: ../../source/base-instances.rst:44
 msgid "任务实例状态"
-msgstr ""
+msgstr "Instance status"
 
 #: ../../source/base-instances.rst:46
 msgid ""
@@ -64,23 +91,48 @@ msgid ""
 "方法返回当前instance是否已经执行完成，``is_successful`` 方法返回当前instance是否正确完成执行， "
 "任务处于运行中或者执行失败都会返回False。"
 msgstr ""
+"The status of an instance can be ``Running``, ``Suspended`` or ``Terminated``. You can retrieve the status of an instance by using the ``status`` attribute. The ``is_terminated`` method returns whether the execution of the current instance has been completed. The ``is_successful`` method returns whether the execution of the current instance has been successful. A False is returned if the instance is still running or if the execution has failed."
+
+#: ../../source/base-instances.rst:50
+msgid ""
+">>> instance = o.get_instance('2016042605520945g9k5pvyi2')\n"
+">>> instance.status\n"
+"<Status.TERMINATED: 'Terminated'>\n"
+">>> from odps.models import Instance\n"
+">>> instance.status == Instance.Status.TERMINATED\n"
+"True\n"
+">>> instance.status.value\n"
+"'Terminated'"
+msgstr ""
 
 #: ../../source/base-instances.rst:62
 msgid ""
 "调用 ``wait_for_completion`` 方法会阻塞直到instance执行完成，``wait_for_success`` "
 "方法同样会阻塞，不同的是， 如果最终任务执行失败，则会抛出相关异常。"
 msgstr ""
+"The ``wait_for_completion`` method will block your thread until the execution of the current "
+"instance has been completed. The ``wait_for_success`` method will also block until the execution "
+"of the current instance has been successful. Otherwise, an exception is thrown."
 
 #: ../../source/base-instances.rst:66
 msgid "子任务操作"
-msgstr ""
+msgstr "Subtask operations"
 
 #: ../../source/base-instances.rst:68
-msgid "一个Instance真正运行时，可能包含一个或者多个子任务，我们称为Task，要注意这个Task不同于ODPS的计算单元。"
+msgid ""
+"一个Instance真正运行时，可能包含一个或者多个子任务，我们称为Task，要注意这个Task不同于ODPS的计算单元。"
 msgstr ""
+"When an instance is running, it may contain one or several subtasks, which are called Tasks. Note that "
+"these Tasks are different from the computing units in MaxCompute."
 
 #: ../../source/base-instances.rst:70
 msgid "我们可以通过 ``get_task_names`` 来获取所有的Task任务，它返回一个所有子任务的名称列表。"
+msgstr "You can call ``get_task_names`` to retrieve all Tasks. This method returns the Task names in a list type."
+
+#: ../../source/base-instances.rst:72
+msgid ""
+">>> instance.get_task_names()\n"
+"['SQLDropTableTask']"
 msgstr ""
 
 #: ../../source/base-instances.rst:77
@@ -88,8 +140,34 @@ msgid ""
 "拿到Task的名称，我们就可以通过 ``get_task_result`` 来获取这个Task的执行结果。 "
 "``get_task_results`` 以字典的形式返回每个Task的执行结果"
 msgstr ""
+"After getting the Task names, you can use ``get_task_result`` to retrieve the execution results of these tasks. The ``get_task_results`` method returns a dict type."
+
+#: ../../source/base-instances.rst:80
+msgid ""
+">>> instance = o.execute_sql('select * from pyodps_iris limit 1')\n"
+">>> instance.get_task_names()\n"
+"['AnonymousSQLTask']\n"
+">>> instance.get_task_result('AnonymousSQLTask')\n"
+"'\"sepallength\",\"sepalwidth\",\"petallength\",\"petalwidth\",\"name\"\\n5.1,3.5,1.4,0.2"
+",\"Iris-setosa\"\\n'\n"
+">>> instance.get_task_results()\n"
+"OrderedDict([('AnonymousSQLTask',\n"
+"           "
+"'\"sepallength\",\"sepalwidth\",\"petallength\",\"petalwidth\",\"name\"\\n5.1,3.5,1.4,0.2"
+",\"Iris-setosa\"\\n')])"
+msgstr ""
 
 #: ../../source/base-instances.rst:91
 msgid "有时候我们需要在任务实例运行时显示所有子任务的运行进程。使用 ``get_task_progress`` 能获得Task当前的运行进度。"
-msgstr ""
+msgstr "You can use ``get_task_progress`` to retrieve the running progress of a Task."
 
+#: ../../source/base-instances.rst:93
+msgid ""
+">>> while not instance.is_terminated():\n"
+">>>     for task_name in instance.get_task_names():\n"
+">>>         print(instance.id, "
+"instance.get_task_progress(task_name).get_stage_progress_formatted_string())"
+"\n"
+">>>     time.sleep(10)\n"
+"20160519101349613gzbzufck2 2016-05-19 18:14:03 M1_Stg1_job0:0/1/1[100%]"
+msgstr ""

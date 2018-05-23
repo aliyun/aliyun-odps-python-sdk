@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-05-11 09:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,6 +16,14 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.5.3\n"
+
+#: ../../source/df-agg.rst:6
+msgid "from odps.df import DataFrame"
+msgstr ""
+
+#: ../../source/df-agg.rst:10
+msgid "iris = DataFrame(o.get_table('pyodps_iris'))"
+msgstr ""
 
 #: ../../source/df-agg.rst:12 ../../source/df-agg.rst:54
 msgid "聚合操作"
@@ -25,16 +33,49 @@ msgstr ""
 msgid "首先，我们可以使用\\ ``describe``\\ 函数，来查看DataFrame里数字列的数量、最大值、最小值、平均值以及标准差是多少。"
 msgstr ""
 
+#: ../../source/df-agg.rst:25
+msgid ""
+">>> print(iris.describe())\n"
+"    type  sepal_length  sepal_width  petal_length  petal_width\n"
+"0  count    150.000000   150.000000    150.000000   150.000000\n"
+"1   mean      5.843333     3.054000      3.758667     1.198667\n"
+"2    std      0.828066     0.433594      1.764420     0.763161\n"
+"3    min      4.300000     2.000000      1.000000     0.100000\n"
+"4    max      7.900000     4.400000      6.900000     2.500000"
+msgstr ""
+
 #: ../../source/df-agg.rst:26
 msgid "我们可以使用单列来执行聚合操作："
+msgstr ""
+
+#: ../../source/df-agg.rst:35
+msgid ""
+">>> iris.sepallength.max()\n"
+"7.9\n"
+"\n"
+">>> iris.name.cat(sep=',')\n"
+"u'Iris-setosa,Iris-versicolor,Iris-virginica'"
 msgstr ""
 
 #: ../../source/df-agg.rst:36
 msgid "如果所有列支持同一种聚合操作，也可以直接在整个 DataFrame 上执行聚合操作："
 msgstr ""
 
+#: ../../source/df-agg.rst:43
+msgid ""
+">>> iris.exclude('category').mean()\n"
+"   sepal_length  sepal_width  petal_length  petal_width\n"
+"1      5.843333     3.054000      3.758667     1.198667"
+msgstr ""
+
 #: ../../source/df-agg.rst:44
 msgid "需要注意的是，在 DataFrame 上执行 count 获取的是 DataFrame 的总行数："
+msgstr ""
+
+#: ../../source/df-agg.rst:50
+msgid ""
+">>> iris.count()\n"
+"150"
 msgstr ""
 
 #: ../../source/df-agg.rst:51
@@ -173,6 +214,16 @@ msgstr ""
 msgid "DataFrame API提供了groupby来执行分组操作，分组后的一个主要操作就是通过调用agg或者aggregate方法，来执行聚合操作。"
 msgstr ""
 
+#: ../../source/df-agg.rst:86
+msgid ""
+">>> iris.groupby('name').agg(iris.sepallength.max(), "
+"smin=iris.sepallength.min())\n"
+"              name  sepallength_max  smin\n"
+"0      Iris-setosa              5.8   4.3\n"
+"1  Iris-versicolor              7.0   4.9\n"
+"2   Iris-virginica              7.9   4.9"
+msgstr ""
+
 #: ../../source/df-agg.rst:87
 msgid "最终的结果列中会包含分组的列，以及聚合的列。"
 msgstr ""
@@ -185,16 +236,61 @@ msgstr ""
 msgid "我们使用 groupby 表达式可以写成："
 msgstr ""
 
+#: ../../source/df-agg.rst:100
+msgid ""
+">>> iris.groupby('name').agg(count=iris.name.count()).sort('count', "
+"ascending=False).head(5)\n"
+"              name  count\n"
+"0   Iris-virginica     50\n"
+"1  Iris-versicolor     50\n"
+"2      Iris-setosa     50"
+msgstr ""
+
 #: ../../source/df-agg.rst:101
 msgid "使用value\\_counts就很简单了："
+msgstr ""
+
+#: ../../source/df-agg.rst:110
+msgid ""
+">>> iris['name'].value_counts().head(5)\n"
+"              name  count\n"
+"0   Iris-virginica     50\n"
+"1  Iris-versicolor     50\n"
+"2      Iris-setosa     50"
 msgstr ""
 
 #: ../../source/df-agg.rst:111
 msgid "对于聚合后的单列操作，我们也可以直接取出列名。但此时只能使用聚合函数。"
 msgstr ""
 
+#: ../../source/df-agg.rst:120
+msgid ""
+">>> iris.groupby('name').petallength.sum()\n"
+"   petallength_sum\n"
+"0             73.2\n"
+"1            213.0\n"
+"2            277.6"
+msgstr ""
+
+#: ../../source/df-agg.rst:129
+msgid ""
+">>> iris.groupby('name').agg(iris.petallength.notnull().sum())\n"
+"              name  petallength_sum\n"
+"0      Iris-setosa               50\n"
+"1  Iris-versicolor               50\n"
+"2   Iris-virginica               50"
+msgstr ""
+
 #: ../../source/df-agg.rst:130
 msgid "分组时也支持对常量进行分组，但是需要使用Scalar初始化。"
+msgstr ""
+
+#: ../../source/df-agg.rst:138
+msgid ""
+">>> from odps.df import Scalar\n"
+">>> iris.groupby(Scalar(1)).petallength.sum()\n"
+"   petallength_sum\n"
+"0            563.8"
 msgstr ""
 
 #: ../../source/df-agg.rst:140
@@ -225,20 +321,101 @@ msgstr ""
 msgid "让我们看一个计算平均值的例子。"
 msgstr ""
 
+#: ../../source/df-agg.rst:151
+msgid ""
+"class Agg(object):\n"
+"\n"
+"    def buffer(self):\n"
+"        return [0.0, 0]\n"
+"\n"
+"    def __call__(self, buffer, val):\n"
+"        buffer[0] += val\n"
+"        buffer[1] += 1\n"
+"\n"
+"    def merge(self, buffer, pbuffer):\n"
+"        buffer[0] += pbuffer[0]\n"
+"        buffer[1] += pbuffer[1]\n"
+"\n"
+"    def getvalue(self, buffer):\n"
+"        if buffer[1] == 0:\n"
+"            return 0.0\n"
+"        return buffer[0] / buffer[1]"
+msgstr ""
+
+#: ../../source/df-agg.rst:175
+msgid ""
+">>> iris.sepalwidth.agg(Agg)\n"
+"3.0540000000000007"
+msgstr ""
+
 #: ../../source/df-agg.rst:176
 msgid "如果最终类型和输入类型发生了变化，则需要指定类型。"
+msgstr ""
+
+#: ../../source/df-agg.rst:182
+msgid ">>> iris.sepalwidth.agg(Agg, 'float')"
 msgstr ""
 
 #: ../../source/df-agg.rst:183
 msgid "自定义聚合也可以用在分组聚合中。"
 msgstr ""
 
+#: ../../source/df-agg.rst:192
+msgid ""
+">>> iris.groupby('name').sepalwidth.agg(Agg)\n"
+"   petallength_aggregation\n"
+"0                    3.418\n"
+"1                    2.770\n"
+"2                    2.974"
+msgstr ""
+
 #: ../../source/df-agg.rst:193
 msgid "当对多列调用自定义聚合，可以使用agg方法。"
 msgstr ""
 
+#: ../../source/df-agg.rst:195
+msgid ""
+"class Agg(object):\n"
+"\n"
+"    def buffer(self):\n"
+"        return [0.0, 0.0]\n"
+"\n"
+"    def __call__(self, buffer, val1, val2):\n"
+"        buffer[0] += val1\n"
+"        buffer[1] += val2\n"
+"\n"
+"    def merge(self, buffer, pbuffer):\n"
+"        buffer[0] += pbuffer[0]\n"
+"        buffer[1] += pbuffer[1]\n"
+"\n"
+"    def getvalue(self, buffer):\n"
+"        if buffer[1] == 0:\n"
+"            return 0.0\n"
+"        return buffer[0] / buffer[1]"
+msgstr ""
+
+#: ../../source/df-agg.rst:224
+msgid ""
+">>> from odps.df import agg\n"
+">>> to_agg = agg([iris.sepalwidth, iris.sepallength], Agg, rtype='float')"
+"  # 对两列调用自定义聚合\n"
+">>> iris.groupby('name').agg(val=to_agg)\n"
+"              name       val\n"
+"0      Iris-setosa  0.682781\n"
+"1  Iris-versicolor  0.466644\n"
+"2   Iris-virginica  0.451427"
+msgstr ""
+
 #: ../../source/df-agg.rst:225
 msgid "要调用 ODPS 上已经存在的 UDAF，指定函数名即可。"
+msgstr ""
+
+#: ../../source/df-agg.rst:232
+msgid ""
+">>> iris.groupby('name').agg(iris.sepalwidth.agg('your_func'))  # 对单列聚合\n"
+">>> to_agg = agg([iris.sepalwidth, iris.sepallength], 'your_func', "
+"rtype='float')\n"
+">>> iris.groupby('name').agg(to_agg.rename('val'))  # 对多列聚合"
 msgstr ""
 
 #: ../../source/df-agg.rst:234
@@ -257,6 +434,16 @@ msgstr ""
 
 #: ../../source/df-agg.rst:242
 msgid "这个接口在对比如海量用户UV进行计算时，能很快得出估计值。"
+msgstr ""
+
+#: ../../source/df-agg.rst:251
+msgid ""
+">>> df = DataFrame(pd.DataFrame({'a': np.random.randint(100000, "
+"size=100000)}))\n"
+">>> df.a.hll_count()\n"
+"63270\n"
+">>> df.a.nunique()\n"
+"63250"
 msgstr ""
 
 #: ../../source/df-agg.rst:252

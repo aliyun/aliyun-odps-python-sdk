@@ -19,13 +19,12 @@ msgstr ""
 
 #: ../../source/base.rst:5
 msgid "基本操作"
-msgstr "Fundamentals"
+msgstr "Basic operations"
 
 #: ../../source/base.rst:7
 msgid "PyODPS 提供直接针对 ODPS 对象的基本操作接口，可通过符合 Python 习惯的编程方式操作 ODPS。"
-msgstr ""
+msgstr "Python on MaxCompute (PyODPS) provides basic operations for ODPS objects. You can follow the Python syntax and use the MaxCompute operations."
 
 #: ../../source/base.rst:9
 msgid "我们会对这几部分来分别展开说明。"
-msgstr ""
-
+msgstr "The following sections describe basic operations for ODPS objects."

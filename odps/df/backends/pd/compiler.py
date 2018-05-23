@@ -78,11 +78,11 @@ if pd:
     SORT_CUM_WINDOW_OP_TO_PANDAS = {
         'CumSum': lambda s: s.expanding(min_periods=1).sum(),
         'CumMean': lambda s: s.expanding(min_periods=1).mean(),
-        'CumMedian': pd.expanding_median,
-        'CumStd': pd.expanding_std,
+        'CumMedian': lambda s: s.expanding(min_periods=1).median(),
+        'CumStd': lambda s: s.expanding(min_periods=1).std(),
         'CumMin': lambda s: s.expanding(min_periods=1).min(),
         'CumMax': lambda s: s.expanding(min_periods=1).max(),
-        'CumCount': pd.expanding_count,
+        'CumCount': lambda s: s.expanding(min_periods=1).count(),
     }
 
 if np:
