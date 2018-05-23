@@ -32,7 +32,7 @@ class Test(TestBase):
             odps.delete_table(tn('test_sign_account_table'), if_exists=True)
             t = odps.create_table(tn('test_sign_account_table'), 'col string', lifecycle=1)
             self.assertTrue(odps.exist_table(tn('test_sign_account_table')))
-            t.drop(async=True)
+            t.drop(async_=True)
         finally:
             server.stop()
 
@@ -51,6 +51,6 @@ class Test(TestBase):
             odps.delete_table(tn('test_sign_account_table'), if_exists=True)
             t = odps.create_table(tn('test_sign_account_table'), 'col string', lifecycle=1)
             self.assertTrue(odps.exist_table(tn('test_sign_account_table')))
-            t.drop(async=True)
+            t.drop(async_=True)
         finally:
             server.stop()

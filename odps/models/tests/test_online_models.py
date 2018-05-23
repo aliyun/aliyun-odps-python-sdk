@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -206,7 +206,7 @@ class Test(TestDataMixIn, TestBase):
             pass
 
         try:
-            model = self.odps.create_online_model(TEST_OFFLINE_ONLINE_MODEL_NAME, TEST_LR_MODEL_NAME, async=True)
+            model = self.odps.create_online_model(TEST_OFFLINE_ONLINE_MODEL_NAME, TEST_LR_MODEL_NAME, async_=True)
             self.assertEqual(model.name, TEST_OFFLINE_ONLINE_MODEL_NAME)
             self.assertEqual(model.status, OnlineModel.Status.DEPLOYING)
             model.wait_for_service()
@@ -243,7 +243,7 @@ class Test(TestDataMixIn, TestBase):
             # ensure that models are deleted
             if self.odps.exist_online_model(TEST_OFFLINE_ONLINE_MODEL_NAME):
                 model = self.odps.get_online_model(TEST_OFFLINE_ONLINE_MODEL_NAME)
-                model.drop(async=True)
+                model.drop(async_=True)
                 self.assertEqual(model.status, OnlineModel.Status.DELETING)
                 model.wait_for_deletion()
                 self.assertFalse(self.odps.exist_online_model(TEST_OFFLINE_ONLINE_MODEL_NAME))
@@ -278,7 +278,7 @@ class Test(TestDataMixIn, TestBase):
             model = self.odps.get_online_model(TEST_PIPELINE_ONLINE_MODEL_NAME)
             self.assertEqual(model.name, TEST_PIPELINE_ONLINE_MODEL_NAME)
 
-            model.update(async=True)
+            model.update(async_=True)
             model.wait_for_service()
 
             self.assertTrue(self.odps.exist_online_model(TEST_PIPELINE_ONLINE_MODEL_NAME))

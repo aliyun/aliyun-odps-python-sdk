@@ -1,11 +1,11 @@
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -212,7 +212,7 @@ class ODPS(object):
         return name in project.tables
 
     def create_table(self, name, schema, project=None, comment=None, if_not_exists=False,
-                     lifecycle=None, shard_num=None, hub_lifecycle=None, async=False):
+                     lifecycle=None, shard_num=None, hub_lifecycle=None, async_=False, **kw):
         """
         Create an table by given schema and other optional parameters.
 
@@ -228,8 +228,8 @@ class ODPS(object):
         :type shard_num: int
         :param hub_lifecycle:  hub lifecycle
         :type hub_lifecycle: int
-        :param async: if True, will run asynchronously
-        :type async: bool
+        :param async_: if True, will run asynchronously
+        :type async_: bool
         :return: the created Table if not async else odps instance
         :rtype: :class:`odps.models.Table` or :class:`odps.models.Instance`
 
@@ -241,17 +241,17 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.tables.create(name, schema, comment=comment, if_not_exists=if_not_exists,
                                      lifecycle=lifecycle, shard_num=shard_num,
-                                     hub_lifecycle=hub_lifecycle, async=async)
+                                     hub_lifecycle=hub_lifecycle, async_=kw.get('async', async_))
 
-    def delete_table(self, name, project=None, if_exists=False, async=False):
+    def delete_table(self, name, project=None, if_exists=False, async_=False, **kw):
         """
         Delete the table with given name
 
         :param name: table name
         :param project: project name, if not provided, will be the default project
         :param if_exists:  will not raise errors when the table does not exist, default False
-        :param async: if True, will run asynchronously
-        :type async: bool
+        :param async_: if True, will run asynchronously
+        :type async_: bool
         :return: None if not async else odps instance
         """
 
@@ -259,7 +259,7 @@ class ODPS(object):
             project, name = name.split('.', 1)
 
         project = self.get_project(name=project)
-        return project.tables.delete(name, if_exists=if_exists, async=async)
+        return project.tables.delete(name, if_exists=if_exists, async_=kw.get('async', async_))
 
     def read_table(self, name, limit=None, start=0, step=None,
                    project=None, partition=None, **kw):
@@ -708,12 +708,12 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Instance`
         """
 
-        async = kwargs.pop('async', False)
+        async_ = kwargs.pop('async_', kwargs.pop('async', False))
 
         inst = self.run_sql(
             sql, project=project, priority=priority, running_cluster=running_cluster,
             hints=hints, **kwargs)
-        if not async:
+        if not async_:
             inst.wait_for_success()
 
         return inst
@@ -1323,7 +1323,7 @@ class ODPS(object):
 
         :param str name: model name
         :param str project: model name
-        :param async: whether to wait for creation completed
+        :param async_: whether to wait for creation completed
 
         :return: online model
 
@@ -1453,18 +1453,18 @@ class ODPS(object):
         """
         return self.get_online_model(name, project=kwargs.get('project')).config_ab_test(*args)
 
-    def delete_online_model(self, name, project=None, async=False):
+    def delete_online_model(self, name, project=None, async_=False, **kw):
         """
         Delete the online model by given name.
 
         :param name: name of the online model
         :param project: project name, if not provided, will be the default project
-        :param async: whether to wait for deletion completed
+        :param async_: whether to wait for deletion completed
         :return: None
         """
 
         project = self.get_project(name=project)
-        return project.online_models.delete(name, async=async)
+        return project.online_models.delete(name, async_=kw.get('async', async_))
 
     def get_logview_address(self, instance_id, hours=None, project=None):
         """

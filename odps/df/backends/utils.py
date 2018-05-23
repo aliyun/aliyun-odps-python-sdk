@@ -130,7 +130,8 @@ def _convert_pd_type(values, table):
 
     retvals = []
     for val, t in compat.izip(values, table.schema.types):
-        if pd.isnull(val):
+        isnull = pd.isnull(val)
+        if isinstance(isnull, bool) and isnull:
             retvals.append(None)
         else:
             retvals.append(val)

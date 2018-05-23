@@ -11,11 +11,11 @@ PyODPS 提供直接针对 ODPS 对象的基本操作接口，可通过符合 Pyt
 .. toctree::
     :maxdepth: 1
 
-    base-projects-zh
-    base-tables-zh
-    base-sql-zh
-    base-instances-zh
-    base-resources-zh
-    base-functions-zh
-    base-volume-int-zh
-    base-models-zh
+    base-projects
+    base-tables
+    base-sql
+    base-instances
+    base-resources
+    base-functions
+    base-volume-int
+    base-models

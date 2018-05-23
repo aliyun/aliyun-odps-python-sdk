@@ -4,8 +4,8 @@
 常见问题
 ============
 
-.. intinclude:: faq-int-zh.rst
-.. extinclude:: faq-ext-zh.rst
+.. intinclude:: faq-int.rst
+.. extinclude:: faq-ext.rst
 
 - **读取数据时报"project is protected"**
 

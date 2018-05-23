@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,7 +24,7 @@ from .types import df_type_to_odps_type
 from ...expr.collections import RowAppliedCollectionExpr
 from ...expr.element import MappedExpr
 from ...expr.reduction import Aggregation, GroupedAggregation
-from ...expr.utils import get_executed_collection_table_name
+from ...expr.utils import get_executed_collection_project_table_name
 from ...utils import make_copy
 from ....config import options
 from ....lib import cloudpickle
@@ -696,7 +696,7 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
                     name = 'tmp_pyodps_resource_%s' % (uuid.uuid4())
                     fields = tuple(res.schema.names)
                     create = True
-                    table_name = get_executed_collection_table_name(res)
+                    table_name = get_executed_collection_project_table_name(res)
                 resources.append((tp, name, fields, create, table_name))
 
         if isinstance(node, MappedExpr):

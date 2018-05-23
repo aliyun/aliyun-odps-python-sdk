@@ -1,0 +1,511 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/df-sort-distinct-apply.rst:4
+msgid "排序、去重、采样、数据变换"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:15
+msgid "排序"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:17
+msgid "排序操作只能作用于Collection。我们只需要调用sort或者sort\\_values方法。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:29
+msgid "如果想要降序排列，则可以使用参数\\ ``ascending``\\ ，并设为False。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:41
+msgid "也可以这样调用，来进行降序排列："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:53
+msgid "多字段排序也很简单："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:65
+msgid ""
+"多字段排序时，如果是升序降序不同，\\ ``ascending``\\ "
+"参数可以传入一个列表，长度必须等同于排序的字段，它们的值都是boolean类型"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:77
+msgid "下面效果是一样的："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:92
+msgid ""
+"由于 ODPS 要求排序必须指定个数，所以在 ODPS 后端执行时， 会通过 ``options.df.odps.sort.limit`` "
+"指定排序个数，这个值默认是 10000， 如果要排序尽量多的数据，可以把这个值设到较大的值。不过注意，此时可能会导致 OOM。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:97
+msgid "去重"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:99
+msgid "去重在Collection上，用户可以调用distinct方法。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:125
+msgid "在Sequence上，用户可以调用unique，但是记住，调用unique的Sequence不能用在列选择中。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:136
+msgid "下面的代码是错误的用法。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:144
+msgid "采样"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:147
+msgid "要对一个 collection 的数据采样，可以调用 ``sample`` 方法。PyODPS 支持四种采样方式。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:150
+msgid ""
+"除了按份数采样外，其余方法如果要在 ODPS DataFrame 上执行，需要 Project 支持 XFlow，否则，这些方法只能在 "
+"Pandas DataFrame 后端上执行。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:153
+msgid "按份数采样"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:155
+msgid "在这种采样方式下，数据被分为 ``parts`` 份，可选择选取的份数序号。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:164
+msgid "按比例 / 条数采样"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:166
+msgid "在这种采样方式下，用户指定需要采样的数据条数或采样比例。指定 ``replace`` 参数为 True 可启用放回采样。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:173
+msgid "按权重列采样"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:175
+msgid "在这种采样方式下，用户指定权重列和数据条数 / 采样比例。指定 ``replace`` 参数为 True 可启用放回采样。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:182
+msgid "分层采样"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:184
+msgid ""
+"在这种采样方式下，用户指定用于分层的标签列，同时为需要采样的每个标签指定采样比例（ ``frac`` 参数）或条数 （ ``n`` "
+"参数）。暂不支持放回采样。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:193
+msgid "数据缩放"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:195
+msgid "DataFrame 支持通过最大/最小值或平均值/标准差对数据进行缩放。例如，对数据"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:207
+msgid "使用 min_max_scale 方法进行归一化："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:220
+msgid ""
+"min_max_scale 还支持使用 feature_range 参数指定输出值的范围，例如，如果我们需要使输出值在 (-1, 1) "
+"范围内，可使用"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:234
+msgid ""
+"如果需要保留原始值，可以使用 preserve 参数。此时，缩放后的数据将会以新增列的形式追加到数据中， "
+"列名默认为原列名追加“_scaled”后缀，该后缀可使用 suffix 参数更改。例如，"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:248
+msgid "min_max_scale 也支持使用 group 参数指定一个或多个分组列，在分组列中分别取最值进行缩放。例如，"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:261
+msgid "可见结果中，name1 和 name2 两组均按组中的最值进行了缩放。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:263
+msgid "std_scale 可依照标准正态分布对数据进行调整。例如，"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:276
+msgid "std_scale 同样支持 preserve 参数保留原始列以及使用 group 进行分组，具体请参考 min_max_scale，此处不再赘述。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:279
+msgid "空值处理"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:281
+msgid "DataFrame 支持筛去空值以及填充空值的功能。例如，对数据"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:294
+msgid "使用 dropna 可删除 subset 中包含空值的行："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:302
+msgid "如果行中包含非空值则不删除，可以使用 how='all'："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:315
+msgid "你也可以使用 thresh 参数来指定行中至少要有多少个非空值。例如："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:327
+msgid "使用 fillna 可使用常数或已有的列填充未知值。下面给出了使用常数填充的例子："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:341
+msgid "你也可以使用一个已有的列来填充未知值。例如："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:355
+msgid "特别地，DataFrame 提供了向前 / 向后填充的功能。通过指定 method 参数为下列值可以达到目的："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:358
+msgid "取值"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:358
+msgid "含义"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:360
+msgid "bfill / backfill"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:360
+msgid "向前填充"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:361
+msgid "ffill / pad"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:361
+msgid "向后填充"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:364
+msgid "例如："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:387
+msgid ""
+"你也可以使用 ffill / bfill 函数来简化代码。ffill 等价于 fillna(method='ffill')， bfill 等价于 "
+"fillna(method='bfill')"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:391
+msgid "对所有行/列调用自定义函数"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:396
+msgid "对一行数据使用自定义函数"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:398
+msgid "要对一行数据使用自定义函数，可以使用 apply 方法，axis 参数必须为 1，表示在行上操作。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:400
+msgid "apply 的自定义函数接收一个参数，为上一步 Collection 的一行数据，用户可以通过属性、或者偏移取得一个字段的数据。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:410
+msgid ""
+"``reduce``\\ 为 True 时，表示返回结果为Sequence，否则返回结果为Collection。 ``names``\\ 和 "
+"``types``\\ 参数分别指定返回的Sequence或Collection的字段名和类型。 如果类型不指定，将会默认为string类型。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:414
+msgid "在 apply 的自定义函数中，reduce 为 False 时，也可以使用 ``yield``\\ 关键字来返回多行结果。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:428
+msgid "我们也可以在函数上来注释返回的字段和类型，这样就不需要在函数调用时再指定。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:443
+msgid "也可以使用 map-only 的 map_reduce，和 axis=1 的apply操作是等价的。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:450
+msgid "如果想调用 ODPS 上已经存在的 UDTF，则函数指定为函数名即可。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:456
+msgid ""
+"使用 apply 对行操作，且 ``reduce``\\ 为 False 时，可以使用 :ref:`dflateralview` "
+"与已有的行结合，用于后续聚合等操作。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:470
+msgid "对所有列调用自定义聚合"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:472
+msgid "调用apply方法，当我们不指定axis，或者axis为0的时候，我们可以通过传入一个自定义聚合类来对所有sequence进行聚合操作。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:501
+msgid "目前，受限于 Python UDF，自定义函数无法支持将 list / dict 类型作为初始输入或最终输出结果。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:504
+#: ../../source/df-sort-distinct-apply.rst:668
+msgid "引用资源"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:506
+msgid ""
+"类似于对 :ref:`map <map>` "
+"方法的resources参数，每个resource可以是ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:508
+msgid ""
+"对于axis为1，也就是在行上操作，我们需要写一个函数闭包或者callable的类。 而对于列上的聚合操作，我们只需在 "
+"\\_\\_init\\_\\_ 函数里读取资源即可。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:536
+msgid "可以看到这里的stop_words是存放于本地，但在真正执行时会被上传到ODPS作为资源引用。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:540
+#: ../../source/df-sort-distinct-apply.rst:714
+msgid "使用第三方Python库"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:542
+#: ../../source/df-sort-distinct-apply.rst:717
+msgid "使用方法类似 :ref:`map中使用第三方Python库 <third_party_library>` 。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:544
+#: ../../source/df-sort-distinct-apply.rst:719
+msgid "可以在全局指定使用的库："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:551
+#: ../../source/df-sort-distinct-apply.rst:727
+msgid "或者在立即执行的方法中，局部指定："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:558
+#: ../../source/df-sort-distinct-apply.rst:735
+msgid ""
+"由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS"
+" Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常 "
+"执行。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:565
+msgid "MapReduce API"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:568
+msgid ""
+"PyODPS DataFrame也支持MapReduce "
+"API，用户可以分别编写map和reduce函数（map_reduce可以只有mapper或者reducer过程）。 "
+"我们来看个简单的wordcount的例子。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:601
+msgid "group参数用来指定reduce按哪些字段做分组，如果不指定，会按全部字段做分组。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:603
+msgid ""
+"其中对于reducer来说，会稍微有些不同。它需要接收聚合的keys初始化，并能继续处理按这些keys聚合的每行数据。 "
+"第2个参数表示这些keys相关的所有行是不是都迭代完成。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:606
+msgid "这里写成函数闭包的方式，主要为了方便，当然我们也能写成callable的类。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:619
+msgid "使用 ``output``\\ 来注释会让代码更简单些。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:650
+msgid ""
+"有时候我们在迭代的时候需要按某些列排序，则可以使用 ``sort``\\ 参数，来指定按哪些列排序，升序降序则通过 ``ascending``\\"
+" 参数指定。 ``ascending`` 参数可以是一个bool值，表示所有的 ``sort``\\ 字段是相同升序或降序， "
+"也可以是一个列表，长度必须和 ``sort``\\ 字段长度相同。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:656
+msgid "指定combiner"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:658
+msgid ""
+"combiner表示在map_reduce "
+"API里表示在mapper端，就先对数据进行聚合操作，它的用法和reducer是完全一致的，但不能引用资源。 "
+"并且，combiner的输出的字段名和字段类型必须和mapper完全一致。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:661
+msgid "上面的例子，我们就可以使用reducer作为combiner来先在mapper端对数据做初步的聚合，减少shuffle出去的数据量。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:670
+msgid "在MapReduce API里，我们能分别指定mapper和reducer所要引用的资源。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:672
+msgid "如下面的例子，我们对mapper里的单词做停词过滤，在reducer里对白名单的单词数量加5。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:741
+msgid "重排数据"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:743
+msgid "有时候我们的数据在集群上分布可能是不均匀的，我们需要对数据重排。调用 ``reshuffle`` 接口即可。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:751
+msgid "默认会按随机数做哈希来分布。也可以指定按那些列做分布，且可以指定重排后的排序顺序。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:760
+msgid "布隆过滤器"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:763
+msgid "PyODPS DataFrame提供了 ``bloom_filter`` 接口来进行布隆过滤器的计算。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:765
+msgid ""
+"给定某个collection，和它的某个列计算的sequence1，我们能对另外一个sequence2进行布隆过滤，sequence1不在sequence2中的一定会过滤，"
+" 但可能不能完全过滤掉不存在于sequence2中的数据，这也是一种近似的方法。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:768
+msgid "这样的好处是能快速对collection进行快速过滤一些无用数据。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:770
+msgid ""
+"这在大规模join的时候，一边数据量远大过另一边数据，而大部分并不会join上的场景很有用。 "
+"比如，我们在join用户的浏览数据和交易数据时，用户的浏览大部分不会带来交易，我们可以利用交易数据先对浏览数据进行布隆过滤， "
+"然后再join能很好提升性能。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:792
+msgid "这里由于数据量很小，df1中的a为name2和name3的行都被正确过滤掉了，当数据量很大的时候，可能会有一定的数据不能被过滤。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:794
+msgid "如之前提的join场景中，少量不能过滤并不能并不会影响正确性，但能较大提升join的性能。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:796
+msgid ""
+"我们可以传入 ``capacity`` 和 ``error_rate`` 来设置数据的量以及错误率，默认值是 ``3000`` 和 "
+"``0.01``。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:799
+msgid "要注意，调大 ``capacity`` 或者减小 ``error_rate`` 会增加内存的使用，所以应当根据实际情况选择一个合理的值。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:805
+msgid "透视表（pivot_table）"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:807
+msgid "PyODPS DataFrame提供透视表的功能。我们通过几个例子来看使用。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:825
+msgid "最简单的透视表必须提供一个 ``rows`` 参数，表示按一个或者多个字段做取平均值的操作。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:834
+msgid "rows可以提供多个，表示按多个字段做聚合。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:848
+msgid "我们可以指定 ``values`` 来显示指定要计算的列。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:859
+msgid "计算值列时，默认会计算平均值，用户可以指定一个或者多个聚合函数。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:870
+msgid "我们也可以把原始数据的某一列的值，作为新的collection的列。 **这也是透视表最强大的地方。**"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:881
+msgid "我们可以提供 ``fill_value`` 来填充空值。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:894
+msgid "Key-Value 字符串转换"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:896
+msgid "DataFrame 提供了将 Key-Value 对展开为列，以及将普通列转换为 Key-Value 列的功能。"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:898
+msgid "我们的数据为"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:909
+msgid "可以通过 extract_kv 方法将 Key-Value 字段展开："
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:920
+msgid ""
+"其中，需要展开的字段名由 columns 指定，Key 和 Value 之间的分隔符，以及 Key-Value 对之间的分隔符分别由 "
+"kv_delim 和 item_delim 这两个参数指定，默认分别为半角冒号和半角逗号。输出的字段名为原字段名和 Key "
+"值的组合，通过“_”相连。缺失值默认为 None，可通过 ``fill_value`` 选择需要填充的值。例如，相同的 df，"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:933
+msgid "DataFrame 也支持将多列数据转换为一个 Key-Value 列。例如，"
+msgstr ""
+
+#: ../../source/df-sort-distinct-apply.rst:944
+msgid "可通过 to_kv 方法转换为 Key-Value 表示的格式："
+msgstr ""
+

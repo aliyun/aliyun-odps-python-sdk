@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -419,7 +419,7 @@ class Table(LazyLoad):
                 self._it = iter(self)
 
             @property
-            def download_id():
+            def download_id(self):
                 return download_session.id
 
             @property
@@ -626,27 +626,29 @@ class Table(LazyLoad):
     def partitions(self):
         return Partitions(parent=self, client=self._client)
 
-    def create_partition(self, partition_spec, if_not_exists=False, async=False):
+    def create_partition(self, partition_spec, if_not_exists=False, async_=False, **kw):
         """
         Create a partition within the table.
 
         :param partition_spec: specification of the partition.
         :param if_not_exists:
-        :param async:
+        :param async_:
         :return: partition object
         :rtype: odps.models.partition.Partition
         """
-        return self.partitions.create(partition_spec, if_not_exists=if_not_exists, async=async)
+        async_ = kw.get('async', async_)
+        return self.partitions.create(partition_spec, if_not_exists=if_not_exists, async_=async_)
 
-    def delete_partition(self, partition_spec, if_exists=False, async=False):
+    def delete_partition(self, partition_spec, if_exists=False, async_=False, **kw):
         """
         Delete a partition within the table.
 
         :param partition_spec: specification of the partition.
         :param if_exists:
-        :param async:
+        :param async_:
         """
-        return self.partitions.delete(partition_spec, if_exists=if_exists, async=async)
+        async_ = kw.get('async', async_)
+        return self.partitions.delete(partition_spec, if_exists=if_exists, async_=async_)
 
     def exist_partition(self, partition_spec):
         """
@@ -674,30 +676,32 @@ class Table(LazyLoad):
         """
         return self.partitions[partition_spec]
 
-    def truncate(self, async=False):
+    def truncate(self, async_=False, **kw):
         """
         truncate this table.
 
-        :param async: run asynchronously if True
+        :param async_: run asynchronously if True
         :return: None
         """
         from .tasks import SQLTask
+        async_ = kw.get('async', async_)
         task = SQLTask(name='SQLTruncateTableTask', query='truncate table %s.%s' % (self.project.name, self.name))
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
-        if not async:
+        if not async_:
             instance.wait_for_success()
         else:
             return instance
 
-    def drop(self, async=False, if_exists=False):
+    def drop(self, async_=False, if_exists=False, **kw):
         """
         Drop this table.
 
-        :param async: run asynchronously if True
+        :param async_: run asynchronously if True
         :return: None
         """
-        return self.parent.delete(self, async=async, if_exists=if_exists)
+        async_ = kw.get('async', async_)
+        return self.parent.delete(self, async_=async_, if_exists=if_exists)
 
     def new_record(self, values=None):
         """

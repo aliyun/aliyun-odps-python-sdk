@@ -1,0 +1,102 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/df-quickstart.rst:5
+msgid "快速开始"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:7
+msgid ""
+"在本例子中，我们拿movielens 100K来做例子。现在我们已经有三张表了，分别是\\ ``pyodps_ml_100k_movies``\\"
+" （电影相关的数据），\\ ``pyodps_ml_100k_users``\\ （用户相关的数据），\\ "
+"``pyodps_ml_100k_ratings``\\ （评分有关的数据）。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:10
+msgid "如果你的运行环境没有提供 ODPS 对象，你需要自己创建该对象："
+msgstr ""
+
+#: ../../source/df-quickstart.rst:18
+msgid "创建一个DataFrame对象十分容易，只需传入Table对象即可。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:25
+msgid "我们可以通过dtypes属性来查看这个DataFrame有哪些字段，分别是什么类型"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:39
+msgid "通过head方法，我们能取前N条数据，这让我们能快速预览数据。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:56
+msgid "有时候，我们并不需要都看到所有字段，我们可以从中筛选出一部分。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:68
+msgid "有时候我们只是排除个别字段。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:80
+msgid "又或者，排除掉一些字段的同时，得通过计算得到一些新的列，比如我想将sex为M的置为True，否则为False，并取名叫sex\\_bool。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:92
+msgid "现在，让我们看看年龄在20到25岁之间的人有多少个"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:99
+msgid "接下来，我们看看男女用户分别有多少。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:108
+msgid "用户按职业划分，从高到底，人数最多的前10职业是哪些呢？"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:126
+msgid "DataFrame API提供了value\\_counts这个方法来快速达到同样的目的。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:143
+msgid "让我们用更直观的图来看这份数据。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:149
+msgid "我们可以用个横向的柱状图来可视化"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:159
+msgid "我们将年龄分成30组，来看个年龄分布的直方图"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:169
+msgid "好了，现在我们把这三张表联合起来，只需要使用join就可以了。join完成后我们把它保存成一张新的表。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:195
+msgid "现在我们把年龄分成从0到80岁，分成8个年龄段，"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:202
+msgid "我们取分组和年龄唯一的前10条看看。"
+msgstr ""
+
+#: ../../source/df-quickstart.rst:219
+msgid "最后，我们来看看在各个年龄分组下，用户的评分总数和评分均值分别是多少。"
+msgstr ""
+

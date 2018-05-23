@@ -1,0 +1,113 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/base-sql.rst:4
+msgid "SQL"
+msgstr ""
+
+#: ../../source/base-sql.rst:6
+msgid ""
+"PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 ``execute_sql`` 或者 ``run_sql`` 方法的返回值是 "
+"`运行实例 <instances-zh.html>`_ 。"
+msgstr ""
+
+#: ../../source/base-sql.rst:11
+msgid ""
+"并非所有在 ODPS Console 中可以执行的命令都是 ODPS 可以接受的 SQL 语句。 在调用非 DDL / DML "
+"语句时，请使用其他方法，例如 GRANT / REVOKE 等语句请使用 run_security_query 方法，PAI 命令请使用 "
+"run_xflow 或 execute_xflow 方法。"
+msgstr ""
+
+#: ../../source/base-sql.rst:18
+msgid "执行SQL"
+msgstr ""
+
+#: ../../source/base-sql.rst:31
+msgid "设置运行参数"
+msgstr ""
+
+#: ../../source/base-sql.rst:33
+msgid "有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，参数类型是dict。"
+msgstr ""
+
+#: ../../source/base-sql.rst:39
+msgid "我们可以对于全局配置设置sql.settings后，每次运行时则都会添加相关的运行时参数。"
+msgstr ""
+
+#: ../../source/base-sql.rst:49
+msgid "读取SQL执行结果"
+msgstr ""
+
+#: ../../source/base-sql.rst:51
+msgid "运行 SQL 的 instance 能够直接执行 ``open_reader`` 的操作，一种情况是SQL返回了结构化的数据。"
+msgstr ""
+
+#: ../../source/base-sql.rst:59
+msgid "另一种情况是 SQL 可能执行的比如 ``desc``，这时通过 ``reader.raw`` 属性取到原始的SQL执行结果。"
+msgstr ""
+
+#: ../../source/base-sql.rst:66
+msgid ""
+"如果 `options.tunnel.use_instance_tunnel == True`，在调用 open_reader 时，PyODPS "
+"会默认调用 Instance Tunnel， 否则会调用旧的 Result 接口。如果你使用了版本较低的 MaxCompute 服务，或者调用 "
+"Instance Tunnel 出现了问题，PyODPS 会给出警告并自动降级到旧的 Result 接口，可根据警告信息判断导致降级的原因。如果 "
+"Instance Tunnel 的结果不合预期， 请将该选项设为 `False`。在调用 open_reader 时，也可以使用 "
+"``use_tunnel`` 参数来指定使用何种结果接口，例如"
+msgstr ""
+
+#: ../../source/base-sql.rst:82
+msgid ""
+"PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护的 Project，通过 Tunnel 下载数据受限。此时， 如果 "
+"`options.tunnel.limit_instance_tunnel` 未设置，会自动打开数据量限制。此时，可下载的数据条数受到 "
+"Project 配置限制， 通常该限制为 10000 条。如果你想要手动限制下载数据的规模，可以为 open_reader 方法增加 "
+"`limit_enabled` 选项， 或者设置 `options.tunnel.limit_instance_tunnel = True` 。"
+msgstr ""
+
+#: ../../source/base-sql.rst:87
+msgid ""
+"如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取 "
+"（可能受到 Project 安全设置的限制）。"
+msgstr ""
+
+#: ../../source/base-sql.rst:91
+msgid "设置alias"
+msgstr ""
+
+#: ../../source/base-sql.rst:93
+msgid "有时在运行时，比如某个UDF引用的资源是动态变化的，我们可以alias旧的资源名到新的资源，这样免去了重新删除并重新创建UDF的麻烦。"
+msgstr ""
+
+#: ../../source/base-sql.rst:150
+msgid "在交互式环境执行 SQL"
+msgstr ""
+
+#: ../../source/base-sql.rst:152
+msgid ""
+"在 ipython 和 jupyter 里支持 :ref:`使用 SQL 插件的方式运行 SQL <sqlinter>`，且支持 "
+":ref:`参数化查询 <sqlparam>`， 详情参阅 :ref:`文档 <sqlinter>`。"
+msgstr ""
+
+#: ../../source/base-sql.rst:158
+msgid "设置 biz_id"
+msgstr ""
+
+#: ../../source/base-sql.rst:160
+msgid "在少数情形下，可能在提交 SQL 时，需要同时提交 biz_id，否则执行会报错。此时，你可以设置全局 options 里的 biz_id。"
+msgstr ""
+

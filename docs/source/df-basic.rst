@@ -924,7 +924,7 @@ DataFrame的计算过程中，一些Collection被多处使用，或者用户需�
     1          4.7  Iris-setosa
     2          4.6  Iris-setosa
 
-.. intinclude:: df-seahawks-int-zh.rst
+.. intinclude:: df-seahawks-int.rst
 
 
 异步和并行执行

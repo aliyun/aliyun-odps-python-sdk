@@ -194,7 +194,7 @@ class Test(TestBase):
         instances = self.odps._project.instances
 
         uuid = '359696d4-ac73-4e6c-86d1-6649b01f1a22'
-        query = 'select * from dual;'
+        query = 'select * from dual if fake < 1;'
         priority = 5
 
         task = SQLTask(query=query)

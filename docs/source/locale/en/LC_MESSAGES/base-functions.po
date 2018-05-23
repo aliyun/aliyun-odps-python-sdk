@@ -1,0 +1,60 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/base-functions.rst:4
+msgid "函数"
+msgstr ""
+
+#: ../../source/base-functions.rst:6
+msgid ""
+"ODPS用户可以编写自定义 `函数 "
+"<https://docs.aliyun.com/#/pub/odps/basic/definition&function>`_ 用在ODPS "
+"SQL中。"
+msgstr ""
+
+#: ../../source/base-functions.rst:9
+msgid "基本操作"
+msgstr ""
+
+#: ../../source/base-functions.rst:11
+msgid ""
+"可以调用 ODPS 入口对象的 ``list_functions`` 来获取项目空间下的所有函数，``exist_function`` "
+"能判断是否存在函数， ``get_function`` 获取函数对象。"
+msgstr ""
+
+#: ../../source/base-functions.rst:15
+msgid "创建函数"
+msgstr ""
+
+#: ../../source/base-functions.rst:25
+msgid "注意，公共云由于安全原因，使用 Python UDF 需要申请。"
+msgstr ""
+
+#: ../../source/base-functions.rst:28
+msgid "删除函数"
+msgstr ""
+
+#: ../../source/base-functions.rst:36
+msgid "更新函数"
+msgstr ""
+
+#: ../../source/base-functions.rst:38
+msgid "只需对函数调用 ``update`` 方法即可。"
+msgstr ""
+

@@ -1,0 +1,250 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/ml-algo-ext.rst:5
+msgid "调用算法"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:7
+msgid "算法是 PyODPS ML 服务的核心。ODPS 中内嵌的算法通过 PyODPS ML 的包装以更方便的形式提供给用户。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:9
+msgid ""
+"在 PyODPS ML 中，算法依照其返回的对象分为 3 类：变换算法、训练算法以及度量算法。不论是哪种算法，都由算法参数、输入和输出三个部分 "
+"组成。算法参数是 ODPS 中的各个算法提供的用于调整和优化算法执行的参数，例如迭代次数、终止条件、正则化系数等等。输入和输出则是 "
+"算法待处理和完成处理的数据或者模型。输入数据中会包含一些元数据，例如特征列、标签列的选择等等。如果输入为 DataFrame，那么输入参数 "
+"的元数据由 DataFrame 的属性提供，在算法调用前，需要在 DataFrame 上确保字段作用、连续性、稀疏性等设置正确。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:14
+msgid "PyODPS ML 中的算法分类列表如下，使用前需要加载指定的包。详细的算法文档请参考 API 手册。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:17
+msgid "返回值分类"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:17
+msgid "算法类型"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:17
+msgid "包名"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:17
+msgid "算法列表"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:19 ../../source/ml-algo-ext.rst:79
+msgid "变换"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:19 ../../source/ml-algo-ext.rst:33
+msgid "分类"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:19 ../../source/ml-algo-ext.rst:33
+msgid "odps.ml.classifiers"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:19
+msgid "KNN"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:21
+msgid "聚类"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:21
+msgid "odps.ml.clustering"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:21
+msgid "KMeans"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:23
+msgid "特征工程"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:23
+msgid "odps.ml.feature"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:23
+msgid "gbdt_importance, regression_importance, rf_importance"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:25
+msgid "文本分析"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:25
+msgid "odps.ml.text"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:25
+msgid ""
+"count_ngram, DocWordStat, extract_keywords, filter_noises, "
+"semantic_vector_distance, SplitWord,  str_diff, summarize_text, TFIDF, "
+"top_n_similarity, Word2Vec"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:29 ../../source/ml-algo-ext.rst:40
+msgid "复杂网络"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:29 ../../source/ml-algo-ext.rst:40
+msgid "odps.ml.network"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:29
+msgid ""
+"NodeDensity, MaximalConnectedComponent, TriangleCount, EdgeDensity, "
+"PageRank, LabelPropagationClustering, LabelPropagationClassification, "
+"KCore, SSSP"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:33 ../../source/ml-algo-ext.rst:107
+msgid "训练"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:33
+msgid "Xgboost, RandomForests, LogisticRegression, LinearSVM, GBDTLR, NaiveBayes"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:36
+msgid "回归"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:36
+msgid "odps.ml.regression"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:36
+msgid "Xgboost, GBDT, LinearRegression"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:38 ../../source/ml-algo-ext.rst:125
+msgid "度量"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:38
+msgid "统计"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:38
+msgid "odps.ml.statistics"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:38
+msgid "histograms, pearson, t-test"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:40
+msgid "modularity"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:42
+msgid "评估"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:42
+msgid "odps.ml.metrics"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:42
+msgid ""
+"accuracy_score, average_precision_score, confusion_matrix, f1_score, "
+"fbeta_score, precision_recall_curve, precision_score, recall_score, "
+"roc_auc_score, roc_curve, lift_chart, gain_chart, mean_squared_error, "
+"mean_absolute_error, mean_absolute_percentage_error"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:50
+msgid "调用方法"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:52
+msgid "PyODPS ML 中的算法有两种可能的调用方式。以大写字母开头的算法需要先利用算法参数创建算法对象，再调用该对象的方法，传入需要处理的 数据集，如"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:61
+msgid "对于算法对象而言，除了在初始化时指定参数外，也可以通过 set 方法或属性值指定参数，如"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:71
+msgid ""
+"全小写并使用下划线连接的算法名可以直接以函数的形式进行调用。调用时，将输入数据作为参数列表的开头，算法参数以关键字参数的形式 "
+"传入即可调用。例如下面的例子中，df 为输入数据集，interval_num 为算法参数。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:81
+msgid ""
+"使用对象定义的变换算法拥有一个 transform 方法，输入和输出为 1 个或多个数据集，具体的输入 / 输出个数可参考算法文档。通常， 在使用"
+" transform 方法前需要指定特征字段，对于一些特定的算法可能还需要指定别的字段作用，或通过参数传递字段名称。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:84
+msgid "如果输出只有一个，则 transform 方法的输出即为 DataFrame，如下面的 KNN 例子所示："
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:92
+msgid ""
+"如果有多个输出，transform 方法会返回一个 ``namedtuple`` 对象，其中的元素为输出数据集，可直接赋值，也可以根据 API "
+"文档给出的 输出名称进行引用。如下面的例子："
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:104
+msgid "使用函数定义的算法对象则只需要将算法"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:109
+msgid ""
+"训练算法拥有一个 train 方法，输入一个或多个数据集，输出一个模型对象。具体的输入 / 输出可参考算法文档。通常，在使用 train 方法 "
+"时，需要指定 DataFrame 的特征字段和标签字段。对于稀疏数据，需要指定分隔符。决策树类的算法可能还需要指定字段是否连续。关于如何指定 "
+"字段作用请参考 :ref:`字段作用 <ml_field_role>` 一节。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:113
+msgid ""
+"输出的模型对象拥有 predict 方法，可以预测一个目标数据集。关于模型及预测的详细信息，可以参见 :ref:`模型 <ml_models>` "
+"一节。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:115
+msgid "一个完整的使用训练算法的例子如下："
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:127
+msgid ""
+"度量算法大都使用函数进行包装，但输出为数值或多个对象组成的 tuple。用户可以根据这些返回值获取数据集的信息，例如准确率、AUC、 "
+"皮尔森系数等统计信息，也可以通过返回的数组进行绘图等操作。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:130
+msgid "需要注意的是，由于要获取数据集的统计数据，度量算法会触发整个链路的执行。"
+msgstr ""
+
+#: ../../source/ml-algo-ext.rst:132
+msgid "我们以计算并绘制直方图作为使用度量算法的例子："
+msgstr ""
+

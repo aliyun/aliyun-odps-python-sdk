@@ -1,0 +1,265 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/df-agg.rst:12 ../../source/df-agg.rst:54
+msgid "聚合操作"
+msgstr ""
+
+#: ../../source/df-agg.rst:14
+msgid "首先，我们可以使用\\ ``describe``\\ 函数，来查看DataFrame里数字列的数量、最大值、最小值、平均值以及标准差是多少。"
+msgstr ""
+
+#: ../../source/df-agg.rst:26
+msgid "我们可以使用单列来执行聚合操作："
+msgstr ""
+
+#: ../../source/df-agg.rst:36
+msgid "如果所有列支持同一种聚合操作，也可以直接在整个 DataFrame 上执行聚合操作："
+msgstr ""
+
+#: ../../source/df-agg.rst:44
+msgid "需要注意的是，在 DataFrame 上执行 count 获取的是 DataFrame 的总行数："
+msgstr ""
+
+#: ../../source/df-agg.rst:51
+msgid "PyODPS 支持的聚合操作包括："
+msgstr ""
+
+#: ../../source/df-agg.rst:54
+msgid "说明"
+msgstr ""
+
+#: ../../source/df-agg.rst:56
+msgid "count（或size）"
+msgstr ""
+
+#: ../../source/df-agg.rst:56
+msgid "数量"
+msgstr ""
+
+#: ../../source/df-agg.rst:57
+msgid "nunique"
+msgstr ""
+
+#: ../../source/df-agg.rst:57
+msgid "不重复值数量"
+msgstr ""
+
+#: ../../source/df-agg.rst:58
+msgid "min"
+msgstr ""
+
+#: ../../source/df-agg.rst:58
+msgid "最小值"
+msgstr ""
+
+#: ../../source/df-agg.rst:59
+msgid "max"
+msgstr ""
+
+#: ../../source/df-agg.rst:59
+msgid "最大值"
+msgstr ""
+
+#: ../../source/df-agg.rst:60
+msgid "sum"
+msgstr ""
+
+#: ../../source/df-agg.rst:60
+msgid "求和"
+msgstr ""
+
+#: ../../source/df-agg.rst:61
+msgid "mean"
+msgstr ""
+
+#: ../../source/df-agg.rst:61
+msgid "均值"
+msgstr ""
+
+#: ../../source/df-agg.rst:62
+msgid "median"
+msgstr ""
+
+#: ../../source/df-agg.rst:62
+msgid "中位数"
+msgstr ""
+
+#: ../../source/df-agg.rst:63
+msgid "quantile(p)"
+msgstr ""
+
+#: ../../source/df-agg.rst:63
+msgid "p分位数，仅在整数值下可取得准确值"
+msgstr ""
+
+#: ../../source/df-agg.rst:64
+msgid "var"
+msgstr ""
+
+#: ../../source/df-agg.rst:64
+msgid "方差"
+msgstr ""
+
+#: ../../source/df-agg.rst:65
+msgid "std"
+msgstr ""
+
+#: ../../source/df-agg.rst:65
+msgid "标准差"
+msgstr ""
+
+#: ../../source/df-agg.rst:66
+msgid "moment"
+msgstr ""
+
+#: ../../source/df-agg.rst:66
+msgid "n 阶中心矩（或 n 阶矩）"
+msgstr ""
+
+#: ../../source/df-agg.rst:67
+msgid "skew"
+msgstr ""
+
+#: ../../source/df-agg.rst:67
+msgid "样本偏度（无偏估计）"
+msgstr ""
+
+#: ../../source/df-agg.rst:68
+msgid "kurtosis"
+msgstr ""
+
+#: ../../source/df-agg.rst:68
+msgid "样本峰度（无偏估计）"
+msgstr ""
+
+#: ../../source/df-agg.rst:69
+msgid "cat"
+msgstr ""
+
+#: ../../source/df-agg.rst:69
+msgid "按sep做字符串连接操作"
+msgstr ""
+
+#: ../../source/df-agg.rst:70
+msgid "tolist"
+msgstr ""
+
+#: ../../source/df-agg.rst:70
+msgid "组合为 list"
+msgstr ""
+
+#: ../../source/df-agg.rst:74
+msgid "分组聚合"
+msgstr ""
+
+#: ../../source/df-agg.rst:76
+msgid "DataFrame API提供了groupby来执行分组操作，分组后的一个主要操作就是通过调用agg或者aggregate方法，来执行聚合操作。"
+msgstr ""
+
+#: ../../source/df-agg.rst:87
+msgid "最终的结果列中会包含分组的列，以及聚合的列。"
+msgstr ""
+
+#: ../../source/df-agg.rst:89
+msgid "DataFrame 提供了一个\\ ``value_counts``\\ 操作，能返回按某列分组后，每个组的个数从大到小排列的操作。"
+msgstr ""
+
+#: ../../source/df-agg.rst:91
+msgid "我们使用 groupby 表达式可以写成："
+msgstr ""
+
+#: ../../source/df-agg.rst:101
+msgid "使用value\\_counts就很简单了："
+msgstr ""
+
+#: ../../source/df-agg.rst:111
+msgid "对于聚合后的单列操作，我们也可以直接取出列名。但此时只能使用聚合函数。"
+msgstr ""
+
+#: ../../source/df-agg.rst:130
+msgid "分组时也支持对常量进行分组，但是需要使用Scalar初始化。"
+msgstr ""
+
+#: ../../source/df-agg.rst:140
+msgid "编写自定义聚合"
+msgstr ""
+
+#: ../../source/df-agg.rst:142
+msgid "对字段调用agg或者aggregate方法来调用自定义聚合。自定义聚合需要提供一个类，这个类需要提供以下方法："
+msgstr ""
+
+#: ../../source/df-agg.rst:144
+msgid "buffer()：返回一个mutable的object（比如list、dict），buffer大小不应随数据而递增。"
+msgstr ""
+
+#: ../../source/df-agg.rst:145
+msgid "__call__(buffer, *val)：将值聚合到中间buffer。"
+msgstr ""
+
+#: ../../source/df-agg.rst:146
+msgid "merge(buffer, pbuffer)：讲pbuffer聚合到buffer中。"
+msgstr ""
+
+#: ../../source/df-agg.rst:147
+msgid "getvalue(buffer)：返回最终值。"
+msgstr ""
+
+#: ../../source/df-agg.rst:149
+msgid "让我们看一个计算平均值的例子。"
+msgstr ""
+
+#: ../../source/df-agg.rst:176
+msgid "如果最终类型和输入类型发生了变化，则需要指定类型。"
+msgstr ""
+
+#: ../../source/df-agg.rst:183
+msgid "自定义聚合也可以用在分组聚合中。"
+msgstr ""
+
+#: ../../source/df-agg.rst:193
+msgid "当对多列调用自定义聚合，可以使用agg方法。"
+msgstr ""
+
+#: ../../source/df-agg.rst:225
+msgid "要调用 ODPS 上已经存在的 UDAF，指定函数名即可。"
+msgstr ""
+
+#: ../../source/df-agg.rst:234
+msgid "目前，受限于 Python UDF，自定义聚合无法支持将 list / dict 类型作为初始输入或最终输出结果。"
+msgstr ""
+
+#: ../../source/df-agg.rst:237
+msgid "HyperLogLog 计数"
+msgstr ""
+
+#: ../../source/df-agg.rst:239
+msgid ""
+"DataFrame 提供了对列进行 HyperLogLog 计数的接口 ``hll_count``，这个接口是个近似的估计接口， "
+"当数据量很大时，能较快的对数据的唯一个数进行估计。"
+msgstr ""
+
+#: ../../source/df-agg.rst:242
+msgid "这个接口在对比如海量用户UV进行计算时，能很快得出估计值。"
+msgstr ""
+
+#: ../../source/df-agg.rst:252
+msgid "提供 ``splitter`` 参数会对每个字段进行分隔，再计算唯一数。"
+msgstr ""
+

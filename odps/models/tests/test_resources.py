@@ -1,11 +1,11 @@
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -56,10 +56,15 @@ class Test(TestBase):
         self.assertFalse(self.odps.exist_resource(non_exists_resource))
 
     def testTableResource(self):
+        secondary_project = self.config.get('test', 'secondary_project')
+
         test_table_name = tn('pyodps_t_tmp_resource_table')
         schema = Schema.from_lists(['id', 'name'], ['string', 'string'])
         self.odps.delete_table(test_table_name, if_exists=True)
         self.odps.create_table(test_table_name, schema)
+        if secondary_project:
+            self.odps.delete_table(test_table_name, if_exists=True, project=secondary_project)
+            self.odps.create_table(test_table_name, schema, project=secondary_project)
 
         resource_name = tn('pyodps_t_tmp_table_resource')
         try:
@@ -75,7 +80,7 @@ class Test(TestBase):
 
         with res.open_writer() as writer:
             writer.write([0, FILE_CONTENT])
-        with res.open_reader() as reader:    
+        with res.open_reader() as reader:
             rec = list(reader)[0]
             self.assertEqual(rec[1], FILE_CONTENT)
 
@@ -112,14 +117,64 @@ class Test(TestBase):
                          str(types.PartitionSpec(test_table_partition)))
         self.assertIs(res, self.odps.get_resource(resource_name))
 
+        test_table_partition = types.PartitionSpec('pt=test,sec=3')
+        table.create_partition(test_table_partition)
+        res = res.update(partition=test_table_partition)
+        self.assertIsInstance(res, TableResource)
+        self.assertEqual(res.get_source_table().name, test_table_name)
+        self.assertEqual(str(res.get_source_table_partition()),
+                         str(test_table_partition))
+        self.assertIs(res, self.odps.get_resource(resource_name))
+
         with res.open_writer() as writer:
             writer.write([0, FILE_CONTENT])
-        with res.open_reader() as reader:    
+        with res.open_reader() as reader:
             rec = list(reader)[0]
             self.assertEqual(rec[1], FILE_CONTENT)
 
+        if secondary_project:
+            resource_name2 = tn('pyodps_t_tmp_table_resource2')
+            try:
+                self.odps.delete_resource(resource_name2)
+            except errors.NoSuchObject:
+                pass
+            res = self.odps.create_resource(resource_name2, 'table', project_name=secondary_project,
+                                            table_name=test_table_name)
+            self.assertIsInstance(res, TableResource)
+            self.assertEqual(res.get_source_table().project.name, secondary_project)
+            self.assertEqual(res.get_source_table().name, test_table_name)
+            self.assertEqual(res.table.project.name, secondary_project)
+            self.assertEqual(res.table.name, test_table_name)
+            self.assertIsNone(res.get_source_table_partition())
+            self.assertIs(res, self.odps.get_resource(resource_name2))
+
+            del res.parent[resource_name2]  # delete from cache
+
+            self.assertIsNot(res, self.odps.get_resource(resource_name2))
+            res = self.odps.get_resource(resource_name2)
+            self.assertIsInstance(res, TableResource)
+            self.assertEqual(res.get_source_table().project.name, secondary_project)
+            self.assertEqual(res.get_source_table().name, test_table_name)
+            self.assertIsNone(res.get_source_table_partition())
+
+            test_table_partition = 'pt=test,sec=1'
+            res = res.update(project_name=self.odps.project, partition=test_table_partition)
+            self.assertIsInstance(res, TableResource)
+            self.assertEqual(res.get_source_table().project.name, self.odps.project)
+            self.assertEqual(res.get_source_table().name, test_table_name)
+            self.assertEqual(str(res.partition.spec),
+                             str(types.PartitionSpec(test_table_partition)))
+
+            res = res.update(table_name=secondary_project + '.' + test_table_name, partition=None)
+            self.assertIsInstance(res, TableResource)
+            self.assertEqual(res.get_source_table().project.name, secondary_project)
+            self.assertEqual(res.get_source_table().name, test_table_name)
+            self.assertIsNone(res.get_source_table_partition())
+
         self.odps.delete_resource(resource_name)
         self.odps.delete_table(test_table_name)
+        if secondary_project:
+            self.odps.delete_table(test_table_name, project=secondary_project)
 
     def testTempFileResource(self):
         resource_name = tn('pyodps_t_tmp_file_resource')

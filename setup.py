@@ -104,7 +104,7 @@ try:
     for pk in pip.get_installed_distributions():
         if pk.key == 'odps':
             raise Exception('Package `odps` collides with PyODPS. Please uninstall it before installing PyODPS.')
-except ImportError:
+except (ImportError, AttributeError):
     pass
 
 try:
@@ -166,6 +166,8 @@ setup_options = dict(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Software Development :: Libraries',

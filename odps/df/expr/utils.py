@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -95,7 +95,7 @@ def get_collection_resources(resources):
         return ret
 
 
-def get_executed_collection_table_name(collection):
+def get_executed_collection_project_table_name(collection):
     from .expressions import CollectionExpr
     from ...models import Table
     from ..backends.context import context
@@ -105,11 +105,13 @@ def get_executed_collection_table_name(collection):
 
     if collection._source_data is not None and \
             isinstance(collection._source_data, Table):
-        return collection._source_data.name
+        source_data = collection._source_data
+        return source_data.project.name + '.' + source_data.name
 
     if context.is_cached(collection) and \
             isinstance(context.get_cached(collection), Table):
-        return context.get_cached(collection).name
+        source_data = context.get_cached(collection)
+        return source_data.project.name + '.' + source_data.name
 
 
 def is_called_by_inspector():

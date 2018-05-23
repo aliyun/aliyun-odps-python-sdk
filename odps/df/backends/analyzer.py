@@ -277,6 +277,7 @@ class BaseAnalyzer(Backend):
                         names.append(name)
                         tps.append(value_col.dtype)
 
+                        col = col.item() if hasattr(col, 'item') else col
                         field = (expr._columns[0] == col).ifelse(
                             value_col, Scalar(_value_type=value_col.dtype))
                         if isinstance(agg_func, six.string_types):

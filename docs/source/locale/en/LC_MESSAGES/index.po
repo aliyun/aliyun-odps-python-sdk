@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.7.16\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: ../../source/index.rst:7
+msgid "PyODPS: ODPS Python SDK and data analysis framework"
+msgstr ""
+
+#: ../../source/index.rst:9
+msgid ""
+"`PyODPS <https://github.com/aliyun/aliyun-odps-python-sdk>`_ "
+"是ODPS的Python版本的SDK， 它提供了对ODPS对象的基本操作；并提供了DataFrame框架，能轻松在ODPS上进行数据分析。"
+msgstr ""
+
+#: ../../source/index.rst:15
+msgid "安装"
+msgstr ""
+
+#: ../../source/index.rst:17
+msgid "PyODPS 支持Python 2.6 以上的 Python 版本，包括Python 3。系统安装了 pip 后，只需运行："
+msgstr ""
+
+#: ../../source/index.rst:23
+msgid "PyODPS 的相关依赖会自动安装。"
+msgstr ""
+
+#: ../../source/index.rst:25
+msgid "**注意**，对于Linux和Mac用户，先安装Cython，再运行安装pyodps命令，能加速Tunnel的上传和下载。"
+msgstr ""
+
+#: ../../source/index.rst:27
+msgid ""
+"安装有 `合适版本 <https://wiki.python.org/moin/WindowsCompilers>`_ Visual "
+"C++和Cython的Windows用户也可使用Tunnel加速功能。"
+msgstr ""
+
+#: ../../source/index.rst:30
+msgid "快速开始"
+msgstr ""
+
+#: ../../source/index.rst:32
+msgid "首先，我们需要阿里云帐号来初始化一个ODPS的入口："
+msgstr ""
+
+#: ../../source/index.rst:41
+msgid "这样就已经初始化，就可以对表、资源、函数等进行操作了。"
+msgstr ""
+
+#: ../../source/index.rst:43
+msgid ""
+"在主入口，我们对于主要的ODPS对象都提供了最基本的几个操作，包括 "
+"``list``、``get``、``exist``、``create``、``delete``。"
+msgstr ""
+
+#: ../../source/index.rst:45
+msgid "我们会对这几部分来分别展开说明。后文中的 o 对象如无说明均指的是 ODPS 入口对象。"
+msgstr ""
+
