@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,7 +19,7 @@ from .xflow import XFlow
 from .instances import Instances
 from .instance import Instance
 from .. import serializers, errors, compat, options
-from ..compat import six
+from ..compat import six, OrderedDict
 
 
 class XFlows(Iterable):
@@ -99,7 +99,7 @@ class XFlows(Iterable):
         return xflow
 
     class XFlowInstance(XMLRemoteModel):
-        __slots__ = 'xflow_project', 'xflow_name', 'parameters', 'properties'
+        __slots__ = 'xflow_project', 'xflow_name', 'parameters', 'properties', 'priority'
         _root = 'XflowInstance'
 
         xflow_project = serializers.XMLNodeField('Project')
@@ -108,28 +108,40 @@ class XFlows(Iterable):
             'Parameters', 'Parameter', key_tag='Key', value_tag='Value', required=True)
         properties = serializers.XMLNodePropertiesField('Config', 'Property',
                                                         key_tag='Name', value_tag='Value')
+        priority = serializers.XMLNodeField('Priority', parse_callback=int, serialize_callback=int, default=9)
 
     class AnonymousSubmitXFlowInstance(XMLRemoteModel):
         _root = 'Instance'
 
         instance = serializers.XMLNodeReferenceField('XFlows.XFlowInstance', 'XflowInstance')
 
-    def _gen_xflow_instance_xml(self, xflow_instance=None, **kw):
+    @staticmethod
+    def _gen_xflow_instance_xml(xflow_instance=None, **kw):
         if xflow_instance is None:
             xflow_instance = XFlows.XFlowInstance(**kw)
 
         inst = XFlows.AnonymousSubmitXFlowInstance(instance=xflow_instance)
         return inst.serialize()
 
-    def run_xflow(self, xflow_instance=None, project=None, hints=None, **kw):
+    def run_xflow(self, xflow_instance=None, project=None, hints=None, parameters=None, **kw):
         project = project or self.parent
         hints = hints or {}
         if options.ml.xflow_settings:
             hints.update(options.ml.xflow_settings)
         if hints:
             kw['properties'] = hints
+        if parameters:
+            new_params = OrderedDict()
+            for k, v in six.iteritems(parameters):
+                if k == 'modelName' and '/' not in v:
+                    new_params[k] = '%s/offlinemodels/%s' % (project.name, v)
+                elif k in ('inputTableName', 'outputTableName') and '.' not in v:
+                    new_params[k] = '%s.%s' % (project.name, v)
+                else:
+                    new_params[k] = v
+            parameters = new_params
         return project.instances.create(
-            xml=self._gen_xflow_instance_xml(xflow_instance=xflow_instance, **kw))
+            xml=self._gen_xflow_instance_xml(xflow_instance=xflow_instance, parameters=parameters, **kw))
 
     class XFlowResult(XMLRemoteModel):
         class XFlowAction(XMLRemoteModel):

@@ -1165,7 +1165,8 @@ class ODPS(object):
         project = self.get_project(name=project)
         return name in project.xflows
 
-    def run_xflow(self, xflow_name, xflow_project=None, parameters=None, project=None, hints=None):
+    def run_xflow(self, xflow_name, xflow_project=None, parameters=None, project=None,
+                  hints=None, priority=None):
         """
         Run xflow by given name, xflow project, paremeters asynchronously.
 
@@ -1178,11 +1179,17 @@ class ODPS(object):
         :param project: project name, if not provided, will be the default project
         :param hints: execution hints
         :type hints: dict
+        :param priority: instance priority, 9 as default
+        :type priority: int
         :return: instance
         :rtype: :class:`odps.models.Instance`
 
         .. seealso:: :class:`odps.models.Instance`
         """
+
+        priority = priority or options.priority
+        if priority is None and options.get_priority is not None:
+            priority = options.get_priority(self)
 
         project = self.get_project(name=project)
         xflow_project = xflow_project or project
@@ -1190,9 +1197,10 @@ class ODPS(object):
             xflow_project = xflow_project.name
         return project.xflows.run_xflow(
             xflow_name=xflow_name, xflow_project=xflow_project, project=project, parameters=parameters,
-            hints=hints)
+            hints=hints, priority=priority)
 
-    def execute_xflow(self, xflow_name, xflow_project=None, parameters=None, project=None, hints=None):
+    def execute_xflow(self, xflow_name, xflow_project=None, parameters=None, project=None,
+                      hints=None, priority=None):
         """
         Run xflow by given name, xflow project, paremeters, block until xflow executed successfully.
 
@@ -1205,6 +1213,8 @@ class ODPS(object):
         :param project: project name, if not provided, will be the default project
         :param hints: execution hints
         :type hints: dict
+        :param priority: instance priority, 9 as default
+        :type priority: int
         :return: instance
         :rtype: :class:`odps.models.Instance`
 
@@ -1212,7 +1222,8 @@ class ODPS(object):
         """
 
         inst = self.run_xflow(
-            xflow_name, xflow_project=xflow_project, parameters=parameters, project=project, hints=hints)
+            xflow_name, xflow_project=xflow_project, parameters=parameters, project=project,
+            hints=hints, priority=priority)
         inst.wait_for_success()
         return inst
 
