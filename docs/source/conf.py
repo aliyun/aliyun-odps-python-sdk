@@ -17,6 +17,7 @@ import os
 import shutil
 import atexit
 import tempfile
+import textwrap
 import codecs
 import re
 from sphinx.directives import Include
@@ -232,19 +233,37 @@ htmlhelp_basename = 'PyOdpsdoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
+latex_engine = 'xelatex'
+
 latex_elements = {
-# The paper size ('letterpaper' or 'a4paper').
-#'papersize': 'letterpaper',
-
-# The font size ('10pt', '11pt' or '12pt').
-#'pointsize': '10pt',
-
-# Additional stuff for the LaTeX preamble.
-#'preamble': '',
-
-# Latex figure (float) alignment
-#'figure_align': 'htbp',
+    'preamble': textwrap.dedent(r"""
+    \usepackage{svg}
+    \usepackage{hyperref}
+    \setcounter{tocdepth}{2}
+    """)
 }
+
+if on_rtd:
+    del latex_engine
+    latex_elements['preamble'] = textwrap.dedent(r"""
+    \hypersetup{unicode=true}
+    \usepackage{CJKutf8}
+    \usepackage{svg}
+    \usepackage{hyperref}
+    \setcounter{tocdepth}{2}
+    \DeclareUnicodeCharacter{00A0}{\nobreakspace}
+    \DeclareUnicodeCharacter{2203}{\ensuremath{\exists}}
+    \DeclareUnicodeCharacter{2200}{\ensuremath{\forall}}
+    \DeclareUnicodeCharacter{2286}{\ensuremath{\subseteq}}
+    \DeclareUnicodeCharacter{2713}{x}
+    \DeclareUnicodeCharacter{27FA}{\ensuremath{\Longleftrightarrow}}
+    \DeclareUnicodeCharacter{221A}{\ensuremath{\sqrt{}}}
+    \DeclareUnicodeCharacter{221B}{\ensuremath{\sqrt[3]{}}}
+    \DeclareUnicodeCharacter{2295}{\ensuremath{\oplus}}
+    \DeclareUnicodeCharacter{2297}{\ensuremath{\otimes}}
+    \begin{CJK}{UTF8}{gbsn}
+    \AtEndDocument{\end{CJK}}
+    """)
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title,
