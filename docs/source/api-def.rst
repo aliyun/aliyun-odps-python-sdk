@@ -57,4 +57,7 @@ Definitions
 .. autoclass:: odps.models.ml.OnlineModel
     :members:
 
+.. autoclass:: odps.models.security.User
+    :members:
+
 .. intinclude:: api-def-int.rst
