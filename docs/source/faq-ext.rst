@@ -10,4 +10,4 @@
 
 - **如何申请开通公共云 Python UDF**
 
-  公共云 Python UDF 目前处于公测阶段，可在 `这里 <https://page.aliyun.com/form/odps_py/pc/index.htm>`_ 申请开通，审批进度等信息可通过工单咨询。
+  公共云 Python UDF 目前处于公测阶段，可通过工单申请及咨询审批进度。
