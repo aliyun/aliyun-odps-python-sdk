@@ -120,7 +120,7 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
 
     def __setstate__(self, state):
         columns, partitions = state
-        self.__init__(_columns=columns, _partitions=partitions)
+        self.__init__(columns=columns, partitions=partitions)
 
 
 class Table(LazyLoad):
@@ -267,7 +267,7 @@ class Table(LazyLoad):
         project = utils.to_text(project)
         comment = utils.to_text(comment)
 
-        buf.write(u'CREATE%s TABLE ' % (' EXTERNAL' if 'storage_handler' in kw else ''))
+        buf.write(u'CREATE%s TABLE ' % (' EXTERNAL' if kw.get('storage_handler') else ''))
         if if_not_exists:
             buf.write(u'IF NOT EXISTS ')
         if project is not None:
@@ -279,13 +279,13 @@ class Table(LazyLoad):
             buf.write(u'(\n')
             buf.write(table_schema)
             buf.write(u'\n)\n')
-            if comment is not None:
+            if comment:
                 buf.write(u"COMMENT '%s'\n" % escape_odps_string(comment))
         elif isinstance(table_schema, tuple):
             buf.write(u'(\n')
             buf.write(table_schema[0])
             buf.write(u'\n)\n')
-            if comment is not None:
+            if comment:
                 buf.write(u"COMMENT '%s'\n" % escape_odps_string(comment))
             buf.write(u'PARTITIONED BY ')
             buf.write(u'(\n')
@@ -304,7 +304,7 @@ class Table(LazyLoad):
                 buf.write(u'\n)\n')
 
             write_columns(table_schema.simple_columns)
-            if comment is not None:
+            if comment:
                 buf.write(u"COMMENT '%s'\n" % comment)
             if table_schema.partitions:
                 buf.write(u'PARTITIONED BY ')

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-22 22:05+0800\n"
+"POT-Creation-Date: 2018-05-29 16:54+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1315,7 +1315,7 @@ msgid ""
 "rtype 参数指定返回值。"
 msgstr ""
 
-#: ../../source/df-element.rst:715
+#: ../../source/df-element.rst:716
 msgid ""
 ">>> from odps.df import func\n"
 ">>>\n"
@@ -1328,5 +1328,9 @@ msgid ""
 ">>> iris[iris.name, func.your_udf(iris.sepalwidth, iris.sepallength, "
 "rtype='float', project='udf_project',\n"
 ">>>                               name='new_col')]"
+msgstr ""
+
+#: ../../source/df-element.rst:718
+msgid "注意：在使用 Pandas 后端时，不支持执行带有 ``func`` 的表达式。"
 msgstr ""
 

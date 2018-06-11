@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -28,7 +28,10 @@ class XMLRemoteModel(serializers.XMLSerializableModel):
         if 'client' in kwargs:
             kwargs['_client'] = kwargs.pop('client')
 
-        assert frozenset(kwargs).issubset(self.__slots__)
+        if not frozenset(kwargs).issubset(self.__slots__):
+            unexpected = sorted(set(kwargs) - set(self.__slots__))
+            raise TypeError("%s() meet illegal arguments (%s)" % (
+                type(self).__name__, ', '.join(unexpected)))
         super(XMLRemoteModel, self).__init__(**kwargs)
 
     @classmethod
@@ -49,7 +52,10 @@ class JSONRemoteModel(serializers.JSONSerializableModel):
             kwargs['_parent'] = kwargs.pop('parent')
         if 'client' in kwargs:
             kwargs['_client'] = kwargs.pop('client')
-        assert frozenset(kwargs).issubset(self.__slots__)
+        if not frozenset(kwargs).issubset(self.__slots__):
+            unexpected = sorted(set(kwargs) - set(self.__slots__))
+            raise TypeError("%s() meet illegal arguments (%s)" % (
+                type(self).__name__, ', '.join(unexpected)))
         super(JSONRemoteModel, self).__init__(**kwargs)
 
     @classmethod

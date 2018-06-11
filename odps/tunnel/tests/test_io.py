@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from odps.tests.core import TestBase, snappy_case
-from odps.compat import unittest, BytesIO
+from odps.compat import unittest, PY26
 from odps.tunnel.io import stream as io_stream
 
 import io
@@ -70,6 +70,21 @@ class Test(TestBase):
 
         self.assertEquals(self.TEXT.encode('utf8'), b)
 
+        if not PY26:
+            tube.seek(0)
+            instream = io_stream.DeflateInputStream(tube)
+
+            b = bytearray(len(self.TEXT.encode('utf8')))
+            mv = memoryview(b)
+            pos = 0
+            while True:
+                incr = instream.readinto(mv[pos:pos + 1])
+                if not incr:
+                    break
+                pos += incr
+
+            self.assertEquals(self.TEXT.encode('utf8'), b)
+
     @snappy_case
     def testCompressAndDecompressSnappy(self):
         tube = io.BytesIO()
@@ -89,6 +104,21 @@ class Test(TestBase):
             b += part
 
         self.assertEquals(self.TEXT.encode('utf8'), b)
+
+        if not PY26:
+            tube.seek(0)
+            instream = io_stream.SnappyInputStream(tube)
+
+            b = bytearray(len(self.TEXT.encode('utf8')))
+            mv = memoryview(b)
+            pos = 0
+            while True:
+                incr = instream.readinto(mv[pos:pos + 1])
+                if not incr:
+                    break
+                pos += incr
+
+            self.assertEquals(self.TEXT.encode('utf8'), b)
 
     def testClass(self):
         io_stream._FORCE_THREAD = False
@@ -128,8 +158,8 @@ class Test(TestBase):
         req_io = io_stream.ThreadRequestsIO(raise_poster)
         req_io.start()
         try:
-            req_io.write('TEST_DATA')
-            req_io.write('ANOTHER_PIECE')
+            req_io.write(b'TEST_DATA')
+            req_io.write(b'ANOTHER_PIECE')
             req_io.finish()
         except AttributeError:
             tb = traceback.format_exc().splitlines()
@@ -141,8 +171,8 @@ class Test(TestBase):
         req_io = io_stream.GreenletRequestsIO(raise_poster)
         req_io.start()
         try:
-            req_io.write('TEST_DATA')
-            req_io.write('ANOTHER_PIECE')
+            req_io.write(b'TEST_DATA')
+            req_io.write(b'ANOTHER_PIECE')
             req_io.finish()
         except AttributeError:
             tb = traceback.format_exc().splitlines()

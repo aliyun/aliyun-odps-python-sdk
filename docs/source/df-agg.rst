@@ -30,8 +30,13 @@
     >>> iris.sepallength.max()
     7.9
 
-    >>> iris.name.cat(sep=',')
+如果要在消除重复后的列上进行聚合，可以先调用``unique``方法，再调用相应的聚合函数：
+
+.. code:: python
+
+    >>> iris.name.unique().cat(sep=',')
     u'Iris-setosa,Iris-versicolor,Iris-virginica'
+
 
 如果所有列支持同一种聚合操作，也可以直接在整个 DataFrame 上执行聚合操作：
 

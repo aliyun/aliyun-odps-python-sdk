@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -684,7 +684,7 @@ def human_file_size(size):
     else:
         num_scale = int(math.floor(math.log(size) / math.log(1000)))
     num_scale = max(num_scale, 0)
-    if num_scale > 7:
+    if num_scale >= len(suffixes):
         suffix = '?'
     else:
         suffix = suffixes[num_scale]
@@ -692,7 +692,8 @@ def human_file_size(size):
     value = float(size) / num_scale
     str_value = str(value)
     if suffix == ' ':
-        str_value = str_value[:str_value.index('.')]
+        if '.' in str_value:
+            str_value = str_value[:str_value.index('.')]
     elif str_value[2] == '.':
         str_value = str_value[:2]
     else:

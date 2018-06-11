@@ -1017,6 +1017,8 @@ class OdpsSQLCompiler(Backend):
         self.add_select_clause(expr, select_clause)
 
     def visit_reduction(self, expr):
+        is_unique = getattr(expr, '_unique', False)
+
         if isinstance(expr, (Count, GroupedCount)) and isinstance(expr.input, CollectionExpr):
             compiled = 'COUNT(1)'
             self._ctx.add_expr_compiled(expr, compiled)
@@ -1034,9 +1036,15 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, (Std, GroupedStd)):
             node_name = 'stddev' if expr._ddof == 0 else 'stddev_samp'
         elif isinstance(expr, (Sum, GroupedSum)) and expr.input.dtype == df_types.string:
-            compiled = 'WM_CONCAT(\'\', %s)' % self._ctx.get_expr_compiled(expr.input)
+            if is_unique:
+                compiled = 'WM_CONCAT(DISTINCT \'\', %s)' % self._ctx.get_expr_compiled(expr.input)
+            else:
+                compiled = 'WM_CONCAT(\'\', %s)' % self._ctx.get_expr_compiled(expr.input)
         elif isinstance(expr, (Sum, GroupedSum)) and expr.input.dtype == df_types.boolean:
-            compiled = 'SUM(IF(%s, 1, 0))' % self._ctx.get_expr_compiled(expr.input)
+            if getattr(expr, '_unique', False):
+                compiled = 'SUM(DISTINCT IF(%s, 1, 0))' % self._ctx.get_expr_compiled(expr.input)
+            else:
+                compiled = 'SUM(IF(%s, 1, 0))' % self._ctx.get_expr_compiled(expr.input)
         elif isinstance(expr, (Max, GroupedMax, Min, GroupedMin)) and \
                 expr.input.dtype == df_types.boolean:
             compiled = '%s(IF(%s, 1, 0)) == 1' % (
@@ -1049,14 +1057,21 @@ class OdpsSQLCompiler(Backend):
             compiled = 'COUNT(DISTINCT %s)' % ', '.join(
                 self._ctx.get_expr_compiled(c) for c in expr.inputs)
         elif isinstance(expr, (Cat, GroupedCat)):
-            compiled = 'WM_CONCAT(%s, %s)' % (self._ctx.get_expr_compiled(expr._sep),
-                                              self._ctx.get_expr_compiled(expr.input))
+            if is_unique:
+                compiled = 'WM_CONCAT(DISTINCT %s, %s)' % (self._ctx.get_expr_compiled(expr._sep),
+                                                           self._ctx.get_expr_compiled(expr.input))
+            else:
+                compiled = 'WM_CONCAT(%s, %s)' % (self._ctx.get_expr_compiled(expr._sep),
+                                                  self._ctx.get_expr_compiled(expr.input))
         elif isinstance(expr, (Quantile, GroupedQuantile)):
             if not isinstance(expr._prob, (list, set)):
                 probs_expr = expr._prob
             else:
                 probs_expr = 'ARRAY(' + ', '.join(str(p) for p in expr._prob) + ')'
-            compiled = 'PERCENTILE(%s, %s)' % (self._ctx.get_expr_compiled(expr.input), probs_expr)
+            if is_unique:
+                compiled = 'PERCENTILE(DISTINCT %s, %s)' % (self._ctx.get_expr_compiled(expr.input), probs_expr)
+            else:
+                compiled = 'PERCENTILE(%s, %s)' % (self._ctx.get_expr_compiled(expr.input), probs_expr)
         elif isinstance(expr, (ToList, GroupedToList)):
             func_name = 'COLLECT_SET' if expr._unique else 'COLLECT_LIST'
             compiled = '%s(%s)' % (func_name, self._ctx.get_expr_compiled(expr.input))
@@ -1064,8 +1079,12 @@ class OdpsSQLCompiler(Backend):
             node_name = expr.node_name
 
         if compiled is None:
-            compiled = '{0}({1})'.format(
-                node_name.upper(), self._ctx.get_expr_compiled(expr.args[0]))
+            if is_unique:
+                compiled = '{0}(DISTINCT {1})'.format(
+                    node_name.upper(), self._ctx.get_expr_compiled(expr.args[0]))
+            else:
+                compiled = '{0}({1})'.format(
+                    node_name.upper(), self._ctx.get_expr_compiled(expr.args[0]))
 
         self._ctx.add_expr_compiled(expr, compiled)
 
@@ -1080,11 +1099,15 @@ class OdpsSQLCompiler(Backend):
             is_func_created = True
 
         args = [self._ctx.get_expr_compiled(i) for i in expr.inputs]
+
         if hasattr(expr, '_func_args') and expr._func_args is not None \
                 and not is_func_created:
             func_args = [repr(arg) for arg in expr._func_args]
             args.extend(func_args)
-        compiled = '{0}({1})'.format(func_name, ', '.join(args))
+        if getattr(expr, '_unique', False):
+            compiled = '{0}(DISTINCT {1})'.format(func_name, ', '.join(args))
+        else:
+            compiled = '{0}({1})'.format(func_name, ', '.join(args))
 
         self._ctx.add_expr_compiled(expr, compiled)
 

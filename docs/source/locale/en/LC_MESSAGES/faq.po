@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-11 09:42+0800\n"
+"POT-Creation-Date: 2018-05-29 19:43+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,11 +21,11 @@ msgstr ""
 msgid "常见问题"
 msgstr "Frequently asked questions"
 
-#: ../../source/faq.rst:10
-msgid "**读取数据时报\"project is protected\"**"
+#: ../../source/faq.rst:11
+msgid "读取数据时报\"project is protected\""
 msgstr ""
-"**An error occurred while reading data: \"project is protected\". How can"
-" I deal with this error?**"
+"An error occurred while reading data: \"project is protected\". How can I"
+" deal with this error?"
 
 #: ../../source/faq.rst:12
 msgid "Project 上的安全策略禁止读取表中的数据，此时，如果想使用全部数据，有以下选项可用："
@@ -55,11 +55,11 @@ msgstr "Use ``o.execute_sql('select * from <table_name>').open_reader()``"
 msgid "改用 :ref:`DataFrame <df>`，``o.get_table('<table_name>').to_df()``"
 msgstr "Use :ref:`DataFrame <df>`, ``o.get_table('<table_name>').to_df()``"
 
-#: ../../source/faq.rst:22
-msgid "**出现 ImportError，并且在 ipython 或者 jupyter 下使用**"
+#: ../../source/faq.rst:23
+msgid "出现 ImportError，并且在 ipython 或者 jupyter 下使用"
 msgstr ""
-"**An error occurred while using IPython and Jupyter: ImportError. How can"
-" I deal with this error?**"
+"An error occurred while using IPython and Jupyter: ImportError. How can I"
+" deal with this error?"
 
 #: ../../source/faq.rst:24
 msgid ""
@@ -69,11 +69,11 @@ msgstr ""
 "If running ``from odps import errors`` does not fix the error, you need "
 "to execute ``pip install -U jupyter`` to install the ipython component."
 
-#: ../../source/faq.rst:26
-msgid "**执行 SQL 通过 open_reader 只能取到最多1万条记录，如何取多余1万条？**"
+#: ../../source/faq.rst:27
+msgid "执行 SQL 通过 open_reader 只能取到最多1万条记录，如何取多余1万条？"
 msgstr ""
-"**I can only retrieve a maximum of 10,000 items of data by executing SQL "
-"command open_reader. How can I retrieve more than 10,000 items of data?**"
+"I can only retrieve a maximum of 10,000 items of data by executing SQL "
+"command open_reader. How can I retrieve more than 10,000 items of data?"
 
 #: ../../source/faq.rst:28
 msgid ""
@@ -83,14 +83,12 @@ msgstr ""
 "Use ``create table as select ...`` to save the SQL execution result to a "
 "table, and use :ref:`table.open_reader <table_open_reader>` to read data."
 
-#: ../../source/faq.rst:30
-msgid ""
-"**上传 pandas DataFrame 到 ODPS 时报错：ODPSError: ODPS entrance should be "
-"provided**"
+#: ../../source/faq.rst:31
+msgid "上传 pandas DataFrame 到 ODPS 时报错：ODPSError: ODPS entrance should be provided"
 msgstr ""
-"**An error occurred while uploading pandas DataFrame to MaxCompute ODPS: "
+"An error occurred while uploading pandas DataFrame to MaxCompute ODPS: "
 "ODPSError: ODPS entrance should be provided. How can I deal with this "
-"error?**"
+"error?"
 
 #: ../../source/faq.rst:32
 msgid "原因是没有找到全局的ODPS入口，有三个方法："
@@ -115,9 +113,9 @@ msgstr ""
 "Use the MaxCompute parameter ``DataFrame(pd_df).persist('your_table', "
 "odps=odps)``."
 
-#: ../../source/faq.rst:38
-msgid "**在 DataFrame 中如何使用 max_pt ？**"
-msgstr "**How can I use max_pt in DataFrame?**"
+#: ../../source/faq.rst:39
+msgid "在 DataFrame 中如何使用 max_pt ？"
+msgstr "How can I use max_pt in DataFrame?"
 
 #: ../../source/faq.rst:40
 msgid "使用 ``odps.df.func`` 模块来调用 ODPS 内建函数"
@@ -133,5 +131,6 @@ msgid ""
 msgstr ""
 "from odps.df import func\n"
 "df = o.get_table('your_table').to_df()\n"
-"df[df.ds == func.max_pt('your_project.your_table')]  # ds is a partition column"
+"df[df.ds == func.max_pt('your_project.your_table')]  # ds is a partition "
+"column"
 

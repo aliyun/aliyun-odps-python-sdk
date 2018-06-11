@@ -1238,6 +1238,16 @@ class Test(TestBase):
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
         expr = self.expr.groupby(['name', 'id']).filter(self.expr.id.min() * 2 < 10) \
+            .agg(self.expr.fid.max() + 1, new_id=self.expr.id.unique().sum())
+
+        expected = 'SELECT t1.`name`, t1.`id`, MAX(t1.`fid`) + 1 AS `fid_max`, SUM(DISTINCT t1.`id`) AS `new_id` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'GROUP BY t1.`name`, t1.`id` \n' \
+                   'HAVING (MIN(t1.`id`) * 2) < 10'
+
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby(['name', 'id']).filter(self.expr.id.min() * 2 < 10) \
             .agg(self.expr.fid.max() + 1, new_id=self.expr.id.sum())
 
         expected = 'SELECT t1.`name`, t1.`id`, MAX(t1.`fid`) + 1 AS `fid_max`, SUM(t1.`id`) AS `new_id` \n' \
@@ -1385,6 +1395,11 @@ class Test(TestBase):
 
         expr = self.expr.fid.mean()
         expected = 'SELECT AVG(t1.`fid`) AS `fid_mean` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.fid.unique().mean()
+        expected = 'SELECT AVG(DISTINCT t1.`fid`) AS `fid_mean` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 

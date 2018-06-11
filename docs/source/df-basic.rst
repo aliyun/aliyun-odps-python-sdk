@@ -753,7 +753,7 @@ DataFrame上的所有操作并不会立即执行，只有当用户显式调用\ 
     ResultFrame是结果集合，不能参与后续计算。
 
 
-ResultFrame可以迭代取出每条记录。
+ResultFrame可以迭代取出每条记录：
 
 
 .. code:: python
@@ -764,6 +764,15 @@ ResultFrame可以迭代取出每条记录。
     [5.0999999999999996, 3.5, 1.3999999999999999, 0.20000000000000001, u'Iris-setosa']
     [4.9000000000000004, 3.0, 1.3999999999999999, 0.20000000000000001, u'Iris-setosa']
     [4.7000000000000002, 3.2000000000000002, 1.3, 0.20000000000000001, u'Iris-setosa']
+
+
+ResultFrame 也支持在安装有 pandas 的前提下转换为 pandas DataFrame 或使用 pandas 后端的 PyODPS DataFrame：
+
+
+.. code:: python
+
+    >>> pd_df = iris.head(3).to_pandas()  # 返回 pandas DataFrame
+    >>> wrapped_df = iris.head(3).to_pandas(wrap=True)  # 返回使用 Pandas 后端的 PyODPS DataFrame
 
 
 保存执行结果为 ODPS 表

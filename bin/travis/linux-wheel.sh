@@ -2,7 +2,7 @@
 set -e -x
 PYBIN=/opt/python/${PYVER}/bin
 ${PYBIN}/pip install --disable-pip-version-check --user --upgrade pip
-${PYBIN}/pip install cython
+${PYBIN}/pip install cython numpy
 cd /io/
 # Compile wheels
 ${PYBIN}/python setup.py bdist_wheel

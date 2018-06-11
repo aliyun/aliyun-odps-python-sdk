@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-06-08 17:35+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,16 +17,16 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.5.3\n"
 
-#: ../../source/faq-ext.rst:1
-msgid "**安装失败 / 出现问题**"
+#: ../../source/faq-ext.rst:2
+msgid "安装失败 / 出现问题"
 msgstr ""
 
 #: ../../source/faq-ext.rst:3
 msgid "请参考 `PyODPS 安装常见问题解决 <https://yq.aliyun.com/articles/277333>`_ 。"
 msgstr ""
 
-#: ../../source/faq-ext.rst:5
-msgid "**提示 Project not found**"
+#: ../../source/faq-ext.rst:6
+msgid "提示 Project not found"
 msgstr ""
 
 #: ../../source/faq-ext.rst:7
@@ -36,8 +36,8 @@ msgid ""
 "region-3>`_ 。 此外还需要注意 ODPS 入口对象参数位置是否填写正确。"
 msgstr ""
 
-#: ../../source/faq-ext.rst:11
-msgid "**如何申请开通公共云 Python UDF**"
+#: ../../source/faq-ext.rst:12
+msgid "如何申请开通公共云 Python UDF"
 msgstr ""
 
 #: ../../source/faq-ext.rst:13

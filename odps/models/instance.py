@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -446,11 +446,13 @@ class Instance(LazyLoad):
         :return: True if finished else False
         :rtype: bool
         """
-        for _ in range(options.retry_times):
+        retry_num = options.retry_times
+        while retry_num > 0:
             try:
                 return self.status == Instance.Status.TERMINATED
             except (errors.InternalServerError, errors.RequestTimeTooSkewed):
-                if not retry:
+                retry_num -= 1
+                if not retry or retry_num <= 0:
                     raise
 
     def is_successful(self, retry=False):
@@ -463,15 +465,16 @@ class Instance(LazyLoad):
 
         if not self.is_terminated(retry=retry):
             return False
-        for _ in range(options.retry_times):
+        retry_num = options.retry_times
+        while retry_num > 0:
             try:
                 statuses = self.get_task_statuses()
-                break
+                return all(task.status == Instance.Task.TaskStatus.SUCCESS
+                           for task in statuses.values())
             except (errors.InternalServerError, errors.RequestTimeTooSkewed):
-                if not retry:
+                retry_num -= 1
+                if not retry or retry_num <= 0:
                     raise
-        return all(task.status == Instance.Task.TaskStatus.SUCCESS
-                   for task in statuses.values())
 
     @property
     def is_sync(self):

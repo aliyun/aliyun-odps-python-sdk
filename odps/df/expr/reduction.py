@@ -24,6 +24,7 @@ from ..utils import FunctionWrapper
 
 
 class SequenceReduction(Scalar):
+    __slots__ = '_unique',
     _args = '_input',
 
     @property
@@ -87,7 +88,7 @@ class SequenceReduction(Scalar):
 
 
 class GroupedSequenceReduction(SequenceExpr):
-    __slots__ = '_grouped',
+    __slots__ = '_grouped', '_unique'
     _args = '_input', '_by'
     _extra_args = '_grouped',
 
@@ -318,11 +319,11 @@ class GroupedCat(GroupedSequenceReduction):
 
 
 class ToList(SequenceReduction):
-    __slots__ = '_unique',
+    __slots__ = ()
 
 
 class GroupedToList(GroupedSequenceReduction):
-    __slots__ = '_unique',
+    __slots__ = ()
     node_name = 'tolist'
 
 
@@ -418,6 +419,16 @@ class GroupedAggregation(GroupedSequenceReduction):
         visitor.visit_user_defined_aggregator(self)
 
 
+def _extract_unique_input(expr):
+    from .collections import DistinctCollectionExpr
+
+    if isinstance(expr, Column):
+        if isinstance(expr.input, DistinctCollectionExpr) and len(expr.input._unique_fields) == 1:
+            return expr.input._unique_fields[0]
+        else:
+            return None
+
+
 def _reduction(expr, output_cls, output_type=None, **kw):
     grouped_output_cls = globals()['Grouped%s' % output_cls.__name__]
     method_name = output_cls.__name__.lower()
@@ -446,7 +457,12 @@ def _reduction(expr, output_cls, output_type=None, **kw):
         output_type = expr._data_type
 
     if isinstance(expr, SequenceExpr):
-        return output_cls(_value_type=output_type, _input=expr, **kw)
+        unique_input = _extract_unique_input(expr)
+        if unique_input is not None:
+            kw['_unique'] = True
+            return _reduction(unique_input, output_cls, output_type=output_type, **kw)
+        else:
+            return output_cls(_value_type=output_type, _input=expr, **kw)
     elif isinstance(expr, SequenceGroupBy):
         return grouped_output_cls(_data_type=output_type, _input=expr.to_column(),
                                   _grouped=expr.input, **kw)
@@ -483,7 +499,11 @@ def count(expr):
     """
 
     if isinstance(expr, SequenceExpr):
-        return Count(_value_type=types.int64, _input=expr)
+        unique_input = _extract_unique_input(expr)
+        if unique_input:
+            return nunique(unique_input).rename('count')
+        else:
+            return Count(_value_type=types.int64, _input=expr)
     elif isinstance(expr, SequenceGroupBy):
         return GroupedCount(_data_type=types.int64, _input=expr.to_column(),
                             _grouped=expr.input)
@@ -629,7 +649,11 @@ def nunique(expr):
     elif isinstance(expr, SequenceGroupBy):
         return GroupedNUnique(_data_type=output_type, _inputs=[expr.to_column()], _grouped=expr.input)
     elif isinstance(expr, CollectionExpr):
-        return NUnique(_value_type=types.int64, _inputs=expr._project_fields)
+        unique_input = _extract_unique_input(expr)
+        if unique_input:
+            return nunique(unique_input)
+        else:
+            return NUnique(_value_type=types.int64, _inputs=expr._project_fields)
     elif isinstance(expr, GroupBy):
         if expr._to_agg:
             inputs = expr.input[expr._to_agg.names]._project_fields
@@ -702,7 +726,7 @@ def kurtosis(expr):
     return _reduction(expr, Kurtosis, output_type)
 
 
-def aggregate(exprs, aggregator, rtype=None, resources=None, args=(), **kwargs):
+def aggregate(exprs, aggregator, rtype=None, resources=None, unique=False, args=(), **kwargs):
     name = None
     if isinstance(aggregator, FunctionWrapper):
         if aggregator.output_names:
@@ -744,10 +768,15 @@ def aggregate(exprs, aggregator, rtype=None, resources=None, args=(), **kwargs):
                                   _collection_resources=collection_resources,
                                   _grouped=exprs[0].input)
     else:
+        if not unique and len(exprs) == 1:
+            unique_input = _extract_unique_input(exprs[0])
+            if unique_input:
+                unique = True
+                exprs = [unique_input]
         return Aggregation(_inputs=exprs, _aggregator=aggregator,
                            _value_type=output_type, _name=name,
                            _func_args=args, _func_kwargs=kwargs, _resources=resources,
-                           _collection_resources=collection_resources)
+                           _collection_resources=collection_resources, _unique=unique)
 
 
 def agg(*args, **kwargs):

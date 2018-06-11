@@ -51,6 +51,9 @@ class Test(TestBase):
         for resource in self.odps.list_resources():
             self.assertIsInstance(resource, Resource._get_cls(resource.type))
 
+        self.assertRaises(TypeError, lambda: self.odps.create_resource(
+            'test_error', 'py', resource=['uvw']))
+
     def testResourceExists(self):
         non_exists_resource = 'a_non_exists_resource'
         self.assertFalse(self.odps.exist_resource(non_exists_resource))

@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
 import itertools
+import pickle
 import textwrap
+from datetime import datetime
 
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
@@ -43,6 +44,10 @@ class Test(TestBase):
             self.assertGreaterEqual(len(tables), 1)
             for t in tables:
                 self.assertEqual(t.owner, table.owner)
+
+    def testSchemaPickle(self):
+        schema = Schema.from_lists(['name'], ['string'])
+        self.assertEqual(schema, pickle.loads(pickle.dumps(schema)))
 
     def testTableExists(self):
         non_exists_table = 'a_non_exists_table'
@@ -94,14 +99,45 @@ class Test(TestBase):
         self.assertTrue(table.is_loaded)
 
     def testCreateTableDDL(self):
+        from odps.compat import OrderedDict
+        from odps.models import Table
+
         test_table_name = tn('pyodps_t_tmp_table_ddl')
         schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(test_table_name, schema, lifecycle=10)
 
         ddl = table.get_ddl()
+        self.assertNotIn('EXTERNAL', ddl)
+        self.assertNotIn('NOT EXISTS', ddl)
         for col in table.schema.names:
             self.assertIn(col, ddl)
+
+        ddl = table.get_ddl(if_not_exists=True)
+        self.assertIn('NOT EXISTS', ddl)
+
+        ddl = Table.gen_create_table_sql(
+            'test_external_table', schema, comment='TEST_COMMENT',
+            storage_handler='com.aliyun.odps.CsvStorageHandler',
+            serde_properties=OrderedDict([('name1', 'value1'), ('name2', 'value2')]),
+            location='oss://mock_endpoint/mock_bucket/mock_path/',
+        )
+        self.assertEqual(ddl, textwrap.dedent("""
+        CREATE EXTERNAL TABLE `test_external_table` (
+          `id` BIGINT,
+          `name` STRING
+        )
+        COMMENT 'TEST_COMMENT'
+        PARTITIONED BY (
+          `ds` STRING
+        )
+        STORED BY 'com.aliyun.odps.CsvStorageHandler'
+        WITH SERDEPROPERTIES (
+          'name1' = 'value1',
+          'name2' = 'value2'
+        )
+        LOCATION 'oss://mock_endpoint/mock_bucket/mock_path/'
+        """).strip())
 
     def testCreateDeleteTable(self):
         test_table_name = tn('pyodps_t_tmp_create_table')

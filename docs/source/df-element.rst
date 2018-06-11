@@ -713,3 +713,6 @@ logview 的 JSONSummary 中即可找到计数器值。
     >>> # 从其他 Project 调用 UDF，也可通过 name 参数指定列名
     >>> iris[iris.name, func.your_udf(iris.sepalwidth, iris.sepallength, rtype='float', project='udf_project',
     >>>                               name='new_col')]
+
+.. note::
+    注意：在使用 Pandas 后端时，不支持执行带有 ``func`` 的表达式。

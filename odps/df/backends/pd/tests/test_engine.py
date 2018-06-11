@@ -1853,6 +1853,7 @@ class Test(TestBase):
             (lambda s: quantile(df.id, 0.3), self.expr.id.quantile(0.3)),
             (lambda s: quantile(df.id, [0.3, 0.6]), self.expr.id.quantile([0.3, 0.6])),
             (lambda s: df.id.sum(), self.expr.id.sum()),
+            (lambda s: df.id.unique().sum(), self.expr.id.unique().sum()),
             (lambda s: (df.id ** 3).mean(), self.expr.id.moment(3)),
             (lambda s: df.id.var(ddof=0), self.expr.id.moment(2, central=True)),
             (lambda s: df.id.skew(), self.expr.id.skew()),
@@ -1944,7 +1945,6 @@ class Test(TestBase):
                 return buffer[0] / buffer[1]
 
         expr = self.expr.id.agg(Aggregator)
-
         expected = float(16) / 5
 
         res = self.engine.execute(expr)
@@ -1952,7 +1952,16 @@ class Test(TestBase):
 
         self.assertAlmostEqual(expected, result)
 
+        expr = self.expr.id.unique().agg(Aggregator)
+        expected = float(9) / 3
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertAlmostEqual(expected, result)
+
         expr = self.expr.groupby(Scalar('const').rename('s')).id.agg(Aggregator)
+        expected = float(16) / 5
 
         res = self.engine.execute(expr)
         result = self._get_result(res)

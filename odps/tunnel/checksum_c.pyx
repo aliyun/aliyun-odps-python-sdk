@@ -16,22 +16,22 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-from ..crc import Crc32
 
-cdef extern from "../src/crc32c.c":
-    uint32_t crc32c(uint32_t crc, const void *buf, size_t length)
+cdef extern from "../src/crc32.c":
+    uint32_t crc32(uint32_t crc, const void *buf, size_t length) nogil
+    uint32_t crc32c(uint32_t crc, const void *buf, size_t length) nogil
+
 
 cdef class Checksum:
 
     def __cinit__(self, method='crc32c'):
+        self._checksum = 0
         if method == 'crc32c':
-            self._crc32c = 0
             self.use_c = 1
         else:
-            self.crc = Crc32()
             self.use_c = 0
 
-    cdef void c_update_bool(self, bint val):
+    cdef void c_update_bool(self, bint val) nogil:
         cdef char retval
         retval = 1 if val else 0
         self.c_update(<char *>&retval, 1)
@@ -39,51 +39,57 @@ cdef class Checksum:
     cpdef update_bool(self, bint val):
         self.c_update_bool(val)
 
-    cdef void c_update_int(self, int32_t val):
+    cdef void c_update_int(self, int32_t val) nogil:
         self.c_update(<char *>&val, sizeof(int32_t))
 
     cpdef update_int(self, int32_t val):
         self.c_update(<char *>&val, sizeof(int32_t))
 
-    cdef void c_update_long(self, int64_t val):
+    cdef void c_update_long(self, int64_t val) nogil:
         self.c_update(<char *>&val, sizeof(int64_t))
 
     cpdef update_long(self, int64_t val):
         self.c_update(<char *>&val, sizeof(int64_t))
 
-    cdef void c_update_float(self, float val):
+    cdef void c_update_float(self, float val) nogil:
         self.c_update(<char *>&val, sizeof(float))
 
     cpdef update_float(self, float val):
         self.c_update(<char *>&val, sizeof(float))
 
-    cdef void c_update_double(self, double val):
+    cdef void c_update_double(self, double val) nogil:
         self.c_update(<char *>&val, sizeof(double))
 
     cpdef update_double(self, double val):
         self.c_update(<char *>&val, sizeof(double))
 
-    cdef void c_update(self, char *ptr, size_t length):
+    cdef void c_update(self, char *ptr, size_t length) nogil:
         if self.use_c:
-            self._crc32c = crc32c(self._crc32c, ptr, length)
+            self._checksum = crc32c(self._checksum, ptr, length)
         else:
-            self.crc.update(bytearray(ptr[:length]))
+            self._checksum = crc32(self._checksum, ptr, length)
 
     cpdef update(self, bytes b):
+        buf = bytearray(b)
         if self.use_c:
-            buf = bytearray(b)
-            self._crc32c = crc32c(self._crc32c, <const void*>(<char *>buf), len(buf))
+            self._checksum = crc32c(self._checksum, <const void*>(<char *>buf), len(buf))
         else:
-            self.crc.update(bytearray(b))
+            self._checksum = crc32(self._checksum, <const void*>(<char *>buf), len(buf))
+
+    cdef uint32_t c_getvalue(self) nogil:
+        return self._checksum
 
     cpdef uint32_t getvalue(self):
-        if self.use_c:
-            return self._crc32c
-        else:
-            return self.crc.getvalue()
+        return self._checksum
+
+    cdef uint32_t c_setvalue(self, uint32_t val) nogil:
+        self._checksum = val
+
+    cpdef uint32_t setvalue(self, uint32_t val):
+        self._checksum = val
+
+    cdef void c_reset(self) nogil:
+        self._checksum = 0
 
     cpdef reset(self):
-        if self.use_c:
-            self._crc32c = 0
-        else:
-            self.crc.reset()
+        self._checksum = 0

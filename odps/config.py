@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -361,6 +361,8 @@ options.register_option('tunnel.endpoint', None)
 options.register_option('tunnel.string_as_binary', False, validator=is_bool)
 options.register_option('tunnel.use_instance_tunnel', True, validator=is_bool)
 options.register_option('tunnel.limit_instance_tunnel', None, validator=any_validator(is_null, is_bool))
+options.register_option('tunnel.pd_mem_cache_size', 1024 * 4, validator=is_integer)
+options.register_option('tunnel.pd_row_cache_size', 1024 * 16, validator=is_integer)
 options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
 options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')
 options.redirect_option('limited_instance_tunnel', 'tunnel.limit_instance_tunnel')

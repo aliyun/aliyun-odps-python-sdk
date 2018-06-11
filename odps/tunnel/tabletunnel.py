@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,6 +24,11 @@ from .errors import TunnelError
 from .. import errors, serializers, types, options
 from ..compat import Enum, six
 from ..models import Projects, Record, Schema
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 
 class TableDownloadSession(serializers.JSONSerializableModel):
@@ -95,7 +100,7 @@ class TableDownloadSession(serializers.JSONSerializableModel):
             e = TunnelError.parse(resp)
             raise e
 
-    def open_record_reader(self, start, count, compress=False, columns=None):
+    def _open_reader(self, start, count, compress=False, columns=None, reader_cls=None):
         compress_option = self._compress_option or CompressOption()
 
         params = {}
@@ -154,7 +159,17 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         else:
             raise errors.InvalidArgument('Invalid compression algorithm.')
 
-        return TunnelRecordReader(self.schema, input_stream, columns=columns)
+        return reader_cls(self.schema, input_stream, columns=columns)
+
+    def open_record_reader(self, start, count, compress=False, columns=None):
+        return self._open_reader(start, count, compress=compress, columns=columns,
+                                 reader_cls=TunnelRecordReader)
+
+    if np is not None:
+        def open_pandas_reader(self, start, count, compress=False, columns=None):
+            from .pdio.pdreader_c import TunnelPandasReader
+            return self._open_reader(start, count, compress=compress, columns=columns,
+                                     reader_cls=TunnelPandasReader)
 
 
 class TableUploadSession(serializers.JSONSerializableModel):
@@ -232,7 +247,7 @@ class TableUploadSession(serializers.JSONSerializableModel):
     def new_record(self, values=None):
         return Record(schema=self.schema, values=values)
 
-    def open_record_writer(self, block_id=None, compress=False, buffer_size=None):
+    def _open_writer(self, block_id=None, compress=False, buffer_size=None, writer_cls=None):
         compress_option = self._compress_option or CompressOption()
 
         params = {}
@@ -266,8 +281,18 @@ class TableUploadSession(serializers.JSONSerializableModel):
 
             def upload(data):
                 self._client.put(url, data=data, params=params, headers=headers)
-            writer = RecordWriter(self.schema, upload, compress_option=option)
+            writer = writer_cls(self.schema, upload, compress_option=option)
         return writer
+
+    def open_record_writer(self, block_id=None, compress=False, buffer_size=None):
+        return self._open_writer(block_id=block_id, compress=compress, buffer_size=buffer_size,
+                                 writer_cls=RecordWriter)
+
+    if np is not None:
+        def open_pandas_writer(self, block_id=None, compress=False, buffer_size=None):
+            from .pdio import TunnelPandasWriter
+            return self._open_writer(block_id=block_id, compress=compress, buffer_size=buffer_size,
+                                     writer_cls=TunnelPandasWriter)
 
     def get_block_list(self):
         self.reload()

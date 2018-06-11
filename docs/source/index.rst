@@ -12,6 +12,7 @@ PyODPS: ODPS Python SDK and data analysis framework
 .. intinclude:: index-platform-int.rst
 
 .. rubric:: 安装
+    :class: rubric-h2
 
 PyODPS 支持Python 2.6 以上的 Python 版本，包括Python 3。系统安装了 pip 后，只需运行：
 
@@ -26,6 +27,7 @@ PyODPS 的相关依赖会自动安装。
 安装有 `合适版本 <https://wiki.python.org/moin/WindowsCompilers>`_ Visual C++和Cython的Windows用户也可使用Tunnel加速功能。
 
 .. rubric:: 快速开始
+    :class: rubric-h2
 
 首先，我们需要阿里云帐号来初始化一个ODPS的入口：
 

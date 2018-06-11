@@ -800,6 +800,9 @@ class PandasCompiler(Backend):
                 return len(pd.concat(inputs, axis=1).drop_duplicates())
 
             input = children_vals[0]
+            if getattr(expr, '_unique', False):
+                input = input.unique()
+
             if isinstance(expr, Count) and isinstance(expr.input, (CollectionExpr, SequenceExpr)):
                 return len(input)
             elif isinstance(expr, (Cat, GroupedCat)):
@@ -808,10 +811,7 @@ class PandasCompiler(Backend):
                     if isinstance(expr._na_rep, Scalar) else expr._na_rep
                 return getattr(getattr(input, 'str'), 'cat')(**kv)
             elif isinstance(expr, (ToList, GroupedToList)):
-                if expr._unique:
-                    return list(set(input))
-                else:
-                    return list(input)
+                return list(input)
             elif isinstance(expr, (Quantile, GroupedQuantile)):
                 if isinstance(expr._prob, (list, set)):
                     return [np.percentile(input, p * 100) for p in expr._prob]
@@ -852,9 +852,20 @@ class PandasCompiler(Backend):
                 size = len(input)
             bys = [(by * size if len(by) == 1 else by) for by in bys]
 
+            def iterrows(x):
+                if getattr(expr, '_unique', False):
+                    vset = set()
+                    for it in x.iterrows():
+                        if bytes(it[1].values.data) not in vset:
+                            yield it
+                        vset.add(bytes(it[1].values.data))
+                else:
+                    for it in x.iterrows():
+                        yield it
+
             def f(x):
                 buffer = agg.buffer()
-                for it in x.iterrows():
+                for it in iterrows(x):
                     agg(buffer, *it[1])
                 ret = agg.getvalue(buffer)
                 np_type = types.df_type_to_np_type(expr.dtype)

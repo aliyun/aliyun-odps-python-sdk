@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -148,11 +148,13 @@ def _reload_instance_status(odps, group_id, instance_id):
 
 
 def reload_instance_status(odps, group_id, instance_id):
-    for itr in range(options.retry_times):
+    retry_num = options.retry_times
+    while retry_num > 0:
         try:
             return _reload_instance_status(odps, group_id, instance_id)
         except (InternalServerError, RequestTimeTooSkewed):
-            if itr != 2:
+            retry_num -= 1
+            if retry_num > 0:
                 time.sleep(PROGRESS_RETRY_DELAY)
 
 

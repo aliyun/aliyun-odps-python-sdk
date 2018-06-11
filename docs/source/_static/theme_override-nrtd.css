@@ -1,0 +1,11 @@
+.wy-nav-content {
+   max-width: 1050px
+}
+
+.wy-table-responsive table td, .wy-table-responsive table th {
+    white-space: normal !important;
+}
+
+.wy-nav-side {
+    padding-bottom: 3em;
+}

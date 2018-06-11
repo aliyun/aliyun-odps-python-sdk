@@ -22,6 +22,11 @@ from .. import errors, serializers, types
 from ..compat import Enum, six
 from ..models import Projects, Schema
 
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
 
 class InstanceDownloadSession(serializers.JSONSerializableModel):
     __slots__ = '_client', '_instance', '_limit_enabled', '_compress_option'
@@ -84,7 +89,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             e = TunnelError.parse(resp)
             raise e
 
-    def open_record_reader(self, start, count, compress=False, columns=None):
+    def _open_reader(self, start, count, compress=False, columns=None, reader_cls=None):
         compress_option = self._compress_option or CompressOption()
 
         params = {}
@@ -141,7 +146,17 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         else:
             raise errors.InvalidArgument('Invalid compression algorithm.')
 
-        return TunnelRecordReader(self.schema, input_stream, columns=columns)
+        return reader_cls(self.schema, input_stream, columns=columns)
+
+    def open_record_reader(self, start, count, compress=False, columns=None):
+        return self._open_reader(start, count, compress=compress, columns=columns,
+                                 reader_cls=TunnelRecordReader)
+
+    if np is not None:
+        def open_pandas_reader(self, start, count, compress=False, columns=None):
+            from .pdio.pdreader_c import TunnelPandasReader
+            return self._open_reader(start, count, compress=compress, columns=columns,
+                                     reader_cls=TunnelPandasReader)
 
 
 class InstanceTunnel(BaseTunnel):

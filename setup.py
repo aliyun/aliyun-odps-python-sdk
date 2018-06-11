@@ -177,6 +177,7 @@ setup_options = dict(
     include_package_data=True,
     scripts=['scripts/pyou', ],
     install_requires=requirements,
+    include_dirs=[],
     extras_require={'full': full_requirements}
 )
 
@@ -207,6 +208,17 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
             Extension('odps.tunnel.io.reader_c', ['odps/tunnel/io/reader_c.pyx'], **extension_kw),
             Extension('odps.tunnel.checksum_c', ['odps/tunnel/checksum_c.pyx'], **extension_kw),
         ]
+        try:
+            import numpy as np
+            extensions.extend([
+                Extension('odps.tunnel.pdio.pdreader_c', ['odps/tunnel/pdio/pdreader_c.pyx'], **extension_kw),
+                Extension('odps.tunnel.pdio.pdwriter_c', ['odps/tunnel/pdio/pdwriter_c.pyx'], **extension_kw),
+                Extension('odps.tunnel.pdio.block_decoder_c', ['odps/tunnel/pdio/block_decoder_c.pyx'], **extension_kw),
+                Extension('odps.tunnel.pdio.block_encoder_c', ['odps/tunnel/pdio/block_encoder_c.pyx'], **extension_kw),
+            ])
+            setup_options['include_dirs'].append(np.get_include())
+        except ImportError:
+            pass
 
         setup_options['cmdclass'].update({'build_ext': build_ext})
         setup_options['ext_modules'] = cythonize(extensions)

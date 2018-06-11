@@ -23,6 +23,7 @@ import re
 from sphinx.directives import Include
 
 dirname = os.path.dirname
+docroot = os.path.dirname(os.path.abspath(__file__))
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -343,7 +344,7 @@ mathjax_path = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?
 
 if any('sphinx-intl' in a for a in sys.argv) or 'gettext' in sys.argv or on_rtd:
     locale_dirs = ['locale/']
-    locale_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'locale')
+    locale_dir = os.path.join(docroot, 'locale')
 else:
     temp_lc_dir = tempfile.mkdtemp(prefix='pyodps-po-')
     locale_dir = os.path.join(temp_lc_dir, 'locale')
@@ -413,8 +414,15 @@ def merge_po(dest_file, *src_files):
 def setup(app):
     if with_internal:
         tags.add('internal')
+    app.add_stylesheet('theme_override.css')
+    app.add_javascript('theme_override.js')
     if not on_rtd:
-        app.add_stylesheet('theme_override.css')
+        app.add_stylesheet('theme_override-nrtd.css')
+        app.add_javascript('theme_override-nrtd.js')
+        if os.path.exists(os.path.join(docroot, '_static', 'theme_override-nrtd-int.css')):
+            app.add_stylesheet('theme_override-nrtd-int.css')
+        if os.path.exists(os.path.join(docroot, '_static', 'theme_override-nrtd-int.js')):
+            app.add_javascript('theme_override-nrtd-int.js')
 
     app.add_directive('intinclude', IncludeInternal)
     app.add_directive('extinclude', IncludeExternal)

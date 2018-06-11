@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -558,8 +558,12 @@ class Analyzer(BaseAnalyzer):
         raise NotImplementedError
 
     def visit_reduction(self, expr):
+        expr_input = expr.input
+        if getattr(expr, '_unique', False):
+            expr_input = expr_input.unique()
+
         if isinstance(expr, (Var, GroupedVar)):
-            std = expr.input.std(ddof=expr._ddof)
+            std = expr_input.std(ddof=expr._ddof)
             if isinstance(expr, GroupedVar):
                 std = std.to_grouped_reduction(expr._grouped)
             sub = (std ** 2).rename(expr.name)
@@ -569,29 +573,29 @@ class Analyzer(BaseAnalyzer):
             order = expr._order
             center = expr._center
 
-            sub = self._get_moment_sub_expr(expr, expr.input, order, center)
+            sub = self._get_moment_sub_expr(expr, expr_input, order, center)
             sub = sub.rename(expr.name)
             self._sub(expr, sub)
             return
         elif isinstance(expr, (Skewness, GroupedSkewness)):
-            std = expr.input.std(ddof=1)
+            std = expr_input.std(ddof=1)
             if isinstance(expr, GroupedSequenceReduction):
                 std = std.to_grouped_reduction(expr._grouped)
-            cnt = expr.input.count()
+            cnt = expr_input.count()
             if isinstance(expr, GroupedSequenceReduction):
                 cnt = cnt.to_grouped_reduction(expr._grouped)
-            sub = self._get_moment_sub_expr(expr, expr.input, 3, True) / (std ** 3)
+            sub = self._get_moment_sub_expr(expr, expr_input, 3, True) / (std ** 3)
             sub *= (cnt ** 2) / (cnt - 1) / (cnt - 2)
             sub = sub.rename(expr.name)
             self._sub(expr, sub)
         elif isinstance(expr, (Kurtosis, GroupedKurtosis)):
-            std = expr.input.std(ddof=0)
+            std = expr_input.std(ddof=0)
             if isinstance(expr, GroupedSequenceReduction):
                 std = std.to_grouped_reduction(expr._grouped)
-            cnt = expr.input.count()
+            cnt = expr_input.count()
             if isinstance(expr, GroupedSequenceReduction):
                 cnt = cnt.to_grouped_reduction(expr._grouped)
-            m4 = self._get_moment_sub_expr(expr, expr.input, 4, True)
+            m4 = self._get_moment_sub_expr(expr, expr_input, 4, True)
             sub = 1.0 / (cnt - 2) / (cnt - 3) * ((cnt * cnt - 1) * m4 / (std ** 4) - 3 * (cnt - 1) ** 2)
             sub = sub.rename(expr.name)
             self._sub(expr, sub)

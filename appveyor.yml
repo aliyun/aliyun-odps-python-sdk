@@ -1,7 +1,7 @@
 environment:
   SECUREPSD:
     secure: 1SQHsoWjjcFPUM4cK7qRDg==
-    
+
   matrix:
 
     - PYTHON: "C:\\Python27"
@@ -27,7 +27,7 @@ environment:
     - PYTHON: "C:\\Python36-x64"
       PYTHON_VERSION: "3.6"
       PYTHON_ARCH: "64"
-    
+
 install:
   # Prepend newly installed Python to the PATH of this build (this cannot be
   # done from inside the powershell script as it would require to restart
@@ -44,9 +44,7 @@ install:
 
   # Install the build dependencies of the project.
   - "pip install -r requirements-full.txt"
-  - "pip install wheel"
-  - "pip install cython"
-  - "pip install twine"
+  - "pip install wheel cython twine numpy"
 
 
 build_script:
@@ -56,7 +54,7 @@ build_script:
 
 after_test:
 
-  
+
   # Specify account details for PyPI
   - echo [distutils]                                  > %USERPROFILE%\\.pypirc
   - echo index-servers =                             >> %USERPROFILE%\\.pypirc
@@ -65,7 +63,7 @@ after_test:
   - echo repository=https://upload.pypi.org/legacy/    >> %USERPROFILE%\\.pypirc
   - echo username=pyodps                             >> %USERPROFILE%\\.pypirc
   - echo password=%SECUREPSD%                        >> %USERPROFILE%\\.pypirc
-  
+
   # Workaround required to ensure setup.py finds the .pypirc under Windows
   #- set HOME=%USERPROFILE%
 
@@ -80,5 +78,5 @@ on_success:
   - echo %APPVEYOR_REPO_TAG_NAME%
   - echo %APPVEYOR_REPO_BRANCH%
   - ps: If ($env:APPVEYOR_REPO_TAG -eq "true") { Invoke-Expression "twine upload -r pypi --skip-existing dist/*" } Else { write-output "Not on a tag commit, won't deploy to pypi"}
- 
+
 

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-11 09:42+0800\n"
+"POT-Creation-Date: 2018-05-29 19:43+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,8 +21,8 @@ msgstr ""
 msgid "常见问题"
 msgstr ""
 
-#: ../../source/faq.rst:10
-msgid "**读取数据时报\"project is protected\"**"
+#: ../../source/faq.rst:11
+msgid "读取数据时报\"project is protected\""
 msgstr ""
 
 #: ../../source/faq.rst:12
@@ -49,8 +49,8 @@ msgstr ""
 msgid "改用 :ref:`DataFrame <df>`，``o.get_table('<table_name>').to_df()``"
 msgstr ""
 
-#: ../../source/faq.rst:22
-msgid "**出现 ImportError，并且在 ipython 或者 jupyter 下使用**"
+#: ../../source/faq.rst:23
+msgid "出现 ImportError，并且在 ipython 或者 jupyter 下使用"
 msgstr ""
 
 #: ../../source/faq.rst:24
@@ -59,8 +59,8 @@ msgid ""
 "jupyter`` 解决。"
 msgstr ""
 
-#: ../../source/faq.rst:26
-msgid "**执行 SQL 通过 open_reader 只能取到最多1万条记录，如何取多余1万条？**"
+#: ../../source/faq.rst:27
+msgid "执行 SQL 通过 open_reader 只能取到最多1万条记录，如何取多余1万条？"
 msgstr ""
 
 #: ../../source/faq.rst:28
@@ -69,10 +69,8 @@ msgid ""
 " <table_open_reader>` 来读取。"
 msgstr ""
 
-#: ../../source/faq.rst:30
-msgid ""
-"**上传 pandas DataFrame 到 ODPS 时报错：ODPSError: ODPS entrance should be "
-"provided**"
+#: ../../source/faq.rst:31
+msgid "上传 pandas DataFrame 到 ODPS 时报错：ODPSError: ODPS entrance should be provided"
 msgstr ""
 
 #: ../../source/faq.rst:32
@@ -92,8 +90,8 @@ msgstr ""
 msgid "使用odps参数，``DataFrame(pd_df).persist('your_table', odps=odps)``"
 msgstr ""
 
-#: ../../source/faq.rst:38
-msgid "**在 DataFrame 中如何使用 max_pt ？**"
+#: ../../source/faq.rst:39
+msgid "在 DataFrame 中如何使用 max_pt ？"
 msgstr ""
 
 #: ../../source/faq.rst:40

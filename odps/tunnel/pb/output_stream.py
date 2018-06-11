@@ -19,6 +19,7 @@ The original author is: robinson@google.com (Will Robinson).
 Modified by onesuperclark@gmail.com(onesuper).
 """
 
+import sys
 import array
 import struct
 
@@ -32,9 +33,14 @@ class OutputStream(object):
     def __init__(self):
         self._buffer = array.array('B')
 
-    def append_raw_bytes(self, raw_bytes):
-        """Appends raw_bytes to our internal buffer."""
-        self._buffer.fromstring(raw_bytes)
+    if sys.version_info < (3, 3):
+        def append_raw_bytes(self, raw_bytes):
+            """Appends raw_bytes to our internal buffer."""
+            self._buffer.fromstring(raw_bytes)
+    else:
+        def append_raw_bytes(self, raw_bytes):
+            """Appends raw_bytes to our internal buffer."""
+            self._buffer.frombytes(raw_bytes)
 
     def append_little_endian32(self, unsigned_value):
         """Appends an unsigned 32-bit integer to the internal buffer,
@@ -43,7 +49,7 @@ class OutputStream(object):
         if not 0 <= unsigned_value <= wire_format.UINT32_MAX:
             raise errors.EncodeError(
                 'Unsigned 32-bit out of range: %d' % unsigned_value)
-        self._buffer.fromstring(struct.pack(
+        self.append_raw_bytes(struct.pack(
             wire_format.FORMAT_UINT32_LITTLE_ENDIAN, unsigned_value))
 
     def append_little_endian64(self, unsigned_value):
@@ -53,7 +59,7 @@ class OutputStream(object):
         if not 0 <= unsigned_value <= wire_format.UINT64_MAX:
             raise errors.EncodeError(
                 'Unsigned 64-bit out of range: %d' % unsigned_value)
-        self._buffer.fromstring(struct.pack(
+        self.append_raw_bytes(struct.pack(
             wire_format.FORMAT_UINT64_LITTLE_ENDIAN, unsigned_value))
 
     def append_varint32(self, value):
@@ -98,9 +104,14 @@ class OutputStream(object):
             if not unsigned_value:
                 break
 
-    def tostring(self):
-        """Returns a string containing the bytes in our internal buffer."""
-        return self._buffer.tostring()
+    if sys.version_info < (3, 3):
+        def tostring(self):
+            """Returns a string containing the bytes in our internal buffer."""
+            return self._buffer.tostring()
+    else:
+        def tostring(self):
+            """Returns a string containing the bytes in our internal buffer."""
+            return self._buffer.tobytes()
 
     def __len__(self):
         return len(self._buffer)

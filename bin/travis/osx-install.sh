@@ -20,8 +20,7 @@ fi
 
 #check python version
 python -V
-pip install cython
-pip install wheel
+pip install cython wheel numpy
 
 pip wheel --no-deps .
 #repair_wheel

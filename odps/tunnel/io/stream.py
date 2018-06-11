@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,9 +24,28 @@ from ...compat import Enum, raise_exc
 # used for test case to force thread io
 _FORCE_THREAD = False
 
+if compat.PY26:
+    memoryview = bytearray
+    mv_to_bytes = bytes
+elif compat.LESS_PY32:
+    mv_to_bytes = lambda v: bytes(bytearray(v))
+else:
+    mv_to_bytes = bytes
+
+
+if compat.six.PY3:
+    def cast_memoryview(v):
+        if not isinstance(v, memoryview):
+            v = memoryview(v)
+        return v.cast('B')
+else:
+    def cast_memoryview(v):
+        if not isinstance(v, memoryview):
+            v = memoryview(v)
+        return v
+
 
 class RequestsIO(object):
-    _async_err = None
     CHUNK_SIZE = 1024
 
     def __new__(cls, *args, **kwargs):
@@ -106,6 +125,12 @@ class ThreadRequestsIO(RequestsIO):
 
     def start(self):
         self._wait_obj.start()
+
+    if bytearray is not memoryview:
+        def write(self, data):
+            # copy in case data is memoryview
+            data_view = memoryview(bytearray(data))
+            return super(ThreadRequestsIO, self).write(data_view)
 
 
 try:
@@ -207,12 +232,15 @@ class SimpleInputStream(object):
 
     def __init__(self, input):
         self._input = input
-        self._internal_buffer = compat.BytesIO()
+        self._internal_buffer = memoryview(b'')
         self._buffered_len = 0
+        self._buffered_pos = 0
 
     def read(self, limit):
-        if limit <= self._buffered_len - self._internal_buffer.tell():
-            return self._internal_buffer.read(limit)
+        if limit <= self._buffered_len - self._buffered_pos:
+            mv = self._internal_buffer[self._buffered_pos:self._buffered_pos + limit]
+            self._buffered_pos += len(mv)
+            return mv_to_bytes(mv)
 
         bufs = list()
         size_left = limit
@@ -224,29 +252,59 @@ class SimpleInputStream(object):
             size_left -= len(content)
         return bytes().join(bufs)
 
+    def readinto(self, b):
+        b = cast_memoryview(b)
+        limit = len(b)
+        if limit <= self._buffered_len - self._buffered_pos:
+            mv = self._internal_buffer[self._buffered_pos:self._buffered_pos + limit]
+            self._buffered_pos += len(mv)
+            b[:limit] = mv
+            return len(mv)
+
+        pos = 0
+        while pos < limit:
+            rsize = self._internal_readinto(b, pos)
+            if not rsize:
+                break
+            pos += rsize
+        return pos
+
     def _internal_read(self, limit):
-        if self._internal_buffer.tell() == self._buffered_len:
+        if self._buffered_pos == self._buffered_len:
             self._refill_buffer()
-        b = self._internal_buffer.read(limit)
-        return b
+        mv = self._internal_buffer[self._buffered_pos:self._buffered_pos + limit]
+        self._buffered_pos += len(mv)
+        return mv_to_bytes(mv)
+
+    def _internal_readinto(self, b, start):
+        if self._buffered_pos == self._buffered_len:
+            self._refill_buffer()
+        size = len(b) - start
+        mv = self._internal_buffer[self._buffered_pos:self._buffered_pos + size]
+        size = len(mv)
+        self._buffered_pos += size
+        b[start:start + size] = mv
+        return size
 
     def _refill_buffer(self):
+        self._buffered_pos = 0
         self._buffered_len = 0
 
         buffer = []
-        left = self.READ_BLOCK_SIZE
         while True:
             content = self._buffer_next_chunk()
             if content is None:
                 break
             if content:
                 length = len(content)
-                left -= length
                 self._buffered_len += length
                 buffer.append(content)
                 break
 
-        self._internal_buffer = compat.BytesIO(bytes().join(buffer))
+        if len(buffer) == 1:
+            self._internal_buffer = memoryview(buffer[0])
+        else:
+            self._internal_buffer = memoryview(bytes().join(buffer))
 
     def _read_block(self):
         content = self._input.read(self.READ_BLOCK_SIZE)

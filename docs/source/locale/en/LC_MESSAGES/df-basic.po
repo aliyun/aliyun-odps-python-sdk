@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-21 17:34+0800\n"
+"POT-Creation-Date: 2018-06-04 10:00+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -983,7 +983,8 @@ msgid ""
 msgstr ""
 ">>> df[df.a, ]       # obtain a one-column collection via item syntax\n"
 ">>> df[[df.a]]       # obtain a one-column collection via item syntax\n"
-">>> df.select(df.a)  # obtain a one-column collection explicitly with select method\n"
+">>> df.select(df.a)  # obtain a one-column collection explicitly with "
+"select method\n"
 ">>> df[df.a]         # filter with a binary-typed column\n"
 ">>> df.a             # obtain a sequence from a collection\n"
 ">>> df['a']          # obtain a sequence from a collection"
@@ -1160,8 +1161,8 @@ msgstr ""
 #: ../../source/df-basic.rst:663
 msgid "值得注意的是，目前切片对于ODPS SQL后端不支持start和step。我们也可以使用limit方法"
 msgstr ""
-"Note that for MaxCompute SQL backend, start and step are not supported in slice "
-"operations. You can also use the limit method."
+"Note that for MaxCompute SQL backend, start and step are not supported in"
+" slice operations. You can also use the limit method."
 
 #: ../../source/df-basic.rst:672
 msgid ""
@@ -1280,8 +1281,9 @@ msgid ""
 "方法，这样省去了用户手动去调用execute。"
 msgstr ""
 "**Note**\\: In an interactive environment, PyODPS DataFrame objects "
-"automatically call the ``execute`` method when printing or repr is called, so"
-" that you do not need to manually call the ``execution`` method."
+"automatically call the ``execute`` method when printing or repr is "
+"called, so that you do not need to manually call the ``execution`` "
+"method."
 
 #: ../../source/df-basic.rst:714
 msgid ""
@@ -1344,7 +1346,7 @@ msgstr ""
 "calculations."
 
 #: ../../source/df-basic.rst:756
-msgid "ResultFrame可以迭代取出每条记录。"
+msgid "ResultFrame可以迭代取出每条记录："
 msgstr "You can use an iterative method to retrieve all records from ResultFrame."
 
 #: ../../source/df-basic.rst:768
@@ -1360,17 +1362,35 @@ msgid ""
 "'Iris-setosa']"
 msgstr ""
 
-#: ../../source/df-basic.rst:770
+#: ../../source/df-basic.rst:769
+msgid ""
+"ResultFrame 也支持在安装有 pandas 的前提下转换为 pandas DataFrame 或使用 pandas 后端的 PyODPS"
+" DataFrame："
+msgstr ""
+"When pandas is installed, a ResultFrame can be converted into a pandas DataFrame or "
+"a PyODPS DataFrame with pandas backend."
+
+#: ../../source/df-basic.rst:777
+msgid ""
+">>> pd_df = iris.head(3).to_pandas()  # 返回 pandas DataFrame\n"
+">>> wrapped_df = iris.head(3).to_pandas(wrap=True)  # 返回使用 Pandas 后端的 "
+"PyODPS DataFrame"
+msgstr ""
+">>> pd_df = iris.head(3).to_pandas()  # returns a pandas DataFrame\n"
+">>> wrapped_df = iris.head(3).to_pandas(wrap=True)  # returns a PyODPS DataFrame "
+"with pandas backend"
+
+#: ../../source/df-basic.rst:779
 msgid "保存执行结果为 ODPS 表"
 msgstr "Save results to MaxCompute tables"
 
-#: ../../source/df-basic.rst:772
+#: ../../source/df-basic.rst:781
 msgid "对 Collection，我们可以调用\\ ``persist``\\ 方法，参数为表名。返回一个新的DataFrame对象"
 msgstr ""
 "For collection objects, you can use the \\ ``persist``\\ method, which "
 "takes a table name as the parameter and returns a new DataFrame object."
 
-#: ../../source/df-basic.rst:784
+#: ../../source/df-basic.rst:793
 msgid ""
 ">>> iris2 = iris[iris.sepalwidth < 2.5].persist('pyodps_iris2')\n"
 ">>> iris2.head(5)\n"
@@ -1382,14 +1402,14 @@ msgid ""
 "4          6.0         2.2          4.0         1.0  Iris-versicolor"
 msgstr ""
 
-#: ../../source/df-basic.rst:785
+#: ../../source/df-basic.rst:794
 msgid "``persist``\\ 可以传入partitions参数，这样会创建一个表，它的分区是partitions所指定的字段。"
 msgstr ""
 "You can pass in a partitions parameter to ``persist``\\. A table is "
 "created and partitioned by the fields specified by the partitions "
 "parameter."
 
-#: ../../source/df-basic.rst:801
+#: ../../source/df-basic.rst:810
 msgid ""
 ">>> iris3 = iris[iris.sepalwidth < 2.5].persist('pyodps_iris3', "
 "partitions=['name'])\n"
@@ -1405,7 +1425,7 @@ msgid ""
 "    name                  : string"
 msgstr ""
 
-#: ../../source/df-basic.rst:802
+#: ../../source/df-basic.rst:811
 msgid ""
 "如果想写入已经存在的表的某个分区，``persist``\\ 可以传入partition参数，指明写入表的哪个分区（如ds=******）。 "
 "这时要注意，该DataFrame的每个字段都必须在该表存在，且类型相同。drop_partition和create_partition参数只有在此时有效,"
@@ -1419,23 +1439,23 @@ msgstr ""
 "indicating respectively whether to delete (if the partition exists) or "
 "create (if the partition does not exist) the partition."
 
-#: ../../source/df-basic.rst:809
+#: ../../source/df-basic.rst:818
 msgid ""
 ">>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', "
 "partition='ds=test', drop_partition=True, create_partition=True)"
 msgstr ""
 
-#: ../../source/df-basic.rst:810
+#: ../../source/df-basic.rst:819
 msgid "写入表时，还可以指定表的生命周期，如下列语句将表的生命周期指定为10天："
 msgstr ""
 "You can also specify the lifecycle of a table when writing to it. The "
 "following example sets the lifecycle of a table to 10 days."
 
-#: ../../source/df-basic.rst:815
+#: ../../source/df-basic.rst:824
 msgid ">>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris5', lifecycle=10)"
 msgstr ""
 
-#: ../../source/df-basic.rst:816
+#: ../../source/df-basic.rst:825
 msgid ""
 "如果数据源中没有 ODPS 对象，例如数据源仅为 Pandas，在 persist 时需要手动指定 ODPS 入口对象， "
 "或者将需要的入口对象标明为全局对象，如："
@@ -1444,7 +1464,7 @@ msgstr ""
 "data, you need to manually specify the ODPS object or mark the object as "
 "global when calling persist. For example:"
 
-#: ../../source/df-basic.rst:827
+#: ../../source/df-basic.rst:836
 msgid ""
 ">>> # 假设入口对象为 o\n"
 ">>> # 指定入口对象\n"
@@ -1460,17 +1480,17 @@ msgstr ""
 ">>> o.to_global()\n"
 ">>> df.persist('table_name')"
 
-#: ../../source/df-basic.rst:829
+#: ../../source/df-basic.rst:838
 msgid "保存执行结果为 Pandas DataFrame"
 msgstr "Save results to pandas DataFrame"
 
-#: ../../source/df-basic.rst:831
+#: ../../source/df-basic.rst:840
 msgid "我们可以使用 ``to_pandas``\\ 方法，如果wrap参数为True，将返回PyODPS DataFrame对象。"
 msgstr ""
 "You can use the ``to_pandas``\\ method. If wrap is set to True, a PyODPS "
 "DataFrame object is returned."
 
-#: ../../source/df-basic.rst:840
+#: ../../source/df-basic.rst:849
 msgid ""
 ">>> type(iris[iris.sepalwidth < 2.5].to_pandas())\n"
 "pandas.core.frame.DataFrame\n"
@@ -1478,11 +1498,11 @@ msgid ""
 "odps.df.core.DataFrame"
 msgstr ""
 
-#: ../../source/df-basic.rst:842
+#: ../../source/df-basic.rst:851
 msgid "立即运行设置运行参数"
 msgstr "Set runtime parameters"
 
-#: ../../source/df-basic.rst:844
+#: ../../source/df-basic.rst:853
 msgid ""
 "对于立即执行的方法，比如 ``execute``、``persist``、``to_pandas`` 等，可以设置运行时参数（仅对ODPS "
 "SQL后端有效 ）。"
@@ -1490,35 +1510,35 @@ msgstr ""
 "For actions such as `execute``, ``persist``, and ``to_pandas``, you can "
 "set runtime parameters. This is only valid for MaxCompute SQL."
 
-#: ../../source/df-basic.rst:846
+#: ../../source/df-basic.rst:855
 msgid "一种方法是设置全局参数。详细参考 :ref:`SQL设置运行参数 <sql_hints>` 。"
 msgstr ""
 "You can also set global parameters. For details, see :ref:`SQL - runtime "
 "parameters <sql_hints>`."
 
-#: ../../source/df-basic.rst:848
+#: ../../source/df-basic.rst:857
 msgid "也可以在这些立即执行的方法上，使用 ``hints`` 参数。这样，这些参数只会作用于当前的计算过程。"
 msgstr ""
 "Additionally, you can use the `hints`` parameter. These parameters are "
 "only valid for the current calculation."
 
-#: ../../source/df-basic.rst:855
+#: ../../source/df-basic.rst:864
 msgid ""
 ">>> iris[iris.sepallength < "
 "5].to_pandas(hints={'odps.sql.mapper.split.size': 16})"
 msgstr ""
 
-#: ../../source/df-basic.rst:857
+#: ../../source/df-basic.rst:866
 msgid "运行时显示详细信息"
 msgstr "Display details at runtime"
 
-#: ../../source/df-basic.rst:859
+#: ../../source/df-basic.rst:868
 msgid "有时，用户需要查看运行时instance的logview时，需要修改全局配置："
 msgstr ""
 "You sometimes need to modify the global configuration to view the logview"
 " of an instance."
 
-#: ../../source/df-basic.rst:881
+#: ../../source/df-basic.rst:890
 msgid ""
 ">>> from odps import options\n"
 ">>> options.verbose = True\n"
@@ -1540,11 +1560,11 @@ msgid ""
 "4         2.9          1.4         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:882
+#: ../../source/df-basic.rst:891
 msgid "用户可以指定自己的日志记录函数，比如像这样："
 msgstr "You can specify a logging function as follows:"
 
-#: ../../source/df-basic.rst:902
+#: ../../source/df-basic.rst:911
 msgid ""
 ">>> my_logs = []\n"
 ">>> def my_logger(x):\n"
@@ -1567,11 +1587,11 @@ msgid ""
 "\\nLIMIT 5', 'logview:', u'http://logview']"
 msgstr ""
 
-#: ../../source/df-basic.rst:904
+#: ../../source/df-basic.rst:913
 msgid "缓存中间Collection计算结果"
 msgstr "Cache intermediate results"
 
-#: ../../source/df-basic.rst:906
+#: ../../source/df-basic.rst:915
 msgid ""
 "DataFrame的计算过程中，一些Collection被多处使用，或者用户需要查看中间过程的执行结果， 这时用户可以使用 ``cache``\\"
 " 标记某个collection需要被优先计算。"
@@ -1581,13 +1601,13 @@ msgstr ""
 "intermediate process, you can use the cache method to mark a collection "
 "object so that it is calculated first."
 
-#: ../../source/df-basic.rst:911
+#: ../../source/df-basic.rst:920
 msgid "值得注意的是，``cache``\\ 延迟执行，调用cache不会触发立即计算。"
 msgstr ""
 "Note that ``cache``\\ delays execution. Calling this method does not "
 "trigger automatic calculation."
 
-#: ../../source/df-basic.rst:927
+#: ../../source/df-basic.rst:936
 msgid ""
 ">>> cached = iris[iris.sepalwidth < 3.5].cache()\n"
 ">>> df = cached['sepallength', 'name'].head(3)\n"
@@ -1616,11 +1636,11 @@ msgstr ""
 "1          4.7  Iris-setosa\n"
 "2          4.6  Iris-setosa"
 
-#: ../../source/df-basic.rst:932
+#: ../../source/df-basic.rst:941
 msgid "异步和并行执行"
 msgstr "Asynchronous and parallel executions"
 
-#: ../../source/df-basic.rst:934
+#: ../../source/df-basic.rst:943
 msgid ""
 "DataFrame 支持异步操作，对于立即执行的方法，包括 "
 "``execute``、``persist``、``head``、``tail``、``to_pandas`` （其他方法不支持）， 传入 "
@@ -1636,7 +1656,7 @@ msgstr ""
 "<https://docs.python.org/3/library/concurrent.futures.html#future-"
 "objects>`_ objects."
 
-#: ../../source/df-basic.rst:938
+#: ../../source/df-basic.rst:947
 msgid ""
 ">>> future = iris[iris.sepal_width < 10].head(10, async=True)\n"
 ">>> future.done()\n"
@@ -1655,7 +1675,7 @@ msgid ""
 "9           4.9          3.1           1.5          0.1  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:957
+#: ../../source/df-basic.rst:966
 msgid ""
 "DataFrame 的并行执行可以使用多线程来并行，单个 expr 的执行可以通过 ``n_parallel`` 参数来指定并发度。 比如，当一个"
 " DataFrame 的执行依赖的多个 cache 的 DataFrame 能够并行执行时，该参数就会生效。"
@@ -1666,7 +1686,7 @@ msgstr ""
 "the multiple cached DataFrame objects that a single DataFrame execution "
 "depends on can be executed in parallel."
 
-#: ../../source/df-basic.rst:960
+#: ../../source/df-basic.rst:969
 msgid ""
 ">>> expr1 = "
 "iris.groupby('category').agg(value=iris.sepal_width.sum()).cache()\n"
@@ -1711,14 +1731,14 @@ msgstr ""
 "7  Iris-versicolor    3.000\n"
 "8   Iris-virginica    4.500"
 
-#: ../../source/df-basic.rst:980
+#: ../../source/df-basic.rst:989
 msgid "当同时执行多个 expr 时，我们可以用多线程执行，但会面临一个问题， 比如两个 DataFrame 有共同的依赖，这个依赖将会被执行两遍。"
 msgstr ""
 "You can use multiple threads to execute multiple expr objects in "
 "parallel, but you may encounter a problem when two DataFrame objects "
 "share the same dependency, and this dependency will be executed twice."
 
-#: ../../source/df-basic.rst:983
+#: ../../source/df-basic.rst:992
 msgid ""
 "现在我们提供了新的 ``Delay API``， 来将立即执行的操作（包括 "
 "``execute``、``persist``、``head``、``tail``、``to_pandas``，其他方法不支持）变成延迟操作， "
@@ -1733,7 +1753,7 @@ msgstr ""
 "dependency is executed based on the degree of parallelism you have "
 "specified. Asynchronous execution is supported."
 
-#: ../../source/df-basic.rst:988
+#: ../../source/df-basic.rst:997
 msgid ""
 ">>> from odps.df import Delay\n"
 ">>> delay = Delay()  # 创建Delay对象\n"
@@ -1769,7 +1789,7 @@ msgstr ""
 ">>> future2.result()\n"
 "3.0540000000000007"
 
-#: ../../source/df-basic.rst:1005
+#: ../../source/df-basic.rst:1014
 msgid ""
 "可以看到上面的例子里，共同依赖的对象会先执行，然后再以并发度为3分别执行future1到future3。 当 ``n_parallel`` "
 "为1时，执行时间会达到37s。"
@@ -1779,7 +1799,7 @@ msgstr ""
 "parallelism set to 3. When ``n_parallel`` is set to 1, the execution time"
 " reaches 37s."
 
-#: ../../source/df-basic.rst:1008
+#: ../../source/df-basic.rst:1017
 msgid ""
 "``delay.execute`` 也接受 ``async`` 操作来指定是否异步执行，当异步的时候，也可以指定 ``timeout`` "
 "参数来指定超时时间。"

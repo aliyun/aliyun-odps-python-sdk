@@ -456,7 +456,7 @@ class ODPS(object):
             return name.open(mode=mode)
         return self.get_resource(name, project=project).open(mode=mode, encoding=encoding)
 
-    def create_resource(self, name, typo, project=None, **kwargs):
+    def create_resource(self, name, type=None, project=None, **kwargs):
         """
         Create a resource by given name and given type.
 
@@ -469,7 +469,7 @@ class ODPS(object):
         which the partition is optional.
 
         :param name: resource name
-        :param typo: resource type, now support ``file``, ``jar``, ``py``, ``archive``, ``table``
+        :param type: resource type, now support ``file``, ``jar``, ``py``, ``archive``, ``table``
         :param project: project name, if not provided, will be the default project
         :param kwargs: optional arguments, I will illustrate this in the example below.
         :return: resource depends on the type, if ``file`` will be :class:`odps.models.FileResource` and so on
@@ -497,8 +497,9 @@ class ODPS(object):
                      :class:`odps.models.TableResource`
         """
 
+        type_ = kwargs.get('typo') or type
         project = self.get_project(name=project)
-        return project.resources.create(name=name, type=typo, **kwargs)
+        return project.resources.create(name=name, type=type_, **kwargs)
 
     def delete_resource(self, name, project=None):
         """
