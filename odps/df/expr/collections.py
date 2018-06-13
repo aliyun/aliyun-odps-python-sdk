@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -357,7 +357,7 @@ def sample(expr, parts=None, columns=None, i=None, n=None, frac=None, replace=Fa
 
 class RowAppliedCollectionExpr(CollectionExpr):
     __slots__ = '_func', '_func_args', '_func_kwargs', '_close_func', \
-                '_resources', '_raw_inputs', '_lateral_view'
+                '_resources', '_raw_inputs', '_lateral_view', '_keep_nulls'
     _args = '_input', '_fields', '_collection_resources'
     node_name = 'Apply'
 
@@ -396,8 +396,8 @@ class RowAppliedCollectionExpr(CollectionExpr):
         return visitor.visit_apply_collection(self)
 
 
-def _apply_horizontal(expr, func, names=None, types=None,
-                      resources=None, collection_resources=None,
+def _apply_horizontal(expr, func, names=None, types=None, resources=None,
+                      collection_resources=None, keep_nulls=False,
                       args=(), **kwargs):
     if isinstance(func, FunctionWrapper):
         names = names or func.output_names
@@ -420,12 +420,12 @@ def _apply_horizontal(expr, func, names=None, types=None,
     return RowAppliedCollectionExpr(_input=expr, _func=func, _func_args=args,
                                     _func_kwargs=kwargs, _schema=schema,
                                     _fields=[expr[n] for n in expr.schema.names],
-                                    _resources=resources,
+                                    _keep_nulls=keep_nulls, _resources=resources,
                                     _collection_resources=collection_resources)
 
 
 def apply(expr, func, axis=0, names=None, types=None, reduce=False,
-          resources=None, args=(), **kwargs):
+          resources=None, keep_nulls=False, args=(), **kwargs):
     """
     Apply a function to a row when axis=1 or column when axis=0.
 
@@ -436,6 +436,7 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
     :param types: output types
     :param reduce: if True will return a sequence else return a collection
     :param resources: resources to read
+    :param keep_nulls: if True, keep rows producing empty results, only work in lateral views
     :param args: args for function
     :param kwargs: kwargs for function
     :return:
@@ -527,7 +528,7 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
                               _resources=resources, _collection_resources=collection_resources)
         else:
             return _apply_horizontal(expr, func, names=names, types=types, resources=resources,
-                                     collection_resources=collection_resources,
+                                     collection_resources=collection_resources, keep_nulls=keep_nulls,
                                      args=args, **kwargs)
 
 

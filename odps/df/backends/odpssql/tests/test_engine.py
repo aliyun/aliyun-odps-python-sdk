@@ -3282,6 +3282,38 @@ class Test(TestBase):
             res = self.engine.execute(expr)
             result = self._get_result(res)
             self.assertListAlmostEqual(sorted(result), sorted(expected), only_float=False)
+
+            expected = [
+                [5, 2.2, 'name1_0', 0, '0'], [5, 2.2, 'name1_1', 3, '0'],
+                [5, 2.2, 'name1_2', 6, '0'], [5, 4.1, 'name1_0', 0, '0'],
+                [5, 4.1, 'name1_1', 3, '0'], [5, 4.1, 'name1_2', 6, '0'],
+            ]
+
+            @output(['bin_id'], ['string'])
+            def mapper3(row):
+                for idx in range(row.id % 2):
+                    yield str(idx)
+
+            expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
+                                           expr_in['name', 'id'].apply(mapper, axis=1),
+                                           expr_in['id', ].apply(mapper3, axis=1)]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
+
+            expected = [
+                [5, 3.5, 'name2_0', 0, None], [5, 3.5, 'name2_1', 2, None],
+                [5, 2.2, 'name1_0', 0, '0'], [5, 2.2, 'name1_1', 3, '0'],
+                [5, 2.2, 'name1_2', 6, '0'], [5, 4.1, 'name1_0', 0, '0'],
+                [5, 4.1, 'name1_1', 3, '0'], [5, 4.1, 'name1_2', 6, '0']
+            ]
+
+            expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
+                                           expr_in['name', 'id'].apply(mapper, axis=1),
+                                           expr_in['id', ].apply(mapper3, axis=1, keep_nulls=True)]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(result, expected)
         finally:
             table.drop()
 

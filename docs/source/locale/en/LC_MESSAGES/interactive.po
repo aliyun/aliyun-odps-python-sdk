@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-17 10:48+0800\n"
+"POT-Creation-Date: 2018-06-11 13:18+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -105,7 +105,9 @@ msgstr "You can store commonly used MaxCompute tables or resources in the room."
 
 #: ../../source/interactive.rst:65
 msgid "room.store('存储表示例', o.get_table('dual'), desc='简单的表存储示例')"
-msgstr "room.store('stored-table', o.get_table('dual'), desc='Simple Table Store Example')"
+msgstr ""
+"room.store('stored-table', o.get_table('dual'), desc='Simple Table Store "
+"Example')"
 
 #: ../../source/interactive.rst:66
 msgid "我们可以调用\\ ``display``\\ 方法，来把已经存储的对象以表格的形式打印出来："
@@ -172,8 +174,8 @@ msgstr ""
 #: ../../source/interactive.rst:99
 msgid "我们通过\\ ``room['存储表示例']``\\ ，或者像\\ ``room.iris``\\ ，就可以取出来存储的对象了。"
 msgstr ""
-"You can use \\ ``room['stored-table']``\\ or \\ ``room.iris``\\ to retrieve the "
-"stored objects."
+"You can use \\ ``room['stored-table']``\\ or \\ ``room.iris``\\ to "
+"retrieve the stored objects."
 
 #: ../../source/interactive.rst:104
 msgid "room['存储表示例']"
@@ -575,9 +577,9 @@ msgid "Jupyter Notebook 增强"
 msgstr "Jupyter Notebook "
 
 #: ../../source/interactive.rst:484
-msgid "PyODPS 针对 Jupyter Notebook 下的探索性数据分析进行了增强，包括结果探索功能、进度展示功能以及机器学习中的即席重试功能。"
+msgid "PyODPS 针对 Jupyter Notebook 下的探索性数据分析进行了增强，包括结果探索功能以及进度展示功能。"
 msgstr ""
-"PyODPS enhances features such as result exploration, progress display in "
+"PyODPS enhances features such as result exploration and progress display in "
 "Jupyter Notebook."
 
 #: ../../source/interactive.rst:487

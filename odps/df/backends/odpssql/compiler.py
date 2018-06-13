@@ -1207,7 +1207,8 @@ class OdpsSQLCompiler(Backend):
         func_call = '{0}({1})'.format(func_name, ', '.join(args))
         field_list = ', '.join(self._quote(n) for n in expr.schema.names)
         if expr._lateral_view:
-            compiled = 'LATERAL VIEW {0} {1} AS {2}'.format(
+            lv_prefix = 'LATERAL VIEW ' if not expr._keep_nulls else 'LATERAL VIEW OUTER '
+            compiled = lv_prefix + '{0} {1} AS {2}'.format(
                 func_call, self._ctx.get_collection_alias(expr, create=True)[0], field_list)
         else:
             compiled = '{0} AS ({1})'.format(func_call, field_list)

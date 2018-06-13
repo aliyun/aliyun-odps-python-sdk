@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-17 10:48+0800\n"
+"POT-Creation-Date: 2018-06-11 13:18+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -491,7 +491,7 @@ msgid "Jupyter Notebook 增强"
 msgstr ""
 
 #: ../../source/interactive.rst:484
-msgid "PyODPS 针对 Jupyter Notebook 下的探索性数据分析进行了增强，包括结果探索功能、进度展示功能以及机器学习中的即席重试功能。"
+msgid "PyODPS 针对 Jupyter Notebook 下的探索性数据分析进行了增强，包括结果探索功能以及进度展示功能。"
 msgstr ""
 
 #: ../../source/interactive.rst:487

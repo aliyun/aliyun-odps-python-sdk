@@ -1061,6 +1061,9 @@ class PandasCompiler(Backend):
                     if res:
                         rows.append(conv(res))
                         expand_num += 1
+                if expand_num == 0 and expr._keep_nulls:
+                    rows.append([None] * len(names))
+                    expand_num += 1
                 indices.extend([s[0]] * expand_num)
                 idx = max(idx, s[0] + 1)
             if close_func:

@@ -127,7 +127,7 @@ class ObjectCompleter(BaseCompleter):
             self._methods[m_name] = method_type(use_prefix=use_prefix, list_method=lister)
 
         _regex_str = '(^|.*[\(\)\s,=]+)(?P<odps>[^\(\)\s,]+)\.(?P<getfn>' + '|'.join(six.iterkeys(self._methods)) + ')\('
-        self._regex = re.compile(_regex_str + '(?P<args>[^\(\)]*)$')
+        self._regex = re.compile(_regex_str + '(?P<args>[^\\(\\)]*)$')
         return _regex_str
 
     def get_list_call(self, cursor_str, full_line=None):
@@ -158,6 +158,8 @@ class ObjectCompleter(BaseCompleter):
         if name_str:
             quote = name_str[0]
             name_str = name_str[1:]
+        if '"' in name_str or "'" in name_str:
+            return None
 
         if name_str and self._methods[get_cmd].use_prefix:
             formatter = '{odps}.{func}(prefix="{prefix}", project={project})'

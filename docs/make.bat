@@ -5,9 +5,14 @@ REM Command file for Sphinx documentation
 if "%SPHINXBUILD%" == "" (
 	set SPHINXBUILD=sphinx-build
 )
+if "%SPHINXINTL%" == "" (
+	set SPHINXINTL=sphinx-intl
+)
+set SOURCEDIR=source
 set BUILDDIR=build
-set ALLSPHINXOPTS=-d %BUILDDIR%/doctrees %SPHINXOPTS% source
-set I18NSPHINXOPTS=%SPHINXOPTS% source
+set ALLSPHINXOPTS=-d %BUILDDIR%/doctrees %SPHINXOPTS% %SOURCEDIR%
+set I18NSPHINXOPTS=%SPHINXOPTS% %SOURCEDIR%
+set I18NSPHINXLANGS=-l en -l zh_CN
 if NOT "%PAPER%" == "" (
 	set ALLSPHINXOPTS=-D latex_paper_size=%PAPER% %ALLSPHINXOPTS%
 	set I18NSPHINXOPTS=-D latex_paper_size=%PAPER% %I18NSPHINXOPTS%
@@ -203,6 +208,8 @@ if "%1" == "texinfo" (
 
 if "%1" == "gettext" (
 	%SPHINXBUILD% -b gettext %I18NSPHINXOPTS% %BUILDDIR%/locale
+	if errorlevel 1 exit /b 1
+	%SPHINXINTL% update -p %BUILDDIR%/locale %I18NSPHINXLANGS%
 	if errorlevel 1 exit /b 1
 	echo.
 	echo.Build finished. The message catalogs are in %BUILDDIR%/locale.

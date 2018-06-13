@@ -191,7 +191,7 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
         if sys.platform == 'win32':
             cython.inline('return a + b', a=1, b=1)
 
-        extension_kw = dict(language='c++')
+        extension_kw = dict(language='c++', include_dirs=[])
         if 'MSC' in sys.version:
             extension_kw['extra_compile_args'] = ['/Ot', '/I' + os.path.join(repo_root, 'misc')]
         else:
@@ -210,11 +210,13 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
         ]
         try:
             import numpy as np
+            np_extension_kw = extension_kw.copy()
+            np_extension_kw['include_dirs'].append(np.get_include())
             extensions.extend([
-                Extension('odps.tunnel.pdio.pdreader_c', ['odps/tunnel/pdio/pdreader_c.pyx'], **extension_kw),
-                Extension('odps.tunnel.pdio.pdwriter_c', ['odps/tunnel/pdio/pdwriter_c.pyx'], **extension_kw),
-                Extension('odps.tunnel.pdio.block_decoder_c', ['odps/tunnel/pdio/block_decoder_c.pyx'], **extension_kw),
-                Extension('odps.tunnel.pdio.block_encoder_c', ['odps/tunnel/pdio/block_encoder_c.pyx'], **extension_kw),
+                Extension('odps.tunnel.pdio.pdreader_c', ['odps/tunnel/pdio/pdreader_c.pyx'], **np_extension_kw),
+                Extension('odps.tunnel.pdio.pdwriter_c', ['odps/tunnel/pdio/pdwriter_c.pyx'], **np_extension_kw),
+                Extension('odps.tunnel.pdio.block_decoder_c', ['odps/tunnel/pdio/block_decoder_c.pyx'], **np_extension_kw),
+                Extension('odps.tunnel.pdio.block_encoder_c', ['odps/tunnel/pdio/block_encoder_c.pyx'], **np_extension_kw),
             ])
             setup_options['include_dirs'].append(np.get_include())
         except ImportError:

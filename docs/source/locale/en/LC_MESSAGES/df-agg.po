@@ -57,7 +57,7 @@ msgid ""
 msgstr ""
 
 #: ../../source/df-agg.rst:33
-msgid "如果要在消除重复后的列上进行聚合，可以先调用``unique``方法，再调用相应的聚合函数："
+msgid "如果要在消除重复后的列上进行聚合，可以先调用 ``unique`` 方法，再调用相应的聚合函数："
 msgstr "You can aggregate over a distinct sequence, you can call ``unique`` method on the sequence before calling actual aggregation methods."
 
 #: ../../source/df-agg.rst:40

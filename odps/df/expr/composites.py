@@ -35,6 +35,12 @@ def _scalar(val, tp=None):
 
 
 def explode(expr, *args, **kwargs):
+    """
+    Expand list or dict data into multiple rows
+
+    :param expr: list / dict sequence / scalar
+    :return:
+    """
     if not isinstance(expr, Column):
         expr = to_collection(expr)[expr.name]
 
@@ -77,7 +83,7 @@ def explode(expr, *args, **kwargs):
         raise ValueError('Cannot explode expression with type %s' % type(expr).__name__)
     schema = Schema.from_lists(names, typos)
     return RowAppliedCollectionExpr(_input=expr.input, _func=func_name, _schema=schema,
-                                    _fields=[expr])
+                                    _fields=[expr], _keep_nulls=kwargs.get('keep_nulls', False))
 
 
 def composite_op(expr, output_expr_cls, output_type=None, **kwargs):

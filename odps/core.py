@@ -113,20 +113,6 @@ class ODPS(object):
     def projects(self):
         return self._projects
 
-    def list_projects(self, owner=None, user=None, group=None, prefix=None, max_items=None):
-        """
-        List projects.
-
-        :param owner: Aliyun account, the owner which listed projects belong to
-        :param user: name of the user who has access to listed projects
-        :param group: name of the group listed projects belong to
-        :param prefix: prefix of names of listed projects
-        :param max_items: the maximal size of result set
-        :return: projects in this endpoint.
-        :rtype: generator
-        """
-        return self.projects.iterate(owner=owner, user=user, group=group, max_items=max_items, name=prefix)
-
     def get_project(self, name=None):
         """
         Get project by given name.

@@ -42,15 +42,15 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
     odps.Table
       name: odps_test_sqltask_finance.`dual`
       schema:
-        c_int_a                 : bigint          
-        c_int_b                 : bigint          
-        c_double_a              : double          
-        c_double_b              : double          
-        c_string_a              : string          
-        c_string_b              : string          
-        c_bool_a                : boolean         
-        c_bool_b                : boolean         
-        c_datetime_a            : datetime        
+        c_int_a                 : bigint
+        c_int_b                 : bigint
+        c_double_a              : double
+        c_double_b              : double
+        c_string_a              : string
+        c_string_b              : string
+        c_bool_a                : boolean
+        c_bool_b                : boolean
+        c_datetime_a            : datetime
         c_datetime_b            : datetime
 
 .. note::
@@ -107,16 +107,16 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
     odps.Table
       name: odps_test_sqltask_finance.`dual`
       schema:
-        c_int_a                 : bigint          
-        c_int_b                 : bigint          
-        c_double_a              : double          
-        c_double_b              : double          
-        c_string_a              : string          
-        c_string_b              : string          
-        c_bool_a                : boolean         
-        c_bool_b                : boolean         
-        c_datetime_a            : datetime        
-        c_datetime_b            : datetime        
+        c_int_a                 : bigint
+        c_int_b                 : bigint
+        c_double_a              : double
+        c_double_b              : double
+        c_string_a              : string
+        c_string_b              : string
+        c_bool_a                : boolean
+        c_bool_b                : boolean
+        c_datetime_a            : datetime
+        c_datetime_b            : datetime
 
 删除也很容易，只需要调用drop方法
 
@@ -201,16 +201,16 @@ PyODPS 还提供了 IPython 的插件，来更方便得操作 ODPS。
     odps.Table
       name: odps_test_sqltask_finance.`dual`
       schema:
-        c_int_a                 : bigint          
-        c_int_b                 : bigint          
-        c_double_a              : double          
-        c_double_b              : double          
-        c_string_a              : string          
-        c_string_b              : string          
-        c_bool_a                : boolean         
-        c_bool_b                : boolean         
-        c_datetime_a            : datetime        
-        c_datetime_b            : datetime        
+        c_int_a                 : bigint
+        c_int_b                 : bigint
+        c_double_a              : double
+        c_double_b              : double
+        c_string_a              : string
+        c_string_b              : string
+        c_bool_a                : boolean
+        c_bool_b                : boolean
+        c_datetime_a            : datetime
+        c_datetime_b            : datetime
 
 
 
@@ -355,9 +355,9 @@ PyODPS 还提供了 SQL 插件，来执行 ODPS SQL。下面是单行 SQL：
 .. code:: python
 
     %%sql
-    
-    select * from pyodps_iris 
-    where sepallength < 5 
+
+    select * from pyodps_iris
+    where sepallength < 5
     limit 5
 
 
@@ -469,7 +469,7 @@ PyODPS 还提供把 pandas DataFrame 上传到 ODPS 表的命令:
 
     import pandas as pd
     import numpy as np
-    
+
     df = pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc'))
 
 .. code:: python
@@ -481,7 +481,7 @@ PyODPS 还提供把 pandas DataFrame 上传到 ODPS 表的命令:
 Jupyter Notebook 增强
 =======================
 
-PyODPS 针对 Jupyter Notebook 下的探索性数据分析进行了增强，包括结果探索功能、进度展示功能以及机器学习中的即席重试功能。
+PyODPS 针对 Jupyter Notebook 下的探索性数据分析进行了增强，包括结果探索功能以及进度展示功能。
 
 结果探索
 --------

@@ -646,6 +646,25 @@ Collection 提供了数据过滤的功能，
     6   2  c1  d2
     7   2  c1  e2
 
+如果多行输出方法对某个输入不产生任何输出，默认输入行将不在最终结果中出现。如果需要在结果中出现该行，可以设置
+``keep_nulls=True``。此时，与该行并列的值将输出为空值：
+
+.. code:: python
+
+    >>> df
+       id         a
+    0   1  [a1, b1]
+    1   2        []
+    >>> df[df.id, df.a.explode()]
+       id   a
+    0   1  a1
+    1   1  b1
+    >>> df[df.id, df.a.explode(keep_nulls=True)]
+       id     a
+    0   1    a1
+    1   1    b1
+    2   2  None
+
 关于 explode 使用并列输出的具体文档可参考 :ref:`dfcollections`，对于 apply 方法使用并列输出的例子可参考 :ref:`dfudtfapp`。
 
 
