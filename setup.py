@@ -63,7 +63,7 @@ if os.path.exists('README.rst'):
 
 setup_options = dict(
     name='pyodps',
-    version='0.5.8',
+    version='0.5.9',
     description='ODPS Python SDK and data analysis framework',
     long_description=long_description,
     author='Wu Wei',

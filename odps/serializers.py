@@ -26,6 +26,7 @@ import requests
 
 from . import compat, utils
 from .compat import ElementTree, six
+from .utils import to_text
 
 
 def _route_xml_path(root, *keys, **kw):
@@ -65,10 +66,30 @@ def _route_json_path(root, *keys, **kw):
     return root
 
 
+def parse_ndarray(array):
+    try:
+        import numpy as np
+        return np.asarray(array)
+    except ImportError:
+        return array
+
+
+def serialize_ndarray(array):
+    try:
+        return array.tolist()
+    except AttributeError:
+        return array
+
+
 _serialize_types = dict()
 _serialize_types['bool'] = (utils.str_to_bool, utils.bool_to_str)
+_serialize_types['json'] = (
+    lambda s: json.loads(s) if s is not None else None,
+    lambda s: json.dumps(s) if s is not None else None,
+)
 _serialize_types['rfc822'] = (utils.parse_rfc822, utils.gen_rfc822)
 _serialize_types['rfc822l'] = (utils.parse_rfc822, lambda s: utils.gen_rfc822(s, localtime=True))
+_serialize_types['ndarray'] = (parse_ndarray, serialize_ndarray)
 
 
 class SerializeField(object):
@@ -267,11 +288,12 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
     @classmethod
     def deserial(cls, content, obj=None, **kw):
         obj = cls._init_obj(content, obj=obj, **kw)
+        obj_type = type(obj)
 
-        fields = dict(getattr(cls, '__fields'))
+        fields = dict(getattr(obj_type, '__fields'))
 
         if isinstance(content, six.string_types):
-            if issubclass(cls, XMLSerializableModel):
+            if issubclass(obj_type, XMLSerializableModel):
                 content = ElementTree.fromstring(content)
             else:
                 content = json.loads(content)
@@ -290,7 +312,7 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
                     parent_kw[attr] = prop.parse(content, **kwargs)
 
         for k, v in six.iteritems(self_kw):
-            cls._setattr(obj, k, v, skip_null=getattr(cls, 'skip_null', True))
+            obj_type._setattr(obj, k, v, skip_null=getattr(obj_type, 'skip_null', True))
 
         if obj.parent is not None:
             for k, v in six.iteritems(parent_kw):
@@ -320,6 +342,15 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
 
         return root
 
+    def extract(self, **base_kw):
+        kwargs = base_kw.copy()
+        for attr in self.__slots__:
+            try:
+                kwargs[attr] = object.__getattribute__(self, attr)
+            except AttributeError:
+                pass
+        return kwargs
+
 
 class XMLSerializableModel(SerializableModel):
     __slots__ = '_root',
@@ -337,9 +368,10 @@ class XMLSerializableModel(SerializableModel):
         root = self.serial()
         xml_content = ElementTree.tostring(root, 'utf-8')
 
-        prettified_xml = minidom.parseString(xml_content).toprettyxml(indent=' '*2)
+        prettified_xml = minidom.parseString(xml_content).toprettyxml(indent=' '*2, encoding='utf-8')
+        prettified_xml = to_text(prettified_xml, encoding='utf-8')
 
-        cdata_re = re.compile(r'&lt;!\[CDATA\[.*\]\]&gt;', re.M)
+        cdata_re = re.compile(r'&lt;!\[CDATA\[.*\]\]&gt;', (re.M | re.S))
         for src_cdata in cdata_re.finditer(prettified_xml):
             src_cdata = src_cdata.group(0)
             dest_cdata = src_cdata.replace('&amp;', '&').replace('&lt;', '<'). \
@@ -723,7 +755,7 @@ class JSONNodesField(SerializeField):
         if self._serialize_callback:
             value = self._serialize_callback(value)
 
-        assert len(self._path_keys) >=2
+        assert len(self._path_keys) >= 2
 
         prev_path_keys = self._path_keys[:-2]
         if prev_path_keys:
@@ -784,7 +816,10 @@ class JSONNodesReferencesField(HasSubModelField):
     def parse(self, root, **kwargs):
         instances = self._default
 
-        if root is not None:
+        if isinstance(root, list):
+            instances = [self._model.deserial(node, **kwargs)
+                         for node in root]
+        elif root is not None:
             prev_path_keys = self._path_keys[:-1]
             if prev_path_keys:
                 root = _route_json_path(root, *prev_path_keys)
@@ -821,3 +856,8 @@ class JSONNodesReferencesField(HasSubModelField):
         if key not in root:
             root[key] = []
         [root[key].append(it.serial()) for it in value]
+
+
+class JSONRawField(JSONNodeField):
+    def _set_default_keys(self, *keys):
+        return
