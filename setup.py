@@ -101,15 +101,21 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
         if sys.platform == 'win32':
             cython.inline('return a + b', a=1, b=1)
 
+        extension_kw = dict()
+        if 'MSC' in sys.version:
+            extension_kw['extra_compile_args'] = ['/Ot', '/I' + os.path.join(repo_root, 'misc')]
+        else:
+            extension_kw['extra_compile_args'] = ['-O3']
+
         extensions = [
-            Extension('odps.types_c', ['odps/src/types_c.pyx']),
-            Extension('odps.crc32c_c', ['odps/src/crc32c/*.pyx']),
-            Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx']),
-            Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx']),
-            Extension('odps.tunnel.pb.util_c', ['odps/tunnel/pb/util_c.pyx']),
-            Extension('odps.tunnel.checksum_c', ['odps/tunnel/checksum_c.pyx']),
-            Extension('odps.tunnel.tabletunnel.writer_c', ['odps/tunnel/tabletunnel/writer_c.pyx']),
-            Extension('odps.tunnel.tabletunnel.reader_c', ['odps/tunnel/tabletunnel/reader_c.pyx']),
+            Extension('odps.types_c', ['odps/src/types_c.pyx'], **extension_kw),
+            Extension('odps.crc32c_c', ['odps/src/crc32c/*.pyx'], **extension_kw),
+            Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx'], **extension_kw),
+            Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx'], **extension_kw),
+            Extension('odps.tunnel.pb.util_c', ['odps/tunnel/pb/util_c.pyx'], **extension_kw),
+            Extension('odps.tunnel.checksum_c', ['odps/tunnel/checksum_c.pyx'], **extension_kw),
+            Extension('odps.tunnel.tabletunnel.writer_c', ['odps/tunnel/tabletunnel/writer_c.pyx'], **extension_kw),
+            Extension('odps.tunnel.tabletunnel.reader_c', ['odps/tunnel/tabletunnel/reader_c.pyx'], **extension_kw),
         ]
 
         setup_options['cmdclass'] = {'build_ext': build_ext}
