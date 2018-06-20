@@ -80,7 +80,10 @@ def serialize_ndarray(array):
 
 _serialize_types = dict()
 _serialize_types['bool'] = (utils.str_to_bool, utils.bool_to_str)
-_serialize_types['json'] = (json.loads, json.dumps)
+_serialize_types['json'] = (
+    lambda s: json.loads(s) if s is not None else None,
+    lambda s: json.dumps(s) if s is not None else None,
+)
 _serialize_types['rfc822'] = (utils.parse_rfc822, utils.gen_rfc822)
 _serialize_types['rfc822l'] = (utils.parse_rfc822, lambda s: utils.gen_rfc822(s, localtime=True))
 _serialize_types['ndarray'] = (parse_ndarray, serialize_ndarray)
@@ -363,7 +366,7 @@ class XMLSerializableModel(SerializableModel):
         xml_content = ElementTree.tostring(root, 'utf-8')
 
         prettified_xml = minidom.parseString(xml_content).toprettyxml(indent=' '*2, encoding='utf-8')
-        prettified_xml = to_text(prettified_xml)
+        prettified_xml = to_text(prettified_xml, encoding='utf-8')
 
         cdata_re = re.compile(r'&lt;!\[CDATA\[.*\]\]&gt;', (re.M | re.S))
         for src_cdata in cdata_re.finditer(prettified_xml):
@@ -810,7 +813,10 @@ class JSONNodesReferencesField(HasSubModelField):
     def parse(self, root, **kwargs):
         instances = self._default
 
-        if root is not None:
+        if isinstance(root, list):
+            instances = [self._model.deserial(node, **kwargs)
+                         for node in root]
+        elif root is not None:
             prev_path_keys = self._path_keys[:-1]
             if prev_path_keys:
                 root = _route_json_path(root, *prev_path_keys)
@@ -847,3 +853,8 @@ class JSONNodesReferencesField(HasSubModelField):
         if key not in root:
             root[key] = []
         [root[key].append(it.serial()) for it in value]
+
+
+class JSONRawField(JSONNodeField):
+    def _set_default_keys(self, *keys):
+        return

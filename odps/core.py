@@ -702,7 +702,7 @@ class ODPS(object):
             drop_table_name = drop_table_match.group('table_name').strip('`')
             del self.get_project(project).tables[drop_table_name]
 
-        task = models.SQLTask(query=sql, **kwargs)
+        task = models.SQLTask(query=utils.to_text(sql), **kwargs)
         if hints or options.sql.settings:
             if task.properties is None:
                 task.properties = dict()

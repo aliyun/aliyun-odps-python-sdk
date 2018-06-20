@@ -97,7 +97,7 @@ try:
     for pk in pip.get_installed_distributions():
         if pk.key == 'odps':
             raise Exception('Package `odps` collides with PyODPS. Please uninstall it before installing PyODPS.')
-except ImportError:
+except (ImportError, AttributeError):
     pass
 
 try:
@@ -179,7 +179,9 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
 
         extension_kw = dict()
         if 'MSC' in sys.version:
-            extension_kw['extra_compile_args'] = ['/Ot']
+            extension_kw['extra_compile_args'] = ['/Ot', '/I' + os.path.join(repo_root, 'misc')]
+        else:
+            extension_kw['extra_compile_args'] = ['-O3']
 
         extensions = [
             Extension('odps.types_c', ['odps/src/types_c.pyx'], **extension_kw),
