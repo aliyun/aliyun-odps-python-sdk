@@ -333,7 +333,7 @@ class Node(six.with_metaclass(NodeMetaclass)):
 
         return expr_id_to_copied[self._node_id]
 
-    def to_dag(self, copy=True, on_copy=None, dag=None, validate=True):
+    def to_dag(self, copy=True, on_copy=None, dag=None, validate=True, stop_cond=None):
         if copy:
             expr = self.copy_tree(on_copy=on_copy, extra=True)
         else:
@@ -361,7 +361,8 @@ class Node(six.with_metaclass(NodeMetaclass)):
                 if child._node_id in traversed:
                     continue
                 traversed.add(child._node_id)
-                queue.put(child)
+                if stop_cond is None or not stop_cond(child):
+                    queue.put(child)
 
         if validate:
             dag._validate()  # validate the DAG

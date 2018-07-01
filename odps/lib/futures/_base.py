@@ -7,7 +7,7 @@ import threading
 import itertools
 import time
 
-from ..lib_utils import raise_exc
+from ..six import reraise
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
@@ -356,7 +356,7 @@ class Future(object):
 
     def __get_result(self):
         if self._exception:
-            raise_exc(type(self._exception), self._exception, self._traceback)
+            reraise(type(self._exception), self._exception, self._traceback)
         else:
             return self._result
 

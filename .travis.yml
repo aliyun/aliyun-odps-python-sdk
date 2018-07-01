@@ -4,10 +4,7 @@ env:
 notifications:
   email: false
 
-
-  
 language: python
-python: 3.5
 
 matrix:
   include:
@@ -34,6 +31,10 @@ matrix:
     - sudo: required
       services:
         - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_x86_64 PYVER=cp37-cp37m
+    - sudo: required
+      services:
+        - docker
       env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp27-cp27m
     - sudo: required
       services:
@@ -43,6 +44,10 @@ matrix:
       services:
         - docker
       env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp36-cp36m
+    - sudo: required
+      services:
+        - docker
+      env: DOCKER_IMAGE=quay.io/pypa/manylinux1_i686 PYVER=cp37-cp37m
     - os: osx
       language: generic
       env: PYTHON=2.7.12
@@ -52,6 +57,9 @@ matrix:
     - os: osx
       language: generic
       env: PYTHON=3.6.1
+    - os: osx
+      language: generic
+      env: PYTHON=3.7.0
 
 
 install:

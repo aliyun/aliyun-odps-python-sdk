@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 from .core import Iterable, XMLRemoteModel
 from .xflow import XFlow
 from .instances import Instances
@@ -179,6 +181,19 @@ class XFlows(Iterable):
             if x_result.node_type == 'Instance':
                 inst_dict[x_result.name] = self.odps.get_instance(x_result.instance_id)
         return inst_dict
+
+    def iter_xflow_sub_instances(self, instance, interval=1):
+        inst_id_set = set()
+        while not instance.is_terminated(retry=True):
+            sub_tasks_result = self.get_xflow_sub_instances(instance)
+            for k, v in six.iteritems(sub_tasks_result):
+                if v.id not in inst_id_set:
+                    inst_id_set.add(v.id)
+                    yield k, v
+            try:
+                time.sleep(interval)
+            except KeyboardInterrupt:
+                break
 
     def is_xflow_instance(self, instance):
         try:

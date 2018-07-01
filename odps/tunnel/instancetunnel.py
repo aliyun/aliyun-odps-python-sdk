@@ -43,13 +43,13 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     count = serializers.JSONNodeField('RecordCount')
     schema = serializers.JSONNodeReferenceField(Schema, 'Schema')
 
-    def __init__(self, client, instance, download_id=None, limit_enabled=False,
-                 compress_option=None):
+    def __init__(self, client, instance, download_id=None, limit=None,
+                 compress_option=None, **kw):
         super(InstanceDownloadSession, self).__init__()
 
         self._client = client
         self._instance = instance
-        self._limit_enabled = limit_enabled
+        self._limit_enabled = limit if limit is not None else kw.get('limit_enabled', False)
 
         if download_id is None:
             self._init()
@@ -160,8 +160,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
 
 
 class InstanceTunnel(BaseTunnel):
-    def create_download_session(self, instance, download_id=None, limit_enabled=False, compress_option=None,
-                                compress_algo=None, compres_level=None, compress_strategy=None, **_):
+    def create_download_session(self, instance, download_id=None, limit=None, compress_option=None,
+                                compress_algo=None, compres_level=None, compress_strategy=None, **kw):
         if not isinstance(instance, six.string_types):
             instance = instance.id
         instance = Projects(client=self.tunnel_rest)[self._project.name].instances[instance]
@@ -170,5 +170,7 @@ class InstanceTunnel(BaseTunnel):
             compress_option = CompressOption(
                 compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
 
+        if limit is None:
+            limit = kw.get('limit_enabled', False)
         return InstanceDownloadSession(self.tunnel_rest, instance, download_id=download_id,
-                                       limit_enabled=limit_enabled, compress_option=compress_option)
+                                       limit=limit, compress_option=compress_option)

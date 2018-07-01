@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-06-25 15:28+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -71,12 +71,12 @@ msgstr ""
 #: odps.ODPS.get_security_options odps.ODPS.get_table odps.ODPS.get_volume
 #: odps.ODPS.get_volume_file odps.ODPS.get_volume_partition odps.ODPS.get_xflow
 #: odps.ODPS.get_xflow_results odps.ODPS.get_xflow_sub_instances
-#: odps.ODPS.list_functions odps.ODPS.list_instance_queueing_infos
-#: odps.ODPS.list_instances odps.ODPS.list_offline_models
-#: odps.ODPS.list_online_models odps.ODPS.list_projects
-#: odps.ODPS.list_resources odps.ODPS.list_role_users odps.ODPS.list_roles
-#: odps.ODPS.list_tables odps.ODPS.list_tables_model odps.ODPS.list_user_roles
-#: odps.ODPS.list_users odps.ODPS.list_volume_files
+#: odps.ODPS.iter_xflow_sub_instances odps.ODPS.list_functions
+#: odps.ODPS.list_instance_queueing_infos odps.ODPS.list_instances
+#: odps.ODPS.list_offline_models odps.ODPS.list_online_models
+#: odps.ODPS.list_projects odps.ODPS.list_resources odps.ODPS.list_role_users
+#: odps.ODPS.list_roles odps.ODPS.list_tables odps.ODPS.list_tables_model
+#: odps.ODPS.list_user_roles odps.ODPS.list_users odps.ODPS.list_volume_files
 #: odps.ODPS.list_volume_partitions odps.ODPS.list_volumes
 #: odps.ODPS.list_xflows odps.ODPS.move_volume_file odps.ODPS.open_resource
 #: odps.ODPS.open_volume_reader odps.ODPS.open_volume_writer
@@ -200,14 +200,14 @@ msgstr ""
 #: odps.ODPS.get_security_options:3 odps.ODPS.get_table:4
 #: odps.ODPS.get_volume:4 odps.ODPS.get_volume_partition:5
 #: odps.ODPS.get_xflow:4 odps.ODPS.get_xflow_results:5
-#: odps.ODPS.get_xflow_sub_instances:5 odps.ODPS.list_functions:3
-#: odps.ODPS.list_instance_queueing_infos:3 odps.ODPS.list_instances:4
-#: odps.ODPS.list_offline_models:3 odps.ODPS.list_online_models:3
-#: odps.ODPS.list_resources:3 odps.ODPS.list_role_users:4
-#: odps.ODPS.list_roles:3 odps.ODPS.list_tables:5 odps.ODPS.list_user_roles:4
-#: odps.ODPS.list_users:3 odps.ODPS.list_volume_files:6
-#: odps.ODPS.list_volume_partitions:4 odps.ODPS.list_volumes:3
-#: odps.ODPS.list_xflows:3 odps.ODPS.open_resource:23
+#: odps.ODPS.get_xflow_sub_instances:5 odps.ODPS.iter_xflow_sub_instances:6
+#: odps.ODPS.list_functions:3 odps.ODPS.list_instance_queueing_infos:3
+#: odps.ODPS.list_instances:4 odps.ODPS.list_offline_models:3
+#: odps.ODPS.list_online_models:3 odps.ODPS.list_resources:3
+#: odps.ODPS.list_role_users:4 odps.ODPS.list_roles:3 odps.ODPS.list_tables:5
+#: odps.ODPS.list_user_roles:4 odps.ODPS.list_users:3
+#: odps.ODPS.list_volume_files:6 odps.ODPS.list_volume_partitions:4
+#: odps.ODPS.list_volumes:3 odps.ODPS.list_xflows:3 odps.ODPS.open_resource:23
 #: odps.ODPS.open_volume_reader:7 odps.ODPS.open_volume_writer:11
 #: odps.ODPS.read_table:8 odps.ODPS.run_merge_files:5 odps.ODPS.run_ps:7
 #: odps.ODPS.run_ps_extract_model:11 odps.ODPS.run_ps_train:20
@@ -238,14 +238,15 @@ msgstr ""
 #: odps.ODPS.get_security_options odps.ODPS.get_table odps.ODPS.get_volume
 #: odps.ODPS.get_volume_file odps.ODPS.get_volume_partition odps.ODPS.get_xflow
 #: odps.ODPS.get_xflow_results odps.ODPS.get_xflow_sub_instances
-#: odps.ODPS.list_functions odps.ODPS.list_instance_queueing_infos
-#: odps.ODPS.list_instances odps.ODPS.list_offline_models
-#: odps.ODPS.list_online_models odps.ODPS.list_projects
-#: odps.ODPS.list_resources odps.ODPS.list_role_users odps.ODPS.list_roles
-#: odps.ODPS.list_tables odps.ODPS.list_user_roles odps.ODPS.list_users
-#: odps.ODPS.list_volume_files odps.ODPS.list_volume_partitions
-#: odps.ODPS.list_volumes odps.ODPS.list_xflows odps.ODPS.move_volume_file
-#: odps.ODPS.open_resource odps.ODPS.predict_online_model odps.ODPS.read_table
+#: odps.ODPS.iter_xflow_sub_instances odps.ODPS.list_functions
+#: odps.ODPS.list_instance_queueing_infos odps.ODPS.list_instances
+#: odps.ODPS.list_offline_models odps.ODPS.list_online_models
+#: odps.ODPS.list_projects odps.ODPS.list_resources odps.ODPS.list_role_users
+#: odps.ODPS.list_roles odps.ODPS.list_tables odps.ODPS.list_user_roles
+#: odps.ODPS.list_users odps.ODPS.list_volume_files
+#: odps.ODPS.list_volume_partitions odps.ODPS.list_volumes
+#: odps.ODPS.list_xflows odps.ODPS.move_volume_file odps.ODPS.open_resource
+#: odps.ODPS.predict_online_model odps.ODPS.read_table
 #: odps.ODPS.run_merge_files odps.ODPS.run_ps odps.ODPS.run_ps_extract_model
 #: odps.ODPS.run_ps_train odps.ODPS.run_security_query odps.ODPS.run_sql
 #: odps.ODPS.run_xflow odps.ODPS.set_project_policy odps.ODPS.stop_instance
@@ -661,22 +662,31 @@ msgid "settings for merge task."
 msgstr ""
 
 #: odps.ODPS.execute_merge_files:7 odps.ODPS.execute_ps:9
-#: odps.ODPS.execute_ps_extract_model:13 odps.ODPS.execute_ps_train:23
-#: odps.ODPS.execute_sql:11 odps.ODPS.execute_xflow:12
+#: odps.ODPS.execute_ps_extract_model:13 odps.ODPS.execute_ps_train:22
+#: odps.ODPS.execute_sql:6 odps.ODPS.execute_xflow:12
 #: odps.ODPS.run_merge_files:7 odps.ODPS.run_ps:9
-#: odps.ODPS.run_ps_extract_model:13 odps.ODPS.run_ps_train:23
-#: odps.ODPS.run_sql:13 odps.ODPS.run_xflow:12 of
-msgid "instance"
+#: odps.ODPS.run_ps_extract_model:13 odps.ODPS.run_ps_train:22
+#: odps.ODPS.run_sql:6 odps.ODPS.run_xflow:12 of
+msgid "instance priority, 9 as default"
 msgstr ""
 
 #: odps.ODPS.execute_merge_files:8 odps.ODPS.execute_ps:10
 #: odps.ODPS.execute_ps_extract_model:14 odps.ODPS.execute_ps_train:24
-#: odps.ODPS.execute_sql:12 odps.ODPS.execute_sql:25 odps.ODPS.execute_xflow:13
-#: odps.ODPS.execute_xflow:15 odps.ODPS.get_instance:6 odps.ODPS.get_instance:9
+#: odps.ODPS.execute_sql:11 odps.ODPS.execute_xflow:14
 #: odps.ODPS.run_merge_files:8 odps.ODPS.run_ps:10
 #: odps.ODPS.run_ps_extract_model:14 odps.ODPS.run_ps_train:24
-#: odps.ODPS.run_sql:14 odps.ODPS.run_sql:16 odps.ODPS.run_xflow:13
-#: odps.ODPS.run_xflow:15 of
+#: odps.ODPS.run_sql:13 odps.ODPS.run_xflow:14 of
+msgid "instance"
+msgstr ""
+
+#: odps.ODPS.execute_merge_files:9 odps.ODPS.execute_ps:11
+#: odps.ODPS.execute_ps_extract_model:15 odps.ODPS.execute_ps_train:25
+#: odps.ODPS.execute_sql:12 odps.ODPS.execute_sql:25 odps.ODPS.execute_xflow:15
+#: odps.ODPS.execute_xflow:17 odps.ODPS.get_instance:6 odps.ODPS.get_instance:9
+#: odps.ODPS.run_merge_files:9 odps.ODPS.run_ps:11
+#: odps.ODPS.run_ps_extract_model:15 odps.ODPS.run_ps_train:25
+#: odps.ODPS.run_sql:14 odps.ODPS.run_sql:16 odps.ODPS.run_xflow:15
+#: odps.ODPS.run_xflow:17 of
 msgid ":class:`odps.models.Instance`"
 msgstr ""
 
@@ -802,7 +812,7 @@ msgid ""
 "cannot be represented as Python kwargs. (optional)"
 msgstr ""
 
-#: odps.ODPS.execute_ps_train:22 odps.ODPS.run_ps_train:22 of
+#: odps.ODPS.execute_ps_train:23 odps.ODPS.run_ps_train:23 of
 msgid "extra configurations to be passed into the parameter server"
 msgstr ""
 
@@ -812,10 +822,6 @@ msgstr ""
 
 #: odps.ODPS.execute_sql:3 odps.ODPS.run_sql:3 of
 msgid "SQL statement"
-msgstr ""
-
-#: odps.ODPS.execute_sql:6 odps.ODPS.run_sql:6 of
-msgid "instance priority, 9 as default"
 msgstr ""
 
 #: odps.ODPS.execute_sql:8 odps.ODPS.run_sql:8 of
@@ -1103,7 +1109,8 @@ msgstr ""
 msgid "The result given the results of xflow"
 msgstr ""
 
-#: odps.ODPS.get_xflow_results:3 odps.ODPS.get_xflow_sub_instances:3 of
+#: odps.ODPS.get_xflow_results:3 odps.ODPS.get_xflow_sub_instances:3
+#: odps.ODPS.iter_xflow_sub_instances:3 of
 msgid "instance of xflow"
 msgstr ""
 
@@ -1115,8 +1122,20 @@ msgstr ""
 msgid "The result iterates the sub instance of xflow"
 msgstr ""
 
-#: odps.ODPS.get_xflow_sub_instances:6 of
+#: odps.ODPS.get_xflow_sub_instances:6 odps.ODPS.iter_xflow_sub_instances:7 of
 msgid "sub instances dictionary"
+msgstr ""
+
+#: odps.ODPS.iter_xflow_sub_instances:1 of
+msgid ""
+"The result iterates the sub instance of xflow and will wait till instance"
+" finish"
+msgstr ""
+
+#: odps.ODPS.iter_xflow_sub_instances:5
+#: odps.models.Instance.wait_for_completion:3
+#: odps.models.Instance.wait_for_success:3 of
+msgid "time interval to check"
 msgstr ""
 
 #: odps.ODPS.list_functions:1 of
@@ -2078,13 +2097,13 @@ msgstr ""
 #: odps.models.Instance.open_reader:1 of
 msgid ""
 "Open the reader to read records from the result of the instance. If "
-"`use_tunnel` is `True`, instance tunnel will be used. Otherwise "
-"conventional routine will be used. If instance tunnel is not available "
-"and `use_tunnel` is not specified,, the method will fall back to the "
-"conventional routine. Note that the number of records returned is limited"
-" unless `options.limited_instance_tunnel` is set to `True` or "
-"`limit_enabled=True` is configured under instance tunnel mode. Otherwise "
-"the number of records returned is always limited."
+"`tunnel` is `True`, instance tunnel will be used. Otherwise conventional "
+"routine will be used. If instance tunnel is not available and `tunnel` is"
+" not specified,, the method will fall back to the conventional routine. "
+"Note that the number of records returned is limited unless "
+"`options.limited_instance_tunnel` is set to `True` or `limit=True` is "
+"configured under instance tunnel mode. Otherwise the number of records "
+"returned is always limited."
 msgstr ""
 
 #: odps.models.Instance.open_reader:9 of
@@ -2108,11 +2127,6 @@ msgstr ""
 
 #: odps.models.Instance.wait_for_completion:1 of
 msgid "Wait for the instance to complete, and neglect the consequence."
-msgstr ""
-
-#: odps.models.Instance.wait_for_completion:3
-#: odps.models.Instance.wait_for_success:3 of
-msgid "time interval to check"
 msgstr ""
 
 #: odps.models.Instance.wait_for_success:1 of

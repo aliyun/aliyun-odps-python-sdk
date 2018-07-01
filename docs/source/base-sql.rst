@@ -66,22 +66,22 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 如果 `options.tunnel.use_instance_tunnel == True`，在调用 open_reader 时，PyODPS 会默认调用 Instance Tunnel，
 否则会调用旧的 Result 接口。如果你使用了版本较低的 MaxCompute 服务，或者调用 Instance Tunnel 出现了问题，PyODPS
 会给出警告并自动降级到旧的 Result 接口，可根据警告信息判断导致降级的原因。如果 Instance Tunnel 的结果不合预期，
-请将该选项设为 `False`。在调用 open_reader 时，也可以使用 ``use_tunnel`` 参数来指定使用何种结果接口，例如
+请将该选项设为 `False`。在调用 open_reader 时，也可以使用 ``tunnel`` 参数来指定使用何种结果接口，例如
 
 .. code-block:: python
 
    >>> # 使用 Instance Tunnel
-   >>> with o.execute_sql('select * from dual').open_reader(use_tunnel=True) as reader:
+   >>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as reader:
    >>>     for record in reader:
    >>>         # 处理每一个record
    >>> # 使用 Results 接口
-   >>> with o.execute_sql('select * from dual').open_reader(use_tunnel=False) as reader:
+   >>> with o.execute_sql('select * from dual').open_reader(tunnel=False) as reader:
    >>>     for record in reader:
    >>>         # 处理每一个record
 
 PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护的 Project，通过 Tunnel 下载数据受限。此时，
 如果 `options.tunnel.limit_instance_tunnel` 未设置，会自动打开数据量限制。此时，可下载的数据条数受到 Project 配置限制，
-通常该限制为 10000 条。如果你想要手动限制下载数据的规模，可以为 open_reader 方法增加 `limit_enabled` 选项，
+通常该限制为 10000 条。如果你想要手动限制下载数据的规模，可以为 open_reader 方法增加 `limit` 选项，
 或者设置 `options.tunnel.limit_instance_tunnel = True` 。
 
 如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取

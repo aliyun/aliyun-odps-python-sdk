@@ -17,6 +17,7 @@
 import itertools
 
 from ..core import Backend
+from ...expr.core import ExprDictionary
 from ...expr.expressions import *
 from ...expr.groupby import GroupByCollectionExpr
 from ...expr.reduction import SequenceReduction, GroupedSequenceReduction
@@ -66,18 +67,19 @@ class Optimizer(Backend):
         if isinstance(expr.input, GroupByCollectionExpr) and \
                 not expr.input.optimize_banned:
             # move filter on GroupBy to GroupBy's having
-            predicate = self._broadcast_field(expr.predicate, expr.input)
+            grouped = expr.input
+            predicate = self._do_compact(expr.predicate, expr.input)
             if predicate is None:
                 predicate = expr.predicate
 
-            having = expr.input.having
+            having = grouped.having
             if having is not None:
                 predicates = having & predicate
             else:
                 predicates = predicate
 
-            expr.input._having = predicates
-            self._sub(expr, expr.input)
+            grouped._having = predicates
+            self._sub(expr, grouped)
         elif isinstance(expr.input, FilterCollectionExpr):
             filters = [expr]
             node = expr.input
@@ -116,21 +118,23 @@ class Optimizer(Backend):
                 isinstance(expr.input, GroupByCollectionExpr) and \
                 not expr.input.optimize_banned:
             # compact projection into Groupby
+            grouped = expr.input
+
             selects = []
 
             for n in expr.traverse(top_down=True, unique=True,
-                                   stop_cond=lambda x: x is expr.input):
+                                   stop_cond=lambda x: x is grouped):
                 # stop compact
                 if isinstance(n, (Window, SequenceReduction)):
                     return
 
             for field in expr._fields:
-                selects.append(self._broadcast_field(field, expr.input) or field)
+                selects.append(self._do_compact(field, grouped) or field)
 
-            expr._input._aggregations = expr._input._fields = selects
-            expr._input._schema = Schema.from_lists([f.name for f in selects],
-                                                    [f.dtype for f in selects])
-            self._sub(expr, expr.input)
+            grouped._aggregations = grouped._fields = selects
+            grouped._schema = Schema.from_lists([f.name for f in selects],
+                                                [f.dtype for f in selects])
+            self._sub(expr, grouped)
 
             return
 
@@ -208,52 +212,38 @@ class Optimizer(Backend):
         if len(to_compact) <= 1:
             return
 
-        changed = False
-        for field in self._get_fields(expr):
-            if not isinstance(field, SequenceExpr):
-                continue
-            broadcast_field = self._broadcast_field(field, *to_compact[1:][::-1])
-            if broadcast_field is not None:
-                changed = True
-                expr.substitute(field, broadcast_field, dag=self._dag)
+        return self._do_compact(expr, *to_compact[1:][::-1])
 
-        if changed:
-            expr.substitute(expr.input, to_compact[-1].input, dag=self._dag)
-            return expr
-
-    def _broadcast_field(self, expr, *collects):
-        changed = False
+    def _do_compact(self, expr, *to_compact):
         retval = expr
 
-        collection = collects[-1]
-        for path in expr.all_path(collection, strict=True):
-            cols = [it for it in path if isinstance(it, Column)]
-            assert len(cols) <= 1
-            assert len([it for it in path if isinstance(it, CollectionExpr)]) == 1
-            if len(cols) == 1:
-                col = cols[0]
+        collection_dict = ExprDictionary()
+        for coll in to_compact:
+            collection_dict[coll] = True
 
-                col_name = col.source_name or col.name
-                field = self._get_field(collection, col_name)
-                if col.is_renamed():
-                    field = field.rename(col.name)
-                else:
-                    field = field.copy()
+        for node in expr.traverse(top_down=True, unique=True,
+                                  stop_cond=lambda x: x is to_compact[-1]):
+            if node in collection_dict:
+                parents = self._dag.successors(node)
+                for parent in parents:
+                    if isinstance(parent, Column):
+                        col = parent
 
-                self._sub(col, field)
-                changed = True
-                if col is retval:
-                    retval = field
+                        col_name = col.source_name or col.name
+                        field = self._get_field(node, col_name)
+                        if col.is_renamed():
+                            field = field.rename(col.name)
+                        else:
+                            field = field.copy()
 
-                if isinstance(field, Scalar) and field._value is not None:
-                    continue
-                if len(collects) > 1:
-                    self._broadcast_field(field, *collects[:-1]) or field
-            else:
-                path[-2].substitute(collection, collects[0].input, dag=self._dag)
+                        self._sub(col, field)
 
-        if changed:
-            return retval
+                        if col is retval:
+                            retval = field
+                    else:
+                        parent.substitute(node, node.input, dag=self._dag)
+
+        return retval
 
     def _get_fields(self, collection):
         fields = select_fields(collection)

@@ -23,8 +23,8 @@ from ..compat import six, getargspec
 from .. import ODPS, options, utils
 from ..inter import list_rooms
 
-PROJECT_REGEX = re.compile('.*project *= *(?P<project>[^\(\),]+)')
-NAME_REGEX = re.compile('.*name *= *(?P<name>[^\(\),]+)')
+PROJECT_REGEX = re.compile(r'.*project *= *(?P<project>[^\(\),]+)')
+NAME_REGEX = re.compile(r'.*name *= *(?P<name>[^\(\),]+)')
 TEMP_TABLE_PREFIXES = [
     utils.TEMP_TABLE_PREFIX,
     'jdbc_temp_tbl_',
@@ -127,7 +127,7 @@ class ObjectCompleter(BaseCompleter):
             self._methods[m_name] = method_type(use_prefix=use_prefix, list_method=lister)
 
         _regex_str = '(^|.*[\(\)\s,=]+)(?P<odps>[^\(\)\s,]+)\.(?P<getfn>' + '|'.join(six.iterkeys(self._methods)) + ')\('
-        self._regex = re.compile(_regex_str + '(?P<args>[^\\(\\)]*)$')
+        self._regex = re.compile(_regex_str + r'(?P<args>[^\(\)]*)$')
         return _regex_str
 
     def get_list_call(self, cursor_str, full_line=None):

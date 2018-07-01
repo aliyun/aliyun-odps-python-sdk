@@ -45,12 +45,12 @@ DataWorks 的 PyODPS 节点中，将会包含一个全局的变量 ``odps`` 或�
         # 能通过 instance tunnel 读取全部数据
 
 
-或者通过在 open_reader 上添加 ``use_tunnel=True``，来仅对这次 open_reader 打开 instance tunnel；
-添加 ``limit_enabled=False``，来关闭 limit 限制从而能下载全部数据。
+或者通过在 open_reader 上添加 ``tunnel=True``，来仅对这次 open_reader 打开 instance tunnel；
+添加 ``limit=False``，来关闭 limit 限制从而能下载全部数据。
 
 .. code-block:: python
 
-    with instance.open_reader(use_tunnel=True, limit_enabled=False) as reader:
+    with instance.open_reader(tunnel=True, limit=False) as reader:
         # 这次 open_reader 会走 instance tunnel 接口，且能读取全部数据
 
 

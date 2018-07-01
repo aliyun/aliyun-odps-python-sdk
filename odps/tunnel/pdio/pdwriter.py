@@ -15,7 +15,7 @@
 
 from ..io.stream import CompressOption, SnappyOutputStream, DeflateOutputStream, RequestsIO
 from ... import errors, options
-from ...compat import raise_exc
+from ...compat import six
 
 try:
     from .pdwriter_c import BasePandasWriter
@@ -47,7 +47,7 @@ if BasePandasWriter:
         def write(self, data, columns=None, limit=-1, dim_offsets=None):
             if self._req_io._async_err:
                 ex_type, ex_value, tb = self._req_io._async_err
-                raise_exc(ex_type, ex_value, tb)
+                six.reraise(ex_type, ex_value, tb)
             super(TunnelPandasWriter, self).write(data, columns=columns, limit=limit,
                                                   dim_offsets=dim_offsets)
 

@@ -561,7 +561,6 @@ msgid ""
 msgstr ""
 
 #: ../../source/df-basic.rst:281
-#, fuzzy
 msgid ""
 "如果我们需要在已有 collection 中添加某一列变换的结果，也可以使用 expr[expr, new_sequence] 语法， "
 "新增的列会作为新 collection 的一部分。"
@@ -666,7 +665,6 @@ msgid ""
 msgstr ""
 
 #: ../../source/df-basic.rst:351
-#, fuzzy
 msgid ""
 "增删列以创建新 collection 的另一种方法是调用 select 方法，将需要选择的列作为参数输入。如果需要重命名，使用 keyword "
 "参数输入，并将新的列名作为参数名即可。"

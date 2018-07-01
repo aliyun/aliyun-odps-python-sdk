@@ -8,26 +8,45 @@ $(function() {
         '      <dl id="other-versions-languages">\n' +
         '        <dt>Languages</dt>\n' +
         '      </dl>\n' +
+        '      <dl id="other-versions-versions">\n' +
+        '        <dt>Versions</dt>\n' +
+        '      </dl>\n' +
         '    </div>\n' +
         '  </div>\n' +
         '</div>';
 
-    $.ajax({
-        url: DOCUMENTATION_OPTIONS.URL_ROOT + '../langs.json',
-        success: function (data) {
-            $('nav.wy-nav-side').append($(lang_selector));
+    var render_links = function (data) {
+        $('nav.wy-nav-side').append($(lang_selector));
 
-            var curLang = '';
-            $.each(data.languages, function (idx, val) {
-                if (location.pathname.indexOf('/' + val + '/') >= 0)
-                    curLang = val;
-            });
-            if (!curLang) return;
+        var curLang = '', curVersion = '';
 
-            var reloadLangs = function() {
-                var langStrs = '';
+        var languages = data.languages;
+        if (languages === undefined) {
+            languages = [];
+            $('#other-versions-languages').hide();
+        }
+
+        var versions = data.versions;
+        if (versions === undefined) {
+            versions = [];
+            $('#other-versions-versions').hide();
+        }
+
+        $.each(languages, function (idx, val) {
+            if (location.pathname.indexOf('/' + val + '/') >= 0)
+                curLang = val;
+        });
+
+        $.each(versions, function (idx, val) {
+            if (location.pathname.indexOf('/' + val + '/') >= 0)
+                curVersion = val;
+        });
+
+        var reloadLinks = function() {
+            var langStrs = '', versionStrs = '';
+            if (curLang !== '') {
                 $('#other-versions-languages dd').remove();
-                $.each(data.languages, function (idx, val) {
+                $.each(languages, function (idx, val) {
                     var langStr = '<dd><a href="' + location.href.replace('/' + curLang + '/', '/' + val + '/')
                         + '">' + val + '</a></dd>';
                     if (curLang === val)
@@ -36,10 +55,34 @@ $(function() {
                         langStrs += langStr;
                 });
                 $('#other-versions-languages').append($(langStrs));
-            };
-            reloadLangs();
-            $('.reference').click(function() { window.setTimeout(reloadLangs, 100); });
-            $('.headerlink').click(function() { window.setTimeout(reloadLangs, 100); });
+            }
+            if (curVersion !== '') {
+                $('#other-versions-versions dd').remove();
+                $.each(versions, function (idx, val) {
+                    var versionStr = '<dd><a href="' + location.href.replace('/' + curVersion + '/', '/' + val + '/')
+                        + '">' + val + '</a></dd>';
+                    if (curVersion === val)
+                        versionStrs += '<strong>' + versionStr + '</strong>';
+                    else
+                        versionStrs += versionStr;
+                });
+                $('#other-versions-versions').append($(versionStrs));
+            }
+        };
+        reloadLinks();
+        $('.reference').click(function() { window.setTimeout(reloadLinks, 100); });
+        $('.headerlink').click(function() { window.setTimeout(reloadLinks, 100); });
+    };
+
+    $.ajax({
+        url: DOCUMENTATION_OPTIONS.URL_ROOT + '../../versions.json',
+        success: render_links,
+        error: function() {
+            $.ajax({
+                url: DOCUMENTATION_OPTIONS.URL_ROOT + '../versions.json',
+                success: render_links,
+                dataType: 'json'
+            });
         },
         dataType: 'json'
     });

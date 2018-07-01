@@ -27,7 +27,7 @@ from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
 from .job import Job
 from .worker import WorkerDetail2, LOG_TYPES_MAPPING
 from .. import serializers, utils, errors, compat, readers, options
-from ..compat import ElementTree, Enum, six, OrderedDict, raise_exc
+from ..compat import ElementTree, Enum, six, OrderedDict
 
 
 class Instance(LazyLoad):
@@ -739,7 +739,7 @@ class Instance(LazyLoad):
         except errors.InternalServerError:
             e, tb = sys.exc_info()[1:]
             e.__class__ = Instance.DownloadSessionCreationError
-            raise_exc(Instance.DownloadSessionCreationError, e, tb)
+            six.reraise(Instance.DownloadSessionCreationError, e, tb)
 
         self._download_id = download_session.id
 
@@ -793,18 +793,18 @@ class Instance(LazyLoad):
 
     def open_reader(self, *args, **kwargs):
         """
-        Open the reader to read records from the result of the instance. If `use_tunnel` is `True`,
+        Open the reader to read records from the result of the instance. If `tunnel` is `True`,
         instance tunnel will be used. Otherwise conventional routine will be used. If instance tunnel
-        is not available and `use_tunnel` is not specified,, the method will fall back to the
+        is not available and `tunnel` is not specified,, the method will fall back to the
         conventional routine.
         Note that the number of records returned is limited unless `options.limited_instance_tunnel`
-        is set to `True` or `limit_enabled=True` is configured under instance tunnel mode. Otherwise
+        is set to `True` or `limit=True` is configured under instance tunnel mode. Otherwise
         the number of records returned is always limited.
 
-        :param use_tunnel: if true, use instance tunnel to read from the instance.
-                           if false, use conventional routine.
-                           if absent, `options.tunnel.use_instance_tunnel` will be used and automatic fallback
-                           is enabled.
+        :param tunnel: if true, use instance tunnel to read from the instance.
+                       if false, use conventional routine.
+                       if absent, `options.tunnel.use_instance_tunnel` will be used and automatic fallback
+                       is enabled.
         :param reopen: the reader will reuse last one, reopen is true means open a new reader.
         :type reopen: bool
         :param endpoint: the tunnel service URL
@@ -823,18 +823,23 @@ class Instance(LazyLoad):
         >>>     for record in reader[0: count]:
         >>>         # read all data, actually better to split into reading for many times
         """
-        use_tunnel = kwargs.get('use_tunnel')
+        use_tunnel = kwargs.get('use_tunnel', kwargs.get('tunnel'))
         auto_fallback_result = use_tunnel is None
         if use_tunnel is None:
             use_tunnel = options.tunnel.use_instance_tunnel
         result_fallback_errors = (errors.InvalidProjectTable, errors.InvalidArgument)
         if use_tunnel:
-            if 'limit_enabled' not in kwargs:
-                kwargs['limit_enabled'] = options.tunnel.limit_instance_tunnel
+            # for compatibility
+            if 'limit_enabled' in kwargs:
+                kwargs['limit'] = kwargs['limit_enabled']
+                del kwargs['limit_enabled']
+
+            if 'limit' not in kwargs:
+                kwargs['limit'] = options.tunnel.limit_instance_tunnel
 
             auto_fallback_protection = False
-            if kwargs['limit_enabled'] is None:
-                kwargs['limit_enabled'] = False
+            if kwargs['limit'] is None:
+                kwargs['limit'] = False
                 auto_fallback_protection = True
 
             try:
@@ -843,7 +848,7 @@ class Instance(LazyLoad):
                 # service version too low to support instance tunnel.
                 if not auto_fallback_result:
                     raise
-                if not kwargs.get('limit_enabled'):
+                if not kwargs.get('limit'):
                     warnings.warn('Instance tunnel not supported, will fallback to '
                                   'conventional ways. 10000 records will be limited.')
             except requests.Timeout:
@@ -851,7 +856,7 @@ class Instance(LazyLoad):
                 # on the service.
                 if not auto_fallback_result:
                     raise
-                if not kwargs.get('limit_enabled'):
+                if not kwargs.get('limit'):
                     warnings.warn('Instance tunnel timed out, will fallback to '
                                   'conventional ways. 10000 records will be limited.')
             except (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported):
@@ -863,9 +868,9 @@ class Instance(LazyLoad):
                 # project is protected
                 if not auto_fallback_protection:
                     raise
-                if not kwargs.get('limit_enabled'):
+                if not kwargs.get('limit'):
                     warnings.warn('Project under protection, 10000 records will be limited.')
-                    kwargs['limit_enabled'] = True
+                    kwargs['limit'] = True
                     return self._open_tunnel_reader(**kwargs)
 
         return self._open_result_reader(*args, **kwargs)

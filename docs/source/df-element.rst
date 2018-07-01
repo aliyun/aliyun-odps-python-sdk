@@ -607,8 +607,8 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
 .. code:: python
 
     >>> # 这里要确保资源名的后缀是正确的文件类型
-    >>> odps.create_resource('six.whl', 'file', file_obj=open('six-1.10.0-py2.py3-none-any.whl'))
-    >>> odps.create_resource('python_dateutil.whl', 'file', file_obj=open('python_dateutil-2.5.3-py2.py3-none-any.whl'))
+    >>> odps.create_resource('six.whl', 'file', file_obj=open('six-1.10.0-py2.py3-none-any.whl', 'rb'))
+    >>> odps.create_resource('python_dateutil.whl', 'file', file_obj=open('python_dateutil-2.5.3-py2.py3-none-any.whl', 'rb'))
 
 现在我们有个DataFrame，只有一个string类型字段。
 
@@ -657,7 +657,7 @@ PyODPS 默认支持执行纯 Python 且不含文件操作的第三方库。在�
 .. code:: python
 
     >>> # 对于含有二进制代码的包，必须使用 Archive 方式上传资源，whl 后缀需要改为 zip
-    >>> odps.create_resource('scipy.zip', 'archive', file_obj=open('scipy-0.19.0-cp27-cp27m-manylinux1_x86_64.whl'))
+    >>> odps.create_resource('scipy.zip', 'archive', file_obj=open('scipy-0.19.0-cp27-cp27m-manylinux1_x86_64.whl', 'rb'))
     >>>
     >>> # 如果 Project 开启了 Isolation，下面的选项不是必需的
     >>> options.sql.settings = { 'odps.isolation.session.enable': True }

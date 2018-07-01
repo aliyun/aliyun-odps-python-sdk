@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-12 14:36+0800\n"
+"POT-Creation-Date: 2018-06-25 15:28+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -77,14 +77,13 @@ msgstr ""
 
 #: ../../source/platform-d2.rst:48
 msgid ""
-"或者通过在 open_reader 上添加 ``use_tunnel=True``，来仅对这次 open_reader 打开 instance "
-"tunnel； 添加 ``limit_enabled=False``，来关闭 limit 限制从而能下载全部数据。"
+"或者通过在 open_reader 上添加 ``tunnel=True``，来仅对这次 open_reader 打开 instance "
+"tunnel； 添加 ``limit=False``，来关闭 limit 限制从而能下载全部数据。"
 msgstr ""
 
 #: ../../source/platform-d2.rst:51
 msgid ""
-"with instance.open_reader(use_tunnel=True, limit_enabled=False) as "
-"reader:\n"
+"with instance.open_reader(tunnel=True, limit=False) as reader:\n"
 "    # 这次 open_reader 会走 instance tunnel 接口，且能读取全部数据"
 msgstr ""
 

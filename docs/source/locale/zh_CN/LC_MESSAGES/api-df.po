@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-16 20:23+0800\n"
+"POT-Creation-Date: 2018-06-20 15:21+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -540,18 +540,22 @@ msgid "resources to read"
 msgstr ""
 
 #: odps.df.CollectionExpr.apply:10 of
-msgid "args for function"
+msgid "if True, keep rows producing empty results, only work in lateral views"
 msgstr ""
 
 #: odps.df.CollectionExpr.apply:11 of
+msgid "args for function"
+msgstr ""
+
+#: odps.df.CollectionExpr.apply:12 of
 msgid "kwargs for function"
 msgstr ""
 
-#: odps.df.CollectionExpr.apply:16 of
+#: odps.df.CollectionExpr.apply:17 of
 msgid "Apply a function to a row:"
 msgstr ""
 
-#: odps.df.CollectionExpr.apply:28 of
+#: odps.df.CollectionExpr.apply:29 of
 msgid "Apply a function to a column:"
 msgstr ""
 

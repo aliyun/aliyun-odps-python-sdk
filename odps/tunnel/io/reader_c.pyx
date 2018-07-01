@@ -24,6 +24,7 @@ import sys
 import warnings
 from ..wireconstants import ProtoWireConstants
 from ... import utils, types, compat, options
+from ...compat import six
 from ...models import Record
 from ...readers import AbstractRecordReader
 
@@ -379,7 +380,7 @@ cdef class BaseTunnelRecordReader:
                     raise IOError('Unsupported type %s' % data_type)
 
             if self._last_error is not None:
-                compat.raise_exc(*self._last_error)
+                six.reraise(*self._last_error)
 
         self._curr_cursor += 1
         return record

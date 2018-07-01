@@ -20,6 +20,7 @@ fi
 
 #check python version
 python -V
+pip install --upgrade pip
 pip install cython wheel numpy
 
 pip wheel --no-deps .

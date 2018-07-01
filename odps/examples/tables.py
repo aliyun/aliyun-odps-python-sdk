@@ -1,12 +1,12 @@
 # encoding: utf-8
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -131,12 +131,12 @@ def create_ionosphere_two_parts(odps, table_name, partition1_count=2, partition2
 
 
 @table_creator
-def create_iris(odps, table_name, tunnel=None, project=None):
+def create_iris(odps, table_name, tunnel=None, project=None, lifecycle=None):
     if tunnel is None:
         tunnel = TableTunnel(odps, project=project)
     odps.delete_table(table_name, if_exists=True, project=project)
-    odps.create_table(table_name, 'sepal_length double, sepal_width double, petal_length double, '
-                      + 'petal_width double, category string', project=project)
+    table = odps.create_table(table_name, 'sepal_length double, sepal_width double, petal_length double, '
+                              + 'petal_width double, category string', project=project, lifecycle=lifecycle)
 
     upload_ss = tunnel.create_upload_session(table_name)
     writer = upload_ss.open_record_writer(0)
@@ -150,6 +150,7 @@ def create_iris(odps, table_name, tunnel=None, project=None):
         writer.write(rec)
     writer.close()
     upload_ss.commit([0, ])
+    return table
 
 
 @table_creator

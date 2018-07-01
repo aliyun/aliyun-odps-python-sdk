@@ -371,7 +371,7 @@ class OdpsSQLCompiler(Backend):
                 self._quote(name))
         sql = sql % symbol_compiled
 
-        reg = re.compile('###\[(col_\d+)\]##')
+        reg = re.compile(r'###\[(col_\d+)\]##')
 
         def repl(matched):
             symbol = matched.group(1)
@@ -389,7 +389,7 @@ class OdpsSQLCompiler(Backend):
         if not self._beautify:
             return sql
 
-        reg = re.compile('/{_i(\d+)}')
+        reg = re.compile(r'/{_i(\d+)}')
 
         for select_idx in reg.findall(sql):
             s_regex_str = '//{{_i{0}}}(.+?){{_i{0}}}//'.format(select_idx)
@@ -1165,9 +1165,9 @@ class OdpsSQLCompiler(Backend):
 
     def _unquote(self, compiled):
         if options.df.quote:
-            reg = re.compile('`([^`]+)`')
+            reg = re.compile(r'`([^`]+)`')
         else:
-            reg = re.compile('\.(\w+)')
+            reg = re.compile(r'\.(\w+)')
         matched = reg.search(compiled)
         if matched:
             return matched.group(1)

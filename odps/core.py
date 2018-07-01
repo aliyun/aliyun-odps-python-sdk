@@ -30,7 +30,7 @@ DEFAULT_ENDPOINT = 'http://service.odps.aliyun.com/api'
 DEFAULT_PREDICT_ENDPOINT = 'http://prediction.odps.aliyun.com'
 LOG_VIEW_HOST_DEFAULT = 'http://logview.odps.aliyun.com'
 
-DROP_TABLE_REGEX = re.compile('^\s*drop\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
+DROP_TABLE_REGEX = re.compile(r'^\s*drop\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
 
 
 @utils.attach_internal
@@ -83,7 +83,7 @@ class ODPS(object):
             self.account = account
         self.endpoint = endpoint or DEFAULT_ENDPOINT
         self.project = project
-        self.rest = RestClient(self.account, self.endpoint, project)
+        self.rest = RestClient(self.account, self.endpoint, project, proxy=options.api_proxy)
 
         self._tunnel_endpoint = kw.pop('tunnel_endpoint', None)
         if self._tunnel_endpoint is not None:
@@ -742,11 +742,6 @@ class ODPS(object):
         if aliases:
             task.update_aliases(aliases)
 
-        if options.biz_id:
-            if task.properties is None:
-                task.properties = dict()
-            task.properties['biz_id'] = str(options.biz_id)
-
         project = self.get_project(name=project)
         return project.instances.create(task=task, priority=priority,
                                         running_cluster=running_cluster,
@@ -1244,6 +1239,19 @@ class ODPS(object):
         """
         project = self.get_project(name=project)
         return project.xflows.get_xflow_sub_instances(instance)
+
+    def iter_xflow_sub_instances(self, instance, interval=1, project=None):
+        """
+        The result iterates the sub instance of xflow and will wait till instance finish
+
+        :param instance: instance of xflow
+        :type instance: :class:`odps.models.Instance`
+        :param interval: time interval to check
+        :param project: project name, if not provided, will be the default project
+        :return: sub instances dictionary
+        """
+        project = self.get_project(name=project)
+        return project.xflows.iter_xflow_sub_instances(instance, interval=interval)
 
     def delete_xflow(self, name, project=None):
         """

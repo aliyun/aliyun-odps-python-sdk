@@ -29,6 +29,7 @@ xlibsyslog
 # node-js
 node_modules
 jspm_packages
+package-lock.json
 
 npm-debug.log*
 .npm
@@ -41,6 +42,7 @@ htmlcov
 .tox
 nosetests.xml
 .cache
+.pytest*
 
 # IDEs
 .idea
@@ -64,6 +66,7 @@ odps/src/*/*_c.c*
 odps/src/*_c.c*
 odps/tunnel/pb/*_c.c*
 odps/tunnel/io/*_c.c*
+odps/tunnel/pdio/*_c.c*
 odps/tunnel/*_c.c*
 
 # benchmark
@@ -79,3 +82,6 @@ bin/test_pyodpswrapper.py
 # tmp files
 *.tmp
 *.swp
+
+# documentation
+docs/**/*.mo

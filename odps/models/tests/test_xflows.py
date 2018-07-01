@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase, to_str
+from odps.tests.core import TestBase, to_str, tn
+from odps.examples import create_iris
 from odps.compat import unittest
 from odps.models import XFlows
 
@@ -70,6 +71,25 @@ class Test(TestBase):
         self.assertIsInstance(xflow_results, dict)
         self.assertTrue(all(
             map(lambda x: isinstance(x, XFlows.XFlowResult.XFlowAction), xflow_results.values())))
+
+    def testIterSubInstances(self):
+        table = create_iris(self.odps, tn('test_iris_table'))
+        model_name = tn('test_xflow_model')
+        try:
+            xflow_inst = self.odps.run_xflow(
+                'LogisticRegression', 'algo_public',
+                dict(featureColNames='sepal_length,sepal_width,petal_length,petal_width',
+                     labelColName='category',
+                     inputTableName=table.name,
+                     modelName=model_name)
+            )
+            sub_insts = dict()
+            for k, v in self.odps.iter_xflow_sub_instances(xflow_inst):
+                sub_insts[k] = v
+            self.assertTrue(xflow_inst.is_terminated)
+            self.assertTrue(len(sub_insts) > 0)
+        finally:
+            self.odps.delete_offline_model(model_name, if_exists=True)
 
 
 if __name__ == '__main__':

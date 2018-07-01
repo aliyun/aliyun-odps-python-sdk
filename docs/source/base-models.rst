@@ -36,7 +36,17 @@ XFlow 是 ODPS 对算法包的封装，使用 PyODPS 可以执行 XFlow。对于
     >>> for sub_inst_name, sub_inst in o.get_xflow_sub_instances(inst).items():
     >>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))
 
-需要注意的是，get_xflow_sub_instances 返回的是 Instance 当前的子 Instance，可能会随时间变化，因而可能需要定时查询。
+需要注意的是，``get_xflow_sub_instances`` 返回的是 Instance 当前的子 Instance，可能会随时间变化，因而可能需要定时查询。
+为简化这一步骤，可以使用 ``iter_xflow_sub_instances 方法``。该方法返回一个迭代器，会阻塞执行直至发现新的子 Instance
+或者主 Instance 结束：
+
+.. code-block:: python
+
+    >>> # 此处建议使用异步调用
+    >>> inst = o.run_xflow('AlgoName', 'algo_public',
+                           parameters={'param1': 'param_value1', 'param2': 'param_value2', ...})
+    >>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):  # 此处将等待
+    >>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))
 
 在调用 run_xflow 或者 execute_xflow 时，也可以指定运行参数，指定的方法与 SQL 类似：
 

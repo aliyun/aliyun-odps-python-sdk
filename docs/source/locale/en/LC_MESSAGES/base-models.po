@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-19 17:37+0800\n"
+"POT-Creation-Date: 2018-06-20 15:21+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -27,7 +27,9 @@ msgstr "XFlow"
 
 #: ../../source/base-models.rst:9
 msgid "XFlow 是 ODPS 对算法包的封装，使用 PyODPS 可以执行 XFlow。对于下面的 PAI 命令："
-msgstr "XFlow is a MaxCompute algorithm package. You can use PyODPS to execute XFlow tasks. For the following PAI command:"
+msgstr ""
+"XFlow is a MaxCompute algorithm package. You can use PyODPS to execute "
+"XFlow tasks. For the following PAI command:"
 
 #: ../../source/base-models.rst:14
 msgid ""
@@ -37,7 +39,7 @@ msgstr ""
 
 #: ../../source/base-models.rst:15
 msgid "可以使用如下方法调用："
-msgstr "You can call run_xflow to execute it asynchronously:"
+msgstr "You can call ``run_xflow`` to execute it asynchronously:"
 
 #: ../../source/base-models.rst:22
 msgid ""
@@ -53,7 +55,7 @@ msgstr ""
 
 #: ../../source/base-models.rst:23
 msgid "或者使用同步调用："
-msgstr "Or call execute_xflow to execute it synchronously:"
+msgstr "Or call ``execute_xflow`` to execute it synchronously:"
 
 #: ../../source/base-models.rst:30
 msgid ""
@@ -72,8 +74,9 @@ msgid ""
 "这两个方法都会返回一个 Instance 对象。由于 XFlow 的一个 Instance 包含若干个子 Instance， "
 "需要使用下面的方法来获得每个 Instance 的 LogView："
 msgstr ""
-"Both methods return an Instance object. An XFlow instance contains several sub-instances. You can obtain the "
-"LogView of each Instance by using the following method:"
+"Both methods return an Instance object. An XFlow instance contains "
+"several sub-instances. You can obtain the LogView of each Instance by "
+"using the following method:"
 
 #: ../../source/base-models.rst:34
 #, python-format
@@ -85,16 +88,41 @@ msgstr ""
 
 #: ../../source/base-models.rst:39
 msgid ""
-"需要注意的是，get_xflow_sub_instances 返回的是 Instance 当前的子 "
-"Instance，可能会随时间变化，因而可能需要定时查询。"
+"需要注意的是，``get_xflow_sub_instances`` 返回的是 Instance 当前的子 "
+"Instance，可能会随时间变化，因而可能需要定时查询。 为简化这一步骤，可以使用 ``iter_xflow_sub_instances "
+"方法``。该方法返回一个迭代器，会阻塞执行直至发现新的子 Instance 或者主 Instance 结束："
 msgstr ""
-"Note that get_xflow_sub_instances returns the current sub-instances of an Instance object, which may change over time. Periodic queries may be required."
-
-#: ../../source/base-models.rst:41
-msgid "在调用 run_xflow 或者 execute_xflow 时，也可以指定运行参数，指定的方法与 SQL 类似："
-msgstr "You can specify runtime parameters when calling run_xflow or execute_xflow. This process is similar to executing SQL statements:"
+"Note that ``get_xflow_sub_instances`` returns the current sub-instances of an Instance object, "
+"which may change over time. Periodic queries may be required. To simplify this, you may use "
+"``iter_xflow_sub_instances`` which returns a generator of sub-instances that will block current "
+"thread till a new instance starts or the main instance terminates."
 
 #: ../../source/base-models.rst:43
+#, python-format
+msgid ""
+">>> # 此处建议使用异步调用\n"
+">>> inst = o.run_xflow('AlgoName', 'algo_public',\n"
+"                       parameters={'param1': 'param_value1', 'param2': "
+"'param_value2', ...})\n"
+">>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):  # "
+"此处将等待\n"
+">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
+msgstr ""
+">>> # asynchronous call is recommended here\n"
+">>> inst = o.run_xflow('AlgoName', 'algo_public',\n"
+"                       parameters={'param1': 'param_value1', 'param2': "
+"'param_value2', ...})\n"
+">>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):  # "
+"will wait here\n"
+">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
+
+#: ../../source/base-models.rst:51
+msgid "在调用 run_xflow 或者 execute_xflow 时，也可以指定运行参数，指定的方法与 SQL 类似："
+msgstr ""
+"You can specify runtime parameters when calling run_xflow or "
+"execute_xflow. This process is similar to executing SQL statements:"
+
+#: ../../source/base-models.rst:53
 msgid ""
 ">>> parameters = {'param1': 'param_value1', 'param2': 'param_value2', "
 "...}\n"
@@ -102,11 +130,11 @@ msgid ""
 "hints={'odps.xxx.yyy': 10})"
 msgstr ""
 
-#: ../../source/base-models.rst:48
+#: ../../source/base-models.rst:58
 msgid "使用 options.ml.xflow_settings 可以配置全局设置："
 msgstr "You can use options.ml.xflow_settings to configure the global settings:"
 
-#: ../../source/base-models.rst:50
+#: ../../source/base-models.rst:60
 msgid ""
 ">>> from odps import options\n"
 ">>> options.ml.xflow_settings = {'odps.xxx.yyy': 10}\n"
@@ -115,18 +143,20 @@ msgid ""
 ">>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters)"
 msgstr ""
 
-#: ../../source/base-models.rst:58
+#: ../../source/base-models.rst:68
 msgid "离线模型"
 msgstr "Offline models"
 
-#: ../../source/base-models.rst:60
+#: ../../source/base-models.rst:70
 msgid ""
 "离线模型是 XFlow 分类 / 回归算法输出的模型。用户可以使用 PyODPS ML 或直接使用 odps.run_xflow "
 "创建一个离线模型，例如下面使用 run_xflow 的例子："
 msgstr ""
-"Offline models are outputs of XFlow classification or regression algorithms. You can directly call odps.run_xflow to create an offline model. For example:"
+"Offline models are outputs of XFlow classification or regression "
+"algorithms. You can directly call odps.run_xflow to create an offline "
+"model. For example:"
 
-#: ../../source/base-models.rst:68
+#: ../../source/base-models.rst:78
 msgid ""
 ">>> o.run_xflow('LogisticRegression', 'algo_public', "
 "dict(modelName='logistic_regression_model_name',\n"
@@ -136,45 +166,54 @@ msgid ""
 "inputTableName='bank_data'))"
 msgstr ""
 
-#: ../../source/base-models.rst:69
+#: ../../source/base-models.rst:79
 msgid "在模型创建后，用户可以列出当前 Project 下的模型："
-msgstr "After creating the models, you can list the models under the current project as follows:"
+msgstr ""
+"After creating the models, you can list the models under the current "
+"project as follows:"
 
-#: ../../source/base-models.rst:74
+#: ../../source/base-models.rst:84
 msgid ">>> models = o.list_offline_models(prefix='prefix')"
 msgstr ""
 
-#: ../../source/base-models.rst:75
+#: ../../source/base-models.rst:85
 msgid "也可以通过模型名获取模型并读取模型 PMML（如果支持）："
-msgstr "You can also retrieve the models and read their PMML (if supported) by the model names:"
+msgstr ""
+"You can also retrieve the models and read their PMML (if supported) by "
+"the model names:"
 
-#: ../../source/base-models.rst:81
+#: ../../source/base-models.rst:91
 msgid ""
 ">>> model = o.get_offline_model('logistic_regression_model_name')\n"
 ">>> pmml = model.get_model()"
 msgstr ""
 
-#: ../../source/base-models.rst:82
+#: ../../source/base-models.rst:92
 msgid "删除模型可使用下列语句："
 msgstr "You can delete a model using the following statement:"
 
-#: ../../source/base-models.rst:87
+#: ../../source/base-models.rst:97
 msgid ">>> o.delete_offline_model('logistic_regression_model_name')"
 msgstr ""
 
-#: ../../source/base-models.rst:89
+#: ../../source/base-models.rst:99
 msgid "在线模型"
 msgstr "Online models"
 
-#: ../../source/base-models.rst:91
+#: ../../source/base-models.rst:101
 msgid "在线模型是 ODPS 提供的模型在线部署能力。用户可以通过 Pipeline 部署自己的模型。详细信息请参考“机器学习平台——在线服务”章节。"
-msgstr "MaxCompute allows you to deploy online models. You can use a Pipeline to deploy your models. For more information, see Machine learning platform (PAI) - online services."
+msgstr ""
+"MaxCompute allows you to deploy online models. You can use a Pipeline to "
+"deploy your models. For more information, see Machine learning platform "
+"(PAI) - online services."
 
-#: ../../source/base-models.rst:93
+#: ../../source/base-models.rst:103
 msgid "需要注意的是，在线模型的服务使用的是独立的 Endpoint，需要配置 Predict Endpoint。通过"
-msgstr "Note that online models require independent endpoints. You need to configure Predict Endpoint as follows:"
+msgstr ""
+"Note that online models require independent endpoints. You need to "
+"configure Predict Endpoint as follows:"
 
-#: ../../source/base-models.rst:99
+#: ../../source/base-models.rst:109
 msgid ""
 ">>> o = ODPS('your-access-id', 'your-secret-access-key', 'your-default-"
 "project',\n"
@@ -182,33 +221,37 @@ msgid ""
 "predict_endpoint='predict_endpoint')"
 msgstr ""
 
-#: ../../source/base-models.rst:100
+#: ../../source/base-models.rst:110
 msgid "即可在 ODPS 对象上添加相关配置。Predict Endpoint 的地址请参考相关说明或咨询管理员。"
-msgstr "For more information about Predict Endpoint, see the instructions or submit a ticket."
+msgstr ""
+"For more information about Predict Endpoint, see the instructions or "
+"submit a ticket."
 
-#: ../../source/base-models.rst:103
+#: ../../source/base-models.rst:113
 msgid "部署离线模型上线"
 msgstr "Deploy offline models"
 
-#: ../../source/base-models.rst:105
+#: ../../source/base-models.rst:115
 msgid "PyODPS 提供了离线模型的部署功能。部署方法为"
 msgstr "PyODPS allows you to deploy offline models by using the following method:"
 
-#: ../../source/base-models.rst:111 ../../source/base-models.rst:174
+#: ../../source/base-models.rst:121 ../../source/base-models.rst:184
 msgid ""
 ">>> model = o.create_online_model('online_model_name', "
 "'offline_model_name')"
 msgstr ""
 
-#: ../../source/base-models.rst:113
+#: ../../source/base-models.rst:123
 msgid "部署自定义 Pipeline 上线"
 msgstr "Deploy custom Pipeline"
 
-#: ../../source/base-models.rst:114
+#: ../../source/base-models.rst:124
 msgid "含有自定义 Pipeline 的在线模型可自行构造 ModelPredictor 对象，例子如下："
-msgstr "You can construct a ModelPredictor object from online models that contain a custom Pipeline by using the following method:"
+msgstr ""
+"You can construct a ModelPredictor object from online models that contain"
+" a custom Pipeline by using the following method:"
 
-#: ../../source/base-models.rst:129
+#: ../../source/base-models.rst:139
 msgid ""
 ">>> from odps.models.ml import ModelPredictor, ModelProcessor, "
 "BuiltinProcessor, PmmlProcessor, PmmlRunMode\n"
@@ -232,33 +275,41 @@ msgid ""
 ">>> model = o.create_online_model('online_model_name', predictor)"
 msgstr ""
 
-#: ../../source/base-models.rst:130
+#: ../../source/base-models.rst:140
 msgid ""
 "其中，BuiltinProcessor、PmmlProcessor 和 CustomProcessor 分别指 ODPS OfflineModel"
 " 形成的 Pipeline 节点、PMML 模型文件形成的 Pipeline 节点和用户自行开发的 Pipeline 节点。"
 msgstr ""
-"In the above example, BuiltInProcessor, PmmlProcessor, and CustomProcessor represent the Pipeline node that is generated in MaxCompute OfflineModel, the Pipeline node that is generated in PMML model file, and the Pipeline node that you have developed, respectively."
+"In the above example, BuiltInProcessor, PmmlProcessor, and "
+"CustomProcessor represent the Pipeline node that is generated in "
+"MaxCompute OfflineModel, the Pipeline node that is generated in PMML "
+"model file, and the Pipeline node that you have developed, respectively."
 
-#: ../../source/base-models.rst:134
+#: ../../source/base-models.rst:144
 msgid "在线模型操作"
 msgstr "Operations on online models"
 
-#: ../../source/base-models.rst:136
+#: ../../source/base-models.rst:146
 msgid "与其他 ODPS 对象类似，创建后，可列举、获取和删除在线模型："
-msgstr "Similar to other ODPS objects, you can enumerate, retrieve, and delete online models after creation."
+msgstr ""
+"Similar to other ODPS objects, you can enumerate, retrieve, and delete "
+"online models after creation."
 
-#: ../../source/base-models.rst:143
+#: ../../source/base-models.rst:153
 msgid ""
 ">>> models = o.list_online_models(prefix='prefix')\n"
 ">>> model = o.get_online_model('online_model_name')\n"
 ">>> o.delete_online_model('online_model_name')"
 msgstr ""
 
-#: ../../source/base-models.rst:144
+#: ../../source/base-models.rst:154
 msgid "可使用模型名和数据进行在线预测，输入数据可以是 Record，也可以是字典或数组和 Schema 的组合："
-msgstr "You can make online predictions using the model names and data. The input data can be a Record, a combination of dict and Schema, or a combination of array and Schema:"
+msgstr ""
+"You can make online predictions using the model names and data. The input"
+" data can be a Record, a combination of dict and Schema, or a combination"
+" of array and Schema:"
 
-#: ../../source/base-models.rst:151
+#: ../../source/base-models.rst:161
 msgid ""
 ">>> data = [[4, 3, 2, 1], [1, 2, 3, 4]]\n"
 ">>> result = o.predict_online_model('online_model_name', data,\n"
@@ -266,60 +317,69 @@ msgid ""
 "'sepal_width', 'petal_length', 'petal_width'])"
 msgstr ""
 
-#: ../../source/base-models.rst:152
+#: ../../source/base-models.rst:162
 msgid ""
 "也可为模型设置 ABTest。参数中的 modelx 可以是在线模型名，也可以是 get_online_model 获得的模型对象本身，而 "
 "percentagex 表示 modelx 在 ABTest 中所占的百分比，范围为 0 至 100："
 msgstr ""
-"You can also create an AB test for your model. The modelx parameter can be an online model name, "
-"or the model object that has been retrieved by get_online_model. The percentagex parameter represents "
-"the percentage of modelx in the AB test, which ranges from 0 to 100:"
+"You can also create an AB test for your model. The modelx parameter can "
+"be an online model name, or the model object that has been retrieved by "
+"get_online_model. The percentagex parameter represents the percentage of "
+"modelx in the AB test, which ranges from 0 to 100:"
 
-#: ../../source/base-models.rst:158
+#: ../../source/base-models.rst:168
 msgid ""
 ">>> result = o.config_online_model_ab_test('online_model_name', model1, "
 "percentage1, model2, percentage2)"
 msgstr ""
 
-#: ../../source/base-models.rst:159
+#: ../../source/base-models.rst:169
 msgid "修改模型参数可以通过修改 OnlineModel 对象的属性，再调用 update 方法实现，如"
-msgstr "To modify the model parameters, you can first modify the attributes of the OnlineModel object and then call the update method. For example:"
+msgstr ""
+"To modify the model parameters, you can first modify the attributes of "
+"the OnlineModel object and then call the update method. For example:"
 
-#: ../../source/base-models.rst:166
+#: ../../source/base-models.rst:176
 msgid ""
 ">>> model = o.get_online_model('online_model_name')\n"
 ">>> model.cpu = 200\n"
 ">>> model.update()"
 msgstr ""
 
-#: ../../source/base-models.rst:167
+#: ../../source/base-models.rst:177
 msgid ""
 "与其他对象不同的是，在线模型的创建和删除较为耗时。PyODPS 默认 create_online_model 和 "
 "delete_online_model 以及 OnlineModel 的 update 方法在整个操作完成后才返回。用户可以通过 async "
 "选项控制是否要在模型创建请求提交后立即返回， 然后自己控制等待。例如，下列语句"
 msgstr ""
-"Unlike other objects, creating and deleting online models is relatively more time-consuming. By default, the create_online_model, delete_online_model, and the update method of OnlineModel objects cause other methods to wait until the current execution has been completed. You can use the async parameter to specify whether or not the functions should return once the request has been submitted. For example, the following statement:"
+"Unlike other objects, creating and deleting online models is relatively "
+"more time-consuming. By default, the create_online_model, "
+"delete_online_model, and the update method of OnlineModel objects cause "
+"other methods to wait until the current execution has been completed. You"
+" can use the async parameter to specify whether or not the functions "
+"should return once the request has been submitted. For example, the "
+"following statement:"
 
-#: ../../source/base-models.rst:175 ../../source/base-models.rst:188
+#: ../../source/base-models.rst:185 ../../source/base-models.rst:198
 msgid "等价于"
 msgstr "Equal to:"
 
-#: ../../source/base-models.rst:181
+#: ../../source/base-models.rst:191
 msgid ""
 ">>> model = o.create_online_model('online_model_name', "
 "'offline_model_name', async=True)\n"
 ">>> model.wait_for_service()"
 msgstr ""
 
-#: ../../source/base-models.rst:182
+#: ../../source/base-models.rst:192
 msgid "而"
 msgstr "However:"
 
-#: ../../source/base-models.rst:187
+#: ../../source/base-models.rst:197
 msgid ">>> o.delete_online_model('online_model_name')"
 msgstr ""
 
-#: ../../source/base-models.rst:193
+#: ../../source/base-models.rst:203
 msgid ""
 ">>> o.delete_online_model('* online_model_name *', async=True)\n"
 ">>> model.wait_for_deletion()"

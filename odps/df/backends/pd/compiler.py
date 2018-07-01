@@ -313,7 +313,7 @@ class PandasCompiler(Backend):
                     else:
                         return ~input.isin(args)
                 elif isinstance(expr, element.IfElse):
-                    return pd.Series(np.where(input, args[0], args[1]), name=expr.name)
+                    return pd.Series(np.where(input, args[0], args[1]), name=expr.name, index=input.index)
                 elif isinstance(expr, element.Switch):
                     case = None if expr.case is None else kw.get(expr.case)
                     default = None if expr.default is None else kw.get(expr.default)

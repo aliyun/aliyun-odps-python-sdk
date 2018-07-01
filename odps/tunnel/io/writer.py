@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,7 +31,7 @@ from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
 from .stream import CompressOption, SnappyOutputStream, DeflateOutputStream, RequestsIO
 from ... import types, compat, utils, errors, options
-from ...compat import six, raise_exc
+from ...compat import six
 
 
 varint_tag_types = types.integer_types + (types.boolean, types.datetime, types.interval_year_month)
@@ -315,7 +315,7 @@ class RecordWriter(BaseRecordWriter):
     def write(self, record):
         if self._req_io._async_err:
             ex_type, ex_value, tb = self._req_io._async_err
-            raise_exc(ex_type, ex_value, tb)
+            six.reraise(ex_type, ex_value, tb)
         super(RecordWriter, self).write(record)
 
     def close(self):

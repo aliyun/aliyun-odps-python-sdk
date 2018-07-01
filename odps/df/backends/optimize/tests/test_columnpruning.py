@@ -352,6 +352,45 @@ class Test(TestBase):
 
         self.assertEqual(expected, ODPSEngine(self.odps).compile(expr3, prettify=False))
 
+    def testJoinSelfTrans(self):
+        expr = self.expr
+        expr2 = expr[expr.id.between(1, 10)]
+        expr2['new_id'] =expr2.id + 1
+        expr2['fid'] = (expr2.fid > 0).ifelse(expr2.fid, 0)
+        expr3 = expr2.query('fid < 20')
+        expr3['new_id2'] = expr3.new_id * 10
+        expr3 = expr3[['name', 'id', expr3.new_id2.fillna(0), 'fid']]
+        expr4 = expr3.groupby('name', 'id').agg(new_id=expr3.new_id2.sum(), fid=expr3.fid.max())
+        expr5 = expr4['name', 'id', expr4.new_id - 3]
+        expr5['val'] = 1
+        expr6 = expr5.groupby('name').agg(id=expr5.id.mean())
+        expr7 = expr4.left_join(expr6, on='name')
+
+        expected = 'SELECT t2.`name` AS `name_x`, t2.`id` AS `id_x`, t2.`fid`, ' \
+                   't2.`new_id`, t5.`name` AS `name_y`, t5.`id` AS `id_y` \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`name`, t1.`id`, MAX(IF(t1.`fid` > 0, t1.`fid`, 0)) AS `fid`, ' \
+                   'SUM(IF(((t1.`id` + 1) * 10) IS NULL, 0, (t1.`id` + 1) * 10)) AS `new_id` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  WHERE ((t1.`id` >= 1) AND (t1.`id` <= 10)) AND (IF(t1.`fid` > 0, t1.`fid`, 0) < 20) \n' \
+                   '  GROUP BY t1.`name`, t1.`id`\n' \
+                   ') t2 \n' \
+                   'LEFT OUTER JOIN \n' \
+                   '  (\n' \
+                   '    SELECT t4.`name`, AVG(t4.`id`) AS `id` \n' \
+                   '    FROM (\n' \
+                   '      SELECT t3.`name`, t3.`id`, ' \
+                   'SUM(IF(((t3.`id` + 1) * 10) IS NULL, 0, (t3.`id` + 1) * 10)) AS `new_id` \n' \
+                   '      FROM mocked_project.`pyodps_test_expr_table` t3 \n' \
+                   '      WHERE ((t3.`id` >= 1) AND (t3.`id` <= 10)) AND (IF(t3.`fid` > 0, t3.`fid`, 0) < 20) \n' \
+                   '      GROUP BY t3.`name`, t3.`id` \n' \
+                   '    ) t4 \n' \
+                   '    GROUP BY t4.`name`\n' \
+                   '  ) t5\n' \
+                   'ON t2.`name` == t5.`name`'
+
+        self.assertEqual(expected, ODPSEngine(self.odps).compile(expr7, prettify=False))
+
 
 if __name__ == '__main__':
     unittest.main()

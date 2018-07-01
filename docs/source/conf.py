@@ -435,9 +435,9 @@ def setup(app):
         return
 
     if with_internal:
-        inc_pattern = re.compile('\n *\.\. *intinclude:: *([^\s]+)')
+        inc_pattern = re.compile(r'\n *\.\. *intinclude:: *([^\s]+)')
     else:
-        inc_pattern = re.compile('\n *\.\. *extinclude:: *([^\s]+)')
+        inc_pattern = re.compile(r'\n *\.\. *extinclude:: *([^\s]+)')
 
     conf_root = os.path.dirname(os.path.abspath(__file__))
     for root, _, files in os.walk(conf_root):

@@ -19,7 +19,7 @@ import zlib
 import threading
 
 from ... import errors, compat
-from ...compat import Enum, raise_exc
+from ...compat import Enum, six
 
 # used for test case to force thread io
 _FORCE_THREAD = False
@@ -98,7 +98,7 @@ class RequestsIO(object):
     def write(self, data):
         if self._async_err is not None:
             ex_type, ex_value, tb = self._async_err
-            raise_exc(ex_type, ex_value, tb)
+            six.reraise(ex_type, ex_value, tb)
         self.put(data)
 
     def flush(self):
@@ -112,7 +112,7 @@ class RequestsIO(object):
             return self._resp
         else:
             ex_type, ex_value, tb = self._async_err
-            raise_exc(ex_type, ex_value, tb)
+            six.reraise(ex_type, ex_value, tb)
 
 
 class ThreadRequestsIO(RequestsIO):

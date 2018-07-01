@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,7 +21,7 @@ from .core import Iterable
 from .instance import Instance
 from .job import Job
 from .. import serializers, errors, utils
-from ..compat import six
+from ..compat import six, OrderedDict
 from ..config import options
 
 
@@ -111,6 +111,11 @@ class BaseInstances(Iterable):
         if running_cluster is not None:
             job.running_cluster = running_cluster
         if task is not None:
+            if options.biz_id:
+                if task.properties is None:
+                    task.properties = OrderedDict()
+                task.properties['biz_id'] = str(options.biz_id)
+
             job.add_task(task)
         if job.tasks is None or len(job.tasks) == 0:
             raise ValueError('Job tasks are required')

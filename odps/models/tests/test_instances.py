@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,7 +27,7 @@ from odps.tests.core import TestBase, to_str, tn, pandas_case
 from odps.compat import unittest, six
 from odps.models import Instance, SQLTask, Schema
 from odps.errors import ODPSError
-from odps import errors, compat, types as odps_types, utils
+from odps import errors, compat, types as odps_types, utils, options
 
 expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
 <Instance>
@@ -37,6 +37,10 @@ expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
       <SQL>
         <Name>AnonymousSQLTask</Name>
         <Config>
+          <Property>
+            <Name>biz_id</Name>
+            <Value>%(biz_id)s</Value>
+          </Property>
           <Property>
             <Name>uuid</Name>
             <Value>%(uuid)s</Value>
@@ -63,7 +67,7 @@ class TunnelLimitedInstance(Instance):
     def _open_tunnel_reader(self, **kw):
         cls = type(self)
         if cls._exc is not None:
-            if not isinstance(cls._exc, errors.NoPermission) or not kw.get('limit_enabled'):
+            if not isinstance(cls._exc, errors.NoPermission) or not kw.get('limit'):
                 raise cls._exc
         return super(TunnelLimitedInstance, self)._open_tunnel_reader(**kw)
 
@@ -139,6 +143,7 @@ class Test(TestBase):
             self.assertIsNotNone(task.warnings)
 
             self.waitContainerFilled(lambda: task.workers, 30)
+            self.waitContainerFilled(lambda: [w.log_id for w in task.workers if w.log_id], 30)
             self.assertIsNotNone(task.workers[0].get_log('stdout'))
         finally:
             try:
@@ -197,16 +202,22 @@ class Test(TestBase):
         query = 'select * from dual if fake < 1;'
         priority = 5
 
-        task = SQLTask(query=query)
-        job = instances._create_job(
-            task=task, priority=priority, uuid_=uuid)
-        xml = instances._get_submit_instance_content(job)
-        expected_xml = expected_xml_template % {
-            'query': query,
-            'uuid': uuid,
-            'priority': priority
-        }
-        self.assertEqual(to_str(xml), to_str(expected_xml))
+        try:
+            options.biz_id = '012345'
+
+            task = SQLTask(query=query)
+            job = instances._create_job(
+                task=task, priority=priority, uuid_=uuid)
+            xml = instances._get_submit_instance_content(job)
+            expected_xml = expected_xml_template % {
+                'query': query,
+                'uuid': uuid,
+                'priority': priority,
+                'biz_id': options.biz_id,
+            }
+            self.assertEqual(to_str(xml), to_str(expected_xml))
+        finally:
+            options.biz_id = None
 
     def testCreateInstance(self):
         test_table = tn('pyodps_t_tmp_create_instance')
@@ -269,17 +280,17 @@ class Test(TestBase):
         instance.wait_for_success()
         self.assertEqual(json.loads(instance.tasks[0].properties['settings']), hints)
 
-        with instance.open_reader(Schema.from_lists(['count'], ['bigint']), use_tunnel=False) as reader:
+        with instance.open_reader(Schema.from_lists(['count'], ['bigint']), tunnel=False) as reader:
             records = list(reader)
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['count'], 6)
 
-        with instance.open_reader(use_tunnel=True) as reader:
+        with instance.open_reader(tunnel=True) as reader:
             records = list(reader)
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['count'], 6)
 
-        with instance.open_reader(use_tunnel=False) as reader:
+        with instance.open_reader(tunnel=False) as reader:
             records = list(reader)
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['count'], '6')
@@ -300,22 +311,22 @@ class Test(TestBase):
                                          name=instance.id)
 
         TunnelLimitedInstance._exc = errors.InvalidArgument('Mock fallback error')
-        self.assertRaises(errors.InvalidArgument, instance.open_reader, use_tunnel=True)
+        self.assertRaises(errors.InvalidArgument, instance.open_reader, tunnel=True)
         with instance.open_reader() as reader:
             self.assertTrue(hasattr(reader, 'raw'))
 
         TunnelLimitedInstance._exc = requests.Timeout('Mock timeout')
-        self.assertRaises(requests.Timeout, instance.open_reader, use_tunnel=True)
+        self.assertRaises(requests.Timeout, instance.open_reader, tunnel=True)
         with instance.open_reader() as reader:
             self.assertTrue(hasattr(reader, 'raw'))
 
         TunnelLimitedInstance._exc = errors.InstanceTypeNotSupported('Mock instance not supported')
-        self.assertRaises(errors.InstanceTypeNotSupported, instance.open_reader, use_tunnel=True)
+        self.assertRaises(errors.InstanceTypeNotSupported, instance.open_reader, tunnel=True)
         with instance.open_reader() as reader:
             self.assertTrue(hasattr(reader, 'raw'))
 
         TunnelLimitedInstance._exc = errors.NoPermission('Mock permission error')
-        self.assertRaises(errors.NoPermission, instance.open_reader, limit_enabled=False)
+        self.assertRaises(errors.NoPermission, instance.open_reader, limit=False)
         with instance.open_reader() as reader:
             self.assertFalse(hasattr(reader, 'raw'))
 
@@ -352,7 +363,7 @@ class Test(TestBase):
         self.odps.write_table(
             table, 0, [table.new_record(it) for it in data])
 
-        with self.odps.execute_sql('select name from %s' % test_table).open_reader(use_tunnel=False) as reader:
+        with self.odps.execute_sql('select name from %s' % test_table).open_reader(tunnel=False) as reader:
             read_data = sorted([to_str(r[0]) for r in reader])
             expected_data = sorted([to_str(r[1]) for r in data])
 
@@ -379,14 +390,14 @@ class Test(TestBase):
 
         inst = self.odps.execute_sql('select * from %s' % test_table)
 
-        with inst.open_reader(table.schema, use_tunnel=False) as reader:
+        with inst.open_reader(table.schema, tunnel=False) as reader:
             read_data = [list(r.values) for r in reader]
             read_data = sorted(read_data, key=lambda r: r[0])
             expected_data = sorted(data, key=lambda r: r[0])
 
             self.assertSequenceEqual(read_data, expected_data)
 
-        with inst.open_reader(table.schema, use_tunnel=True) as reader:
+        with inst.open_reader(table.schema, tunnel=True) as reader:
             read_data = [list(r.values) for r in reader]
             read_data = sorted(read_data, key=lambda r: r[0])
             expected_data = sorted(data, key=lambda r: r[0])
@@ -478,7 +489,7 @@ class Test(TestBase):
         inst = self.odps.execute_sql('desc %s' % test_table)
 
         self.assertRaises((Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported),
-                          lambda: inst.open_reader(use_tunnel=True))
+                          lambda: inst.open_reader(tunnel=True))
         reader = inst.open_reader()
         self.assertTrue(hasattr(reader, 'raw'))
 
@@ -496,8 +507,8 @@ class Test(TestBase):
         self.odps.write_table(table, [[1], [2], [3]])
 
         inst = self.odps.execute_sql('select * from %s' % test_table)
-        tunnel_pd = inst.open_reader(use_tunnel=True).to_pandas()
-        result_pd = inst.open_reader(use_tunnel=False).to_pandas()
+        tunnel_pd = inst.open_reader(tunnel=True).to_pandas()
+        result_pd = inst.open_reader(tunnel=False).to_pandas()
         self.assertListEqual(tunnel_pd.values.tolist(), result_pd.values.tolist())
 
     def testInstanceLogview(self):
