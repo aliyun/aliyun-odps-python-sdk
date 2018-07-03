@@ -1816,7 +1816,7 @@ class Test(TestBase):
         self.assertEqual(expected, [it[0] for it in result])
 
     def testReduction(self):
-        data = self._gen_data(rows=5, value_range=(-100, 100))
+        data = self._gen_data(rows=5, value_range=(-100, 100), nullable_field='name')
 
         import pandas as pd
         df = pd.DataFrame(data, columns=self.schema.names)
@@ -1844,6 +1844,17 @@ class Test(TestBase):
             else:
                 return col.quantile(prob)
 
+        def filter_none(col):
+            import numpy as np
+            if hasattr(col, 'dropna'):
+                col = col.dropna()
+            else:
+                try:
+                    col = col[~np.isnan(col)]
+                except TypeError:
+                    col = col[np.fromiter((v is not None for v in col), np.bool_)]
+            return col
+
         methods_to_fields = [
             (lambda s: df.id.mean(), self.expr.id.mean()),
             (lambda s: len(df), self.expr.count()),
@@ -1861,14 +1872,15 @@ class Test(TestBase):
             (lambda s: df.id.min(), self.expr.id.min()),
             (lambda s: df.id.max(), self.expr.id.max()),
             (lambda s: df.isMale.min(), self.expr.isMale.min()),
-            (lambda s: df.name.max(), self.expr.name.max()),
+            (lambda s: len(filter_none(df.name)), self.expr.name.count()),
+            (lambda s: filter_none(df.name).max(), self.expr.name.max()),
             (lambda s: df.birth.max(), self.expr.birth.max()),
-            (lambda s: df.name.sum(), self.expr.name.sum()),
+            (lambda s: filter_none(df.name).sum(), self.expr.name.sum()),
             (lambda s: df.isMale.sum(), self.expr.isMale.sum()),
             (lambda s: df.isMale.any(), self.expr.isMale.any()),
             (lambda s: df.isMale.all(), self.expr.isMale.all()),
-            (lambda s: df.name.nunique(), self.expr.name.nunique()),
-            (lambda s: len(df.name.str.cat(sep='|').split('|')),
+            (lambda s: filter_none(df.name).nunique(), self.expr.name.nunique()),
+            (lambda s: len(filter_none(df.name).str.cat(sep='|').split('|')),
              self.expr.name.cat(sep='|').map(lambda x: len(x.split('|')), rtype='int')),
             (lambda s: df.id.mean(), self.expr.id.agg(Agg, rtype='float')),
             (lambda s: df.id.count(), self.expr.id.count()),

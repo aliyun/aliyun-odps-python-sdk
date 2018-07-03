@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-28 13:58+0800\n"
+"POT-Creation-Date: 2018-07-03 11:20+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -58,7 +58,9 @@ msgstr ""
 
 #: ../../source/df-agg.rst:33
 msgid "如果要在消除重复后的列上进行聚合，可以先调用 ``unique`` 方法，再调用相应的聚合函数："
-msgstr "You can aggregate over a distinct sequence, you can call ``unique`` method on the sequence before calling actual aggregation methods."
+msgstr ""
+"You can aggregate over a distinct sequence, you can call ``unique`` "
+"method on the sequence before calling actual aggregation methods."
 
 #: ../../source/df-agg.rst:40
 msgid ""
@@ -221,18 +223,26 @@ msgstr ""
 msgid "组合为 list"
 msgstr "Operation of aggregating a column into a list"
 
-#: ../../source/df-agg.rst:79
+#: ../../source/df-agg.rst:78
+msgid ""
+"需要注意的是，与 Pandas 不同，对于列上的聚合操作，不论是在 ODPS 还是 Pandas 后端下，PyODPS DataFrame "
+"都会忽略空值。这一逻辑与 SQL 类似。"
+msgstr ""
+"Note that different from Pandas, aggregations in PyODPS DataFrame, whenever under MaxCompute or "
+"Pandas backend, neglect null values. This behavior can also be seen in SQL."
+
+#: ../../source/df-agg.rst:82
 msgid "分组聚合"
 msgstr "Group and aggregate"
 
-#: ../../source/df-agg.rst:81
+#: ../../source/df-agg.rst:84
 msgid "DataFrame API提供了groupby来执行分组操作，分组后的一个主要操作就是通过调用agg或者aggregate方法，来执行聚合操作。"
 msgstr ""
 "The DataFrame application program interface (API) provides the groupby "
 "method to execute grouping. One of the main operations after grouping is "
 "to use the agg or aggregate method to execute aggregation operations."
 
-#: ../../source/df-agg.rst:91
+#: ../../source/df-agg.rst:94
 msgid ""
 ">>> iris.groupby('name').agg(iris.sepallength.max(), "
 "smin=iris.sepallength.min())\n"
@@ -242,21 +252,21 @@ msgid ""
 "2   Iris-virginica              7.9   4.9"
 msgstr ""
 
-#: ../../source/df-agg.rst:92
+#: ../../source/df-agg.rst:95
 msgid "最终的结果列中会包含分组的列，以及聚合的列。"
 msgstr "The result columns include the group column and the aggregated column."
 
-#: ../../source/df-agg.rst:94
+#: ../../source/df-agg.rst:97
 msgid "DataFrame 提供了一个\\ ``value_counts``\\ 操作，能返回按某列分组后，每个组的个数从大到小排列的操作。"
 msgstr ""
 "DataFrame provides the \\ ``value_counts``\\ operation to sort the unique"
 " data quantity in a descending order in a group after grouping by column."
 
-#: ../../source/df-agg.rst:96
+#: ../../source/df-agg.rst:99
 msgid "我们使用 groupby 表达式可以写成："
 msgstr "You can use the groupby expression in the following code:"
 
-#: ../../source/df-agg.rst:105
+#: ../../source/df-agg.rst:108
 msgid ""
 ">>> iris.groupby('name').agg(count=iris.name.count()).sort('count', "
 "ascending=False).head(5)\n"
@@ -266,11 +276,11 @@ msgid ""
 "2      Iris-setosa     50"
 msgstr ""
 
-#: ../../source/df-agg.rst:106
+#: ../../source/df-agg.rst:109
 msgid "使用value\\_counts就很简单了："
 msgstr "Simplify the code by using value\\_counts:"
 
-#: ../../source/df-agg.rst:115
+#: ../../source/df-agg.rst:118
 msgid ""
 ">>> iris['name'].value_counts().head(5)\n"
 "              name  count\n"
@@ -279,13 +289,13 @@ msgid ""
 "2      Iris-setosa     50"
 msgstr ""
 
-#: ../../source/df-agg.rst:116
+#: ../../source/df-agg.rst:119
 msgid "对于聚合后的单列操作，我们也可以直接取出列名。但此时只能使用聚合函数。"
 msgstr ""
 "Only aggregate functions can be used after you retrieve the column name "
 "in a single aggregated column."
 
-#: ../../source/df-agg.rst:125
+#: ../../source/df-agg.rst:128
 msgid ""
 ">>> iris.groupby('name').petallength.sum()\n"
 "   petallength_sum\n"
@@ -294,7 +304,7 @@ msgid ""
 "2            277.6"
 msgstr ""
 
-#: ../../source/df-agg.rst:134
+#: ../../source/df-agg.rst:137
 msgid ""
 ">>> iris.groupby('name').agg(iris.petallength.notnull().sum())\n"
 "              name  petallength_sum\n"
@@ -303,13 +313,13 @@ msgid ""
 "2   Iris-virginica               50"
 msgstr ""
 
-#: ../../source/df-agg.rst:135
+#: ../../source/df-agg.rst:138
 msgid "分组时也支持对常量进行分组，但是需要使用Scalar初始化。"
 msgstr ""
 "The system also supports grouping by constants. This requires Scalar "
 "initialization."
 
-#: ../../source/df-agg.rst:143
+#: ../../source/df-agg.rst:146
 msgid ""
 ">>> from odps.df import Scalar\n"
 ">>> iris.groupby(Scalar(1)).petallength.sum()\n"
@@ -317,40 +327,40 @@ msgid ""
 "0            563.8"
 msgstr ""
 
-#: ../../source/df-agg.rst:145
+#: ../../source/df-agg.rst:148
 msgid "编写自定义聚合"
 msgstr "Write custom aggregations"
 
-#: ../../source/df-agg.rst:147
+#: ../../source/df-agg.rst:150
 msgid "对字段调用agg或者aggregate方法来调用自定义聚合。自定义聚合需要提供一个类，这个类需要提供以下方法："
 msgstr ""
 "Use the agg or aggregate method on fields with a custom aggregation. The "
 "custom aggregation requires a class, which provides the following "
 "methods:"
 
-#: ../../source/df-agg.rst:149
-msgid "buffer()：返回一个mutable的object（比如list、dict），buffer大小不应随数据而递增。"
+#: ../../source/df-agg.rst:152
+msgid "buffer()：返回一个mutable的object（比如 list、dict），buffer大小不应随数据而递增。"
 msgstr ""
 "buffer(): returns a mutable object such as list and dict. The buffer size"
 " should not increase during data processing."
 
-#: ../../source/df-agg.rst:150
-msgid "__call__(buffer, *val)：将值聚合到中间buffer。"
+#: ../../source/df-agg.rst:153
+msgid "__call__(buffer, *val)：将值聚合到中间 buffer。"
 msgstr "__call__(buffer, *val): aggregates values to buffer."
 
-#: ../../source/df-agg.rst:151
-msgid "merge(buffer, pbuffer)：讲pbuffer聚合到buffer中。"
+#: ../../source/df-agg.rst:154
+msgid "merge(buffer, pbuffer)：将 pbuffer 聚合到 buffer 中。"
 msgstr "merge(buffer, pbuffer): aggregates pbuffer to buffer."
 
-#: ../../source/df-agg.rst:152
+#: ../../source/df-agg.rst:155
 msgid "getvalue(buffer)：返回最终值。"
 msgstr "getvalue(buffer): returns the final value."
 
-#: ../../source/df-agg.rst:154
+#: ../../source/df-agg.rst:157
 msgid "让我们看一个计算平均值的例子。"
 msgstr "Calculate a mean in the following example:"
 
-#: ../../source/df-agg.rst:156
+#: ../../source/df-agg.rst:159
 msgid ""
 "class Agg(object):\n"
 "\n"
@@ -371,27 +381,27 @@ msgid ""
 "        return buffer[0] / buffer[1]"
 msgstr ""
 
-#: ../../source/df-agg.rst:180
+#: ../../source/df-agg.rst:183
 msgid ""
 ">>> iris.sepalwidth.agg(Agg)\n"
 "3.0540000000000007"
 msgstr ""
 
-#: ../../source/df-agg.rst:181
+#: ../../source/df-agg.rst:184
 msgid "如果最终类型和输入类型发生了变化，则需要指定类型。"
 msgstr ""
 "If the output type is different from the input type, you need to specify "
 "the output type."
 
-#: ../../source/df-agg.rst:187
+#: ../../source/df-agg.rst:190
 msgid ">>> iris.sepalwidth.agg(Agg, 'float')"
 msgstr ""
 
-#: ../../source/df-agg.rst:188
+#: ../../source/df-agg.rst:191
 msgid "自定义聚合也可以用在分组聚合中。"
 msgstr "Custom aggregations support grouping and aggregation."
 
-#: ../../source/df-agg.rst:197
+#: ../../source/df-agg.rst:200
 msgid ""
 ">>> iris.groupby('name').sepalwidth.agg(Agg)\n"
 "   petallength_aggregation\n"
@@ -400,11 +410,11 @@ msgid ""
 "2                    2.974"
 msgstr ""
 
-#: ../../source/df-agg.rst:198
+#: ../../source/df-agg.rst:201
 msgid "当对多列调用自定义聚合，可以使用agg方法。"
 msgstr "You can use the agg method in your aggregation for multiple columns."
 
-#: ../../source/df-agg.rst:200
+#: ../../source/df-agg.rst:203
 msgid ""
 "class Agg(object):\n"
 "\n"
@@ -425,7 +435,7 @@ msgid ""
 "        return buffer[0] / buffer[1]"
 msgstr ""
 
-#: ../../source/df-agg.rst:229
+#: ../../source/df-agg.rst:232
 msgid ""
 ">>> from odps.df import agg\n"
 ">>> to_agg = agg([iris.sepalwidth, iris.sepallength], Agg, rtype='float')"
@@ -445,11 +455,11 @@ msgstr ""
 "1  Iris-versicolor  0.466644\n"
 "2   Iris-virginica  0.451427"
 
-#: ../../source/df-agg.rst:230
+#: ../../source/df-agg.rst:233
 msgid "要调用 ODPS 上已经存在的 UDAF，指定函数名即可。"
 msgstr "Specify the function name to use an existing UDAF in MaxCompute."
 
-#: ../../source/df-agg.rst:237
+#: ../../source/df-agg.rst:240
 msgid ""
 ">>> iris.groupby('name').agg(iris.sepalwidth.agg('your_func'))  # 对单列聚合\n"
 ">>> to_agg = agg([iris.sepalwidth, iris.sepallength], 'your_func', "
@@ -463,17 +473,17 @@ msgstr ""
 ">>> iris.groupby('name').agg(to_agg.rename('val'))  # aggregate multiple "
 "columns"
 
-#: ../../source/df-agg.rst:239
+#: ../../source/df-agg.rst:242
 msgid "目前，受限于 Python UDF，自定义聚合无法支持将 list / dict 类型作为初始输入或最终输出结果。"
 msgstr ""
 "Limited by Python user-defined functions (UDFs), custom aggregations "
 "cannot specify the input or output result type as the list or dict type."
 
-#: ../../source/df-agg.rst:242
+#: ../../source/df-agg.rst:245
 msgid "HyperLogLog 计数"
 msgstr "HyperLogLog counting"
 
-#: ../../source/df-agg.rst:244
+#: ../../source/df-agg.rst:247
 msgid ""
 "DataFrame 提供了对列进行 HyperLogLog 计数的接口 ``hll_count``，这个接口是个近似的估计接口， "
 "当数据量很大时，能较快的对数据的唯一个数进行估计。"
@@ -482,13 +492,13 @@ msgstr ""
 "columns. This API estimates the unique quantity among large volumes of "
 "data in a short time."
 
-#: ../../source/df-agg.rst:247
+#: ../../source/df-agg.rst:250
 msgid "这个接口在对比如海量用户UV进行计算时，能很快得出估计值。"
 msgstr ""
 "This API can quickly calculate and provide an estimate of the unique "
 "visitors (UVs)."
 
-#: ../../source/df-agg.rst:256
+#: ../../source/df-agg.rst:259
 msgid ""
 ">>> df = DataFrame(pd.DataFrame({'a': np.random.randint(100000, "
 "size=100000)}))\n"
@@ -498,7 +508,7 @@ msgid ""
 "63250"
 msgstr ""
 
-#: ../../source/df-agg.rst:257
+#: ../../source/df-agg.rst:260
 msgid "提供 ``splitter`` 参数会对每个字段进行分隔，再计算唯一数。"
 msgstr ""
 "The system provides the ``splitter`` parameter to split fields and then "

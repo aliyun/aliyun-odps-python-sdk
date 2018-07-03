@@ -795,17 +795,35 @@ class PandasCompiler(Backend):
             op = expr.node_name.lower()
             op = 'size' if op == 'count' else op
 
+            def filter_none(col):
+                import numpy as np
+                if hasattr(col, 'dropna'):
+                    col = col.dropna()
+                else:
+                    try:
+                        col = col[~np.isnan(col)]
+                    except TypeError:
+                        col = col[np.fromiter((v is not None for v in col), np.bool_)]
+                return col
+
             if isinstance(expr, NUnique):
                 inputs = children_vals[:len(expr.inputs)]
+                if len(expr.inputs) == 1:
+                    inputs[0] = filter_none(inputs[0])
                 return len(pd.concat(inputs, axis=1).drop_duplicates())
 
             input = children_vals[0]
             if getattr(expr, '_unique', False):
                 input = input.unique()
 
-            if isinstance(expr, Count) and isinstance(expr.input, (CollectionExpr, SequenceExpr)):
-                return len(input)
-            elif isinstance(expr, (Cat, GroupedCat)):
+            if isinstance(expr, Count):
+                if isinstance(expr.input, CollectionExpr):
+                    return len(input)
+                elif isinstance(expr.input, SequenceExpr):
+                    return len(filter_none(input))
+
+            input = filter_none(input)
+            if isinstance(expr, (Cat, GroupedCat)):
                 kv['sep'] = expr._sep.value if isinstance(expr._sep, Scalar) else expr._sep
                 kv['na_rep'] = expr._na_rep.value \
                     if isinstance(expr._na_rep, Scalar) else expr._na_rep

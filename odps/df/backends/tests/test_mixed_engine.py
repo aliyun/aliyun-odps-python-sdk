@@ -522,7 +522,6 @@ class Test(TestBase):
 
     def testHorzConcat(self):
         options.ml.dry_run = False
-        options.verbose = True
 
         table_name = tn('test_horz_concat_table2_xxx_yyy')
         self.odps.delete_table(table_name, if_exists=True)

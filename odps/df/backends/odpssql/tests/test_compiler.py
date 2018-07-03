@@ -2615,9 +2615,35 @@ class Test(TestBase):
                    'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    'LATERAL VIEW {0}(t1.`name`, t1.`id`) t2 AS `name`, `id` \n' \
                    'LATERAL VIEW EXPLODE(MAP_VALUES(t1.`relatives`)) t3 AS `relatives`'
-
         expr = self.expr4[self.expr4['name', 'id'].apply(mapper, axis=1),
                           self.expr4.relatives.values().explode()]
+        engine = ODPSEngine(self.odps)
+        res = to_str(engine.compile(expr, prettify=False))
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), res)
+
+        @output(['name_map', 'id_map'], ['string', 'int64'])
+        def mapper2(row):
+            for _ in range(10):
+                yield row
+
+        expected = 'SELECT t5.`id`, t5.`name`, t5.`relatives`, t5.`hobbies`, t5.`name_map`, ' \
+                   't5.`id_map`, t5.`rel_keyexp`, t5.`rel_valexp`, t7.`hb_key` \n' \
+                   'FROM (\n' \
+                   '  SELECT t3.`id`, t3.`name`, t3.`relatives`, t3.`hobbies`, t3.`name_map`, ' \
+                   't3.`id_map`, t4.`rel_keyexp`, t4.`rel_valexp` \n' \
+                   '  FROM (\n' \
+                   '    SELECT t1.`id` * 2 AS `id`, t1.`name`, t1.`relatives`, t1.`hobbies`, ' \
+                   't2.`name_map`, t2.`id_map` \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '    LATERAL VIEW {0}(t1.`name`, t1.`id`) t2 AS `name_map`, `id_map`\n' \
+                   '  ) t3 \n' \
+                   '  LATERAL VIEW EXPLODE(t3.`relatives`) t4 AS `rel_keyexp`, `rel_valexp`\n' \
+                   ') t5 \n' \
+                   'LATERAL VIEW EXPLODE(t5.`hobbies`) t7 AS `hb_key`'
+        expr = self.expr4[self.expr4.id * 2, self.expr4.exclude('id'), self.expr4['name', 'id'].apply(mapper2, axis=1)]
+        expr = expr[expr, expr.relatives.explode(['rel_keyexp', 'rel_valexp'])]
+        expr = expr[expr, expr.hobbies.explode('hb_key')]
         engine = ODPSEngine(self.odps)
         res = to_str(engine.compile(expr, prettify=False))
         fun_name = list(engine._ctx._registered_funcs.values())[0]

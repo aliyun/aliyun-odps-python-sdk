@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -70,9 +70,9 @@ class Rewriter(BaseRewriter):
 
     def visit_lateral_view(self, expr):
         parents = self._parents(expr)
-        if not parents or \
-                not any(isinstance(parent, (ProjectCollectionExpr, LateralViewCollectionExpr))
-                        for parent in parents):
+        if not parents \
+                or not any(isinstance(parent, ProjectCollectionExpr) \
+                           and not isinstance(parent, LateralViewCollectionExpr) for parent in parents):
             to_sub = ProjectCollectionExpr(
                 _input=expr, _schema=expr.schema, _fields=expr._fields
             )

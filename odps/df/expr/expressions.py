@@ -1109,29 +1109,46 @@ class CollectionExpr(Expr):
     def describe(self):
         from .. import output
 
-        methods = OrderedDict([
-            ('count', lambda f: f.notnull().sum().rename(col.name + '_count')),
+        numeric_methods = OrderedDict([
+            ('count', lambda f: f.count().rename(col.name + '_count')),
             ('mean', lambda f: f.mean()),
             ('std', lambda f: f.std()),
             ('min', lambda f: f.min()),
+            ('quantile_25', lambda f: f.quantile(0.25).rename(col.name + '_quantile_25')),
+            ('quantile_50', lambda f: f.quantile(0.5).rename(col.name + '_quantile_50')),
+            ('quantile_75', lambda f: f.quantile(0.75).rename(col.name + '_quantile_75')),
             ('max', lambda f: f.max()),
+        ])
+        string_methods = OrderedDict([
+            ('count', lambda f: f.count().rename(col.name + '_count')),
+            ('unique', lambda f: f.nunique().rename(col.name + '_unique')),
         ])
 
         aggs = []
         output_names = []
         output_types = []
-        for col in self.schema.columns:
-            if types.is_number(col.type):
-                output_names.append(col.name)
-                fields = []
-                tps = []
-                for func in six.itervalues(methods):
-                    field = func(self[col.name])
-                    fields.append(field)
-                    tps.append(field.dtype)
-                t = highest_precedence_data_type(*tps)
-                output_types.append(t)
-                aggs.extend([f.astype(t) if t == types.decimal else f for f in fields])
+
+        def produce_stat_fields(col, methods):
+            output_names.append(col.name)
+            fields = []
+            tps = []
+            for func in six.itervalues(methods):
+                field = func(self[col.name])
+                fields.append(field)
+                tps.append(field.dtype)
+            t = highest_precedence_data_type(*tps)
+            output_types.append(t)
+            aggs.extend([f.astype(t) if t == types.decimal else f for f in fields])
+
+        if any(types.is_number(col.type) for col in self.schema.columns):
+            methods = numeric_methods
+            for col in self.schema.columns:
+                if types.is_number(col.type):
+                    produce_stat_fields(col, numeric_methods)
+        else:
+            methods = string_methods
+            for col in self.schema.columns:
+                produce_stat_fields(col, string_methods)
 
         summary = self[aggs]
         methods_names = lkeys(methods)
@@ -2023,6 +2040,10 @@ class LateralViewCollectionExpr(ProjectCollectionExpr):
             for f, f_o in zip(lv._fields, lv.input._fields):
                 lv.substitute(f, f_o)
             lv.substitute(lv.input, self.input)
+
+    def iter_args(self):
+        for it in zip(['collection', 'selections', 'lateral_views'], self.args):
+            yield it
 
     @property
     def lateral_views(self):

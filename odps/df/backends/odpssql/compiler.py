@@ -425,10 +425,14 @@ class OdpsSQLCompiler(Backend):
                 collection = (lhs, rhs)[idx]
             elif isinstance(collection, LateralViewCollectionExpr):
                 args = self._ctx._expr_raw_args[id(collection)]  # get the args which are substituted out
-                for lv in args[2]:
-                    if column_name in lv.schema._name_indexes:
-                        return lv, column_name
-                return args[0], column_name
+                while True:
+                    for lv in args[2]:
+                        if column_name in lv.schema._name_indexes:
+                            return lv, column_name
+                    if isinstance(args[0], LateralViewCollectionExpr):
+                        args = self._ctx._expr_raw_args[id(args[0])]
+                    else:
+                        return args[0], column_name
             elif self._ctx.get_collection_alias(collection, silent=True):
                 return collection, column_name
             elif isinstance(getattr(collection, 'input', None), CollectionExpr):

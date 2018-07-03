@@ -75,6 +75,9 @@ PyODPS 支持的聚合操作包括：
  tolist           组合为 list
 ================ ==================================
 
+需要注意的是，与 Pandas 不同，对于列上的聚合操作，不论是在 ODPS 还是 Pandas 后端下，PyODPS DataFrame
+都会忽略空值。这一逻辑与 SQL 类似。
+
 分组聚合
 --------
 
@@ -146,9 +149,9 @@ DataFrame 提供了一个\ ``value_counts``\ 操作，能返回按某列分组�
 
 对字段调用agg或者aggregate方法来调用自定义聚合。自定义聚合需要提供一个类，这个类需要提供以下方法：
 
-* buffer()：返回一个mutable的object（比如list、dict），buffer大小不应随数据而递增。
-* __call__(buffer, *val)：将值聚合到中间buffer。
-* merge(buffer, pbuffer)：讲pbuffer聚合到buffer中。
+* buffer()：返回一个mutable的object（比如 list、dict），buffer大小不应随数据而递增。
+* __call__(buffer, *val)：将值聚合到中间 buffer。
+* merge(buffer, pbuffer)：将 pbuffer 聚合到 buffer 中。
 * getvalue(buffer)：返回最终值。
 
 让我们看一个计算平均值的例子。

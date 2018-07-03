@@ -13,22 +13,34 @@ environment:
       PYTHON_ARCH: "64"
 
     - PYTHON: "C:\\Python35"
-      PYTHON_VERSION: "3.5"
+      PYTHON_VERSION: "3.5.x"
       PYTHON_ARCH: "32"
 
     - PYTHON: "C:\\Python35-x64"
-      PYTHON_VERSION: "3.5"
+      PYTHON_VERSION: "3.5.x"
       PYTHON_ARCH: "64"
 
     - PYTHON: "C:\\Python36"
-      PYTHON_VERSION: "3.6"
+      PYTHON_VERSION: "3.6.x"
       PYTHON_ARCH: "32"
 
     - PYTHON: "C:\\Python36-x64"
-      PYTHON_VERSION: "3.6"
+      PYTHON_VERSION: "3.6.x"
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Python37"
+      PYTHON_VERSION: "3.7.0"
+      PYTHON_ARCH: "32"
+
+    - PYTHON: "C:\\Python37-x64"
+      PYTHON_VERSION: "3.7.0"
       PYTHON_ARCH: "64"
 
 install:
+  # Install Python (from the official .msi of http://python.org) and pip when
+  # not already installed.
+  - ps: if (-not(Test-Path($env:PYTHON))) { & bin\appveyor\install.ps1 }
+
   # Prepend newly installed Python to the PATH of this build (this cannot be
   # done from inside the powershell script as it would require to restart
   # the parent CMD process).
@@ -43,7 +55,7 @@ install:
   - "python -m pip install --disable-pip-version-check --user --upgrade pip"
 
   # Install the build dependencies of the project.
-  - "pip install -r requirements-full.txt"
+  - "pip install -r requirements.txt"
   - "pip install wheel cython twine numpy"
 
 
@@ -53,7 +65,6 @@ build_script:
   - "python setup.py bdist_wheel"
 
 after_test:
-
 
   # Specify account details for PyPI
   - echo [distutils]                                  > %USERPROFILE%\\.pypirc
@@ -71,12 +82,9 @@ artifacts:
   # Archive the generated packages in the ci.appveyor.com build report.
   - path: dist\*
 
-
-
 on_success:
   - echo %APPVEYOR_REPO_TAG%
   - echo %APPVEYOR_REPO_TAG_NAME%
   - echo %APPVEYOR_REPO_BRANCH%
   - ps: If ($env:APPVEYOR_REPO_TAG -eq "true") { Invoke-Expression "twine upload -r pypi --skip-existing dist/*" } Else { write-output "Not on a tag commit, won't deploy to pypi"}
-
 

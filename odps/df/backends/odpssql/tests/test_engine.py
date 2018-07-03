@@ -463,7 +463,15 @@ class Test(TestBase):
         res = self.engine.execute(expr)
         self.assertEqual(len(res), 0)
 
+    def testDescribe(self):
+        self._gen_data(10, value_range=(-1000, 1000))
+
         expr = self.expr.exclude('scale').describe()
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+        self.assertSequenceEqual(result[0][1:], [10, 10])
+
+        expr = self.expr['name', 'birth'].describe()
         res = self.engine.execute(expr)
         result = self._get_result(res)
         self.assertSequenceEqual(result[0][1:], [10, 10])
@@ -1081,15 +1089,15 @@ class Test(TestBase):
                     self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
 
                     expr = self.expr.apply(f, axis=1, names=['name', ], types=['int', ])
-                    tn = str(uuid.uuid4()).replace('-', '_')
+                    table_name = 'test_pyodps_table_' + str(uuid.uuid4()).replace('-', '_')
                     try:
-                        new_expr = self.engine.persist(expr, tn, libraries=[resource, dateutil_resource])
+                        new_expr = self.engine.persist(expr, table_name, libraries=[resource, dateutil_resource])
                         res = self.engine.execute(new_expr)
                         result = self._get_result(res)
 
                         self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
                     finally:
-                        self.odps.delete_table(tn, if_exists=True)
+                        self.odps.delete_table(table_name, if_exists=True)
 
                     class Agg(object):
                         def buffer(self):
@@ -1959,11 +1967,11 @@ class Test(TestBase):
         self.assertEqual(expected, [it[0] for it in result])
 
     def testReduction(self):
-        data = self._gen_data(rows=5, value_range=(-100, 100))
+        data = self._gen_data(rows=5, value_range=(-100, 100), nullable_field='name')
 
         def stats(col, func):
             col_idx = [idx for idx, cn in enumerate(self.expr.schema.names) if cn == col][0]
-            return func([r[col_idx] for r in data])
+            return func([r[col_idx] for r in data if r[col_idx] is not None])
 
         def median(vct):
             sorted_lst = sorted(vct)
@@ -2054,6 +2062,7 @@ class Test(TestBase):
             (partial(stats, 'id', min), self.expr.id.min()),
             (partial(stats, 'id', max), self.expr.id.max()),
             (partial(stats, 'isMale', min), self.expr.isMale.min()),
+            (partial(stats, 'name', len), self.expr.name.count()),
             (partial(stats, 'name', max), self.expr.name.max()),
             (partial(stats, 'birth', max), self.expr.birth.max()),
             (partial(stats, 'isMale', sum), self.expr.isMale.sum()),
