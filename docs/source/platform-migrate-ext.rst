@@ -8,7 +8,7 @@
 
 .. code-block:: python
 
-    print("\nfrom odps import ODPS\no = ODPS(%r, '<access-key>', %r, '<endpoint>')\n" % (o.account.access_id, o.project, o.endpoint))
+    print("\nfrom odps import ODPS\no = ODPS(%r, '<access-key>', %r, '<endpoint>')\n" % (o.account.access_id, o.project))
 
 其中，\<access-key> 和 \<endpoint> 需要手动替换成可用的值。access-key 可在 DataWorks 中点击右上角图标 -> 用户信息，
 再点击“点击查看”获得。Endpoint 可在 `MaxCompute开通Region和服务连接对照表 <https://help.aliyun.com/document_detail/34951.html#h2-maxcompute-region-3>`_ 获得，
