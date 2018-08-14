@@ -1,6 +1,6 @@
 environment:
   SECUREPSD:
-    secure: 1SQHsoWjjcFPUM4cK7qRDg==
+    secure: 0wgRDaXnk9gCDwOLVKb+r42Sq5gUYItQkx11WsGtqEU=
 
   matrix:
 
