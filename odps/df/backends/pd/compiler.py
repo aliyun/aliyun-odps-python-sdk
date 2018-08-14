@@ -93,7 +93,7 @@ if np:
         'CumStd': np.std,
         'CumMin': np.min,
         'CumMax': np.max,
-        'CumCount': lambda x: len(x)
+        'CumCount': lambda x: len(x),
     }
 
 JOIN_DICT = {
@@ -124,6 +124,18 @@ def _pos_explode(obj):
         return
     for idx, v in enumerate(obj):
         yield idx, v
+
+
+def _filter_none(col):
+    import numpy as np
+    if hasattr(col, 'dropna'):
+        col = col.dropna()
+    else:
+        try:
+            col = col[~np.isnan(col)]
+        except TypeError:
+            col = col[np.fromiter((v is not None for v in col), np.bool_)]
+    return col
 
 
 BUILTIN_FUNCS = {
@@ -661,13 +673,53 @@ class PandasCompiler(Backend):
         return handle
 
     def _get_pivot_table_handler(self, expr):
+        from ...expr.query import ExprVisitor
+
+        class WrappedNumpyFunction(object):
+            def __init__(self, fun):
+                self._fun = fun
+
+            def __call__(self, *args, **kwargs):
+                return self._fun(*args, **kwargs)
+
+        class AggFuncVisitor(ExprVisitor):
+            def __init__(self, np_object, env):
+                super(AggFuncVisitor, self).__init__(env)
+                self.np_object = np_object
+
+            def get_named_object(self, obj_name):
+                if obj_name == 'count':
+                    return WrappedNumpyFunction(np.size)
+                elif obj_name == 'nunique':
+                    return WrappedNumpyFunction(lambda x: np.size(np.unique(x)))
+                elif obj_name == 'quantile':
+                    return WrappedNumpyFunction(lambda x, prob: np.percentile(x, prob * 100))
+                else:
+                    return WrappedNumpyFunction(getattr(np, obj_name))
+
+            def visit_Call(self, node):
+                func = self.visit(node.func)
+                args = [self.visit(n) for n in node.args]
+                if isinstance(func, WrappedNumpyFunction):
+                    args = [self.np_object] + args
+                kwargs = OrderedDict([(kw.arg, self.visit(kw.value)) for kw in node.keywords])
+                return func(*args, **kwargs)
+
         def get_real_aggfunc(aggfunc):
             if isinstance(aggfunc, six.string_types):
                 if aggfunc == 'count':
                     return getattr(np, 'size')
                 if aggfunc == 'nunique':
                     return lambda x: np.size(np.unique(x))
-                return getattr(np, aggfunc)
+                if hasattr(np, aggfunc):
+                    return getattr(np, aggfunc)
+
+                def agg_eval(x):
+                    visitor = AggFuncVisitor(x, {})
+                    return visitor.eval(aggfunc, rewrite=False)
+
+                return agg_eval
+
             if inspect.isclass(aggfunc):
                 aggfunc = aggfunc()
 
@@ -795,21 +847,10 @@ class PandasCompiler(Backend):
             op = expr.node_name.lower()
             op = 'size' if op == 'count' else op
 
-            def filter_none(col):
-                import numpy as np
-                if hasattr(col, 'dropna'):
-                    col = col.dropna()
-                else:
-                    try:
-                        col = col[~np.isnan(col)]
-                    except TypeError:
-                        col = col[np.fromiter((v is not None for v in col), np.bool_)]
-                return col
-
             if isinstance(expr, NUnique):
                 inputs = children_vals[:len(expr.inputs)]
                 if len(expr.inputs) == 1:
-                    inputs[0] = filter_none(inputs[0])
+                    inputs[0] = _filter_none(inputs[0])
                 return len(pd.concat(inputs, axis=1).drop_duplicates())
 
             input = children_vals[0]
@@ -820,9 +861,9 @@ class PandasCompiler(Backend):
                 if isinstance(expr.input, CollectionExpr):
                     return len(input)
                 elif isinstance(expr.input, SequenceExpr):
-                    return len(filter_none(input))
+                    return len(_filter_none(input))
 
-            input = filter_none(input)
+            input = _filter_none(input)
             if isinstance(expr, (Cat, GroupedCat)):
                 kv['sep'] = expr._sep.value if isinstance(expr._sep, Scalar) else expr._sep
                 kv['na_rep'] = expr._na_rep.value \
@@ -1154,9 +1195,15 @@ class PandasCompiler(Backend):
             if isinstance(expr, composites.ListDictLength):
                 return _input.apply(lambda v: len(v) if v is not None else None)
             elif isinstance(expr, composites.ListDictGetItem):
+                def _get_list_item(l, x):
+                    try:
+                        return l[x] if l is not None else None
+                    except IndexError:
+                        return None
+
                 _value = children_vals[1]
                 if isinstance(expr.input.dtype, df_types.List):
-                    item_fun = lambda s, k: s[k] if s is not None and k is not None and len(s) > k else None
+                    item_fun = _get_list_item
                 else:
                     item_fun = lambda s, k: s.get(k) if s is not None else None
                 if isinstance(expr, Scalar):
@@ -1237,13 +1284,37 @@ class PandasCompiler(Backend):
                     df.sort_values([s.name for s in sort], ascending=ascendings, inplace=True)
                     series = df[x.name]
 
-                    return SORT_CUM_WINDOW_OP_TO_PANDAS[expr.node_name](series)
+                    if expr.node_name in SORT_CUM_WINDOW_OP_TO_PANDAS:
+                        return SORT_CUM_WINDOW_OP_TO_PANDAS[expr.node_name](series)
+                    elif expr.node_name == 'NthValue':
+                        values = [None] * len(series)
+                        if expr._skip_nulls:
+                            new_series = _filter_none(series)
+                        else:
+                            new_series = series
+                        if expr._nth < len(new_series):
+                            values[expr._nth:] = [new_series.iloc[expr._nth]] * (len(series) - expr._nth)
+                        return pd.Series(values, index=series.index)
+                    else:
+                        raise NotImplementedError
                 else:
                     if expr.distinct:
                         new_x = x.drop_duplicates()
                     else:
                         new_x = x
-                    val = CUM_WINDOW_OP_TO_PANDAS[expr.node_name](new_x)
+                    if expr.node_name in CUM_WINDOW_OP_TO_PANDAS:
+                        val = CUM_WINDOW_OP_TO_PANDAS[expr.node_name](new_x)
+                    elif expr.node_name == 'NthValue':
+                        if expr._skip_nulls:
+                            new_series = _filter_none(x)
+                        else:
+                            new_series = x
+                        if expr._nth < len(new_series):
+                            val = new_series.iloc[expr._nth]
+                        else:
+                            val = None
+                    else:
+                        raise NotImplementedError
                     return pd.Series([val] * len(x), index=x.index)
 
             res = grouped.apply(f)
@@ -1277,11 +1348,19 @@ class PandasCompiler(Backend):
                 elif expr.node_name == 'DenseRank':
                     return s_df.rank(method='dense')
                 elif expr.node_name == 'RowNumber':
-                    return pd.Series(compat.lrange(1, len(s_df)+1), index=s_df.index)
+                    return pd.Series(compat.lrange(1, len(s_df) + 1), index=s_df.index)
                 elif expr.node_name == 'PercentRank':
                     if len(s_df) == 1:
                         return pd.Series([0.0, ], index=s_df.index)
                     return (s_df.rank(method='min') - 1) / (len(s_df) - 1)
+                elif expr.node_name == 'CumeDist':
+                    return pd.Series([v * 1.0 / len(s_df) for v in compat.irange(1, len(s_df) + 1)],
+                                     index=s_df.index)
+                elif expr.node_name == 'QCut':
+                    if len(s_df) <= 1:
+                        return pd.Series([0] * len(s_df), index=s_df.index, dtype=np.int64)
+                    return pd.Series(pd.qcut(compat.irange(1, len(s_df) + 1), expr._bins, labels=False),
+                                     index=s_df.index, dtype=np.int64)
                 else:
                     raise NotImplementedError
 

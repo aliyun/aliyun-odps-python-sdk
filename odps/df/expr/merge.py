@@ -273,6 +273,12 @@ class JoinCollectionExpr(CollectionExpr):
                (equal_expr.lhs.is_ancestor(self._get_child(self._rhs)) and
                 equal_expr.rhs.is_ancestor(self._get_child(self._lhs)))
 
+    def _reverse_equal(self, equal_expr):
+        if equal_expr.lhs.is_ancestor(self._get_child(self._rhs)) and \
+                equal_expr.rhs.is_ancestor(self._get_child(self._lhs)):
+            # the equal's left side is on the right collection and vise versa
+            equal_expr._rhs, equal_expr._lhs = equal_expr._lhs, equal_expr._rhs
+
     def _validate_predicates(self, predicates):
         if predicates is None:
             return
@@ -302,7 +308,8 @@ class JoinCollectionExpr(CollectionExpr):
                           if isinstance(expr, Equal))
                     while not is_validate:
                         try:
-                            validate = self._validate_equal(next(it))
+                            equal_expr = next(it)
+                            validate = self._validate_equal(equal_expr)
                             if validate:
                                 is_validate = True
                                 break
@@ -538,6 +545,9 @@ def _make_different_sources(left, right, predicate=None):
         exprs[n] = True
 
     subs = ExprDictionary()
+
+    if getattr(right, '_proxy', None) is not None:
+        right = right._proxy
 
     dag = right.to_dag(copy=False, validate=False)
     for n in dag.traverse():

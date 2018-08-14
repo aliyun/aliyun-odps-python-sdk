@@ -20,7 +20,7 @@ from .core import LazyLoad, JSONRemoteModel
 from .record import Record
 from .partitions import Partitions
 from .. import types as odps_types, serializers, utils, readers
-from ..compat import six
+from ..compat import six, dir2
 
 
 class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
@@ -121,6 +121,9 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
     def __setstate__(self, state):
         columns, partitions = state
         self.__init__(columns=columns, partitions=partitions)
+
+    def __dir__(self):
+        return sorted(set(dir2(self)) - set(type(self)._parent_attrs))
 
 
 class Table(LazyLoad):

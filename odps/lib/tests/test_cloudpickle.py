@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -127,6 +127,14 @@ def _gen_nested_yield_obj():
             yield self.nest.nested_method(add_val)
 
     return _FuncClass
+
+
+def _gen_from_import_func():
+    def fun(val):
+        from numpy import sinh
+        return float(sinh(val))
+
+    return fun
 
 
 class BuildMeta(type):
@@ -340,6 +348,16 @@ class Test(TestBase):
         obj_serial = base64.b64encode(dumps(func))
         deserial = loads(base64.b64decode(obj_serial))
         self.assertEqual(deserial(20), func(20))
+
+    @unittest.skipIf(not PY27, 'Ignored under Python 3')
+    @numpy_case
+    def testFromImport(self):
+        executable = self.config.get('test', 'py3_executable')
+        if not executable:
+            return
+        func = _gen_from_import_func()
+        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_from_import_func))
+        self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
     @unittest.skipIf(not PY27, 'Ignored under Python 3')
     def test3to2FormatString(self):

@@ -124,7 +124,7 @@ class Tables(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLDropTableTask', query=sql)
-        task.update_sql_settings()
+        task.update_sql_settings({'odps.sql.submit.mode': ''})
         instance = self._parent.instances.create(task=task)
 
         if not async_:

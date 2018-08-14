@@ -947,6 +947,22 @@ class Test(TestBase):
             result = self._get_result(res)
 
             self.assertEqual(sorted([r[:3] for r in data[:4]]), sorted(result))
+
+            expr = self.expr['name', 'id', 'fid']
+            expr2 = expr.distinct('id')
+
+            def my_func3(resources):
+                def h(row):
+                    return row
+                return h
+
+            expr4 = expr2.apply(my_func3, axis=1, names=expr2.dtypes.names, types=expr2.dtypes.types,
+                                resources=[expr])
+
+            res = self.engine.execute(expr4)
+            result = self._get_result(res)
+
+            self.assertEqual(len(result), 5)
         finally:
             try:
                 file_resource.drop()
@@ -1462,15 +1478,15 @@ class Test(TestBase):
         ]
         self.assertEqual(sorted(result), sorted(expected))
 
-        expr2 = expr.pivot_table(rows='name', values='fid', aggfunc=['mean', 'sum'])
+        expr2 = expr.pivot_table(rows='name', values='fid', aggfunc=['mean', 'sum', 'quantile(0.2)'])
         res = self.engine.execute(expr2)
         result = self._get_result(res)
 
         expected = [
-            ['name1', 8.0 / 3, 8.0],
-            ['name2', 3.5, 7.0],
+            ['name1', 8.0 / 3, 8.0, 1.4],
+            ['name2', 3.5, 7.0, 3.2],
         ]
-        self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum'])
+        self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum', 'fid_quantile_0_2'])
         self.assertEqual(sorted(result), sorted(expected))
 
         expr5 = expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum'])
@@ -1871,14 +1887,15 @@ class Test(TestBase):
 
         expr = self.expr[
             self.expr.groupby('name', 'id').sort('fid').id.cummean(),
-            self.expr.groupby('name').id.cummedian()
+            self.expr.groupby('name', 'id').sort('fid').id.nth_value(1).fillna(-1),
+            self.expr.groupby('name').id.cummedian(),
         ]
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
         expected = [
-            [3, 3.5], [3, 3.5], [4, 3.5], [4, 3.5], [2, 2]
+            [3, -1, 3.5], [3, 3, 3.5], [4, -1, 3.5], [4, 4, 3.5], [2, -1, 2]
         ]
         self.assertEqual(sorted(expected), sorted(result))
 
@@ -1903,17 +1920,19 @@ class Test(TestBase):
             self.expr.groupby('name').dense_rank('fid', ascending=False),
             self.expr.groupby('name').row_number(sort=['id', 'fid'], ascending=[True, False]),
             self.expr.groupby('name').percent_rank('id'),
+            self.expr.groupby('name').sort('fid').qcut(2),
+            self.expr.groupby('name').sort('fid').cume_dist(),
         ]
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
 
         expected = [
-            [4, 3, 2, 3, float(2) / 3],
-            [2, 1, 1, 1, 0.0],
-            [4, 3, 3, 4, float(2) / 3],
-            [3, 1, 4, 2, float(0) / 3],
-            [3, 1, 1, 1, float(0) / 3]
+            [4, 3, 2, 3, float(2) / 3, 1, 0.75],
+            [2, 1, 1, 1, 0.0, 0, 1.0],
+            [4, 3, 3, 4, float(2) / 3, 0, 0.5],
+            [3, 1, 4, 2, float(0) / 3, 0, 0.25],
+            [3, 1, 1, 1, float(0) / 3, 1, 1.0]
         ]
         self.assertEqual(sorted(expected), sorted(result))
 
@@ -2500,6 +2519,13 @@ class Test(TestBase):
             self.assertTrue(all(it in expected for it in result))
 
             expr = self.expr.join(expr2, on=['name', ('id', 'id2')])[self.expr.name, expr2.id2]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertEqual(len(result), 2)
+            expected = [to_str('name1'), 4]
+            self.assertTrue(all(it == expected for it in result))
+
+            expr = self.expr.join(expr2, on=['name', expr2.id2 == self.expr.id])[self.expr.name, expr2.id2]
             res = self.engine.execute(expr)
             result = self._get_result(res)
             self.assertEqual(len(result), 2)
@@ -3392,15 +3418,15 @@ class Test(TestBase):
 
             expected = [
                 ['name1', 4.0, 2.0, False, False, ['HKG', 'PEK', 'SHA', 'YTY'],
-                 ['a', 'b'], [123.2, 567.1], None, 'YTY', 'PEK'],
+                 ['a', 'b'], [123.2, 567.1], None, 'YTY', 'PEK', 'PEK'],
                 ['name2', None, 2.0, None, None, None,
-                 ['b', 'c'], [512.1, 711.2], None, None, None],
+                 ['b', 'c'], [512.1, 711.2], None, None, None, None],
                 ['name1', 2.0, None, False, False, ['Hawaii', 'Texas'],
-                 None, None, None, 'Hawaii', None],
+                 None, None, None, 'Hawaii', 'Texas', None],
                 ['name1', 4.0, 2.0, False, False, ['Frankfort', 'London', 'Paris', 'Washington'],
-                 ['u', 'v'], [115.4, 312.1], 115.4, 'Washington', 'Paris'],
+                 ['u', 'v'], [115.4, 312.1], 115.4, 'Washington', 'Frankfort', 'Paris'],
                 ['name1', 4.0, 2.0, True, False, ['Belgrade', 'Moscow', 'Prague', 'Warsaw'],
-                 ['w', 'x'], [456.1, 923.2], None, 'Moscow', 'Prague']
+                 ['w', 'x'], [456.1, 923.2], None, 'Moscow', 'Belgrade', 'Prague']
             ]
 
             expr = expr_in[expr_in.name, expr_in.locations.len().rename('loc_len'),
@@ -3412,6 +3438,7 @@ class Test(TestBase):
                            expr_in.detail.values().sort().rename('detail_values'),
                            expr_in.detail['u'].rename('detail_u'),
                            expr_in.locations[0].rename('loc_0'),
+                           expr_in.locations[-1].rename('loc_m1'),
                            expr_in.locations[expr_in.grade - 1].rename('loc_id')]
             res = self.engine.execute(expr)
             result = self._get_result(res)

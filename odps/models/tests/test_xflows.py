@@ -36,7 +36,27 @@ EXPECTED_XFLOW_INSTANCE_XML = '''<?xml version="1.0" encoding="utf-8"?>
         <Value>value</Value>
       </Property>
     </Config>
-    <Priority>9</Priority>
+  </XflowInstance>
+</Instance>
+'''
+EXPECTED_PRIORITY_XFLOW_INSTANCE_XML = '''<?xml version="1.0" encoding="utf-8"?>
+<Instance>
+  <XflowInstance>
+    <Project>algo_project</Project>
+    <Xflow>pyodps_t_tmp_xflow_algo_name</Xflow>
+    <Parameters>
+      <Parameter>
+        <Key>key</Key>
+        <Value>value</Value>
+      </Parameter>
+    </Parameters>
+    <Config>
+      <Property>
+        <Name>odps.setting</Name>
+        <Value>value</Value>
+      </Property>
+    </Config>
+    <Priority>1</Priority>
   </XflowInstance>
 </Instance>
 '''
@@ -59,6 +79,11 @@ class Test(TestBase):
             xflow_name=xflow_name, xflow_project=project, parameters=parameters,
             properties=properties)
         self.assertEqual(to_str(got_xml), to_str(EXPECTED_XFLOW_INSTANCE_XML))
+
+        got_xml = self.odps.get_project(project).xflows._gen_xflow_instance_xml(
+            xflow_name=xflow_name, xflow_project=project, parameters=parameters,
+            properties=properties, priority=1)
+        self.assertEqual(to_str(got_xml), to_str(EXPECTED_PRIORITY_XFLOW_INSTANCE_XML))
 
     def testRunXFlowInstance(self):
         xflow_name = 'test_xflow'

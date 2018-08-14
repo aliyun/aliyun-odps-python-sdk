@@ -44,3 +44,12 @@ Project 上的安全策略禁止读取表中的数据，此时，如果想使用
     from odps.df import func
     df = o.get_table('your_table').to_df()
     df[df.ds == func.max_pt('your_project.your_table')]  # ds 是分区字段
+
+.. rubric:: 通过 DataFrame 写表时报 table lifecycle is not specified in mandatory mode
+
+Project 要求对每张表设置 lifecycle，因而需要在每次执行时设置
+
+.. code-block:: python
+
+    from odps import options
+    options.lifecycle = 7  # 或者你期望的 lifecycle 整数值，单位为天

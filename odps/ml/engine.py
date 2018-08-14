@@ -417,7 +417,8 @@ class OdpsAlgoEngine(Engine):
 
                     for col in out_expr.schema.columns:
                         if col.name.lower() not in t.schema:
-                            raise CompileError('Column %s does not exist in table' % col.name)
+                            raise CompileError('Column(%s) does not exist in target table %s, '
+                                               'writing cannot be performed.' % (col.name, t.name))
 
                     if drop_partition:
                         t.delete_partition(partition, if_exists=True)

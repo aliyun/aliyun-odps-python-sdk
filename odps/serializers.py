@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -181,6 +181,7 @@ class SerializableModelMetaClass(type):
         fields.update(kv.get('__fields', dict()))
 
         attrs = []
+        parent_attrs = []
         def_name = kv.pop('_' + name + '__default_name', 'capitalized')
         for attr, field in (pair for pair in six.iteritems(kv) if not pair[0].startswith('__')):
             if inspect.isclass(field) and issubclass(field, SerializeField):
@@ -190,7 +191,10 @@ class SerializableModelMetaClass(type):
                 if not field.set_to_parent:
                     slots.append(attr)
                     attrs.append(attr)
+                if field.set_to_parent:
+                    parent_attrs.append(attr)
                 fields[attr] = field
+        kv['_parent_attrs'] = set(parent_attrs)
 
         slots = tuple(compat.OrderedDict.fromkeys(slots))
 

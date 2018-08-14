@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 
 import json
+import re
 import time
 from collections import namedtuple
 
@@ -1075,6 +1076,11 @@ def pivot_table(expr, values=None, rows=None, columns=None, aggfunc='mean',
 
     def get_aggfunc_name(f):
         if isinstance(f, six.string_types):
+            if '(' in f:
+                f = re.sub(r' *\( *', '_', f)
+                f = re.sub(r' *[+\-\*/,] *', '_', f)
+                f = re.sub(r' *\) *', '', f)
+                f = f.replace('.', '_')
             return f
         if isinstance(f, FunctionWrapper):
             return f.output_names[0]
@@ -1105,7 +1111,9 @@ def pivot_table(expr, values=None, rows=None, columns=None, aggfunc='mean',
         for func, func_name in zip(aggfunc, agg_func_names):
             for value in values:
                 if isinstance(func, six.string_types):
-                    seq = getattr(value, func)()
+                    seq = value.eval(func, rewrite=False)
+                    if isinstance(seq, ReprWrapper):
+                        seq = seq()
                 else:
                     seq = value.agg(func)
                 seq = seq.rename('{0}_{1}'.format(value.name, func_name))
@@ -1586,7 +1594,7 @@ def applymap(expr, func, rtype=None, resources=None, columns=None, excludes=None
 
     :Example:
 
-    >>> df.id.map(lambda x: x + 1)
+    >>> df.applymap(lambda x: x + 1)
     """
     if columns is not None and excludes is not None:
         raise ValueError('`columns` and `excludes` cannot be provided at the same time.')

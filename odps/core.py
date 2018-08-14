@@ -175,8 +175,10 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Table`
         """
 
-        if '.' in name:
-            project, name = name.split('.', 1)
+        if isinstance(name, six.string_types):
+            name = name.strip()
+            if '.' in name:
+                project, name = name.split('.', 1)
 
         project = self.get_project(name=project)
         return project.tables[name]
@@ -191,8 +193,10 @@ class ODPS(object):
         :rtype: bool
         """
 
-        if '.' in name:
-            project, name = name.split('.', 1)
+        if isinstance(name, six.string_types):
+            name = name.strip()
+            if '.' in name:
+                project, name = name.split('.', 1)
 
         project = self.get_project(name=project)
         return name in project.tables
@@ -222,6 +226,11 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Table`, :class:`odps.models.Schema`
         """
 
+        if isinstance(name, six.string_types):
+            name = name.strip()
+            if '.' in name:
+                project, name = name.split('.', 1)
+
         if lifecycle is None and options.lifecycle is not None:
             lifecycle = options.lifecycle
         project = self.get_project(name=project)
@@ -242,8 +251,10 @@ class ODPS(object):
         :return: None if not async else odps instance
         """
 
-        if isinstance(name, six.string_types) and '.' in name:
-            project, name = name.split('.', 1)
+        if isinstance(name, six.string_types):
+            name = name.strip()
+            if '.' in name:
+                project, name = name.split('.', 1)
 
         project = self.get_project(name=project)
         return project.tables.delete(name, if_exists=if_exists, async_=kw.get('async', async_))
@@ -282,8 +293,12 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Record`
         """
 
+        if isinstance(name, six.string_types):
+            name = name.strip()
+            if '.' in name:
+                project, name = name.split('.', 1)
         if not isinstance(name, six.string_types):
-            name = name.name
+            project, name = name.project.name, name.name
 
         project = self.get_project(name=project)
         table = project.tables[name]
@@ -327,8 +342,12 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Record`
         """
 
+        if isinstance(name, six.string_types):
+            name = name.strip()
+            if '.' in name:
+                project, name = name.split('.', 1)
         if not isinstance(name, six.string_types):
-            name = name.name
+            project, name = name.project.name, name.name
 
         project = self.get_project(name=kw.pop('project', None))
         table = project.tables[name]
@@ -1168,11 +1187,6 @@ class ODPS(object):
 
         .. seealso:: :class:`odps.models.Instance`
         """
-
-        priority = priority or options.priority
-        if priority is None and options.get_priority is not None:
-            priority = options.get_priority(self)
-
         project = self.get_project(name=project)
         xflow_project = xflow_project or project
         if isinstance(xflow_project, models.Project):

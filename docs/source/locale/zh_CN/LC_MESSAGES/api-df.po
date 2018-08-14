@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-20 15:21+0800\n"
+"POT-Creation-Date: 2018-07-10 10:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -137,20 +137,22 @@ msgstr ""
 #: odps.df.expr.expressions.StringSequenceExpr.upper
 #: odps.df.expr.expressions.StringSequenceExpr.zfill
 #: odps.df.expr.groupby.GroupBy.all odps.df.expr.groupby.GroupBy.any
-#: odps.df.expr.groupby.GroupBy.count odps.df.expr.groupby.GroupBy.dense_rank
-#: odps.df.expr.groupby.GroupBy.execute odps.df.expr.groupby.GroupBy.kurt
-#: odps.df.expr.groupby.GroupBy.kurtosis odps.df.expr.groupby.GroupBy.max
-#: odps.df.expr.groupby.GroupBy.mean odps.df.expr.groupby.GroupBy.median
-#: odps.df.expr.groupby.GroupBy.min odps.df.expr.groupby.GroupBy.min_rank
-#: odps.df.expr.groupby.GroupBy.moment odps.df.expr.groupby.GroupBy.nunique
+#: odps.df.expr.groupby.GroupBy.count odps.df.expr.groupby.GroupBy.cume_dist
+#: odps.df.expr.groupby.GroupBy.dense_rank odps.df.expr.groupby.GroupBy.execute
+#: odps.df.expr.groupby.GroupBy.kurt odps.df.expr.groupby.GroupBy.kurtosis
+#: odps.df.expr.groupby.GroupBy.max odps.df.expr.groupby.GroupBy.mean
+#: odps.df.expr.groupby.GroupBy.median odps.df.expr.groupby.GroupBy.min
+#: odps.df.expr.groupby.GroupBy.min_rank odps.df.expr.groupby.GroupBy.moment
+#: odps.df.expr.groupby.GroupBy.nth_value odps.df.expr.groupby.GroupBy.nunique
 #: odps.df.expr.groupby.GroupBy.percent_rank
-#: odps.df.expr.groupby.GroupBy.persist odps.df.expr.groupby.GroupBy.quantile
-#: odps.df.expr.groupby.GroupBy.rank odps.df.expr.groupby.GroupBy.row_number
-#: odps.df.expr.groupby.GroupBy.size odps.df.expr.groupby.GroupBy.skew
-#: odps.df.expr.groupby.GroupBy.std odps.df.expr.groupby.GroupBy.sum
-#: odps.df.expr.groupby.GroupBy.var
+#: odps.df.expr.groupby.GroupBy.persist odps.df.expr.groupby.GroupBy.qcut
+#: odps.df.expr.groupby.GroupBy.quantile odps.df.expr.groupby.GroupBy.rank
+#: odps.df.expr.groupby.GroupBy.row_number odps.df.expr.groupby.GroupBy.size
+#: odps.df.expr.groupby.GroupBy.skew odps.df.expr.groupby.GroupBy.std
+#: odps.df.expr.groupby.GroupBy.sum odps.df.expr.groupby.GroupBy.var
 #: odps.df.expr.groupby.Int64SequenceGroupBy.count
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cume_dist
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummax
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummean
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian
@@ -170,9 +172,11 @@ msgstr ""
 #: odps.df.expr.groupby.Int64SequenceGroupBy.min
 #: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank
 #: odps.df.expr.groupby.Int64SequenceGroupBy.moment
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nth_value
 #: odps.df.expr.groupby.Int64SequenceGroupBy.nunique
 #: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank
 #: odps.df.expr.groupby.Int64SequenceGroupBy.persist
+#: odps.df.expr.groupby.Int64SequenceGroupBy.qcut
 #: odps.df.expr.groupby.Int64SequenceGroupBy.quantile
 #: odps.df.expr.groupby.Int64SequenceGroupBy.rank
 #: odps.df.expr.groupby.Int64SequenceGroupBy.row_number
@@ -183,6 +187,7 @@ msgstr ""
 #: odps.df.expr.groupby.Int64SequenceGroupBy.var
 #: odps.df.expr.groupby.SequenceGroupBy.count
 #: odps.df.expr.groupby.SequenceGroupBy.cumcount
+#: odps.df.expr.groupby.SequenceGroupBy.cume_dist
 #: odps.df.expr.groupby.SequenceGroupBy.cummax
 #: odps.df.expr.groupby.SequenceGroupBy.cummin
 #: odps.df.expr.groupby.SequenceGroupBy.dense_rank
@@ -193,9 +198,11 @@ msgstr ""
 #: odps.df.expr.groupby.SequenceGroupBy.max
 #: odps.df.expr.groupby.SequenceGroupBy.min
 #: odps.df.expr.groupby.SequenceGroupBy.min_rank
+#: odps.df.expr.groupby.SequenceGroupBy.nth_value
 #: odps.df.expr.groupby.SequenceGroupBy.nunique
 #: odps.df.expr.groupby.SequenceGroupBy.percent_rank
 #: odps.df.expr.groupby.SequenceGroupBy.persist
+#: odps.df.expr.groupby.SequenceGroupBy.qcut
 #: odps.df.expr.groupby.SequenceGroupBy.rank
 #: odps.df.expr.groupby.SequenceGroupBy.row_number
 #: odps.df.expr.groupby.SequenceGroupBy.size of
@@ -382,22 +389,25 @@ msgstr ""
 #: odps.df.expr.expressions.StringSequenceExpr.zfill
 #: odps.df.expr.groupby.GroupBy.all odps.df.expr.groupby.GroupBy.any
 #: odps.df.expr.groupby.GroupBy.ast odps.df.expr.groupby.GroupBy.compile
-#: odps.df.expr.groupby.GroupBy.count odps.df.expr.groupby.GroupBy.dense_rank
-#: odps.df.expr.groupby.GroupBy.execute odps.df.expr.groupby.GroupBy.kurt
-#: odps.df.expr.groupby.GroupBy.kurtosis odps.df.expr.groupby.GroupBy.max
-#: odps.df.expr.groupby.GroupBy.mean odps.df.expr.groupby.GroupBy.median
-#: odps.df.expr.groupby.GroupBy.min odps.df.expr.groupby.GroupBy.min_rank
-#: odps.df.expr.groupby.GroupBy.moment odps.df.expr.groupby.GroupBy.nunique
+#: odps.df.expr.groupby.GroupBy.count odps.df.expr.groupby.GroupBy.cume_dist
+#: odps.df.expr.groupby.GroupBy.dense_rank odps.df.expr.groupby.GroupBy.execute
+#: odps.df.expr.groupby.GroupBy.kurt odps.df.expr.groupby.GroupBy.kurtosis
+#: odps.df.expr.groupby.GroupBy.max odps.df.expr.groupby.GroupBy.mean
+#: odps.df.expr.groupby.GroupBy.median odps.df.expr.groupby.GroupBy.min
+#: odps.df.expr.groupby.GroupBy.min_rank odps.df.expr.groupby.GroupBy.moment
+#: odps.df.expr.groupby.GroupBy.nth_value odps.df.expr.groupby.GroupBy.nunique
 #: odps.df.expr.groupby.GroupBy.percent_rank
-#: odps.df.expr.groupby.GroupBy.persist odps.df.expr.groupby.GroupBy.quantile
-#: odps.df.expr.groupby.GroupBy.rank odps.df.expr.groupby.GroupBy.row_number
-#: odps.df.expr.groupby.GroupBy.size odps.df.expr.groupby.GroupBy.skew
-#: odps.df.expr.groupby.GroupBy.std odps.df.expr.groupby.GroupBy.sum
-#: odps.df.expr.groupby.GroupBy.var odps.df.expr.groupby.GroupBy.verify
+#: odps.df.expr.groupby.GroupBy.persist odps.df.expr.groupby.GroupBy.qcut
+#: odps.df.expr.groupby.GroupBy.quantile odps.df.expr.groupby.GroupBy.rank
+#: odps.df.expr.groupby.GroupBy.row_number odps.df.expr.groupby.GroupBy.size
+#: odps.df.expr.groupby.GroupBy.skew odps.df.expr.groupby.GroupBy.std
+#: odps.df.expr.groupby.GroupBy.sum odps.df.expr.groupby.GroupBy.var
+#: odps.df.expr.groupby.GroupBy.verify
 #: odps.df.expr.groupby.Int64SequenceGroupBy.ast
 #: odps.df.expr.groupby.Int64SequenceGroupBy.compile
 #: odps.df.expr.groupby.Int64SequenceGroupBy.count
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cume_dist
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummax
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummean
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian
@@ -417,9 +427,11 @@ msgstr ""
 #: odps.df.expr.groupby.Int64SequenceGroupBy.min
 #: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank
 #: odps.df.expr.groupby.Int64SequenceGroupBy.moment
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nth_value
 #: odps.df.expr.groupby.Int64SequenceGroupBy.nunique
 #: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank
 #: odps.df.expr.groupby.Int64SequenceGroupBy.persist
+#: odps.df.expr.groupby.Int64SequenceGroupBy.qcut
 #: odps.df.expr.groupby.Int64SequenceGroupBy.quantile
 #: odps.df.expr.groupby.Int64SequenceGroupBy.rank
 #: odps.df.expr.groupby.Int64SequenceGroupBy.row_number
@@ -433,6 +445,7 @@ msgstr ""
 #: odps.df.expr.groupby.SequenceGroupBy.compile
 #: odps.df.expr.groupby.SequenceGroupBy.count
 #: odps.df.expr.groupby.SequenceGroupBy.cumcount
+#: odps.df.expr.groupby.SequenceGroupBy.cume_dist
 #: odps.df.expr.groupby.SequenceGroupBy.cummax
 #: odps.df.expr.groupby.SequenceGroupBy.cummin
 #: odps.df.expr.groupby.SequenceGroupBy.dense_rank
@@ -443,9 +456,11 @@ msgstr ""
 #: odps.df.expr.groupby.SequenceGroupBy.max
 #: odps.df.expr.groupby.SequenceGroupBy.min
 #: odps.df.expr.groupby.SequenceGroupBy.min_rank
+#: odps.df.expr.groupby.SequenceGroupBy.nth_value
 #: odps.df.expr.groupby.SequenceGroupBy.nunique
 #: odps.df.expr.groupby.SequenceGroupBy.percent_rank
 #: odps.df.expr.groupby.SequenceGroupBy.persist
+#: odps.df.expr.groupby.SequenceGroupBy.qcut
 #: odps.df.expr.groupby.SequenceGroupBy.rank
 #: odps.df.expr.groupby.SequenceGroupBy.row_number
 #: odps.df.expr.groupby.SequenceGroupBy.size
@@ -2434,18 +2449,21 @@ msgstr ""
 msgid "random seed, None by default"
 msgstr ""
 
-#: odps.df.expr.groupby.GroupBy.dense_rank:1
-#: odps.df.expr.groupby.Int64SequenceGroupBy.dense_rank:1
-#: odps.df.expr.groupby.SequenceGroupBy.dense_rank:1 of
-msgid "Calculate dense rank of a sequence expression."
+#: odps.df.expr.groupby.GroupBy.cume_dist:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cume_dist:1
+#: odps.df.expr.groupby.SequenceGroupBy.cume_dist:1 of
+msgid "Calculate cumulative ratio of a sequence expression."
 msgstr ""
 
+#: odps.df.expr.groupby.GroupBy.cume_dist:3
 #: odps.df.expr.groupby.GroupBy.dense_rank:3
 #: odps.df.expr.groupby.GroupBy.min_rank:3
+#: odps.df.expr.groupby.GroupBy.nth_value:3
 #: odps.df.expr.groupby.GroupBy.percent_rank:3
-#: odps.df.expr.groupby.GroupBy.rank:3
+#: odps.df.expr.groupby.GroupBy.qcut:5 odps.df.expr.groupby.GroupBy.rank:3
 #: odps.df.expr.groupby.GroupBy.row_number:3
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cume_dist:3
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:3
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:3
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:3
@@ -2456,28 +2474,36 @@ msgstr ""
 #: odps.df.expr.groupby.Int64SequenceGroupBy.lag:5
 #: odps.df.expr.groupby.Int64SequenceGroupBy.lead:5
 #: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nth_value:3
 #: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:3
+#: odps.df.expr.groupby.Int64SequenceGroupBy.qcut:5
 #: odps.df.expr.groupby.Int64SequenceGroupBy.rank:3
 #: odps.df.expr.groupby.Int64SequenceGroupBy.row_number:3
 #: odps.df.expr.groupby.SequenceGroupBy.cumcount:3
+#: odps.df.expr.groupby.SequenceGroupBy.cume_dist:3
 #: odps.df.expr.groupby.SequenceGroupBy.cummax:3
 #: odps.df.expr.groupby.SequenceGroupBy.cummin:3
 #: odps.df.expr.groupby.SequenceGroupBy.dense_rank:3
 #: odps.df.expr.groupby.SequenceGroupBy.lag:5
 #: odps.df.expr.groupby.SequenceGroupBy.lead:5
 #: odps.df.expr.groupby.SequenceGroupBy.min_rank:3
+#: odps.df.expr.groupby.SequenceGroupBy.nth_value:3
 #: odps.df.expr.groupby.SequenceGroupBy.percent_rank:3
+#: odps.df.expr.groupby.SequenceGroupBy.qcut:5
 #: odps.df.expr.groupby.SequenceGroupBy.rank:3
 #: odps.df.expr.groupby.SequenceGroupBy.row_number:3 of
 msgid "expression for calculation"
 msgstr ""
 
+#: odps.df.expr.groupby.GroupBy.cume_dist:4
 #: odps.df.expr.groupby.GroupBy.dense_rank:4
 #: odps.df.expr.groupby.GroupBy.min_rank:4
+#: odps.df.expr.groupby.GroupBy.nth_value:6
 #: odps.df.expr.groupby.GroupBy.percent_rank:4
-#: odps.df.expr.groupby.GroupBy.rank:4
+#: odps.df.expr.groupby.GroupBy.qcut:7 odps.df.expr.groupby.GroupBy.rank:4
 #: odps.df.expr.groupby.GroupBy.row_number:4
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cume_dist:4
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:4
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:4
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:4
@@ -2488,28 +2514,36 @@ msgstr ""
 #: odps.df.expr.groupby.Int64SequenceGroupBy.lag:6
 #: odps.df.expr.groupby.Int64SequenceGroupBy.lead:6
 #: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nth_value:6
 #: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.qcut:7
 #: odps.df.expr.groupby.Int64SequenceGroupBy.rank:4
 #: odps.df.expr.groupby.Int64SequenceGroupBy.row_number:4
 #: odps.df.expr.groupby.SequenceGroupBy.cumcount:4
+#: odps.df.expr.groupby.SequenceGroupBy.cume_dist:4
 #: odps.df.expr.groupby.SequenceGroupBy.cummax:4
 #: odps.df.expr.groupby.SequenceGroupBy.cummin:4
 #: odps.df.expr.groupby.SequenceGroupBy.dense_rank:4
 #: odps.df.expr.groupby.SequenceGroupBy.lag:6
 #: odps.df.expr.groupby.SequenceGroupBy.lead:6
 #: odps.df.expr.groupby.SequenceGroupBy.min_rank:4
+#: odps.df.expr.groupby.SequenceGroupBy.nth_value:6
 #: odps.df.expr.groupby.SequenceGroupBy.percent_rank:4
+#: odps.df.expr.groupby.SequenceGroupBy.qcut:7
 #: odps.df.expr.groupby.SequenceGroupBy.rank:4
 #: odps.df.expr.groupby.SequenceGroupBy.row_number:4 of
 msgid "name of the sort column"
 msgstr ""
 
+#: odps.df.expr.groupby.GroupBy.cume_dist:5
 #: odps.df.expr.groupby.GroupBy.dense_rank:5
 #: odps.df.expr.groupby.GroupBy.min_rank:5
+#: odps.df.expr.groupby.GroupBy.nth_value:7
 #: odps.df.expr.groupby.GroupBy.percent_rank:5
-#: odps.df.expr.groupby.GroupBy.rank:5
+#: odps.df.expr.groupby.GroupBy.qcut:8 odps.df.expr.groupby.GroupBy.rank:5
 #: odps.df.expr.groupby.GroupBy.row_number:5
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cume_dist:5
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:5
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:5
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:5
@@ -2520,28 +2554,36 @@ msgstr ""
 #: odps.df.expr.groupby.Int64SequenceGroupBy.lag:7
 #: odps.df.expr.groupby.Int64SequenceGroupBy.lead:7
 #: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nth_value:7
 #: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.qcut:8
 #: odps.df.expr.groupby.Int64SequenceGroupBy.rank:5
 #: odps.df.expr.groupby.Int64SequenceGroupBy.row_number:5
 #: odps.df.expr.groupby.SequenceGroupBy.cumcount:5
+#: odps.df.expr.groupby.SequenceGroupBy.cume_dist:5
 #: odps.df.expr.groupby.SequenceGroupBy.cummax:5
 #: odps.df.expr.groupby.SequenceGroupBy.cummin:5
 #: odps.df.expr.groupby.SequenceGroupBy.dense_rank:5
 #: odps.df.expr.groupby.SequenceGroupBy.lag:7
 #: odps.df.expr.groupby.SequenceGroupBy.lead:7
 #: odps.df.expr.groupby.SequenceGroupBy.min_rank:5
+#: odps.df.expr.groupby.SequenceGroupBy.nth_value:7
 #: odps.df.expr.groupby.SequenceGroupBy.percent_rank:5
+#: odps.df.expr.groupby.SequenceGroupBy.qcut:8
 #: odps.df.expr.groupby.SequenceGroupBy.rank:5
 #: odps.df.expr.groupby.SequenceGroupBy.row_number:5 of
 msgid "whether to sort in ascending order"
 msgstr ""
 
+#: odps.df.expr.groupby.GroupBy.cume_dist:6
 #: odps.df.expr.groupby.GroupBy.dense_rank:6
 #: odps.df.expr.groupby.GroupBy.min_rank:6
+#: odps.df.expr.groupby.GroupBy.nth_value:8
 #: odps.df.expr.groupby.GroupBy.percent_rank:6
-#: odps.df.expr.groupby.GroupBy.rank:6
+#: odps.df.expr.groupby.GroupBy.qcut:9 odps.df.expr.groupby.GroupBy.rank:6
 #: odps.df.expr.groupby.GroupBy.row_number:6
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cumcount:9
+#: odps.df.expr.groupby.Int64SequenceGroupBy.cume_dist:6
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummax:9
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummean:9
 #: odps.df.expr.groupby.Int64SequenceGroupBy.cummedian:9
@@ -2552,20 +2594,31 @@ msgstr ""
 #: odps.df.expr.groupby.Int64SequenceGroupBy.lag:8
 #: odps.df.expr.groupby.Int64SequenceGroupBy.lead:8
 #: odps.df.expr.groupby.Int64SequenceGroupBy.min_rank:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nth_value:8
 #: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.qcut:9
 #: odps.df.expr.groupby.Int64SequenceGroupBy.rank:6
 #: odps.df.expr.groupby.Int64SequenceGroupBy.row_number:6
 #: odps.df.expr.groupby.SequenceGroupBy.cumcount:9
+#: odps.df.expr.groupby.SequenceGroupBy.cume_dist:6
 #: odps.df.expr.groupby.SequenceGroupBy.cummax:9
 #: odps.df.expr.groupby.SequenceGroupBy.cummin:9
 #: odps.df.expr.groupby.SequenceGroupBy.dense_rank:6
 #: odps.df.expr.groupby.SequenceGroupBy.lag:8
 #: odps.df.expr.groupby.SequenceGroupBy.lead:8
 #: odps.df.expr.groupby.SequenceGroupBy.min_rank:6
+#: odps.df.expr.groupby.SequenceGroupBy.nth_value:8
 #: odps.df.expr.groupby.SequenceGroupBy.percent_rank:6
+#: odps.df.expr.groupby.SequenceGroupBy.qcut:9
 #: odps.df.expr.groupby.SequenceGroupBy.rank:6
 #: odps.df.expr.groupby.SequenceGroupBy.row_number:6 of
 msgid "calculated column"
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.dense_rank:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.dense_rank:1
+#: odps.df.expr.groupby.SequenceGroupBy.dense_rank:1 of
+msgid "Calculate dense rank of a sequence expression."
 msgstr ""
 
 #: odps.df.expr.groupby.GroupBy.min_rank:1 odps.df.expr.groupby.GroupBy.rank:1
@@ -2576,10 +2629,43 @@ msgstr ""
 msgid "Calculate rank of a sequence expression."
 msgstr ""
 
+#: odps.df.expr.groupby.GroupBy.nth_value:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nth_value:1
+#: odps.df.expr.groupby.SequenceGroupBy.nth_value:1 of
+msgid "Get nth value of a grouped and sorted expression."
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.nth_value:4
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nth_value:4
+#: odps.df.expr.groupby.SequenceGroupBy.nth_value:4 of
+msgid "integer position"
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.nth_value:5
+#: odps.df.expr.groupby.Int64SequenceGroupBy.nth_value:5
+#: odps.df.expr.groupby.SequenceGroupBy.nth_value:5 of
+msgid "whether to skip null values, False by default"
+msgstr ""
+
 #: odps.df.expr.groupby.GroupBy.percent_rank:1
 #: odps.df.expr.groupby.Int64SequenceGroupBy.percent_rank:1
 #: odps.df.expr.groupby.SequenceGroupBy.percent_rank:1 of
 msgid "Calculate percentage rank of a sequence expression."
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.qcut:1
+#: odps.df.expr.groupby.Int64SequenceGroupBy.qcut:1
+#: odps.df.expr.groupby.SequenceGroupBy.qcut:1 of
+msgid ""
+"Get quantile-based bin indices of every element of a grouped and sorted "
+"expression. The indices of bins start from 0. If cuts are not of equal "
+"sizes, extra items will be appended into the first group."
+msgstr ""
+
+#: odps.df.expr.groupby.GroupBy.qcut:6
+#: odps.df.expr.groupby.Int64SequenceGroupBy.qcut:6
+#: odps.df.expr.groupby.SequenceGroupBy.qcut:6 of
+msgid "number of bins"
 msgstr ""
 
 #: odps.df.expr.groupby.GroupBy.row_number:1

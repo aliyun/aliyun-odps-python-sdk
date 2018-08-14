@@ -1089,6 +1089,21 @@ class Test(TestBase):
         self.assertEqual(to_str(expect),
                          to_str(ODPSEngine(self.odps).compile(self.expr4.relatives.values(), prettify=False)))
 
+        expect = 'SELECT t1.`hobbies`[2] AS `hobbies` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.hobbies[2], prettify=False)))
+
+        expect = 'SELECT t1.`hobbies`[SIZE(t1.`hobbies`) - 2] AS `hobbies` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.hobbies[-2], prettify=False)))
+
+        expect = 'SELECT IF((t1.`id` - 1) >= 0, t1.`hobbies`[t1.`id` - 1], t1.`hobbies`[SIZE(t1.`hobbies`) + (t1.`id` - 1)]) AS `hobbies` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr4.hobbies[self.expr4.id - 1], prettify=False)))
+
         expect = 'SELECT t1.`relatives`[\'abc\'] AS `relatives` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expect),
@@ -1624,6 +1639,16 @@ class Test(TestBase):
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.groupby('name').id.nth_value(4)
+        expected = 'SELECT NTH_VALUE(t1.`id`, 5) OVER (PARTITION BY t1.`name`) AS `id_nthvalue` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby('name').id.nth_value(4, skip_nulls=True)
+        expected = 'SELECT NTH_VALUE(t1.`id`, 5, true) OVER (PARTITION BY t1.`name`) AS `id_nthvalue` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
         expr = self.expr[self.expr.name, self.expr.id + 1][
             'name', lambda x: x.groupby('name').sort('id', ascending=False).row_number().rename('rank')]
         expected = "SELECT t1.`name`, ROW_NUMBER() OVER (PARTITION BY t1.`name` ORDER BY t1.`id` + 1 DESC) AS `rank` \n" \
@@ -1644,6 +1669,16 @@ class Test(TestBase):
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr)))
 
         expected = 'SELECT LAG(t1.`id`, 1) OVER (PARTITION BY t1.`name` ORDER BY t1.`fid`) AS `id` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby('name').sort('fid').qcut(4)
+        expected = 'SELECT NTILE(4) OVER (PARTITION BY t1.`name` ORDER BY t1.`fid`) - 1 AS `q_cut` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.groupby('name').sort('fid').cume_dist()
+        expected = 'SELECT CUME_DIST() OVER (PARTITION BY t1.`name` ORDER BY t1.`fid`) AS `cume_dist` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 

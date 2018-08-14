@@ -279,6 +279,7 @@ class Test(TestBase):
 
         instance.wait_for_success()
         self.assertEqual(json.loads(instance.tasks[0].properties['settings']), hints)
+        self.assertIsNotNone(instance.tasks[0].summary)
 
         with instance.open_reader(Schema.from_lists(['count'], ['bigint']), tunnel=False) as reader:
             records = list(reader)

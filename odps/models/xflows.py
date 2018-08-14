@@ -110,7 +110,7 @@ class XFlows(Iterable):
             'Parameters', 'Parameter', key_tag='Key', value_tag='Value', required=True)
         properties = serializers.XMLNodePropertiesField('Config', 'Property',
                                                         key_tag='Name', value_tag='Value')
-        priority = serializers.XMLNodeField('Priority', parse_callback=int, serialize_callback=int, default=9)
+        priority = serializers.XMLNodeField('Priority', parse_callback=int, serialize_callback=int)
 
     class AnonymousSubmitXFlowInstance(XMLRemoteModel):
         _root = 'Instance'

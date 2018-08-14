@@ -610,7 +610,8 @@ class Engine(object):
 
         for col in expr_table_schema.columns:
             if col.name.lower() not in table.schema:
-                raise CompileError('Column(%s) does not exist in table' % col.name)
+                raise CompileError('Column(%s) does not exist in target table %s, '
+                                   'writing cannot be performed.' % (col.name, table.name))
             t_col = table.schema[col.name.lower()]
             if not cast and not t_col.type.can_implicit_cast(col.type):
                 raise CompileError('Cannot implicitly cast column %s from %s to %s.' % (
@@ -806,7 +807,8 @@ class Engine(object):
             new_libs = []
             for lib in libs:
                 if not isinstance(lib, (Resource, six.string_types)):
-                    raise ValueError('Resource %s not acceptable.' % repr(lib))
+                    raise ValueError('Resource %s not acceptable: illegal input type %s.'
+                                     % (repr(lib), type(lib).__name__))
                 if isinstance(lib, Resource):
                     new_libs.append(lib)
                 elif '/' not in lib and self._odps.exist_resource(lib):
@@ -816,7 +818,7 @@ class Engine(object):
                 elif os.path.isdir(lib):
                     new_libs.append(lib)
                 else:
-                    raise ValueError('Resource %s not acceptable.' % repr(lib))
+                    raise ValueError('Resource %s not found.' % repr(lib))
             return new_libs
 
         libraries = conv(libraries) or []

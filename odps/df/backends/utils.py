@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -149,7 +149,8 @@ def _reorder_pd(frame, table, cast=False):
     expr_table_schema = df_schema_to_odps_schema(frame.schema).to_ignorecase_schema()
     for col in expr_table_schema.columns:
         if col.name.lower() not in table.schema:
-            raise CompileError('Column(%s) does not exist in table' % col.name)
+            raise CompileError('Column(%s) does not exist in target table %s, '
+                               'writing cannot be performed.' % (col.name, table.name))
         t_col = table.schema[col.name.lower()]
         if not cast and not t_col.type.can_implicit_cast(col.type):
             raise CompileError('Cannot implicitly cast column %s from %s to %s.' % (

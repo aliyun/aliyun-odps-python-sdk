@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-20 15:21+0800\n"
+"POT-Creation-Date: 2018-07-26 19:35+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -60,12 +60,16 @@ msgid ""
 msgstr ""
 
 #: ../../source/base-models.rst:31
-msgid ""
-"这两个方法都会返回一个 Instance 对象。由于 XFlow 的一个 Instance 包含若干个子 Instance， "
-"需要使用下面的方法来获得每个 Instance 的 LogView："
+msgid "参数不应包含命令两端的引号（如果有），也不应该包含末尾的分号。"
 msgstr ""
 
-#: ../../source/base-models.rst:34
+#: ../../source/base-models.rst:33
+msgid ""
+"这两个方法都会返回一个 Instance 对象。由于 XFlow 的一个 Instance 包含若干个子 "
+"Instance，需要使用下面的方法来获得每个 Instance 的 LogView："
+msgstr ""
+
+#: ../../source/base-models.rst:36
 #, python-format
 msgid ""
 ">>> for sub_inst_name, sub_inst in "
@@ -73,14 +77,14 @@ msgid ""
 ">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
 msgstr ""
 
-#: ../../source/base-models.rst:39
+#: ../../source/base-models.rst:41
 msgid ""
 "需要注意的是，``get_xflow_sub_instances`` 返回的是 Instance 当前的子 "
 "Instance，可能会随时间变化，因而可能需要定时查询。 为简化这一步骤，可以使用 ``iter_xflow_sub_instances "
 "方法``。该方法返回一个迭代器，会阻塞执行直至发现新的子 Instance 或者主 Instance 结束："
 msgstr ""
 
-#: ../../source/base-models.rst:43
+#: ../../source/base-models.rst:45
 #, python-format
 msgid ""
 ">>> # 此处建议使用异步调用\n"
@@ -92,11 +96,11 @@ msgid ""
 ">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
 msgstr ""
 
-#: ../../source/base-models.rst:51
+#: ../../source/base-models.rst:53
 msgid "在调用 run_xflow 或者 execute_xflow 时，也可以指定运行参数，指定的方法与 SQL 类似："
 msgstr ""
 
-#: ../../source/base-models.rst:53
+#: ../../source/base-models.rst:55
 msgid ""
 ">>> parameters = {'param1': 'param_value1', 'param2': 'param_value2', "
 "...}\n"
@@ -104,11 +108,11 @@ msgid ""
 "hints={'odps.xxx.yyy': 10})"
 msgstr ""
 
-#: ../../source/base-models.rst:58
+#: ../../source/base-models.rst:60
 msgid "使用 options.ml.xflow_settings 可以配置全局设置："
 msgstr ""
 
-#: ../../source/base-models.rst:60
+#: ../../source/base-models.rst:62
 msgid ""
 ">>> from odps import options\n"
 ">>> options.ml.xflow_settings = {'odps.xxx.yyy': 10}\n"
@@ -117,17 +121,23 @@ msgid ""
 ">>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters)"
 msgstr ""
 
-#: ../../source/base-models.rst:68
+#: ../../source/base-models.rst:69
+msgid ""
+"PAI 命令的文档可以参考 `这份文档 "
+"<https://help.aliyun.com/document_detail/42703.html>`_ 。"
+msgstr ""
+
+#: ../../source/base-models.rst:72
 msgid "离线模型"
 msgstr ""
 
-#: ../../source/base-models.rst:70
+#: ../../source/base-models.rst:74
 msgid ""
 "离线模型是 XFlow 分类 / 回归算法输出的模型。用户可以使用 PyODPS ML 或直接使用 odps.run_xflow "
 "创建一个离线模型，例如下面使用 run_xflow 的例子："
 msgstr ""
 
-#: ../../source/base-models.rst:78
+#: ../../source/base-models.rst:82
 msgid ""
 ">>> o.run_xflow('LogisticRegression', 'algo_public', "
 "dict(modelName='logistic_regression_model_name',\n"
@@ -137,45 +147,45 @@ msgid ""
 "inputTableName='bank_data'))"
 msgstr ""
 
-#: ../../source/base-models.rst:79
+#: ../../source/base-models.rst:83
 msgid "在模型创建后，用户可以列出当前 Project 下的模型："
 msgstr ""
 
-#: ../../source/base-models.rst:84
+#: ../../source/base-models.rst:88
 msgid ">>> models = o.list_offline_models(prefix='prefix')"
 msgstr ""
 
-#: ../../source/base-models.rst:85
+#: ../../source/base-models.rst:89
 msgid "也可以通过模型名获取模型并读取模型 PMML（如果支持）："
 msgstr ""
 
-#: ../../source/base-models.rst:91
+#: ../../source/base-models.rst:95
 msgid ""
 ">>> model = o.get_offline_model('logistic_regression_model_name')\n"
 ">>> pmml = model.get_model()"
 msgstr ""
 
-#: ../../source/base-models.rst:92
+#: ../../source/base-models.rst:96
 msgid "删除模型可使用下列语句："
 msgstr ""
 
-#: ../../source/base-models.rst:97
+#: ../../source/base-models.rst:101
 msgid ">>> o.delete_offline_model('logistic_regression_model_name')"
 msgstr ""
 
-#: ../../source/base-models.rst:99
+#: ../../source/base-models.rst:103
 msgid "在线模型"
 msgstr ""
 
-#: ../../source/base-models.rst:101
+#: ../../source/base-models.rst:105
 msgid "在线模型是 ODPS 提供的模型在线部署能力。用户可以通过 Pipeline 部署自己的模型。详细信息请参考“机器学习平台——在线服务”章节。"
 msgstr ""
 
-#: ../../source/base-models.rst:103
+#: ../../source/base-models.rst:107
 msgid "需要注意的是，在线模型的服务使用的是独立的 Endpoint，需要配置 Predict Endpoint。通过"
 msgstr ""
 
-#: ../../source/base-models.rst:109
+#: ../../source/base-models.rst:113
 msgid ""
 ">>> o = ODPS('your-access-id', 'your-secret-access-key', 'your-default-"
 "project',\n"
@@ -183,33 +193,33 @@ msgid ""
 "predict_endpoint='predict_endpoint')"
 msgstr ""
 
-#: ../../source/base-models.rst:110
+#: ../../source/base-models.rst:114
 msgid "即可在 ODPS 对象上添加相关配置。Predict Endpoint 的地址请参考相关说明或咨询管理员。"
 msgstr ""
 
-#: ../../source/base-models.rst:113
+#: ../../source/base-models.rst:117
 msgid "部署离线模型上线"
 msgstr ""
 
-#: ../../source/base-models.rst:115
+#: ../../source/base-models.rst:119
 msgid "PyODPS 提供了离线模型的部署功能。部署方法为"
 msgstr ""
 
-#: ../../source/base-models.rst:121 ../../source/base-models.rst:184
+#: ../../source/base-models.rst:125 ../../source/base-models.rst:188
 msgid ""
 ">>> model = o.create_online_model('online_model_name', "
 "'offline_model_name')"
 msgstr ""
 
-#: ../../source/base-models.rst:123
+#: ../../source/base-models.rst:127
 msgid "部署自定义 Pipeline 上线"
 msgstr ""
 
-#: ../../source/base-models.rst:124
+#: ../../source/base-models.rst:128
 msgid "含有自定义 Pipeline 的在线模型可自行构造 ModelPredictor 对象，例子如下："
 msgstr ""
 
-#: ../../source/base-models.rst:139
+#: ../../source/base-models.rst:143
 msgid ""
 ">>> from odps.models.ml import ModelPredictor, ModelProcessor, "
 "BuiltinProcessor, PmmlProcessor, PmmlRunMode\n"
@@ -233,32 +243,32 @@ msgid ""
 ">>> model = o.create_online_model('online_model_name', predictor)"
 msgstr ""
 
-#: ../../source/base-models.rst:140
+#: ../../source/base-models.rst:144
 msgid ""
 "其中，BuiltinProcessor、PmmlProcessor 和 CustomProcessor 分别指 ODPS OfflineModel"
 " 形成的 Pipeline 节点、PMML 模型文件形成的 Pipeline 节点和用户自行开发的 Pipeline 节点。"
 msgstr ""
 
-#: ../../source/base-models.rst:144
+#: ../../source/base-models.rst:148
 msgid "在线模型操作"
 msgstr ""
 
-#: ../../source/base-models.rst:146
+#: ../../source/base-models.rst:150
 msgid "与其他 ODPS 对象类似，创建后，可列举、获取和删除在线模型："
 msgstr ""
 
-#: ../../source/base-models.rst:153
+#: ../../source/base-models.rst:157
 msgid ""
 ">>> models = o.list_online_models(prefix='prefix')\n"
 ">>> model = o.get_online_model('online_model_name')\n"
 ">>> o.delete_online_model('online_model_name')"
 msgstr ""
 
-#: ../../source/base-models.rst:154
+#: ../../source/base-models.rst:158
 msgid "可使用模型名和数据进行在线预测，输入数据可以是 Record，也可以是字典或数组和 Schema 的组合："
 msgstr ""
 
-#: ../../source/base-models.rst:161
+#: ../../source/base-models.rst:165
 msgid ""
 ">>> data = [[4, 3, 2, 1], [1, 2, 3, 4]]\n"
 ">>> result = o.predict_online_model('online_model_name', data,\n"
@@ -266,56 +276,56 @@ msgid ""
 "'sepal_width', 'petal_length', 'petal_width'])"
 msgstr ""
 
-#: ../../source/base-models.rst:162
+#: ../../source/base-models.rst:166
 msgid ""
 "也可为模型设置 ABTest。参数中的 modelx 可以是在线模型名，也可以是 get_online_model 获得的模型对象本身，而 "
 "percentagex 表示 modelx 在 ABTest 中所占的百分比，范围为 0 至 100："
 msgstr ""
 
-#: ../../source/base-models.rst:168
+#: ../../source/base-models.rst:172
 msgid ""
 ">>> result = o.config_online_model_ab_test('online_model_name', model1, "
 "percentage1, model2, percentage2)"
 msgstr ""
 
-#: ../../source/base-models.rst:169
+#: ../../source/base-models.rst:173
 msgid "修改模型参数可以通过修改 OnlineModel 对象的属性，再调用 update 方法实现，如"
 msgstr ""
 
-#: ../../source/base-models.rst:176
+#: ../../source/base-models.rst:180
 msgid ""
 ">>> model = o.get_online_model('online_model_name')\n"
 ">>> model.cpu = 200\n"
 ">>> model.update()"
 msgstr ""
 
-#: ../../source/base-models.rst:177
+#: ../../source/base-models.rst:181
 msgid ""
 "与其他对象不同的是，在线模型的创建和删除较为耗时。PyODPS 默认 create_online_model 和 "
 "delete_online_model 以及 OnlineModel 的 update 方法在整个操作完成后才返回。用户可以通过 async "
 "选项控制是否要在模型创建请求提交后立即返回， 然后自己控制等待。例如，下列语句"
 msgstr ""
 
-#: ../../source/base-models.rst:185 ../../source/base-models.rst:198
+#: ../../source/base-models.rst:189 ../../source/base-models.rst:202
 msgid "等价于"
 msgstr ""
 
-#: ../../source/base-models.rst:191
+#: ../../source/base-models.rst:195
 msgid ""
 ">>> model = o.create_online_model('online_model_name', "
 "'offline_model_name', async=True)\n"
 ">>> model.wait_for_service()"
 msgstr ""
 
-#: ../../source/base-models.rst:192
+#: ../../source/base-models.rst:196
 msgid "而"
 msgstr ""
 
-#: ../../source/base-models.rst:197
+#: ../../source/base-models.rst:201
 msgid ">>> o.delete_online_model('online_model_name')"
 msgstr ""
 
-#: ../../source/base-models.rst:203
+#: ../../source/base-models.rst:207
 msgid ""
 ">>> o.delete_online_model('* online_model_name *', async=True)\n"
 ">>> model.wait_for_deletion()"

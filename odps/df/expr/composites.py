@@ -128,7 +128,7 @@ class ListDictLength(CompositeOp):
 
 
 class ListDictGetItem(CompositeOp):
-    _args = '_input', '_key'
+    _args = '_input', '_key', '_negative_handled'
 
 
 class ListContains(CompositeOp):

@@ -28,8 +28,10 @@ XFlow 是 ODPS 对算法包的封装，使用 PyODPS 可以执行 XFlow。对于
     >>> inst = o.execute_xflow('AlgoName', 'algo_public',
                                parameters={'param1': 'param_value1', 'param2': 'param_value2', ...})
 
-这两个方法都会返回一个 Instance 对象。由于 XFlow 的一个 Instance 包含若干个子 Instance，
-需要使用下面的方法来获得每个 Instance 的 LogView：
+参数不应包含命令两端的引号（如果有），也不应该包含末尾的分号。
+
+这两个方法都会返回一个 Instance 对象。由于
+XFlow 的一个 Instance 包含若干个子 Instance，需要使用下面的方法来获得每个 Instance 的 LogView：
 
 .. code-block:: python
 
@@ -63,6 +65,8 @@ XFlow 是 ODPS 对算法包的封装，使用 PyODPS 可以执行 XFlow。对于
     >>> options.ml.xflow_settings = {'odps.xxx.yyy': 10}
     >>> parameters = {'param1': 'param_value1', 'param2': 'param_value2', ...}
     >>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters)
+
+PAI 命令的文档可以参考 `这份文档 <https://help.aliyun.com/document_detail/42703.html>`_ 。
 
 离线模型
 ---------

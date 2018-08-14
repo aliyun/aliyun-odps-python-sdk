@@ -25,10 +25,10 @@ The goals of it follow:
 It does not include an unpickler, as standard python unpickling suffices.
 
 This module was extracted from the `cloud` package, developed by `PiCloud, Inc.
-<http://www.picloud.com>`_.
+<https://web.archive.org/web/20140626004012/http://www.picloud.com/>`_.
 
 Copyright (c) 2012, Regents of the University of California.
-Copyright (c) 2009 `PiCloud, Inc. <http://www.picloud.com>`_.
+Copyright (c) 2009 `PiCloud, Inc. <https://web.archive.org/web/20140626004012/http://www.picloud.com/>`_.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -56,55 +56,58 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 """
-from __future__ import absolute_import
 from __future__ import print_function
 
 import dis
-import inspect
+from functools import partial
+import imp
 import io
+import inspect
 import itertools
+import logging
 import opcode
 import operator
 import pickle
-import platform
 import struct
 import sys
 import traceback
 import types
 import weakref
-from functools import partial
+
+
+# we replace default config in MaxCompute to handle compatibility
+# between different python versions
+DEFAULT_PROTOCOL = 2  # pickle.HIGHEST_PROTOCOL
+
 
 if sys.version < '3':
+    import __builtin__
     from pickle import Pickler, Unpickler
+
     try:
         from cStringIO import StringIO
     except ImportError:
         from StringIO import StringIO
-    BytesIO = StringIO
-    irange = xrange
-    lrange = range
-    to_unicode = unicode
-    to_ascii = str
+
     iteritems = lambda d: d.iteritems()
+    irange = __builtin__.xrange
+    to_ascii = __builtin__.str
+    to_unicode = __builtin__.unicode
     PY3 = False
 else:
     types.ClassType = type
-    from pickle import _Pickler as Pickler
+    import builtins as __builtin__
+    from pickle import _Pickler as Pickler, _Unpickler as Unpickler
     from io import BytesIO as StringIO
-    irange = range
-    lrange = lambda x: list(range(x))
-    to_unicode = str
-    to_ascii = ascii
     iteritems = lambda d: d.items()
+    irange = __builtin__.range
+    to_ascii = __builtin__.ascii
+    to_unicode = __builtin__.str
+    unicode = str
     PY3 = True
 
-PY27 = not PY3 and sys.version_info[1] == 7
-PY35LE = sys.version_info[:2] <= (3, 5)
 
-PYPY = platform.python_implementation().lower() == 'pypy'
-JYTHON = platform.python_implementation().lower() == 'jython'
-
-def with_metaclass(meta, *bases):
+def _with_metaclass(meta, *bases):
     """Create a base class with a metaclass."""
     # This requires a bit of explanation: the basic idea is to make a dummy
     # metaclass for one level of class instantiation that replaces itself with
@@ -116,6 +119,1218 @@ def with_metaclass(meta, *bases):
     return type.__new__(metaclass, 'temporary_class', (), {})
 
 
+def _make_cell_set_template_code():
+    """Get the Python compiler to emit LOAD_FAST(arg); STORE_DEREF
+
+    Notes
+    -----
+    In Python 3, we could use an easier function:
+
+    .. code-block:: python
+
+       def f():
+           cell = None
+
+           def _stub(value):
+               nonlocal cell
+               cell = value
+
+           return _stub
+
+        _cell_set_template_code = f()
+
+    This function is _only_ a LOAD_FAST(arg); STORE_DEREF, but that is
+    invalid syntax on Python 2. If we use this function we also don't need
+    to do the weird freevars/cellvars swap below
+    """
+    def inner(value):
+        lambda: cell  # make ``cell`` a closure so that we get a STORE_DEREF
+        cell = value
+
+    co = inner.__code__
+
+    # NOTE: we are marking the cell variable as a free variable intentionally
+    # so that we simulate an inner function instead of the outer function. This
+    # is what gives us the ``nonlocal`` behavior in a Python 2 compatible way.
+    if not PY3:
+        return types.CodeType(
+            co.co_argcount,
+            co.co_nlocals,
+            co.co_stacksize,
+            co.co_flags,
+            co.co_code,
+            co.co_consts,
+            co.co_names,
+            co.co_varnames,
+            co.co_filename,
+            co.co_name,
+            co.co_firstlineno,
+            co.co_lnotab,
+            co.co_cellvars,  # this is the trickery
+            (),
+        )
+    else:
+        return types.CodeType(
+            co.co_argcount,
+            co.co_kwonlyargcount,
+            co.co_nlocals,
+            co.co_stacksize,
+            co.co_flags,
+            co.co_code,
+            co.co_consts,
+            co.co_names,
+            co.co_varnames,
+            co.co_filename,
+            co.co_name,
+            co.co_firstlineno,
+            co.co_lnotab,
+            co.co_cellvars,  # this is the trickery
+            (),
+        )
+
+
+_cell_set_template_code = _make_cell_set_template_code()
+
+
+def cell_set(cell, value):
+    """Set the value of a closure cell.
+    """
+    return types.FunctionType(
+        _cell_set_template_code,
+        {},
+        '_cell_set_inner',
+        (),
+        (cell,),
+    )(value)
+
+
+# relevant opcodes
+STORE_GLOBAL = opcode.opmap['STORE_GLOBAL']
+DELETE_GLOBAL = opcode.opmap['DELETE_GLOBAL']
+LOAD_GLOBAL = opcode.opmap['LOAD_GLOBAL']
+GLOBAL_OPS = (STORE_GLOBAL, DELETE_GLOBAL, LOAD_GLOBAL)
+HAVE_ARGUMENT = dis.HAVE_ARGUMENT
+EXTENDED_ARG = dis.EXTENDED_ARG
+
+
+def islambda(func):
+    return getattr(func, '__name__') == '<lambda>'
+
+
+_BUILTIN_TYPE_NAMES = {}
+for k, v in types.__dict__.items():
+    if type(v) is type:
+        _BUILTIN_TYPE_NAMES[v] = k
+
+
+def _builtin_type(name):
+    return getattr(types, name)
+
+
+def _make__new__factory(type_):
+    def _factory():
+        return type_.__new__
+    return _factory
+
+
+# NOTE: These need to be module globals so that they're pickleable as globals.
+_get_dict_new = _make__new__factory(dict)
+_get_frozenset_new = _make__new__factory(frozenset)
+_get_list_new = _make__new__factory(list)
+_get_set_new = _make__new__factory(set)
+_get_tuple_new = _make__new__factory(tuple)
+_get_object_new = _make__new__factory(object)
+
+# Pre-defined set of builtin_function_or_method instances that can be
+# serialized.
+_BUILTIN_TYPE_CONSTRUCTORS = {
+    dict.__new__: _get_dict_new,
+    frozenset.__new__: _get_frozenset_new,
+    set.__new__: _get_set_new,
+    list.__new__: _get_list_new,
+    tuple.__new__: _get_tuple_new,
+    object.__new__: _get_object_new,
+}
+
+
+if sys.version_info < (3, 4):
+    def _walk_global_ops(code):
+        """
+        Yield (opcode, argument number) tuples for all
+        global-referencing instructions in *code*.
+        """
+        code = getattr(code, 'co_code', b'')
+        if not PY3:
+            code = map(ord, code)
+
+        n = len(code)
+        i = 0
+        extended_arg = 0
+        while i < n:
+            op = code[i]
+            i += 1
+            if op >= HAVE_ARGUMENT:
+                oparg = code[i] + code[i + 1] * 256 + extended_arg
+                extended_arg = 0
+                i += 2
+                if op == EXTENDED_ARG:
+                    extended_arg = oparg * 65536
+                if op in GLOBAL_OPS:
+                    yield op, oparg
+
+else:
+    def _walk_global_ops(code):
+        """
+        Yield (opcode, argument number) tuples for all
+        global-referencing instructions in *code*.
+        """
+        for instr in dis.get_instructions(code):
+            op = instr.opcode
+            if op in GLOBAL_OPS:
+                yield op, instr.arg
+
+
+class CloudPickler(Pickler):
+
+    dispatch = Pickler.dispatch.copy()
+
+    def __init__(self, file, protocol=None, dump_code=False):
+        if protocol is None:
+            protocol = DEFAULT_PROTOCOL
+        Pickler.__init__(self, file, protocol=protocol)
+        # set of modules to unpickle
+        self.modules = set()
+        # map ids to dictionary. used to ensure that functions can share global env
+        self.globals_ref = {}
+        self.dump_code = dump_code
+
+    def dump(self, obj):
+        self.inject_addons()
+        try:
+            return Pickler.dump(self, obj)
+        except RuntimeError as e:
+            if 'recursion' in e.args[0]:
+                msg = """Could not pickle object as excessively deep recursion required."""
+                raise pickle.PicklingError(msg)
+            else:
+                raise
+
+    if sys.version_info < (2, 7):
+        memoryview = bytearray  # to make flake8 happy
+    else:
+        def save_memoryview(self, obj):
+            self.save(obj.tobytes())
+
+        dispatch[memoryview] = save_memoryview
+
+    if not PY3:
+        def save_buffer(self, obj):
+            self.save(str(obj))
+
+        dispatch[buffer] = save_buffer  # noqa: F821 'buffer' was removed in Python 3
+
+    def save_module(self, obj):
+        """
+        Save a module as an import
+        """
+        mod_name = obj.__name__
+        # If module is successfully found then it is not a dynamically created module
+        if hasattr(obj, '__file__'):
+            is_dynamic = False
+        else:
+            try:
+                _find_module(mod_name)
+                is_dynamic = False
+            except ImportError:
+                is_dynamic = True
+
+        self.modules.add(obj)
+        if is_dynamic:
+            self.save_reduce(dynamic_subimport, (obj.__name__, vars(obj)), obj=obj)
+        else:
+            self.save_reduce(subimport, (obj.__name__,), obj=obj)
+
+    dispatch[types.ModuleType] = save_module
+
+    @staticmethod
+    def _extract_code_args(obj):
+        if PY3:
+            args = (
+                obj.co_argcount, obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
+                obj.co_flags, obj.co_code, obj.co_consts, obj.co_names, obj.co_varnames,
+                obj.co_filename, obj.co_name, obj.co_firstlineno, obj.co_lnotab, obj.co_freevars,
+                obj.co_cellvars
+            )
+        else:
+            args = (
+                obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags, obj.co_code,
+                obj.co_consts, obj.co_names, obj.co_varnames, obj.co_filename, obj.co_name,
+                obj.co_firstlineno, obj.co_lnotab, obj.co_freevars, obj.co_cellvars
+            )
+        return args
+
+    def save_codeobject(self, obj):
+        """
+        Save a code object
+        """
+        if self.dump_code:
+            print(obj.co_name)
+            dis.dis(obj.co_code)
+        self.save_reduce(types.CodeType, self._extract_code_args(obj), obj=obj)
+
+    dispatch[types.CodeType] = save_codeobject
+
+    def save_function(self, obj, name=None):
+        """ Registered with the dispatch to handle all function types.
+
+        Determines what kind of function obj is (e.g. lambda, defined at
+        interactive prompt, etc) and handles the pickling appropriately.
+        """
+        try:
+            should_special_case = obj in _BUILTIN_TYPE_CONSTRUCTORS
+        except TypeError:
+            # Methods of builtin types aren't hashable in python 2.
+            should_special_case = False
+
+        if should_special_case:
+            # We keep a special-cased cache of built-in type constructors at
+            # global scope, because these functions are structured very
+            # differently in different python versions and implementations (for
+            # example, they're instances of types.BuiltinFunctionType in
+            # CPython, but they're ordinary types.FunctionType instances in
+            # PyPy).
+            #
+            # If the function we've received is in that cache, we just
+            # serialize it as a lookup into the cache.
+            return self.save_reduce(_BUILTIN_TYPE_CONSTRUCTORS[obj], (), obj=obj)
+
+        write = self.write
+
+        if name is None:
+            name = obj.__name__
+        try:
+            # whichmodule() could fail, see
+            # https://bitbucket.org/gutworth/six/issues/63/importing-six-breaks-pickling
+            modname = pickle.whichmodule(obj, name)
+        except Exception:
+            modname = None
+        # print('which gives %s %s %s' % (modname, obj, name))
+        try:
+            themodule = sys.modules[modname]
+        except KeyError:
+            # eval'd items such as namedtuple give invalid items for their function __module__
+            modname = '__main__'
+
+        if modname == '__main__':
+            themodule = None
+
+        try:
+            lookedup_by_name = getattr(themodule, name, None)
+        except Exception:
+            lookedup_by_name = None
+
+        if themodule:
+            self.modules.add(themodule)
+            if lookedup_by_name is obj:
+                return self.save_global(obj, name)
+
+        # a builtin_function_or_method which comes in as an attribute of some
+        # object (e.g., itertools.chain.from_iterable) will end
+        # up with modname "__main__" and so end up here. But these functions
+        # have no __code__ attribute in CPython, so the handling for
+        # user-defined functions below will fail.
+        # So we pickle them here using save_reduce; have to do it differently
+        # for different python versions.
+        if not hasattr(obj, '__code__'):
+            if PY3:
+                rv = obj.__reduce_ex__(self.proto)
+            else:
+                if hasattr(obj, '__self__'):
+                    rv = (getattr, (obj.__self__, name))
+                else:
+                    raise pickle.PicklingError("Can't pickle %r" % obj)
+            return self.save_reduce(obj=obj, *rv)
+
+        # if func is lambda, def'ed at prompt, is in main, or is nested, then
+        # we'll pickle the actual function object rather than simply saving a
+        # reference (as is done in default pickler), via save_function_tuple.
+        if (islambda(obj)
+                or getattr(obj.__code__, 'co_filename', None) == '<stdin>'
+                or themodule is None):
+            self.save_function_tuple(obj)
+            return
+        else:
+            # func is nested
+            if lookedup_by_name is None or lookedup_by_name is not obj:
+                self.save_function_tuple(obj)
+                return
+
+        if obj.__dict__:
+            # essentially save_reduce, but workaround needed to avoid recursion
+            self.save(_restore_attr)
+            write(pickle.MARK + pickle.GLOBAL + modname + '\n' + name + '\n')
+            self.memoize(obj)
+            self.save(obj.__dict__)
+            write(pickle.TUPLE + pickle.REDUCE)
+        else:
+            write(pickle.GLOBAL + modname + '\n' + name + '\n')
+            self.memoize(obj)
+
+    dispatch[types.FunctionType] = save_function
+
+    def _save_subimports(self, code, top_level_dependencies):
+        """
+        Ensure de-pickler imports any package child-modules that
+        are needed by the function
+        """
+        # check if any known dependency is an imported package
+        for x in top_level_dependencies:
+            if isinstance(x, types.ModuleType) and hasattr(x, '__package__') and x.__package__:
+                # check if the package has any currently loaded sub-imports
+                prefix = x.__name__ + '.'
+                # A concurrent thread could mutate sys.modules,
+                # make sure we iterate over a copy to avoid exceptions
+                for name in list(sys.modules):
+                    # Older versions of pytest will add a "None" module to sys.modules.
+                    if name is not None and name.startswith(prefix):
+                        # check whether the function can address the sub-module
+                        tokens = set(name[len(prefix):].split('.'))
+                        if not tokens - set(code.co_names):
+                            # ensure unpickler executes this import
+                            self.save(sys.modules[name])
+                            # then discards the reference to it
+                            self.write(pickle.POP)
+
+    def save_dynamic_class(self, obj):
+        """
+        Save a class that can't be stored as module global.
+
+        This method is used to serialize classes that are defined inside
+        functions, or that otherwise can't be serialized as attribute lookups
+        from global modules.
+        """
+        clsdict = dict(obj.__dict__)  # copy dict proxy to a dict
+        clsdict.pop('__weakref__', None)
+
+        # On PyPy, __doc__ is a readonly attribute, so we need to include it in
+        # the initial skeleton class.  This is safe because we know that the
+        # doc can't participate in a cycle with the original class.
+        type_kwargs = {'__doc__': clsdict.pop('__doc__', None)}
+
+        # If type overrides __dict__ as a property, include it in the type kwargs.
+        # In Python 2, we can't set this attribute after construction.
+        __dict__ = clsdict.pop('__dict__', None)
+        if isinstance(__dict__, property):
+            type_kwargs['__dict__'] = __dict__
+
+        save = self.save
+        write = self.write
+
+        # We write pickle instructions explicitly here to handle the
+        # possibility that the type object participates in a cycle with its own
+        # __dict__. We first write an empty "skeleton" version of the class and
+        # memoize it before writing the class' __dict__ itself. We then write
+        # instructions to "rehydrate" the skeleton class by restoring the
+        # attributes from the __dict__.
+        #
+        # A type can appear in a cycle with its __dict__ if an instance of the
+        # type appears in the type's __dict__ (which happens for the stdlib
+        # Enum class), or if the type defines methods that close over the name
+        # of the type, (which is common for Python 2-style super() calls).
+
+        # Push the rehydration function.
+        save(_rehydrate_skeleton_class)
+
+        # Mark the start of the args tuple for the rehydration function.
+        write(pickle.MARK)
+
+        # Create and memoize an skeleton class with obj's name and bases.
+        tp = type(obj)
+        self.save_reduce(tp, (obj.__name__, obj.__bases__, type_kwargs), obj=obj)
+
+        # Now save the rest of obj's __dict__. Any references to obj
+        # encountered while saving will point to the skeleton class.
+        save(clsdict)
+
+        # Write a tuple of (skeleton_class, clsdict).
+        write(pickle.TUPLE)
+
+        # Call _rehydrate_skeleton_class(skeleton_class, clsdict)
+        write(pickle.REDUCE)
+
+    def save_function_tuple(self, func):
+        """  Pickles an actual func object.
+
+        A func comprises: code, globals, defaults, closure, and dict.  We
+        extract and save these, injecting reducing functions at certain points
+        to recreate the func object.  Keep in mind that some of these pieces
+        can contain a ref to the func itself.  Thus, a naive save on these
+        pieces could trigger an infinite loop of save's.  To get around that,
+        we first create a skeleton func object using just the code (this is
+        safe, since this won't contain a ref to the func), and memoize it as
+        soon as it's created.  The other stuff can then be filled in later.
+        """
+        if is_tornado_coroutine(func):
+            self.save_reduce(_rebuild_tornado_coroutine, (func.__wrapped__,),
+                             obj=func)
+            return
+
+        save = self.save
+        write = self.write
+
+        code, f_globals, defaults, closure_values, dct, base_globals = self.extract_func_data(func)
+
+        save(_fill_function)  # skeleton function updater
+        write(pickle.MARK)    # beginning of tuple that _fill_function expects
+
+        self._save_subimports(
+            code,
+            itertools.chain(f_globals.values(), closure_values or ()),
+        )
+
+        # create a skeleton function object and memoize it
+        save(_make_skel_func)
+        save((
+            code,
+            len(closure_values) if closure_values is not None else -1,
+            base_globals,
+        ))
+        write(pickle.REDUCE)
+        self.memoize(func)
+
+        # save the rest of the func data needed by _fill_function
+        state = {
+            'globals': f_globals,
+            'defaults': defaults,
+            'dict': dct,
+            'closure_values': closure_values,
+            'module': func.__module__,
+            'name': func.__name__,
+            'doc': func.__doc__,
+        }
+        if hasattr(func, '__annotations__'):
+            state['annotations'] = func.__annotations__
+        if hasattr(func, '__qualname__'):
+            state['qualname'] = func.__qualname__
+        save(state)
+        write(pickle.TUPLE)
+        write(pickle.REDUCE)  # applies _fill_function on the tuple
+
+    _extract_code_globals_cache = (
+        weakref.WeakKeyDictionary()
+        if sys.version_info >= (2, 7) and not hasattr(sys, "pypy_version_info")
+        else {})
+
+    @classmethod
+    def extract_code_globals(cls, co):
+        """
+        Find all globals names read or written to by codeblock co
+        """
+        out_names = cls._extract_code_globals_cache.get(co)
+        if out_names is None:
+            try:
+                names = co.co_names
+            except AttributeError:
+                # PyPy "builtin-code" object
+                out_names = set()
+            else:
+                out_names = set(names[oparg] for _, oparg in _walk_global_ops(co))
+
+                # see if nested function have any global refs
+                if co.co_consts:
+                    for const in co.co_consts:
+                        if type(const) is types.CodeType:
+                            out_names |= cls.extract_code_globals(const)
+
+            cls._extract_code_globals_cache[co] = out_names
+
+        return out_names
+
+    def extract_func_data(self, func):
+        """
+        Turn the function into a tuple of data necessary to recreate it:
+            code, globals, defaults, closure_values, dict
+        """
+        code = func.__code__
+
+        # extract all global ref's
+        func_global_refs = self.extract_code_globals(code)
+
+        # process all variables referenced by global environment
+        f_globals = {}
+        for var in func_global_refs:
+            if var in func.__globals__:
+                f_globals[var] = func.__globals__[var]
+
+        # defaults requires no processing
+        defaults = func.__defaults__
+
+        # process closure
+        closure = (
+            list(map(_get_cell_contents, func.__closure__))
+            if func.__closure__ is not None
+            else None
+        )
+
+        # save the dict
+        dct = func.__dict__
+
+        base_globals = self.globals_ref.get(id(func.__globals__), {})
+        self.globals_ref[id(func.__globals__)] = base_globals
+
+        return (code, f_globals, defaults, closure, dct, base_globals)
+
+    def save_builtin_function(self, obj):
+        if obj.__module__ == "__builtin__":
+            return self.save_global(obj)
+        return self.save_function(obj)
+
+    dispatch[types.BuiltinFunctionType] = save_builtin_function
+
+    def save_global(self, obj, name=None, pack=struct.pack):
+        """
+        Save a "global".
+
+        The name of this method is somewhat misleading: all types get
+        dispatched here.
+        """
+        if obj.__module__ == "__main__":
+            return self.save_dynamic_class(obj)
+
+        try:
+            return Pickler.save_global(self, obj, name=name)
+        except Exception:
+            if obj.__module__ == "__builtin__" or obj.__module__ == "builtins":
+                if obj in _BUILTIN_TYPE_NAMES:
+                    return self.save_reduce(
+                        _builtin_type, (_BUILTIN_TYPE_NAMES[obj],), obj=obj)
+
+            typ = type(obj)
+            if typ is not obj and isinstance(obj, (type, types.ClassType)):
+                return self.save_dynamic_class(obj)
+
+            raise
+
+    dispatch[type] = save_global
+    dispatch[types.ClassType] = save_global
+
+    def save_instancemethod(self, obj):
+        # Memoization rarely is ever useful due to python bounding
+        if obj.__self__ is None:
+            self.save_reduce(getattr, (obj.im_class, obj.__name__))
+        else:
+            if PY3:
+                self.save_reduce(types.MethodType, (obj.__func__, obj.__self__), obj=obj)
+            else:
+                self.save_reduce(types.MethodType, (obj.__func__, obj.__self__, obj.__self__.__class__),
+                                 obj=obj)
+
+    dispatch[types.MethodType] = save_instancemethod
+
+    def save_inst(self, obj):
+        """Inner logic to save instance. Based off pickle.save_inst"""
+        cls = obj.__class__
+
+        # Try the dispatch table (pickle module doesn't do it)
+        f = self.dispatch.get(cls)
+        if f:
+            f(self, obj)  # Call unbound method with explicit self
+            return
+
+        memo = self.memo
+        write = self.write
+        save = self.save
+
+        if hasattr(obj, '__getinitargs__'):
+            args = obj.__getinitargs__()
+            len(args)  # XXX Assert it's a sequence
+            pickle._keep_alive(args, memo)
+        else:
+            args = ()
+
+        write(pickle.MARK)
+
+        if self.bin:
+            save(cls)
+            for arg in args:
+                save(arg)
+            write(pickle.OBJ)
+        else:
+            for arg in args:
+                save(arg)
+            write(pickle.INST + cls.__module__ + '\n' + cls.__name__ + '\n')
+
+        self.memoize(obj)
+
+        try:
+            getstate = obj.__getstate__
+        except AttributeError:
+            stuff = obj.__dict__
+        else:
+            stuff = getstate()
+            pickle._keep_alive(stuff, memo)
+        save(stuff)
+        write(pickle.BUILD)
+
+    if not PY3:
+        dispatch[types.InstanceType] = save_inst
+
+    def save_property(self, obj):
+        # properties not correctly saved in python
+        self.save_reduce(property, (obj.fget, obj.fset, obj.fdel, obj.__doc__), obj=obj)
+
+    dispatch[property] = save_property
+
+    def save_classmethod(self, obj):
+        try:
+            orig_func = obj.__func__
+        except AttributeError:  # Python 2.6
+            orig_func = obj.__get__(None, object)
+            if isinstance(obj, classmethod):
+                orig_func = orig_func.__func__  # Unbind
+        self.save_reduce(type(obj), (orig_func,), obj=obj)
+
+    dispatch[classmethod] = save_classmethod
+    dispatch[staticmethod] = save_classmethod
+
+    def save_itemgetter(self, obj):
+        """itemgetter serializer (needed for namedtuple support)"""
+        class Dummy:
+            def __getitem__(self, item):
+                return item
+        items = obj(Dummy())
+        if not isinstance(items, tuple):
+            items = (items,)
+        return self.save_reduce(operator.itemgetter, items)
+
+    if type(operator.itemgetter) is type:
+        dispatch[operator.itemgetter] = save_itemgetter
+
+    def save_attrgetter(self, obj):
+        """attrgetter serializer"""
+        class Dummy(object):
+            def __init__(self, attrs, index=None):
+                self.attrs = attrs
+                self.index = index
+            def __getattribute__(self, item):
+                attrs = object.__getattribute__(self, "attrs")
+                index = object.__getattribute__(self, "index")
+                if index is None:
+                    index = len(attrs)
+                    attrs.append(item)
+                else:
+                    attrs[index] = ".".join([attrs[index], item])
+                return type(self)(attrs, index)
+        attrs = []
+        obj(Dummy(attrs))
+        return self.save_reduce(operator.attrgetter, tuple(attrs))
+
+    if type(operator.attrgetter) is type:
+        dispatch[operator.attrgetter] = save_attrgetter
+
+    def save_partial(self, obj):
+        """Partial objects do not serialize correctly in python2.x -- this fixes the bugs"""
+        self.save_reduce(_genpartial, (obj.func, obj.args, obj.keywords))
+
+    if sys.version_info < (2, 7):  # 2.7 supports partial pickling
+        dispatch[partial] = save_partial
+
+    def save_file(self, obj):
+        """Save a file"""
+        try:
+            import StringIO as pystringIO  # we can't use cStringIO as it lacks the name attribute
+        except ImportError:
+            import io as pystringIO
+
+        if not hasattr(obj, 'name') or not hasattr(obj, 'mode'):
+            raise pickle.PicklingError("Cannot pickle files that do not map to an actual file")
+        if obj is sys.stdout:
+            return self.save_reduce(getattr, (sys, 'stdout'), obj=obj)
+        if obj is sys.stderr:
+            return self.save_reduce(getattr, (sys, 'stderr'), obj=obj)
+        if obj is sys.stdin:
+            raise pickle.PicklingError("Cannot pickle standard input")
+        if obj.closed:
+            raise pickle.PicklingError("Cannot pickle closed files")
+        if hasattr(obj, 'isatty') and obj.isatty():
+            raise pickle.PicklingError("Cannot pickle files that map to tty objects")
+        if 'r' not in obj.mode and '+' not in obj.mode:
+            raise pickle.PicklingError("Cannot pickle files that are not opened for reading: %s" % obj.mode)
+
+        name = obj.name
+
+        retval = pystringIO.StringIO()
+
+        try:
+            # Read the whole file
+            curloc = obj.tell()
+            obj.seek(0)
+            contents = obj.read()
+            obj.seek(curloc)
+        except IOError:
+            raise pickle.PicklingError("Cannot pickle file %s as it cannot be read" % name)
+        retval.write(contents)
+        retval.seek(curloc)
+
+        retval.name = name
+        self.save(retval)
+        self.memoize(obj)
+
+    def save_ellipsis(self, obj):
+        self.save_reduce(_gen_ellipsis, ())
+
+    def save_not_implemented(self, obj):
+        self.save_reduce(_gen_not_implemented, ())
+
+    try:               # Python 2
+        dispatch[file] = save_file
+    except NameError:  # Python 3
+        dispatch[io.TextIOWrapper] = save_file
+
+    dispatch[type(Ellipsis)] = save_ellipsis
+    dispatch[type(NotImplemented)] = save_not_implemented
+
+    if hasattr(weakref, 'WeakSet'):
+        def save_weakset(self, obj):
+            self.save_reduce(weakref.WeakSet, (list(obj),))
+
+        dispatch[weakref.WeakSet] = save_weakset
+
+    def save_logger(self, obj):
+        self.save_reduce(logging.getLogger, (obj.name,), obj=obj)
+
+    dispatch[logging.Logger] = save_logger
+
+    def save_root_logger(self, obj):
+        self.save_reduce(logging.getLogger, (), obj=obj)
+
+    dispatch[logging.RootLogger] = save_root_logger
+
+    """Special functions for Add-on libraries"""
+    def inject_addons(self):
+        """Plug in system. Register additional pickling functions if modules already loaded"""
+        pass
+
+
+# Tornado support
+
+def is_tornado_coroutine(func):
+    """
+    Return whether *func* is a Tornado coroutine function.
+    Running coroutines are not supported.
+    """
+    if 'tornado.gen' not in sys.modules:
+        return False
+    gen = sys.modules['tornado.gen']
+    if not hasattr(gen, "is_coroutine_function"):
+        # Tornado version is too old
+        return False
+    return gen.is_coroutine_function(func)
+
+
+def _rebuild_tornado_coroutine(func):
+    from tornado import gen
+    return gen.coroutine(func)
+
+
+# Shorthands for legacy support
+
+def dump(obj, file, protocol=None, dump_code=False):
+    """Serialize obj as bytes streamed into file
+
+    protocol defaults to cloudpickle.DEFAULT_PROTOCOL which is an alias to
+    pickle.HIGHEST_PROTOCOL. This setting favors maximum communication speed
+    between processes running the same Python version.
+
+    Set protocol=pickle.DEFAULT_PROTOCOL instead if you need to ensure
+    compatibility with older versions of Python.
+    """
+    CloudPickler(file, protocol=protocol, dump_code=dump_code).dump(obj)
+
+
+def dumps(obj, protocol=None, dump_code=False):
+    """Serialize obj as a string of bytes allocated in memory
+
+    protocol defaults to cloudpickle.DEFAULT_PROTOCOL which is an alias to
+    pickle.HIGHEST_PROTOCOL. This setting favors maximum communication speed
+    between processes running the same Python version.
+
+    Set protocol=pickle.DEFAULT_PROTOCOL instead if you need to ensure
+    compatibility with older versions of Python.
+    """
+    file = StringIO()
+    try:
+        cp = CloudPickler(file, protocol=protocol, dump_code=dump_code)
+        cp.dump(obj)
+        return file.getvalue()
+    finally:
+        file.close()
+
+
+# here we use a customized unpickler version instead of the original one
+# to do code translation as well as dealing with sandbox in MaxCompute
+class CloudUnpickler(Unpickler):
+
+    dispatch = Unpickler.dispatch.copy()
+
+    def __init__(self, *args, **kwargs):
+        self._src_major, self._src_minor, self._src_impl = kwargs.pop('impl', None) or (None, None, None)
+        self._src_version = (self._src_major, self._src_minor) if self._src_major is not None else None
+
+        self._dump_code = kwargs.pop('dump_code', False)
+        Unpickler.__init__(self, *args, **kwargs)
+
+    def find_class(self, module, name):
+        # Subclasses may override this
+        try:
+            if PY3 and module == '__builtin__':
+                module = 'builtins'
+            __import__(module)
+
+            mod = sys.modules[module]
+            klass = getattr(mod, name)
+            return klass
+        except ImportError as e:
+            try:
+                return globals()[name]
+            except KeyError:
+                raise ImportError(str(e) + ', name: ' + name +
+                                  '\nYou need to use third-party library support '
+                                  'to run this module in MaxCompute clusters.')
+
+    def load_binint(self):
+        # Replace the internal implementation of pickle
+        # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
+        self.append(struct.unpack('<i', self.read(4))[0])
+    dispatch[pickle.BININT] = load_binint
+
+    def load_binint2(self):
+        # Replace the internal implementation of pickle
+        # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
+        self.append(struct.unpack('<i', self.read(2) + '\000\000')[0])
+    dispatch[pickle.BININT2] = load_binint2
+
+    def load_long4(self):
+        # Replace the internal implementation of pickle
+        # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
+        n = struct.unpack('<i', self.read(4))[0]
+        bytes = self.read(n)
+        self.append(pickle.decode_long(bytes))
+    dispatch[pickle.LONG4] = load_long4
+
+    def load_binstring(self):
+        # Replace the internal implementation of pickle
+        # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
+        len = struct.unpack('<i', self.read(4))[0]
+        self.append(self.read(len))
+    dispatch[pickle.BINSTRING] = load_binstring
+
+    def load_binunicode(self):
+        # Replace the internal implementation of pickle
+        # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
+        len = struct.unpack('<i', self.read(4))[0]
+        self.append(unicode(self.read(len), 'utf-8'))
+    dispatch[pickle.BINUNICODE] = load_binunicode
+
+    def load_ext2(self):
+        # Replace the internal implementation of pickle
+        # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
+        code = struct.unpack('<i', self.read(2) + '\000\000')[0]
+        self.get_extension(code)
+    dispatch[pickle.EXT2] = load_ext2
+
+    def load_ext4(self):
+        # Replace the internal implementation of pickle
+        # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
+        code = struct.unpack('<i', self.read(4))[0]
+        self.get_extension(code)
+    dispatch[pickle.EXT4] = load_ext4
+
+    def load_long_binget(self):
+        # Replace the internal implementation of pickle
+        # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
+        i = struct.unpack('<i', self.read(4))[0]
+        self.append(self.memo[repr(i)])
+    dispatch[pickle.LONG_BINGET] = load_long_binget
+
+    def load_long_binput(self):
+        # Replace the internal implementation of pickle
+        # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
+        i = struct.unpack('<i', self.read(4))[0]
+        self.memo[repr(i)] = self.stack[-1]
+    dispatch[pickle.LONG_BINPUT] = load_long_binput
+
+    def load_reduce(self):
+        # Replace the internal implementation of pickle
+        # cause code representation in Python 3 differs from that in Python 2
+        stack = self.stack
+        args = stack.pop()
+        func = stack[-1]
+        if self._src_version is not None:
+            if func.__name__ == 'code':
+                if sys.version_info[:2] == (2, 7):
+                    if self._src_version >= (3, 6):  # src >= PY36, dest PY27
+                        args = Cp36_Cp35(args).translate_code()
+                        args = Cp35_Cp27(args).translate_code()
+                    elif self._src_major == 3 and self._src_version <= (3, 5):  # src PY3 && src <= PY35, dest PY27
+                        args = Cp35_Cp27(args).translate_code()
+                    elif self._src_version == (2, 6):  # src PY26, dest PY27
+                        args = Cp26_Cp27(args).translate_code()
+                    elif not hasattr(sys, "pypy_version_info") and self._src_impl == 'pypy':
+                        args = Pypy2_Cp27(args).translate_code()
+                elif sys.version_info[:2] != self._src_version:
+                    raise NotImplementedError('Code conversion from Python %r to %r is not supported yet.'
+                                              % (self._src_version, sys.version_info[:2]))
+
+                if self._dump_code:
+                    print(args[9 if not PY3 else 10])
+                    dis.dis(args[4 if not PY3 else 5])
+                    sys.stdout.flush()
+            elif func.__name__ == 'type' or func.__name__ == 'classobj' or (
+                    isinstance(func, type) and issubclass(func, type)):
+                if not PY3:
+                    args = list(args)
+                    args[0] = args[0].encode('utf-8') if isinstance(args[0], unicode) else args[0]
+        try:
+            value = func(*args)
+        except Exception as exc:
+            raise Exception('Failed to unpickle reduce. func=%s mod=%s args=%s msg="%s"' % (
+            func.__name__, func.__module__, repr(args), str(exc)))
+        stack[-1] = value
+    dispatch[pickle.REDUCE] = load_reduce
+
+
+def load(file, impl=None, dump_code=False):
+    return CloudUnpickler(file, impl=impl, dump_code=dump_code).load()
+
+
+def loads(str, impl=None, dump_code=False):
+    file = StringIO(str)
+    return CloudUnpickler(file, impl=impl, dump_code=dump_code).load()
+
+
+# hack for __import__ not working as desired
+def subimport(name):
+    __import__(name)
+    return sys.modules[name]
+
+
+def dynamic_subimport(name, vars):
+    mod = imp.new_module(name)
+    mod.__dict__.update(vars)
+    sys.modules[name] = mod
+    return mod
+
+
+# restores function attributes
+def _restore_attr(obj, attr):
+    for key, val in attr.items():
+        setattr(obj, key, val)
+    return obj
+
+
+def _get_module_builtins():
+    return pickle.__builtins__
+
+
+def print_exec(stream):
+    ei = sys.exc_info()
+    traceback.print_exception(ei[0], ei[1], ei[2], None, stream)
+
+
+def _modules_to_main(modList):
+    """Force every module in modList to be placed into main"""
+    if not modList:
+        return
+
+    main = sys.modules['__main__']
+    for modname in modList:
+        if type(modname) is str:
+            try:
+                mod = __import__(modname)
+            except Exception:
+                sys.stderr.write('warning: could not import %s\n.  '
+                                 'Your function may unexpectedly error due to this import failing;'
+                                 'A version mismatch is likely.  Specific error was:\n' % modname)
+                print_exec(sys.stderr)
+            else:
+                setattr(main, mod.__name__, mod)
+
+
+# object generators:
+def _genpartial(func, args, kwds):
+    if not args:
+        args = ()
+    if not kwds:
+        kwds = {}
+    return partial(func, *args, **kwds)
+
+
+def _gen_ellipsis():
+    return Ellipsis
+
+
+def _gen_not_implemented():
+    return NotImplemented
+
+
+def _get_cell_contents(cell):
+    try:
+        return cell.cell_contents
+    except ValueError:
+        # sentinel used by ``_fill_function`` which will leave the cell empty
+        return _empty_cell_value
+
+
+def instance(cls):
+    """Create a new instance of a class.
+
+    Parameters
+    ----------
+    cls : type
+        The class to create an instance of.
+
+    Returns
+    -------
+    instance : cls
+        A new instance of ``cls``.
+    """
+    return cls()
+
+
+@instance
+class _empty_cell_value(object):
+    """sentinel for empty closures
+    """
+    @classmethod
+    def __reduce__(cls):
+        return cls.__name__
+
+
+def _fill_function(*args):
+    """Fills in the rest of function data into the skeleton function object
+
+    The skeleton itself is create by _make_skel_func().
+    """
+    if len(args) == 2:
+        func = args[0]
+        state = args[1]
+    elif len(args) == 5:
+        # Backwards compat for cloudpickle v0.4.0, after which the `module`
+        # argument was introduced
+        func = args[0]
+        keys = ['globals', 'defaults', 'dict', 'closure_values']
+        state = dict(zip(keys, args[1:]))
+    elif len(args) == 6:
+        # Backwards compat for cloudpickle v0.4.1, after which the function
+        # state was passed as a dict to the _fill_function it-self.
+        func = args[0]
+        keys = ['globals', 'defaults', 'dict', 'module', 'closure_values']
+        state = dict(zip(keys, args[1:]))
+    else:
+        raise ValueError('Unexpected _fill_value arguments: %r' % (args,))
+
+    func.__globals__.update(state['globals'])
+    func.__defaults__ = state['defaults']
+    func.__dict__ = state['dict']
+    if 'annotations' in state:
+        func.__annotations__ = state['annotations']
+    if 'doc' in state:
+        func.__doc__  = state['doc']
+    if 'name' in state:
+        func.__name__ = str(state['name'])
+    if 'module' in state:
+        func.__module__ = state['module']
+    if 'qualname' in state:
+        func.__qualname__ = state['qualname']
+
+    cells = func.__closure__
+    if cells is not None:
+        for cell, value in zip(cells, state['closure_values']):
+            if value is not _empty_cell_value:
+                cell_set(cell, value)
+
+    return func
+
+
+def _make_empty_cell():
+    if False:
+        # trick the compiler into creating an empty cell in our lambda
+        cell = None
+        raise AssertionError('this route should not be executed')
+
+    return (lambda: cell).__closure__[0]
+
+
+def _make_skel_func(code, cell_count, base_globals=None):
+    """ Creates a skeleton function object that contains just the provided
+        code and the correct number of cells in func_closure.  All other
+        func attributes (e.g. func_globals) are empty.
+    """
+    if base_globals is None:
+        base_globals = {}
+    base_globals['__builtins__'] = __builtins__
+
+    closure = (
+        tuple(_make_empty_cell() for _ in range(cell_count))
+        if cell_count >= 0 else
+        None
+    )
+    return types.FunctionType(code, base_globals, None, None, closure)
+
+
+def _rehydrate_skeleton_class(skeleton_class, class_dict):
+    """Put attributes from `class_dict` back on `skeleton_class`.
+
+    See CloudPickler.save_dynamic_class for more info.
+    """
+    for attrname, attr in class_dict.items():
+        setattr(skeleton_class, attrname, attr)
+    return skeleton_class
+
+
+def _find_module(mod_name):
+    """
+    Iterate over each part instead of calling imp.find_module directly.
+    This function is able to find submodules (e.g. scikit.tree)
+    """
+    path = None
+    for part in mod_name.split('.'):
+        if path is not None:
+            path = [path]
+        file, path, description = imp.find_module(part, path)
+        if file is not None:
+            file.close()
+    return path, description
+
+
+"""Constructors for 3rd party libraries
+Note: These can never be renamed due to client compatibility issues"""
+
+
+def _getobject(modname, attribute):
+    mod = __import__(modname, fromlist=[attribute])
+    return mod.__dict__[attribute]
+
+
+""" Use copy_reg to extend global pickle definitions """
+
+if sys.version_info < (3, 4):
+    method_descriptor = type(str.upper)
+
+    def _reduce_method_descriptor(obj):
+        return (getattr, (obj.__objclass__, obj.__name__))
+
+    try:
+        import copy_reg as copyreg
+    except ImportError:
+        import copyreg
+    copyreg.pickle(method_descriptor, _reduce_method_descriptor)
+
+
+"""
+Code blow resolves bytecode translation between py26 / py3 and py27
+"""
 # relevant opcodes
 BINARY_MATRIX_MULTIPLY_PY3 = 16
 BUILD_CLASS = opcode.opmap.get('BUILD_CLASS')
@@ -184,844 +1399,6 @@ STORE_NAME = opcode.opmap.get('STORE_NAME')
 STORE_FAST = opcode.opmap.get('STORE_FAST')
 UNPACK_SEQUENCE = opcode.opmap.get('UNPACK_SEQUENCE')
 
-DELETE_GLOBAL = dis.opname.index('DELETE_GLOBAL')
-LOAD_GLOBAL = dis.opname.index('LOAD_GLOBAL')
-STORE_GLOBAL = dis.opname.index('STORE_GLOBAL')
-GLOBAL_OPS = [STORE_GLOBAL, DELETE_GLOBAL, LOAD_GLOBAL]
-
-
-def islambda(func):
-    return getattr(func, '__name__') == '<lambda>'
-
-
-_BUILTIN_TYPE_NAMES = {}
-for k, v in types.__dict__.items():
-    if type(v) is type:
-        _BUILTIN_TYPE_NAMES[v] = k
-
-
-def _builtin_type(name):
-    return getattr(types, name)
-
-
-if sys.version_info < (3, 4):
-    def _walk_global_ops(code):
-        """
-        Yield (opcode, argument number) tuples for all
-        global-referencing instructions in *code*.
-        """
-        code = getattr(code, 'co_code', b'')
-        if not PY3:
-            code = map(ord, code)
-
-        n = len(code)
-        i = 0
-        extended_arg = 0
-        while i < n:
-            op = code[i]
-            i += 1
-            if op >= HAVE_ARGUMENT:
-                oparg = code[i] + code[i + 1] * 256 + extended_arg
-                extended_arg = 0
-                i += 2
-                if op == EXTENDED_ARG:
-                    extended_arg = oparg * 65536
-                if op in GLOBAL_OPS:
-                    yield op, oparg
-
-else:
-    def _walk_global_ops(code):
-        """
-        Yield (opcode, argument number) tuples for all
-        global-referencing instructions in *code*.
-        """
-        for instr in dis.get_instructions(code):
-            op = instr.opcode
-            if op in GLOBAL_OPS:
-                yield op, instr.arg
-
-def _extract_code_args(obj):
-    if PY3:
-        return (
-            obj.co_argcount, obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
-            obj.co_flags, obj.co_code, obj.co_consts, obj.co_names, obj.co_varnames,
-            obj.co_filename, obj.co_name, obj.co_firstlineno, obj.co_lnotab, obj.co_freevars,
-            obj.co_cellvars
-        )
-    else:
-        return (
-            obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags, obj.co_code,
-            obj.co_consts, obj.co_names, obj.co_varnames, obj.co_filename, obj.co_name,
-            obj.co_firstlineno, obj.co_lnotab, obj.co_freevars, obj.co_cellvars
-        )
-
-
-class CloudPickler(Pickler):
-
-    dispatch = Pickler.dispatch.copy()
-
-    def __init__(self, file, protocol=None, dump_code=False):
-        Pickler.__init__(self, file, protocol)
-        # set of modules to unpickle
-        self.modules = set()
-        # map ids to dictionary. used to ensure that functions can share global env
-        self.globals_ref = {}
-        self.dump_code = dump_code
-
-    def dump(self, obj):
-        self.inject_addons()
-        try:
-            return Pickler.dump(self, obj)
-        except RuntimeError as e:
-            if 'recursion' in e.args[0]:
-                msg = """Could not pickle object as excessively deep recursion required."""
-                raise pickle.PicklingError(msg)
-        except pickle.PickleError:
-            raise
-        except Exception as e:
-            if "'i' format requires" in e.message:
-                msg = "Object too large to serialize: " + e.message
-            else:
-                msg = "Could not serialize object: " + e.__class__.__name__ + ": " + e.message
-            print_exec(sys.stderr)
-            raise pickle.PicklingError(msg)
-
-    def save_memoryview(self, obj):
-        """Fallback to save_string"""
-        Pickler.save_string(self, str(obj))
-
-    def save_buffer(self, obj):
-        """Fallback to save_string"""
-        Pickler.save_string(self,str(obj))
-    if PY3:
-        dispatch[memoryview] = save_memoryview
-    else:
-        dispatch[buffer] = save_buffer
-
-    def save_unsupported(self, obj):
-        raise pickle.PicklingError("Cannot pickle objects of type %s" % type(obj))
-    dispatch[types.GeneratorType] = save_unsupported
-
-    # itertools objects do not pickle!
-    for v in itertools.__dict__.values():
-        if type(v) is type:
-            dispatch[v] = save_unsupported
-
-    def save_module(self, obj):
-        """
-        Save a module as an import
-        """
-        self.modules.add(obj)
-        self.save_reduce(subimport, (obj.__name__,), obj=obj)
-    dispatch[types.ModuleType] = save_module
-
-    def save_codeobject(self, obj):
-        """
-        Save a code object
-        """
-        args = _extract_code_args(obj)
-        if self.dump_code:
-            print(obj.co_name)
-            dis.dis(obj.co_code)
-        self.save_reduce(types.CodeType, args, obj=obj)
-    dispatch[types.CodeType] = save_codeobject
-
-    def save_function(self, obj, name=None):
-        """ Registered with the dispatch to handle all function types.
-
-        Determines what kind of function obj is (e.g. lambda, defined at
-        interactive prompt, etc) and handles the pickling appropriately.
-        """
-        write = self.write
-
-        if name is None:
-            name = obj.__name__
-        try:
-            modname = pickle.whichmodule(obj, name)
-        except Exception:
-            modname = None
-        # print('which gives %s %s %s' % (modname, obj, name))
-        try:
-            # whichmodule() could fail, see
-            # https://bitbucket.org/gutworth/six/issues/63/importing-six-breaks-pickling
-            themodule = sys.modules[modname]
-        except KeyError:
-            # eval'd items such as namedtuple give invalid items for their function __module__
-            modname = '__main__'
-
-        if modname == '__main__':
-            themodule = None
-
-        if themodule:
-            self.modules.add(themodule)
-            if getattr(themodule, name, None) is obj:
-                return self.save_global(obj, name)
-
-        # if func is lambda, def'ed at prompt, is in main, or is nested, then
-        # we'll pickle the actual function object rather than simply saving a
-        # reference (as is done in default pickler), via save_function_tuple.
-        if islambda(obj) or obj.__code__.co_filename == '<stdin>' or themodule is None:
-            #print("save global", islambda(obj), obj.__code__.co_filename, modname, themodule)
-            self.save_function_tuple(obj)
-            return
-        else:
-            # func is nested
-            klass = getattr(themodule, name, None)
-            if klass is None or klass is not obj:
-                self.save_function_tuple(obj)
-                return
-
-        if obj.__dict__:
-            # essentially save_reduce, but workaround needed to avoid recursion
-            self.save(_restore_attr)
-            write(pickle.MARK + pickle.GLOBAL + modname + '\n' + name + '\n')
-            self.memoize(obj)
-            self.save(obj.__dict__)
-            write(pickle.TUPLE + pickle.REDUCE)
-        else:
-            write(pickle.GLOBAL + modname + '\n' + name + '\n')
-            self.memoize(obj)
-    dispatch[types.FunctionType] = save_function
-
-    def save_function_tuple(self, func):
-        """  Pickles an actual func object.
-
-        A func comprises: code, globals, defaults, closure, and dict.  We
-        extract and save these, injecting reducing functions at certain points
-        to recreate the func object.  Keep in mind that some of these pieces
-        can contain a ref to the func itself.  Thus, a naive save on these
-        pieces could trigger an infinite loop of save's.  To get around that,
-        we first create a skeleton func object using just the code (this is
-        safe, since this won't contain a ref to the func), and memoize it as
-        soon as it's created.  The other stuff can then be filled in later.
-        """
-        save = self.save
-        write = self.write
-
-        code, f_globals, defaults, closure, dct, base_globals = self.extract_func_data(func)
-
-        save(_fill_function)  # skeleton function updater
-        write(pickle.MARK)    # beginning of tuple that _fill_function expects
-
-        # create a skeleton function object and memoize it
-        save(_make_skel_func)
-        save((code, closure, base_globals))
-        write(pickle.REDUCE)
-        self.memoize(func)
-
-        # save the rest of the func data needed by _fill_function
-        save(f_globals)
-        save(defaults)
-        save(dct)
-        save(func.__module__)
-        write(pickle.TUPLE)
-        write(pickle.REDUCE)  # applies _fill_function on the tuple
-
-    _extract_code_globals_cache = (
-        weakref.WeakKeyDictionary()
-        if sys.version_info >= (2, 7) and not hasattr(sys, "pypy_version_info")
-        else {})
-
-    @classmethod
-    def extract_code_globals(cls, co):
-        """
-        Find all globals names read or written to by codeblock co
-        """
-        out_names = cls._extract_code_globals_cache.get(co)
-        if out_names is None:
-            try:
-                names = co.co_names
-            except AttributeError:
-                # PyPy "builtin-code" object
-                out_names = set()
-            else:
-                out_names = set(names[oparg]
-                                for op, oparg in _walk_global_ops(co))
-
-                # see if nested function have any global refs
-                if co.co_consts:
-                    for const in co.co_consts:
-                        if type(const) is types.CodeType:
-                            out_names |= cls.extract_code_globals(const)
-
-            cls._extract_code_globals_cache[co] = out_names
-
-        return out_names
-
-    def extract_func_data(self, func):
-        """
-        Turn the function into a tuple of data necessary to recreate it:
-            code, globals, defaults, closure, dict
-        """
-        code = func.__code__
-
-        # extract all global ref's
-        func_global_refs = self.extract_code_globals(code)
-
-        # process all variables referenced by global environment
-        f_globals = {}
-        for var in func_global_refs:
-            if var in func.__globals__:
-                f_globals[var] = func.__globals__[var]
-
-        # defaults requires no processing
-        defaults = func.__defaults__
-
-        # process closure
-        closure = [c.cell_contents for c in func.__closure__] if func.__closure__ else []
-
-        # save the dict
-        dct = func.__dict__
-
-        base_globals = self.globals_ref.get(id(func.__globals__), {})
-        self.globals_ref[id(func.__globals__)] = base_globals
-
-        return (code, f_globals, defaults, closure, dct, base_globals)
-
-    def save_builtin_function(self, obj):
-        if obj.__module__ is "__builtin__":
-            return self.save_global(obj)
-        return self.save_function(obj)
-    dispatch[types.BuiltinFunctionType] = save_builtin_function
-
-    def save_global(self, obj, name=None, pack=struct.pack):
-        if obj.__module__ == "__builtin__" or obj.__module__ == "builtins":
-            if obj in _BUILTIN_TYPE_NAMES:
-                return self.save_reduce(_builtin_type, (_BUILTIN_TYPE_NAMES[obj],), obj=obj)
-
-        if name is None:
-            name = obj.__name__
-
-        modname = getattr(obj, "__module__", None)
-        if modname is None:
-            try:
-                # whichmodule() could fail, see
-                # https://bitbucket.org/gutworth/six/issues/63/importing-six-breaks-pickling
-                modname = pickle.whichmodule(obj, name)
-            except Exception:
-                modname = '__main__'
-
-        if modname == '__main__':
-            themodule = None
-        else:
-            __import__(modname)
-            themodule = sys.modules[modname]
-            self.modules.add(themodule)
-
-        if hasattr(themodule, name) and getattr(themodule, name) is obj:
-            return Pickler.save_global(self, obj, name)
-
-        typ = type(obj)
-        if typ is not obj and isinstance(obj, (type, types.ClassType)):
-            d = dict(obj.__dict__)  # copy dict proxy to a dict
-            if not isinstance(d.get('__dict__', None), property):
-                # don't extract dict that are properties
-                d.pop('__dict__', None)
-            d.pop('__weakref__', None)
-
-            # hack as __new__ is stored differently in the __dict__
-            new_override = d.get('__new__', None)
-            if new_override:
-                d['__new__'] = obj.__new__
-
-            self.save_reduce(typ, (obj.__name__, obj.__bases__, d), obj=obj)
-        else:
-            raise pickle.PicklingError("Can't pickle %r" % obj)
-
-    dispatch[type] = save_global
-    dispatch[types.ClassType] = save_global
-
-    def save_instancemethod(self, obj):
-        # Memoization rarely is ever useful due to python bounding
-        if PY3:
-            self.save_reduce(types.MethodType, (obj.__func__, obj.__self__), obj=obj)
-        else:
-            self.save_reduce(types.MethodType, (obj.__func__, obj.__self__, obj.__self__.__class__),
-                         obj=obj)
-    dispatch[types.MethodType] = save_instancemethod
-
-    def save_inst(self, obj):
-        """Inner logic to save instance. Based off pickle.save_inst
-        Supports __transient__"""
-        cls = obj.__class__
-
-        memo = self.memo
-        write = self.write
-        save = self.save
-
-        if hasattr(obj, '__getinitargs__'):
-            args = obj.__getinitargs__()
-            len(args)  # XXX Assert it's a sequence
-            pickle._keep_alive(args, memo)
-        else:
-            args = ()
-
-        write(pickle.MARK)
-
-        if self.bin:
-            save(cls)
-            for arg in args:
-                save(arg)
-            write(pickle.OBJ)
-        else:
-            for arg in args:
-                save(arg)
-            write(pickle.INST + cls.__module__ + '\n' + cls.__name__ + '\n')
-
-        self.memoize(obj)
-
-        try:
-            getstate = obj.__getstate__
-        except AttributeError:
-            stuff = obj.__dict__
-            #remove items if transient
-            if hasattr(obj, '__transient__'):
-                transient = obj.__transient__
-                stuff = stuff.copy()
-                for k in list(stuff.keys()):
-                    if k in transient:
-                        del stuff[k]
-        else:
-            stuff = getstate()
-            pickle._keep_alive(stuff, memo)
-        save(stuff)
-        write(pickle.BUILD)
-
-    if not PY3:
-        dispatch[types.InstanceType] = save_inst
-
-    def save_property(self, obj):
-        # properties not correctly saved in python
-        self.save_reduce(property, (obj.fget, obj.fset, obj.fdel, obj.__doc__), obj=obj)
-    dispatch[property] = save_property
-
-    def save_classmethod(self, obj):
-        try:
-            orig_func = obj.__func__
-        except AttributeError:  # Python 2.6
-            orig_func = obj.__get__(None, object)
-            if isinstance(obj, classmethod):
-                orig_func = orig_func.__func__  # Unbind
-        self.save_reduce(type(obj), (orig_func,), obj=obj)
-    dispatch[classmethod] = save_classmethod
-    dispatch[staticmethod] = save_classmethod
-
-    def save_itemgetter(self, obj):
-        """itemgetter serializer (needed for namedtuple support)"""
-        class Dummy:
-            def __getitem__(self, item):
-                return item
-        items = obj(Dummy())
-        if not isinstance(items, tuple):
-            items = (items, )
-        return self.save_reduce(operator.itemgetter, items)
-
-    if type(operator.itemgetter) is type:
-        dispatch[operator.itemgetter] = save_itemgetter
-
-    def save_attrgetter(self, obj):
-        """attrgetter serializer"""
-        class Dummy(object):
-            def __init__(self, attrs, index=None):
-                self.attrs = attrs
-                self.index = index
-            def __getattribute__(self, item):
-                attrs = object.__getattribute__(self, "attrs")
-                index = object.__getattribute__(self, "index")
-                if index is None:
-                    index = len(attrs)
-                    attrs.append(item)
-                else:
-                    attrs[index] = ".".join([attrs[index], item])
-                return type(self)(attrs, index)
-        attrs = []
-        obj(Dummy(attrs))
-        return self.save_reduce(operator.attrgetter, tuple(attrs))
-
-    if type(operator.attrgetter) is type:
-        dispatch[operator.attrgetter] = save_attrgetter
-
-    def save_reduce(self, func, args, state=None,
-                    listitems=None, dictitems=None, obj=None):
-        """Modified to support __transient__ on new objects
-        Change only affects protocol level 2 (which is always used by PiCloud"""
-        # Assert that args is a tuple or None
-        if not isinstance(args, tuple):
-            raise pickle.PicklingError("args from reduce() should be a tuple")
-
-        # Assert that func is callable
-        if not hasattr(func, '__call__'):
-            raise pickle.PicklingError("func from reduce should be callable")
-
-        save = self.save
-        write = self.write
-
-        # Protocol 2 special case: if func's name is __newobj__, use NEWOBJ
-        if self.proto >= 2 and getattr(func, "__name__", "") == "__newobj__":
-            #Added fix to allow transient
-            cls = args[0]
-            if not hasattr(cls, "__new__"):
-                raise pickle.PicklingError(
-                    "args[0] from __newobj__ args has no __new__")
-            if obj is not None and cls is not obj.__class__:
-                raise pickle.PicklingError(
-                    "args[0] from __newobj__ args has the wrong class")
-            args = args[1:]
-            save(cls)
-
-            #Don't pickle transient entries
-            if hasattr(obj, '__transient__'):
-                transient = obj.__transient__
-                state = state.copy()
-
-                for k in list(state.keys()):
-                    if k in transient:
-                        del state[k]
-
-            save(args)
-            write(pickle.NEWOBJ)
-        else:
-            save(func)
-            save(args)
-            write(pickle.REDUCE)
-
-        # modify here to avoid assert error
-        if obj is not None and id(obj) not in self.memo:
-            self.memoize(obj)
-
-        # More new special cases (that work with older protocols as
-        # well): when __reduce__ returns a tuple with 4 or 5 items,
-        # the 4th and 5th item should be iterators that provide list
-        # items and dict items (as (key, value) tuples), or None.
-
-        if listitems is not None:
-            self._batch_appends(listitems)
-
-        if dictitems is not None:
-            self._batch_setitems(dictitems)
-
-        if state is not None:
-            save(state)
-            write(pickle.BUILD)
-
-    def save_partial(self, obj):
-        """Partial objects do not serialize correctly in python2.x -- this fixes the bugs"""
-        self.save_reduce(_genpartial, (obj.func, obj.args, obj.keywords))
-
-    if sys.version_info < (2,7):  # 2.7 supports partial pickling
-        dispatch[partial] = save_partial
-
-    def save_file(self, obj):
-        """Save a file"""
-        try:
-            import StringIO as pystringIO #we can't use cStringIO as it lacks the name attribute
-        except ImportError:
-            import io as pystringIO
-
-        if not hasattr(obj, 'name') or  not hasattr(obj, 'mode'):
-            raise pickle.PicklingError("Cannot pickle files that do not map to an actual file")
-        if obj is sys.stdout:
-            return self.save_reduce(getattr, (sys,'stdout'), obj=obj)
-        if obj is sys.stderr:
-            return self.save_reduce(getattr, (sys,'stderr'), obj=obj)
-        if obj is sys.stdin:
-            raise pickle.PicklingError("Cannot pickle standard input")
-        if obj.closed:
-            raise pickle.PicklingError("Cannot pickle closed files")
-        if hasattr(obj, 'isatty') and obj.isatty():
-            raise pickle.PicklingError("Cannot pickle files that map to tty objects")
-        if 'r' not in obj.mode and '+' not in obj.mode:
-            raise pickle.PicklingError("Cannot pickle files that are not opened for reading: %s" % obj.mode)
-
-        name = obj.name
-
-        retval = pystringIO.StringIO()
-
-        try:
-            # Read the whole file
-            curloc = obj.tell()
-            obj.seek(0)
-            contents = obj.read()
-            obj.seek(curloc)
-        except IOError:
-            raise pickle.PicklingError("Cannot pickle file %s as it cannot be read" % name)
-        retval.write(contents)
-        retval.seek(curloc)
-
-        retval.name = name
-        self.save(retval)
-        self.memoize(obj)
-
-    if PY3:
-        dispatch[io.TextIOWrapper] = save_file
-    else:
-        dispatch[file] = save_file
-
-    """Special functions for Add-on libraries"""
-    def inject_addons(self):
-        """Plug in system. Register additional pickling functions if modules already loaded"""
-        pass
-
-
-# Shorthands for legacy support
-
-def dump(obj, file, protocol=2, dump_code=False):
-    CloudPickler(file, protocol, dump_code).dump(obj)
-
-
-def dumps(obj, protocol=2, dump_code=False):
-    file = StringIO()
-
-    cp = CloudPickler(file, protocol, dump_code)
-    cp.dump(obj)
-
-    return file.getvalue()
-
-# including pickles unloading functions in this namespace
-if PY3:
-    from pickle import _Unpickler as Unpickler
-else:
-    from pickle import Unpickler
-
-class CloudUnpickler(Unpickler):
-    def __init__(self, *args, **kwargs):
-        self._src_major, self._src_minor, self._src_impl = kwargs.pop('impl', None) or (2, 7, 'cpython')
-        self._src_version = (self._src_major, self._src_minor)
-
-        self._dump_code = kwargs.pop('dump_code', False)
-        Unpickler.__init__(self, *args, **kwargs)
-
-        self._override_dispatch(pickle.BININT, self.load_binint)
-        self._override_dispatch(pickle.BININT2, self.load_binint2)
-        self._override_dispatch(pickle.LONG4, self.load_long4)
-        self._override_dispatch(pickle.BINSTRING, self.load_binstring)
-        self._override_dispatch(pickle.BINUNICODE, self.load_binunicode)
-        self._override_dispatch(pickle.EXT2, self.load_ext2)
-        self._override_dispatch(pickle.EXT4, self.load_ext4)
-        self._override_dispatch(pickle.LONG_BINGET, self.load_long_binget)
-        self._override_dispatch(pickle.LONG_BINPUT, self.load_long_binput)
-        self._override_dispatch(pickle.REDUCE, self.load_reduce)
-
-    def _override_dispatch(self, code, func_name):
-        if callable(func_name):
-            func_name = func_name.__name__
-        lm = lambda x: getattr(x, func_name)()
-        lm.__name__ = func_name
-        self.dispatch[code] = lm
-
-    def find_class(self, module, name):
-        # Subclasses may override this
-        try:
-            if PY3 and module == '__builtin__':
-                module = 'builtins'
-            __import__(module)
-
-            mod = sys.modules[module]
-            klass = getattr(mod, name)
-            return klass
-        except ImportError as e:
-            try:
-                return globals()[name]
-            except KeyError:
-                raise ImportError(str(e) + ', name: ' + name +
-                                  '\nYou need to use third-party library support '
-                                  'to run this module in MaxCompute clusters.')
-
-    def load_binint(self):
-        # Replace the internal implementation of pickle
-        # cause `marshal.loads` has been blocked by the ODPS python sandbox.
-        self.append(struct.unpack('<i', self.read(4))[0])
-
-    def load_binint2(self):
-        # Replace the internal implementation of pickle
-        # cause `marshal.loads` has been blocked by the ODPS python sandbox.
-        self.append(struct.unpack('<i', self.read(2) + '\000\000')[0])
-
-    def load_long4(self):
-        # Replace the internal implementation of pickle
-        # cause `marshal.loads` has been blocked by the ODPS python sandbox.
-        n = struct.unpack('<i', self.read(4))[0]
-        bytes = self.read(n)
-        self.append(pickle.decode_long(bytes))
-
-    def load_binstring(self):
-        # Replace the internal implementation of pickle
-        # cause `marshal.loads` has been blocked by the ODPS python sandbox.
-        len = struct.unpack('<i', self.read(4))[0]
-        self.append(self.read(len))
-
-    def load_binunicode(self):
-        # Replace the internal implementation of pickle
-        # cause `marshal.loads` has been blocked by the ODPS python sandbox.
-        len = struct.unpack('<i', self.read(4))[0]
-        self.append(unicode(self.read(len), 'utf-8'))
-
-    def load_ext2(self):
-        # Replace the internal implementation of pickle
-        # cause `marshal.loads` has been blocked by the ODPS python sandbox.
-        code = struct.unpack('<i', self.read(2) + '\000\000')[0]
-        self.get_extension(code)
-
-    def load_ext4(self):
-        # Replace the internal implementation of pickle
-        # cause `marshal.loads` has been blocked by the ODPS python sandbox.
-        code = struct.unpack('<i', self.read(4))[0]
-        self.get_extension(code)
-
-    def load_long_binget(self):
-        # Replace the internal implementation of pickle
-        # cause `marshal.loads` has been blocked by the ODPS python sandbox.
-        i = struct.unpack('<i', self.read(4))[0]
-        self.append(self.memo[repr(i)])
-
-    def load_long_binput(self):
-        # Replace the internal implementation of pickle
-        # cause `marshal.loads` has been blocked by the ODPS python sandbox.
-        i = struct.unpack('<i', self.read(4))[0]
-        self.memo[repr(i)] = self.stack[-1]
-
-    @classmethod
-    def _code_compat_36_to_27(cls, code_args):
-        # only works under Python 2.7
-        code_args = Cp36_Cp35(code_args).translate_code()
-        return Cp35_Cp27(code_args).translate_code()
-
-    def load_reduce(self):
-        # Replace the internal implementation of pickle
-        # cause code representation in Python 3 differs from that in Python 2
-        stack = self.stack
-        args = stack.pop()
-        func = stack[-1]
-        if func.__name__ == 'code':
-            if PY27 and self._src_version >= (3, 6):  # src >= PY36, dest PY27
-                args = self._code_compat_36_to_27(args)
-            elif PY27 and self._src_major == 3 and self._src_version <= (3, 5):  # src PY3 && src <= PY35, dest PY27
-                args = Cp35_Cp27(args).translate_code()
-            elif PY27 and self._src_version == (2, 6):  # src PY26, dest PY27
-                args = Cp26_Cp27(args).translate_code()
-            elif PY27 and not PYPY and self._src_impl == 'pypy':
-                args = Pypy2_Cp27(args).translate_code()
-
-            if self._dump_code:
-                print(args[9 if not PY3 else 10])
-                dis.dis(args[4 if not PY3 else 5])
-                sys.stdout.flush()
-        elif func.__name__ == 'tablecode':
-            if JYTHON:
-                from org.python.core import PyBytecode
-                func = PyBytecode
-        elif func.__name__ == 'type' or func.__name__ == 'classobj' or (isinstance(func, type) and issubclass(func, type)):
-            if not PY3:
-                args = list(args)
-                args[0] = args[0].encode('utf-8') if isinstance(args[0], unicode) else args[0]
-        try:
-            value = func(*args)
-        except Exception as exc:
-            raise Exception('Failed to unpickle reduce. func=%s mod=%s args=%s msg="%s"' % (func.__name__, func.__module__, repr(args), str(exc)))
-        stack[-1] = value
-
-
-def load(file, impl=None, dump_code=False):
-    return CloudUnpickler(file, impl=impl, dump_code=dump_code).load()
-
-
-def loads(str, impl=None, dump_code=False):
-    file = StringIO(str)
-    return CloudUnpickler(file, impl=impl, dump_code=dump_code).load()
-
-
-#hack for __import__ not working as desired
-def subimport(name):
-    __import__(name)
-    return sys.modules[name]
-
-
-# restores function attributes
-def _restore_attr(obj, attr):
-    for key, val in attr.items():
-        setattr(obj, key, val)
-    return obj
-
-
-def _get_module_builtins():
-    return pickle.__builtins__
-
-
-def print_exec(stream):
-    ei = sys.exc_info()
-    traceback.print_exception(ei[0], ei[1], ei[2], None, stream)
-
-
-def _modules_to_main(modList):
-    """Force every module in modList to be placed into main"""
-    if not modList:
-        return
-
-    main = sys.modules['__main__']
-    for modname in modList:
-        if type(modname) is str:
-            try:
-                mod = __import__(modname)
-            except Exception as e:
-                sys.stderr.write('Warning: could not import %s\n.  '
-                                 'Your function may unexpectedly error due to this import failing;'
-                                 'A version mismatch is likely.  Specific error was:\n' % modname)
-                print_exec(sys.stderr)
-            else:
-                setattr(main, mod.__name__, mod)
-
-
-#object generators:
-def _genpartial(func, args, kwds):
-    if not args:
-        args = ()
-    if not kwds:
-        kwds = {}
-    return partial(func, *args, **kwds)
-
-
-def _fill_function(func, globals, defaults, dict, module):
-    """ Fills in the rest of function data into the skeleton function object
-        that were created via _make_skel_func().
-         """
-    func.__globals__.update(globals)
-    func.__defaults__ = defaults
-    func.__dict__ = dict
-    func.__module__ = module
-
-    return func
-
-
-def _make_cell(value):
-    return (lambda: value).__closure__[0]
-
-
-def _reconstruct_closure(values):
-    return tuple([_make_cell(v) for v in values])
-
-
-def _make_skel_func(code, closures, base_globals = None):
-    """ Creates a skeleton function object that contains just the provided
-        code and the correct number of cells in func_closure.  All other
-        func attributes (e.g. func_globals) are empty.
-    """
-    closure = _reconstruct_closure(closures) if closures else None
-
-    if base_globals is None:
-        base_globals = {}
-    base_globals['__builtins__'] = __builtins__
-
-    return types.FunctionType(code, base_globals,
-                              None, None, closure)
-
-
-"""Constructors for 3rd party libraries
-Note: These can never be renamed due to client compatibility issues"""
-
-def _getobject(modname, attribute):
-    mod = __import__(modname, fromlist=[attribute])
-    return mod.__dict__[attribute]
-
 
 def op_translator(op):
     if not isinstance(op, (list, set)):
@@ -1057,12 +1434,16 @@ class CodeRewriterMeta(type):
         cls._translator = translator_dict
 
 
-class CodeRewriter(with_metaclass(CodeRewriterMeta)):
+class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
+    _translator = dict()
+
     CO_NLOCALS_POS = None
     CO_CODE_POS = None
     CO_CONSTS_POS = None
     CO_NAMES_POS = None
     CO_VARNAMES_POS = None
+    CO_FILENAME_POS = None
+    CO_NAME_POS = None
     CO_FREEVARS_POS = None
     CO_CELLVARS_POS = None
     CO_LNOTAB_POS = None
@@ -1073,7 +1454,7 @@ class CodeRewriter(with_metaclass(CodeRewriterMeta)):
         self._const_poses = dict()
         self._name_poses = dict()
         self._varname_poses = dict()
-        self.code_writer = BytesIO()
+        self.code_writer = StringIO()
 
     def _patch_code_tuple(self, offset, reg, key, *args):
         poses = []
@@ -1142,12 +1523,39 @@ class CodeRewriter(with_metaclass(CodeRewriterMeta)):
     def _reassign_lnotab(lnotab, old_to_new):
         sio = StringIO()
         cur_old_pc = 0
+        cur_line, last_line = 0, 0
         cur_new_pc, last_new_pc = 0, 0
-        for pdelta, ldelta in zip(lnotab[::2], lnotab[1::2]):
-            cur_old_pc += ord(pdelta)
-            last_new_pc = cur_new_pc
+        for old_pc_delta, line_delta in zip(lnotab[::2], lnotab[1::2]):
+            old_pc_delta = ord(old_pc_delta)
+
+            line_delta = ord(line_delta)
+            if line_delta >= 0x80:
+                line_delta -= 0x100
+            cur_line += line_delta
+            cur_old_pc += old_pc_delta
+
             cur_new_pc = old_to_new[cur_old_pc]
-            sio.write(bytes(bytearray([cur_new_pc - last_new_pc, ord(ldelta)])))
+
+            line_delta = cur_line - last_line
+            pc_delta = cur_new_pc - last_new_pc
+
+            while pc_delta >= 0x100:
+                sio.write(bytes(bytearray([0xff, 0])))
+                pc_delta -= 0xff
+            while line_delta >= 0x80:
+                sio.write(bytes(bytearray([0x7f, pc_delta])))
+                pc_delta = 0
+                line_delta -= 0x7f
+            while line_delta < -128:
+                sio.write(bytes(bytearray([0xff, pc_delta])))
+                pc_delta = 0
+                line_delta += 128
+
+            if pc_delta or line_delta:
+                sio.write(bytes(bytearray([pc_delta, (line_delta + 0x100) % 0x100])))
+
+            last_new_pc = cur_new_pc
+            last_line = cur_line
         return sio.getvalue()
 
     def patch_consts(self, *args):
@@ -1263,6 +1671,8 @@ class Py2CodeRewriter(CodeRewriter):
     CO_CONSTS_POS = 5
     CO_NAMES_POS = 6
     CO_VARNAMES_POS = 7
+    CO_FILENAME_POS = 8
+    CO_NAME_POS = 9
     CO_LNOTAB_POS = 11
     CO_FREEVARS_POS = 12
     CO_CELLVARS_POS = 13
@@ -1275,6 +1685,8 @@ class Py3CodeRewriter(CodeRewriter):
     CO_CONSTS_POS = 6
     CO_NAMES_POS = 7
     CO_VARNAMES_POS = 8
+    CO_FILENAME_POS = 9
+    CO_NAME_POS = 10
     CO_LNOTAB_POS = 12
     CO_FREEVARS_POS = 13
     CO_CELLVARS_POS = 14
@@ -1360,12 +1772,12 @@ class Cp35_Cp27(Py3CodeRewriter):
         # Stack structure: (class_name, base_classes_tuple, method dictionary)
         metacls = kwds.pop('metaclass', None)
         bases = tuple(bases)
-        code_args = list(_extract_code_args(func.__code__))
+        code_args = list(CloudPickler._extract_code_args(func.__code__))
 
         # start translating code
         consts = code_args[5]
         n_consts = len(consts)
-        name_cid, base_cid, metaclass_cid = lrange(n_consts, n_consts + 3)
+        name_cid, base_cid, metaclass_cid = irange(n_consts, n_consts + 3)
         code_args[5] = consts + (name, bases, metacls)
 
         names = code_args[6]
@@ -1428,13 +1840,26 @@ class Cp35_Cp27(Py3CodeRewriter):
         return d
 
     @staticmethod
+    def _conv_import_from_list(args):
+        v = args[0]
+        if not v:
+            return v
+        return tuple(to_ascii(a) for a in v)
+
+    @staticmethod
     def _matmul(args):
-        import numpy as np
+        try:
+            import numpy as np
+        except ImportError:
+            raise
         return np.dot(args[0], args[1])
 
     @staticmethod
     def _imatmul(args):
-        import numpy as np
+        try:
+            import numpy as np
+        except ImportError:
+            raise
         return np.dot(args[0], args[1], out=args[0])
 
     @op_translator(DELETE_DEREF_PY3)
@@ -1537,21 +1962,28 @@ class Cp35_Cp27(Py3CodeRewriter):
         # we can safely skip POP_EXCEPT in python 2
         return 0
 
+    @op_translator(IMPORT_NAME)
+    def handle_import_name(self, arg):
+        return sum([
+            self.write_replacement_call(self._conv_import_from_list, 1),
+            self.write_instruction(IMPORT_NAME, arg),
+        ])
+
     @staticmethod
     def _conv_string_tuples(tp):
         if not PY3:
             return tuple(s.encode('utf-8') if isinstance(s, unicode) else s for s in tp)
         else:
-            return tuple(str(s) if isinstance(s, bytes) else s for s in tp)
+            return tuple(s.decode('utf-8') if isinstance(s, bytes) else s for s in tp)
 
     def translate_code(self):
         code_args = super(Cp35_Cp27, self).translate_code()
 
-        # 7: co_names, 8: co_varnames, 13: co_freevars
-        for col in (6, 7, 8, 13, 14):
+        for col in (self.CO_CONSTS_POS, self.CO_NAMES_POS, self.CO_VARNAMES_POS,
+                    self.CO_FREEVARS_POS, self.CO_CELLVARS_POS):
             code_args[col] = self._conv_string_tuples(code_args[col])
-        # 9: co_filename, 10: co_name
-        for col in (9, 10):
+
+        for col in (self.CO_FILENAME_POS, self.CO_NAME_POS):
             code_args[col] = code_args[col].encode('utf-8') if isinstance(code_args[col], unicode) else code_args[col]
 
         return [code_args[0], ] + code_args[2:]

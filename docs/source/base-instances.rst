@@ -28,7 +28,11 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 
 .. code-block:: python
 
+   >>> # 从已有的 instance 对象
    >>> instance = o.run_sql('desc pyodps_iris')
+   >>> print(instance.get_logview_address())
+   >>> # 从 instance id
+   >>> instance = o.get_instance('2016042605520945g9k5pvyi2')
    >>> print(instance.get_logview_address())
 
 对于 XFlow 任务，需要枚举其子任务，再获取子任务的 LogView：

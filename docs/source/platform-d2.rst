@@ -93,32 +93,34 @@ DataFrame
 获取调度参数
 ==============
 
-在全局包括一个 ``args`` 对象，可以在这个中获取，它是一个dict类型。
-
-比如在节点基本属性 -> 参数中设置 ``ds=${yyyymmdd}`` ，则可以：
-
-.. code-block:: python
-
-    args['ds']
-
+与 DataWorks 中的 SQL 节点不同，为了避免侵入代码，PyODPS 节点 **不会** 在代码中替换 ${param_name}
+这样的字符串，而是在执行代码前，在全局变量中增加一个名为 ``args`` 的 dict，调度参数可以在此获取。例如，
+在节点基本属性 -> 参数中设置 ``ds=${yyyymmdd}`` ，则可以通过下面的方式在代码中获取此参数
 
 .. code-block:: python
 
-    '20161116'
+    print('ds=' + args['ds']))
 
+.. code-block:: text
+
+    ds=20161116
+
+特别地，如果要获取名为 ``ds=${yyyymmdd}`` 的分区，则可以使用
+
+.. code-block:: python
+
+    o.get_table('table_name').get_partition('ds=' + args['ds'])
 
 受限功能
 =========
 
-DataWorks 上现在已经包含 numpy 和 pandas，而由于缺少 matplotlib 等包，所以如下功能可能会受限。
-
+由于缺少 matplotlib 等包，所以如下功能可能会受限。
 
 - DataFrame的plot函数
 
-
-DataFrame自定义函数由于 Python 沙箱的原因，
-第三方库支持所有的纯 Python 库（参考 :ref:`第三方纯 Python 库支持 <third_party_library>` ），
-以及numpy，因此不能直接使用 pandas。
+DataFrame 自定义函数需要提交到 MaxCompute 执行。由于 Python 沙箱的原因，第三方库只支持所有的纯 Python 库以及 Numpy，
+因此不能直接使用 Pandas，可参考:ref:`第三方库支持 <third_party_library>` 上传和使用所需的库。DataWorks
+中执行的非自定义函数代码可以使用平台预装的 Numpy 和 Pandas。其他带有二进制代码的三方包不被支持。
 
 由于兼容性的原因，在 DataWorks 中，`options.tunnel.use_instance_tunnel` 默认设置为 False。如果需要全局开启 Instance Tunnel，
 需要手动将该值设置为 True。

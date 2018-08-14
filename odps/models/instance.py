@@ -327,7 +327,7 @@ class Instance(LazyLoad):
         params = {'instancesummary': '', 'taskname': task_name}
         resp = self._client.get(self.resource(), params=params)
 
-        map_reduce = json.loads(resp.content).get('Instance')
+        map_reduce = resp.json().get('Instance')
         if map_reduce:
             json_summary = map_reduce.get('JsonSummary')
             if json_summary:

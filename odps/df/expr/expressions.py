@@ -666,7 +666,7 @@ class CollectionExpr(Expr):
         :rtype: :class:`odps.df.expr.expressions.CollectionExpr`
 
         """
-        from .query import ExprVisitor
+        from .query import CollectionVisitor
 
         if not isinstance(expr, six.string_types):
             raise ValueError('expr must be a string')
@@ -677,7 +677,7 @@ class CollectionExpr(Expr):
         finally:
             del frame
 
-        visitor = ExprVisitor(self, env)
+        visitor = CollectionVisitor(self, env)
         predicate = visitor.eval(expr)
         return self.filter(predicate)
 
@@ -1301,6 +1301,21 @@ class TypedExpr(Expr):
 
     def cast(self, t):
         return self.astype(t)
+
+    def eval(self, str_expr, rewrite=False):
+        from .query import SequenceVisitor
+
+        if not isinstance(str_expr, six.string_types):
+            raise ValueError('expr must be a string')
+
+        frame = sys._getframe(2).f_locals
+        try:
+            env = frame.copy()
+        finally:
+            del frame
+
+        visitor = SequenceVisitor(self, env)
+        return visitor.eval(str_expr, rewrite=rewrite)
 
 
 class SequenceExpr(TypedExpr):

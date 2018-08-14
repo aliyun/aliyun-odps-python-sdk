@@ -351,6 +351,26 @@ class Test(TestBase):
         df2['new_field'] = df2.apply(sum_val, axis=1, reduce=True, rtype='int')
         df2.head()
 
+    def testJoinPartitionDataFrame(self):
+        test_table_name = tn('pyodps_test_join_partition_dataframe')
+        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds'], ['string'])
+        self.odps.delete_table(test_table_name, if_exists=True)
+        table = self.odps.create_table(test_table_name, schema)
+        table.create_partition('ds=today')
+
+        test_table_name2 = tn('pyodps_test_join_partition_dataframe2')
+        self.odps.delete_table(test_table_name2, if_exists=True)
+        table2 = self.odps.create_table(test_table_name2, schema)
+        table2.create_partition('ds=today')
+
+        df = DataFrame(table.get_partition('ds=today'))
+        df2 = DataFrame(table2.get_partition('ds=today'))
+        df3 = DataFrame(self.table)
+
+        df4 = df2.join(df, on=[df2.id.astype('string') == df.id.astype('string')])
+        df5 = df3.join(df, on=[df3.id.astype('string') == df.id.astype('string')])
+        df4.left_join(df5, on=[df4.id_y.astype('string') == df5.id_y.astype('string')]).head()
+
 
 if __name__ == '__main__':
     unittest.main()

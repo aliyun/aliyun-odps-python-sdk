@@ -139,6 +139,7 @@ class Partitions(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLDropPartitionTask', query=buf.getvalue())
+        task.update_sql_settings({'odps.sql.submit.mode': ''})
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
         if not async_:

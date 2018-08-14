@@ -236,8 +236,12 @@ class BaseAnalyzer(Backend):
 
     def _get_pivot_table_sub_expr_without_columns(self, expr):
         def get_agg(field, agg_func, agg_func_name, fill_value):
+            from ..expr.expressions import ReprWrapper
+
             if isinstance(agg_func, six.string_types):
-                aggregated = getattr(field, agg_func)()
+                aggregated = field.eval(agg_func, rewrite=False)
+                if isinstance(aggregated, ReprWrapper):
+                    aggregated = aggregated()
             else:
                 aggregated = field.agg(agg_func)
             if fill_value is not None:

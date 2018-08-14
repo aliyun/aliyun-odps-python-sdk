@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-25 15:28+0800\n"
+"POT-Creation-Date: 2018-08-02 10:13+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -95,17 +95,16 @@ msgid ""
 "或者通过在 open_reader 上添加 ``tunnel=True``，来仅对这次 open_reader 打开 instance "
 "tunnel； 添加 ``limit=False``，来关闭 limit 限制从而能下载全部数据。"
 msgstr ""
-"Also you can add ``tunnel=True`` to open_reader to enable instance "
-"tunnel for this reader only, and add ``limit=False`` to disable "
-"limitation and fetch all data."
+"Also you can add ``tunnel=True`` to open_reader to enable instance tunnel"
+" for this reader only, and add ``limit=False`` to disable limitation and "
+"fetch all data."
 
 #: ../../source/platform-d2.rst:51
 msgid ""
 "with instance.open_reader(tunnel=True, limit=False) as reader:\n"
 "    # 这次 open_reader 会走 instance tunnel 接口，且能读取全部数据"
 msgstr ""
-"with instance.open_reader(tunnel=True, limit=False) as "
-"reader:\n"
+"with instance.open_reader(tunnel=True, limit=False) as reader:\n"
 "    # use instance tunnel and fetch all data without limitation"
 
 #: ../../source/platform-d2.rst:58
@@ -183,48 +182,68 @@ msgid "获取调度参数"
 msgstr "Obtain scheduling parameters"
 
 #: ../../source/platform-d2.rst:96
-msgid "在全局包括一个 ``args`` 对象，可以在这个中获取，它是一个dict类型。"
-msgstr "The global dict ``args`` variable provides a scheduling parameter."
-
-#: ../../source/platform-d2.rst:98
-msgid "比如在节点基本属性 -> 参数中设置 ``ds=${yyyymmdd}`` ，则可以："
+msgid ""
+"与 DataWorks 中的 SQL 节点不同，为了避免侵入代码，PyODPS 节点 **不会** 在代码中替换 ${param_name} "
+"这样的字符串，而是在执行代码前，在全局变量中增加一个名为 ``args`` 的 dict，调度参数可以在此获取。例如， 在节点基本属性 -> "
+"参数中设置 ``ds=${yyyymmdd}`` ，则可以通过下面的方式在代码中获取此参数"
 msgstr ""
-"For example, choose Schedule -> Parameter, and set ``ds=${bizdate}`` to "
-"obtain the following result:"
+"Different from SQL nodes in DataWorks, to avoid invading your Python code"
+" which might lead to unpredictable consequences, PyODPS nodes DOES NOT "
+"automatically replace placeholder strings like ${param_name}. Instead, "
+"PyODPS node will create a dict named ``args`` in global variables, which "
+"contains all the scheduling parameters. For instance, if you set "
+"``ds=${yyyymmdd}`` in Schedule -> Parameter in DataWorks, you can use the"
+" following code to obtain the value of ``ds``:"
 
 #: ../../source/platform-d2.rst:100
-msgid "args['ds']"
+msgid "print('ds=' + args['ds']))"
 msgstr ""
 
-#: ../../source/platform-d2.rst:105
-msgid "'20161116'"
+#: ../../source/platform-d2.rst:104
+msgid "ds=20161116"
 msgstr ""
 
-#: ../../source/platform-d2.rst:111
+#: ../../source/platform-d2.rst:108
+msgid "特别地，如果要获取名为 ``ds=${yyyymmdd}`` 的分区，则可以使用"
+msgstr ""
+"Specifically, if you want to get the table partition ``ds=${yyyymmdd}``, "
+"the code below can be used:"
+
+#: ../../source/platform-d2.rst:110
+msgid "o.get_table('table_name').get_partition('ds=' + args['ds'])"
+msgstr ""
+
+#: ../../source/platform-d2.rst:115
 msgid "受限功能"
 msgstr "Feature restriction"
 
-#: ../../source/platform-d2.rst:113
-msgid "DataWorks 上现在已经包含 numpy 和 pandas，而由于缺少 matplotlib 等包，所以如下功能可能会受限。"
+#: ../../source/platform-d2.rst:117
+msgid "由于缺少 matplotlib 等包，所以如下功能可能会受限。"
 msgstr ""
-"DataWorks contains the numpy and pandas libraries, but does not have the "
-"matplotlib library. Therefore, the following features may be restricted:"
+"DataWorks does not have the ``matplotlib`` library. Therefore, the "
+"following features may be restricted:"
 
-#: ../../source/platform-d2.rst:116
+#: ../../source/platform-d2.rst:119
 msgid "DataFrame的plot函数"
 msgstr "DataFrame plot function"
 
-#: ../../source/platform-d2.rst:119
+#: ../../source/platform-d2.rst:121
 msgid ""
-"DataFrame自定义函数由于 Python 沙箱的原因， 第三方库支持所有的纯 Python 库（参考 :ref:`第三方纯 Python "
-"库支持 <third_party_library>` ）， 以及numpy，因此不能直接使用 pandas。"
+"DataFrame 自定义函数需要提交到 MaxCompute 执行。由于 Python 沙箱的原因，第三方库只支持所有的纯 Python 库以及"
+" Numpy， 因此不能直接使用 Pandas，可参考:ref:`第三方库支持 <third_party_library>` "
+"上传和使用所需的库。DataWorks 中执行的非自定义函数代码可以使用平台预装的 Numpy 和 "
+"Pandas。其他带有二进制代码的三方包不被支持。"
 msgstr ""
-"DataFrame custom functions: Due to the Python sandbox, third-party "
-"libraries can be pure Python libraries (see :ref:`Use third-party Python "
-"libraries <third_party_library>` ) and numpy. Therefore, pandas cannot be"
-" used directly."
+"Custom functions in DataFrame need to be submitted to MaxCompute before "
+"execution. Due to Python sandbox, third-party libraries which are written"
+" in pure Python or referencing merely numpy can be executed without "
+"uploading auxiliary libraries. Other libraries including Pandas should be"
+" uploaded before use. See :ref:`support for third-party libraries "
+"<third_party_library>` for more details. Code outside custom functions "
+"can use pre-installed Numpy and Pandas in DataWorks. Other third-party "
+"libraries with binary codes are not supported currently."
 
-#: ../../source/platform-d2.rst:123
+#: ../../source/platform-d2.rst:125
 msgid ""
 "由于兼容性的原因，在 DataWorks 中，`options.tunnel.use_instance_tunnel` 默认设置为 "
 "False。如果需要全局开启 Instance Tunnel， 需要手动将该值设置为 True。"
@@ -233,18 +252,18 @@ msgstr ""
 "DataWorks is set to False by default. To enable Instance Tunnel globally,"
 " you need to manually set `options.tunnel.use_instance_tunnel` to True."
 
-#: ../../source/platform-d2.rst:126
+#: ../../source/platform-d2.rst:128
 msgid "由于实现的原因，Python 的 atexit 包不被支持，请使用 try - finally 结构实现相关功能。"
 msgstr ""
 "For implementation reasons, the Python atexit package is not supported. "
 "You need to use the try - finally structure to implement related "
 "features."
 
-#: ../../source/platform-d2.rst:129
+#: ../../source/platform-d2.rst:131
 msgid "使用限制"
 msgstr "Usage restrictions"
 
-#: ../../source/platform-d2.rst:131
+#: ../../source/platform-d2.rst:133
 msgid ""
 "在 DataWorks 上使用 PyODPS，为了防止对 DataWorks 的 gateway 造成压力，对内存和 CPU 都有限制。这个限制由"
 " DataWorks 统一管理。"
@@ -253,14 +272,14 @@ msgstr ""
 "DataWorks, the CPU and memory usage is restricted. DataWorks provides "
 "central management for this restriction."
 
-#: ../../source/platform-d2.rst:133
+#: ../../source/platform-d2.rst:135
 msgid "如果看到 **Got killed** ，即内存使用超限，进程被 kill。因此，尽量避免本地的数据操作。"
 msgstr ""
 "If the system displays **Got killed**, this indicates an out-of-memory "
 "error and that the process has been terminated. Therefore, we do not "
 "recommend starting local data operations."
 
-#: ../../source/platform-d2.rst:135
+#: ../../source/platform-d2.rst:137
 msgid "通过 PyODPS 起的 SQL 和 DataFrame 任务（除 to_pandas) 不受此限制。"
 msgstr ""
 "However, the preceding restriction does not work on SQL and DataFrame "

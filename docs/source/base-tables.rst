@@ -43,6 +43,8 @@
    False
    >>> t.size
    1408
+   >>> t.comment
+   'Dual Table Comment'
    >>> t.schema.columns
    [<column c_int_a, type bigint>,
     <column c_int_b, type bigint>,
@@ -54,6 +56,10 @@
     <column c_bool_b, type boolean>,
     <column c_datetime_a, type datetime>,
     <column c_datetime_b, type datetime>]
+   >>> t.schema['c_int_a']
+   <column c_int_a, type bigint>
+   >>> t.schema['c_int_a'].comment
+   'Comment of column c_int_a'
 
 
 通过提供 ``project`` 参数，来跨project获取表。
@@ -298,6 +304,13 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 
 基本操作
 ~~~~~~~~~~~
+
+判断是否为分区表：
+
+.. code-block:: python
+
+   >>> if table.schema.partitions:
+   >>>     print('Table %s is partitioned.' % table.name)
 
 遍历表全部分区：
 

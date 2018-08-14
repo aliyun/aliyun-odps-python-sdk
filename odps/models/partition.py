@@ -76,6 +76,10 @@ class Partition(LazyLoad):
     def __str__(self):
         return str(self.partition_spec)
 
+    def __repr__(self):
+        return '<Partition %s.`%s`(%s)>' % (
+            str(self.table.project.name), str(self.table.name), str(self.partition_spec))
+
     def __getattribute__(self, attr):
         if attr in ('is_archived', 'is_exstore', 'lifecycle',
                     'physical_size', 'file_num'):

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-11 09:42+0800\n"
+"POT-Creation-Date: 2018-07-10 10:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -86,8 +86,8 @@ msgstr ""
 msgid "DataFrame API支持的窗口函数包括："
 msgstr "The DataFrame API supports the following window functions:"
 
-#: ../../source/df-window.rst:55 ../../source/df-window.rst:75
-#: ../../source/df-window.rst:84 ../../source/df-window.rst:93
+#: ../../source/df-window.rst:55 ../../source/df-window.rst:78
+#: ../../source/df-window.rst:87 ../../source/df-window.rst:96
 msgid "说明"
 msgstr "Description"
 
@@ -197,62 +197,89 @@ msgstr ""
 msgid "计算行号，从1开始"
 msgstr "Calculates the row number, starting from 1."
 
+#: ../../source/df-window.rst:70
+msgid "qcut"
+msgstr ""
+
+#: ../../source/df-window.rst:70
+msgid "将分组数据按顺序切分成n片，并返回当前切片值，如果切片不均匀，默认增加第一个切片的分布"
+msgstr ""
+"Cuts data in the group into n slices in order and returns the number of the cut"
+" containing the current data. If data are not distributed evenly in cuts, extra"
+" data will be put in the first cut."
+
+#: ../../source/df-window.rst:71
+msgid "nth_value"
+msgstr ""
+
+#: ../../source/df-window.rst:71
+msgid "返回分组中的第n个值"
+msgstr "Returns the nth value in the group"
+
 #: ../../source/df-window.rst:72
+msgid "cume_dist"
+msgstr ""
+
+#: ../../source/df-window.rst:72
+msgid "计算分组中值小于等于当前值的行数占分组总行数的比例"
+msgstr "Calculates the ratio of lines whose line numbers are less than the current line"
+
+#: ../../source/df-window.rst:75
 msgid "其中，rank、dense_rank、percent_rank 和 row_number 支持下列参数："
 msgstr ""
 "In the preceding window functions, rank, dense_rank, percent_rank, and "
 "row_number support the following parameters:"
 
-#: ../../source/df-window.rst:75 ../../source/df-window.rst:84
-#: ../../source/df-window.rst:93
+#: ../../source/df-window.rst:78 ../../source/df-window.rst:87
+#: ../../source/df-window.rst:96
 msgid "参数名"
 msgstr "Parameter"
 
-#: ../../source/df-window.rst:77
+#: ../../source/df-window.rst:80
 msgid "sort"
 msgstr ""
 
-#: ../../source/df-window.rst:77
+#: ../../source/df-window.rst:80
 msgid "排序关键字，默认为空"
 msgstr "This is the sorting keyword, which is null by default."
 
-#: ../../source/df-window.rst:78
+#: ../../source/df-window.rst:81
 msgid "ascending"
 msgstr ""
 
-#: ../../source/df-window.rst:78
+#: ../../source/df-window.rst:81
 msgid "排序时，是否依照升序排序，默认 True"
 msgstr ""
 "You can specify this parameter to enable or disable the ascending order "
 "in sorting. This parameter is set to True by default."
 
-#: ../../source/df-window.rst:81
+#: ../../source/df-window.rst:84
 msgid "lag 和 lead 除 rank 的参数外，还支持下列参数："
 msgstr ""
 "In addition to the rank parameter, the lag and lead window functions "
 "support the following parameters:"
 
-#: ../../source/df-window.rst:86
+#: ../../source/df-window.rst:89
 msgid "offset"
 msgstr ""
 
-#: ../../source/df-window.rst:86
+#: ../../source/df-window.rst:89
 msgid "取数据的行距离当前行的行数"
 msgstr ""
 "Indicates the number of rows that are between the current row and the row"
 " where you retrieve data."
 
-#: ../../source/df-window.rst:87
+#: ../../source/df-window.rst:90
 msgid "default"
 msgstr ""
 
-#: ../../source/df-window.rst:87
+#: ../../source/df-window.rst:90
 msgid "当 offset 指定的行不存在时的返回值"
 msgstr ""
 "Returns this value when the row that has been specified in the offset "
 "does not exist."
 
-#: ../../source/df-window.rst:90
+#: ../../source/df-window.rst:93
 msgid ""
 "而 cumsum、cummax、cummin、cummean、cummedian、cumcount 和 cumstd 除 rank "
 "的上述参数外，还支持下列参数："
@@ -261,29 +288,29 @@ msgstr ""
 "cummedian, cumcount, and cumstd window functions support the following "
 "parameters:"
 
-#: ../../source/df-window.rst:95
+#: ../../source/df-window.rst:98
 msgid "unique"
 msgstr ""
 
-#: ../../source/df-window.rst:95
+#: ../../source/df-window.rst:98
 msgid "是否排除重复值，默认 False"
 msgstr ""
 "Enables or disables deduplication of data. This parameter is set to False"
 " by default."
 
-#: ../../source/df-window.rst:96
+#: ../../source/df-window.rst:99
 msgid "preceding"
 msgstr ""
 
-#: ../../source/df-window.rst:96
+#: ../../source/df-window.rst:99
 msgid "窗口范围起点"
 msgstr "Specifies the start of windowing."
 
-#: ../../source/df-window.rst:97
+#: ../../source/df-window.rst:100
 msgid "following"
 msgstr ""
 
-#: ../../source/df-window.rst:97
+#: ../../source/df-window.rst:100
 msgid "窗口范围终点"
 msgstr "Specifies the end of windowing."
 

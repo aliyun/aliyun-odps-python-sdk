@@ -17,6 +17,7 @@
 import tokenize
 import ast
 import operator
+from collections import OrderedDict
 
 from . import element as ele
 from .expressions import Expr, ExpressionError
@@ -66,18 +67,21 @@ class ExprVisitor(ast.NodeVisitor):
         ast.Or: operator.or_
     }
 
-    def __init__(self, collection, env):
-        self.collection = collection
+    def __init__(self, env):
         self.env = env
 
     def _preparse(self, expr):
         reader = StringIO(expr).readline
         return tokenize.untokenize(list(_tokenize_str(reader)))
 
-    def eval(self, expr):
-        new_expr = self._preparse(expr)
-        node = ast.fix_missing_locations(ast.parse(new_expr))
+    def eval(self, expr, rewrite=True):
+        if rewrite:
+            expr = self._preparse(expr)
+        node = ast.fix_missing_locations(ast.parse(expr))
         return self.visit(node)
+
+    def get_named_object(self, obj_name):
+        raise NotImplementedError
 
     def visit(self, node):
         if isinstance(node, Expr):
@@ -103,6 +107,15 @@ class ExprVisitor(ast.NodeVisitor):
         left = self.visit(node.left)
         right = self.visit(node.right)
         return self._op_handlers[type(node.op)](left, right)
+
+    def visit_Call(self, node):
+        from .expressions import ReprWrapper
+        func = self.visit(node.func)
+        if not isinstance(func, ReprWrapper):
+            raise SyntaxError('Calling none-expression methods is not allowed.')
+        args = [self.visit(n) for n in node.args]
+        kwargs = OrderedDict([(kw.arg, self.visit(kw.value)) for kw in node.keywords])
+        return func(*args, **kwargs)
 
     def visit_Compare(self, node):
         ops = node.ops
@@ -137,7 +150,7 @@ class ExprVisitor(ast.NodeVisitor):
             return self.env[local_name]
         if node.id in ['True', 'False', 'None']:
             return eval(node.id)
-        return self.collection._get_field(node.id)
+        return self.get_named_object(node.id)
 
     def visit_NameConstant(self, node):
         return node.value
@@ -184,3 +197,21 @@ class ExprVisitor(ast.NodeVisitor):
             step = self.visit(step)
 
         return slice(lower, upper, step)
+
+
+class CollectionVisitor(ExprVisitor):
+    def __init__(self, collection, env):
+        super(CollectionVisitor, self).__init__(env)
+        self.collection = collection
+
+    def get_named_object(self, obj_name):
+        return self.collection._get_field(obj_name)
+
+
+class SequenceVisitor(ExprVisitor):
+    def __init__(self, sequence, env):
+        super(SequenceVisitor, self).__init__(env)
+        self.sequence = sequence
+
+    def get_named_object(self, obj_name):
+        return getattr(self.sequence, obj_name)

@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -192,6 +192,10 @@ class CumStd(CumulativeOp):
     __slots__ = ()
 
 
+class NthValue(CumulativeOp):
+    __slots__ = '_nth', '_skip_nulls'
+
+
 class RankOp(Window):
     __slots__ = ()
 
@@ -221,6 +225,14 @@ class RowNumber(RankOp):
     __slots__ = ()
 
 
+class QCut(RankOp):
+    __slots__ = '_bins',
+
+
+class CumeDist(RankOp):
+    __slots__ = ()
+
+
 class ShiftOp(Window):
     _args = '_input', '_partition_by', '_order_by', '_offset', '_default'
 
@@ -247,7 +259,7 @@ class Lead(ShiftOp):
 
 
 def _cumulative_op(expr, op_cls, sort=None, ascending=True, unique=False,
-                  preceding=None, following=None, data_type=None):
+                   preceding=None, following=None, data_type=None, **kwargs):
     if isinstance(expr, SequenceGroupBy):
         if sort is not None:
             groupby = expr._input.sort(sort, ascending=ascending)
@@ -261,7 +273,7 @@ def _cumulative_op(expr, op_cls, sort=None, ascending=True, unique=False,
         return op_cls(_input=column, _partition_by=expr._input._by,
                       _order_by=object_getattr(expr._input, '_sorted_fields', None),
                       _preceding=preceding, _following=following,
-                      _data_type=data_type, _distinct=unique)
+                      _data_type=data_type, _distinct=unique, **kwargs)
 
 
 def cumsum(expr, sort=None, ascending=True, unique=False,
@@ -398,7 +410,22 @@ def cumstd(expr, sort=None, ascending=True, unique=False,
                           following=following, data_type=data_type)
 
 
-def _rank_op(expr, op_cls, data_type, sort=None, ascending=True):
+def nth_value(expr, nth, skip_nulls=False, sort=None, ascending=True):
+    """
+    Get nth value of a grouped and sorted expression.
+
+    :param expr: expression for calculation
+    :param nth: integer position
+    :param skip_nulls: whether to skip null values, False by default
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :return: calculated column
+    """
+    return _cumulative_op(expr, NthValue, data_type=expr._data_type, sort=sort,
+                          ascending=ascending, _nth=nth, _skip_nulls=skip_nulls)
+
+
+def _rank_op(expr, op_cls, data_type, sort=None, ascending=True, **kwargs):
     if isinstance(expr, SequenceGroupBy):
         grouped = expr._input
         sort = sort or object_getattr(grouped, '_sorted_fields', None) or expr.name
@@ -416,7 +443,7 @@ def _rank_op(expr, op_cls, data_type, sort=None, ascending=True):
 
     return op_cls(_input=grouped._input, _partition_by=grouped._by,
                   _order_by=object_getattr(grouped, '_sorted_fields', None),
-                  _data_type=data_type)
+                  _data_type=data_type, **kwargs)
 
 
 def rank(expr, sort=None, ascending=True):
@@ -465,6 +492,36 @@ def row_number(expr, sort=None, ascending=True):
     :return: calculated column
     """
     return _rank_op(expr, RowNumber, types.int64, sort=sort, ascending=ascending)
+
+
+def qcut(expr, bins, labels=False, sort=None, ascending=True):
+    """
+    Get quantile-based bin indices of every element of a grouped and sorted expression.
+    The indices of bins start from 0. If cuts are not of equal sizes, extra items will
+    be appended into the first group.
+
+    :param expr: expression for calculation
+    :param bins: number of bins
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :return: calculated column
+    """
+    if labels is None or labels:
+        raise NotImplementedError('Showing bins or customizing labels not supported')
+    return _rank_op(expr, QCut, types.int64, sort=sort, ascending=ascending,
+                    _bins=bins)
+
+
+def cume_dist(expr, sort=None, ascending=True):
+    """
+    Calculate cumulative ratio of a sequence expression.
+
+    :param expr: expression for calculation
+    :param sort: name of the sort column
+    :param ascending: whether to sort in ascending order
+    :return: calculated column
+    """
+    return _rank_op(expr, CumeDist, types.float64, sort=sort, ascending=ascending)
 
 
 def _shift_op(expr, op_cls, offset, default=None, sort=None, ascending=True):
@@ -517,7 +574,7 @@ _number_window_methods = dict(
     cumsum=cumsum,
     cummean=cummean,
     cummedian=cummedian,
-    cumstd=cumstd
+    cumstd=cumstd,
 )
 
 _window_methods = dict(
@@ -525,7 +582,7 @@ _window_methods = dict(
     cummin=cummin,
     cumcount=cumcount,
     lag=lag,
-    lead=lead
+    lead=lead,
 )
 
 _groupby_methods = dict(
@@ -533,11 +590,14 @@ _groupby_methods = dict(
     min_rank=rank,
     dense_rank=dense_rank,
     percent_rank=percent_rank,
-    row_number=row_number
+    row_number=row_number,
+    qcut=qcut,
+    nth_value=nth_value,
+    cume_dist=cume_dist,
 )
 
 number_windows = [globals().get(repr(t).capitalize() + SequenceGroupBy.__name__)
-                 for t in types.number_types()]
+                  for t in types.number_types()]
 
 for number_window in number_windows:
     utils.add_method(number_window, _number_window_methods)

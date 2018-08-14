@@ -22,7 +22,7 @@ from ...expr.reduction import *
 from ...expr.arithmetic import BinOp, Add, Substract, Power, Invert, Negate, Abs
 from ...expr.merge import JoinCollectionExpr, UnionCollectionExpr
 from ...expr.element import MappedExpr, Func
-from ...expr.window import CumSum
+from ...expr.window import CumSum, NthValue, QCut
 from ...expr.datetimes import DTScalar
 from ...expr.collections import RowAppliedCollectionExpr
 from ...expr import element, strings, datetimes, composites
@@ -63,12 +63,15 @@ WINDOW_COMPILE_DIC = {
     'CumMax': 'max',
     'CumMin': 'min',
     'CumCount': 'count',
+    'NthValue': 'nth_value',
     'Lag': 'lag',
     'Lead': 'lead',
     'Rank': 'rank',
     'DenseRank': 'dense_rank',
     'PercentRank': 'percent_rank',
-    'RowNumber': 'row_number'
+    'RowNumber': 'row_number',
+    'QCut': 'ntile',
+    'CumeDist': 'cume_dist',
 }
 
 MATH_COMPILE_DIC = {
@@ -1270,6 +1273,10 @@ class OdpsSQLCompiler(Backend):
         col_compiled = self._ctx.get_expr_compiled(expr.input)
         if isinstance(expr, CumSum) and expr.input.dtype == df_types.boolean:
             col_compiled = 'IF({0}, 1, 0)'.format(col_compiled)
+        elif isinstance(expr, NthValue):
+            col_compiled = '{0}, {1}'.format(col_compiled, expr._nth + 1)
+            if expr._skip_nulls:
+                col_compiled += ', true'
         if expr.distinct:
             col_compiled = 'DISTINCT {0}'.format(col_compiled)
 
@@ -1287,13 +1294,16 @@ class OdpsSQLCompiler(Backend):
 
     def visit_rank_window(self, expr):
         func_name = WINDOW_COMPILE_DIC[expr.node_name].upper()
+        col_compiled = ''
+        if isinstance(expr, QCut):
+            col_compiled = str(expr._bins)
 
         partition_by = ', '.join(self._ctx.get_expr_compiled(by)
                                  for by in expr._partition_by) if expr._partition_by else None
         order_by = ', '.join(self._compile_window_order_by(by)
                              for by in expr._order_by) if expr._order_by else None
 
-        compiled = self._compile_window_function(func_name, '', partition_by=partition_by,
+        compiled = self._compile_window_function(func_name, col_compiled, partition_by=partition_by,
                                                  order_by=order_by)
 
         self._ctx.add_expr_compiled(expr, compiled)

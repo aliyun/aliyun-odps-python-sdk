@@ -86,6 +86,11 @@ class ColumnPruning(Backend):
                         break
                 if not found:
                     continue
+            elif hasattr(p, '_collection_resources') and p._collection_resources is not None:
+                collection_resources = set([ExprProxy(r) for r in p._collection_resources])
+                if ExprProxy(expr) in collection_resources:
+                    # the expr is included in apply collection_resources, cannot do any prune
+                    return False, set()
             else:
                 proxy = ExprProxy(p)
                 if proxy not in self._remain_columns:

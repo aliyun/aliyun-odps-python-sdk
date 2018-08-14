@@ -19,6 +19,7 @@ import sys
 
 from ..analyzer import BaseAnalyzer
 from ...expr.arithmetic import *
+from ...expr.composites import ListDictGetItem
 from ...expr.math import *
 from ...expr.datetimes import *
 from ...expr.strings import *
@@ -27,6 +28,7 @@ from ...expr.element import *
 from ...expr.reduction import *
 from ...expr.collections import *
 from ...expr.merge import *
+from ...expr.window import QCut
 from ...utils import output
 from ..errors import CompileError
 from ..utils import refresh_dynamic
@@ -38,6 +40,26 @@ from ....utils import to_text
 class Analyzer(BaseAnalyzer):
     def _parents(self, expr):
         return self._dag.successors(expr)
+
+    def visit_composite_op(self, expr):
+        if isinstance(expr, ListDictGetItem) and isinstance(expr.input.dtype, types.List):
+            if is_constant_scalar(expr._negative_handled) and expr._negative_handled.value:
+                return
+
+            key_expr = expr._key
+            if is_constant_scalar(key_expr):
+                if key_expr.value >= 0:
+                    return
+                sub = expr.input[expr.input.len() - (-key_expr.value)]
+                sub._negative_handled = Scalar(True)
+            else:
+                expr._negative_handled = Scalar(True)
+                neg_expr = expr.input[expr.input.len() + key_expr]
+                neg_expr._negative_handled = Scalar(True)
+                sub = (key_expr >= 0).ifelse(expr, neg_expr).rename(expr.name)
+            self._sub(expr, sub)
+        else:
+            raise NotImplementedError
 
     def visit_element_op(self, expr):
         if isinstance(expr, Between):
@@ -553,6 +575,13 @@ class Analyzer(BaseAnalyzer):
         if func is not None:
             sub = expr.input.map(func, expr.dtype)
             self._sub(expr, sub)
+            return
+
+        raise NotImplementedError
+
+    def visit_rank_window(self, expr):
+        if isinstance(expr, QCut):
+            self._sub(expr, expr - 1)
             return
 
         raise NotImplementedError

@@ -20,7 +20,7 @@ import time
 from ..analyzer import BaseAnalyzer
 from ...expr.expressions import *
 from ...expr.element import IntToDatetime
-from ...expr.arithmetic import Power
+from ...expr.arithmetic import Power, Equal
 from ...expr.datetimes import UnixTimestamp
 from ...expr.reduction import GroupedSequenceReduction, \
     Moment, GroupedMoment, Kurtosis, GroupedKurtosis
@@ -93,3 +93,13 @@ class Analyzer(BaseAnalyzer):
             return
 
         raise NotImplementedError
+
+    def visit_join(self, expr):
+        for p in expr._predicate:
+            if isinstance(p, BooleanSequenceExpr):
+                es = (expr for expr in p.traverse(top_down=True, unique=True,
+                                                  stop_cond=lambda x: x is p._lhs or x is p._rhs))
+                for e in es:
+                    if isinstance(e, Equal):
+                        expr._reverse_equal(e)
+

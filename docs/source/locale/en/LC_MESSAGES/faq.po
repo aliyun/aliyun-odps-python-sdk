@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-29 19:43+0800\n"
+"POT-Creation-Date: 2018-08-14 17:38+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -133,4 +133,25 @@ msgstr ""
 "df = o.get_table('your_table').to_df()\n"
 "df[df.ds == func.max_pt('your_project.your_table')]  # ds is a partition "
 "column"
+
+#: ../../source/faq.rst:49
+msgid "通过 DataFrame 写表时报 table lifecycle is not specified in mandatory mode"
+msgstr ""
+"Error \"table lifecycle is not specified in mandatory mode\" occurred "
+"when persisting DataFrame to table"
+
+#: ../../source/faq.rst:50
+msgid "Project 要求对每张表设置 lifecycle，因而需要在每次执行时设置"
+msgstr ""
+"Your project requires that every table should be created with a "
+"lifecycle. Thus you should run the code below every time you run your own"
+" code."
+
+#: ../../source/faq.rst:52
+msgid ""
+"from odps import options\n"
+"options.lifecycle = 7  # 或者你期望的 lifecycle 整数值，单位为天"
+msgstr ""
+"from odps import options\n"
+"options.lifecycle = 7  # or your expected lifecycle in days"
 
