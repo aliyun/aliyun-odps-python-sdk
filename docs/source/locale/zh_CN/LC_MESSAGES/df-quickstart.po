@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-17 10:30+0800\n"
+"POT-Creation-Date: 2018-08-20 16:35+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,9 +23,10 @@ msgstr ""
 
 #: ../../source/df-quickstart.rst:7
 msgid ""
-"在本例子中，我们拿movielens 100K来做例子。现在我们已经有三张表了，分别是\\ ``pyodps_ml_100k_movies``\\"
-" （电影相关的数据），\\ ``pyodps_ml_100k_users``\\ （用户相关的数据），\\ "
-"``pyodps_ml_100k_ratings``\\ （评分有关的数据）。"
+"在本例子中，我们拿 `movielens 100K "
+"<https://grouplens.org/datasets/movielens/100k/>`_ 来做例子。现在我们已经有三张表了，分别是\\"
+" ``pyodps_ml_100k_movies``\\ （电影相关的数据），\\ ``pyodps_ml_100k_users``\\ "
+"（用户相关的数据），\\ ``pyodps_ml_100k_ratings``\\ （评分有关的数据）。"
 msgstr ""
 
 #: ../../source/df-quickstart.rst:10

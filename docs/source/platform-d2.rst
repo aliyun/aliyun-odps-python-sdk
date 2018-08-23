@@ -99,7 +99,7 @@ DataFrame
 
 .. code-block:: python
 
-    print('ds=' + args['ds']))
+    print('ds=' + args['ds'])
 
 .. code-block:: text
 

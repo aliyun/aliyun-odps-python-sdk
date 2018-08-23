@@ -4,6 +4,13 @@
 常见问题
 ============
 
+.. rubric:: 如何查看当前使用的 PyODPS 版本
+
+.. code-block:: python
+
+    import odps
+    print(odps.__version__)
+
 .. intinclude:: faq-int.rst
 .. extinclude:: faq-ext.rst
 
@@ -53,3 +60,15 @@ Project 要求对每张表设置 lifecycle，因而需要在每次执行时设�
 
     from odps import options
     options.lifecycle = 7  # 或者你期望的 lifecycle 整数值，单位为天
+
+.. rubric:: 执行 SQL 时报 Please add put { "odps.sql.submit.mode" : "script"} for multi-statement query in settings
+
+请参考 :ref:`SQL设置运行参数 <sql_hints>` 。
+
+.. rubric:: 如何遍历 PyODPS DataFrame 中的每行数据
+
+PyODPS DataFrame 不支持遍历每行数据。这样设计的原因是由于 PyODPS DataFrame 面向大规模数据设计，在这种场景下，
+数据遍历是非常低效的做法。我们建议使用 DataFrame 提供的 ``apply`` 或 ``map_reduce`` 接口将原本串行的遍历操作并行化，
+具体可参见 `这篇文章 <https://yq.aliyun.com/articles/138752>`_ 。如果确认你的场景必须要使用数据遍历，
+而且遍历的代价可以接受，可以使用 ``to_pandas`` 方法将 DataFrame 转换为 Pandas DataFrame，或者将 DataFrame
+存储为表后使用 ``read_table`` 或者 Tunnel 读取数据。
