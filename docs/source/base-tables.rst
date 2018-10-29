@@ -321,11 +321,18 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
    >>> for partition in table.iterate_partitions(spec='pt=test'):
    >>>     # 遍历二级分区
 
-判断分区是否存在：
+判断分区是否存在（该方法需要填写所有分区字段值）：
 
 .. code-block:: python
 
    >>> table.exist_partition('pt=test,sub=2015')
+
+判断给定前缀的分区是否存在：
+
+.. code-block:: python
+
+   >>> # 表 table 的分区字段依次为 pt, sub
+   >>> table.exist_partitions('pt=test')
 
 获取分区：
 

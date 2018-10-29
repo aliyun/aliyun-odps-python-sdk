@@ -15,6 +15,7 @@
 .. extinclude:: faq-ext.rst
 
 .. rubric:: 读取数据时报"project is protected"
+    :name: faq_protected
 
 Project 上的安全策略禁止读取表中的数据，此时，如果想使用全部数据，有以下选项可用：
 
@@ -66,6 +67,7 @@ Project 要求对每张表设置 lifecycle，因而需要在每次执行时设�
 请参考 :ref:`SQL设置运行参数 <sql_hints>` 。
 
 .. rubric:: 如何遍历 PyODPS DataFrame 中的每行数据
+    :name: faq_enumerate_df
 
 PyODPS DataFrame 不支持遍历每行数据。这样设计的原因是由于 PyODPS DataFrame 面向大规模数据设计，在这种场景下，
 数据遍历是非常低效的做法。我们建议使用 DataFrame 提供的 ``apply`` 或 ``map_reduce`` 接口将原本串行的遍历操作并行化，

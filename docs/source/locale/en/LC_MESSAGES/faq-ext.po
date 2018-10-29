@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-08 17:35+0800\n"
+"POT-Creation-Date: 2018-10-15 23:13+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -43,14 +43,23 @@ msgstr ""
 "detail/34951.htm#MaxCompute%20activation%20and%20service%20connections%20by%20region>`_"
 " . Check to see if the ODPS object parameter position is correct."
 
-#: ../../source/faq-ext.rst:12
-msgid "如何申请开通公共云 Python UDF"
-msgstr "How to request activation of Python UDFs in public cloud?"
-
-#: ../../source/faq-ext.rst:13
-msgid "公共云 Python UDF 目前处于公测阶段，可通过工单申请及咨询审批进度。"
+msgid "如何手动指定 Tunnel Endpoint"
 msgstr ""
-"MaxCompute currently provides open beta versions of Python user-defined "
-"functions (UDFs) in the public cloud. You can request for activation or "
-"approval progress by submitting tickets."
+
+#: ../../source/faq-ext.rst:14
+msgid "可以使用下面的方法创建带有 Tunnel Endpoint 的 ODPS 入口（参数值请自行替换，不包含星号）："
+msgstr ""
+"You can create your MaxCompute (ODPS) entrance object with an extra "
+"```tunnel_endpoint``` parameter, as shown in the following code. "
+"Asterisks should be removed."
+
+#: ../../source/faq-ext.rst:16
+msgid ""
+"from odps import ODPS\n"
+"\n"
+"o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-"
+"default-project**',\n"
+"         endpoint='**your-end-point**', tunnel_endpoint='**your-tunnel-"
+"endpoint**')"
+msgstr ""
 

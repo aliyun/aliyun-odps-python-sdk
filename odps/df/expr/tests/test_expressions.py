@@ -334,9 +334,13 @@ class Test(TestBase):
         expr4 = expr.left_join(expr3, on=[expr.name == expr3.name, expr.id == expr3.id],
                                merge_columns=True)
         expr4['fid_1'] = expr4.groupby('id').sort('fid2').row_number()
-        self.assertIsInstance(expr4, ProjectCollectionExpr)
-        self.assertIsNotNone(expr4._proxy)
-        self.assertNotIsInstance(expr4._proxy, JoinFieldMergedCollectionExpr)
+        self.assertIsInstance(expr4, JoinFieldMergedCollectionExpr)
+        self.assertIsNone(expr4._proxy)
+
+        expr5 = expr[expr]
+        expr5['name_2'] = expr5.apply(lambda row: row.name, axis=1, reduce=True)
+        self.assertIsInstance(expr5, ProjectCollectionExpr)
+        self.assertIsNone(expr5._proxy)
 
     def testSetitemConditionField(self):
         from odps.df.expr.arithmetic import And

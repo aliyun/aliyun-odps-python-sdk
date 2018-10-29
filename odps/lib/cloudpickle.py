@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,26 +57,31 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 from __future__ import print_function
 
 import dis
-from functools import partial
-import imp
 import io
 import inspect
-import itertools
-import logging
+import sys
+import types
 import opcode
-import operator
 import pickle
 import struct
-import sys
-import traceback
-import types
+import logging
 import weakref
+import operator
+import itertools
+import traceback
+from functools import partial
 
 
 # we replace default config in MaxCompute to handle compatibility
 # between different python versions
 DEFAULT_PROTOCOL = 2  # pickle.HIGHEST_PROTOCOL
 
+try:
+    import importlib
+    imp = None
+except ImportError:
+    import imp
+    importlib = None
 
 if sys.version < '3':
     import __builtin__
@@ -89,6 +92,7 @@ if sys.version < '3':
     except ImportError:
         from StringIO import StringIO
 
+    string_types = basestring  # noqa: F821 basestring is removed in Python 3
     iteritems = lambda d: d.iteritems()
     irange = __builtin__.xrange
     to_ascii = __builtin__.str
@@ -99,6 +103,8 @@ else:
     import builtins as __builtin__
     from pickle import _Pickler as Pickler, _Unpickler as Unpickler
     from io import BytesIO as StringIO
+
+    string_types = (str, bytes)
     iteritems = lambda d: d.items()
     irange = __builtin__.range
     to_ascii = __builtin__.ascii
@@ -117,6 +123,22 @@ def _with_metaclass(meta, *bases):
         def __new__(cls, name, this_bases, d):
             return meta(name, bases, d)
     return type.__new__(metaclass, 'temporary_class', (), {})
+
+
+# Container for the global namespace to ensure consistent unpickling of
+# functions defined in dynamic modules (modules not registed in sys.modules).
+_dynamic_modules_globals = weakref.WeakValueDictionary()
+
+
+class _DynamicModuleFuncGlobals(dict):
+    """Global variables referenced by a function defined in a dynamic module
+
+    To avoid leaking references we store such context in a WeakValueDictionary
+    instance.  However instances of python builtin types such as dict cannot
+    be used directly as values in such a construct, hence the need for a
+    derived class.
+    """
+    pass
 
 
 def _make_cell_set_template_code():
@@ -333,20 +355,10 @@ class CloudPickler(Pickler):
         """
         Save a module as an import
         """
-        mod_name = obj.__name__
-        # If module is successfully found then it is not a dynamically created module
-        if hasattr(obj, '__file__'):
-            is_dynamic = False
-        else:
-            try:
-                _find_module(mod_name)
-                is_dynamic = False
-            except ImportError:
-                is_dynamic = True
-
         self.modules.add(obj)
-        if is_dynamic:
-            self.save_reduce(dynamic_subimport, (obj.__name__, vars(obj)), obj=obj)
+        if _is_dynamic(obj):
+            self.save_reduce(dynamic_subimport, (obj.__name__, vars(obj)),
+                             obj=obj)
         else:
             self.save_reduce(subimport, (obj.__name__,), obj=obj)
 
@@ -483,6 +495,7 @@ class CloudPickler(Pickler):
         Ensure de-pickler imports any package child-modules that
         are needed by the function
         """
+
         # check if any known dependency is an imported package
         for x in top_level_dependencies:
             if isinstance(x, types.ModuleType) and hasattr(x, '__package__') and x.__package__:
@@ -511,6 +524,15 @@ class CloudPickler(Pickler):
         """
         clsdict = dict(obj.__dict__)  # copy dict proxy to a dict
         clsdict.pop('__weakref__', None)
+
+        # For ABCMeta in python3.7+, remove _abc_impl as it is not picklable.
+        # This is a fix which breaks the cache but this only makes the first
+        # calls to issubclass slower.
+        if "_abc_impl" in clsdict:
+            import abc
+            (registry, _, _, _) = abc._get_dump(obj)
+            clsdict["_abc_impl"] = [subclass_weakref()
+                                    for subclass_weakref in registry]
 
         # On PyPy, __doc__ is a readonly attribute, so we need to include it in
         # the initial skeleton class.  This is safe because we know that the
@@ -608,7 +630,7 @@ class CloudPickler(Pickler):
             'name': func.__name__,
             'doc': func.__doc__,
         }
-        if hasattr(func, '__annotations__'):
+        if hasattr(func, '__annotations__') and sys.version_info >= (3, 7):
             state['annotations'] = func.__annotations__
         if hasattr(func, '__qualname__'):
             state['qualname'] = func.__qualname__
@@ -675,7 +697,16 @@ class CloudPickler(Pickler):
         # save the dict
         dct = func.__dict__
 
-        base_globals = self.globals_ref.get(id(func.__globals__), {})
+        base_globals = self.globals_ref.get(id(func.__globals__), None)
+        if base_globals is None:
+            # For functions defined in a well behaved module use
+            # vars(func.__module__) for base_globals. This is necessary to
+            # share the global variables across multiple pickled functions from
+            # this module.
+            if hasattr(func, '__module__') and func.__module__ is not None:
+                base_globals = func.__module__
+            else:
+                base_globals = {}
         self.globals_ref[id(func.__globals__)] = base_globals
 
         return (code, f_globals, defaults, closure, dct, base_globals)
@@ -694,6 +725,13 @@ class CloudPickler(Pickler):
         The name of this method is somewhat misleading: all types get
         dispatched here.
         """
+        if obj is type(None):
+            return self.save_reduce(type, (None,), obj=obj)
+        elif obj is type(Ellipsis):
+            return self.save_reduce(type, (Ellipsis,), obj=obj)
+        elif obj is type(NotImplemented):
+            return self.save_reduce(type, (NotImplemented,), obj=obj)
+
         if obj.__module__ == "__main__":
             return self.save_dynamic_class(obj)
 
@@ -1094,6 +1132,7 @@ class CloudUnpickler(Unpickler):
         try:
             value = func(*args)
         except Exception as exc:
+            traceback.print_exc()
             raise Exception('Failed to unpickle reduce. func=%s mod=%s args=%s msg="%s"' % (
             func.__name__, func.__module__, repr(args), str(exc)))
         stack[-1] = value
@@ -1116,9 +1155,8 @@ def subimport(name):
 
 
 def dynamic_subimport(name, vars):
-    mod = imp.new_module(name)
+    mod = types.ModuleType(name)
     mod.__dict__.update(vars)
-    sys.modules[name] = mod
     return mod
 
 
@@ -1230,7 +1268,11 @@ def _fill_function(*args):
     else:
         raise ValueError('Unexpected _fill_value arguments: %r' % (args,))
 
-    func.__globals__.update(state['globals'])
+    # Only set global variables that do not exist.
+    for k, v in state['globals'].items():
+        if k not in func.__globals__:
+            func.__globals__[k] = v
+
     func.__defaults__ = state['defaults']
     func.__dict__ = state['dict']
     if 'annotations' in state:
@@ -1269,6 +1311,25 @@ def _make_skel_func(code, cell_count, base_globals=None):
     """
     if base_globals is None:
         base_globals = {}
+    elif isinstance(base_globals, string_types):
+        base_globals_name = base_globals
+        try:
+            # First try to reuse the globals from the module containing the
+            # function. If it is not possible to retrieve it, fallback to an
+            # empty dictionary.
+            if importlib is not None:
+                base_globals = vars(importlib.import_module(base_globals))
+            elif sys.modules.get(base_globals, None) is not None:
+                base_globals = vars(sys.modules[base_globals])
+            else:
+                raise ImportError
+        except ImportError:
+            base_globals = _dynamic_modules_globals.get(
+                    base_globals_name, None)
+            if base_globals is None:
+                base_globals = _DynamicModuleFuncGlobals()
+            _dynamic_modules_globals[base_globals_name] = base_globals
+
     base_globals['__builtins__'] = __builtins__
 
     closure = (
@@ -1284,24 +1345,44 @@ def _rehydrate_skeleton_class(skeleton_class, class_dict):
 
     See CloudPickler.save_dynamic_class for more info.
     """
+    registry = None
     for attrname, attr in class_dict.items():
-        setattr(skeleton_class, attrname, attr)
+        if attrname == "_abc_impl":
+            registry = attr
+        else:
+            setattr(skeleton_class, attrname, attr)
+    if registry is not None:
+        for subclass in registry:
+            skeleton_class.register(subclass)
+
     return skeleton_class
 
 
-def _find_module(mod_name):
+def _is_dynamic(module):
     """
-    Iterate over each part instead of calling imp.find_module directly.
-    This function is able to find submodules (e.g. scikit.tree)
+    Return True if the module is special module that cannot be imported by its
+    name.
     """
-    path = None
-    for part in mod_name.split('.'):
-        if path is not None:
-            path = [path]
-        file, path, description = imp.find_module(part, path)
-        if file is not None:
-            file.close()
-    return path, description
+    # Quick check: module that have __file__ attribute are not dynamic modules.
+    if hasattr(module, '__file__'):
+        return False
+
+    if hasattr(module, '__spec__'):
+        return module.__spec__ is None
+    else:
+        # Backward compat for Python 2
+        import imp
+        try:
+            path = None
+            for part in module.__name__.split('.'):
+                if path is not None:
+                    path = [path]
+                f, path, description = imp.find_module(part, path)
+                if f is not None:
+                    f.close()
+        except ImportError:
+            return True
+        return False
 
 
 """Constructors for 3rd party libraries

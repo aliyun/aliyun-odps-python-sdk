@@ -86,15 +86,11 @@ class ODPS(object):
         self.rest = RestClient(self.account, self.endpoint, project, proxy=options.api_proxy)
 
         self._tunnel_endpoint = kw.pop('tunnel_endpoint', None)
-        if self._tunnel_endpoint is not None:
-            options.tunnel.endpoint = self._tunnel_endpoint
 
         self._projects = models.Projects(client=self.rest)
         self._project = self.get_project()
 
         self._predict_endpoint = kw.pop('predict_endpoint', DEFAULT_PREDICT_ENDPOINT)
-        if self._predict_endpoint is not None:
-            options.predict_endpoint = self._predict_endpoint
 
         self._seahawks_url = None
         if kw.get('seahawks_url'):

@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -125,7 +125,9 @@ class Test(TestBase):
 
         temp_path = tempfile.mkdtemp(prefix='tmp-pyodps-')
         lib_path = os.path.join(temp_path, 'mylib')
+        lib_path2 = os.path.join(temp_path, 'mylib2')
         os.makedirs(lib_path)
+        os.makedirs(lib_path2)
 
         lib_dict = dict()
         try:
@@ -157,6 +159,30 @@ class Test(TestBase):
             from mylib import fake_six
             self.assertEqual(list(to_binary('abc')), list(fake_six.binary_type(to_binary('abc'))))
             self.assertRaises(ImportError, __import__, 'sub_path', fromlist=[])
+
+            with open(os.path.join(lib_path2, '__init__.py'), 'w'):
+                pass
+            shutil.copy(six_path, os.path.join(lib_path2, 'fake_six.py'))
+            dummy_bin = open(os.path.join(lib_path2, 'dummy.so'), 'w')
+            dummy_bin.close()
+
+            sub_lib_path = os.path.join(lib_path2, 'sub_path2')
+            os.makedirs(sub_lib_path)
+
+            with open(os.path.join(sub_lib_path, '__init__.py'), 'w'):
+                pass
+            shutil.copy(six_path, os.path.join(sub_lib_path, 'fake_six.py'))
+
+            lib_files = ['__init__.py', 'fake_six.py', 'dummy.so',
+                         os.path.join('sub_path2', '__init__.py'),
+                         os.path.join('sub_path2', 'fake_six.py')]
+
+            importer.ALLOW_BINARY = True
+            importer_obj = CompressImporter(lib_files)
+            sys.meta_path.append(importer_obj)
+            from mylib2 import fake_six
+            self.assertEqual(list(to_binary('abc')), list(fake_six.binary_type(to_binary('abc'))))
+            self.assertRaises(ImportError, __import__, 'sub_path2', fromlist=[])
         finally:
             [f.close() for f in six.itervalues(lib_dict)]
             shutil.rmtree(temp_path)

@@ -29,7 +29,7 @@ PyODPS 的相关依赖会自动安装。
 .. rubric:: 快速开始
     :class: rubric-h2
 
-首先，我们需要阿里云帐号来初始化一个ODPS的入口：
+首先，我们需要阿里云帐号来初始化一个 ODPS 的入口（参数值请自行替换，不包含星号）：
 
 .. code-block:: python
 

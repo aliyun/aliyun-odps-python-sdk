@@ -684,9 +684,22 @@ class Table(LazyLoad):
         """
         return partition_spec in self.partitions
 
+    def exist_partitions(self, prefix_spec=None):
+        """
+        Check if partitions with provided conditions exist.
+
+        :param prefix_spec: prefix of partition
+        :return: whether partitions exist
+        """
+        try:
+            next(self.partitions.iterate_partitions(spec=prefix_spec))
+        except StopIteration:
+            return False
+        return True
+
     def iterate_partitions(self, spec=None):
         """
-        Create an iiterable object to iterate over partitions.
+        Create an iterable object to iterate over partitions.
 
         :param spec: specification of the partition.
         """

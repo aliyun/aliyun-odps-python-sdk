@@ -116,6 +116,9 @@ DataFrame 提供了一个\ ``value_counts``\ 操作，能返回按某列分组�
     1  Iris-versicolor     50
     2      Iris-setosa     50
 
+需要注意的是，该方法返回的行数大小受到 ODPS 排序返回结果大小的限制，默认为 10000 行，可通过
+``options.df.odps.sort.limit`` 配置，详见 :ref:`配置选项 <options>` 。
+
 对于聚合后的单列操作，我们也可以直接取出列名。但此时只能使用聚合函数。
 
 .. code:: python

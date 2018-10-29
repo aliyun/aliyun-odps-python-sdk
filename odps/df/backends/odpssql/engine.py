@@ -577,7 +577,8 @@ class ODPSSQLEngine(Engine):
             filters = []
             df = DataFrame(t)
             for k in partition.keys:
-                filters.append(df[k] == partition[k])
+                # actual type of partition and column type may mismatch
+                filters.append(df[k] == Scalar(partition[k]).cast(df[k].dtype))
             res = df.filter(*filters)
         else:
             res = DataFrame(t)

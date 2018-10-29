@@ -2888,6 +2888,27 @@ class Test(TestBase):
             self.odps.delete_table(table_name, if_exists=True)
 
         try:
+            schema = Schema.from_lists(self.schema.names, self.schema.types, ['dsi'], ['bigint'])
+            table = self.odps.create_table(table_name, schema)
+            table.create_partition("dsi='00'")
+            df = self.engine.persist(self.expr, table_name, partition="dsi='00'", create_partition=True)
+
+            res = self.engine.execute(df)
+            result = self._get_result(res)
+            self.assertEqual(len(result), 5)
+            self.assertEqual(data, [d[:-1] for d in result])
+
+            df2 = self.engine.persist(self.expr[self.expr.id.astype('float'), 'name'], table_name,
+                                      partition="dsi='01'", create_partition=True, cast=True)
+
+            res = self.engine.execute(df2)
+            result = self._get_result(res)
+            self.assertEqual(len(result), 5)
+            self.assertEqual([d[:2] + [None] * (len(d) - 2) for d in data], [d[:-1] for d in result])
+        finally:
+            self.odps.delete_table(table_name, if_exists=True)
+
+        try:
             schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds', 'hh'], ['string', 'string'])
             self.odps.create_table(table_name, schema)
 

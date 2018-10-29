@@ -108,6 +108,15 @@ class Instance(LazyLoad):
                             return text
                     return text
 
+                def __bytes__(self):
+                    text = utils.to_binary(self.text)
+                    if self.transform is not None and self.transform == 'Base64':
+                        try:
+                            return utils.to_binary(base64.b64decode(text))
+                        except TypeError:
+                            return text
+                    return text
+
             type = serializers.XMLNodeAttributeField(attr='Type')
             name = serializers.XMLNodeField('Name')
             result = serializers.XMLNodeReferenceField(Result, 'Result')
@@ -303,7 +312,10 @@ class Instance(LazyLoad):
         """
 
         results = self.get_task_results_without_format()
-        return compat.OrderedDict([(k, str(result)) for k, result in six.iteritems(results)])
+        if options.tunnel.string_as_binary:
+            return compat.OrderedDict([(k, bytes(result)) for k, result in six.iteritems(results)])
+        else:
+            return compat.OrderedDict([(k, str(result)) for k, result in six.iteritems(results)])
 
     def get_task_result(self, task_name):
         """

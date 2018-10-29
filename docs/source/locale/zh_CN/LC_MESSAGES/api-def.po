@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-25 15:28+0800\n"
+"POT-Creation-Date: 2018-10-10 15:55+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -98,12 +98,13 @@ msgstr ""
 #: odps.models.Instance.put_task_info odps.models.Instance.wait_for_completion
 #: odps.models.Instance.wait_for_success odps.models.Table.create_partition
 #: odps.models.Table.delete_partition odps.models.Table.drop
-#: odps.models.Table.exist_partition odps.models.Table.get_ddl
-#: odps.models.Table.get_partition odps.models.Table.head
-#: odps.models.Table.iterate_partitions odps.models.Table.new_record
-#: odps.models.Table.open_reader odps.models.Table.open_writer
-#: odps.models.Table.truncate odps.models.TableResource.update
-#: odps.models.Worker.get_log odps.models.ml.OnlineModel.predict
+#: odps.models.Table.exist_partition odps.models.Table.exist_partitions
+#: odps.models.Table.get_ddl odps.models.Table.get_partition
+#: odps.models.Table.head odps.models.Table.iterate_partitions
+#: odps.models.Table.new_record odps.models.Table.open_reader
+#: odps.models.Table.open_writer odps.models.Table.truncate
+#: odps.models.TableResource.update odps.models.Worker.get_log
+#: odps.models.ml.OnlineModel.predict
 #: odps.models.ml.OnlineModel.wait_for_deletion
 #: odps.models.ml.OnlineModel.wait_for_service
 #: odps.models.partition.Partition.drop
@@ -268,14 +269,14 @@ msgstr ""
 #: odps.models.Instance.open_reader odps.models.Instance.stop
 #: odps.models.Instance.wait_for_completion
 #: odps.models.Instance.wait_for_success odps.models.Table.create_partition
-#: odps.models.Table.drop odps.models.Table.get_ddl
-#: odps.models.Table.get_partition odps.models.Table.head
-#: odps.models.Table.new_record odps.models.Table.open_reader
-#: odps.models.Table.open_writer odps.models.Table.to_df
-#: odps.models.Table.truncate odps.models.TableResource.partition
-#: odps.models.TableResource.table odps.models.TableResource.update
-#: odps.models.Worker.get_log odps.models.ml.OnlineModel.predict
-#: odps.models.partition.Partition.drop
+#: odps.models.Table.drop odps.models.Table.exist_partitions
+#: odps.models.Table.get_ddl odps.models.Table.get_partition
+#: odps.models.Table.head odps.models.Table.new_record
+#: odps.models.Table.open_reader odps.models.Table.open_writer
+#: odps.models.Table.to_df odps.models.Table.truncate
+#: odps.models.TableResource.partition odps.models.TableResource.table
+#: odps.models.TableResource.update odps.models.Worker.get_log
+#: odps.models.ml.OnlineModel.predict odps.models.partition.Partition.drop
 #: odps.models.partition.Partition.open_reader
 #: odps.models.partition.Partition.to_df of
 msgid "Returns"
@@ -1715,6 +1716,18 @@ msgstr ""
 msgid "Check if a partition exists within the table."
 msgstr ""
 
+#: odps.models.Table.exist_partitions:1 of
+msgid "Check if partitions with provided conditions exist."
+msgstr ""
+
+#: odps.models.Table.exist_partitions:3 of
+msgid "prefix of partition"
+msgstr ""
+
+#: odps.models.Table.exist_partitions:4 of
+msgid "whether partitions exist"
+msgstr ""
+
 #: odps.models.Table.get_ddl:1 of
 msgid "Get DDL SQL statement for the given table."
 msgstr ""
@@ -1749,7 +1762,7 @@ msgid "the columns which is subset of the table columns"
 msgstr ""
 
 #: odps.models.Table.iterate_partitions:1 of
-msgid "Create an iiterable object to iterate over partitions."
+msgid "Create an iterable object to iterate over partitions."
 msgstr ""
 
 #: odps.models.Table.new_record:1 of

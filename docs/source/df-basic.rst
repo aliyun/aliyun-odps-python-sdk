@@ -865,6 +865,11 @@ ResultFrame 也支持在安装有 pandas 的前提下转换为 pandas DataFrame 
     >>> type(iris[iris.sepalwidth < 2.5].to_pandas(wrap=True))
     odps.df.core.DataFrame
 
+.. note::
+
+    ``to_pandas`` 返回的 pandas DataFrame 与直接通过 pandas 创建的 DataFrame 没有任何区别，
+    数据的存储和计算均在本地。如果 ``wrap=True``，生成的即便是 PyODPS DataFrame，数据依然在本地。
+    如果你的数据很大，或者运行环境的内存限制较为严格，请谨慎使用 ``to_pandas``。
 
 立即运行设置运行参数
 ~~~~~~~~~~~~~~~~~~~

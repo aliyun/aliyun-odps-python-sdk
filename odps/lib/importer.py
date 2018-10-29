@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -37,12 +37,14 @@ except:
     ALLOW_BINARY = False
 
 
-if hasattr(dict, 'itervalues'):
+if sys.version_info[0] <= 2:
     iterkeys = lambda d: d.iterkeys()
     itervalues = lambda d: d.itervalues()
+    string_types = (basestring, unicode)
 else:
     iterkeys = lambda d: d.keys()
     itervalues = lambda d: d.values()
+    string_types = (str, bytes)
 
 
 def _clean_extract():
@@ -93,6 +95,10 @@ class CompressImporter(object):
                 bin_package = any(name.endswith('.so') or name.endswith('.pxd') or name.endswith('.dylib')
                                   for name in iterkeys(f))
                 need_extract = False
+            elif isinstance(f, list):
+                bin_package = any(name.endswith('.so') or name.endswith('.pxd') or name.endswith('.dylib')
+                                  for name in f)
+                need_extract = False
             else:
                 raise TypeError('Compressed file can only be zipfile.ZipFile or tarfile.TarFile')
 
@@ -125,14 +131,14 @@ class CompressImporter(object):
                         f.getmember(name + '/__init__.py')
                     except KeyError:
                         prefixes.add(name + '/')
-            elif isinstance(f, dict):
+            elif isinstance(f, (list, dict)):
                 # Force ArchiveResource to run under binary mode to resolve manually
                 # opening __file__ paths in pure-python code.
                 if ALLOW_BINARY:
                     bin_package = True
 
                 rendered_names = set()
-                for name in iterkeys(f):
+                for name in f:
                     name = name.replace(os.sep, '/')
                     rendered_names.add(name)
 
@@ -274,8 +280,10 @@ class CompressImporter(object):
             source = fileobj.read(relpath.replace(os.sep, '/'))
         elif isinstance(fileobj, tarfile.TarFile):
             source = fileobj.extractfile(relpath.replace(os.sep, '/')).read()
-        else:
+        elif isinstance(fileobj, dict):
             source = fileobj[relpath.replace(os.sep, '/')].read()
+        else:
+            source = open(fileobj[relpath.replace(os.sep, '/')], 'rb').read()
         source = source.replace(b'\r\n', b'\n').replace(b'\r', b'\n')
         return submodname, is_package, fullpath, source
 

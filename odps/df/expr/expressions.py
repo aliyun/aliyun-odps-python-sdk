@@ -1980,7 +1980,7 @@ class ProjectCollectionExpr(CollectionExpr):
                 value_dag.substitute(n, field)
             elif isinstance(n, Window) and n.input is self:
                 # Window object like rank will point to collection directly instead of through column
-                value_dag.substitute(n.input, self.input)
+                n._input = self.input
 
         value = value_dag.root
         fields = [field if field.name != value.name else value for field in self._fields]

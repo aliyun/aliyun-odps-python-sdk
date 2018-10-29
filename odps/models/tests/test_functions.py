@@ -1,11 +1,11 @@
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -69,12 +69,21 @@ class Test(TestBase):
         self.assertIsNotNone(function._getattr('_resources'))
 
     def testCreateDeleteUpdateFunction(self):
+        secondary_project = self.config.get('test', 'secondary_project')
+        secondary_user = self.config.get('test', 'secondary_user')
+
         test_resource_name = tn('pyodps_t_tmp_test_function_resource') + '.py'
-        test_function_name2 = tn('pyodps_t_tmp_test_function_resource2') + '.py'
+        test_resource_name2 = tn('pyodps_t_tmp_test_function_resource2') + '.py'
+        test_resource_name3 = tn('pyodps_t_tmp_test_function_resource3') + '.py'
         test_function_name = tn('pyodps_t_tmp_test_function')
+        test_function_name3 = tn('pyodps_t_tmp_test_function3')
 
         try:
             self.odps.delete_resource(test_resource_name)
+        except errors.NoSuchObject:
+            pass
+        try:
+            self.odps.delete_resource(test_resource_name2)
         except errors.NoSuchObject:
             pass
         try:
@@ -82,9 +91,15 @@ class Test(TestBase):
         except errors.NoSuchObject:
             pass
         try:
-            self.odps.delete_resource(test_function_name2)
+            self.odps.delete_function(test_function_name3)
         except errors.NoSuchObject:
             pass
+
+        if secondary_project:
+            try:
+                self.odps.delete_resource(test_resource_name3, project=secondary_project)
+            except errors.NoSuchObject:
+                pass
 
         test_resource = self.odps.create_resource(
             test_resource_name, 'py', file_obj=FILE_CONTENT)
@@ -92,7 +107,7 @@ class Test(TestBase):
         test_function = self.odps.create_function(
             test_function_name,
             class_type=test_resource_name.split('.', 1)[0]+'.MyPlus',
-            resources=[test_resource,])
+            resources=[test_resource])
 
         self.assertIsNotNone(test_function.name)
         self.assertIsNotNone(test_function.owner)
@@ -103,11 +118,10 @@ class Test(TestBase):
         with self.odps.open_resource(name=test_resource_name, mode='r') as fp:
             self.assertEqual(to_str(fp.read()), to_str(FILE_CONTENT))
 
-        secondary_user = self.config.get('test', 'secondary_user')
         self.assertNotEqual(test_function.owner, secondary_user)
 
         test_resource2 = self.odps.create_resource(
-            test_function_name2, 'file', file_obj='Hello World'
+            test_resource_name2, 'file', file_obj='Hello World'
         )
         test_function.resources.append(test_resource2)
         test_function.owner = secondary_user
@@ -120,8 +134,31 @@ class Test(TestBase):
         self.assertEqual(len(test_function.resources), 2)
         self.assertEqual(test_function.owner, secondary_user)
 
+        test_resource3 = None
+        test_function3 = None
+        if secondary_project:
+            test_resource3 = self.odps.create_resource(
+                test_resource_name3, 'py', file_obj=FILE_CONTENT, project=secondary_project)
+
+            test_function3 = self.odps.create_function(
+                test_function_name3,
+                class_type=test_resource_name3.split('.', 1)[0]+'.MyPlus',
+                resources=[test_resource3])
+
+            self.assertEqual(test_function3.name, test_function_name3)
+            self.assertIsNotNone(test_function3.owner)
+            self.assertIsNotNone(test_function3.creation_time)
+            self.assertIsNotNone(test_function3.class_type)
+            self.assertEqual(len(test_function3.resources), 1)
+            self.assertEqual(test_function3.resources[0].name, test_resource_name3)
+            self.assertEqual(test_function3.resources[0].project, secondary_project)
+
         test_resource.drop()
         test_resource2.drop()
+        if test_resource3:
+            test_resource3.drop()
+        if test_function3:
+            test_function3.drop()
         test_function.drop()
 
 

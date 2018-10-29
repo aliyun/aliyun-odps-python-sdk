@@ -65,31 +65,84 @@ import sys
 from odps.udf import annotate
 from odps.distcache import get_cache_file, get_cache_table, get_cache_archive
 
+try:
+    from odps.distcache import get_cache_archive_filenames
+except ImportError:
+    def get_cache_archive_filenames(name, relative_path='.'):
+        from odps.distcache import RTYPE_ARCHIVE, WORK_DIR, download_resource, DistributedCacheError
+
+        def _is_parent(parent, child):
+            return parent == child or child.startswith(parent + '/')
+
+        if os.path.split(name)[0] != '':
+            raise DistributedCacheError("Invalid resource name: " + name)
+        download_resource(name, RTYPE_ARCHIVE)
+        ret_files = []
+
+        # find the real resource path to avoid the symbol link in inner system
+        resourcepath = os.path.realpath(os.path.join(WORK_DIR, name))
+
+        # use realpath == abspath to check the symbol link
+        dirpath = os.path.join(resourcepath, relative_path)
+        if not os.path.exists(dirpath):
+            raise DistributedCacheError("Invalid relative path, file not exists: " + relative_path)
+
+        if os.path.realpath(dirpath) != os.path.abspath(dirpath):
+            raise DistributedCacheError("Invalid relative path, relative path contains symlink: " + relative_path)
+
+        if not _is_parent(resourcepath, dirpath):
+            raise DistributedCacheError("Invalid relative path, path not correct in archive: " + relative_path)
+
+        if not os.path.isdir(dirpath):
+            return [dirpath]
+
+        for root, dirs, files in os.walk(dirpath):
+            for f in dirs:
+                filename = os.path.join(root, f)
+                if os.path.islink(filename):
+                    relativename = os.path.relpath(filename, resourcepath)
+                    raise DistributedCacheError("Invalid relative path, relative path contains symlink: " + relativename)
+
+            for f in files:
+                filename = os.path.join(root, f)
+                if os.path.islink(filename):
+                    relativename = os.path.relpath(filename, resourcepath)
+                    raise DistributedCacheError("Invalid relative path, relative path contains symlink: " + relativename)
+                ret_files.append(filename)
+        return ret_files
+        
+    
+def get_cache_archive_data(name, relative_path='.'):
+    try:
+        return [os.path.normpath(f) for f in get_cache_archive_filenames(name, relative_path)]
+    except RuntimeError:
+        return dict((os.path.normpath(fo.name), fo) for fo in get_cache_archive(name, relative_path))
+
 
 class UnbufferedStream(object):
     def __init__(self, stream):
         self.stream = stream
-        
+
     def write(self, data):
         self.stream.write(data)
         self.stream.flush()
-        
+
     def writelines(self, datas):
         self.stream.writelines(datas)
         self.stream.flush()
-        
+
     def __getattr__(self, attr):
         if attr != 'stream':
             return getattr(self.stream, attr)
         else:
             return object.__getattribute__(self, 'stream')
-        
+
     def __setattr__(self, attr, value):
         if attr != 'stream':
             return setattr(self.stream, attr, value)
         else:
             return object.__setattr__(self, 'stream', value)
-        
+
 sys.stdout = UnbufferedStream(sys.stdout)
 
 
@@ -101,7 +154,7 @@ except ImportError:
         def __getattr__(self, item):
             raise AttributeError('Accessing attribute `{0}` of module `socket` is prohibited by sandbox.'.format(item))
     sys.modules['socket'] = MockSocketModule()
-    
+
 
 def gen_resource_data(fields, tb):
     named_args = xnamedtuple('NamedArgs', fields)
@@ -110,8 +163,8 @@ def gen_resource_data(fields, tb):
 
 
 def read_lib(lib, f):
-    if isinstance(f, list):
-        return dict((os.path.normpath(fo.name), fo) for fo in f)
+    if isinstance(f, (list, dict)):
+        return f
     if lib.endswith('.zip') or lib.endswith('.egg') or lib.endswith('.whl'):
         return zipfile.ZipFile(f)
     if lib.endswith('.tar') or lib.endswith('.tar.gz') or lib.endswith('.tar.bz2'):
@@ -132,7 +185,7 @@ def read_lib(lib, f):
 np_generic = None
 def load_np_generic():
     global np_generic
-    
+
     try:
         from numpy import generic
         np_generic = generic
@@ -170,12 +223,12 @@ class %(func_cls_name)s(object):
         for lib in libraries:
             if lib.startswith('a:'):
                 lib = lib[2:]
-                f = get_cache_archive(lib)
+                f = get_cache_archive_data(lib)
             else:
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))
         sys.meta_path.append(CompressImporter(*files, supersede=%(supersede_libraries)r))
-        
+
         load_np_generic()
 
         encoded = '%(func_str)s'
@@ -286,12 +339,12 @@ class %(func_cls_name)s(BaseUDTF):
         for lib in libraries:
             if lib.startswith('a:'):
                 lib = lib[2:]
-                f = get_cache_archive(lib)
+                f = get_cache_archive_data(lib)
             else:
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))
         sys.meta_path.append(CompressImporter(*files, supersede=%(supersede_libraries)r))
-        
+
         load_np_generic()
 
         encoded = '%(func_str)s'
@@ -434,7 +487,7 @@ class %(func_cls_name)s(BaseUDAF):
         for lib in libraries:
             if lib.startswith('a:'):
                 lib = lib[2:]
-                f = get_cache_archive(lib)
+                f = get_cache_archive_data(lib)
             else:
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))

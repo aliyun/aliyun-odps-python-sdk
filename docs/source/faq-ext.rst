@@ -8,6 +8,14 @@ Endpoint配置不对，详细配置参考
 `MaxCompute 开通 Region 和服务连接对照表 <https://help.aliyun.com/document_detail/34951.html#h2-maxcompute-region-3>`_ 。
 此外还需要注意 ODPS 入口对象参数位置是否填写正确。
 
-.. rubric:: 如何申请开通公共云 Python UDF
+.. rubric:: 如何手动指定 Tunnel Endpoint
+    :name: faq_tunnel_endpoint
 
-公共云 Python UDF 目前处于公测阶段，可通过工单申请及咨询审批进度。
+可以使用下面的方法创建带有 Tunnel Endpoint 的 ODPS 入口（参数值请自行替换，不包含星号）：
+
+.. code-block:: python
+
+   from odps import ODPS
+
+   o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-default-project**',
+            endpoint='**your-end-point**', tunnel_endpoint='**your-tunnel-endpoint**')

@@ -1,12 +1,12 @@
 # encoding: utf-8
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -49,11 +49,12 @@ class TestStatistics(MLTestBase):
         ds = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
         t_test(ds, x_col='a04', _cases=self.gen_check_params_case(
             {'mu': '0', 'outputTableName': TEMP_TABLE_PREFIX + '_t_test', 'confidenceLevel': '0.95',
-             'xTableName': IONOSPHERE_TABLE, 'alternative': 'two.sided', 'xColName': 'a04'}))
+             'xTableName': self.odps.project + '.' + IONOSPHERE_TABLE, 'alternative': 'two.sided', 'xColName': 'a04'}))
         t_test(ds, x_col='a04', y_col='a05', _cases=self.gen_check_params_case(
-            {'yTableName': IONOSPHERE_TABLE, 'yColName': 'a05', 'mu': '0',
+            {'yTableName': self.odps.project + '.' + IONOSPHERE_TABLE, 'yColName': 'a05', 'mu': '0',
              'outputTableName': TEMP_TABLE_PREFIX + '_t_test', 'confidenceLevel': '0.95',
-             'xTableName': IONOSPHERE_TABLE, 'alternative': 'two.sided', 'xColName': 'a04'}))
+             'xTableName': self.odps.project + '.' + IONOSPHERE_TABLE, 'alternative': 'two.sided',
+             'xColName': 'a04'}))
 
     def test_chisquare(self):
         options.ml.dry_run = True

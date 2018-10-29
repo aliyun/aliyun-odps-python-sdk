@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-08 17:35+0800\n"
+"POT-Creation-Date: 2018-10-15 23:13+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -36,11 +36,20 @@ msgid ""
 "region-3>`_ 。 此外还需要注意 ODPS 入口对象参数位置是否填写正确。"
 msgstr ""
 
-#: ../../source/faq-ext.rst:12
-msgid "如何申请开通公共云 Python UDF"
+msgid "如何手动指定 Tunnel Endpoint"
 msgstr ""
 
-#: ../../source/faq-ext.rst:13
-msgid "公共云 Python UDF 目前处于公测阶段，可通过工单申请及咨询审批进度。"
+#: ../../source/faq-ext.rst:14
+msgid "可以使用下面的方法创建带有 Tunnel Endpoint 的 ODPS 入口（参数值请自行替换，不包含星号）："
+msgstr ""
+
+#: ../../source/faq-ext.rst:16
+msgid ""
+"from odps import ODPS\n"
+"\n"
+"o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-"
+"default-project**',\n"
+"         endpoint='**your-end-point**', tunnel_endpoint='**your-tunnel-"
+"endpoint**')"
 msgstr ""
 

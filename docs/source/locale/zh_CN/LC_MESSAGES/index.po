@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-11 09:42+0800\n"
+"POT-Creation-Date: 2018-08-31 16:31+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -58,7 +58,7 @@ msgid "快速开始"
 msgstr ""
 
 #: ../../source/index.rst:32
-msgid "首先，我们需要阿里云帐号来初始化一个ODPS的入口："
+msgid "首先，我们需要阿里云帐号来初始化一个 ODPS 的入口（参数值请自行替换，不包含星号）："
 msgstr ""
 
 #: ../../source/index.rst:34

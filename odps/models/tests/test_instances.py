@@ -353,6 +353,30 @@ class Test(TestBase):
             table.drop()
             table2.drop()
 
+    def testReadBinarySQLInstance(self):
+        try:
+            options.tunnel.string_as_binary = True
+            test_table = tn('pyodps_t_tmp_read_binary_sql_instance')
+            self.odps.delete_table(test_table, if_exists=True)
+            table = self.odps.create_table(
+                test_table,
+                schema=Schema.from_lists(['size', 'name'], ['bigint', 'string']), if_not_exists=True)
+
+            data = [[1, u'中'.encode('utf-8') + b'\\\\n\\\n' + u'文'.encode('utf-8') + b' ,\r\xe9'],
+                    [2, u'测试'.encode('utf-8') + b'\x00\x01\x02' + u'数据'.encode('utf-8') + b'\xe9']]
+            self.odps.write_table(
+                table, 0, [table.new_record(it) for it in data])
+
+            with self.odps.execute_sql('select name from %s' % test_table).open_reader(tunnel=False) as reader:
+                read_data = sorted([r[0] for r in reader])
+                expected_data = sorted([r[1] for r in data])
+
+                self.assertSequenceEqual(read_data, expected_data)
+
+            table.drop()
+        finally:
+            options.tunnel.string_as_binary = False
+
     def testReadNonAsciiSQLInstance(self):
         test_table = tn('pyodps_t_tmp_read_non_ascii_sql_instance')
         self.odps.delete_table(test_table, if_exists=True)

@@ -119,7 +119,7 @@ DataFrame
 - DataFrame的plot函数
 
 DataFrame 自定义函数需要提交到 MaxCompute 执行。由于 Python 沙箱的原因，第三方库只支持所有的纯 Python 库以及 Numpy，
-因此不能直接使用 Pandas，可参考:ref:`第三方库支持 <third_party_library>` 上传和使用所需的库。DataWorks
+因此不能直接使用 Pandas，可参考 :ref:`第三方库支持 <third_party_library>` 上传和使用所需的库。DataWorks
 中执行的非自定义函数代码可以使用平台预装的 Numpy 和 Pandas。其他带有二进制代码的三方包不被支持。
 
 由于兼容性的原因，在 DataWorks 中，`options.tunnel.use_instance_tunnel` 默认设置为 False。如果需要全局开启 Instance Tunnel，

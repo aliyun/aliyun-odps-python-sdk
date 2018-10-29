@@ -225,7 +225,8 @@ class MixedEngine(Engine):
         elif isinstance(expr, IsIn) and \
                 self._selecter.has_diff_data_sources(expr):
             handle = self._handle_isin
-        elif hasattr(expr, '_func') and expr._collection_resources and \
+        elif hasattr(expr, '_func') and \
+                getattr(expr, '_collection_resources', None) is not None and \
                 self._selecter.has_diff_data_sources(expr):
             handle = self._handle_function
         if handle is not None:

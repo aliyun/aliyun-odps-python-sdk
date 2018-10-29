@@ -74,7 +74,7 @@ class Test(TestBase):
         self.expr3 = CollectionExpr(_source_data=table3, _schema=schema2)
 
         schema3 = Schema.from_lists(['id', 'name', 'relatives', 'hobbies'],
-                                   datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
+                                    datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
         table4 = MockTable(name='pyodps_test_expr_table', schema=schema3)
         self.expr4 = CollectionExpr(_source_data=table4, _schema=schema3)
 
@@ -1682,6 +1682,14 @@ class Test(TestBase):
                    'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+    def testWindowSetitem(self):
+        expr = self.expr[self.expr, (self.expr.id + 1).rename('id1')]
+        expr['id1_row_number'] = expr.groupby('name').sort('id1').row_number()
+        expected = 'SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, t1.`scale`, t1.`birth`, t1.`id` + 1 AS `id1`, ' \
+                   'ROW_NUMBER() OVER (PARTITION BY t1.`name` ORDER BY t1.`id` + 1) AS `id1_row_number` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testApply(self):
         expr = self.expr.groupby('name').sort(['name', 'id']).apply(
             lambda x: x, names=self.expr.schema.names)['id', 'name']
@@ -2138,6 +2146,34 @@ class Test(TestBase):
                    '  ) t4\n' \
                    'ON t2.`id` == t4.`id`'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(res, prettify=False)))
+
+        left = self.expr.exclude('birth')
+        right = self.expr[:4]
+        res = left.left_join(right, on='id', merge_columns=True)
+        res['id1'] = res.apply(lambda row: row.id, axis=1, reduce=True)
+        res['id2'] = res.apply(lambda row: row.id, axis=1, reduce=True)
+
+        expected = 'SELECT t2.`name` AS `name_x`, IF(t2.`id` IS NULL, t4.`id`, t2.`id`) AS `id`, ' \
+                   't2.`fid` AS `fid_x`, t2.`isMale` AS `isMale_x`, t2.`scale` AS `scale_x`, ' \
+                   't4.`name` AS `name_y`, t4.`fid` AS `fid_y`, t4.`isMale` AS `isMale_y`, ' \
+                   't4.`scale` AS `scale_y`, t4.`birth`, {0}(t2.`name`, IF(t2.`id` IS NULL, t4.`id`, t2.`id`), t2.`fid`, t2.`isMale`, CAST(t2.`scale` AS STRING), t4.`name`, t4.`fid`, t4.`isMale`, CAST(t4.`scale` AS STRING), t4.`birth`) AS `id1`, ' \
+                   '{1}(t2.`name`, IF(t2.`id` IS NULL, t4.`id`, t2.`id`), t2.`fid`, t2.`isMale`, CAST(t2.`scale` AS STRING), t4.`name`, t4.`fid`, t4.`isMale`, CAST(t4.`scale` AS STRING), t4.`birth`, {0}(t2.`name`, IF(t2.`id` IS NULL, t4.`id`, t2.`id`), t2.`fid`, t2.`isMale`, CAST(t2.`scale` AS STRING), t4.`name`, t4.`fid`, t4.`isMale`, CAST(t4.`scale` AS STRING), t4.`birth`)) AS `id2` \n' \
+                   'FROM (\n' \
+                   '  SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, t1.`scale` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1\n' \
+                   ') t2 \n' \
+                   'LEFT OUTER JOIN \n' \
+                   '  (\n' \
+                   '    SELECT * \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table` t3 \n' \
+                   '    LIMIT 4\n' \
+                   '  ) t4\n' \
+                   'ON t2.`id` == t4.`id`'
+
+        engine = ODPSEngine(self.odps)
+        compiled = engine.compile(res, prettify=False)
+        fun_names = list(engine._ctx._registered_funcs.values())
+        self.assertEqual(to_str(expected).format(*fun_names), to_str(compiled))
 
     def testMapJoin(self):
         joined = self.expr.join(self.expr1, on=[], mapjoin=True)

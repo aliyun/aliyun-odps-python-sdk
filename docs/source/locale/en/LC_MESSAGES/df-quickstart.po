@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-08-20 16:35+0800\n"
+"POT-Creation-Date: 2018-09-10 23:47+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -30,9 +30,9 @@ msgid ""
 msgstr ""
 "Here, `movielens 100K <https://grouplens.org/datasets/movielens/100k/>`_ "
 "is used as an example. Assume that three tables already exist, which are "
-"``pyodps_ml_100k_movies`` (movie-related data), "
-"``pyodps_ml_100k_users`` (user-related data), and "
-"``pyodps_ml_100k_ratings`` (rating-related data)."
+"``pyodps_ml_100k_movies`` (movie-related data), ``pyodps_ml_100k_users`` "
+"(user-related data), and ``pyodps_ml_100k_ratings`` (rating-related "
+"data)."
 
 #: ../../source/df-quickstart.rst:10
 msgid "如果你的运行环境没有提供 ODPS 对象，你需要自己创建该对象："
@@ -200,14 +200,19 @@ msgid ""
 msgstr ""
 
 #: ../../source/df-quickstart.rst:126
-msgid "DataFrame API提供了value\\_counts这个方法来快速达到同样的目的。"
-msgstr ""
-"DataFrame APIs provide the value_counts method to quickly achieve the "
-"same result. For example:"
-
-#: ../../source/df-quickstart.rst:142
 msgid ""
-">>> users.occupation.value_counts()[:10]\n"
+"DataFrame API提供了value\\_counts这个方法来快速达到同样的目的。注意该方法返回的行数受到 "
+"``options.df.odps.sort.limit`` 的限制，详见 :ref:`配置选项 <options>` 。"
+msgstr ""
+"DataFrame APIs provide the value\\_counts method to quickly achieve the "
+"same result. An example is shown below. Note that the number of records "
+"returned by this method is limited by ``options.df.odps.sort.limit``, "
+"whose default value is 10,000. More information can be found in "
+":ref:`configuration section <options>`."
+
+#: ../../source/df-quickstart.rst:143
+msgid ""
+">>> uses.occupation.value_counts()[:10]\n"
 "      occupation  count\n"
 "0        student    196\n"
 "1          other    105\n"
@@ -221,55 +226,55 @@ msgid ""
 "9      scientist     31"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:143
+#: ../../source/df-quickstart.rst:144
 msgid "让我们用更直观的图来看这份数据。"
 msgstr "Show data in a more intuitive graph, as shown in the following code:"
 
-#: ../../source/df-quickstart.rst:148
+#: ../../source/df-quickstart.rst:149
 msgid ">>> %matplotlib inline"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:149
+#: ../../source/df-quickstart.rst:150
 msgid "我们可以用个横向的柱状图来可视化"
 msgstr ""
 "Use a horizontal bar chart to visualize data, as shown in the following "
 "code:"
 
-#: ../../source/df-quickstart.rst:155
+#: ../../source/df-quickstart.rst:156
 msgid ""
 ">>> users['occupation'].value_counts().plot(kind='barh', x='occupation', "
 "ylabel='prefession')\n"
 "<matplotlib.axes._subplots.AxesSubplot at 0x10653cfd0>"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:158
+#: ../../source/df-quickstart.rst:159
 msgid ".. image:: _static/df-value-count-plot.png"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:159
+#: ../../source/df-quickstart.rst:160
 msgid "我们将年龄分成30组，来看个年龄分布的直方图"
 msgstr ""
 "Divide ages into 30 groups and view the histogram of age distribution, as"
 " shown in the following code:"
 
-#: ../../source/df-quickstart.rst:165
+#: ../../source/df-quickstart.rst:166
 msgid ""
 ">>> users.age.hist(bins=30, title=\"Distribution of users' ages\", "
 "xlabel='age', ylabel='count of users')\n"
 "<matplotlib.axes._subplots.AxesSubplot at 0x10667a510>"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:168
+#: ../../source/df-quickstart.rst:169
 msgid ".. image:: _static/df-age-hist.png"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:169
+#: ../../source/df-quickstart.rst:170
 msgid "好了，现在我们把这三张表联合起来，只需要使用join就可以了。join完成后我们把它保存成一张新的表。"
 msgstr ""
 "Use join to join the three tables and save the joined tables as a new "
 "table. For example:"
 
-#: ../../source/df-quickstart.rst:194
+#: ../../source/df-quickstart.rst:195
 msgid ""
 ">>> movies = DataFrame(o.get_table('pyodps_ml_100k_movies'))\n"
 ">>> ratings = DataFrame(o.get_table('pyodps_ml_100k_ratings'))\n"
@@ -295,11 +300,11 @@ msgid ""
 "}"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:195
+#: ../../source/df-quickstart.rst:196
 msgid "现在我们把年龄分成从0到80岁，分成8个年龄段，"
 msgstr "Divide ages of 0 to 80 into eight groups, as shown in the following code:"
 
-#: ../../source/df-quickstart.rst:201
+#: ../../source/df-quickstart.rst:202
 msgid ""
 ">>> labels = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', "
 "'60-69', '70-79']\n"
@@ -311,13 +316,13 @@ msgstr ""
 ">>> cut_lens = lens[lens, lens.age.cut(range(0, 81, 10), right=False, "
 "labels=labels).rename('age_group')]"
 
-#: ../../source/df-quickstart.rst:202
+#: ../../source/df-quickstart.rst:203
 msgid "我们取分组和年龄唯一的前10条看看。"
 msgstr ""
 "View the first 10 data records of a single age in a group, as shown in "
 "the following code:"
 
-#: ../../source/df-quickstart.rst:218
+#: ../../source/df-quickstart.rst:219
 msgid ""
 ">>> cut_lens['年龄分组', 'age'].distinct()[:10]\n"
 "   年龄分组  age\n"
@@ -345,13 +350,13 @@ msgstr ""
 "8      10-19   18\n"
 "9      10-19   19"
 
-#: ../../source/df-quickstart.rst:219
+#: ../../source/df-quickstart.rst:220
 msgid "最后，我们来看看在各个年龄分组下，用户的评分总数和评分均值分别是多少。"
 msgstr ""
 "View users’ total rating and average rating of each age group, as shown "
 "in the following code:"
 
-#: ../../source/df-quickstart.rst:232
+#: ../../source/df-quickstart.rst:233
 msgid ""
 ">>> cut_lens.groupby('年龄分组').agg(cut_lens.rating.count().rename('评分总数'), "
 "cut_lens.rating.mean().rename('评分均值'))\n"

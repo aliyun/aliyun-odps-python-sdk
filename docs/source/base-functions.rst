@@ -16,13 +16,12 @@ ODPS用户可以编写自定义 `函数 <https://docs.aliyun.com/#/pub/odps/basi
 
 .. code-block:: python
 
+   >>> # 引用当前 project 中的资源
    >>> resource = o.get_resource('my_udf.py')
-   >>> function = o.create_function('test_function', class_type='my_udf.Test', resources=[resource, ])
-
-
-.. note::
-
-    注意，公共云由于安全原因，使用 Python UDF 需要申请。
+   >>> function = o.create_function('test_function', class_type='my_udf.Test', resources=[resource])
+   >>> # 引用其他 project 中的资源
+   >>> resource2 = o.get_resource('my_udf.py', project='another_project')
+   >>> function2 = o.create_function('test_function2', class_type='my_udf.Test', resources=[resource2])
 
 删除函数
 ---------

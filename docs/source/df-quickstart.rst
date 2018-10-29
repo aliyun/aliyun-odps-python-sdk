@@ -28,11 +28,11 @@
 
     >>> users.dtypes
     odps.Schema {
-      user_id             int64       
-      age                 int64       
-      sex                 string      
-      occupation          string      
-      zip_code            string      
+      user_id             int64
+      age                 int64
+      sex                 string
+      occupation          string
+      zip_code            string
     }
 
 
@@ -123,11 +123,12 @@
     8      executive     32
     9      scientist     31
 
-DataFrame API提供了value\_counts这个方法来快速达到同样的目的。
+DataFrame API提供了value\_counts这个方法来快速达到同样的目的。注意该方法返回的行数受到 ``options.df.odps.sort.limit``
+的限制，详见 :ref:`配置选项 <options>` 。
 
 .. code:: python
 
-    >>> users.occupation.value_counts()[:10]
+    >>> uses.occupation.value_counts()[:10]
           occupation  count
     0        student    196
     1          other    105
@@ -178,18 +179,18 @@ DataFrame API提供了value\_counts这个方法来快速达到同样的目的。
     >>>
     >>> lens.dtypes
     odps.Schema {
-      movie_id                            int64       
-      title                               string      
-      release_date                        string      
-      video_release_date                  string      
-      imdb_url                            string      
-      user_id                             int64       
-      rating                              int64       
-      unix_timestamp                      int64       
-      age                                 int64       
-      sex                                 string      
-      occupation                          string      
-      zip_code                            string      
+      movie_id                            int64
+      title                               string
+      release_date                        string
+      video_release_date                  string
+      imdb_url                            string
+      user_id                             int64
+      rating                              int64
+      unix_timestamp                      int64
+      age                                 int64
+      sex                                 string
+      occupation                          string
+      zip_code                            string
     }
 
 现在我们把年龄分成从0到80岁，分成8个年龄段，

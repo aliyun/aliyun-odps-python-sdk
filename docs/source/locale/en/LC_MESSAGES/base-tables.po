@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-08-13 10:10+0800\n"
+"POT-Creation-Date: 2018-10-10 15:55+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -564,18 +564,30 @@ msgstr ""
 ">>>     # iterate over secondary partitions"
 
 #: ../../source/base-tables.rst:324
-msgid "判断分区是否存在："
-msgstr "Check whether the specified partition exists:"
+msgid "判断分区是否存在（该方法需要填写所有分区字段值）："
+msgstr "Check whether the specified partition exists, all field values should be provided:"
 
 #: ../../source/base-tables.rst:326
 msgid ">>> table.exist_partition('pt=test,sub=2015')"
 msgstr ""
 
 #: ../../source/base-tables.rst:330
+msgid "判断给定前缀的分区是否存在："
+msgstr "Check whether partitions satisfying provided prefix exist:"
+
+#: ../../source/base-tables.rst:332
+msgid ""
+">>> # 表 table 的分区字段依次为 pt, sub\n"
+">>> table.exist_partitions('pt=test')"
+msgstr ""
+">>> # the order of partitions fields of table is pt, sub\n"
+">>> table.exist_partitions('pt=test')"
+
+#: ../../source/base-tables.rst:337
 msgid "获取分区："
 msgstr "Obtain the specified partition:"
 
-#: ../../source/base-tables.rst:332
+#: ../../source/base-tables.rst:339
 msgid ""
 ">>> partition = table.get_partition('pt=test')\n"
 ">>> print(partition.creation_time)\n"
@@ -584,21 +596,21 @@ msgid ""
 "0"
 msgstr ""
 
-#: ../../source/base-tables.rst:341
+#: ../../source/base-tables.rst:348
 msgid "创建分区"
 msgstr "Create partitions"
 
-#: ../../source/base-tables.rst:343
+#: ../../source/base-tables.rst:350
 msgid ">>> t.create_partition('pt=test', if_not_exists=True)  # 不存在的时候才创建"
 msgstr ""
 ">>> t.create_partition('pt=test', if_not_exists=True)  # create only when"
 " the partition does not exist"
 
-#: ../../source/base-tables.rst:348
+#: ../../source/base-tables.rst:355
 msgid "删除分区"
 msgstr "Delete partitions"
 
-#: ../../source/base-tables.rst:350
+#: ../../source/base-tables.rst:357
 msgid ""
 ">>> t.delete_partition('pt=test', if_exists=True)  # 存在的时候才删除\n"
 ">>> partition.drop()  # Partition对象存在的时候直接drop"
@@ -608,11 +620,11 @@ msgstr ""
 ">>> partition.drop()  # delete directly via the drop method of the "
 "partition object"
 
-#: ../../source/base-tables.rst:358
+#: ../../source/base-tables.rst:365
 msgid "数据上传下载通道"
 msgstr "Data upload and download channels"
 
-#: ../../source/base-tables.rst:363
+#: ../../source/base-tables.rst:370
 msgid ""
 "不推荐直接使用tunnel接口（难用且复杂），推荐直接使用表的 :ref:`写 <table_write>` 和 :ref:`读 "
 "<table_read>` 接口。"
@@ -623,24 +635,24 @@ msgstr ""
 "tunnel invocations. However, when your data amount is large and "
 "throughput is critical, you may try using table tunnel methods directly."
 
-#: ../../source/base-tables.rst:367
+#: ../../source/base-tables.rst:374
 msgid "ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据。"
 msgstr ""
 "MaxCompute Tunnel is the data channel of MaxCompute. You can use this to "
 "upload data to or download data from MaxCompute."
 
-#: ../../source/base-tables.rst:369
+#: ../../source/base-tables.rst:376
 msgid "**注意**，如果安装了 **Cython**，在安装pyodps时会编译C代码，加速Tunnel的上传和下载。"
 msgstr ""
 "**Note**: In a **Cython** environment, PyODPS compiles C programs during "
 "installation to increase the Tunnel upload and download speed when "
 "required."
 
-#: ../../source/base-tables.rst:372
+#: ../../source/base-tables.rst:379
 msgid "上传"
 msgstr "Upload"
 
-#: ../../source/base-tables.rst:374
+#: ../../source/base-tables.rst:381
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -662,11 +674,11 @@ msgid ""
 "upload_session.commit([0])"
 msgstr ""
 
-#: ../../source/base-tables.rst:395
+#: ../../source/base-tables.rst:402
 msgid "下载"
 msgstr "Download"
 
-#: ../../source/base-tables.rst:398
+#: ../../source/base-tables.rst:405
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"

@@ -1,12 +1,12 @@
 # encoding: utf-8
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -95,7 +95,7 @@ class Test(MLTestBase):
         top_n_df._add_case(self.gen_check_params_case({
             'inputTableName': STR_COMP_TABLE, 'k': '2', 'outputColName': 'output',
             'mapSelectedColName': 'col1', 'topN': '10', 'inputSelectedColName': 'col1',
-            'outputTableName': TOP_N_TABLE, 'mapTableName': STR_COMP_TABLE,
+            'outputTableName': TOP_N_TABLE, 'mapTableName': self.odps.project + '.' + STR_COMP_TABLE,
             'method': 'levenshtein_sim', 'lambda': '0.5'}))
         top_n_df.persist(TOP_N_TABLE)
 
@@ -108,7 +108,7 @@ class Test(MLTestBase):
         ndf = DataFrame(self.odps.get_table(NOISE_TABLE))
         filtered = filter_noises(df, ndf)
         filtered._add_case(self.gen_check_params_case({
-            'noiseTableName': NOISE_TABLE, 'outputTableName': FILTERED_WORDS_TABLE,
+            'noiseTableName': self.odps.project + '.' + NOISE_TABLE, 'outputTableName': FILTERED_WORDS_TABLE,
             'selectedColNames': 'content', 'inputTableName': SPLITED_TABLE}))
         filtered.persist(FILTERED_WORDS_TABLE)
 

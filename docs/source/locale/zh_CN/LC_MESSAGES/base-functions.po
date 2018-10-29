@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-11 09:42+0800\n"
+"POT-Creation-Date: 2018-10-15 23:13+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -44,34 +44,35 @@ msgstr ""
 
 #: ../../source/base-functions.rst:17
 msgid ""
+">>> # 引用当前 project 中的资源\n"
 ">>> resource = o.get_resource('my_udf.py')\n"
 ">>> function = o.create_function('test_function', "
-"class_type='my_udf.Test', resources=[resource, ])"
+"class_type='my_udf.Test', resources=[resource])\n"
+">>> # 引用其他 project 中的资源\n"
+">>> resource2 = o.get_resource('my_udf.py', project='another_project')\n"
+">>> function2 = o.create_function('test_function2', "
+"class_type='my_udf.Test', resources=[resource2])"
 msgstr ""
 
-#: ../../source/base-functions.rst:25
-msgid "注意，公共云由于安全原因，使用 Python UDF 需要申请。"
-msgstr ""
-
-#: ../../source/base-functions.rst:28
+#: ../../source/base-functions.rst:27
 msgid "删除函数"
 msgstr ""
 
-#: ../../source/base-functions.rst:30
+#: ../../source/base-functions.rst:29
 msgid ""
 ">>> o.delete_function('test_function')\n"
 ">>> function.drop()  # Function对象存在时直接调用drop"
 msgstr ""
 
-#: ../../source/base-functions.rst:36
+#: ../../source/base-functions.rst:35
 msgid "更新函数"
 msgstr ""
 
-#: ../../source/base-functions.rst:38
+#: ../../source/base-functions.rst:37
 msgid "只需对函数调用 ``update`` 方法即可。"
 msgstr ""
 
-#: ../../source/base-functions.rst:40
+#: ../../source/base-functions.rst:39
 msgid ""
 ">>> function = o.get_function('test_function')\n"
 ">>> new_resource = o.get_resource('my_udf2.py')\n"
