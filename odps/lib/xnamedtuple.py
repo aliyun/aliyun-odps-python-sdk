@@ -21,8 +21,8 @@ except ImportError:
     from ordereddict import OrderedDict
     from collections import namedtuple as _namedtuple
 
-    def namedtuple(typename, field_names, verbose=False, rename=False):
-        return _namedtuple(typename, field_names, verbose=verbose)
+    def namedtuple(typename, field_names, rename=False):
+        return _namedtuple(typename, field_names)
 
 try:
     string_types = (unicode, basestring)
@@ -47,10 +47,10 @@ class NamedTupleMixin(object):
         return self._replace(**new_kw)
 
 
-def xnamedtuple(typename, field_names, verbose=False):
+def xnamedtuple(typename, field_names):
     if isinstance(field_names, string_types):
         field_names = field_names.replace(',', ' ').split()
-    base_nt = namedtuple(typename + '_base', field_names, verbose=verbose, rename=True)
+    base_nt = namedtuple(typename + '_base', field_names, rename=True)
     nt = type(typename, (base_nt, NamedTupleMixin), {})
     nt._name_map = dict((v, k) for k, v in enumerate(field_names))
     nt._names = field_names

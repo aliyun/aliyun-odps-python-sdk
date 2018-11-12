@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-07-10 10:42+0800\n"
+"POT-Creation-Date: 2018-11-08 12:41+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.6.0\n"
 
 #: ../../source/api-df.rst:4
 msgid "DataFrame Reference"
@@ -679,7 +679,15 @@ msgid "collection"
 msgstr ""
 
 #: odps.df.CollectionExpr.columns:1 of
-msgid "*return* -- columns :rtype: list which each element is a Column"
+msgid "columns :rtype: list which each element is a Column"
+msgstr ""
+
+#: odps.df.CollectionExpr.columns odps.df.SequenceExpr.dtype of
+msgid "type"
+msgstr ""
+
+#: odps.df.CollectionExpr.columns:4 of
+msgid "return"
 msgstr ""
 
 #: odps.df.CollectionExpr.compile:1 odps.df.RandomScalar.compile:1
@@ -1902,12 +1910,16 @@ msgstr ""
 
 #: odps.df.SequenceExpr.dtype:1 of
 msgid ""
-"*Return the data type. Available types* -- int8, int16, int32, int64, "
-"float32, float64, boolean, string, decimal, datetime"
+"int8, int16, int32, int64, float32, float64, boolean, string, decimal, "
+"datetime"
 msgstr ""
 
 #: odps.df.SequenceExpr.dtype:3 of
 msgid "the data type"
+msgstr ""
+
+#: odps.df.SequenceExpr.dtype:5 of
+msgid "Return the data type. Available types"
 msgstr ""
 
 #: odps.df.RandomScalar.fillna:1 odps.df.Scalar.fillna:1

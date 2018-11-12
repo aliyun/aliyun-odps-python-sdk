@@ -139,6 +139,18 @@ class Test(TestBase):
             six.exec_(textwrap.dedent("""
             from typing import Optional
             
+            def fun(v) -> float:
+                return float(v + 1)
+            expr = self.expr.id.map(fun)
+            """), globals(), l)
+            expr = l['expr']
+            self.assertIsInstance(expr, MappedExpr)
+            self.assertIsInstance(expr._data_type, types.Float)
+
+            l = locals().copy()
+            six.exec_(textwrap.dedent("""
+            from typing import Optional
+            
             def fun(v) -> Optional[float]:
                 return float(v + 1)
             expr = self.expr.id.map(fun)

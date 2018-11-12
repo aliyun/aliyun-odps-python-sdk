@@ -420,6 +420,10 @@ class FileResource(Resource):
 
         return self._fp.seek(pos, whence)
 
+    @staticmethod
+    def seekable():
+        return True
+
     def tell(self):
         """
         Tell the current position

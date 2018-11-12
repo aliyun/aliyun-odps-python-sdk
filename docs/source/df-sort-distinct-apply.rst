@@ -456,7 +456,7 @@ apply 的自定义函数接收一个参数，为上一步 Collection 的一行�
 使用 apply 对行操作，且 ``reduce``\ 为 False 时，可以使用 :ref:`dflateralview` 与已有的行结合，用于后续聚合等操作。
 
 .. code:: python
-  
+
     >>> from odps.df import output
     >>>
     >>> @output(['iris_add', 'iris_sub'], ['float', 'float'])
@@ -576,6 +576,7 @@ PyODPS DataFrame也支持MapReduce API，用户可以分别编写map和reduce函
     >>>         yield word.lower(), 1
     >>>
     >>> def reducer(keys):
+    >>>     # 这里使用 list 而不是 cnt = 0，否则 h 内的 cnt 会被认为是局部变量，其中的赋值无法输出
     >>>     cnt = [0]
     >>>     def h(row, done):  # done表示这个key已经迭代结束
     >>>         cnt[0] += row[1]
@@ -629,6 +630,7 @@ group参数用来指定reduce按哪些字段做分组，如果不指定，会按
     >>>
     >>> @output(['word', 'cnt'], ['string', 'int'])
     >>> def reducer(keys):
+    >>>     # 这里使用 list 而不是 cnt = 0，否则 h 内的 cnt 会被认为是局部变量，其中的赋值无法输出
     >>>     cnt = [0]
     >>>     def h(row, done):  # done表示这个key已经迭代结束
     >>>         cnt[0] += row.cnt

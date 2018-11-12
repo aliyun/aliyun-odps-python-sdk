@@ -205,6 +205,11 @@ def get_annotation_rtype(func):
         ret_type = func.__annotations__.get('return')
         if ret_type in annotation_rtypes:
             return annotation_rtypes.get(ret_type)
+        elif hasattr(ret_type, '__origin__') and ret_type.__origin__ is Union:
+            actual_types = [typo for typo in ret_type.__args__
+                            if typo is not type(None)]
+            if len(actual_types) == 1:
+                return annotation_rtypes.get(actual_types[0])
         elif Union is not None and type(ret_type) is type(Union):
             actual_types = [typo for typo in ret_type.__args__
                             if typo is not type(None)]

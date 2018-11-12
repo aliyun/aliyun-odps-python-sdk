@@ -1453,7 +1453,13 @@ def fillna(expr, value=None, method=None, subset=None):
 
             try:
                 import numpy as np
-                isnan = np.isnan
+
+                def isnan(v):
+                    try:
+                        return np.isnan(v)
+                    except TypeError:
+                        return False
+
             except ImportError:
                 isnan = lambda v: False
 
