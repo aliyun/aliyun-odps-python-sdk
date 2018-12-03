@@ -16,9 +16,10 @@
 
 import itertools
 import json
-from datetime import datetime
 import re
 import time
+import uuid
+from datetime import datetime
 
 from ..core import Backend
 from ...expr.expressions import *
@@ -173,7 +174,7 @@ class PandasCompiler(Backend):
 
         root = self._retrieve_until_find_root(expr)
 
-        if root is not None:
+        if root is not None and id(root) not in traversed:
             self._compile_join_node(root, traversed)
             traversed.add(id(root))
 
@@ -187,9 +188,9 @@ class PandasCompiler(Backend):
     def _compile_join_node(self, expr, traversed):
         nodes = []
 
-        self._compile(expr._lhs)
+        self._compile(expr._lhs, traversed)
         nodes.append(expr._lhs)
-        self._compile(expr._rhs)
+        self._compile(expr._rhs, traversed)
         nodes.append(expr._rhs)
         for node in expr._predicate:
             nodes.append(node._lhs)
@@ -569,7 +570,9 @@ class PandasCompiler(Backend):
             children_vals = self._get_children_vals(kw, expr)
             fields = children_vals[1:]
 
-            return pd.concat(fields, axis=1, keys=expr.schema.names).drop_duplicates()
+            ret = pd.concat(fields, axis=1, keys=expr.schema.names).drop_duplicates()
+            ret.reset_index(drop=True, inplace=True)
+            return ret
 
         self._add_node(expr, handle)
 

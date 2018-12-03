@@ -1322,6 +1322,15 @@ class Test(TestBase):
                    ') t2'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = self.expr.reshuffle(sort=RandomScalar())
+
+        expected = 'SELECT * \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'DISTRIBUTE BY rand() \n' \
+                   'SORT BY rand()'
+
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testFilterGroupbySinkFilterCompilation(self):
         # to test the sinking of filter to `having` clause
         expr = self.expr.groupby(['name']).agg(id=self.expr.id.max())[lambda x: x.id < 10]

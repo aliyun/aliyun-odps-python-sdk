@@ -2506,7 +2506,7 @@ class Test(TestBase):
         self.odps.write_table(table2, 0, data2)
 
         try:
-            expr = self.expr.join(expr2)['name', 'id2']
+            expr = self.expr.join(expr2).join(expr2)['name', 'id2']
 
             res = self.engine.execute(expr)
             result = self._get_result(res)

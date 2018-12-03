@@ -14,11 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import re
+import time
+import uuid
 from datetime import timedelta, datetime
 from random import randint
 from decimal import Decimal
-import re
-import time
 
 from odps.df.backends.tests.core import TestBase, to_str, tn, pandas_case
 from odps.compat import unittest, irange as xrange, OrderedDict
@@ -732,7 +734,10 @@ class Test(TestBase):
             for resource in resources:
                 for utils_resource in utils_resources:
                     def f(x):
-                        from python_utils import converters
+                        try:
+                            from python_utils import converters
+                        except ImportError:
+                            raise
                         return converters.to_int(x)
 
                     expr = self.expr.name.map(f, rtype='int')
@@ -743,7 +748,10 @@ class Test(TestBase):
                     self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
 
                     def f(row):
-                        from python_utils import converters
+                        try:
+                            from python_utils import converters
+                        except ImportError:
+                            raise
                         return converters.to_int(row.name),
 
                     expr = self.expr.apply(f, axis=1, names=['name', ], types=['int', ])
@@ -758,7 +766,10 @@ class Test(TestBase):
                             return [0]
 
                         def __call__(self, buffer, val):
-                            from python_utils import converters
+                            try:
+                                from python_utils import converters
+                            except ImportError:
+                                raise
                             buffer[0] += converters.to_int(val)
 
                         def merge(self, buffer, pbuffer):
@@ -1697,6 +1708,30 @@ class Test(TestBase):
 
         self.assertEqual(expected, result)
 
+    def testDistinctScalar(self):
+        data = [
+            ['name1', 4, 5.3, None, None, None],
+            ['name2', 2, 3.5, None, None, None],
+            ['name1', 4, 4.2, None, None, None],
+            ['name1', 3, 2.2, None, None, None],
+            ['name1', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        expr = self.expr.distinct('name', 'id')
+        expr['scalar'] = 3
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        expected = [
+            ['name1', 4, 3],
+            ['name2', 2, 3],
+            ['name1', 3, 3],
+        ]
+
+        self.assertEqual(expected, result)
+
     def testWindowFunction(self):
         data = [
             ['name1', 4, 5.3, None, None, None],
@@ -2073,7 +2108,7 @@ class Test(TestBase):
         expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
                                _schema=schema2)
 
-        expr = self.expr.join(expr2)['name', 'id2']
+        expr = self.expr.join(expr2).join(expr2)['name', 'id2']
 
         res = self.engine.execute(expr)
         result = self._get_result(res)

@@ -19,6 +19,7 @@ from __future__ import absolute_import
 import json
 import re
 import time
+import uuid
 from collections import namedtuple
 
 from .expressions import *
@@ -74,6 +75,12 @@ class SortedExpr(Expr):
                 column = SortedColumn(_input=field, _name=field.name, _source_name=field.source_name,
                                       _data_type=field._data_type,
                                       _source_data_type=field._source_data_type,
+                                      _ascending=self._ascending[i])
+                sorted_fields.append(column)
+            elif isinstance(field, Scalar):
+                column = SortedColumn(_input=field, _name=field.name, _source_name=field.source_name,
+                                      _data_type=field._value_type,
+                                      _source_data_type=field._source_value_type,
                                       _ascending=self._ascending[i])
                 sorted_fields.append(column)
             else:
@@ -715,7 +722,6 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
         if isinstance(ascending, bool):
             ascending = [ascending] * len(sort)
 
-
         class CombinedMapper(object):
             def __init__(self, resources=None):
                 if mapper_resources:
@@ -731,7 +737,7 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
                     self.is_generator = inspect.isgeneratorfunction(self.f.__call__)
 
             def _cmp_to_key(self, cmp):
-                'Convert a cmp= function into a key= function'
+                """Convert a cmp= function into a key= function"""
 
                 class K(object):
                     def __init__(self, obj):
@@ -804,7 +810,6 @@ def map_reduce(expr, mapper=None, reducer=None, group=None, sort=None, ascending
                 if len(self.buffer) > 0:
                     for l in self._combine():
                         yield l
-
 
         return CombinedMapper
 

@@ -28,7 +28,7 @@ from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_ty
 from .. import types
 from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys, six, futures
 from ...config import options
-from ...errors import NoSuchObject
+from ...errors import NoSuchObject, DependencyNotInstalledError
 from ...utils import TEMP_TABLE_PREFIX, to_binary, deprecated, survey
 from ...models import Schema
 
@@ -1239,7 +1239,7 @@ class TypedExpr(Expr):
             subs = [sub for sub in mros if sub not in typed_classes]
             subs.insert(1, typed_cls)
 
-            bases = list()
+            bases = []
             for sub in subs[::-1]:
                 for i in range(len(bases)):
                     if bases[i] is None:
@@ -2214,5 +2214,6 @@ def _count(expr, *args, **kwargs):
     else:
         from .reduction import count
         return count(expr)
+
 
 StringSequenceExpr.count = _count
