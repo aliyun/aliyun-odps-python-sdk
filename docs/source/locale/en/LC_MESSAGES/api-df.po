@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-11-08 12:41+0800\n"
+"POT-Creation-Date: 2018-12-05 22:57+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -890,20 +890,33 @@ msgstr ""
 msgid "instance priority, 9 as default"
 msgstr ""
 
-#: odps.df.CollectionExpr.execute:5 odps.df.RandomScalar.execute:5
-#: odps.df.Scalar.execute:5 odps.df.SequenceExpr.execute:5
+#: odps.df.CollectionExpr.execute:5 odps.df.CollectionExpr.persist:19
+#: odps.df.RandomScalar.execute:5 odps.df.RandomScalar.persist:19
+#: odps.df.Scalar.execute:5 odps.df.Scalar.persist:19
+#: odps.df.SequenceExpr.execute:5 odps.df.SequenceExpr.persist:19
 #: odps.df.expr.groupby.GroupBy.execute:5
+#: odps.df.expr.groupby.GroupBy.persist:19
 #: odps.df.expr.groupby.Int64SequenceGroupBy.execute:5
-#: odps.df.expr.groupby.SequenceGroupBy.execute:5 of
-msgid "execution result"
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:19
+#: odps.df.expr.groupby.SequenceGroupBy.execute:5
+#: odps.df.expr.groupby.SequenceGroupBy.persist:19 of
+msgid "cluster to run this instance"
 msgstr ""
 
-#: odps.df.CollectionExpr.execute:6 odps.df.CollectionExpr.head:5
-#: odps.df.CollectionExpr.tail:5 odps.df.RandomScalar.execute:6
+#: odps.df.CollectionExpr.execute:6 odps.df.RandomScalar.execute:6
 #: odps.df.Scalar.execute:6 odps.df.SequenceExpr.execute:6
 #: odps.df.expr.groupby.GroupBy.execute:6
 #: odps.df.expr.groupby.Int64SequenceGroupBy.execute:6
 #: odps.df.expr.groupby.SequenceGroupBy.execute:6 of
+msgid "execution result"
+msgstr ""
+
+#: odps.df.CollectionExpr.execute:7 odps.df.CollectionExpr.head:5
+#: odps.df.CollectionExpr.tail:5 odps.df.RandomScalar.execute:7
+#: odps.df.Scalar.execute:7 odps.df.SequenceExpr.execute:7
+#: odps.df.expr.groupby.GroupBy.execute:7
+#: odps.df.expr.groupby.Int64SequenceGroupBy.execute:7
+#: odps.df.expr.groupby.SequenceGroupBy.execute:7 of
 msgid ":class:`odps.df.backends.frame.ResultFrame`"
 msgstr ""
 
@@ -1364,59 +1377,59 @@ msgstr ""
 msgid "project name, if not provided, will be the default project"
 msgstr ""
 
-#: odps.df.CollectionExpr.persist:19 odps.df.RandomScalar.persist:19
-#: odps.df.Scalar.persist:19 odps.df.SequenceExpr.persist:19
-#: odps.df.expr.groupby.GroupBy.persist:19
-#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:19
-#: odps.df.expr.groupby.SequenceGroupBy.persist:19 of
+#: odps.df.CollectionExpr.persist:20 odps.df.RandomScalar.persist:20
+#: odps.df.Scalar.persist:20 odps.df.SequenceExpr.persist:20
+#: odps.df.expr.groupby.GroupBy.persist:20
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:20
+#: odps.df.expr.groupby.SequenceGroupBy.persist:20 of
 msgid "overwrite the table, True as default"
 msgstr ""
 
-#: odps.df.CollectionExpr.persist:21 odps.df.RandomScalar.persist:21
-#: odps.df.Scalar.persist:21 odps.df.SequenceExpr.persist:21
-#: odps.df.expr.groupby.GroupBy.persist:21
-#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:21
-#: odps.df.expr.groupby.SequenceGroupBy.persist:21 of
+#: odps.df.CollectionExpr.persist:22 odps.df.RandomScalar.persist:22
+#: odps.df.Scalar.persist:22 odps.df.SequenceExpr.persist:22
+#: odps.df.expr.groupby.GroupBy.persist:22
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:22
+#: odps.df.expr.groupby.SequenceGroupBy.persist:22 of
 msgid "drop table if exists, False as default"
 msgstr ""
 
-#: odps.df.CollectionExpr.persist:23 odps.df.RandomScalar.persist:23
-#: odps.df.Scalar.persist:23 odps.df.SequenceExpr.persist:23
-#: odps.df.expr.groupby.GroupBy.persist:23
-#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:23
-#: odps.df.expr.groupby.SequenceGroupBy.persist:23 of
+#: odps.df.CollectionExpr.persist:24 odps.df.RandomScalar.persist:24
+#: odps.df.Scalar.persist:24 odps.df.SequenceExpr.persist:24
+#: odps.df.expr.groupby.GroupBy.persist:24
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:24
+#: odps.df.expr.groupby.SequenceGroupBy.persist:24 of
 msgid "create table first if not exits, True as default"
 msgstr ""
 
-#: odps.df.CollectionExpr.persist:25 odps.df.RandomScalar.persist:25
-#: odps.df.Scalar.persist:25 odps.df.SequenceExpr.persist:25
-#: odps.df.expr.groupby.GroupBy.persist:25
-#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:25
-#: odps.df.expr.groupby.SequenceGroupBy.persist:25 of
+#: odps.df.CollectionExpr.persist:26 odps.df.RandomScalar.persist:26
+#: odps.df.Scalar.persist:26 odps.df.SequenceExpr.persist:26
+#: odps.df.expr.groupby.GroupBy.persist:26
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:26
+#: odps.df.expr.groupby.SequenceGroupBy.persist:26 of
 msgid "drop partition if exists, False as default"
 msgstr ""
 
-#: odps.df.CollectionExpr.persist:27 odps.df.RandomScalar.persist:27
-#: odps.df.Scalar.persist:27 odps.df.SequenceExpr.persist:27
-#: odps.df.expr.groupby.GroupBy.persist:27
-#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:27
-#: odps.df.expr.groupby.SequenceGroupBy.persist:27 of
+#: odps.df.CollectionExpr.persist:28 odps.df.RandomScalar.persist:28
+#: odps.df.Scalar.persist:28 odps.df.SequenceExpr.persist:28
+#: odps.df.expr.groupby.GroupBy.persist:28
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:28
+#: odps.df.expr.groupby.SequenceGroupBy.persist:28 of
 msgid "create partition if not exists, None as default"
 msgstr ""
 
-#: odps.df.CollectionExpr.persist:29 odps.df.RandomScalar.persist:29
-#: odps.df.Scalar.persist:29 odps.df.SequenceExpr.persist:29
-#: odps.df.expr.groupby.GroupBy.persist:29
-#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:29
-#: odps.df.expr.groupby.SequenceGroupBy.persist:29 of
+#: odps.df.CollectionExpr.persist:30 odps.df.RandomScalar.persist:30
+#: odps.df.Scalar.persist:30 odps.df.SequenceExpr.persist:30
+#: odps.df.expr.groupby.GroupBy.persist:30
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:30
+#: odps.df.expr.groupby.SequenceGroupBy.persist:30 of
 msgid "cast all columns' types as the existed table, False as default"
 msgstr ""
 
-#: odps.df.CollectionExpr.persist:31 odps.df.RandomScalar.persist:31
-#: odps.df.Scalar.persist:31 odps.df.SequenceExpr.persist:31
-#: odps.df.expr.groupby.GroupBy.persist:31
-#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:31
-#: odps.df.expr.groupby.SequenceGroupBy.persist:31 of
+#: odps.df.CollectionExpr.persist:32 odps.df.RandomScalar.persist:32
+#: odps.df.Scalar.persist:32 odps.df.SequenceExpr.persist:32
+#: odps.df.expr.groupby.GroupBy.persist:32
+#: odps.df.expr.groupby.Int64SequenceGroupBy.persist:32
+#: odps.df.expr.groupby.SequenceGroupBy.persist:32 of
 msgid ":class:`odps.df.DataFrame`"
 msgstr ""
 

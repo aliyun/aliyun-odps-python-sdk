@@ -59,3 +59,10 @@ try:
             locals()[k] = wrap(v)
 except ImportError:
     pass
+
+try:
+    from ..internal import df as internal_df
+
+    del internal_df
+except ImportError:
+    pass

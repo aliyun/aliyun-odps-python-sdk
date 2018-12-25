@@ -129,10 +129,11 @@ class ODPSSQLEngine(Engine):
             return fetch_instance_group(group).instances.get(instance.id)
 
     def _run(self, sql, ui, progress_proportion=1, hints=None, priority=None,
-             group=None, libraries=None):
+             running_cluster=None, group=None, libraries=None):
         libraries = self._ctx.prepare_resources(self._get_libraries(libraries))
         self._ctx.create_udfs(libraries=libraries)
-        instance = self._odps.run_sql(sql, hints=hints, priority=priority, name='PyODPSDataFrameTask')
+        instance = self._odps.run_sql(sql, hints=hints, priority=priority, name='PyODPSDataFrameTask',
+                                      running_cluster=running_cluster)
 
         self._instances.append(instance.id)
         log('Instance ID: ' + instance.id)
@@ -287,7 +288,7 @@ class ODPSSQLEngine(Engine):
 
     def _do_execute(self, expr_dag, expr, ui=None, progress_proportion=1,
                     lifecycle=None, head=None, tail=None,
-                    hints=None, priority=None, **kw):
+                    hints=None, priority=None, running_cluster=None, **kw):
         lifecycle = lifecycle or options.temp_lifecycle
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
@@ -344,7 +345,7 @@ class ODPSSQLEngine(Engine):
         log(sql)
 
         instance = self._run(sql, ui, progress_proportion=progress_proportion*0.9,
-                             hints=hints, priority=priority,
+                             hints=hints, priority=priority, running_cluster=running_cluster,
                              group=group, libraries=libraries)
 
         self._ctx.close()  # clear udfs and resources generated
@@ -433,8 +434,8 @@ class ODPSSQLEngine(Engine):
 
     def _do_persist(self, expr_dag, expr, name, partitions=None, partition=None, project=None, ui=None,
                     progress_proportion=1, lifecycle=None, hints=None, priority=None,
-                    overwrite=True, drop_table=False, create_table=True, drop_partition=False,
-                    create_partition=None, cast=False, **kw):
+                    running_cluster=None, overwrite=True, drop_table=False, create_table=True,
+                    drop_partition=False, create_partition=None, cast=False, **kw):
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
 
@@ -567,7 +568,8 @@ class ODPSSQLEngine(Engine):
         log(sql)
 
         instance = self._run(sql, ui, progress_proportion=progress_proportion,
-                             hints=hints, priority=priority, group=group, libraries=libraries)
+                             hints=hints, priority=priority, running_cluster=running_cluster,
+                             group=group, libraries=libraries)
         self._ctx.close()  # clear udfs and resources generated
         t = self._odps.get_table(name, project=project)
         if should_cache and not is_source_collection(src_expr):

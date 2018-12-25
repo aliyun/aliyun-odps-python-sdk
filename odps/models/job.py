@@ -21,7 +21,7 @@ from .tasks import Task
 
 class Job(XMLRemoteModel):
     # define __slots__ to keep the property sequence when serializing into a xml
-    __slots__ = 'name', 'comment', 'priority', 'running_clusters', 'tasks', 'run_mode'
+    __slots__ = 'name', 'comment', 'priority', 'running_cluster', 'tasks', 'run_mode'
 
     _root = 'Job'
 

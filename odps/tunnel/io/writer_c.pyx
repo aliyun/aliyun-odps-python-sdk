@@ -19,7 +19,6 @@ from libc.string cimport *
 from ...src.types_c cimport BaseRecord, SchemaSnapshot
 from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport Encoder
-from ...src.utils_c cimport get_to_milliseconds_fun_ptr
 
 from ..pb.wire_format import WIRETYPE_VARINT as PY_WIRETYPE_VARINT, \
     WIRETYPE_FIXED32 as PY_WIRETYPE_FIXED32,\
@@ -144,7 +143,6 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._curr_cursor_c = 0
         self._n_columns = len(self._columns)
         self._to_milliseconds = utils.build_to_milliseconds()
-        self._c_to_milliseconds = get_to_milliseconds_fun_ptr(self._to_milliseconds)
 
         super(BaseRecordWriter, self).__init__(out)
 
@@ -241,10 +239,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             long l_val
             int nanosecs
 
-        if self._c_to_milliseconds != NULL:
-            l_val = self._c_to_milliseconds(py_datetime) / 1000
-        else:
-            l_val = self._to_milliseconds(py_datetime) / 1000
+        l_val = self._to_milliseconds(py_datetime) / 1000
         nanosecs = data.microsecond * 1000 + data.nanosecond
         self._crc_c.c_update_long(l_val)
         self._write_raw_long(l_val)
@@ -269,10 +264,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         if data_type_id == BOOL_TYPE_ID:
             self._write_bool(val)
         elif data_type_id == DATETIME_TYPE_ID:
-            if self._c_to_milliseconds != NULL:
-                l_val = self._c_to_milliseconds(val)
-            else:
-                l_val = self._to_milliseconds(val)
+            l_val = self._to_milliseconds(val)
             self._write_long(l_val)
         elif data_type_id == STRING_TYPE_ID:
             self._write_string(val)

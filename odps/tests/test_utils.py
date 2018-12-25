@@ -20,35 +20,14 @@ import os
 import time
 from collections import namedtuple
 
-from odps import options, utils
+from odps import utils
 from odps.tests.core import TestBase, module_depend_case
-from odps.compat import unittest, long_type, reload_module
+from odps.compat import unittest, long_type
 
 mytimetuple = namedtuple(
     'TimeTuple',
     [s for s in dir(datetime.datetime.now().timetuple()) if s.startswith('tm_')]
 )
-
-
-def bothPyAndC(func):
-    def inner(self, *args, **kwargs):
-        try:
-            import cython
-            ts = 'py', 'c'
-        except ImportError:
-            ts = 'py',
-            import warnings
-            warnings.warn('No c code tests for table tunnel')
-        for t in ts:
-            old_config = getattr(options, 'force_{0}'.format(t))
-            setattr(options, 'force_{0}'.format(t), True)
-            try:
-                reload_module(utils)
-                func(self, *args, **kwargs)
-            finally:
-                setattr(options, 'force_{0}'.format(t), old_config)
-
-    return inner
 
 
 class Test(TestBase):
@@ -111,7 +90,6 @@ class Test(TestBase):
         finally:
             del os.environ['PYODPS_EXPERIMENTAL']
 
-    @bothPyAndC
     def testTimeConvertNative(self):
         class GMT8(datetime.tzinfo):
             def utcoffset(self, dt):
@@ -160,7 +138,6 @@ class Test(TestBase):
         self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=GMT8()))
 
     @module_depend_case('pytz')
-    @bothPyAndC
     def testTimeConvertPytz(self):
         import pytz
 

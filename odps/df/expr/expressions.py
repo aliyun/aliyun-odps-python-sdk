@@ -176,6 +176,7 @@ class Expr(Node):
         :type hints: dict
         :param priority: instance priority, 9 as default
         :type priority: int
+        :param running_cluster: cluster to run this instance
         :return: execution result
         :rtype: :class:`odps.df.backends.frame.ResultFrame`
         """
@@ -223,6 +224,7 @@ class Expr(Node):
         :type hints: dict
         :param priority: instance priority, 9 as default
         :type priority: int
+        :param running_cluster: cluster to run this instance
         :param overwrite: overwrite the table, True as default
         :type overwrite: bool
         :param drop_table: drop table if exists, False as default

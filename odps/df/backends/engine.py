@@ -70,7 +70,7 @@ def get_default_engine(*exprs):
             odps = expr_odps
 
     if odps is None and options.account is not None and \
-                    options.end_point is not None and options.default_project is not None:
+            options.end_point is not None and options.default_project is not None:
         odps = ODPS._from_account(options.account, options.default_project,
                                   endpoint=options.end_point,
                                   tunnel_endpoint=options.tunnel.endpoint)

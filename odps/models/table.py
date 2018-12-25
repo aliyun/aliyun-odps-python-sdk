@@ -270,7 +270,10 @@ class Table(LazyLoad):
         project = utils.to_text(project)
         comment = utils.to_text(comment)
 
-        buf.write(u'CREATE%s TABLE ' % (' EXTERNAL' if kw.get('storage_handler') else ''))
+        store_as = kw.get('store_as')
+        storage_handler = kw.get('storage_handler')
+
+        buf.write(u'CREATE%s TABLE ' % (' EXTERNAL' if storage_handler or store_as else ''))
         if if_not_exists:
             buf.write(u'IF NOT EXISTS ')
         if project is not None:
@@ -313,12 +316,14 @@ class Table(LazyLoad):
                 buf.write(u'PARTITIONED BY ')
                 write_columns(table_schema.partitions)
 
-        storage_handler = kw.get('storage_handler')
         serde_properties = kw.get('serde_properties')
         location = kw.get('location')
         resources = kw.get('resources')
-        if storage_handler:
-            buf.write("STORED BY '%s'\n" % escape_odps_string(storage_handler))
+        if storage_handler or store_as:
+            if storage_handler:
+                buf.write("STORED BY '%s'\n" % escape_odps_string(storage_handler))
+            else:
+                buf.write("STORED AS %s\n" % escape_odps_string(store_as))
             if serde_properties:
                 buf.write('WITH SERDEPROPERTIES (\n')
                 for idx, k in enumerate(serde_properties):

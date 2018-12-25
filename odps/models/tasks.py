@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import json  # don't remove
+import warnings
 
 from .core import AbstractXMLRemoteModel
 from .. import serializers, errors, compat
@@ -186,6 +187,21 @@ class SQLTask(Task):
         if glob:
             if options.sql.use_odps2_extension:
                 settings['odps.sql.type.system.odps2'] = True
+            if options.local_timezone is not None:
+                if not options.local_timezone:
+                    settings['odps.sql.timezone'] = 'Etc/GMT'
+                elif isinstance(options.local_timezone, bool):
+                    from ..lib import tzlocal
+                    settings['odps.sql.timezone'] = tzlocal.get_localzone().zone
+                elif isinstance(options.local_timezone, six.string_types):
+                    settings['odps.sql.timezone'] = options.local_timezone
+                else:
+                    zone_str = getattr(options.local_timezone, 'zone', None)
+                    if zone_str is None:
+                        warnings.warn('Failed to get timezone string from options.local_timezone. '
+                                      'You need to deal with timezone in the return data yourself.')
+                    else:
+                        settings['odps.sql.timezone'] = zone_str
             if options.sql.settings:
                 settings.update(options.sql.settings)
         if value:

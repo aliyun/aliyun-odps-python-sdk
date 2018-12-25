@@ -58,6 +58,7 @@ LOGGING_CONFIG = {
 class Config(object):
     config = None
     odps = None
+    oss = None
     tunnel = None
     admin = None
 
@@ -93,7 +94,20 @@ def get_config():
         config.odps = ODPS(access_id, secret_access_key, project, endpoint,
                            tunnel_endpoint=tunnel_endpoint, predict_endpoint=predict_endpoint,
                            seahawks_url=seahawks_url)
+
         config.tunnel = TableTunnel(config.odps, endpoint=tunnel_endpoint)
+
+        try:
+            oss_access_id = config.get("oss", "access_id")
+            oss_secret_access_key = config.get("oss", "secret_access_key")
+            oss_bucket_name = config.get("oss", "bucket_name")
+            oss_endpoint = config.get("oss", "endpoint")
+
+            config.oss = (oss_access_id, oss_secret_access_key,
+                          oss_bucket_name, oss_endpoint)
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            pass
+
         logging_level = config.get('test', 'logging_level')
         LOGGING_CONFIG['handlers']['console']['level'] = logging_level
     else:

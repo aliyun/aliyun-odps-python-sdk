@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -89,15 +89,15 @@ class Test(TestBase):
         r[7] = OrderedDict({'a': 1})
         self.assertSequenceEqual(r.values, [1, 1.2, 'abc', datetime(2016, 1, 1), True,
                                             _decimal.Decimal('1.111'), ['a', 'b'], OrderedDict({'a': 1})])
-        self.assertEquals(1, r[0])
-        self.assertEquals(1.2, r[1])
-        self.assertEquals('abc', r[2])
-        self.assertEquals(datetime(2016, 1, 1), r[3])
-        self.assertEquals(True, r[4])
-        self.assertEquals(_decimal.Decimal('1.111'), r[5])
-        self.assertEquals(['a', 'b'], r[6])
-        self.assertEquals(OrderedDict({'a': 1}), r[7])
-        self.assertEquals([1, 1.2], r[:2])
+        self.assertEqual(1, r[0])
+        self.assertEqual(1.2, r[1])
+        self.assertEqual('abc', r[2])
+        self.assertEqual(datetime(2016, 1, 1), r[3])
+        self.assertEqual(True, r[4])
+        self.assertEqual(_decimal.Decimal('1.111'), r[5])
+        self.assertEqual(['a', 'b'], r[6])
+        self.assertEqual(OrderedDict({'a': 1}), r[7])
+        self.assertEqual([1, 1.2], r[:2])
 
     @bothPyAndC
     def testRecordSetAndGetByName(self):
@@ -116,14 +116,14 @@ class Test(TestBase):
         r['col7'] = OrderedDict({'a': 1})
         self.assertSequenceEqual(r.values, [1, 1.2, 'abc', datetime(2016, 1, 1), True,
                                             _decimal.Decimal('1.111'), ['a', 'b'], OrderedDict({'a': 1})])
-        self.assertEquals(1, r['col0'])
-        self.assertEquals(1.2, r['col1'])
-        self.assertEquals('abc', r['col2'])
-        self.assertEquals(datetime(2016, 1, 1), r['col3'])
-        self.assertEquals(True, r['col4'])
-        self.assertEquals(_decimal.Decimal('1.111'), r['col5'])
-        self.assertEquals(['a', 'b'], r['col6'])
-        self.assertEquals( OrderedDict({'a': 1}), r['col7'])
+        self.assertEqual(1, r['col0'])
+        self.assertEqual(1.2, r['col1'])
+        self.assertEqual('abc', r['col2'])
+        self.assertEqual(datetime(2016, 1, 1), r['col3'])
+        self.assertEqual(True, r['col4'])
+        self.assertEqual(_decimal.Decimal('1.111'), r['col5'])
+        self.assertEqual(['a', 'b'], r['col6'])
+        self.assertEqual( OrderedDict({'a': 1}), r['col7'])
 
     def testImplicitCast(self):
         tinyint = Tinyint()
@@ -218,13 +218,13 @@ class Test(TestBase):
             ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal'])
         r = Record(schema=s)
         r['double'] = 1
-        self.assertEquals(1.0, r['double'])
+        self.assertEqual(1.0, r['double'])
         r['double'] = '1.33'
-        self.assertEquals(1.33, r['double'])
+        self.assertEqual(1.33, r['double'])
         r['bigint'] = 1.1
-        self.assertEquals(1, r['bigint'])
+        self.assertEqual(1, r['bigint'])
         r['datetime'] = '2016-01-01 0:0:0'
-        self.assertEquals(datetime(2016, 1, 1), r['datetime'])
+        self.assertEqual(datetime(2016, 1, 1), r['datetime'])
 
     @bothPyAndC
     def testRecordSetField(self):

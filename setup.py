@@ -199,7 +199,6 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
 
         extensions = [
             Extension('odps.src.types_c', ['odps/src/types_c.pyx'], **extension_kw),
-            Extension('odps.src.utils_c', ['odps/src/utils_c.pyx'], **extension_kw),
             Extension('odps.src.crc32c_c', ['odps/src/crc32c_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx'], **extension_kw),

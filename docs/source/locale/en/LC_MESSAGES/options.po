@@ -6,16 +6,16 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: PyODPS 0.7.16\n"
+"Project-Id-Version: PyODPS 0.8.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-21 09:15+0800\n"
+"POT-Creation-Date: 2018-12-05 11:38+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.6.0\n"
 
 #: ../../source/options.rst:5
 msgid "配置选项"
@@ -79,12 +79,12 @@ msgid "ODPS Endpoint"
 msgstr "MaxCompute Endpoint"
 
 #: ../../source/options.rst:27 ../../source/options.rst:29
-#: ../../source/options.rst:31 ../../source/options.rst:38
-#: ../../source/options.rst:42 ../../source/options.rst:46
-#: ../../source/options.rst:60 ../../source/options.rst:62
-#: ../../source/options.rst:68 ../../source/options.rst:79
-#: ../../source/options.rst:81 ../../source/options.rst:98
-#: ../../source/options.rst:110
+#: ../../source/options.rst:31 ../../source/options.rst:35
+#: ../../source/options.rst:38 ../../source/options.rst:42
+#: ../../source/options.rst:46 ../../source/options.rst:60
+#: ../../source/options.rst:62 ../../source/options.rst:68
+#: ../../source/options.rst:79 ../../source/options.rst:81
+#: ../../source/options.rst:98 ../../source/options.rst:110
 msgid "None"
 msgstr ""
 
@@ -121,14 +121,11 @@ msgid "local_timezone"
 msgstr ""
 
 #: ../../source/options.rst:35
-msgid "使用的时区，True 表示本地时间，False 表示 UTC， 也可用 pytz 的时区"
+msgid "使用的时区，None 表示不处理，True 表示本地时区， False 表示 UTC，也可用 pytz 的时区"
 msgstr ""
-"Used time zone. True indicates local time, and False indicates UTC. The "
-"time zone of pytz can also be used."
-
-#: ../../source/options.rst:35 ../../source/options.rst:40
-msgid "1"
-msgstr ""
+"Used time zone. None indicates that PyODPS takes no actions, True "
+"indicates local time, and False indicates UTC. The time zone of pytz "
+"package can also be used."
 
 #: ../../source/options.rst:38
 msgid "lifecycle"
@@ -145,6 +142,10 @@ msgstr ""
 #: ../../source/options.rst:40
 msgid "临时表生命周期"
 msgstr "Life cycles of temporary tables"
+
+#: ../../source/options.rst:40
+msgid "1"
+msgstr ""
 
 #: ../../source/options.rst:42
 msgid "biz_id"

@@ -19,7 +19,6 @@ from libc.string cimport *
 from ...src.types_c cimport BaseRecord, SchemaSnapshot
 from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport Encoder
-from ...src.utils_c cimport TO_MILLISECONDS_FUN
 
 cdef class ProtobufRecordWriter:
 
@@ -48,7 +47,6 @@ cdef class ProtobufRecordWriter:
 cdef class BaseRecordWriter(ProtobufRecordWriter):
     cdef size_t _curr_cursor_c
     cdef object _to_milliseconds
-    cdef TO_MILLISECONDS_FUN _c_to_milliseconds
     cdef object _reader_schema
     cdef Checksum _crc_c
     cdef Checksum _crccrc_c

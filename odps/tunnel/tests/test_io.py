@@ -68,7 +68,7 @@ class Test(TestBase):
                 break
             b += part
 
-        self.assertEquals(self.TEXT.encode('utf8'), b)
+        self.assertEqual(self.TEXT.encode('utf8'), b)
 
         if not PY26:
             tube.seek(0)
@@ -83,7 +83,7 @@ class Test(TestBase):
                     break
                 pos += incr
 
-            self.assertEquals(self.TEXT.encode('utf8'), b)
+            self.assertEqual(self.TEXT.encode('utf8'), b)
 
     @snappy_case
     def testCompressAndDecompressSnappy(self):
@@ -103,7 +103,7 @@ class Test(TestBase):
                 break
             b += part
 
-        self.assertEquals(self.TEXT.encode('utf8'), b)
+        self.assertEqual(self.TEXT.encode('utf8'), b)
 
         if not PY26:
             tube.seek(0)
@@ -118,7 +118,7 @@ class Test(TestBase):
                     break
                 pos += incr
 
-            self.assertEquals(self.TEXT.encode('utf8'), b)
+            self.assertEqual(self.TEXT.encode('utf8'), b)
 
     def testClass(self):
         io_stream._FORCE_THREAD = False

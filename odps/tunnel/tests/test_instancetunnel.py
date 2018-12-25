@@ -115,7 +115,7 @@ class Test(TestBase):
              True, Decimal('3.14'), ['simple', 'easy'], OrderedDict({'s': 1})),
             ('goodbye', 222222, math.e, datetime(2020, 3, 10), False, Decimal('2.555555'),
              ['true', None], OrderedDict({'true': 1})),
-            ('c'*300, -2**63+1, -2.222, datetime(1999, 5, 25, 3, 10), True, Decimal(22222),
+            ('c'*300, -2**63+1, -2.222, datetime(1990, 5, 25, 3, 10), True, Decimal(22222),
              ['false'], OrderedDict({'false': 0})),
         ]
 

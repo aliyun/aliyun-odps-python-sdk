@@ -261,49 +261,56 @@ def gen_rfc822(dt=None, localtime=False, usegmt=False):
     return formatdate(t, localtime=localtime, usegmt=usegmt)
 
 
+try:
+    _antique_mills = time.mktime(datetime(1928, 1, 1).timetuple()) * 1000
+except OverflowError:
+    _antique_mills = None
+_antique_errmsg = 'Date older than 1928/01/01 and may contain errors. ' \
+                  'Ignore this error by configuring `options.allow_antique_date` to True.'
+
+
 def to_timestamp(dt, local_tz=None, is_dst=False):
     return int(to_milliseconds(dt, local_tz=local_tz, is_dst=is_dst) / 1000.0)
+
+
+def _get_tz(tz):
+    if isinstance(tz, six.string_types):
+        if pytz is None:
+            raise ImportError('Package `pytz` is needed when specifying string-format time zone.')
+        else:
+            return pytz.timezone(tz)
+    else:
+        return tz
 
 
 def build_to_milliseconds(local_tz=None, is_dst=False):
     from . import options
     utc = compat.utc
     local_tz = local_tz if local_tz is not None else options.local_timezone
+    allow_antique = options.allow_antique_date or _antique_mills is None
+
+    if local_tz is None:
+        local_tz = True
+
     if isinstance(local_tz, bool):
 
-        try:
-            if options.force_py:
-                raise ImportError
-            if local_tz:
-                from .src.utils_c import datetime_to_local_milliseconds
-                to_milliseconds = datetime_to_local_milliseconds
-            else:
-                from .src.utils_c import datetime_to_gmt_milliseconds
-                to_milliseconds = datetime_to_gmt_milliseconds
-        except ImportError:
-            if options.force_c:
-                raise
+        if local_tz:
+            _mktime = time.mktime
+        else:
+            _mktime = calendar.timegm
 
-            if local_tz:
-                _mktime = time.mktime
+        def to_milliseconds(dt):
+            if dt.tzinfo is not None:
+                mills = int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
             else:
-                _mktime = calendar.timegm
-
-            def to_milliseconds(dt):
-                if dt.tzinfo is not None:
-                    return int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
-                else:
-                    return int((_mktime(dt.timetuple()) + dt.microsecond / 1000000.0) * 1000)
+                mills = int((_mktime(dt.timetuple()) + dt.microsecond / 1000000.0) * 1000)
+            if not allow_antique and mills < _antique_mills:
+                raise OverflowError(_antique_errmsg)
+            return mills
 
         return to_milliseconds
     else:
-        if isinstance(local_tz, six.string_types):
-            if pytz is None:
-                raise RuntimeError('Package `pytz` is needed when specifying string-format time zone.')
-            tz = pytz.timezone(local_tz)
-        else:
-            tz = local_tz
-
+        tz = _get_tz(local_tz)
         if hasattr(tz, 'localize'):
             localize = lambda dt: tz.localize(dt, is_dst=is_dst)
         else:
@@ -312,7 +319,10 @@ def build_to_milliseconds(local_tz=None, is_dst=False):
         def to_milliseconds(dt):
             if dt.tzinfo is None:
                 dt = localize(dt)
-            return int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
+            mills = int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
+            if not allow_antique and mills < _antique_mills:
+                raise OverflowError(_antique_errmsg)
+            return mills
 
         return to_milliseconds
 
@@ -326,6 +336,11 @@ def build_to_datetime(local_tz=None):
     utc = compat.utc
     long_type = compat.long_type
     local_tz = local_tz if local_tz is not None else options.local_timezone
+    allow_antique = options.allow_antique_date or _antique_mills is None
+
+    if local_tz is None:
+        local_tz = True
+
     if isinstance(local_tz, bool):
         if local_tz:
             _fromtimestamp = datetime.fromtimestamp
@@ -333,20 +348,19 @@ def build_to_datetime(local_tz=None):
             _fromtimestamp = datetime.utcfromtimestamp
 
         def to_datetime(milliseconds):
+            if not allow_antique and milliseconds < _antique_mills:
+                raise OverflowError(_antique_errmsg)
             seconds = long_type(milliseconds / 1000)
             microseconds = long_type(milliseconds) % 1000 * 1000
             return _fromtimestamp(seconds).replace(microsecond=microseconds)
 
         return to_datetime
     else:
-        if isinstance(local_tz, six.string_types):
-            if pytz is None:
-                raise RuntimeError('Package `pytz` is needed when specifying string-format time zone.')
-            tz = pytz.timezone(local_tz)
-        else:
-            tz = local_tz
+        tz = _get_tz(local_tz)
 
         def to_datetime(milliseconds):
+            if not allow_antique and milliseconds < _antique_mills:
+                raise OverflowError(_antique_errmsg)
             seconds = int(milliseconds / 1000)
             microseconds = milliseconds % 1000 * 1000
             return datetime.utcfromtimestamp(seconds).replace(microsecond=microseconds, tzinfo=utc).astimezone(tz)

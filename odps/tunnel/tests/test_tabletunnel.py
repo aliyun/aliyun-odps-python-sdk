@@ -25,6 +25,10 @@ try:
     from string import letters
 except ImportError:
     from string import ascii_letters as letters
+try:
+    import pytz
+except ImportError:
+    pytz = None
 
 from odps.compat import reload_module
 from odps.tests.core import TestBase, to_str, tn, snappy_case, pandas_case, odps2_typed_case
@@ -171,6 +175,35 @@ class Test(TestBase):
         records = self._download_data(table)
         self._assert_reads_data_equal(records, data)
         self._delete_table(table)
+
+    @bothPyAndC
+    @unittest.skipIf(pytz is None, 'pytz not installed')
+    def testBufferredUploadAndDownloadWithTimezone(self):
+        from odps.utils import _get_tz
+        zones = (False, True, 'Asia/Shanghai', 'America/Los_Angeles')
+        try:
+            for zone in zones:
+                tz = _get_tz(zone)
+                options.local_timezone = zone
+                table, data = self._gen_table(size=10)
+                self._buffered_upload_data(table, data)
+                records = self._download_data(table, count=10)
+
+                if not isinstance(zone, bool):
+                    for idx, rec in enumerate(records):
+                        new_rec = []
+                        for d in rec:
+                            if not isinstance(d, datetime):
+                                new_rec.append(d)
+                                continue
+                            self.assertEqual(d.tzinfo.zone, tz.zone)
+                            new_rec.append(d.replace(tzinfo=None))
+                        records[idx] = tuple(new_rec)
+
+                self._assert_reads_data_equal(records, data)
+                self._delete_table(table)
+        finally:
+            options.local_timezone = None
 
     @bothPyAndC
     def testDownloadWithSpecifiedColumns(self):
@@ -383,7 +416,7 @@ class Test(TestBase):
 
         return table, data
 
-    def _assert_reads_data_equal(self, reads, data):
+    def _assert_reads_data_equal(self, reads, data, ignore_tz=True):
         for val1, val2 in zip(data, reads):
             for it1, it2 in zip(val1, val2):
                 if isinstance(it1, dict):
