@@ -231,6 +231,23 @@ class CupidTask(Task):
             self.set_property('settings', json.dumps(hints))
 
 
+class SQLCostTask(Task):
+    __slots__ = '_anonymous_sql_cost_task_name',
+
+    _root = 'SQLCost'
+    _anonymous_sql_cost_task_name = 'AnonymousSQLCostTask'
+
+    query = serializers.XMLNodeField('Query',
+                                     serialize_callback=lambda s: format_cdata(s, True))
+
+    def __init__(self, name=None, hints=None, **kwargs):
+        kwargs['name'] = name or self._anonymous_sql_cost_task_name
+        super(SQLCostTask, self).__init__(**kwargs)
+        hints = hints or {}
+        if hints:
+            self.set_property('settings', json.dumps(hints))
+
+
 try:
     from ..internal.models.tasks import *
 except ImportError:

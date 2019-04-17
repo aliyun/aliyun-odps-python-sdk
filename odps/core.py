@@ -762,6 +762,34 @@ class ODPS(object):
                                         running_cluster=running_cluster,
                                         create_callback=on_instance_create)
 
+    def execute_sql_cost(self, sql, project=None, hints=None, **kwargs):
+        """
+
+        :param sql: SQL statement
+        :type sql: str
+        :param project: project name, if not provided, will be the default project
+        :param hints: settings for SQL, e.g. `odps.mapred.map.split.size`
+        :type hints: dict
+        :return: cost info in dict format
+        :rtype: cost: dict
+
+        :Example:
+
+        >>> sql_cost = odps.execute_sql_cost('select * from dual')
+        >>> sql_cost.udf_num
+        0
+        >>> sql_cost.complexity
+        1.0
+        >>> sql_cost.input_size
+        100
+
+        """
+        task = models.SQLCostTask(query=utils.to_text(sql), hints=hints, **kwargs)
+        project = self.get_project(name=project)
+        inst = project.instances.create(task=task)
+        inst.wait_for_success()
+        return inst.get_sql_task_cost()
+
     def list_volumes(self, project=None, owner=None):
         """
         List volumes of a project.

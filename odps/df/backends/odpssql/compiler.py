@@ -899,7 +899,21 @@ class OdpsSQLCompiler(Backend):
         elif isinstance(expr, strings.Split):
             if expr.n != -1:
                 raise NotImplementedError
-            compiled = 'SPLIT(%s, \'%s\')' % (input, expr.pat)
+
+            escape_pat = re.escape(expr.pat)
+            nre_compiled = 'SPLIT(%s, \'%s\')' % (input, utils.escape_odps_string(expr.pat))
+            re_compiled = 'SPLIT(%s, \'%s\')' % (input, utils.escape_odps_string(re.escape(expr.pat)))
+
+            try:
+                re.compile(expr.pat)
+                is_regex = True
+            except:
+                is_regex = False
+
+            if expr.pat == escape_pat or not is_regex:
+                compiled = nre_compiled
+            else:
+                compiled = 'IF(SIZE(%(re)s) = 0, %(nre)s, %(re)s)' % dict(re=re_compiled, nre=nre_compiled)
         elif isinstance(expr, strings.StringToDict):
             compiled = 'STR_TO_MAP(%s, \'%s\', \'%s\')' % (input, expr.item_delim, expr.kv_delim)
 

@@ -113,6 +113,7 @@ class RestClient(object):
         params = kwargs.setdefault('params', {})
         if 'curr_project' not in params and self.project is not None:
             params['curr_project'] = self.project
+        timeout = kwargs.pop('timeout', None)
         req = requests.Request(method, url, **kwargs)
         prepared_req = req.prepare()
         LOG.debug("request url + params %s" % prepared_req.path_url)
@@ -120,7 +121,7 @@ class RestClient(object):
 
         try:
             res = self.session.send(prepared_req, stream=stream,
-                                    timeout=(options.connect_timeout, options.read_timeout),
+                                    timeout=timeout or (options.connect_timeout, options.read_timeout),
                                     verify=False,
                                     proxies=self._proxy)
         except ConnectTimeout:

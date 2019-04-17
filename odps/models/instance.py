@@ -205,6 +205,14 @@ class Instance(LazyLoad):
             self.memory_cost = memory_cost
             self.input_size = input_size
 
+    class SQLCost(object):
+        __slots__ = 'udf_num', 'complexity', 'input_size'
+
+        def __init__(self, udf_num=None, complexity=None, input_size=None):
+            self.udf_num = udf_num
+            self.complexity = complexity
+            self.input_size = input_size
+
     class DownloadSessionCreationError(errors.InternalServerError):
         pass
 
@@ -443,6 +451,22 @@ class Instance(LazyLoad):
         params = OrderedDict([('instancequota', ''), ('taskname', task_name)])
         resp = self._client.get(self.resource(), params=params)
         return json.loads(resp.text)
+
+    def get_sql_task_cost(self):
+        """
+        Get cost information of the sql task.
+        Including input data size, number of UDF, Complexity of the sql task
+
+        :return: cost info in dict format
+        """
+        resp = self.get_task_result(self.get_task_names()[0])
+        cost = json.loads(resp)
+        sql_cost = cost['Cost']['SQL']
+
+        udf_num = sql_cost.get('UDF')
+        complexity = sql_cost.get('Complexity')
+        input_size = sql_cost.get('Input')
+        return Instance.SQLCost(udf_num, complexity, input_size)
 
     @property
     def status(self):

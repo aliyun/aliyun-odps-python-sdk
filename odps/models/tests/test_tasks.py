@@ -16,7 +16,7 @@ from odps.tests.core import TestBase, to_str
 from odps.errors import ODPSError
 from odps.compat import unittest
 from odps.config import options
-from odps.models import SQLTask, CupidTask, Task
+from odps.models import SQLTask, CupidTask, SQLCostTask, Task
 
 try:
     import pytz
@@ -65,6 +65,13 @@ cupid_template = '''<?xml version="1.0" encoding="utf-8"?>
   </Config>
   <Plan><![CDATA[plan_text]]></Plan>
 </CUPID>
+'''
+
+sql_cost_template = '''<?xml version="1.0" encoding="utf-8"?>
+<SQLCost>
+  <Name>AnonymousSQLCostTask</Name>
+  <Query><![CDATA[%(sql)s;]]></Query>
+</SQLCost>
 '''
 
 
@@ -135,6 +142,17 @@ class Test(TestBase):
 
         task = Task.parse(None, to_xml)
         self.assertIsInstance(task, CupidTask)
+
+    def testSQLCostTaskToXML(self):
+        query = 'select * from dual'
+        task = SQLCostTask(query=query)
+        to_xml = task.serialize()
+        right_xml = sql_cost_template % {'sql': query}
+
+        self.assertEqual(to_str(to_xml), to_str(right_xml))
+
+        task = Task.parse(None, to_xml)
+        self.assertIsInstance(task, SQLCostTask)
 
 
 if __name__ == '__main__':

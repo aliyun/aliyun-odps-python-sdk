@@ -879,10 +879,21 @@ class Test(TestBase):
         data = ['ab' * 15, 'def']
         self._testify_udf([d[-5:] for d in data], [(d, -5, 1) for d in data], engine)
 
-        expect = 'SELECT SPLIT(t1.`name`, \':\') AS `name` \n' \
+        expect = 'SELECT SPLIT(t1.`name`, \'x\') AS `name` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
         self.assertEqual(to_str(expect),
-                         to_str(ODPSEngine(self.odps).compile(self.expr.name.split(':'), prettify=False)))
+                         to_str(ODPSEngine(self.odps).compile(self.expr.name.split('x'), prettify=False)))
+
+        expect = 'SELECT SPLIT(t1.`name`, \'\\\\\') AS `name` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr.name.split('\\'), prettify=False)))
+
+        expect = 'SELECT IF(SIZE(SPLIT(t1.`name`, \'\\\\.\')) = 0, SPLIT(t1.`name`, \'.\'), ' \
+                 'SPLIT(t1.`name`, \'\\\\.\')) AS `name` \n' \
+                 'FROM mocked_project.`pyodps_test_expr_table` t1'
+        self.assertEqual(to_str(expect),
+                         to_str(ODPSEngine(self.odps).compile(self.expr.name.split('.'), prettify=False)))
 
         engine = ODPSEngine(self.odps)
         engine.compile(self.expr.name.title())

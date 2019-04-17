@@ -810,7 +810,9 @@ ResultFrame 也支持在安装有 pandas 的前提下转换为 pandas DataFrame 
     3          5.0         2.0          3.5         1.0  Iris-versicolor
     4          6.0         2.2          4.0         1.0  Iris-versicolor
 
-``persist``\ 可以传入partitions参数，这样会创建一个表，它的分区是partitions所指定的字段。
+``persist``\ 可以传入 partitions 参数。加入该参数后，会创建一个分区表，它的分区字段为 partitions 列出的字段，
+DataFrame 中相应字段的值决定该行将被写入的分区。例如，当 partitions 为 ['name'] 且某行 name 的值为 test，
+那么该行将被写入分区 ``name=test``。这适用于当分区需要通过计算获取的情形。
 
 .. code:: python
 
@@ -827,7 +829,7 @@ ResultFrame 也支持在安装有 pandas 的前提下转换为 pandas DataFrame 
         name                  : string
 
 
-如果想写入已经存在的表的某个分区，``persist``\ 可以传入partition参数，指明写入表的哪个分区（如ds=******）。
+如果想写入已经存在的表的某个分区，``persist``\ 可以传入 partition 参数，指明写入表的哪个分区（如ds=******）。
 这时要注意，该DataFrame的每个字段都必须在该表存在，且类型相同。drop_partition和create_partition参数只有在此时有效,
 分别表示是否要删除（如果分区存在）或创建（如果分区不存在）该分区。
 

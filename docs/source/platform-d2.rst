@@ -54,6 +54,9 @@ DataWorks 的 PyODPS 节点中，将会包含一个全局的变量 ``odps`` 或�
         # 这次 open_reader 会走 instance tunnel 接口，且能读取全部数据
 
 
+需要注意的是，部分 Project 可能对 Tunnel 下载全部数据设置了限制，因而打开这些选项可能会导致权限错误。
+此时应当与 Project Owner 协调，或者考虑将数据处理放在 MaxCompute 中，而不是下载到本地。
+
 DataFrame
 ============
 

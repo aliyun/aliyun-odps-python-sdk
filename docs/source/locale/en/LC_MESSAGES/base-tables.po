@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-10-10 15:55+0800\n"
+"POT-Creation-Date: 2019-04-03 10:38+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.6.0\n"
 
 #: ../../source/base-tables.rst:4
 msgid "表"
@@ -29,7 +29,7 @@ msgstr ""
 "`Tables <https://www.alibabacloud.com/help/en/doc-detail/27819.htm>`_ are"
 " the data storage unit in MaxCompute."
 
-#: ../../source/base-tables.rst:9 ../../source/base-tables.rst:306
+#: ../../source/base-tables.rst:9 ../../source/base-tables.rst:309
 msgid "基本操作"
 msgstr "Basic operations"
 
@@ -500,11 +500,22 @@ msgstr ""
 "records or passing a Python generator object when calling "
 "``write_table``."
 
-#: ../../source/base-tables.rst:283
+#: ../../source/base-tables.rst:282
+msgid ""
+"write_table 写表时会追加到原有数据。PyODPS 不提供覆盖数据的选项，如果需要覆盖数据，需要手动清除 "
+"原有数据。对于非分区表，需要调用 table.truncate()，对于分区表，需要删除分区后再建立。"
+msgstr ""
+"When calling ```write_table```, new data will be appended to existing "
+"data. PyODPS does not provide options to overwrite existing data. When "
+"overwriting is needed, you need to explicitly remove existing data in "
+"tables by calling table.truncate() en unpartitioned tables or removing "
+"partitions in partitioned tables."
+
+#: ../../source/base-tables.rst:286
 msgid "删除表"
 msgstr "Delete tables"
 
-#: ../../source/base-tables.rst:285
+#: ../../source/base-tables.rst:288
 msgid ""
 ">>> o.delete_table('my_table_name', if_exists=True)  #  只有表存在时删除\n"
 ">>> t.drop()  # Table对象存在的时候可以直接执行drop函数"
@@ -513,11 +524,11 @@ msgstr ""
 "the table exists\n"
 ">>> t.drop()  # call drop method of the Table object to delete directly"
 
-#: ../../source/base-tables.rst:292
+#: ../../source/base-tables.rst:295
 msgid "创建DataFrame"
 msgstr "Create a DataFrame"
 
-#: ../../source/base-tables.rst:294
+#: ../../source/base-tables.rst:297
 msgid ""
 "PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询和操作ODPS数据。 使用 ``to_df`` "
 "方法，即可转化为 DataFrame 对象。"
@@ -526,32 +537,32 @@ msgstr ""
 "operate MaxCompute data. You can use ``to_df`` to convert a table to a "
 "DataFrame object."
 
-#: ../../source/base-tables.rst:297
+#: ../../source/base-tables.rst:300
 msgid ""
 ">>> table = o.get_table('my_table_name')\n"
 ">>> df = table.to_df()"
 msgstr ""
 
-#: ../../source/base-tables.rst:303
+#: ../../source/base-tables.rst:306
 msgid "表分区"
 msgstr "Table partitions"
 
-#: ../../source/base-tables.rst:308
+#: ../../source/base-tables.rst:311
 msgid "判断是否为分区表："
 msgstr "Check if a table is partitioned:"
 
-#: ../../source/base-tables.rst:310
+#: ../../source/base-tables.rst:313
 #, python-format
 msgid ""
 ">>> if table.schema.partitions:\n"
 ">>>     print('Table %s is partitioned.' % table.name)"
 msgstr ""
 
-#: ../../source/base-tables.rst:315
+#: ../../source/base-tables.rst:318
 msgid "遍历表全部分区："
 msgstr "Iterate through all the partitions in a table:"
 
-#: ../../source/base-tables.rst:317
+#: ../../source/base-tables.rst:320
 msgid ""
 ">>> for partition in table.partitions:\n"
 ">>>     print(partition.name)\n"
@@ -563,19 +574,21 @@ msgstr ""
 ">>> for partition in table.iterate_partitions(spec='pt=test'):\n"
 ">>>     # iterate over secondary partitions"
 
-#: ../../source/base-tables.rst:324
+#: ../../source/base-tables.rst:327
 msgid "判断分区是否存在（该方法需要填写所有分区字段值）："
-msgstr "Check whether the specified partition exists, all field values should be provided:"
+msgstr ""
+"Check whether the specified partition exists, all field values should be "
+"provided:"
 
-#: ../../source/base-tables.rst:326
+#: ../../source/base-tables.rst:329
 msgid ">>> table.exist_partition('pt=test,sub=2015')"
 msgstr ""
 
-#: ../../source/base-tables.rst:330
+#: ../../source/base-tables.rst:333
 msgid "判断给定前缀的分区是否存在："
 msgstr "Check whether partitions satisfying provided prefix exist:"
 
-#: ../../source/base-tables.rst:332
+#: ../../source/base-tables.rst:335
 msgid ""
 ">>> # 表 table 的分区字段依次为 pt, sub\n"
 ">>> table.exist_partitions('pt=test')"
@@ -583,11 +596,11 @@ msgstr ""
 ">>> # the order of partitions fields of table is pt, sub\n"
 ">>> table.exist_partitions('pt=test')"
 
-#: ../../source/base-tables.rst:337
+#: ../../source/base-tables.rst:340
 msgid "获取分区："
 msgstr "Obtain the specified partition:"
 
-#: ../../source/base-tables.rst:339
+#: ../../source/base-tables.rst:342
 msgid ""
 ">>> partition = table.get_partition('pt=test')\n"
 ">>> print(partition.creation_time)\n"
@@ -596,21 +609,21 @@ msgid ""
 "0"
 msgstr ""
 
-#: ../../source/base-tables.rst:348
+#: ../../source/base-tables.rst:351
 msgid "创建分区"
 msgstr "Create partitions"
 
-#: ../../source/base-tables.rst:350
+#: ../../source/base-tables.rst:353
 msgid ">>> t.create_partition('pt=test', if_not_exists=True)  # 不存在的时候才创建"
 msgstr ""
 ">>> t.create_partition('pt=test', if_not_exists=True)  # create only when"
 " the partition does not exist"
 
-#: ../../source/base-tables.rst:355
+#: ../../source/base-tables.rst:358
 msgid "删除分区"
 msgstr "Delete partitions"
 
-#: ../../source/base-tables.rst:357
+#: ../../source/base-tables.rst:360
 msgid ""
 ">>> t.delete_partition('pt=test', if_exists=True)  # 存在的时候才删除\n"
 ">>> partition.drop()  # Partition对象存在的时候直接drop"
@@ -620,11 +633,11 @@ msgstr ""
 ">>> partition.drop()  # delete directly via the drop method of the "
 "partition object"
 
-#: ../../source/base-tables.rst:365
+#: ../../source/base-tables.rst:368
 msgid "数据上传下载通道"
 msgstr "Data upload and download channels"
 
-#: ../../source/base-tables.rst:370
+#: ../../source/base-tables.rst:373
 msgid ""
 "不推荐直接使用tunnel接口（难用且复杂），推荐直接使用表的 :ref:`写 <table_write>` 和 :ref:`读 "
 "<table_read>` 接口。"
@@ -635,24 +648,24 @@ msgstr ""
 "tunnel invocations. However, when your data amount is large and "
 "throughput is critical, you may try using table tunnel methods directly."
 
-#: ../../source/base-tables.rst:374
+#: ../../source/base-tables.rst:377
 msgid "ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据。"
 msgstr ""
 "MaxCompute Tunnel is the data channel of MaxCompute. You can use this to "
 "upload data to or download data from MaxCompute."
 
-#: ../../source/base-tables.rst:376
+#: ../../source/base-tables.rst:379
 msgid "**注意**，如果安装了 **Cython**，在安装pyodps时会编译C代码，加速Tunnel的上传和下载。"
 msgstr ""
 "**Note**: In a **Cython** environment, PyODPS compiles C programs during "
 "installation to increase the Tunnel upload and download speed when "
 "required."
 
-#: ../../source/base-tables.rst:379
+#: ../../source/base-tables.rst:382
 msgid "上传"
 msgstr "Upload"
 
-#: ../../source/base-tables.rst:381
+#: ../../source/base-tables.rst:384
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -674,11 +687,11 @@ msgid ""
 "upload_session.commit([0])"
 msgstr ""
 
-#: ../../source/base-tables.rst:402
+#: ../../source/base-tables.rst:405
 msgid "下载"
 msgstr "Download"
 
-#: ../../source/base-tables.rst:405
+#: ../../source/base-tables.rst:408
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"

@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,7 +19,7 @@ from odps.compat import unittest
 from odps.models import Schema
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
-from odps.df.expr.expressions import CollectionExpr
+from odps.df.expr.expressions import CollectionExpr, Scalar
 from odps.df.backends.odpssql.types import odps_schema_to_df_schema
 from odps.df.backends.odpssql.tests.test_compiler import ODPSEngine
 
@@ -119,6 +119,26 @@ class Test(TestBase):
                    '    WHERE t3.`fid` > 3\n' \
                    '  ) t4\n' \
                    'ON t2.`name` == t4.`name`'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        expr = self.expr.join(self.expr3, on='name')
+        expr = expr[(expr.id_x < 10) & (Scalar(1) == 1)]
+
+        expected = 'SELECT * \n' \
+                   'FROM (\n' \
+                   '  SELECT t2.`name`, t2.`id` AS `id_x`, t2.`fid` AS `fid_x`, t2.`isMale`, ' \
+                   't2.`scale`, t2.`birth`, t2.`ds`, t3.`id` AS `id_y`, t3.`fid` AS `fid_y`, ' \
+                   't3.`part1`, t3.`part2` \n' \
+                   '  FROM (\n' \
+                   '    SELECT * \n' \
+                   '    FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '    WHERE t1.`id` < 10\n' \
+                   '  ) t2 \n' \
+                   '  INNER JOIN \n' \
+                   '    mocked_project.`pyodps_test_expr_table2` t3\n' \
+                   '  ON t2.`name` == t3.`name` \n' \
+                   ') t4 \n' \
+                   'WHERE 1 == 1'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
         expr = self.expr.join(self.expr3, on='name')
