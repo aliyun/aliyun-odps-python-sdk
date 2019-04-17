@@ -1,10 +1,7 @@
 ODPS Python SDK and data analysis framework
 ===========================================
 
-`PyPI version <https://pypi.python.org/pypi/pyodps>`__
-`Docs <http://pyodps.readthedocs.org/>`__
-`License <https://github.com/aliyun/aliyun-odps-python-sdk/blob/master/License>`__
-|Implementation|
+|PyPI version| |Docs| |License| |Implementation|
 
 Elegent way to access ODPS API.
 `Documentation <http://pyodps.readthedocs.org/>`__
@@ -193,4 +190,10 @@ License
 Licensed under the `Apache License
 2.0 <https://www.apache.org/licenses/LICENSE-2.0.html>`__
 
+.. |PyPI version| image:: https://img.shields.io/pypi/v/pyodps.svg?style=flat-square
+   :target: https://pypi.python.org/pypi/pyodps
+.. |Docs| image:: https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat-square
+   :target: http://pyodps.readthedocs.org/
+.. |License| image:: https://img.shields.io/pypi/l/pyodps.svg?style=flat-square
+   :target: https://github.com/aliyun/aliyun-odps-python-sdk/blob/master/License
 .. |Implementation| image:: https://img.shields.io/pypi/implementation/pyodps.svg?style=flat-square
