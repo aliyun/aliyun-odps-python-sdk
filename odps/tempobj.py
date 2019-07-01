@@ -401,7 +401,11 @@ def clean_stored_objects(odps):
 
 
 def _gen_repository_key(odps):
-    return hashlib.md5('####'.join([odps.account.access_id, odps.endpoint, odps.project]).encode('utf-8')).hexdigest()
+    if hasattr(odps.account, 'access_id'):
+        keys = [odps.account.access_id, odps.endpoint, odps.project]
+    elif hasattr(odps.account, 'token'):
+        keys = [odps.account.token, odps.endpoint, odps.project]
+    return hashlib.md5('####'.join(keys).encode('utf-8')).hexdigest()
 
 
 def _put_objects(odps, objs):

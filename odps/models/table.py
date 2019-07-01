@@ -270,10 +270,11 @@ class Table(LazyLoad):
         project = utils.to_text(project)
         comment = utils.to_text(comment)
 
-        store_as = kw.get('store_as')
+        stored_as = kw.get('stored_as')
+        external_stored_as = kw.get('external_stored_as')
         storage_handler = kw.get('storage_handler')
 
-        buf.write(u'CREATE%s TABLE ' % (' EXTERNAL' if storage_handler or store_as else ''))
+        buf.write(u'CREATE%s TABLE ' % (' EXTERNAL' if storage_handler or external_stored_as else ''))
         if if_not_exists:
             buf.write(u'IF NOT EXISTS ')
         if project is not None:
@@ -319,11 +320,11 @@ class Table(LazyLoad):
         serde_properties = kw.get('serde_properties')
         location = kw.get('location')
         resources = kw.get('resources')
-        if storage_handler or store_as:
+        if storage_handler or external_stored_as:
             if storage_handler:
                 buf.write("STORED BY '%s'\n" % escape_odps_string(storage_handler))
             else:
-                buf.write("STORED AS %s\n" % escape_odps_string(store_as))
+                buf.write("STORED AS %s\n" % escape_odps_string(external_stored_as))
             if serde_properties:
                 buf.write('WITH SERDEPROPERTIES (\n')
                 for idx, k in enumerate(serde_properties):
@@ -343,6 +344,9 @@ class Table(LazyLoad):
             buf.write(u'INTO %s SHARDS' % shard_num)
             if hub_lifecycle is not None:
                 buf.write(u' HUBLIFECYCLE %s\n' % hub_lifecycle)
+
+        if stored_as:
+            buf.write("STORED AS %s\n" % escape_odps_string(stored_as))
 
         return buf.getvalue().strip()
 

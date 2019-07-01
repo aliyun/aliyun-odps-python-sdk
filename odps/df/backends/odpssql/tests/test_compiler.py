@@ -2546,6 +2546,20 @@ class Test(TestBase):
 
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        expr = e.union(e3['const', 'id', 'name'], distinct=True)
+
+        expected = "SELECT * \n" \
+                   "FROM (\n" \
+                   "  SELECT t1.`name`, t1.`id`, 'cst' AS `const` \n" \
+                   "  FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
+                   "  UNION\n" \
+                   "    SELECT t2.`name`, SUM(t2.`id`) AS `id`, 'cst' AS `const` \n" \
+                   "    FROM mocked_project.`pyodps_test_expr_table1` t2 \n" \
+                   "    GROUP BY t2.`name`\n" \
+                   ") t3"
+
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
     def testAliases(self):
         df = self.expr
         df = df[(df.id == 1) | (df.id == 2)].exclude(['fid'])

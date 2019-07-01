@@ -18,12 +18,12 @@ import os
 import time
 import uuid
 
-from odps.tests.core import tn, pandas_case
+from odps import types as odps_types
+from odps.tests.core import tn, pandas_case, odps2_typed_case
 from odps.df.backends.tests.core import TestBase
 from odps.config import options
 from odps.compat import unittest
 from odps.models import Schema, Instance
-from odps.errors import ODPSError
 from odps.df.backends.engine import MixedEngine
 from odps.df.backends.odpssql.engine import ODPSSQLEngine
 from odps.df.backends.pd.engine import PandasEngine
@@ -193,6 +193,31 @@ class Test(TestBase):
             self.assertPandasEqual(df.to_pandas(), pd_df)
         finally:
             self.odps.delete_table(tmp_table_name)
+
+    @odps2_typed_case
+    def testPandasPersistODPS2(self):
+        import pandas as pd
+        import numpy as np
+
+        data_int8 = np.random.randint(0, 10, (1,), dtype=np.int8)
+        data_int16 = np.random.randint(0, 10, (1,), dtype=np.int16)
+        data_int32 = np.random.randint(0, 10, (1,), dtype=np.int32)
+        data_int64 = np.random.randint(0, 10, (1,), dtype=np.int64)
+        data_float32 = np.random.random((1,)).astype(np.float32)
+        data_float64 = np.random.random((1,)).astype(np.float64)
+
+        df = DataFrame(pd.DataFrame(dict(data_int8=data_int8, data_int16=data_int16,
+                                         data_int32=data_int32, data_int64=data_int64,
+                                         data_float32=data_float32, data_float64=data_float64)))
+        tmp_table_name = tn('pyodps_test_mixed_persist_odps2_types')
+
+        self.odps.delete_table(tmp_table_name, if_exists=True)
+        df.persist(tmp_table_name, lifecycle=1, drop_table=True, odps=self.odps)
+
+        t = self.odps.get_table(tmp_table_name)
+        expected_types = [odps_types.tinyint, odps_types.smallint, odps_types.int_,
+                          odps_types.bigint, odps_types.float_, odps_types.double]
+        self.assertEqual(expected_types, t.schema.types)
 
     def testExecuteCacheTable(self):
         df = self.odps_df[self.odps_df.name == 'name1']

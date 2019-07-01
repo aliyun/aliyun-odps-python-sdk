@@ -25,7 +25,7 @@ from .compat import six
 
 DEFAULT_CHUNK_SIZE = 1496
 DEFAULT_CONNECT_RETRY_TIMES = 4
-DEFAULT_CONNECT_TIMEOUT = 5
+DEFAULT_CONNECT_TIMEOUT = 10
 DEFAULT_READ_TIMEOUT = 120
 DEFAULT_POOL_CONNECTIONS = 10
 DEFAULT_POOL_MAXSIZE = 10
@@ -329,7 +329,7 @@ options.register_option('local_timezone', None)
 options.register_option('allow_antique_date', False)
 options.register_option('user_agent_pattern', '$pyodps_version $python_version $os_version')
 options.register_option('log_view_host', None)
-options.register_option('log_view_hours', 24, validator=is_integer)
+options.register_option('log_view_hours', 24 * 30, validator=is_integer)
 options.register_option('api_proxy', None)
 options.register_option('data_proxy', None)
 options.redirect_option('tunnel_proxy', 'data_proxy')

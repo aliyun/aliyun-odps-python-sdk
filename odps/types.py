@@ -270,7 +270,7 @@ class OdpsSchema(Schema):
         return buf.getvalue()
 
     def build_snapshot(self):
-        if self._snapshot is None and not options.force_py:
+        if not options.force_py:
             if not self._columns:
                 return None
 

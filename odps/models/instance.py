@@ -841,6 +841,8 @@ class Instance(LazyLoad):
                        if false, use conventional routine.
                        if absent, `options.tunnel.use_instance_tunnel` will be used and automatic fallback
                        is enabled.
+        :param limit: if True, enable the limitation
+        :type limit: bool
         :param reopen: the reader will reuse last one, reopen is true means open a new reader.
         :type reopen: bool
         :param endpoint: the tunnel service URL

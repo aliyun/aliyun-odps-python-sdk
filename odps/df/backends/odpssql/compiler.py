@@ -1398,12 +1398,11 @@ class OdpsSQLCompiler(Backend):
         self._ctx.add_expr_compiled(expr, from_clause)
 
     def visit_union(self, expr):
-        if expr._distinct:
-            raise CompileError("Distinct union is not supported here.")
-
+        union_type = 'UNION ALL' if not expr._distinct else 'UNION'
         left_compiled, right_compiled = tuple(self._sub_compiles[expr])
 
-        from_clause = '{0} \nUNION ALL\n{1}'.format(left_compiled, utils.indent(right_compiled, self._indent_size))
+        from_clause = '{0} \n{1}\n{2}'.format(left_compiled, union_type,
+                                              utils.indent(right_compiled, self._indent_size))
 
         compiled = from_clause
         if not self._union_no_alias.get(expr, False):

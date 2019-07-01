@@ -136,6 +136,9 @@ class SignServer(object):
                 self.end_headers()
                 return
 
+            self._sign(postvars)
+
+        def _sign(self, postvars):
             if self.server._token is not None:
                 auth = self.headers.get('Authorization')
                 if not auth:
@@ -267,3 +270,16 @@ class SignServerAccount(BaseAccount):
             LOG.debug('headers after signing: ' + repr(req.headers))
         else:
             raise SignServerError('Sign server returned error code: %d' % resp.status_code, resp.status_code)
+
+
+class BearerTokenAccount(BaseAccount):
+    def __init__(self, token):
+        self._token = token
+
+    @property
+    def token(self):
+        return self._token
+
+    def sign_request(self, req, endpoint):
+        req.headers['x-odps-bearer-token'] = self._token
+        LOG.debug('headers after signing: ' + repr(req.headers))

@@ -133,7 +133,7 @@ class BaseInstances(Iterable):
         return Instance.AnonymousSubmitInstance(job=job).serialize()
 
     def create(self, xml=None, job=None, task=None, priority=None, running_cluster=None,
-               headers=None, create_callback=None):
+               headers=None, create_callback=None, encoding=None):
         if xml is None:
             job = self._create_job(job=job, task=task, priority=priority,
                                    running_cluster=running_cluster)
@@ -155,6 +155,8 @@ class BaseInstances(Iterable):
         if create_callback is not None:
             create_callback(instance_id)
 
+        if encoding is not None:
+            resp.encoding = encoding
         body = resp.text
         if body:
             instance_result = Instance.InstanceResult.parse(self._client, resp)

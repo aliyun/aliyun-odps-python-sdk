@@ -17,8 +17,9 @@
 import uuid
 
 from odps import ODPS
+from odps import errors
 from odps.tests.core import TestBase, tn
-from odps.accounts import SignServer, SignServerAccount, SignServerError
+from odps.accounts import SignServer, SignServerAccount, SignServerError, BearerTokenAccount
 
 
 class Test(TestBase):
@@ -54,3 +55,36 @@ class Test(TestBase):
             t.drop(async_=True)
         finally:
             server.stop()
+
+    def testBearerTokenAccount(self):
+        self.odps.delete_table(tn('test_bearer_token_account_table'), if_exists=True)
+        t = self.odps.create_table(tn('test_bearer_token_account_table'), 'col string', lifecycle=1)
+        with t.open_writer() as writer:
+            records = [['val1'], ['val2'], ['val3']]
+            writer.write(records)
+
+        inst = self.odps.execute_sql('select count(*) from {0}'.format(tn('test_bearer_token_account_table')), async_=True)
+        inst.wait_for_success()
+        task_name = inst.get_task_names()[0]
+
+        logview_address = inst.get_logview_address()
+        token = logview_address[logview_address.find('token=') + len('token='):]
+        bearer_token_account = BearerTokenAccount(token=token)
+        bearer_token_odps = ODPS(None, None, self.odps.project, self.odps.endpoint, account=bearer_token_account)
+        bearer_token_instance = bearer_token_odps.get_instance(inst.id)
+
+        self.assertEqual(inst.get_task_result(task_name),
+                         bearer_token_instance.get_task_result(task_name))
+        self.assertEqual(inst.get_task_summary(task_name),
+                         bearer_token_instance.get_task_summary(task_name))
+
+        with self.assertRaises(errors.NoPermission):
+            bearer_token_odps.create_table(tn('test_bearer_token_account_table_test1'),
+                                           'col string', lifecycle=1)
+
+        fake_token_account = BearerTokenAccount(token='fake-token')
+        bearer_token_odps = ODPS(None, None, self.odps.project, self.odps.endpoint, account=fake_token_account)
+
+        with self.assertRaises(errors.ODPSError):
+            bearer_token_odps.create_table(tn('test_bearer_token_account_table_test2'),
+                                           'col string', lifecycle=1)
