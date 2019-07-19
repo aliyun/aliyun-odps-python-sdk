@@ -685,7 +685,7 @@ class Instance(LazyLoad):
         root = ElementTree.fromstring(content)
         token = root.find('Result').text
 
-        link = options.log_view_host + "/logview/?h=" + self._client.endpoint + "&p=" \
+        link = self.project.parent.parent.log_view_host + "/logview/?h=" + self._client.endpoint + "&p=" \
                + project.name + "&i=" + self.id + "&token=" + token
         return link
 

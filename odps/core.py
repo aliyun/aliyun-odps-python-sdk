@@ -86,8 +86,10 @@ class ODPS(object):
         self.rest = RestClient(self.account, self.endpoint, project, proxy=options.api_proxy)
 
         self._tunnel_endpoint = kw.pop('tunnel_endpoint', None)
+        self._log_view_host = kw.pop('log_view_host', LOG_VIEW_HOST_DEFAULT)
+        self._log_view_hours = kw.pop('log_view_hours', options.log_view_hours)
 
-        self._projects = models.Projects(client=self.rest)
+        self._projects = models.Projects(client=self.rest, parent=self)
         self._project = self.get_project()
 
         self._predict_endpoint = kw.pop('predict_endpoint', DEFAULT_PREDICT_ENDPOINT)
@@ -104,6 +106,14 @@ class ODPS(object):
                       tunnel_endpoint=None, **kwargs):
         return cls(None, None, project, endpoint=endpoint, tunnel_endpoint=tunnel_endpoint,
                    account=account, **kwargs)
+
+    @property
+    def log_view_host(self):
+        return self._log_view_host
+
+    @property
+    def log_view_hours(self):
+        return self._log_view_hours
 
     @property
     def projects(self):

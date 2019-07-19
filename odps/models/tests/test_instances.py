@@ -170,6 +170,8 @@ class Test(TestBase):
         self.assertIsNotNone(instance._getattr('end_time'))
         self.assertIsNotNone(instance._getattr('_status'))
         self.assertEqual(instance._status, Instance.Status.TERMINATED)
+        self.assertIsNotNone(instance.get_logview_address())
+        assert(instance.get_logview_address().startswith('http'))
 
         instance.reload()
         self.assertEqual(instance.status, Instance.Status.TERMINATED)

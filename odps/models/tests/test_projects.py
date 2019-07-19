@@ -45,6 +45,7 @@ class Test(TestBase):
         self.assertIsNone(project._getattr('extended_properties'))
         self.assertIsNone(project._getattr('state'))
         self.assertIsNone(project._getattr('clusters'))
+        self.assertIsNone(project._getattr('parent'))
 
         self.assertFalse(project.is_loaded)
 

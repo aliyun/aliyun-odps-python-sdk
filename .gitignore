@@ -85,3 +85,6 @@ bin/test_pyodpswrapper.py
 
 # documentation
 docs/**/*.mo
+
+# test conf
+*test.conf
