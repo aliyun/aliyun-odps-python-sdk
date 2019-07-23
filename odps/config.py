@@ -83,7 +83,12 @@ class PandasRedirection(Redirection):
     def getvalue(self, silent=False):
         if self._use_pd:
             import pandas as pd
-            from pandas.core.config import OptionError as PandasOptionError
+            if pd.__version__ < '0.25.0':
+                from pandas.core.config import OptionError as PandasOptionError
+            else:
+                # `pandas.core` was moved to `pandas._config`
+                # and made private after `v0.25.0`
+                from pandas._config.config import OptionError as PandasOptionError
             try:
                 return pd.get_option('.'.join(self._items))
             except PandasOptionError:
