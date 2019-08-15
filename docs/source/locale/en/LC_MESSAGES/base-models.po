@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-07-26 19:35+0800\n"
+"POT-Creation-Date: 2019-02-14 21:09+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.6.0\n"
 
 #: ../../source/base-models.rst:4
 msgid "XFlow 和模型"
@@ -72,9 +72,9 @@ msgstr ""
 #: ../../source/base-models.rst:31
 msgid "参数不应包含命令两端的引号（如果有），也不应该包含末尾的分号。"
 msgstr ""
-"Parameters should not include quotation marks at the ends of "
-"argument values in PAI command if they are in the PAI command, nor "
-"the semicolon at the end of the command."
+"Parameters should not include quotation marks at the ends of argument "
+"values in PAI command if they are in the PAI command, nor the semicolon "
+"at the end of the command."
 
 #: ../../source/base-models.rst:33
 msgid ""
@@ -208,196 +208,7 @@ msgstr ""
 msgid "删除模型可使用下列语句："
 msgstr "You can delete a model using the following statement:"
 
-#: ../../source/base-models.rst:101
+#: ../../source/base-models.rst:100
 msgid ">>> o.delete_offline_model('logistic_regression_model_name')"
-msgstr ""
-
-#: ../../source/base-models.rst:103
-msgid "在线模型"
-msgstr "Online models"
-
-#: ../../source/base-models.rst:105
-msgid "在线模型是 ODPS 提供的模型在线部署能力。用户可以通过 Pipeline 部署自己的模型。详细信息请参考“机器学习平台——在线服务”章节。"
-msgstr ""
-"MaxCompute allows you to deploy online models. You can use a Pipeline to "
-"deploy your models. For more information, see Machine learning platform "
-"(PAI) - online services."
-
-#: ../../source/base-models.rst:107
-msgid "需要注意的是，在线模型的服务使用的是独立的 Endpoint，需要配置 Predict Endpoint。通过"
-msgstr ""
-"Note that online models require independent endpoints. You need to "
-"configure Predict Endpoint as follows:"
-
-#: ../../source/base-models.rst:113
-msgid ""
-">>> o = ODPS('your-access-id', 'your-secret-access-key', 'your-default-"
-"project',\n"
-">>>          endpoint='your-end-point', "
-"predict_endpoint='predict_endpoint')"
-msgstr ""
-
-#: ../../source/base-models.rst:114
-msgid "即可在 ODPS 对象上添加相关配置。Predict Endpoint 的地址请参考相关说明或咨询管理员。"
-msgstr ""
-"For more information about Predict Endpoint, see the instructions or "
-"submit a ticket."
-
-#: ../../source/base-models.rst:117
-msgid "部署离线模型上线"
-msgstr "Deploy offline models"
-
-#: ../../source/base-models.rst:119
-msgid "PyODPS 提供了离线模型的部署功能。部署方法为"
-msgstr "PyODPS allows you to deploy offline models by using the following method:"
-
-#: ../../source/base-models.rst:125 ../../source/base-models.rst:188
-msgid ""
-">>> model = o.create_online_model('online_model_name', "
-"'offline_model_name')"
-msgstr ""
-
-#: ../../source/base-models.rst:127
-msgid "部署自定义 Pipeline 上线"
-msgstr "Deploy custom Pipeline"
-
-#: ../../source/base-models.rst:128
-msgid "含有自定义 Pipeline 的在线模型可自行构造 ModelPredictor 对象，例子如下："
-msgstr ""
-"You can construct a ModelPredictor object from online models that contain"
-" a custom Pipeline by using the following method:"
-
-#: ../../source/base-models.rst:143
-msgid ""
-">>> from odps.models.ml import ModelPredictor, ModelProcessor, "
-"BuiltinProcessor, PmmlProcessor, PmmlRunMode\n"
-">>> predictor = ModelPredictor(target_name='label')\n"
-">>> "
-"predictor.pipeline.append(BuiltinProcessor(offline_model_name='sample_offlinemodel',"
-"\n"
-">>>                                            "
-"offline_model_project='online_test'))\n"
-">>> predictor.pipeline.append(PmmlProcessor(pmml='data_preprocess.xml',\n"
-">>>                                         "
-"resources='online_test/resources/data_preprocess.xml',\n"
-">>>                                         "
-"run_mode=PmmlRunMode.Converter))\n"
-">>> "
-"predictor.pipeline.append(CustomProcessor(class_name='SampleProcessor',\n"
-">>>                                           "
-"lib='libsample_processor.so',\n"
-">>>                                           "
-"resources='online_test/resources/sample_processor.tar.gz'))\n"
-">>> model = o.create_online_model('online_model_name', predictor)"
-msgstr ""
-
-#: ../../source/base-models.rst:144
-msgid ""
-"其中，BuiltinProcessor、PmmlProcessor 和 CustomProcessor 分别指 ODPS OfflineModel"
-" 形成的 Pipeline 节点、PMML 模型文件形成的 Pipeline 节点和用户自行开发的 Pipeline 节点。"
-msgstr ""
-"In the above example, BuiltInProcessor, PmmlProcessor, and "
-"CustomProcessor represent the Pipeline node that is generated in "
-"MaxCompute OfflineModel, the Pipeline node that is generated in PMML "
-"model file, and the Pipeline node that you have developed, respectively."
-
-#: ../../source/base-models.rst:148
-msgid "在线模型操作"
-msgstr "Operations on online models"
-
-#: ../../source/base-models.rst:150
-msgid "与其他 ODPS 对象类似，创建后，可列举、获取和删除在线模型："
-msgstr ""
-"Similar to other ODPS objects, you can enumerate, retrieve, and delete "
-"online models after creation."
-
-#: ../../source/base-models.rst:157
-msgid ""
-">>> models = o.list_online_models(prefix='prefix')\n"
-">>> model = o.get_online_model('online_model_name')\n"
-">>> o.delete_online_model('online_model_name')"
-msgstr ""
-
-#: ../../source/base-models.rst:158
-msgid "可使用模型名和数据进行在线预测，输入数据可以是 Record，也可以是字典或数组和 Schema 的组合："
-msgstr ""
-"You can make online predictions using the model names and data. The input"
-" data can be a Record, a combination of dict and Schema, or a combination"
-" of array and Schema:"
-
-#: ../../source/base-models.rst:165
-msgid ""
-">>> data = [[4, 3, 2, 1], [1, 2, 3, 4]]\n"
-">>> result = o.predict_online_model('online_model_name', data,\n"
-">>>                                 schema=['sepal_length', "
-"'sepal_width', 'petal_length', 'petal_width'])"
-msgstr ""
-
-#: ../../source/base-models.rst:166
-msgid ""
-"也可为模型设置 ABTest。参数中的 modelx 可以是在线模型名，也可以是 get_online_model 获得的模型对象本身，而 "
-"percentagex 表示 modelx 在 ABTest 中所占的百分比，范围为 0 至 100："
-msgstr ""
-"You can also create an AB test for your model. The modelx parameter can "
-"be an online model name, or the model object that has been retrieved by "
-"get_online_model. The percentagex parameter represents the percentage of "
-"modelx in the AB test, which ranges from 0 to 100:"
-
-#: ../../source/base-models.rst:172
-msgid ""
-">>> result = o.config_online_model_ab_test('online_model_name', model1, "
-"percentage1, model2, percentage2)"
-msgstr ""
-
-#: ../../source/base-models.rst:173
-msgid "修改模型参数可以通过修改 OnlineModel 对象的属性，再调用 update 方法实现，如"
-msgstr ""
-"To modify the model parameters, you can first modify the attributes of "
-"the OnlineModel object and then call the update method. For example:"
-
-#: ../../source/base-models.rst:180
-msgid ""
-">>> model = o.get_online_model('online_model_name')\n"
-">>> model.cpu = 200\n"
-">>> model.update()"
-msgstr ""
-
-#: ../../source/base-models.rst:181
-msgid ""
-"与其他对象不同的是，在线模型的创建和删除较为耗时。PyODPS 默认 create_online_model 和 "
-"delete_online_model 以及 OnlineModel 的 update 方法在整个操作完成后才返回。用户可以通过 async "
-"选项控制是否要在模型创建请求提交后立即返回， 然后自己控制等待。例如，下列语句"
-msgstr ""
-"Unlike other objects, creating and deleting online models is relatively "
-"more time-consuming. By default, the create_online_model, "
-"delete_online_model, and the update method of OnlineModel objects cause "
-"other methods to wait until the current execution has been completed. You"
-" can use the async parameter to specify whether or not the functions "
-"should return once the request has been submitted. For example, the "
-"following statement:"
-
-#: ../../source/base-models.rst:189 ../../source/base-models.rst:202
-msgid "等价于"
-msgstr "Equal to:"
-
-#: ../../source/base-models.rst:195
-msgid ""
-">>> model = o.create_online_model('online_model_name', "
-"'offline_model_name', async=True)\n"
-">>> model.wait_for_service()"
-msgstr ""
-
-#: ../../source/base-models.rst:196
-msgid "而"
-msgstr "However:"
-
-#: ../../source/base-models.rst:201
-msgid ">>> o.delete_online_model('online_model_name')"
-msgstr ""
-
-#: ../../source/base-models.rst:207
-msgid ""
-">>> o.delete_online_model('* online_model_name *', async=True)\n"
-">>> model.wait_for_deletion()"
 msgstr ""
 

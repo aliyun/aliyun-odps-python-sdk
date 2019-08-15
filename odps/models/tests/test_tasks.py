@@ -16,7 +16,8 @@ from odps.tests.core import TestBase, to_str
 from odps.errors import ODPSError
 from odps.compat import unittest
 from odps.config import options
-from odps.models import SQLTask, CupidTask, SQLCostTask, Task
+from odps.models import SQLTask, MergeTask, CupidTask, SQLCostTask, Task
+from odps.tests.core import tn
 
 try:
     import pytz
@@ -48,6 +49,19 @@ sql_tz_template = '''<?xml version="1.0" encoding="utf-8"?>
   </Config>
   <Query><![CDATA[%(sql)s;]]></Query>
 </SQL>
+'''
+
+merge_template = '''<?xml version="1.0" encoding="utf-8"?>
+<Merge>
+  <Name>%(name)s</Name>
+  <Config>
+    <Property>
+      <Name>settings</Name>
+      <Value>{"odps.merge.cross.paths": "true"}</Value>
+    </Property>
+  </Config>
+  <TableName>%(table)s</TableName>
+</Merge>
 '''
 
 cupid_template = '''<?xml version="1.0" encoding="utf-8"?>
@@ -132,6 +146,38 @@ class Test(TestBase):
             self.assertEqual(to_str(to_xml), to_str(right_xml))
         finally:
             options.local_timezone = None
+
+    def testMergeTaskToXML(self):
+        task = MergeTask('task_1', table='table_name')
+        task.update_settings({'odps.merge.cross.paths': True})
+        to_xml = task.serialize()
+        right_xml = merge_template % dict(name='task_1', table='table_name')
+
+        self.assertEqual(to_str(to_xml), to_str(right_xml))
+
+        task = Task.parse(None, to_xml)
+        self.assertIsInstance(task, MergeTask)
+
+    def testRunMergeTask(self):
+        table_name = tn('pyodps_test_merge_task_table')
+        if self.odps.exist_table(table_name):
+            self.odps.delete_table(table_name)
+
+        table = self.odps.create_table(table_name, ('col string', 'part1 string, part2 string'))
+        table.create_partition('part1=1,part2=1', if_not_exists=True)
+        self.odps.write_table(table_name, [('col_name', )], partition='part1=1,part2=1')
+        inst = self.odps.run_merge_files(table_name, 'part1=1, part2="1"')
+        self.waitContainerFilled(lambda: inst.tasks)
+
+        task = inst.tasks[0]
+        self.assertIsInstance(task, MergeTask)
+
+        try:
+            inst.stop()
+        except:
+            pass
+
+        self.odps.delete_table(table_name)
 
     def testCupidTaskToXML(self):
         task = CupidTask('task_1', 'plan_text', {'odps.cupid.wait.am.start.time': 600})

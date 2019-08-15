@@ -1344,8 +1344,13 @@ class PandasCompiler(Backend):
             df.sort_values(sort_names, inplace=True)
             grouped = df.groupby(by_names)
 
+            try:
+                pd_fast_zip = pd._libs.lib.fast_zip
+            except AttributeError:
+                pd_fast_zip = pd.lib.fast_zip
+
             def f(x):
-                s_df = pd.Series(pd.lib.fast_zip([x[s].values for s in sort_names]), index=x.index)
+                s_df = pd.Series(pd_fast_zip([x[s].values for s in sort_names]), index=x.index)
                 if expr.node_name == 'Rank':
                     return s_df.rank(method='min')
                 elif expr.node_name == 'DenseRank':
@@ -1425,7 +1430,11 @@ class PandasCompiler(Backend):
         def handle(_):
             if isinstance(expr, DTScalar):
                 arg_name = type(expr).__name__.lower()[:-6] + 's'
-                return pd.DateOffset(**{arg_name: expr.value})
+                value = expr.value
+                if arg_name == 'milliseconds':
+                    arg_name = 'microseconds'
+                    value *= 1000
+                return pd.DateOffset(**{arg_name: value})
             if expr.value is not None:
                 return expr.value
 

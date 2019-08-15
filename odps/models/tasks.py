@@ -15,6 +15,8 @@
 # limitations under the License.
 
 import json  # don't remove
+import random
+import time
 import warnings
 
 from .core import AbstractXMLRemoteModel
@@ -216,6 +218,18 @@ class SQLTask(Task):
         return json.loads(self.get_info('warnings')).get('warnings')
 
 
+class MergeTask(Task):
+    _root = 'Merge'
+
+    table = serializers.XMLNodeField('TableName')
+
+    def __init__(self, name=None, **kwargs):
+        if name is None:
+            name = 'merge_task_{0}_{1}'.format(int(time.time()), random.randint(100000, 999999))
+        kwargs['name'] = name
+        super(MergeTask, self).__init__(**kwargs)
+
+
 class CupidTask(Task):
     _root = 'CUPID'
 
@@ -246,6 +260,9 @@ class SQLCostTask(Task):
         hints = hints or {}
         if hints:
             self.set_property('settings', json.dumps(hints))
+
+class SQLRTTask(Task):
+    _root = "SQLRT"
 
 
 try:

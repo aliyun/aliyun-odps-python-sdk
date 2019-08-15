@@ -1,11 +1,11 @@
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -86,14 +86,9 @@ def get_config():
             tunnel_endpoint = config.get("odps", "tunnel_endpoint")
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             tunnel_endpoint = None
-        try:
-            predict_endpoint = config.get("odps", "predict_endpoint")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            predict_endpoint = None
 
         config.odps = ODPS(access_id, secret_access_key, project, endpoint,
-                           tunnel_endpoint=tunnel_endpoint, predict_endpoint=predict_endpoint,
-                           seahawks_url=seahawks_url)
+                           tunnel_endpoint=tunnel_endpoint, seahawks_url=seahawks_url)
 
         config.tunnel = TableTunnel(config.odps, endpoint=tunnel_endpoint)
 
@@ -191,6 +186,7 @@ def odps2_typed_case(func):
         old_settings = options.sql.settings
         options.sql.settings = old_settings or {}
         options.sql.settings.update({'odps.sql.hive.compatible': True})
+        options.sql.settings.update({'odps.sql.decimal.odps2': True})
         try:
             func(*args, **kwargs)
         finally:

@@ -96,12 +96,7 @@ def run_pickled(pickled, *args, **kwargs):
     proc = multiprocessing.Process(target=pickled_runner, args=(queue, pickled, args, kwargs), kwargs=wrapper_kw)
     proc.start()
     proc.join()
-    if proc.exitcode != 0:
-        raise SystemError('Pickle process exited abnormally.')
-    try:
-        return queue.get()
-    except:
-        return None
+    return queue.get(timeout=5)
 
 
 def _gen_nested_yield_obj():

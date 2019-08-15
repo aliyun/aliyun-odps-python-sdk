@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-10-10 15:55+0800\n"
+"POT-Creation-Date: 2019-02-14 21:09+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.6.0\n"
 
 #: ../../source/api-def.rst:4
 msgid "Definitions"
@@ -47,43 +47,37 @@ msgid ""
 "automatically."
 msgstr ""
 
-#: odps.ODPS odps.ODPS.config_online_model_ab_test odps.ODPS.create_fs_volume
-#: odps.ODPS.create_function odps.ODPS.create_online_model
+#: odps.ODPS odps.ODPS.create_fs_volume odps.ODPS.create_function
 #: odps.ODPS.create_parted_volume odps.ODPS.create_resource
 #: odps.ODPS.create_role odps.ODPS.create_table odps.ODPS.create_user
 #: odps.ODPS.create_volume_directory odps.ODPS.delete_function
-#: odps.ODPS.delete_offline_model odps.ODPS.delete_online_model
-#: odps.ODPS.delete_resource odps.ODPS.delete_role odps.ODPS.delete_table
-#: odps.ODPS.delete_user odps.ODPS.delete_volume odps.ODPS.delete_volume_file
+#: odps.ODPS.delete_offline_model odps.ODPS.delete_resource
+#: odps.ODPS.delete_role odps.ODPS.delete_table odps.ODPS.delete_user
+#: odps.ODPS.delete_volume odps.ODPS.delete_volume_file
 #: odps.ODPS.delete_volume_partition odps.ODPS.delete_xflow
-#: odps.ODPS.execute_merge_files odps.ODPS.execute_ps
-#: odps.ODPS.execute_ps_extract_model odps.ODPS.execute_ps_train
-#: odps.ODPS.execute_sql odps.ODPS.execute_xflow odps.ODPS.exist_function
-#: odps.ODPS.exist_instance odps.ODPS.exist_offline_model
-#: odps.ODPS.exist_online_model odps.ODPS.exist_project
+#: odps.ODPS.execute_merge_files odps.ODPS.execute_sql odps.ODPS.execute_xflow
+#: odps.ODPS.exist_function odps.ODPS.exist_instance
+#: odps.ODPS.exist_offline_model odps.ODPS.exist_project
 #: odps.ODPS.exist_resource odps.ODPS.exist_role odps.ODPS.exist_table
 #: odps.ODPS.exist_user odps.ODPS.exist_volume odps.ODPS.exist_volume_partition
 #: odps.ODPS.exist_xflow odps.ODPS.get_function odps.ODPS.get_instance
 #: odps.ODPS.get_logview_address odps.ODPS.get_offline_model
-#: odps.ODPS.get_online_model odps.ODPS.get_project
-#: odps.ODPS.get_project_policy odps.ODPS.get_resource
+#: odps.ODPS.get_project odps.ODPS.get_project_policy odps.ODPS.get_resource
 #: odps.ODPS.get_role_policy odps.ODPS.get_security_option
 #: odps.ODPS.get_security_options odps.ODPS.get_table odps.ODPS.get_volume
 #: odps.ODPS.get_volume_file odps.ODPS.get_volume_partition odps.ODPS.get_xflow
 #: odps.ODPS.get_xflow_results odps.ODPS.get_xflow_sub_instances
 #: odps.ODPS.iter_xflow_sub_instances odps.ODPS.list_functions
 #: odps.ODPS.list_instance_queueing_infos odps.ODPS.list_instances
-#: odps.ODPS.list_offline_models odps.ODPS.list_online_models
-#: odps.ODPS.list_projects odps.ODPS.list_resources odps.ODPS.list_role_users
-#: odps.ODPS.list_roles odps.ODPS.list_tables odps.ODPS.list_tables_model
-#: odps.ODPS.list_user_roles odps.ODPS.list_users odps.ODPS.list_volume_files
-#: odps.ODPS.list_volume_partitions odps.ODPS.list_volumes
-#: odps.ODPS.list_xflows odps.ODPS.move_volume_file odps.ODPS.open_resource
-#: odps.ODPS.open_volume_reader odps.ODPS.open_volume_writer
-#: odps.ODPS.predict_online_model odps.ODPS.read_table
-#: odps.ODPS.run_merge_files odps.ODPS.run_ps odps.ODPS.run_ps_extract_model
-#: odps.ODPS.run_ps_train odps.ODPS.run_security_query odps.ODPS.run_sql
-#: odps.ODPS.run_xflow odps.ODPS.set_project_policy odps.ODPS.set_role_policy
+#: odps.ODPS.list_offline_models odps.ODPS.list_resources
+#: odps.ODPS.list_role_users odps.ODPS.list_roles odps.ODPS.list_tables
+#: odps.ODPS.list_tables_model odps.ODPS.list_user_roles odps.ODPS.list_users
+#: odps.ODPS.list_volume_files odps.ODPS.list_volume_partitions
+#: odps.ODPS.list_volumes odps.ODPS.list_xflows odps.ODPS.move_volume_file
+#: odps.ODPS.open_resource odps.ODPS.open_volume_reader
+#: odps.ODPS.open_volume_writer odps.ODPS.read_table odps.ODPS.run_merge_files
+#: odps.ODPS.run_security_query odps.ODPS.run_sql odps.ODPS.run_xflow
+#: odps.ODPS.set_project_policy odps.ODPS.set_role_policy
 #: odps.ODPS.set_security_option odps.ODPS.stop_instance odps.ODPS.stop_job
 #: odps.ODPS.write_table odps.models.FileResource.open
 #: odps.models.FileResource.read odps.models.FileResource.readline
@@ -104,9 +98,6 @@ msgstr ""
 #: odps.models.Table.new_record odps.models.Table.open_reader
 #: odps.models.Table.open_writer odps.models.Table.truncate
 #: odps.models.TableResource.update odps.models.Worker.get_log
-#: odps.models.ml.OnlineModel.predict
-#: odps.models.ml.OnlineModel.wait_for_deletion
-#: odps.models.ml.OnlineModel.wait_for_service
 #: odps.models.partition.Partition.drop
 #: odps.models.partition.Partition.open_reader of
 msgid "Parameters"
@@ -145,30 +136,6 @@ msgstr ""
 msgid "Example"
 msgstr ""
 
-#: odps.ODPS.config_online_model_ab_test:1
-#: odps.models.ml.OnlineModel.config_ab_test:1 of
-msgid "Config AB-Test percentages of the online model."
-msgstr ""
-
-#: odps.ODPS.config_online_model_ab_test:3 odps.ODPS.delete_online_model:3
-#: odps.ODPS.exist_online_model:3 odps.ODPS.get_online_model:3
-#: odps.ODPS.predict_online_model:3 of
-msgid "name of the online model"
-msgstr ""
-
-#: odps.ODPS.config_online_model_ab_test:5
-#: odps.models.ml.OnlineModel.config_ab_test:3 of
-msgid "This method should be called like"
-msgstr ""
-
-#: odps.ODPS.config_online_model_ab_test:9
-#: odps.models.ml.OnlineModel.config_ab_test:7 of
-msgid ""
-"where `modelx` can be model names or :class:`odps.models.ml.OnlineModel` "
-"instances, while `percentagex` should be percentage of `modelx` in AB-"
-"Test, ranging from 0 to 100."
-msgstr ""
-
 #: odps.ODPS.create_fs_volume:1 of
 msgid "Create a new-fashioned file system volume in a project."
 msgstr ""
@@ -181,37 +148,32 @@ msgstr ""
 #: odps.ODPS.create_parted_volume:4 odps.ODPS.create_resource:13
 #: odps.ODPS.create_role:4 odps.ODPS.create_table:5 odps.ODPS.create_user:4
 #: odps.ODPS.delete_function:4 odps.ODPS.delete_offline_model:5
-#: odps.ODPS.delete_online_model:4 odps.ODPS.delete_resource:4
-#: odps.ODPS.delete_role:4 odps.ODPS.delete_table:4 odps.ODPS.delete_user:4
-#: odps.ODPS.delete_volume:4 odps.ODPS.delete_volume_partition:5
-#: odps.ODPS.delete_xflow:4 odps.ODPS.execute_merge_files:5
-#: odps.ODPS.execute_ps:7 odps.ODPS.execute_ps_extract_model:11
-#: odps.ODPS.execute_ps_train:20 odps.ODPS.execute_sql:5
+#: odps.ODPS.delete_resource:4 odps.ODPS.delete_role:4 odps.ODPS.delete_table:4
+#: odps.ODPS.delete_user:4 odps.ODPS.delete_volume:4
+#: odps.ODPS.delete_volume_partition:5 odps.ODPS.delete_xflow:4
+#: odps.ODPS.execute_merge_files:5 odps.ODPS.execute_sql:5
 #: odps.ODPS.execute_xflow:9 odps.ODPS.exist_function:4
 #: odps.ODPS.exist_instance:4 odps.ODPS.exist_offline_model:4
-#: odps.ODPS.exist_online_model:4 odps.ODPS.exist_project:3
-#: odps.ODPS.exist_resource:4 odps.ODPS.exist_role:4 odps.ODPS.exist_table:4
-#: odps.ODPS.exist_user:4 odps.ODPS.exist_volume:4
+#: odps.ODPS.exist_project:3 odps.ODPS.exist_resource:4 odps.ODPS.exist_role:4
+#: odps.ODPS.exist_table:4 odps.ODPS.exist_user:4 odps.ODPS.exist_volume:4
 #: odps.ODPS.exist_volume_partition:5 odps.ODPS.exist_xflow:4
 #: odps.ODPS.get_function:4 odps.ODPS.get_instance:4
 #: odps.ODPS.get_logview_address:5 odps.ODPS.get_offline_model:4
-#: odps.ODPS.get_online_model:4 odps.ODPS.get_project:3
-#: odps.ODPS.get_project_policy:3 odps.ODPS.get_resource:4
-#: odps.ODPS.get_role_policy:4 odps.ODPS.get_security_option:4
-#: odps.ODPS.get_security_options:3 odps.ODPS.get_table:4
-#: odps.ODPS.get_volume:4 odps.ODPS.get_volume_partition:5
-#: odps.ODPS.get_xflow:4 odps.ODPS.get_xflow_results:5
-#: odps.ODPS.get_xflow_sub_instances:5 odps.ODPS.iter_xflow_sub_instances:6
-#: odps.ODPS.list_functions:3 odps.ODPS.list_instance_queueing_infos:3
-#: odps.ODPS.list_instances:4 odps.ODPS.list_offline_models:3
-#: odps.ODPS.list_online_models:3 odps.ODPS.list_resources:3
+#: odps.ODPS.get_project:3 odps.ODPS.get_project_policy:3
+#: odps.ODPS.get_resource:4 odps.ODPS.get_role_policy:4
+#: odps.ODPS.get_security_option:4 odps.ODPS.get_security_options:3
+#: odps.ODPS.get_table:4 odps.ODPS.get_volume:4
+#: odps.ODPS.get_volume_partition:5 odps.ODPS.get_xflow:4
+#: odps.ODPS.get_xflow_results:5 odps.ODPS.get_xflow_sub_instances:5
+#: odps.ODPS.iter_xflow_sub_instances:6 odps.ODPS.list_functions:3
+#: odps.ODPS.list_instance_queueing_infos:3 odps.ODPS.list_instances:4
+#: odps.ODPS.list_offline_models:3 odps.ODPS.list_resources:3
 #: odps.ODPS.list_role_users:4 odps.ODPS.list_roles:3 odps.ODPS.list_tables:5
 #: odps.ODPS.list_user_roles:4 odps.ODPS.list_users:3
 #: odps.ODPS.list_volume_files:6 odps.ODPS.list_volume_partitions:4
 #: odps.ODPS.list_volumes:3 odps.ODPS.list_xflows:3 odps.ODPS.open_resource:23
 #: odps.ODPS.open_volume_reader:7 odps.ODPS.open_volume_writer:11
-#: odps.ODPS.read_table:8 odps.ODPS.run_merge_files:5 odps.ODPS.run_ps:7
-#: odps.ODPS.run_ps_extract_model:11 odps.ODPS.run_ps_train:20
+#: odps.ODPS.read_table:8 odps.ODPS.run_merge_files:5
 #: odps.ODPS.run_security_query:4 odps.ODPS.run_sql:5 odps.ODPS.run_xflow:9
 #: odps.ODPS.set_project_policy:4 odps.ODPS.set_role_policy:5
 #: odps.ODPS.stop_instance:4 odps.ODPS.stop_job:4 odps.ODPS.write_table:6 of
@@ -219,55 +181,48 @@ msgid "project name, if not provided, will be the default project"
 msgstr ""
 
 #: odps.ODPS.create_fs_volume odps.ODPS.create_function
-#: odps.ODPS.create_online_model odps.ODPS.create_parted_volume
-#: odps.ODPS.create_resource odps.ODPS.create_role odps.ODPS.create_table
-#: odps.ODPS.create_user odps.ODPS.create_volume_directory
-#: odps.ODPS.delete_function odps.ODPS.delete_offline_model
-#: odps.ODPS.delete_online_model odps.ODPS.delete_resource
+#: odps.ODPS.create_parted_volume odps.ODPS.create_resource
+#: odps.ODPS.create_role odps.ODPS.create_table odps.ODPS.create_user
+#: odps.ODPS.create_volume_directory odps.ODPS.delete_function
+#: odps.ODPS.delete_offline_model odps.ODPS.delete_resource
 #: odps.ODPS.delete_table odps.ODPS.delete_volume odps.ODPS.delete_volume_file
-#: odps.ODPS.delete_xflow odps.ODPS.execute_merge_files odps.ODPS.execute_ps
-#: odps.ODPS.execute_ps_extract_model odps.ODPS.execute_ps_train
-#: odps.ODPS.execute_sql odps.ODPS.execute_xflow odps.ODPS.exist_function
-#: odps.ODPS.exist_instance odps.ODPS.exist_offline_model
-#: odps.ODPS.exist_online_model odps.ODPS.exist_project
+#: odps.ODPS.delete_xflow odps.ODPS.execute_merge_files odps.ODPS.execute_sql
+#: odps.ODPS.execute_xflow odps.ODPS.exist_function odps.ODPS.exist_instance
+#: odps.ODPS.exist_offline_model odps.ODPS.exist_project
 #: odps.ODPS.exist_resource odps.ODPS.exist_table odps.ODPS.exist_volume
 #: odps.ODPS.exist_xflow odps.ODPS.get_function odps.ODPS.get_instance
 #: odps.ODPS.get_logview_address odps.ODPS.get_offline_model
-#: odps.ODPS.get_online_model odps.ODPS.get_project
-#: odps.ODPS.get_project_policy odps.ODPS.get_resource
+#: odps.ODPS.get_project odps.ODPS.get_project_policy odps.ODPS.get_resource
 #: odps.ODPS.get_role_policy odps.ODPS.get_security_option
 #: odps.ODPS.get_security_options odps.ODPS.get_table odps.ODPS.get_volume
 #: odps.ODPS.get_volume_file odps.ODPS.get_volume_partition odps.ODPS.get_xflow
 #: odps.ODPS.get_xflow_results odps.ODPS.get_xflow_sub_instances
 #: odps.ODPS.iter_xflow_sub_instances odps.ODPS.list_functions
 #: odps.ODPS.list_instance_queueing_infos odps.ODPS.list_instances
-#: odps.ODPS.list_offline_models odps.ODPS.list_online_models
-#: odps.ODPS.list_projects odps.ODPS.list_resources odps.ODPS.list_role_users
-#: odps.ODPS.list_roles odps.ODPS.list_tables odps.ODPS.list_user_roles
-#: odps.ODPS.list_users odps.ODPS.list_volume_files
+#: odps.ODPS.list_offline_models odps.ODPS.list_resources
+#: odps.ODPS.list_role_users odps.ODPS.list_roles odps.ODPS.list_tables
+#: odps.ODPS.list_user_roles odps.ODPS.list_users odps.ODPS.list_volume_files
 #: odps.ODPS.list_volume_partitions odps.ODPS.list_volumes
 #: odps.ODPS.list_xflows odps.ODPS.move_volume_file odps.ODPS.open_resource
-#: odps.ODPS.predict_online_model odps.ODPS.read_table
-#: odps.ODPS.run_merge_files odps.ODPS.run_ps odps.ODPS.run_ps_extract_model
-#: odps.ODPS.run_ps_train odps.ODPS.run_security_query odps.ODPS.run_sql
-#: odps.ODPS.run_xflow odps.ODPS.set_project_policy odps.ODPS.stop_instance
-#: odps.ODPS.stop_job odps.ODPS.write_table odps.models.FileResource.close
-#: odps.models.FileResource.flush odps.models.FileResource.open
-#: odps.models.FileResource.read odps.models.FileResource.readline
-#: odps.models.FileResource.readlines odps.models.FileResource.seek
-#: odps.models.FileResource.tell odps.models.FileResource.truncate
-#: odps.models.FileResource.write odps.models.FileResource.writelines
-#: odps.models.Function.drop odps.models.Function.resources
-#: odps.models.Function.update odps.models.Instance.get_logview_address
-#: odps.models.Instance.get_task_cost odps.models.Instance.get_task_detail
-#: odps.models.Instance.get_task_detail2 odps.models.Instance.get_task_info
-#: odps.models.Instance.get_task_names odps.models.Instance.get_task_progress
-#: odps.models.Instance.get_task_quota odps.models.Instance.get_task_result
-#: odps.models.Instance.get_task_results odps.models.Instance.get_task_statuses
-#: odps.models.Instance.get_task_summary odps.models.Instance.get_worker_log
-#: odps.models.Instance.is_successful odps.models.Instance.is_terminated
-#: odps.models.Instance.open_reader odps.models.Instance.stop
-#: odps.models.Instance.wait_for_completion
+#: odps.ODPS.read_table odps.ODPS.run_merge_files odps.ODPS.run_security_query
+#: odps.ODPS.run_sql odps.ODPS.run_xflow odps.ODPS.set_project_policy
+#: odps.ODPS.stop_instance odps.ODPS.stop_job odps.ODPS.write_table
+#: odps.models.FileResource.close odps.models.FileResource.flush
+#: odps.models.FileResource.open odps.models.FileResource.read
+#: odps.models.FileResource.readline odps.models.FileResource.readlines
+#: odps.models.FileResource.seek odps.models.FileResource.tell
+#: odps.models.FileResource.truncate odps.models.FileResource.write
+#: odps.models.FileResource.writelines odps.models.Function.drop
+#: odps.models.Function.resources odps.models.Function.update
+#: odps.models.Instance.get_logview_address odps.models.Instance.get_task_cost
+#: odps.models.Instance.get_task_detail odps.models.Instance.get_task_detail2
+#: odps.models.Instance.get_task_info odps.models.Instance.get_task_names
+#: odps.models.Instance.get_task_progress odps.models.Instance.get_task_quota
+#: odps.models.Instance.get_task_result odps.models.Instance.get_task_results
+#: odps.models.Instance.get_task_statuses odps.models.Instance.get_task_summary
+#: odps.models.Instance.get_worker_log odps.models.Instance.is_successful
+#: odps.models.Instance.is_terminated odps.models.Instance.open_reader
+#: odps.models.Instance.stop odps.models.Instance.wait_for_completion
 #: odps.models.Instance.wait_for_success odps.models.Table.create_partition
 #: odps.models.Table.drop odps.models.Table.exist_partitions
 #: odps.models.Table.get_ddl odps.models.Table.get_partition
@@ -276,7 +231,7 @@ msgstr ""
 #: odps.models.Table.to_df odps.models.Table.truncate
 #: odps.models.TableResource.partition odps.models.TableResource.table
 #: odps.models.TableResource.update odps.models.Worker.get_log
-#: odps.models.ml.OnlineModel.predict odps.models.partition.Partition.drop
+#: odps.models.partition.Partition.drop
 #: odps.models.partition.Partition.open_reader
 #: odps.models.partition.Partition.to_df of
 msgid "Returns"
@@ -288,24 +243,19 @@ msgstr ""
 
 #: odps.ODPS.create_fs_volume odps.ODPS.create_function
 #: odps.ODPS.create_parted_volume odps.ODPS.create_resource
-#: odps.ODPS.create_table odps.ODPS.execute_merge_files odps.ODPS.execute_ps
-#: odps.ODPS.execute_ps_extract_model odps.ODPS.execute_ps_train
-#: odps.ODPS.execute_sql odps.ODPS.execute_xflow odps.ODPS.exist_function
-#: odps.ODPS.exist_instance odps.ODPS.exist_offline_model
-#: odps.ODPS.exist_online_model odps.ODPS.exist_project
+#: odps.ODPS.create_table odps.ODPS.execute_merge_files odps.ODPS.execute_sql
+#: odps.ODPS.execute_xflow odps.ODPS.exist_function odps.ODPS.exist_instance
+#: odps.ODPS.exist_offline_model odps.ODPS.exist_project
 #: odps.ODPS.exist_resource odps.ODPS.exist_table odps.ODPS.exist_volume
 #: odps.ODPS.exist_xflow odps.ODPS.get_instance odps.ODPS.get_logview_address
-#: odps.ODPS.get_offline_model odps.ODPS.get_online_model odps.ODPS.get_project
-#: odps.ODPS.get_resource odps.ODPS.get_table odps.ODPS.get_volume
-#: odps.ODPS.get_volume_partition odps.ODPS.get_xflow
-#: odps.ODPS.get_xflow_results odps.ODPS.list_functions
+#: odps.ODPS.get_offline_model odps.ODPS.get_project odps.ODPS.get_resource
+#: odps.ODPS.get_table odps.ODPS.get_volume odps.ODPS.get_volume_partition
+#: odps.ODPS.get_xflow odps.ODPS.get_xflow_results odps.ODPS.list_functions
 #: odps.ODPS.list_instance_queueing_infos odps.ODPS.list_instances
-#: odps.ODPS.list_offline_models odps.ODPS.list_online_models
-#: odps.ODPS.list_projects odps.ODPS.list_resources odps.ODPS.list_tables
+#: odps.ODPS.list_offline_models odps.ODPS.list_resources odps.ODPS.list_tables
 #: odps.ODPS.list_tables_model odps.ODPS.list_volume_files
 #: odps.ODPS.list_volume_partitions odps.ODPS.list_volumes
 #: odps.ODPS.list_xflows odps.ODPS.read_table odps.ODPS.run_merge_files
-#: odps.ODPS.run_ps odps.ODPS.run_ps_extract_model odps.ODPS.run_ps_train
 #: odps.ODPS.run_sql odps.ODPS.run_xflow odps.models.FileResource.read
 #: odps.models.FileResource.readline odps.models.FileResource.readlines
 #: odps.models.Function.resources odps.models.Instance.get_logview_address
@@ -348,36 +298,6 @@ msgstr ""
 #: odps.ODPS.create_function:10 odps.ODPS.create_function:17
 #: odps.ODPS.get_function:8 of
 msgid ":class:`odps.models.Function`"
-msgstr ""
-
-#: odps.ODPS.create_online_model:1 of
-msgid "Create an online model based on offline model names or custom pipeline."
-msgstr ""
-
-#: odps.ODPS.create_online_model:3 odps.ODPS.create_online_model:4 of
-msgid "model name"
-msgstr ""
-
-#: odps.ODPS.create_online_model:5 of
-msgid "whether to wait for creation completed"
-msgstr ""
-
-#: odps.ODPS.create_online_model:7 of
-msgid "online model"
-msgstr ""
-
-#: odps.ODPS.create_online_model:9 of
-msgid ""
-"This method can be used to create online models based on offline models "
-"or customized pipelines. For offline models, the method call should be"
-msgstr ""
-
-#: odps.ODPS.create_online_model:14 of
-msgid "For customized models, the method call should be"
-msgstr ""
-
-#: odps.ODPS.create_online_model:23 of
-msgid ":class:`odps.models.ml.OnlineModel`"
 msgstr ""
 
 #: odps.ODPS.create_parted_volume:1 of
@@ -549,14 +469,14 @@ msgid "Delete a function by given name."
 msgstr ""
 
 #: odps.ODPS.delete_function:5 odps.ODPS.delete_offline_model:6
-#: odps.ODPS.delete_online_model:6 odps.ODPS.delete_resource:5
-#: odps.ODPS.delete_volume:5 odps.ODPS.delete_xflow:5 odps.ODPS.stop_instance:5
-#: odps.ODPS.stop_job:5 odps.ODPS.write_table:15
-#: odps.models.FileResource.close:3 odps.models.FileResource.flush:4
-#: odps.models.FileResource.seek:5 odps.models.FileResource.truncate:6
-#: odps.models.FileResource.write:4 odps.models.FileResource.writelines:4
-#: odps.models.Function.drop:3 odps.models.Function.update:3
-#: odps.models.Instance.stop:3 odps.models.Instance.wait_for_completion:4
+#: odps.ODPS.delete_resource:5 odps.ODPS.delete_volume:5
+#: odps.ODPS.delete_xflow:5 odps.ODPS.stop_instance:5 odps.ODPS.stop_job:5
+#: odps.ODPS.write_table:15 odps.models.FileResource.close:3
+#: odps.models.FileResource.flush:4 odps.models.FileResource.seek:5
+#: odps.models.FileResource.truncate:6 odps.models.FileResource.write:4
+#: odps.models.FileResource.writelines:4 odps.models.Function.drop:3
+#: odps.models.Function.update:3 odps.models.Instance.stop:3
+#: odps.models.Instance.wait_for_completion:4
 #: odps.models.Instance.wait_for_success:4 odps.models.Table.drop:4
 #: odps.models.Table.truncate:4 odps.models.partition.Partition.drop:4 of
 msgid "None"
@@ -572,14 +492,6 @@ msgstr ""
 
 #: odps.ODPS.delete_offline_model:4 of
 msgid "will not raise errors when the offline model does not exist, default False"
-msgstr ""
-
-#: odps.ODPS.delete_online_model:1 of
-msgid "Delete the online model by given name."
-msgstr ""
-
-#: odps.ODPS.delete_online_model:5 of
-msgid "whether to wait for deletion completed"
 msgstr ""
 
 #: odps.ODPS.delete_resource:1 of
@@ -662,159 +574,24 @@ msgstr ""
 msgid "settings for merge task."
 msgstr ""
 
-#: odps.ODPS.execute_merge_files:7 odps.ODPS.execute_ps:9
-#: odps.ODPS.execute_ps_extract_model:13 odps.ODPS.execute_ps_train:22
-#: odps.ODPS.execute_sql:6 odps.ODPS.execute_xflow:12
-#: odps.ODPS.run_merge_files:7 odps.ODPS.run_ps:9
-#: odps.ODPS.run_ps_extract_model:13 odps.ODPS.run_ps_train:22
-#: odps.ODPS.run_sql:6 odps.ODPS.run_xflow:12 of
+#: odps.ODPS.execute_merge_files:7 odps.ODPS.execute_sql:6
+#: odps.ODPS.execute_xflow:12 odps.ODPS.run_merge_files:7 odps.ODPS.run_sql:6
+#: odps.ODPS.run_xflow:12 of
 msgid "instance priority, 9 as default"
 msgstr ""
 
-#: odps.ODPS.execute_merge_files:8 odps.ODPS.execute_ps:10
-#: odps.ODPS.execute_ps_extract_model:14 odps.ODPS.execute_ps_train:24
-#: odps.ODPS.execute_sql:11 odps.ODPS.execute_xflow:14
-#: odps.ODPS.run_merge_files:8 odps.ODPS.run_ps:10
-#: odps.ODPS.run_ps_extract_model:14 odps.ODPS.run_ps_train:24
-#: odps.ODPS.run_sql:13 odps.ODPS.run_xflow:14 of
+#: odps.ODPS.execute_merge_files:8 odps.ODPS.execute_sql:11
+#: odps.ODPS.execute_xflow:14 odps.ODPS.run_merge_files:8 odps.ODPS.run_sql:13
+#: odps.ODPS.run_xflow:14 of
 msgid "instance"
 msgstr ""
 
-#: odps.ODPS.execute_merge_files:9 odps.ODPS.execute_ps:11
-#: odps.ODPS.execute_ps_extract_model:15 odps.ODPS.execute_ps_train:25
-#: odps.ODPS.execute_sql:12 odps.ODPS.execute_sql:25 odps.ODPS.execute_xflow:15
+#: odps.ODPS.execute_merge_files:9 odps.ODPS.execute_sql:12
+#: odps.ODPS.execute_sql:25 odps.ODPS.execute_xflow:15
 #: odps.ODPS.execute_xflow:17 odps.ODPS.get_instance:6 odps.ODPS.get_instance:9
-#: odps.ODPS.run_merge_files:9 odps.ODPS.run_ps:11
-#: odps.ODPS.run_ps_extract_model:15 odps.ODPS.run_ps_train:25
-#: odps.ODPS.run_sql:14 odps.ODPS.run_sql:16 odps.ODPS.run_xflow:15
-#: odps.ODPS.run_xflow:17 of
+#: odps.ODPS.run_merge_files:9 odps.ODPS.run_sql:14 odps.ODPS.run_sql:16
+#: odps.ODPS.run_xflow:15 odps.ODPS.run_xflow:17 of
 msgid ":class:`odps.models.Instance`"
-msgstr ""
-
-#: odps.ODPS.execute_ps:1 of
-msgid "Execute an parameter server (PS) task and wait for termination."
-msgstr ""
-
-#: odps.ODPS.execute_ps:3 odps.ODPS.execute_ps_extract_model:3
-#: odps.ODPS.execute_ps_train:3 odps.ODPS.run_ps:3
-#: odps.ODPS.run_ps_extract_model:3 odps.ODPS.run_ps_train:3 of
-msgid ""
-"Note that this function is EXPERIMENTAL and we provide neither examples "
-"nor support on this function."
-msgstr ""
-
-#: odps.ODPS.execute_ps:6 odps.ODPS.run_ps:6 of
-msgid "PS task configuration, should be a dict or serialized json string"
-msgstr ""
-
-#: odps.ODPS.execute_ps:8 odps.ODPS.execute_ps_extract_model:12
-#: odps.ODPS.execute_ps_train:21 odps.ODPS.run_ps:8
-#: odps.ODPS.run_ps_extract_model:12 odps.ODPS.run_ps_train:21 of
-msgid "settings for ps task."
-msgstr ""
-
-#: odps.ODPS.execute_ps_extract_model:1 of
-msgid ""
-"Execute an parameter server (PS) model extraction task and return "
-"instance object."
-msgstr ""
-
-#: odps.ODPS.execute_ps_extract_model:6 odps.ODPS.run_ps_extract_model:6 of
-msgid "the input checkpoint path (not including step subdir)."
-msgstr ""
-
-#: odps.ODPS.execute_ps_extract_model:7 odps.ODPS.run_ps_extract_model:7 of
-msgid "the output table for model (table should exist)."
-msgstr ""
-
-#: odps.ODPS.execute_ps_extract_model:8 odps.ODPS.run_ps_extract_model:8 of
-msgid "checkpoint step to extract (step should exist under checkpoint path)."
-msgstr ""
-
-#: odps.ODPS.execute_ps_extract_model:9 odps.ODPS.run_ps_extract_model:9 of
-msgid "vector name to extract, i.e. param."
-msgstr ""
-
-#: odps.ODPS.execute_ps_extract_model:10 odps.ODPS.run_ps_extract_model:10 of
-msgid "worker number, default 20. (optional)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:1 of
-msgid "Execute an parameter server (PS) training task and wait for termination."
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:6 odps.ODPS.run_ps_train:6 of
-msgid "the training algorithm"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:7 odps.ODPS.run_ps_train:7 of
-msgid "the input table for features and labels"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:8 odps.ODPS.run_ps_train:8 of
-msgid "the output table for model"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:9 odps.ODPS.run_ps_train:9 of
-msgid "feature size (optinal, must be positive integer)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:10 odps.ODPS.run_ps_train:10 of
-msgid "whether to perform serialized train (optional, default False)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:11 odps.ODPS.run_ps_train:11 of
-msgid ""
-"the termination algorithm, currently only DeltaTermination and "
-"IterationTermination"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:12 odps.ODPS.run_ps_train:12 of
-msgid ""
-"the tolerance used in algorithm, must be a float number (optional, "
-"default 1.0E-6)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:13 odps.ODPS.run_ps_train:13 of
-msgid ""
-"the iteration number used in IterationTermination, must be a positive "
-"integer. (required when using IterateTermination)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:14 odps.ODPS.run_ps_train:14 of
-msgid ""
-"the history steps used in OWL_QN, must be a positive integer. (optional, "
-"default 10)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:15 odps.ODPS.run_ps_train:15 of
-msgid "package name (optional)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:16 odps.ODPS.run_ps_train:16 of
-msgid ""
-"vector names in server, split by comma, e.g. \"grad, param, hessian\". "
-"(optional)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:17 odps.ODPS.run_ps_train:17 of
-msgid ""
-"the validation table for model evaluation during training process "
-"(optional)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:18 odps.ODPS.run_ps_train:18 of
-msgid "checkpoint directory name, used in job recovery (optional)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:19 odps.ODPS.run_ps_train:19 of
-msgid ""
-"extra configurations from a dictionary, can be applied to keys which "
-"cannot be represented as Python kwargs. (optional)"
-msgstr ""
-
-#: odps.ODPS.execute_ps_train:23 odps.ODPS.run_ps_train:23 of
-msgid "extra configurations to be passed into the parameter server"
 msgstr ""
 
 #: odps.ODPS.execute_sql:1 of
@@ -883,12 +660,8 @@ msgstr ""
 msgid "If the offline model with given name exists or not."
 msgstr ""
 
-#: odps.ODPS.exist_offline_model:5 odps.ODPS.exist_online_model:5 of
+#: odps.ODPS.exist_offline_model:5 of
 msgid "True if offline model exists else False"
-msgstr ""
-
-#: odps.ODPS.exist_online_model:1 of
-msgid "If the online model with given name exists or not."
 msgstr ""
 
 #: odps.ODPS.exist_project:1 of
@@ -941,16 +714,14 @@ msgid "the right function"
 msgstr ""
 
 #: odps.ODPS.get_function odps.ODPS.get_instance odps.ODPS.get_offline_model
-#: odps.ODPS.get_online_model odps.ODPS.get_project odps.ODPS.get_resource
-#: odps.ODPS.get_table odps.ODPS.get_xflow
-#: odps.models.Instance.wait_for_success of
+#: odps.ODPS.get_project odps.ODPS.get_resource odps.ODPS.get_table
+#: odps.ODPS.get_xflow odps.models.Instance.wait_for_success of
 msgid "raise"
 msgstr ""
 
 #: odps.ODPS.get_function:6 odps.ODPS.get_instance:7
-#: odps.ODPS.get_offline_model:7 odps.ODPS.get_online_model:7
-#: odps.ODPS.get_project:6 odps.ODPS.get_resource:7 odps.ODPS.get_table:7
-#: odps.ODPS.get_xflow:7 of
+#: odps.ODPS.get_offline_model:7 odps.ODPS.get_project:6
+#: odps.ODPS.get_resource:7 odps.ODPS.get_table:7 odps.ODPS.get_xflow:7 of
 msgid ":class:`odps.errors.NoSuchObject` if not exists"
 msgstr ""
 
@@ -979,16 +750,12 @@ msgstr ""
 msgid "offline model name"
 msgstr ""
 
-#: odps.ODPS.get_offline_model:5 odps.ODPS.get_online_model:5 of
+#: odps.ODPS.get_offline_model:5 of
 msgid "offline model"
 msgstr ""
 
-#: odps.ODPS.get_offline_model:6 odps.ODPS.get_online_model:6 of
+#: odps.ODPS.get_offline_model:6 of
 msgid ":class:`odps.models.ml.OfflineModel`"
-msgstr ""
-
-#: odps.ODPS.get_online_model:1 of
-msgid "Get online model by given name"
 msgstr ""
 
 #: odps.ODPS.get_project:1 of
@@ -1181,51 +948,23 @@ msgstr ""
 msgid "instances"
 msgstr ""
 
-#: odps.ODPS.list_offline_models:1 odps.ODPS.list_online_models:1 of
+#: odps.ODPS.list_offline_models:1 of
 msgid ""
 "List offline models of project by optional filter conditions including "
 "prefix and owner."
 msgstr ""
 
-#: odps.ODPS.list_offline_models:4 odps.ODPS.list_online_models:4 of
+#: odps.ODPS.list_offline_models:4 of
 msgid "prefix of offline model's name"
 msgstr ""
 
-#: odps.ODPS.list_offline_models:5 odps.ODPS.list_online_models:5
-#: odps.ODPS.list_volumes:4 odps.ODPS.list_xflows:4 of
+#: odps.ODPS.list_offline_models:5 odps.ODPS.list_volumes:4
+#: odps.ODPS.list_xflows:4 of
 msgid "Aliyun account"
 msgstr ""
 
-#: odps.ODPS.list_offline_models:6 odps.ODPS.list_online_models:6 of
+#: odps.ODPS.list_offline_models:6 of
 msgid "offline models"
-msgstr ""
-
-#: odps.ODPS.list_projects:1 of
-msgid "List projects."
-msgstr ""
-
-#: odps.ODPS.list_projects:3 of
-msgid "Aliyun account, the owner which listed projects belong to"
-msgstr ""
-
-#: odps.ODPS.list_projects:4 of
-msgid "name of the user who has access to listed projects"
-msgstr ""
-
-#: odps.ODPS.list_projects:5 of
-msgid "name of the group listed projects belong to"
-msgstr ""
-
-#: odps.ODPS.list_projects:6 of
-msgid "prefix of names of listed projects"
-msgstr ""
-
-#: odps.ODPS.list_projects:7 of
-msgid "the maximal size of result set"
-msgstr ""
-
-#: odps.ODPS.list_projects:8 of
-msgid "projects in this endpoint."
 msgstr ""
 
 #: odps.ODPS.list_resources:1 of
@@ -1461,50 +1200,6 @@ msgstr ""
 msgid "Under file system volumes, the method returns a file-like object."
 msgstr ""
 
-#: odps.ODPS.predict_online_model:1 of
-msgid "Get prediction result with provided data on specified online model."
-msgstr ""
-
-#: odps.ODPS.predict_online_model:4 odps.models.ml.OnlineModel.predict:3 of
-msgid "data to be predicted"
-msgstr ""
-
-#: odps.ODPS.predict_online_model:5 odps.models.ml.OnlineModel.predict:4 of
-msgid "schema of input data"
-msgstr ""
-
-#: odps.ODPS.predict_online_model:6 of
-msgid "name of the project where the online model is located"
-msgstr ""
-
-#: odps.ODPS.predict_online_model:7 odps.models.ml.OnlineModel.predict:5 of
-msgid "endpoint of predict service"
-msgstr ""
-
-#: odps.ODPS.predict_online_model:8 odps.models.ml.OnlineModel.predict:6 of
-msgid "prediction result"
-msgstr ""
-
-#: odps.ODPS.predict_online_model:10 of
-msgid ""
-"The input data can be an :class:`odps.models.Record` instance or a "
-"dictionary providing column names as keys and values as values. In such "
-"cases, the parameter `schema` can be neglected. Otherwise a list of "
-"column names should be provided."
-msgstr ""
-
-#: odps.ODPS.predict_online_model:14 of
-msgid "Multiple values organized in lists or tuples is also acceptable."
-msgstr ""
-
-#: odps.ODPS.predict_online_model:16 of
-msgid ""
-"The output result object has three fields. The `label` field provides "
-"predicted label, the `value` field provides predicted value, while the "
-"`scores` field provides a dictionary listing scores for every possible "
-"labels."
-msgstr ""
-
 #: odps.ODPS.read_table:1 of
 msgid "Read table's records."
 msgstr ""
@@ -1558,22 +1253,6 @@ msgstr ""
 
 #: odps.ODPS.run_merge_files:1 of
 msgid "Start running a task to merge multiple files in tables."
-msgstr ""
-
-#: odps.ODPS.run_ps:1 of
-msgid "Start running an parameter server (PS) task and return instance object."
-msgstr ""
-
-#: odps.ODPS.run_ps_extract_model:1 of
-msgid ""
-"Start running an parameter server (PS) model extraction task and return "
-"instance object."
-msgstr ""
-
-#: odps.ODPS.run_ps_train:1 of
-msgid ""
-"Start running an parameter server (PS) training task and return instance "
-"object."
 msgstr ""
 
 #: odps.ODPS.run_security_query:1 of
@@ -1920,8 +1599,7 @@ msgid "For a SQL instance, we can use open_reader to read the results."
 msgstr ""
 
 #: odps.models.FileResource.Mode:1 odps.models.Instance.Status:1
-#: odps.models.Instance.Task.TaskStatus:1 odps.models.Resource.Type:1
-#: odps.models.ml.OnlineModel.Status:1 of
+#: odps.models.Instance.Task.TaskStatus:1 odps.models.Resource.Type:1 of
 msgid "An enumeration."
 msgstr ""
 
@@ -2352,30 +2030,5 @@ msgstr ""
 msgid ""
 "Get PMML text of the current model. Note that model file obtained via "
 "this method might be incomplete due to size limitations."
-msgstr ""
-
-#: odps.models.ml.OnlineModel:1 of
-msgid "Representing an ODPS online model."
-msgstr ""
-
-#: odps.models.ml.OnlineModel.predict:1 of
-msgid "Predict data labels with current online model."
-msgstr ""
-
-#: odps.models.ml.OnlineModel.update:1 of
-msgid "Update online model parameters to server."
-msgstr ""
-
-#: odps.models.ml.OnlineModel.wait_for_deletion:1 of
-msgid "Wait for the online model to be deleted."
-msgstr ""
-
-#: odps.models.ml.OnlineModel.wait_for_deletion:3
-#: odps.models.ml.OnlineModel.wait_for_service:3 of
-msgid "check interval"
-msgstr ""
-
-#: odps.models.ml.OnlineModel.wait_for_service:1 of
-msgid "Wait for the online model to be ready for service."
 msgstr ""
 

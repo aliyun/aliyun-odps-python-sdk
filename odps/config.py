@@ -83,10 +83,9 @@ class PandasRedirection(Redirection):
     def getvalue(self, silent=False):
         if self._use_pd:
             import pandas as pd
-            from pandas.core.config import OptionError as PandasOptionError
             try:
                 return pd.get_option('.'.join(self._items))
-            except PandasOptionError:
+            except (KeyError, LookupError, AttributeError):
                 self._use_pd = False
         else:
             return self._val
@@ -333,7 +332,6 @@ options.register_option('log_view_hours', 24 * 30, validator=is_integer)
 options.register_option('api_proxy', None)
 options.register_option('data_proxy', None)
 options.redirect_option('tunnel_proxy', 'data_proxy')
-options.register_option('predict_endpoint', None)
 options.register_option('seahawks_url', None)
 options.register_option('biz_id', None)
 options.register_option('priority', None, validator=any_validator(is_null, is_integer))

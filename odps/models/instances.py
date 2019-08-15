@@ -19,6 +19,7 @@ from datetime import datetime
 
 from .core import Iterable
 from .instance import Instance
+from .session import SessionInstance
 from .job import Job
 from .. import serializers, errors, utils
 from ..compat import six, OrderedDict
@@ -133,7 +134,8 @@ class BaseInstances(Iterable):
         return Instance.AnonymousSubmitInstance(job=job).serialize()
 
     def create(self, xml=None, job=None, task=None, priority=None, running_cluster=None,
-               headers=None, create_callback=None, encoding=None):
+               headers=None, create_callback=None, encoding=None, session_project=None,
+               session_name=None):
         if xml is None:
             job = self._create_job(job=job, task=task, priority=priority,
                                    running_cluster=running_cluster)
@@ -164,8 +166,15 @@ class BaseInstances(Iterable):
         else:
             results = None
 
-        instance = Instance(name=instance_id, task_results=results,
-                            parent=self, client=self._client)
+        if session_project:
+            instance = SessionInstance(session_project=session_project,
+                                       session_task_name=task.name,
+                                       session_name=session_name,
+                                       name=instance_id, task_results=results,
+                                       parent=self, client=self._client)
+        else:
+            instance = Instance(name=instance_id, task_results=results,
+                                parent=self, client=self._client)
         return instance
 
 

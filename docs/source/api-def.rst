@@ -54,9 +54,6 @@ Definitions
 .. autoclass:: odps.models.ml.OfflineModel
     :members:
 
-.. autoclass:: odps.models.ml.OnlineModel
-    :members:
-
 .. autoclass:: odps.models.security.User
     :members:
 

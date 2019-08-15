@@ -22,12 +22,12 @@ from .rest import RestClient
 from .config import options
 from .errors import NoSuchObject
 from .tempobj import clean_stored_objects
+from .utils import split_quoted
 from .compat import six
 from . import models, accounts, errors, utils
 
 
 DEFAULT_ENDPOINT = 'http://service.odps.aliyun.com/api'
-DEFAULT_PREDICT_ENDPOINT = 'http://prediction.odps.aliyun.com'
 LOG_VIEW_HOST_DEFAULT = 'http://logview.odps.aliyun.com'
 
 DROP_TABLE_REGEX = re.compile(r'^\s*drop\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
@@ -89,8 +89,6 @@ class ODPS(object):
 
         self._projects = models.Projects(client=self.rest)
         self._project = self.get_project()
-
-        self._predict_endpoint = kw.pop('predict_endpoint', DEFAULT_PREDICT_ENDPOINT)
 
         self._seahawks_url = None
         if kw.get('seahawks_url'):
@@ -338,6 +336,7 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Record`
         """
 
+        project = None
         if isinstance(name, six.string_types):
             name = name.strip()
             if '.' in name:
@@ -345,7 +344,7 @@ class ODPS(object):
         if not isinstance(name, six.string_types):
             project, name = name.project.name, name.name
 
-        project = self.get_project(name=kw.pop('project', None))
+        project = self.get_project(name=kw.pop('project', project))
         table = project.tables[name]
         partition = kw.pop('partition', None)
 
@@ -789,6 +788,60 @@ class ODPS(object):
         inst = project.instances.create(task=task)
         inst.wait_for_success()
         return inst.get_sql_task_cost()
+
+    def execute_merge_files(self, table, partition=None, project=None, hints=None,
+                            priority=None):
+        """
+        Execute a task to merge multiple files in tables and wait for termination.
+
+        :param table: name of the table to optimize
+        :param partition: partition to optimize
+        :param project: project name, if not provided, will be the default project
+        :param hints: settings for merge task.
+        :param priority: instance priority, 9 as default
+        :return: instance
+        :rtype: :class:`odps.models.Instance`
+        """
+        inst = self.run_merge_files(table, partition=partition, project=project, hints=hints,
+                                    priority=priority)
+        inst.wait_for_success()
+        return inst
+
+    def run_merge_files(self, table, partition=None, project=None, hints=None,
+                        priority=None):
+        """
+        Start running a task to merge multiple files in tables.
+
+        :param table: name of the table to optimize
+        :param partition: partition to optimize
+        :param project: project name, if not provided, will be the default project
+        :param hints: settings for merge task.
+        :param priority: instance priority, 9 as default
+        :return: instance
+        :rtype: :class:`odps.models.Instance`
+        """
+        from .models.tasks import MergeTask
+
+        if partition:
+            parts = []
+            for p in split_quoted(partition, ','):
+                kv = [pp.strip() for pp in split_quoted(p, '=')]
+                if len(kv) != 2:
+                    raise ValueError('Partition representation malformed.')
+                if not kv[1].startswith('"') and not kv[1].startswith("'"):
+                    kv[1] = repr(kv[1])
+                parts.append('%s=%s' % tuple(kv))
+            table += " partition(%s)" % (','.join(parts))
+
+        priority = priority or options.priority
+        if priority is None and options.get_priority is not None:
+            priority = options.get_priority(self)
+
+        task = MergeTask(table=table)
+        task.update_settings(hints)
+
+        project = self.get_project(name=project)
+        return project.instances.create(task=task, priority=priority)
 
     def list_volumes(self, project=None, owner=None):
         """
@@ -1362,155 +1415,6 @@ class ODPS(object):
             if not if_exists:
                 raise
 
-    def create_online_model(self, name, *args, **kwargs):
-        """
-        Create an online model based on offline model names or custom pipeline.
-
-        :param str name: model name
-        :param str project: model name
-        :param async_: whether to wait for creation completed
-
-        :return: online model
-
-        This method can be used to create online models based on offline models or customized
-        pipelines. For offline models, the method call should be
-
-        >>> model = odps.create_online_model('**online_model_name**', '**offline_model_name**')
-
-        For customized models, the method call should be
-
-        >>> from odps.models.ml import ModelPredictor, CustomProcessor
-        >>> processor = CustomProcessor(class_name='**class**', lib='**library name**',
-                                        resources=['**resource name**', ],  config='**configuration**')
-        >>> predictor = ModelPredictor(runtime='Jar or Native', instance_num=5, pipeline=[processor, ],
-                                        target_name='**target name**')
-        >>> model = odps.create_online_model('**online_model_name**', predictor)
-
-        .. seealso:: :class:`odps.models.ml.OnlineModel`
-
-        """
-        # def create_online_model(self, name, offline_model, project=None, qos=100, offline_model_project=None,
-        #                         wait=True, interval=1):
-        from odps.models.ml.onlinemodel import ModelPredictor
-        offline_model = kwargs.get('offline_model', None)
-        if args and isinstance(args[0], six.string_types):
-            offline_model = offline_model or args[0]
-        predictor = kwargs.get('predictor', None)
-        if args and isinstance(args[0], ModelPredictor):
-            predictor = args[0]
-        if predictor is not None and offline_model is not None:
-            raise ValueError('You cannot supply both offline_model and predictor at the same time.')
-        elif predictor is None and offline_model is None:
-            raise ValueError('You should supply at least one argument in offline_model and predictor.')
-
-        project = kwargs.pop('project', None)
-        project = self.get_project(name=project)
-        if offline_model:
-            from .models.ml import OfflineModel
-            if isinstance(offline_model, OfflineModel):
-                kwargs['offline_model_project'] = offline_model.project.name
-                offline_model = offline_model.name
-            if 'offline_model_project' not in kwargs:
-                kwargs['offline_model_project'] = self.project
-            return project.online_models.create(name=name, offline_model_name=offline_model, runtime='Native', **kwargs)
-        elif predictor:
-            return project.online_models.create(name=name, predictor=predictor, **kwargs)
-        else:
-            raise ValueError('Cannot determine which type of model to create.')
-
-    def list_online_models(self, project=None, prefix=None, owner=None):
-        """
-        List offline models of project by optional filter conditions including prefix and owner.
-
-        :param project: project name, if not provided, will be the default project
-        :param prefix: prefix of offline model's name
-        :param owner: Aliyun account
-        :return: offline models
-        :rtype: list
-        """
-
-        project = self.get_project(name=project)
-        return project.online_models.iterate(name=prefix, owner=owner)
-
-    def get_online_model(self, name, project=None):
-        """
-        Get online model by given name
-
-        :param name: name of the online model
-        :param project: project name, if not provided, will be the default project
-        :return: offline model
-        :rtype: :class:`odps.models.ml.OfflineModel`
-        :raise: :class:`odps.errors.NoSuchObject` if not exists
-        """
-
-        project = self.get_project(name=project)
-        return project.online_models[name]
-
-    def exist_online_model(self, name, project=None):
-        """
-        If the online model with given name exists or not.
-
-        :param name: name of the online model
-        :param project: project name, if not provided, will be the default project
-        :return: True if offline model exists else False
-        :rtype: bool
-        """
-
-        project = self.get_project(name=project)
-        return name in project.online_models
-
-    def predict_online_model(self, name, data, schema=None, project=None, endpoint=None):
-        """
-        Get prediction result with provided data on specified online model.
-
-        :param name: name of the online model
-        :param data: data to be predicted
-        :param schema: schema of input data
-        :param project: name of the project where the online model is located
-        :param endpoint: endpoint of predict service
-        :return: prediction result
-
-        The input data can be an :class:`odps.models.Record` instance or a dictionary providing column names as keys
-        and values as values. In such cases, the parameter `schema` can be neglected. Otherwise a list of column names
-        should be provided.
-
-        Multiple values organized in lists or tuples is also acceptable.
-
-        The output result object has three fields. The `label` field provides predicted label, the `value` field
-        provides predicted value, while the `scores` field provides a dictionary listing scores for every possible
-        labels.
-        """
-        endpoint = endpoint or self._predict_endpoint or options.predict_endpoint
-        return self.get_online_model(name, project=project).predict(data, schema=schema, endpoint=endpoint)
-
-    def config_online_model_ab_test(self, name, *args, **kwargs):
-        """
-        Config AB-Test percentages of the online model.
-
-        :param name: name of the online model
-
-        This method should be called like
-
-        >>> result = odps.config_online_model_ab_test('**online_model_name**', model1, percentage1, model2, percentage2, ...)
-
-        where `modelx` can be model names or :class:`odps.models.ml.OnlineModel` instances, while `percentagex` should
-        be percentage of `modelx` in AB-Test, ranging from 0 to 100.
-        """
-        return self.get_online_model(name, project=kwargs.get('project')).config_ab_test(*args)
-
-    def delete_online_model(self, name, project=None, async_=False, **kw):
-        """
-        Delete the online model by given name.
-
-        :param name: name of the online model
-        :param project: project name, if not provided, will be the default project
-        :param async_: whether to wait for deletion completed
-        :return: None
-        """
-
-        project = self.get_project(name=project)
-        return project.online_models.delete(name, async_=kw.get('async', async_))
-
     def get_logview_address(self, instance_id, hours=None, project=None):
         """
         Get logview address by given instance id and hours.
@@ -1722,6 +1626,56 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.run_security_query(query, token=token)
 
+    def attach_session(self, session_name, taskname=None, hints=None):
+        """
+        Attach to an existing session.
+
+        :param session_name: The session name.
+        :param taskname: The created sqlrt task name. If not provided, the default value is used. Mostly doesn't matter, default works.
+        :return: A SessionInstance you may execute select tasks within.
+        """
+        if not taskname:
+            taskname = models.session.DEFAULT_TASK_NAME
+        task = models.tasks.SQLRTTask(name=taskname)
+        task.update_settings(hints)
+        task.update_settings({"odps.sql.session.share.id": session_name,
+                 "odps.sql.submit.mode": "script"})
+        project = self.get_project()
+        return project.instances.create(task=task,
+                                        session_project=project,
+                                        session_name=session_name)
+
+    def create_session(self, session_worker_count, session_worker_memory,
+            session_name=None, worker_spare_span=None, taskname=None, hints=None):
+        """
+        Create session.
+
+        :param session_worker_count: How much workers assigned to the session.
+        :param session_worker_memory: How much memory each worker consumes.
+        :param session_name: The session name. Not specifying to use its ID as name.
+        :param worker_spare_span: format "00-24", allocated workers will be reduced during this time. Not specifying to disable this.
+        :param taskname: The created sqlrt task name. If not provided, the default value is used. Mostly doesn't matter, default works.
+        :param hints: Extra hints provided to the session. Parameters of this method will override certain hints.
+        :return: A SessionInstance you may execute select tasks within.
+        """
+        if not taskname:
+            taskname = models.session.DEFAULT_TASK_NAME
+        session_hints = {}
+        session_hints["odps.sql.session.worker.count"] = str(session_worker_count)
+        session_hints["odps.sql.session.worker.memory"] = str(session_worker_memory)
+        session_hints["odps.sql.submit.mode"] = "script"
+        if session_name:
+            session_hints["odps.sql.session.name"] = session_name
+        if worker_spare_span:
+            session_hints["odps.sql.session.worker.sparespan"] = worker_spare_span
+        task = models.tasks.SQLRTTask(name=taskname)
+        task.update_settings(hints)
+        task.update_settings(session_hints)
+        project = self.get_project()
+        return project.instances.create(task=task,
+                                        session_project=project,
+                                        session_name=session_name)
+
     @classmethod
     def _build_account(cls, access_id, secret_access_key):
         return accounts.AliyunAccount(access_id, secret_access_key)
@@ -1758,5 +1712,3 @@ except ImportError:
 options.log_view_host = LOG_VIEW_HOST_DEFAULT
 if 'PYODPS_ENDPOINT' in os.environ:
     DEFAULT_ENDPOINT = os.environ.get('PYODPS_ENDPOINT')
-if 'PYODPS_PREDICT_ENDPOINT' in os.environ:
-    DEFAULT_PREDICT_ENDPOINT = os.environ.get('PYODPS_PREDICT_ENDPOINT')

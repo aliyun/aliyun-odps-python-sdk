@@ -620,7 +620,7 @@ class Test(TestBase):
         table_name = tn('test_hivetunnel_decimal_io')
         self.odps.delete_table(table_name, if_exists=True)
 
-        table = self.odps.create_table(table_name, 'col1 int, col2 decimal, '
+        table = self.odps.create_table(table_name, 'col1 int, col2 decimal(6,2), '
                                                    'col3 decimal(10), col4 decimal(10,3)', lifecycle=1)
         self.assertEqual(table.schema.types[0], types.int_)
         self.assertIsInstance(table.schema.types[1], types.Decimal)

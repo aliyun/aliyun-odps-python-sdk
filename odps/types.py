@@ -973,7 +973,7 @@ class Decimal(CompositeMixin):
     __slots__ = 'nullable', 'precision', 'scale', '_hash'
     _type_id = 5
 
-    _max_precision = 36
+    _max_precision = 38
     _max_scale = 18
 
     def __init__(self, precision=None, scale=None, nullable=True):

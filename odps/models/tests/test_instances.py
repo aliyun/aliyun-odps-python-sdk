@@ -581,7 +581,7 @@ class Test(TestBase):
         self.assertIsInstance(sql_cost, Instance.SQLCost)
         self.assertEqual(sql_cost.udf_num, 0)
         self.assertEqual(sql_cost.complexity, 1.0)
-        self.assertEqual(sql_cost.input_size, 480)
+        self.assertGreaterEqual(sql_cost.input_size, 480)
 
 
 if __name__ == '__main__':

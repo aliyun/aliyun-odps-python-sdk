@@ -175,7 +175,7 @@ def read_lib(lib, f):
             mode = 'r:gz' if lib.endswith('.tar.gz') else 'r:bz2'
         return tarfile.open(fileobj=BytesIO(f.read()), mode=mode)
     if lib.endswith('.py'):
-        return {lib: f}
+        return {f.name: f}
 
     raise ValueError(
         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')

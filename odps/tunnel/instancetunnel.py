@@ -29,13 +29,15 @@ except ImportError:
 
 
 class InstanceDownloadSession(serializers.JSONSerializableModel):
-    __slots__ = '_client', '_instance', '_limit_enabled', '_compress_option'
+    __slots__ = '_client', '_instance', '_limit_enabled', '_compress_option', '_sessional', '_session_task_name'
 
     class Status(Enum):
         Unknown = 'UNKNOWN'
         Normal = 'NORMAL'
         Closes = 'CLOSES'
         Expired = 'EXPIRED'
+        Failed = 'FAILED'
+        Initiating = 'INITIATING'
 
     id = serializers.JSONNodeField('DownloadID')
     status = serializers.JSONNodeField(
@@ -50,6 +52,10 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         self._client = client
         self._instance = instance
         self._limit_enabled = limit if limit is not None else kw.get('limit_enabled', False)
+        self._sessional = kw.pop("sessional", False)
+        self._session_task_name = kw.pop("session_task_name", "")
+        if self._sessional and (not self._session_task_name):
+            raise TunnelError("Taskname('sess_tname') keyword argument must be provided for session instance tunnels.")
 
         if download_id is None:
             self._init()
@@ -61,6 +67,9 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     def _init(self):
         params = {'downloads': ''}
         headers = {'Content-Length': 0}
+        if self._sessional:
+            params['cached'] = ''
+            params['taskname'] = self._session_task_name
 
         if self._limit_enabled:
             params['instance_tunnel_limit_enabled'] = ''
@@ -78,6 +87,9 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     def reload(self):
         params = {'downloadid': self.id}
         headers = {'Content-Length': 0}
+        if self._sessional:
+            params['cached'] = ''
+            params['taskname'] = self._session_task_name
 
         url = self._instance.resource()
         resp = self._client.get(url, params=params, headers=headers)
@@ -106,7 +118,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
                 raise TunnelError('invalid compression option')
         params['downloadid'] = self.id
         params['data'] = ''
-        params['rowrange'] = '(%s,%s)' % (start, count)
+        if not self._sessional:
+            params['rowrange'] = '(%s,%s)' % (start, count)
         if columns is not None and len(columns) > 0:
             col_name = lambda col: col.name if isinstance(col, types.Column) else col
             params['columns'] = ','.join(col_name(col) for col in columns)
@@ -173,4 +186,4 @@ class InstanceTunnel(BaseTunnel):
         if limit is None:
             limit = kw.get('limit_enabled', False)
         return InstanceDownloadSession(self.tunnel_rest, instance, download_id=download_id,
-                                       limit=limit, compress_option=compress_option)
+                                       limit=limit, compress_option=compress_option, **kw)

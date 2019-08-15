@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -71,7 +71,6 @@ class Room(object):
                 options.default_project = default_project
                 options.tunnel.endpoint = tunnel_endpoint
                 options.seahawks_url = seahawks_url
-                options.predict_endpoint = kwargs.get('predict_endpoint')
 
             if isinstance(obj[-1], dict):
                 kw = obj[-1]
@@ -86,7 +85,7 @@ class Room(object):
     def odps(self):
         return ODPS._from_account(options.account, options.default_project,
                                   endpoint=options.end_point, tunnel_endpoint=options.tunnel.endpoint,
-                                  seahawks_url=options.seahawks_url, predict_endpoint=options.predict_endpoint)
+                                  seahawks_url=options.seahawks_url)
 
     def __getattr__(self, attr):
         try:

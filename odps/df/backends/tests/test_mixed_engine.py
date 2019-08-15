@@ -22,7 +22,7 @@ from odps import types as odps_types
 from odps.tests.core import tn, pandas_case, odps2_typed_case
 from odps.df.backends.tests.core import TestBase
 from odps.config import options
-from odps.compat import unittest
+from odps.compat import unittest, OrderedDict
 from odps.models import Schema, Instance
 from odps.df.backends.engine import MixedEngine
 from odps.df.backends.odpssql.engine import ODPSSQLEngine
@@ -206,9 +206,11 @@ class Test(TestBase):
         data_float32 = np.random.random((1,)).astype(np.float32)
         data_float64 = np.random.random((1,)).astype(np.float64)
 
-        df = DataFrame(pd.DataFrame(dict(data_int8=data_int8, data_int16=data_int16,
-                                         data_int32=data_int32, data_int64=data_int64,
-                                         data_float32=data_float32, data_float64=data_float64)))
+        df = DataFrame(pd.DataFrame(OrderedDict([
+            ('data_int8', data_int8), ('data_int16', data_int16),
+            ('data_int32', data_int32), ('data_int64', data_int64),
+            ('data_float32', data_float32), ('data_float64', data_float64)
+        ])))
         tmp_table_name = tn('pyodps_test_mixed_persist_odps2_types')
 
         self.odps.delete_table(tmp_table_name, if_exists=True)
