@@ -238,7 +238,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>>                t.new_record([444, '中文', False])]
    >>>     writer.write(records)
    >>>
-   >>> with t.open_writer(partition='pt=test', blocks=[0, 1]) as writer:  # 这里同是打开两个block
+   >>> with t.open_writer(partition='pt=test', blocks=[0, 1]) as writer:  # 这里同时打开两个block
    >>>     writer.write(0, gen_records(block=0))
    >>>     writer.write(1, gen_records(block=1))  # 这里两个写操作可以多线程并行，各个block间是独立的
    >>>
