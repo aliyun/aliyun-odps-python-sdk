@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -57,7 +57,7 @@ else:
             if options.account is not None and options.default_project is not None:
                 self._odps = ODPS._from_account(
                     options.account, options.default_project,
-                    endpoint=options.end_point, tunnel_endpoint=options.tunnel.endpoint
+                    endpoint=options.endpoint, tunnel_endpoint=options.tunnel.endpoint
                 )
             else:
                 self._odps = enter().odps

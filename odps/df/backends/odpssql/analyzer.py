@@ -16,6 +16,7 @@
 
 import re
 import sys
+import math as pymath
 
 from ..analyzer import BaseAnalyzer
 from ...expr.arithmetic import *
@@ -35,6 +36,8 @@ from ..utils import refresh_dynamic
 from ... import types
 from .... import compat
 from ....utils import to_text
+
+_NAN = float('nan')
 
 
 class Analyzer(BaseAnalyzer):
@@ -283,24 +286,22 @@ class Analyzer(BaseAnalyzer):
         if expr.dtype != types.decimal:
             if isinstance(expr, Arccosh):
                 def func(x):
-                    import numpy as np
-                    return float(np.arccosh(x))
+                    return pymath.acosh(x)
             elif isinstance(expr, Arcsinh):
                 def func(x):
-                    import numpy as np
-                    return float(np.arcsinh(x))
+                    return pymath.asinh(x)
             elif isinstance(expr, Arctanh):
                 def func(x):
-                    import numpy as np
-                    return float(np.arctanh(x))
+                    try:
+                        return pymath.atanh(x)
+                    except ValueError:
+                        return _NAN
             elif isinstance(expr, Radians):
                 def func(x):
-                    import numpy as np
-                    return float(np.radians(x))
+                    return pymath.radians(x)
             elif isinstance(expr, Degrees):
                 def func(x):
-                    import numpy as np
-                    return float(np.degrees(x))
+                    return pymath.degrees(x)
             else:
                 raise NotImplementedError
 

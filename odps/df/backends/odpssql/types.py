@@ -32,6 +32,8 @@ _odps_to_df_types = {
     odps_types.datetime: df_types.datetime,
     odps_types.boolean: df_types.boolean,
     odps_types.binary: df_types.binary,
+    odps_types.timestamp: df_types.timestamp,
+    odps_types.date: df_types.date
 }
 
 _df_to_odps_types = {
@@ -58,6 +60,8 @@ _df_to_odps_types2 = {
     df_types.string: odps_types.string,
     df_types.datetime: odps_types.datetime,
     df_types.binary: odps_types.binary,
+    df_types.timestamp: odps_types.timestamp,
+    df_types.date: odps_types.date,
 }
 
 

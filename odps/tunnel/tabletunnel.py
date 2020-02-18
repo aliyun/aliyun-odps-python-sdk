@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+import random
+
 import requests
 
 from .base import BaseTunnel
@@ -39,6 +42,7 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         Normal = 'NORMAL'
         Closes = 'CLOSES'
         Expired = 'EXPIRED'
+        Initiating = 'INITIATING'
 
     id = serializers.JSONNodeField('DownloadID')
     status = serializers.JSONNodeField(
@@ -46,8 +50,8 @@ class TableDownloadSession(serializers.JSONSerializableModel):
     count = serializers.JSONNodeField('RecordCount')
     schema = serializers.JSONNodeReferenceField(Schema, 'Schema')
 
-    def __init__(self, client, table, partition_spec,
-                 download_id=None, compress_option=None):
+    def __init__(self, client, table, partition_spec, download_id=None,
+                 compress_option=None, async_=False):
         super(TableDownloadSession, self).__init__()
 
         self._client = client
@@ -60,23 +64,28 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         self._partition_spec = partition_spec
 
         if download_id is None:
-            self._init()
+            self._init(async_=async_)
         else:
             self.id = download_id
             self.reload()
         self._compress_option = compress_option
 
-    def _init(self):
+    def _init(self, async_):
         params = {'downloads': ''}
         headers = {'Content-Length': 0}
         if self._partition_spec is not None and \
-                        len(self._partition_spec) > 0:
+                len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
+        if async_:
+            params['asyncmode'] = 'true'
 
         url = self._table.resource()
         resp = self._client.post(url, {}, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
+            while self.status == self.Status.Initiating:
+                time.sleep(random.randint(0, 30) + 5)
+                self.reload()
             if self.schema is not None:
                 self.schema.build_snapshot()
         else:
@@ -338,7 +347,7 @@ class TableUploadSession(serializers.JSONSerializableModel):
 
 
 class TableTunnel(BaseTunnel):
-    def create_download_session(self, table, partition_spec=None,
+    def create_download_session(self, table, async_=False, partition_spec=None,
                                 download_id=None, compress_option=None,
                                 compress_algo=None, compres_level=None, compress_strategy=None):
         if not isinstance(table, six.string_types):
@@ -351,7 +360,9 @@ class TableTunnel(BaseTunnel):
 
         return TableDownloadSession(self.tunnel_rest, table, partition_spec,
                                     download_id=download_id,
-                                    compress_option=compress_option)
+                                    compress_option=compress_option,
+                                    async_=async_,
+                                    )
 
     def create_upload_session(self, table, partition_spec=None,
                               upload_id=None, compress_option=None,

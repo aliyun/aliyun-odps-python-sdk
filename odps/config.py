@@ -322,8 +322,10 @@ def is_in(vals):
 
 options = Config()
 options.register_option('account', None)
-options.register_option('end_point', None)
+options.register_option('endpoint', None)
+options.redirect_option('end_point', 'endpoint')
 options.register_option('default_project', None)
+options.register_option('app_account', None)
 options.register_option('local_timezone', None)
 options.register_option('allow_antique_date', False)
 options.register_option('user_agent_pattern', '$pyodps_version $python_version $os_version')

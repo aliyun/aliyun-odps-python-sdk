@@ -34,7 +34,7 @@ from ... import types, compat, utils, errors, options
 from ...compat import six
 
 
-varint_tag_types = types.integer_types + (types.boolean, types.datetime, types.interval_year_month)
+varint_tag_types = types.integer_types + (types.boolean, types.datetime, types.date, types.interval_year_month)
 length_delim_tag_types = (types.string, types.binary, types.timestamp, types.interval_day_time)
 
 
@@ -129,6 +129,7 @@ if BaseRecordWriter is None:
             self._crccrc = Checksum()
             self._curr_cursor = 0
             self._to_milliseconds = utils.build_to_milliseconds()
+            self._to_days = utils.to_days
 
             super(BaseRecordWriter, self).__init__(out)
 
@@ -232,6 +233,9 @@ if BaseRecordWriter is None:
                 self._write_bool(val)
             elif data_type == types.datetime:
                 val = self._to_milliseconds(val)
+                self._write_long(val)
+            elif data_type == types.date:
+                val = self._to_days(val)
                 self._write_long(val)
             elif data_type == types.float_:
                 self._write_float(val)

@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 
 import requests
 
-from odps.tests.core import TestBase, to_str, tn, pandas_case
+from odps.tests.core import TestBase, to_str, tn, pandas_case, odps2_typed_case
 from odps.compat import unittest, six
 from odps.models import Instance, SQLTask, Schema
 from odps.errors import ODPSError
@@ -570,11 +570,24 @@ class Test(TestBase):
             self.assertIsInstance(infos[0].instance, Instance)
             self.assertEqual(infos[0].instance.id, infos[0].instance_id)
 
+    @odps2_typed_case
     def testSQLCostInstance(self):
         test_table = tn('pyodps_t_tmp_sql_cost_instance')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
+        self.odps.write_table(table, [[1], [2], [3]])
+
+        sql_cost = self.odps.execute_sql_cost('select * from %s' % test_table)
+        self.assertIsInstance(sql_cost, Instance.SQLCost)
+        self.assertEqual(sql_cost.udf_num, 0)
+        self.assertEqual(sql_cost.complexity, 1.0)
+        self.assertGreaterEqual(sql_cost.input_size, 480)
+
+        test_table = tn('pyodps_t_tmp_sql_cost_odps2_instance')
+        self.odps.delete_table(test_table, if_exists=True)
+        table = self.odps.create_table(
+            test_table, schema=Schema.from_lists(['size'], ['tinyint']), if_not_exists=True)
         self.odps.write_table(table, [[1], [2], [3]])
 
         sql_cost = self.odps.execute_sql_cost('select * from %s' % test_table)

@@ -71,7 +71,7 @@ msgid "默认值"
 msgstr "Default value"
 
 #: ../../source/options.rst:27
-msgid "end_point"
+msgid "endpoint"
 msgstr ""
 
 #: ../../source/options.rst:27

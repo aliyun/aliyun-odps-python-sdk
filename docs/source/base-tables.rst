@@ -238,19 +238,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>>                t.new_record([444, '中文', False])]
    >>>     writer.write(records)
    >>>
-   >>> with t.open_writer(partition='pt=test', blocks=[0, 1]) as writer:  # 这里同是打开两个block
-   >>>     writer.write(0, gen_records(block=0))
-   >>>     writer.write(1, gen_records(block=1))  # 这里两个写操作可以多线程并行，各个block间是独立的
-   >>>
 
-不使用 with 表达式的写法：
-
-.. code-block:: python
-
-   >>> writer = t.open_writer(partition='pt=test', blocks=[0, 1])
-   >>> writer.write(0, gen_records(block=0))
-   >>> writer.write(1, gen_records(block=1))
-   >>> writer.close()  # 不要忘记关闭 writer，否则数据可能写入不完全
 
 如果分区不存在，可以使用 ``create_partition`` 参数指定创建分区，如
 
@@ -281,6 +269,48 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
     write_table 写表时会追加到原有数据。PyODPS 不提供覆盖数据的选项，如果需要覆盖数据，需要手动清除
     原有数据。对于非分区表，需要调用 table.truncate()，对于分区表，需要删除分区后再建立。
+
+使用多进程并行写数据：
+
+每个进程写数据时共享同一个 session_id，但是有不同的 block_id，每个 block 对应服务端的一个文件，
+最后主进程执行 commit，完成数据上传。
+
+.. code-block:: python
+
+    import random
+    from multiprocessing import Pool
+    from odps.tunnel import TableTunnel
+
+    def write_records(session_id, block_id):
+        # 使用指定的 id 创建 session
+        local_session = tunnel.create_upload_session(table.name, upload_id=session_id)
+        # 创建 writer 时指定 block_id
+        with local_session.open_record_writer(block_id) as writer:
+            for i in range(5):
+                # 生成数据并写入对应 block
+                record = table.new_record([random.randint(1, 100), random.random()])
+                writer.write(record)
+
+    if __name__ == '__main__':
+        N_WORKERS = 3
+
+        table = o.create_table('my_new_table', 'num bigint, num2 double', if_not_exists=True)
+        tunnel = TableTunnel(o)
+        upload_session = tunnel.create_upload_session(table.name)
+
+        # 每个进程使用同一个 session_id
+        session_id = upload_session.id
+
+        pool = Pool(processes=N_WORKERS)
+        futures = []
+        block_ids = []
+        for i in range(N_WORKERS):
+            futures.append(pool.apply_async(write_records, (session_id, i)))
+            block_ids.append(i)
+        [f.get() for f in futures]
+
+        # 最后执行 commit，并指定所有 block
+        upload_session.commit(block_ids)
 
 删除表
 -------

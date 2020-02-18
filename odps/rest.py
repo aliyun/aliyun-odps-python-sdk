@@ -1,11 +1,11 @@
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -67,6 +67,7 @@ class RestClient(object):
         self._user_agent = user_agent or default_user_agent()
         self.project = project
         self._proxy = kwargs.get('proxy')
+        self._app_account = kwargs.get('app_account')
         if isinstance(self._proxy, six.string_types):
             self._proxy = dict(http=self._proxy, https=self._proxy)
 
@@ -77,6 +78,10 @@ class RestClient(object):
     @property
     def account(self):
         return self._account
+
+    @property
+    def app_account(self):
+        return self._app_account
 
     @property
     def session(self):
@@ -118,6 +123,8 @@ class RestClient(object):
         prepared_req = req.prepare()
         LOG.debug("request url + params %s" % prepared_req.path_url)
         self._account.sign_request(prepared_req, self._endpoint)
+        if self._app_account is not None:
+            self._app_account.sign_request(prepared_req, self._endpoint)
 
         try:
             res = self.session.send(prepared_req, stream=stream,

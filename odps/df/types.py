@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime as _datetime
+from datetime import datetime as _datetime, date as _date
 from decimal import Decimal as _Decimal
 
 from ..types import DataType, Array, Map, parse_composite_types
@@ -112,6 +112,14 @@ class Datetime(Primitive):
         return False
 
 
+class Date(Primitive):
+    __slots__ = ()
+
+
+class Timestamp(Primitive):
+    __slots__ = ()
+
+
 class Boolean(Primitive):
     __slots__ = ()
 
@@ -200,6 +208,8 @@ boolean = Boolean()
 string = String()
 decimal = Decimal()
 datetime = Datetime()
+date = Date()
+timestamp = Timestamp()
 binary = Binary()
 
 
@@ -237,6 +247,11 @@ def validate_data_type(data_type):
 
 
 def validate_value_type(value, data_type=None):
+    try:
+        from pandas import Timestamp
+    except ImportError:
+        Timestamp = None
+
     if data_type is not None:
         data_type.validate_value(value)
         return data_type
@@ -260,6 +275,10 @@ def validate_value_type(value, data_type=None):
         inferred_value_type = decimal
     elif isinstance(value, _datetime):
         inferred_value_type = datetime
+    elif isinstance(value, _date):
+        inferred_value_type = date
+    elif Timestamp is not None and isinstance(value, Timestamp):
+        inferred_value_type = timestamp
     else:
         raise ValueError('Unknown value: %s, type: %s' % (value, type(value)))
 

@@ -160,6 +160,33 @@ def format_cdata(query, semicolon=False):
     return '<![CDATA[%s]]>' % stripped_query
 
 
+def collect_settings(value, glob):
+    settings = dict()
+    if glob:
+        if options.sql.use_odps2_extension:
+            settings['odps.sql.type.system.odps2'] = True
+        if options.local_timezone is not None:
+            if not options.local_timezone:
+                settings['odps.sql.timezone'] = 'Etc/GMT'
+            elif isinstance(options.local_timezone, bool):
+                from ..lib import tzlocal
+                settings['odps.sql.timezone'] = tzlocal.get_localzone().zone
+            elif isinstance(options.local_timezone, six.string_types):
+                settings['odps.sql.timezone'] = options.local_timezone
+            else:
+                zone_str = getattr(options.local_timezone, 'zone', None)
+                if zone_str is None:
+                    warnings.warn('Failed to get timezone string from options.local_timezone. '
+                                  'You need to deal with timezone in the return data yourself.')
+                else:
+                    settings['odps.sql.timezone'] = zone_str
+        if options.sql.settings:
+            settings.update(options.sql.settings)
+    if value:
+        settings.update(value)
+    return settings
+
+
 class SQLTask(Task):
     __slots__ = '_anonymous_sql_task_name',
 
@@ -185,29 +212,7 @@ class SQLTask(Task):
         return super(SQLTask, self).serial()
 
     def update_sql_settings(self, value=None, glob=True):
-        settings = dict()
-        if glob:
-            if options.sql.use_odps2_extension:
-                settings['odps.sql.type.system.odps2'] = True
-            if options.local_timezone is not None:
-                if not options.local_timezone:
-                    settings['odps.sql.timezone'] = 'Etc/GMT'
-                elif isinstance(options.local_timezone, bool):
-                    from ..lib import tzlocal
-                    settings['odps.sql.timezone'] = tzlocal.get_localzone().zone
-                elif isinstance(options.local_timezone, six.string_types):
-                    settings['odps.sql.timezone'] = options.local_timezone
-                else:
-                    zone_str = getattr(options.local_timezone, 'zone', None)
-                    if zone_str is None:
-                        warnings.warn('Failed to get timezone string from options.local_timezone. '
-                                      'You need to deal with timezone in the return data yourself.')
-                    else:
-                        settings['odps.sql.timezone'] = zone_str
-            if options.sql.settings:
-                settings.update(options.sql.settings)
-        if value:
-            settings.update(value)
+        settings = collect_settings(value, glob)
         self.update_settings(settings)
 
     def update_aliases(self, value):
@@ -254,12 +259,15 @@ class SQLCostTask(Task):
     query = serializers.XMLNodeField('Query',
                                      serialize_callback=lambda s: format_cdata(s, True))
 
-    def __init__(self, name=None, hints=None, **kwargs):
-        kwargs['name'] = name or self._anonymous_sql_cost_task_name
+    def __init__(self, **kwargs):
+        if 'name' not in kwargs:
+            kwargs['name'] = self._anonymous_sql_cost_task_name
         super(SQLCostTask, self).__init__(**kwargs)
-        hints = hints or {}
-        if hints:
-            self.set_property('settings', json.dumps(hints))
+
+    def update_sql_cost_settings(self, value=None, glob=True):
+        settings = collect_settings(value, glob)
+        self.update_settings(settings)
+
 
 class SQLRTTask(Task):
     _root = "SQLRT"

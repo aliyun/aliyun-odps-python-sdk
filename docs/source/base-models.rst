@@ -93,6 +93,16 @@ run_xflow 的例子：
     >>> model = o.get_offline_model('logistic_regression_model_name')
     >>> pmml = model.get_model()
 
+复制离线模型可以使用下列语句：
+
+.. code:: python
+
+    >>> model = o.get_offline_model('logistic_regression_model_name')
+    >>> # 复制到当前 project
+    >>> new_model = model.copy('logistic_regression_model_name_new')
+    >>> # 复制到其他 project
+    >>> new_model2 = model.copy('logistic_regression_model_name_new2', project='new_project')
+
 删除模型可使用下列语句：
 
 .. code:: python

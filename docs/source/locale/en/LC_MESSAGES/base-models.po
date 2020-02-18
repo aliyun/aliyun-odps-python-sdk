@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-02-14 21:09+0800\n"
+"POT-Creation-Date: 2019-12-25 09:52+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -31,7 +31,7 @@ msgstr ""
 "XFlow is a MaxCompute algorithm package. You can use PyODPS to execute "
 "XFlow tasks. For the following PAI command:"
 
-#: ../../source/base-models.rst:14
+#: ../../source/base-models.rst:11
 msgid ""
 "PAI -name AlgoName -project algo_public -Dparam1=param_value1 "
 "-Dparam2=param_value2 ..."
@@ -41,7 +41,7 @@ msgstr ""
 msgid "可以使用如下方法调用："
 msgstr "You can call ``run_xflow`` to execute it asynchronously:"
 
-#: ../../source/base-models.rst:22
+#: ../../source/base-models.rst:17
 msgid ""
 ">>> # 异步调用\n"
 ">>> inst = o.run_xflow('AlgoName', 'algo_public',\n"
@@ -57,7 +57,7 @@ msgstr ""
 msgid "或者使用同步调用："
 msgstr "Or call ``execute_xflow`` to execute it synchronously:"
 
-#: ../../source/base-models.rst:30
+#: ../../source/base-models.rst:25
 msgid ""
 ">>> # 同步调用\n"
 ">>> inst = o.execute_xflow('AlgoName', 'algo_public',\n"
@@ -172,7 +172,7 @@ msgstr ""
 "algorithms. You can directly call odps.run_xflow to create an offline "
 "model. For example:"
 
-#: ../../source/base-models.rst:82
+#: ../../source/base-models.rst:77
 msgid ""
 ">>> o.run_xflow('LogisticRegression', 'algo_public', "
 "dict(modelName='logistic_regression_model_name',\n"
@@ -188,7 +188,7 @@ msgstr ""
 "After creating the models, you can list the models under the current "
 "project as follows:"
 
-#: ../../source/base-models.rst:88
+#: ../../source/base-models.rst:85
 msgid ">>> models = o.list_offline_models(prefix='prefix')"
 msgstr ""
 
@@ -198,17 +198,37 @@ msgstr ""
 "You can also retrieve the models and read their PMML (if supported) by "
 "the model names:"
 
-#: ../../source/base-models.rst:95
+#: ../../source/base-models.rst:91
 msgid ""
 ">>> model = o.get_offline_model('logistic_regression_model_name')\n"
 ">>> pmml = model.get_model()"
 msgstr ""
 
 #: ../../source/base-models.rst:96
+msgid "复制离线模型可以使用下列语句："
+msgstr "You can copy a model using the following statement:"
+
+#: ../../source/base-models.rst:98
+msgid ""
+">>> model = o.get_offline_model('logistic_regression_model_name')\n"
+">>> # 复制到当前 project\n"
+">>> new_model = model.copy('logistic_regression_model_name_new')\n"
+">>> # 复制到其他 project\n"
+">>> new_model2 = model.copy('logistic_regression_model_name_new2', "
+"project='new_project')"
+msgstr ""
+">>> model = o.get_offline_model('logistic_regression_model_name')\n"
+">>> # copy to current project\n"
+">>> new_model = model.copy('logistic_regression_model_name_new')\n"
+">>> # copy to another project\n"
+">>> new_model2 = model.copy('logistic_regression_model_name_new2', "
+"project='new_project')"
+
+#: ../../source/base-models.rst:106
 msgid "删除模型可使用下列语句："
 msgstr "You can delete a model using the following statement:"
 
-#: ../../source/base-models.rst:100
+#: ../../source/base-models.rst:108
 msgid ">>> o.delete_offline_model('logistic_regression_model_name')"
 msgstr ""
 

@@ -247,6 +247,12 @@ class TestMeta(type):
         super(TestMeta, cls).__init__(what, bases, d)
 
 
+def patch_metaclass(meta):
+    def _decorator(cls):
+        return meta(cls.__name__, cls.__bases__, dict(cls.__dict__))
+    return _decorator
+
+
 try:
     from flaky import flaky
     import requests
@@ -275,16 +281,17 @@ try:
         return False
 
     @flaky(max_runs=3, rerun_filter=is_internal_error)
-    class _TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
+    @patch_metaclass(TestMeta)
+    class _TestBase(compat.unittest.TestCase):
         pass
 
 except ImportError:
-    class _TestBase(six.with_metaclass(TestMeta, compat.unittest.TestCase)):
+    @patch_metaclass(TestMeta)
+    class _TestBase(compat.unittest.TestCase):
         pass
 
 
 class TestBase(_TestBase):
-
     def setUp(self):
         gc.collect()
 

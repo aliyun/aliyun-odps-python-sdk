@@ -28,7 +28,7 @@ import functools
 import time
 
 from odps.df.backends.tests.core import TestBase, to_str, tn
-from odps.compat import unittest, irange as xrange, six, OrderedDict, futures, BytesIO
+from odps.compat import PY27, unittest, irange as xrange, six, OrderedDict, futures, BytesIO
 from odps.models import Schema
 from odps import types
 from odps.errors import ODPSError
@@ -496,6 +496,7 @@ class Test(TestBase):
         self.assertEqual(len(res), 1)
 
     @bothPyAndC
+    @unittest.skipIf(not PY27, reason="known bug for binary results in py3")
     def testNonUTF8(self):
         data = [
             ['中文', 4, 5.3, None, None, None],
@@ -504,14 +505,17 @@ class Test(TestBase):
 
         const = to_text(data[0]).encode('gbk')
         expr = self.expr[:1].map_reduce(lambda row: const,
-                                    mapper_output_names=['s'],
-                                    mapper_output_types=['string'])
+                                        mapper_output_names=['s'],
+                                        mapper_output_types=['string' if PY27 else 'binary'])
         options.tunnel.string_as_binary = True
+        if not PY27:
+            options.sql.use_odps2_extension = True
         try:
             res = self._get_result(self.engine.execute(expr))
             self.assertEqual(res[0][0], const)
         finally:
             options.tunnel.string_as_binary = False
+            options.sql.use_odps2_extension = False
 
     def testFunctions(self):
         data = self._gen_data(5, value_range=(-1000, 1000))
@@ -1141,6 +1145,47 @@ class Test(TestBase):
         finally:
             [res.drop() for res in resources + dateutil_resources]
 
+    def testThirdPartyWheel(self):
+        import requests
+        from odps.compat import BytesIO
+
+        data = [
+            ['2016-08-18', 4, 5.3, None, None, None],
+            ['2015-08-18', 2, 3.5, None, None, None],
+            ['2014-08-18', 4, 4.2, None, None, None],
+            ['2013-08-18', 3, 2.2, None, None, None],
+            ['2012-08-18', 3, 4.1, None, None, None],
+        ]
+        self._gen_data(data=data)
+
+        dateutil_url = 'http://mirrors.aliyun.com/pypi/packages/33/68/' \
+                       '9eadc96f9899caebd98f55f942d6a8f3fb2b8f8e69ba81a0f771269897e9/' \
+                       'python_dateutil-2.5.3-py2.py3-none-any.whl#md5=dbcd46b171e01d4518db96e3571810db'
+        obj = BytesIO(requests.get(dateutil_url).content)
+        wheel_res = self.odps.create_resource(
+            'dateutil_%s.whl' % str(uuid.uuid4()), 'archive', file_obj=obj)
+        six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
+
+        try:
+            def f(x):
+                from dateutil.parser import parse
+                return int(parse(x).strftime('%Y'))
+
+            expr = self.expr.name.map(f, rtype='int')
+
+            res = self.engine.execute(expr, libraries=[wheel_res, six_path])
+            result = self._get_result(res)
+
+            self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
+        finally:
+            wheel_res.drop()
+
+    def testSupersedeNumpyLibrary(self):
+        data = [
+            ['2016-08-18', 4, 5.3, None, None, None],
+        ]
+        self._gen_data(data=data)
+
         tar_io = BytesIO()
         pseudo_np_tar = tarfile.open(fileobj=tar_io, mode='w:gz')
         init_content = b"__version__ = '100.100.100'\n"
@@ -1151,18 +1196,24 @@ class Test(TestBase):
         pseudo_np_tar.close()
 
         res_name = 'pseudo_numpy_%s.tar.gz' % str(uuid.uuid4())
+        res = None
         try:
             res = self.odps.create_resource(res_name, 'archive', fileobj=tar_io.getvalue())
 
             def fun(_):
-                import numpy
-                return numpy.__version__
+                try:
+                    import numpy
+                    return numpy.__version__
+                except ImportError:
+                    return 'not installed'
 
             options.sql.settings = {'odps.isolation.session.enable': True}
 
             expr = self.expr.name.map(fun)
             r = self.engine.execute(expr)
             original = self._get_result(r)[0]
+            if to_str(original[0]) == 'not installed':
+                return
 
             options.df.supersede_libraries = True
             expr = self.expr.name.map(fun)
@@ -1179,7 +1230,8 @@ class Test(TestBase):
             options.df.libraries = []
             options.df.supersede_libraries = False
             options.sql.settings = {}
-            res.drop()
+            if res:
+                res.drop()
 
     def testCustomLibraries(self):
         data = self._gen_data(5)

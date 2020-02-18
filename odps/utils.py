@@ -40,7 +40,7 @@ import collections
 import random
 from hashlib import sha1, md5
 from base64 import b64encode
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from email.utils import parsedate_tz, formatdate
 
 from . import compat, options
@@ -366,6 +366,16 @@ def build_to_datetime(local_tz=None):
             return datetime.utcfromtimestamp(seconds).replace(microsecond=microseconds, tzinfo=utc).astimezone(tz)
 
         return to_datetime
+
+
+def to_days(dt):
+    start_day = date(1970, 1, 1)
+    return (dt - start_day).days
+
+
+def to_date(delta_day):
+    start_day = date(1970, 1, 1)
+    return start_day + timedelta(delta_day)
 
 
 def to_datetime(milliseconds, local_tz=None):

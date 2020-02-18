@@ -58,6 +58,8 @@ cdef class BaseTunnelRecordReader:
                 self._column_setters[i] = self._set_bool
             elif data_type == types.datetime:
                 self._column_setters[i] = self._set_datetime
+            elif data_type == types.date:
+                self._column_setters[i] = self._set_date
             elif data_type == types.string:
                 self._column_setters[i] = self._set_string
             elif data_type == types.float_:
@@ -87,6 +89,7 @@ cdef class BaseTunnelRecordReader:
         self._curr_cursor = 0
         self._read_limit = -1 if options.table_read_limit is None else options.table_read_limit
         self._to_datetime = utils.build_to_datetime()
+        self._to_date = utils.to_date
 
     def _mode(self):
         return 'c'
@@ -221,6 +224,16 @@ cdef class BaseTunnelRecordReader:
         self._crc.c_update_long(val)
         return self._to_datetime(val)
 
+    cdef object _read_date(self):
+        cdef int64_t val
+        try:
+            val = self._reader.read_sint64()
+        except:
+            self._last_error = sys.exc_info()
+            raise
+        self._crc.c_update_long(val)
+        return self._to_date(val)
+
     cdef object _read_timestamp(self):
         cdef:
             int64_t val
@@ -294,6 +307,10 @@ cdef class BaseTunnelRecordReader:
 
     cdef void _set_datetime(self, list record, int i):
         cdef object val = self._read_datetime()
+        self._set_record_list_value(record, i, val)
+
+    cdef void _set_date(self, list record, int i):
+        cdef object val = self._read_date()
         self._set_record_list_value(record, i, val)
 
     cdef void _set_decimal(self, list record, int i):

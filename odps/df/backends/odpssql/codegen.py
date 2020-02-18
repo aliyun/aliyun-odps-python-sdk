@@ -69,14 +69,13 @@ try:
     from odps.distcache import get_cache_archive_filenames
 except ImportError:
     def get_cache_archive_filenames(name, relative_path='.'):
-        from odps.distcache import RTYPE_ARCHIVE, WORK_DIR, download_resource, DistributedCacheError
+        from odps.distcache import WORK_DIR, DistributedCacheError
 
         def _is_parent(parent, child):
             return parent == child or child.startswith(parent + '/')
 
         if os.path.split(name)[0] != '':
             raise DistributedCacheError("Invalid resource name: " + name)
-        download_resource(name, RTYPE_ARCHIVE)
         ret_files = []
 
         # find the real resource path to avoid the symbol link in inner system
@@ -166,16 +165,16 @@ def read_lib(lib, f):
     if isinstance(f, (list, dict)):
         return f
     if lib.endswith('.zip') or lib.endswith('.egg') or lib.endswith('.whl'):
-        return zipfile.ZipFile(f)
+        return zipfile.ZipFile(f.name)
     if lib.endswith('.tar') or lib.endswith('.tar.gz') or lib.endswith('.tar.bz2'):
         from io import BytesIO
         if lib.endswith('.tar'):
             mode = 'r'
         else:
             mode = 'r:gz' if lib.endswith('.tar.gz') else 'r:bz2'
-        return tarfile.open(fileobj=BytesIO(f.read()), mode=mode)
+        return tarfile.open(name=f.name, mode=mode)
     if lib.endswith('.py'):
-        return {f.name: f}
+        return {f.name: open(f.name, 'rb')}
 
     raise ValueError(
         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
@@ -314,8 +313,10 @@ PY2 = sys.version_info[0] == 2
 
 if PY2:
     string_type = unicode
+    byte_type = str
 else:
     string_type = str
+    byte_type = (bytes, bytearray)
 
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(BaseUDTF):
@@ -333,7 +334,7 @@ class %(func_cls_name)s(BaseUDTF):
                 if fields:
                     tb = gen_resource_data(fields, tb)
                 resources.append(tb)
-                
+
         libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
         files = []
         for lib in libraries:
@@ -350,6 +351,7 @@ class %(func_cls_name)s(BaseUDTF):
         encoded = '%(func_str)s'
         f_str = base64.b64decode(encoded)
         self.f = loads(f_str, **unpickler_kw)
+
         if inspect.isclass(self.f):
             if not resources:
                 self.f = self.f()
@@ -419,6 +421,8 @@ class %(func_cls_name)s(BaseUDTF):
                 res.append(str(arg))
             elif PY2 and t == 'string' and isinstance(arg, string_type):
                 res.append(arg.encode('utf-8'))
+            elif PY3 and t == 'string' and isinstance(arg, byte_type):
+                res.append(arg.decode('utf-8'))
             else:
                 if isinstance(arg, np_generic):
                     arg = arg.item()

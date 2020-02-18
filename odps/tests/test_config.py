@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,7 +32,7 @@ class Test(TestBase):
             else:
                 self.assertEqual(options.account.access_id, old_config.account.access_id)
                 self.assertEqual(options.account.secret_access_key, old_config.account.secret_access_key)
-            self.assertEqual(options.end_point, old_config.end_point)
+            self.assertEqual(options.endpoint, old_config.endpoint)
             self.assertEqual(options.default_project, old_config.default_project)
             self.assertIsNotNone(local_options.log_view_host)
             self.assertIsNone(local_options.tunnel.endpoint)
@@ -66,7 +66,7 @@ class Test(TestBase):
         else:
             self.assertEqual(options.account.access_id, old_config.account.access_id)
             self.assertEqual(options.account.secret_access_key, old_config.account.secret_access_key)
-        self.assertEqual(options.end_point, old_config.end_point)
+        self.assertEqual(options.endpoint, old_config.endpoint)
         self.assertEqual(options.default_project, old_config.default_project)
         self.assertIsNotNone(options.log_view_host)
         self.assertIsNone(options.tunnel.endpoint)

@@ -98,6 +98,7 @@ if sys.version < '3':
     to_ascii = __builtin__.str
     to_unicode = __builtin__.unicode
     PY3 = False
+    PY38 = False
 else:
     types.ClassType = type
     import builtins as __builtin__
@@ -111,6 +112,7 @@ else:
     to_unicode = __builtin__.str
     unicode = str
     PY3 = True
+    PY38 = sys.version_info[:2] >= (3, 8)
 
 
 def _with_metaclass(meta, *bases):
@@ -191,9 +193,28 @@ def _make_cell_set_template_code():
             co.co_cellvars,  # this is the trickery
             (),
         )
+    elif not PY38:
+        return types.CodeType(
+            co.co_argcount,
+            co.co_kwonlyargcount,
+            co.co_nlocals,
+            co.co_stacksize,
+            co.co_flags,
+            co.co_code,
+            co.co_consts,
+            co.co_names,
+            co.co_varnames,
+            co.co_filename,
+            co.co_name,
+            co.co_firstlineno,
+            co.co_lnotab,
+            co.co_cellvars,  # this is the trickery
+            (),
+        )
     else:
         return types.CodeType(
             co.co_argcount,
+            co.co_posonlyargcount,
             co.co_kwonlyargcount,
             co.co_nlocals,
             co.co_stacksize,

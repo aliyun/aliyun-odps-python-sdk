@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -49,6 +49,7 @@ if TunnelRecordReader is None:
             self._curr_cursor = 0
             self._read_limit = options.table_read_limit
             self._to_datetime = utils.build_to_datetime()
+            self._to_date = utils.to_date
 
         def _mode(self):
             return 'py'
@@ -80,6 +81,10 @@ if TunnelRecordReader is None:
                 val = self._reader.read_sint64()
                 self._crc.update_long(val)
                 val = self._to_datetime(val)
+            elif data_type == types.date:
+                val = self._reader.read_sint64()
+                self._crc.update_long(val)
+                val = self._to_date(val)
             elif data_type == types.timestamp:
                 l_val = self._reader.read_sint64()
                 self._crc.update_long(l_val)

@@ -31,6 +31,7 @@ cdef class BaseTunnelRecordReader:
     cdef object _schema
     cdef object _columns
     cdef object _to_datetime
+    cdef object _to_date
     cdef Decoder _reader
     cdef Checksum _crc
     cdef Checksum _crccrc
@@ -49,6 +50,7 @@ cdef class BaseTunnelRecordReader:
     cdef bint _read_bool(self)
     cdef int64_t _read_bigint(self)
     cdef object _read_datetime(self)
+    cdef object _read_date(self)
     cdef object _read_timestamp(self)
     cdef object _read_interval_day_time(self)
     cdef void _set_record_list_value(self, list record, int i, object value)
@@ -58,6 +60,7 @@ cdef class BaseTunnelRecordReader:
     cdef void _set_bool(self, list record, int i)
     cdef void _set_bigint(self, list record, int i)
     cdef void _set_datetime(self, list record, int i)
+    cdef void _set_date(self, list record, int i)
     cdef void _set_decimal(self, list record, int i)
     cdef void _set_timestamp(self, list record, int i)
     cdef void _set_interval_day_time(self, list record, int i)

@@ -42,6 +42,7 @@ cdef:
 cdef:
     int64_t BOOL_TYPE_ID = types.boolean._type_id
     int64_t DATETIME_TYPE_ID = types.datetime._type_id
+    int64_t DATE_TYPE_ID = types.date._type_id
     int64_t STRING_TYPE_ID = types.string._type_id
     int64_t FLOAT_TYPE_ID = types.float_._type_id
     int64_t DOUBLE_TYPE_ID = types.double._type_id
@@ -143,6 +144,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._curr_cursor_c = 0
         self._n_columns = len(self._columns)
         self._to_milliseconds = utils.build_to_milliseconds()
+        self._to_days = utils.to_days
 
         super(BaseRecordWriter, self).__init__(out)
 
@@ -183,7 +185,8 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             data_type_id = self._schema_snapshot._col_type_ids[i]
             data_type = None
             if data_type_id == BOOL_TYPE_ID or data_type_id == DATETIME_TYPE_ID \
-                    or data_type_id == BIGINT_TYPE_ID or data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
+                    or data_type_id == DATE_TYPE_ID or data_type_id == BIGINT_TYPE_ID or \
+                    data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
                 self._write_tag(pb_index, WIRETYPE_VARINT)
             elif data_type_id == FLOAT_TYPE_ID:
                 self._write_tag(pb_index, WIRETYPE_FIXED32)
@@ -266,6 +269,8 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         elif data_type_id == DATETIME_TYPE_ID:
             l_val = self._to_milliseconds(val)
             self._write_long(l_val)
+        elif data_type_id == DATE_TYPE_ID:
+            self._write_long(self._to_days(val))
         elif data_type_id == STRING_TYPE_ID:
             self._write_string(val)
         elif data_type_id == FLOAT_TYPE_ID:

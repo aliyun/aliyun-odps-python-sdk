@@ -17,7 +17,7 @@
 import math
 import random
 import time
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 from multiprocessing.pool import ThreadPool
 
@@ -463,7 +463,7 @@ class Test(TestBase):
         self.odps.write_table(table, 0, records[5:])
 
         reads = list(self.odps.read_table(table, len(data)))
-        for val1, val2 in zip(data, [r.values for r in reads]):
+        for val1, val2 in zip(sorted(data), sorted([r.values for r in reads])):
             for it1, it2 in zip(val1, val2):
                 if isinstance(it1, dict):
                     self.assertEqual(len(it1), len(it2))
@@ -561,6 +561,27 @@ class Test(TestBase):
         written = list(self.odps.read_table(table_name))
         values = [list(v.values) for v in written]
         self.assertListAlmostEqual(contents, values, only_float=False, places=4)
+
+        table.drop(if_exists=True)
+
+    @odps2_typed_case
+    @bothPyAndC
+    def testDate(self):
+        table_name = tn('test_hivetunnel_date_io')
+        self.odps.delete_table(table_name, if_exists=True)
+
+        table = self.odps.create_table(table_name, 'col1 int, col2 date', lifecycle=1)
+        self.assertListEqual(table.schema.types, [types.int_, types.date])
+
+        contents = [
+            [0, date(2020, 2, 12)],
+            [1, date(1900, 1, 1)],
+            [2, date(2000, 3, 20)]
+        ]
+        self.odps.write_table(table_name, contents)
+        written = list(self.odps.read_table(table_name))
+        values = [list(v.values) for v in written]
+        self.assertListEqual(contents, values)
 
         table.drop(if_exists=True)
 
@@ -703,6 +724,29 @@ class Test(TestBase):
         self.assertListEqual(contents, values)
 
         table.drop(if_exists=True)
+
+    @bothPyAndC
+    def testAsyncTableUploadAndDownload(self):
+        table, data = self._gen_table()
+
+        records = [table.new_record(values=d) for d in data]
+        self.odps.write_table(table, 0, records)
+
+        reads = list(self.odps.read_table(table, len(data), async_=True))
+        for val1, val2 in zip(data, [r.values for r in reads]):
+            for it1, it2 in zip(val1, val2):
+                if isinstance(it1, dict):
+                    self.assertEqual(len(it1), len(it2))
+                    self.assertTrue(any(it1[k] == it2[k] for k in it1))
+                elif isinstance(it1, list):
+                    self.assertSequenceEqual(it1, it2)
+                else:
+                    if isinstance(it1, float) and math.isnan(it1) \
+                            and isinstance(it2, float) and math.isnan(it2):
+                        continue
+                    self.assertEqual(it1, it2)
+
+        table.drop()
 
 
 if __name__ == '__main__':

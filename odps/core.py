@@ -55,6 +55,7 @@ class ODPS(object):
     :param project: default project name
     :param endpoint: Rest service URL
     :param tunnel_endpoint:  Tunnel service URL
+    :param logview_host:  Logview host URL
 
     :Example:
 
@@ -71,24 +72,39 @@ class ODPS(object):
     >>>
     >>> odps.delete_table('test_table')
     """
-    def __init__(self, access_id, secret_access_key, project,
+    def __init__(self, access_id=None, secret_access_key=None, project=None,
                  endpoint=None, **kw):
         """
         """
 
         account = kw.pop('account', None)
+        self.app_account = kw.pop('app_account', None)
+
         if account is None:
-            self.account = self._build_account(access_id, secret_access_key)
+            if access_id is not None:
+                self.account = self._build_account(access_id, secret_access_key)
+            elif options.account is not None:
+                self.account = options.account
+            else:
+                raise TypeError('`access_id` and `secret_access_key` should be provided.')
         else:
             self.account = account
-        self.endpoint = endpoint or DEFAULT_ENDPOINT
-        self.project = project
-        self.rest = RestClient(self.account, self.endpoint, project, proxy=options.api_proxy)
+        self.endpoint = endpoint or options.endpoint or DEFAULT_ENDPOINT
+        self.project = project or options.project
+        self.rest = RestClient(self.account, self.endpoint, project, app_account=self.app_account,
+                               proxy=options.api_proxy)
 
-        self._tunnel_endpoint = kw.pop('tunnel_endpoint', None)
+        self._tunnel_endpoint = kw.pop('tunnel_endpoint', options.tunnel.endpoint)
+
+        if kw.get('logview_host'):
+            self._logview_host = kw.pop('logview_host', None)
+            options.log_view_host = self.logview_host
+        else:
+            self._logview_host = options.log_view_host or self.get_logview_host()
 
         self._projects = models.Projects(client=self.rest)
-        self._project = self.get_project()
+        if project:
+            self._project = self.get_project()
 
         self._seahawks_url = None
         if kw.get('seahawks_url'):
@@ -106,6 +122,10 @@ class ODPS(object):
     @property
     def projects(self):
         return self._projects
+
+    @property
+    def logview_host(self):
+        return self._logview_host
 
     def get_project(self, name=None):
         """
@@ -783,7 +803,8 @@ class ODPS(object):
         100
 
         """
-        task = models.SQLCostTask(query=utils.to_text(sql), hints=hints, **kwargs)
+        task = models.SQLCostTask(query=utils.to_text(sql), **kwargs)
+        task.update_sql_cost_settings(hints)
         project = self.get_project(name=project)
         inst = project.instances.create(task=task)
         inst.wait_for_success()
@@ -1398,6 +1419,17 @@ class ODPS(object):
         project = self.get_project(name=project)
         return name in project.offline_models
 
+    def copy_offline_model(self, name, new_name, project=None, new_project=None, async_=False):
+        """
+        Copy current model into a new location.
+
+        :param new_name: name of the new model
+        :param new_project: new project name. if absent, original project name will be used
+        :param async_: if True, return the copy instance. otherwise return the newly-copied model
+        """
+        return self.get_offline_model(name, project=project) \
+            .copy(new_name, new_project=new_project, async_=async_)
+
     def delete_offline_model(self, name, project=None, if_exists=False):
         """
         Delete the offline model by given name.
@@ -1414,6 +1446,20 @@ class ODPS(object):
         except NoSuchObject:
             if not if_exists:
                 raise
+
+    def get_logview_host(self):
+        """
+        Get logview host address.
+        :return: logview host address
+        """
+        try:
+            logview_host = self.rest.get(self.endpoint + '/logview/host').text
+        except:
+            logview_host = None
+        if not logview_host:
+            logview_host = LOG_VIEW_HOST_DEFAULT
+        options.log_view_host = logview_host
+        return logview_host
 
     def get_logview_address(self, instance_id, hours=None, project=None):
         """
@@ -1683,23 +1729,28 @@ class ODPS(object):
     def to_global(self):
         options.account = self.account
         options.default_project = self.project
-        options.end_point = self.endpoint
+        options.endpoint = self.endpoint
         options.tunnel.endpoint = self._tunnel_endpoint
+        options.app_account = self.app_account
 
     @classmethod
     def from_global(cls):
         if options.account is not None and options.default_project is not None:
-            return cls._from_account(options.account, options.default_project, endpoint=options.end_point)
+            return cls._from_account(options.account, options.default_project,
+                                     endpoint=options.endpoint, app_account=options.app_account)
         else:
             return None
+
 
 def _get_odps_from_model(self):
     client = self._client
     account = client.account
     endpoint = client.endpoint
     project = client.project
+    app_account = client.app_account
 
-    return ODPS._from_account(account, project, endpoint=endpoint)
+    return ODPS._from_account(account, project, endpoint=endpoint, app_account=app_account)
+
 
 models.RestModel.odps = property(fget=_get_odps_from_model)
 del _get_odps_from_model
@@ -1709,6 +1760,5 @@ try:
 except ImportError:
     pass
 
-options.log_view_host = LOG_VIEW_HOST_DEFAULT
 if 'PYODPS_ENDPOINT' in os.environ:
     DEFAULT_ENDPOINT = os.environ.get('PYODPS_ENDPOINT')

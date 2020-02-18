@@ -1,11 +1,11 @@
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -107,6 +107,25 @@ class AliyunAccount(BaseAccount):
         auth_str = 'ODPS %s:%s' % (self.access_id, utils.to_str(signature))
         req.headers['Authorization'] = auth_str
         LOG.debug('headers after signing: ' + repr(req.headers))
+
+
+class AppAccount(BaseAccount):
+    """
+    Account for applications.
+    """
+    def __init__(self, access_id, secret_access_key):
+        self.access_id = access_id
+        self.secret_access_key = secret_access_key
+
+    def sign_request(self, req, endpoint):
+        auth_str = req.headers['Authorization']
+        signature = base64.b64encode(hmac.new(
+            utils.to_binary(self.secret_access_key), utils.to_binary(auth_str),
+            hashlib.sha1).digest())
+        app_auth_str = "account_provider:%s,signature_method:%s,access_id:%s,signature:%s" % (
+            'aliyun', 'hmac-sha1', self.access_id, utils.to_str(signature))
+        req.headers['application-authentication'] = app_auth_str
+        LOG.debug('headers after app signing: ' + repr(req.headers))
 
 
 class SignServer(object):

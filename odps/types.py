@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime as _datetime, timedelta as _timedelta
+from datetime import datetime as _datetime, timedelta as _timedelta, date as _date
 import decimal as _builtin_decimal
 
 from . import utils
@@ -763,6 +763,29 @@ class Datetime(OdpsPrimitive):
         return value
 
 
+class Date(OdpsPrimitive):
+    __slots__ = ()
+    _type_id = 11
+
+    def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        if isinstance(other, (Timestamp, Datetime, String)):
+            return True
+        return super(Date, self).can_implicit_cast(other)
+
+    def cast_value(self, value, data_type):
+        self._can_cast_or_throw(value, data_type)
+
+        if isinstance(data_type, String):
+            datetime = _datetime.strptime(value, '%Y-%m-%d')
+            return _date(datetime.year, datetime.month, datetime.day)
+        elif isinstance(data_type, Timestamp):
+            return value.to_pydatetime().date()
+        return value
+
+
 class Boolean(OdpsPrimitive):
     __slots__ = ()
     _type_id = 4
@@ -1255,11 +1278,12 @@ binary = Binary()
 timestamp = Timestamp()
 interval_day_time = IntervalDayTime()
 interval_year_month = IntervalYearMonth()
+date = Date()
 
 _odps_primitive_data_types = dict(
     [(t.name, t) for t in (
-        tinyint, smallint, int_, bigint, float_, double, string, datetime,
-        boolean, binary, timestamp, interval_day_time, interval_year_month
+        tinyint, smallint, int_, bigint, float_, double, string, datetime, date,
+        boolean, binary, timestamp, interval_day_time, interval_year_month,
     )]
 )
 
@@ -1366,6 +1390,7 @@ _odps_primitive_to_builtin_types = compat.OrderedDict((
     (datetime, _datetime),
     (boolean, bool),
     (interval_year_month, Monthdelta),
+    (date, _date),
 ))
 
 
