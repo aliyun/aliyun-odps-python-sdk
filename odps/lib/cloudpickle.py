@@ -77,6 +77,11 @@ from functools import partial
 DEFAULT_PROTOCOL = 2  # pickle.HIGHEST_PROTOCOL
 
 try:
+    import _compat_pickle
+except ImportError:
+    _compat_pickle = None
+
+try:
     import importlib
     imp = None
 except ImportError:
@@ -1042,8 +1047,12 @@ class CloudUnpickler(Unpickler):
     def find_class(self, module, name):
         # Subclasses may override this
         try:
-            if PY3 and module == '__builtin__':
-                module = 'builtins'
+            if PY3 and _compat_pickle and self.proto < 3 and self.fix_imports:
+                if (module, name) in _compat_pickle.NAME_MAPPING:
+                    module, name = _compat_pickle.NAME_MAPPING[(module, name)]
+                elif module in _compat_pickle.IMPORT_MAPPING:
+                    module = _compat_pickle.IMPORT_MAPPING[module]
+
             __import__(module)
 
             mod = sys.modules[module]

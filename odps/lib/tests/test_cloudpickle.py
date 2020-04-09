@@ -338,6 +338,11 @@ class Test(TestBase):
                 raise SystemError('Pickle error occured!')
         return pickled
 
+    def testRangeObject(self):
+        obj_serial = dumps(range(10))
+        deserial = loads(obj_serial)
+        self.assertListEqual(list(range(10)), list(deserial))
+
     def testNestedFunc(self):
         func = _gen_nested_fun()
         obj_serial = base64.b64encode(dumps(func))

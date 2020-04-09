@@ -123,6 +123,20 @@ class ODPS(object):
     def projects(self):
         return self._projects
 
+    def list_projects(self, owner=None, user=None, group=None, prefix=None, max_items=None):
+        """
+        List projects.
+
+        :param owner: Aliyun account, the owner which listed projects belong to
+        :param user: name of the user who has access to listed projects
+        :param group: name of the group listed projects belong to
+        :param prefix: prefix of names of listed projects
+        :param max_items: the maximal size of result set
+        :return: projects in this endpoint.
+        :rtype: generator
+        """
+        return self.projects.iterate(owner=owner, user=user, group=group, max_items=max_items, name=prefix)
+
     @property
     def logview_host(self):
         return self._logview_host
@@ -1747,7 +1761,7 @@ def _get_odps_from_model(self):
     account = client.account
     endpoint = client.endpoint
     project = client.project
-    app_account = client.app_account
+    app_account = getattr(client, 'app_account', None)
 
     return ODPS._from_account(account, project, endpoint=endpoint, app_account=app_account)
 

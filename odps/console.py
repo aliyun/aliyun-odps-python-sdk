@@ -82,6 +82,10 @@ else:
 
     # import widgets and display
     try:
+        # currently not support juypterlab
+        if 'dsw_userNumber' in os.environ:
+            raise ImportError
+
         if ipython_major_version < 4:
             from IPython.html import widgets
         else:
@@ -757,6 +761,10 @@ class ProgressBar(six.Iterator):
             # Import only if ipython_widget, i.e., widget in IPython
             # notebook
             try:
+                # currently not support juypterlab
+                if 'dsw_userNumber' in os.environ:
+                    raise ImportError
+
                 if ipython_major_version < 4:
                     from IPython.html import widgets
                 else:

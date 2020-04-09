@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import json
+import os
 
 
 MAX_SCRIPT_LOAD_SEC = 5
@@ -26,6 +27,10 @@ require(['pyodps'], function(p) { p.register_css('##CSS_STR##'); });
 
 
 try:
+    # currently not support juypterlab
+    if 'dsw_userNumber' in os.environ:
+        raise ImportError
+
     from ..console import widgets, ipython_major_version, in_ipython_frontend, is_widgets_available
     if any(v is None for v in (widgets, ipython_major_version, in_ipython_frontend)):
         raise ImportError

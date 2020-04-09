@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,6 +17,7 @@ from __future__ import print_function
 
 import math
 import decimal
+import os
 
 from . import DataFrame, Scalar
 from ..ui.common import build_trait
@@ -27,6 +28,10 @@ from ..utils import to_text, init_progress_ui
 MAX_TABLE_FETCH_SIZE = 10
 
 try:
+    # currently not support juypterlab
+    if 'dsw_userNumber' in os.environ:
+        raise ImportError
+
     import ipywidgets as widgets
     from IPython.display import display
     from traitlets import Unicode, Dict, Int

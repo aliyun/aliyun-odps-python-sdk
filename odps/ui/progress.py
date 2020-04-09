@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import json
+import os
 import time
 import uuid
 import logging
@@ -174,6 +175,10 @@ User Interface
 
 
 try:
+    # currently not support juypterlab
+    if 'dsw_userNumber' in os.environ:
+        raise ImportError
+
     from ..console import widgets, ipython_major_version, in_ipython_frontend, is_widgets_available
     if ipython_major_version < 4:
         from IPython.utils.traitlets import Unicode, List

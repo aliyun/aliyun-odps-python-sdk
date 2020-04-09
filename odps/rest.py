@@ -123,7 +123,7 @@ class RestClient(object):
         prepared_req = req.prepare()
         LOG.debug("request url + params %s" % prepared_req.path_url)
         self._account.sign_request(prepared_req, self._endpoint)
-        if self._app_account is not None:
+        if getattr(self, '_app_account', None) is not None:
             self._app_account.sign_request(prepared_req, self._endpoint)
 
         try:

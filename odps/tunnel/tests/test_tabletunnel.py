@@ -106,7 +106,7 @@ class Test(TestBase):
         upload_ss.commit(writer.get_blocks_written())
 
     def _download_data(self, test_table, compress=False, columns=None, **kw):
-        count = kw.pop('count', 3)
+        count = kw.pop('count', 4)
         download_ss = self.tunnel.create_download_session(test_table, **kw)
         with download_ss.open_record_reader(0, count, compress=compress, columns=columns) as reader:
             # test use right py or c writer
@@ -126,8 +126,10 @@ class Test(TestBase):
              True, Decimal('3.14'), ['simple', 'easy'], OrderedDict({'s': 1})),
             ('goodbye', 222222, math.e, datetime(2020, 3, 10), False, Decimal('2.555555'),
              ['true', None], OrderedDict({'true': 1})),
-            ('c'*300, -2**63+1, -2.222, datetime(1999, 5, 25, 3, 10), True, Decimal(22222),
+            ('c' * 300, -2 ** 63 + 1, -2.222, datetime(1999, 5, 25, 3, 10), True, Decimal(22222),
              ['false'], OrderedDict({'false': 0})),
+            ('c' * 20, -2 ** 11 + 1, 2.222, datetime(1961, 10, 30, 11, 32), True, Decimal(33333),
+             ['true'], OrderedDict({'false': 0})),
         ]
 
     def _create_table(self, table_name):

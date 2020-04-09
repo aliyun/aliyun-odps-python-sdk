@@ -262,7 +262,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._write_raw_int(nanosecs)
 
     cpdef _write_field(self, object val, int data_type_id, object data_type):
-        cdef uint64_t l_val
+        cdef int64_t l_val
 
         if data_type_id == BOOL_TYPE_ID:
             self._write_bool(val)
