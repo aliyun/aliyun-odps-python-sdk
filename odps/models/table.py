@@ -366,7 +366,7 @@ class Table(LazyLoad):
             location=self.location, resources=self.resources,
         )
 
-    def head(self, limit, partition=None, columns=None):
+    def head(self, limit=20, partition=None, columns=None):
         """
         Get the head records of a table or its partition.
 
