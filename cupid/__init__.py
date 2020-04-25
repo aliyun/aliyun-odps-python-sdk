@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version_info = (0, 9, 0)
-_num_index = max(idx if isinstance(v, int) else 0
-                 for idx, v in enumerate(version_info))
-__version__ = '.'.join(map(str, version_info[:_num_index + 1])) + \
-              ''.join(version_info[_num_index + 1:])
+from .session import CupidSession
+from .config import options  # no op
+from .runtime import context
+
+from ._version import version_info, __version__

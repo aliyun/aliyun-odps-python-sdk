@@ -1,0 +1,33 @@
+syntax = "proto2";
+package apsara.odps.cupid.protocol;
+
+option cc_generic_services = true;
+option java_generic_services = true;
+option py_generic_services = true;
+
+service KVStoreService
+{
+    rpc Put(PutRequest) returns (PutResponse);
+
+    rpc Get(GetRequest) returns (GetResponse);
+}
+
+message PutRequest
+{
+  optional string key = 1;
+  optional bytes value = 2;
+}
+
+message PutResponse
+{
+}
+
+message GetRequest
+{
+  optional string value = 1;
+}
+
+message GetResponse
+{
+  optional bytes value = 1;
+}

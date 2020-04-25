@@ -1,0 +1,266 @@
+syntax = "proto2";
+package apsara.odps.cupid.protocol;
+
+option java_outer_classname = "CupidTaskParamProtos";
+
+message JobConfItem {
+    required string key = 1;
+    required string value = 2;
+}
+
+message JobConf {
+    repeated JobConfItem jobconfitem = 1;
+}
+
+message CupidTaskOperator {
+    required string moperator = 1;
+    optional string mlookupName = 2;
+    optional string menginetype = 3;
+}
+
+message MultiTablesInputInfos{
+   optional int32 splitSize = 1;
+   optional int32 splitCount = 2;
+   repeated MultiTablesInputInfoItem multiTablesInputInfoItem = 3;
+   optional string splitTempDir = 4;
+   optional bool require_split_info = 5;
+   optional int32 inputId = 6;
+}
+
+message MultiTablesInputInfoItem{
+  required string projName = 1;
+  required string tblName = 2;
+  optional string cols = 3;
+  optional string schema = 4;
+  optional string partSpecs = 5;
+}
+
+message PartitionSizeInfo{
+  required string projName = 1;
+  required string tblName = 2;
+  repeated string cols = 3;
+  optional string schema = 4;
+  optional int32 splitSize = 5;
+  optional int32 splitCount = 6;
+  repeated string partSpecs = 7;
+  optional int32 odpsRdtId = 8;
+  optional string splitTempDir = 9;
+}
+
+message CupidSetInformation {
+    optional string instanceId = 1;
+    optional string key = 2;
+    optional string value = 3;
+}
+
+message CupidProxyTokenRequest {
+    optional string instanceId = 1;
+    optional string appName = 2;
+    optional int32 expiredInHours = 3;
+}
+
+message GetApplicationMetaInfo {
+  optional string applicationId = 1;
+  optional string instanceId = 2;
+}
+
+message UpdateApplicationMetaInfo {
+  optional string applicationId = 1;
+  optional ApplicationMeta applicationMeta = 2;
+  optional string instanceId = 3;
+}
+
+message ListApplicationMetaInfo {
+  optional string applicationTypes = 1;
+  optional string yarnApplicationStates = 2;
+}
+
+message CreateApplicationMetaInfo {
+  optional string applicationId = 1;
+  optional string instanceId = 2;
+  optional string applicationTags = 3;
+  optional string applicationType = 4;
+  optional string runningMode = 5;
+  optional string applicationName = 6;
+}
+
+message GenVolumePanguPathInfo{
+    optional string odpsvolumepath = 1;
+}
+
+message SplitItem {
+    optional uint32 partitionid = 1 ;
+    optional uint64 splitfilestart = 2;
+    optional uint64 splitfileend = 3;
+    optional uint64 schemafilestart = 4;
+    optional uint64 schemafileend = 5;
+}
+
+message GetPartitionSizeResult{
+  optional int64 size = 1;
+  optional string splitTempDir = 2;
+  repeated SplitItem split_item = 3;
+}
+
+message CommitFile
+{
+    optional string fileName = 1;
+    optional int32 bucketId = 2;
+}
+
+message CommitFileList
+{
+    repeated CommitFile fileEntries = 1;
+}
+
+message DDLMultiTableInfoItem
+{
+  required string saveTableName = 1;
+  required string saveTableProject = 2;
+  optional string panguTempDirSuffix = 3;
+  optional string partSpec = 4;
+  optional bool isOverWrite = 5;
+  optional CommitFileList fileList = 6;
+}
+
+message DDLMultiTableInfos
+{
+    repeated DDLMultiTableInfoItem ddlMultiTableInfoItems = 1;
+}
+
+message DDLInfo
+{
+  required string saveTableName = 1;
+  required string saveTableProject = 2;
+  optional bool isOverWrite = 3;
+  repeated DDLInfoIterm ddlInfoIterms = 4;
+}
+
+message DDLInfoIterm
+{
+	required string partSpec = 1;
+	required string panguTempDirPath = 2;
+}
+
+message SaveTableInfo
+{
+	required string projectname = 1;
+	required string saveid = 2;
+	optional string tablename = 3;
+}
+
+message SubApplicationMeta
+{
+    // might be more field to store
+    // appName must be unique within a cupid instance
+    optional string appName = 1;
+    optional string trackingUrl = 2;
+}
+
+message ApplicationMeta {
+  optional string project = 1;
+  optional string instanceId = 2;
+  optional string applicationId = 3;
+  optional string applicationTags = 4;
+  optional string runningMode = 5;
+  optional string applicationType = 6;
+  optional int64 yarnApplicationState = 7;
+  optional int64 finalApplicationStatus = 8;
+  optional string originalTrackingUrl = 9;
+  optional string trackingUrl = 10;
+  optional string diagnostics = 11;
+  optional string applicationName = 12;
+  optional uint64 startedTime = 13;
+  optional uint64 finishedTime = 14;
+  repeated SubApplicationMeta subAppMetas = 15;
+}
+
+message TaskServiceRequest {
+  optional string methodName = 1;
+  optional bytes requestInBytes = 2;
+}
+
+message ApplicationMetaList {
+  repeated ApplicationMeta applicationMetaList = 1;
+}
+
+message CupidTaskParam {
+    required CupidTaskOperator mcupidtaskoperator = 1;
+    optional JobConf jobconf = 2;
+    optional OdpsLocalResource localresource = 3;
+    optional PartitionSizeInfo partitionsizeinfo = 4;
+    optional DDLInfo ddlInfo = 5;
+    optional SaveTableInfo saveTableInfo = 6;
+    optional GenVolumePanguPathInfo genVolumePanguPathInfo = 7;
+    optional DDLMultiTableInfos  ddlMultiTableInfos = 8;
+    optional MultiTablesInputInfos  multiTablesInputInfos = 9;
+    optional GetApplicationMetaInfo getApplicationMetaInfo = 10;
+    optional CreateApplicationMetaInfo createApplicationMetaInfo = 11;
+    optional ListApplicationMetaInfo listApplicationMetaInfo = 12;
+    optional UpdateApplicationMetaInfo updateApplicationMetaInfo = 13;
+    optional CupidSetInformation cupidSetInformation = 14;
+    optional CupidProxyTokenRequest cupidProxyTokenRequest = 15;
+    optional TaskServiceRequest taskServiceRequest = 16;
+}
+
+message Ready {
+}
+
+message Running {
+  required string runningMsg = 1;
+}
+
+message Success {
+  required string successMsg = 1;
+}
+
+message BizFailed {
+  required string bizFailedMsg = 1;
+}
+
+message CupidTaskFailed {
+  required string cupidTaskFailedMsg = 1;
+}
+
+message Failed {
+  optional BizFailed bizFailed= 1;
+  optional CupidTaskFailed cupidTaskFailed= 2;
+}
+
+message Cancelled {
+}
+
+message Waiting {
+}
+
+message WaitForReRun {
+  optional string waitMsg = 1;
+}
+
+
+message CupidTaskDetailResultParam {
+  optional Ready ready = 1;
+  optional Waiting waiting = 2;
+  optional Running running = 3;
+  optional Success success = 4;
+  optional Failed failed = 5;
+  optional Cancelled cancelled = 6;
+  optional WaitForReRun waitForReRun = 7;
+}
+
+enum LocalResourceType {
+  TempResource = 1;
+  Volume = 2;
+  Resource = 3;
+}
+
+message OdpsLocalResourceItem{
+  optional string projectname = 1;
+  required string relativefilepath = 2;
+  required LocalResourceType type = 3;
+}
+
+message OdpsLocalResource {
+  repeated OdpsLocalResourceItem localresourceitem = 1;
+}
+
