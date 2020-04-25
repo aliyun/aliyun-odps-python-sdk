@@ -1774,5 +1774,16 @@ try:
 except ImportError:
     pass
 
+try:
+    from .mars_extension import create_mars_cluster, persist_mars_dataframe, \
+        to_mars_dataframe, persist_tensor_via_oss
+    setattr(ODPS, 'create_mars_cluster', create_mars_cluster)
+    setattr(ODPS, 'persist_mars_dataframe', persist_mars_dataframe)
+    setattr(ODPS, 'to_mars_dataframe', to_mars_dataframe)
+    setattr(ODPS, 'persist_tensor_via_oss', persist_tensor_via_oss)
+except ImportError:
+    pass
+
+
 if 'PYODPS_ENDPOINT' in os.environ:
     DEFAULT_ENDPOINT = os.environ.get('PYODPS_ENDPOINT')

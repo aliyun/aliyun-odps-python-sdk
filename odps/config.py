@@ -433,3 +433,6 @@ options.register_pandas('display.expand_frame_repr', True)
 options.register_pandas('display.show_dimensions', 'truncate', validator=is_in([True, False, 'truncate']))
 
 options.register_option('display.notebook_repr_widget', True, validator=is_bool)
+
+# Mars
+options.register_option('mars.use_common_proxy', True, validator=is_bool)

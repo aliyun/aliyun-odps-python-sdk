@@ -1,0 +1,191 @@
+syntax = "proto2";
+
+package apsara.odps.cupid.protocol;
+
+option cc_generic_services = true;
+option py_generic_services = true;
+option java_generic_services = true;
+option java_outer_classname = "CupidTaskServiceProto";
+
+import "cupidtaskparam.proto";
+
+service CupidTaskService
+{
+    // Split input tables into partitions for parallel read
+    rpc SplitTables(SplitTablesRequest) returns (SplitTablesResponse);
+
+    // Prepare enviroment for write table, like direcotry creation and cap file preparation
+    // More like a openFile operation in FileSystem
+    rpc WriteTable(WriteTableRequest) returns (WriteTableResponse);
+
+    // Commit Table and do DDL
+    rpc CommitTable(CommitTableRequest) returns (CommitTableResponse);
+
+    // Close and clean up
+    rpc CloseOutputHandle(CloseOutputHandleRequest) returns (CloseOutputHandleResponse);
+
+    // CLusterKV meta Ops
+    rpc PutOrCreateClusterKv(PutOrCreateClusterKvRequest) returns (PutOrCreateClusterKvResponse);
+    rpc DeleteClusterKv(DeleteClusterKvRequest) returns (DeleteClusterKvResponse);
+    rpc GetClusterKv(GetClusterKvRequest) returns (GetClusterKvResponse);
+    rpc ListByPrefixClusterKv(ListByPrefixClusterKvRequest) returns (ListByPrefixClusterKvResponse);
+
+    // Get Table Meta
+    rpc GetTableMeta(GetTableMetaRequest) returns (GetTableMetaResponse);
+
+    // Get proxy infos
+    rpc GetCupidProxyToken(CupidProxyTokenRequest) returns (CupidProxyTokenResponse);
+    rpc GetCupidProxyAppNames(CupidProxyAppNamesRequest) returns (CupidProxyAppNamesResponse);
+}
+
+message TableInputInfo
+{
+     // InputDef represent a InputSplit query unit
+     // PartitionTable: (project, table, partitionSpec)
+     // NonPartitionTable: (project, table)
+     optional string projectName = 1;
+     optional string tableName = 2;
+     optional string columns = 3;
+     optional string partSpec = 4;
+     optional int32 bucketId = 5;
+}
+
+message SplitTablesRequest
+{
+    optional string lookupName = 1;
+    optional int32 splitSize = 2;
+    optional int32 splitCount = 3;
+    repeated TableInputInfo tableInputInfos = 4;
+    optional string type = 5;
+}
+
+message SplitTablesResponse
+{
+    optional string inputTableHandle = 1;
+}
+
+message WriteTableRequest
+{
+    // need to provide a running instanceId and the target project/table to WRITE
+    optional string lookupName = 1;
+    optional string projectName = 2;
+    optional string tableName = 3;
+    optional string type = 4;
+}
+
+message WriteTableResponse
+{
+    optional string outputTableHandle = 1;
+}
+
+message CommitTableRequest
+{
+    optional string lookupName = 1;
+    optional string outputTableHandle = 2;
+    optional string projectName = 3;
+    optional string tableName = 4;
+    optional bool isOverWrite = 5;
+    repeated string partSpecs = 6;
+    repeated CommitFileList commitFileLists = 7;
+}
+
+message CommitTableResponse
+{
+
+}
+
+message TableInfo
+{
+    optional string projectName = 1;
+    optional string tableName = 2;
+}
+
+message GetTableMetaRequest
+{
+    optional string lookupName = 1;
+    optional TableInfo tableInfo = 2;
+    optional bool needContent = 3;
+    optional string uploadFile = 4;
+}
+
+message GetTableMetaResponse
+{
+    optional string getTableMetaHandle = 1;
+    optional string getTableMetaContent = 2;
+}
+
+message CloseOutputHandleRequest
+{
+    optional string lookupName = 1;
+    optional string outputTableHandle = 2;
+}
+
+message CloseOutputHandleResponse
+{
+}
+
+message ClusterKv
+{
+    optional string key = 1;
+    optional string value = 2;
+}
+
+message PutOrCreateClusterKvRequest
+{
+    optional string projectName = 1;
+    optional string key = 2;
+    optional string value = 3;
+}
+
+message PutOrCreateClusterKvResponse
+{
+
+}
+
+message DeleteClusterKvRequest
+{
+    optional string projectName = 1;
+    optional string key = 2;
+}
+
+message DeleteClusterKvResponse
+{
+
+}
+
+message GetClusterKvRequest
+{
+    optional string projectName = 1;
+    optional string key = 2;
+}
+
+message GetClusterKvResponse
+{
+    optional string value = 1;
+}
+
+message ListByPrefixClusterKvRequest
+{
+    optional string projectName = 1;
+    optional string prefix = 2;
+}
+
+message ListByPrefixClusterKvResponse
+{
+    repeated ClusterKv clusterKv = 1;
+}
+
+message CupidProxyTokenResponse
+{
+    optional string token = 1;
+}
+
+message CupidProxyAppNamesRequest
+{
+    optional string instanceId = 1;
+}
+
+message CupidProxyAppNamesResponse
+{
+    repeated string names = 1;
+}

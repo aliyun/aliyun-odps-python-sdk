@@ -1,0 +1,24 @@
+syntax = "proto2";
+
+package apsara.odps.cupid.protocol;
+
+option cc_generic_services = true;
+option py_generic_services = true;
+option java_generic_services = true;
+option java_outer_classname = "CupidProcessServiceProto";
+
+message EnvEntry
+{
+  optional string name = 1;
+  optional string value = 2;
+}
+
+message ChildEnv
+{
+  repeated EnvEntry entries = 1;
+}
+
+service ProcessService
+{
+  rpc Prepare(ChildEnv) returns (ChildEnv);
+}

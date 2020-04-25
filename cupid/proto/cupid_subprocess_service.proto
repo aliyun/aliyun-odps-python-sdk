@@ -1,0 +1,108 @@
+syntax = "proto2";
+
+package apsara.odps.cupid.protocol;
+
+option cc_generic_services = true;
+option py_generic_services = true;
+option java_generic_services = true;
+option java_outer_classname = "CupidSubProcessServiceProto";
+
+service CupidSubProcessService
+{
+    // Get Splits Detail
+    rpc GetSplits(GetSplitsRequest) returns (GetSplitsResponse);
+
+    // Subprocess Reader return
+    rpc RegisterTableReader(RegisterTableReaderRequest) returns (RegisterTableReaderResponse);
+
+    // Subprocess Writer return
+    rpc RegisterTableWriter(RegisterTableWriterRequest) returns (RegisterTableWriterResponse);
+
+    // Moving the open&close TMP files into staging Directory for further ddl action
+    rpc CommitTableFiles(CommitTableFilesRequest) returns (CommitTableFilesResponse);
+
+    // Internal GetInformation Call
+    // Cupid Worker Directly talk to CupidTask
+    rpc InternalGetInformation(InternalGetInformationRequest) returns (InternalGetInformationResponse);
+}
+
+message InputSplit
+{
+    optional uint32 splitIndexId = 1 ;
+    optional uint64 splitFileStart = 2;
+    optional uint64 splitFileEnd = 3;
+    optional uint64 schemaFileStart = 4;
+    optional uint64 schemaFileEnd = 5;
+}
+
+message GetSplitsRequest
+{
+    optional string inputTableHandle = 1;
+}
+
+message GetSplitsResponse
+{
+    repeated InputSplit inputSplits = 1;
+}
+
+message RegisterTableReaderRequest
+{
+    optional string inputTableHandle = 1;
+    optional InputSplit inputSplit = 2;
+}
+
+message RegisterTableReaderResponse
+{
+    optional string schema = 1;
+    optional string readIterator = 2;
+    optional string partitionSchema = 3;
+}
+
+message RegisterTableWriterRequest
+{
+    optional string outputTableHandle = 1;
+    optional string projectName = 2;
+    optional string tableName = 3;
+    optional string attemptFileName = 4;
+    optional string partSpec = 5;
+    optional string schema = 6;
+    optional string tableMetaFileName = 7;
+}
+
+message RegisterTableWriterResponse
+{
+    optional string subprocessWriteTableLabel = 1;
+}
+
+message CommitActionInfo
+{
+    optional string partSpec = 1;
+    optional string attemptFileName = 2;
+    optional string commitFileName = 3;
+}
+
+message CommitTableFilesRequest
+{
+    optional string outputTableHandle = 1;
+    optional string projectName = 2;
+    optional string tableName = 3;
+    repeated CommitActionInfo commitActionInfos = 4;
+}
+
+message CommitTableFilesResponse
+{
+
+}
+
+message InternalGetInformationRequest
+{
+    optional string requestProtoBufStr = 1;
+    optional string projectName = 2;
+    optional string instanceId = 3;
+}
+
+message InternalGetInformationResponse
+{
+    optional string responseProtoBufStr = 1;
+}
+

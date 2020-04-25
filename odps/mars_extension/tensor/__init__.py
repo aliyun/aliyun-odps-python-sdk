@@ -1,4 +1,6 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Copyright 1999-2018 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version_info = (0, 9, 0)
-_num_index = max(idx if isinstance(v, int) else 0
-                 for idx, v in enumerate(version_info))
-__version__ = '.'.join(map(str, version_info[:_num_index + 1])) + \
-              ''.join(version_info[_num_index + 1:])
+import os
+import pkgutil
+import sys
+
+try:
+    from .datasource import read_coo
+    from .datastore import write_coo
+except ImportError as e:
+    if 'CI_MODE' in os.environ and pkgutil.find_loader('mars') is not None:
+        if sys.version_info[0] > 2:  # todo remove this check when mars package under py27mu is fixed
+            raise
+    read_coo, write_coo = None, None
+
+__all__ = ['read_coo', 'write_coo']

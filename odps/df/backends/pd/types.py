@@ -102,6 +102,8 @@ def df_type_to_np_type(df_type):
         return np.dtype(datetime)
     elif df_type == types.decimal:
         return np.dtype(Decimal)
+    elif df_type == types.binary:
+        return np.dtype('bytes')
     else:
         raise TypeError('Unknown DataFrame dtype: %s' % df_type)
 

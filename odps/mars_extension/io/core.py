@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2018 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version_info = (0, 9, 0)
-_num_index = max(idx if isinstance(v, int) else 0
-                 for idx, v in enumerate(version_info))
-__version__ = '.'.join(map(str, version_info[:_num_index + 1])) + \
-              ''.join(version_info[_num_index + 1:])
+from ...compat import urlparse
+
+_file_systems = dict()
+
+
+def _get_scheme(path):
+    result = urlparse(path)
+    return result.scheme if result.scheme else 'file'
+
+
+def open(path, mode, **kwargs):
+    scheme = _get_scheme(path)
+    fs = _file_systems[scheme](**kwargs)
+    return fs.open(path, mode)
+
+
+def glob(path, **kwargs):
+    scheme = _get_scheme(path)
+    fs = _file_systems[scheme](**kwargs)
+    return fs.glob(path)
