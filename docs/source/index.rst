@@ -55,5 +55,5 @@ PyODPS 的相关依赖会自动安装。
    interactive
    options
    faq
-   mars-int
+   mars
    api
