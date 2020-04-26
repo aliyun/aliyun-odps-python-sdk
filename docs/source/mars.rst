@@ -10,7 +10,8 @@ Mars 使用指南
 
 .. code:: shell
 
-    pip install pymars # install mars
+    pip install pymars==0.4.0rc1 # install mars
+    pip install pyarrow==0.11.1
 
 
 Mars 集群控制
