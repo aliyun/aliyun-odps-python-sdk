@@ -76,6 +76,10 @@ class MarsCupidClient(object):
     def session(self):
         return self._mars_session
 
+    @property
+    def instance_id(self):
+        return self._kube_instance.id
+
     def submit(self, worker_num=1, worker_cpu=8, worker_mem=32, disk_num=1, min_worker_num=None, cache_mem=None,
                resources=None, module_path=None, create_session=True, priority=None, running_cluster=None,
                scheduler_num=1, **kw):
@@ -99,8 +103,8 @@ class MarsCupidClient(object):
                     'worker_mem': worker_mem,
                     'cache_mem': cache_mem or '',
                     'disk_num': disk_num,
-                    'resources': resources or ['public.mars-0.4.0b2.zip',
-                                               'public.pyodps-0.8.5.zip'],
+                    'resources': resources or ['public.mars-0.4.0rc1.zip',
+                                               'public.pyodps-0.9.1.zip'],
                     'module_path': module_path or ['odps.mars_extension'],
                 }
                 if kw.get('mars_app_image', None) is not None:

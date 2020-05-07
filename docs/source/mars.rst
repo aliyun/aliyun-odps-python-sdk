@@ -10,8 +10,9 @@ Mars 使用指南
 
 .. code:: shell
 
-    pip install pymars==0.4.0rc1 # install mars
     pip install pyarrow==0.11.1
+    pip install pymars==0.4.0rc1 # install mars
+
 
 
 Mars 集群控制
@@ -26,6 +27,7 @@ PyODPS 提供了Mars的使用接口，用户拉起集群后，就可以使用Mar
 
 .. code:: python
 
+    >>> options.verbose=True # 通过设置自动打印 logview 以及 Mars endpoint
     >>> client = o.create_mars_cluster(5, 4, 16, min_worker_num=3)
 
 
@@ -52,7 +54,15 @@ PyODPS 提供了Mars的使用接口，用户拉起集群后，就可以使用Mar
 
     >>> print(client.get_logview_address())
 
-也可以通过设置``options.verbose``为 True，可以自动打印Logview等信息。
+获取 Instance id
+-----------------
+
+可以获取当前实例的 instance id。
+
+.. code:: python
+
+    >>> print(client.instance_id)
+
 
 
 释放集群
