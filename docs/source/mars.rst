@@ -10,7 +10,7 @@ Mars 使用指南
 
 .. code:: shell
 
-    pip install pyarrow==0.11.1
+    pip install pyarrow==0.12.1
     pip install pymars==0.4.0rc1 # install mars
 
 
