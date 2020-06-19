@@ -25,6 +25,14 @@
    resource = o.create_resource('test_file_resource', 'file', file_obj=open('/to/path/file'))  # 使用file-like的对象
    resource = o.create_resource('test_py_resource', 'py', file_obj='import this')  # 使用字符串
 
+
+可以通过 ``temp=True`` 创建一个临时资源。
+
+.. code-block:: python
+
+   resource = o.create_resource('test_file_resource', 'file', file_obj=open('/to/path/file'), temp=True)
+
+
 读取和修改文件资源
 ~~~~~~~~~~~~~~~~~~
 

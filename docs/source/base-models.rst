@@ -57,6 +57,14 @@ XFlow 的一个 Instance 包含若干个子 Instance，需要使用下面的方�
     >>> parameters = {'param1': 'param_value1', 'param2': 'param_value2', ...}
     >>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters, hints={'odps.xxx.yyy': 10})
 
+
+如果需要任务运行到指定卡型的机器上，可以在 hints 中增加如下配置：
+
+.. code-block:: python
+
+    >>> hints={"settings": json.dumps({"odps.algo.hybrid.deploy.info": "xxxxx"})
+
+
 使用 options.ml.xflow_settings 可以配置全局设置：
 
 .. code-block:: python
