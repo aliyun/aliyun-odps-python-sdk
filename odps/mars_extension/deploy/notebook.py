@@ -28,13 +28,14 @@ from .client import NOTEBOOK_NAME
 from ...utils import to_str
 
 
-NOTEBOOK_PORT = 50003
+DEFAULT_NOTEBOOK_PORT = 50003
 
 
 def start_notebook(port):
     proc = subprocess.Popen([sys.executable, '-m', 'jupyter', 'notebook', '--ip', '0.0.0.0',
                              '--no-browser', '--allow-root', '--port', str(port),
-                             '--NotebookApp.token=""', '--NotebookApp.password=""'])
+                             '--NotebookApp.token=""', '--NotebookApp.password=""',
+                             '--NotebookApp.disable_check_xsrf=True'])
     while True:
         if proc.poll() is not None:
             raise SystemError('Notebook not started.')
@@ -88,11 +89,18 @@ def config_startup():
 
 def _main():
     from cupid import context
+    from mars.utils import get_next_port
 
     cupid_context = context()
     mars_endpoint = wait_mars_ready(cupid_context.kv_store(), CUPID_APP_NAME)
     host_addr = socket.gethostbyname(socket.gethostname())
-    endpoint = 'http://{0}:{1}'.format(host_addr, NOTEBOOK_PORT)
+
+    if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
+        notebook_port = DEFAULT_NOTEBOOK_PORT
+    else:
+        notebook_port = str(get_next_port())
+
+    endpoint = 'http://{0}:{1}'.format(host_addr, notebook_port)
 
     # dump endpoint to ~/.mars
     dump_endpoint(mars_endpoint)
@@ -101,11 +109,11 @@ def _main():
     config_startup()
 
     # start notebook
-    start_notebook(NOTEBOOK_PORT)
+    start_notebook(notebook_port)
 
     # modify in hyper mode
     if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
-        endpoint = socket.gethostname() + "-{}".format(NOTEBOOK_PORT)
+        endpoint = socket.gethostname() + "-{}".format(notebook_port)
     cupid_context.register_application(NOTEBOOK_NAME, endpoint)
 
 

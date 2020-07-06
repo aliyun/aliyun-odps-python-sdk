@@ -20,7 +20,7 @@ import random
 import requests
 
 from .base import BaseTunnel
-from .io.writer import RecordWriter, BufferredRecordWriter
+from .io.writer import RecordWriter, BufferredRecordWriter, StreamRecordWriter
 from .io.reader import TunnelRecordReader
 from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputStream
 from .errors import TunnelError
@@ -346,6 +346,180 @@ class TableUploadSession(serializers.JSONSerializableModel):
         self.parse(resp, obj=self)
 
 
+class TableStreamUploadSession(serializers.JSONSerializableModel):
+    __slots__ = '_client', '_table', '_partition_spec', '_compress_option',
+
+    schema = serializers.JSONNodeReferenceField(Schema, 'schema')
+    id = serializers.JSONNodeField('session_name')
+    status = serializers.JSONNodeField('status')
+    slots = serializers.JSONNodeField(
+        'slots', parse_callback=lambda val: TableStreamUploadSession.Slots(val))
+
+    class Slots(object):
+        def __init__(self, slot_elements):
+            self._slots = []
+            self._cur_index = -1
+            for value in slot_elements:
+                if len(value) != 2:
+                    raise TunnelError('Invalid slot routes')
+                self._slots.append(TableStreamUploadSession.Slot(value[0], value[1]))
+
+            if len(self._slots) > 0:
+                self._cur_index = random.randint(0, len(self._slots))
+            self._iter = iter(self)
+
+        def __len__(self):
+            return len(self._slots)
+
+        def __next__(self):
+            return next(self._iter)
+
+        def __iter__(self):
+            while True:
+                if self._cur_index < 0:
+                    yield None
+                else:
+                    self._cur_index += 1
+                    if self._cur_index >= len(self._slots):
+                        self._cur_index = 0
+                    yield self._slots[self._cur_index]
+
+    class Slot(object):
+        def __init__(self, slot, server):
+            self._slot = slot
+            self._ip = None
+            self._port = None
+            self.set_server(server, True)
+
+        @property
+        def slot(self):
+            return self._slot
+
+        @property
+        def ip(self):
+            return self._ip
+
+        @property
+        def port(self):
+            return self._port
+
+        @property
+        def server(self):
+            return str(self._ip) + ':' + str(self._port)
+
+        def set_server(self, server, check_empty=False):
+            if len(server.split(':')) != 2:
+                raise TunnelError('Invalid slot format: {}'.format(server))
+
+            ip, port = server.split(':')
+
+            if check_empty:
+                if (not ip) or (not port):
+                    raise TunnelError('Empty server ip or port')
+            if ip:
+                self._ip = ip
+            if port:
+                self._port = int(port)
+
+    def __init__(self, client, table, partition_spec, compress_option=None):
+        super(TableStreamUploadSession, self).__init__()
+
+        self._client = client
+        self._table = table
+
+        if isinstance(partition_spec, six.string_types):
+            partition_spec = types.PartitionSpec(partition_spec)
+        if isinstance(partition_spec, types.PartitionSpec):
+            partition_spec = str(partition_spec).replace("'", '')
+        self._partition_spec = partition_spec
+
+        self._init()
+        self._compress_option = compress_option
+
+    def _init(self):
+        params = dict()
+        headers = {'Content-Length': 0}
+        if self._partition_spec is not None and \
+                len(self._partition_spec) > 0:
+            params['partition'] = self._partition_spec
+
+        url = self._get_resource()
+        resp = self._client.post(url, {}, params=params, headers=headers)
+        if self._client.is_ok(resp):
+            self.parse(resp, obj=self)
+            if self.schema is not None:
+                self.schema.build_snapshot()
+        else:
+            e = TunnelError.parse(resp)
+            raise e
+
+    def _get_resource(self):
+        return self._table.resource() + '/' + 'streams'
+
+    def reload(self):
+        params = {'uploadid': self.id}
+        headers = {'Content-Length': 0}
+        if self._partition_spec is not None and \
+                len(self._partition_spec) > 0:
+            params['partition'] = self._partition_spec
+
+        url = self._get_resource()
+        resp = self._client.get(url, params=params, headers=headers)
+        if self._client.is_ok(resp):
+            self.parse(resp, obj=self)
+            if self.schema is not None:
+                self.schema.build_snapshot()
+        else:
+            e = TunnelError.parse(resp)
+            raise e
+
+    def reload_slots(self, slot, server, slot_num):
+        if len(self.slots) != slot_num:
+            self.reload()
+        else:
+            slot.set_server(server)
+
+    def new_record(self, values=None):
+        return Record(schema=self.schema, values=values)
+
+    def _open_writer(self, compress=False):
+        compress_option = self._compress_option or CompressOption()
+
+        slot = next(self.slots)
+
+        headers = {'Transfer-Encoding': 'chunked',
+                   'Content-Type': 'application/octet-stream',
+                   'x-odps-tunnel-version': 4,
+                   'odps-tunnel-routed-server': slot.server}
+
+        if compress:
+            if compress_option.algorithm == \
+                    CompressOption.CompressAlgorithm.ODPS_ZLIB:
+                headers['Content-Encoding'] = 'deflate'
+            elif compress_option.algorithm == \
+                    CompressOption.CompressAlgorithm.ODPS_SNAPPY:
+                headers['Content-Encoding'] = 'x-snappy-framed'
+            elif compress_option.algorithm != \
+                    CompressOption.CompressAlgorithm.ODPS_RAW:
+                raise TunnelError('invalid compression option')
+
+        params = dict(uploadid=self.id, slotid=slot.slot)
+        if self._partition_spec is not None and len(self._partition_spec) > 0:
+            params['partition'] = self._partition_spec
+
+        url = self._get_resource()
+        option = compress_option if compress else None
+
+        def upload(data):
+            return self._client.put(url, data=data, params=params, headers=headers)
+        writer = StreamRecordWriter(self.schema, upload, session=self, slot=slot, compress_option=option)
+
+        return writer
+
+    def open_record_writer(self, compress=False):
+        return self._open_writer(compress=compress)
+
+
 class TableTunnel(BaseTunnel):
     def create_download_session(self, table, async_=False, partition_spec=None,
                                 download_id=None, compress_option=None,
@@ -378,3 +552,16 @@ class TableTunnel(BaseTunnel):
         return TableUploadSession(self.tunnel_rest, table, partition_spec,
                                   upload_id=upload_id,
                                   compress_option=compress_option)
+
+    def create_stream_upload_session(self, table, partition_spec=None, compress_option=None,
+                                     compress_algo=None, compres_level=None, compress_strategy=None):
+        if not isinstance(table, six.string_types):
+            table = table.name
+        table = Projects(client=self.tunnel_rest)[self._project.name].tables[table]
+        compress_option = compress_option
+        if compress_option is None and compress_algo is not None:
+            compress_option = CompressOption(
+                compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
+
+        return TableStreamUploadSession(self.tunnel_rest, table, partition_spec,
+                                        compress_option=compress_option)

@@ -26,7 +26,6 @@ from .client import CUPID_APP_NAME
 from .utils import wait_all_schedulers_ready
 
 logger = logging.getLogger(__name__)
-WEB_PORT = 50002
 
 
 class CupidWebServiceMain(WebApplication):
@@ -59,7 +58,7 @@ class CupidWebServiceMain(WebApplication):
         kvstore[CUPID_APP_NAME] = json.dumps(dict(endpoint=endpoint))
 
         if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
-            endpoint = socket.gethostname() + "-{}".format(WEB_PORT)
+            endpoint = socket.gethostname() + "-{}".format(self.mars_web.port)
         self.cupid_context.register_application(CUPID_APP_NAME, endpoint)
 
     def stop(self):

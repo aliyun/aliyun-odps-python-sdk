@@ -17,10 +17,12 @@
 
 def _install():
     try:
-        from .prochelper import WorkerProcessHelperActor, CupidWorkerProcessHelperActor
+        from .prochelper import WorkerProcessHelperActor, CupidWorkerProcessHelperActor, \
+            CupidStatusActor, StatusActor
         from mars.actors import register_actor_implementation
 
         register_actor_implementation(WorkerProcessHelperActor, CupidWorkerProcessHelperActor)
+        register_actor_implementation(StatusActor, CupidStatusActor)
     except ImportError:
         pass
 

@@ -21,10 +21,10 @@ import logging
 
 import struct
 import time
+
 from google.protobuf import service as pb_service
-from odps import ODPS, compat
 from odps.compat import six
-from odps.models import CupidTask
+from odps import compat
 
 from . import errors
 from .config import options
@@ -70,6 +70,9 @@ class CupidRpcChannel(pb_service.RpcChannel):
     @staticmethod
     def submit_job(param_pb, running_mode, priority=None, with_resource=False, session=None,
                    running_cluster=None):
+        from odps import ODPS, compat
+        from odps.models import CupidTask
+
         if logger.getEffectiveLevel() <= logging.DEBUG:
             param_pb_str = str(param_pb)
             if isinstance(param_pb, cupidtaskparam_pb2.CupidTaskParam):
@@ -193,6 +196,7 @@ class CupidTaskServiceRpcChannel(CupidRpcChannel):
 class SandboxRpcChannel(pb_service.RpcChannel):
     def CallMethod(self, method, controller, request, response_class, done):
         from .runtime import context
+
         context = context()
 
         try:

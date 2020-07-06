@@ -1221,7 +1221,8 @@ class TypedExpr(Expr):
             name = data_type.CLASS_NAME + base_class.__name__
             # get the typed class, e.g. Int64SequenceExpr, StringScalar
             typed_cls = globals().get(name)
-            assert typed_cls is not None
+            if typed_cls is None:
+                raise TypeError("Name {} doesn't exist".format(name))
 
             if issubclass(cls, typed_cls):
                 return cls

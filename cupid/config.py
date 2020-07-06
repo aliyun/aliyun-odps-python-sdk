@@ -29,7 +29,7 @@ options.register_option('cupid.running_engine_type', None)
 options.register_option('cupid.job_duration_hours', 25920)
 options.register_option('cupid.channel_init_timeout_seconds', 120)
 options.register_option('cupid.kube.master_mode', 'cupid')
-
+options.register_option('cupid.runtime.endpoint', 'http://service.cn.maxcompute.aliyun-inc.com/api')
 
 # mars app config
 options.register_option('cupid.mars_image', None)

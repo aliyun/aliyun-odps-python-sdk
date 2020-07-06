@@ -19,7 +19,7 @@ import logging
 from mars.worker.__main__ import WorkerApplication
 from .utils import wait_all_schedulers_ready
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('mars.worker')
 
 
 class CupidWorkerServiceMain(WorkerApplication):
@@ -54,10 +54,13 @@ class CupidWorkerServiceMain(WorkerApplication):
         actor_client = new_client()
         proc_helpers = self._service._process_helper_actors
         for proc_helper_actor in proc_helpers:
+            logger.info('Start channel for subprocess %s.', proc_helper_actor.uid)
             envs = self.cupid_context.prepare_channel()
             proc_helper_ref = actor_client.actor_ref(proc_helper_actor)
             new_envs = dict((env.name, env.value) for env in envs)
             proc_helper_ref.start_channel(new_envs)
+        logger.info('All channel ready, upload worker status now.')
+        self._service._status_ref.enable_status_upload(channel_ready=True, _tell=True)
 
     def stop(self):
         self.cupid_context.channel_client.stop()

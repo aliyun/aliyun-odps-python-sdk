@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
+import os
 import time
 import uuid
+import logging
 
 from mars.dataframe.operands import DataFrameOperandMixin, DataFrameOperand, ObjectType
 from mars.serialize import StringField, SeriesField, BoolField, DictField, Int64Field
@@ -47,6 +48,10 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
                                                   _write_batch_size=write_batch_size,
                                                   _object_type=ObjectType.dataframe,
                                                   **kw)
+
+    @property
+    def retryable(self):
+        return False
 
     @property
     def dtypes(self):
@@ -81,9 +86,14 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         from odps import ODPS
         from odps.accounts import BearerTokenAccount
         from cupid import CupidSession, context
+        from mars.dataframe.utils import build_concatenated_rows_frame
 
         bearer_token = context().get_bearer_token()
         account = BearerTokenAccount(bearer_token)
+        project = os.environ.get('ODPS_PROJECT_NAME', None)
+        odps_params = op.odps_params.copy()
+        if project:
+            odps_params['project'] = project
         o = ODPS(None, None, account=account, **op.odps_params)
         cupid_session = CupidSession(o)
 
@@ -92,7 +102,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         logger.debug('Start creating upload session from cupid.')
         upload_session = cupid_session.create_upload_session(data_src)
 
-        input_df = op.inputs[0]
+        input_df = build_concatenated_rows_frame(op.inputs[0])
 
         out_chunks = []
         out_chunk_shape = (0,) * len(input_df.shape)
@@ -160,6 +170,10 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
                                                        **kw)
 
     @property
+    def retryable(self):
+        return False
+
+    @property
     def dtypes(self):
         return self._dtypes
 
@@ -191,6 +205,7 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
         from cupid.io.table.core import BlockWriter
 
         to_store_data = ctx[op.inputs[0].key]
+
         odps_schema = pd_to_df_schema(to_store_data, unknown_as_string=True)
         project_name, table_name = op.table_name.split('.')
         block_writer = BlockWriter(
