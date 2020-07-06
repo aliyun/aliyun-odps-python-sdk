@@ -431,6 +431,27 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
 
    upload_session.commit([0])
 
+也可以使用流式上传的接口：
+
+.. code-block:: python
+
+   from odps.tunnel import TableTunnel
+
+   table = o.get_table('my_table')
+
+   tunnel = TableTunnel(odps)
+   upload_session = tunnel.create_stream_upload_session(table.name, partition_spec='pt=test')
+
+   with upload_session.open_record_writer() as writer:
+       record = table.new_record()
+       record[0] = 'test1'
+       record[1] = 'id1'
+       writer.write(record)
+
+       record = table.new_record(['test2', 'id2'])
+       writer.write(record)
+
+
 下载
 ~~~~~~
 

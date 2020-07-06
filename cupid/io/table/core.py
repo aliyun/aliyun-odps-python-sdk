@@ -20,7 +20,6 @@ from types import GeneratorType
 from odps import options
 from odps.models import Table, Schema
 from odps.models.partition import Partition as TablePartition
-import pyarrow as pa
 
 from cupid.rpc import CupidRpcController, CupidTaskServiceRpcChannel, SandboxRpcChannel
 from cupid.proto import cupid_task_service_pb2 as task_service_pb
@@ -131,13 +130,15 @@ class TableSplit(object):
 
     def open_arrow_reader(self):
         from ...runtime import context
+        import pyarrow as pa
+
         context = context()
 
         read_iter, schema = self._register_reader()
 
         params = dict(type='ReadByLabel', label=read_iter, arrow=True, batch=True)
         stream = context.channel_client.create_file_reader('createTableInputStream', json.dumps(params).encode())
-        return pa.RecordBatchStreamReader(stream.read())
+        return pa.RecordBatchStreamReader(stream)
 
 
 class CupidTableDownloadSession(object):

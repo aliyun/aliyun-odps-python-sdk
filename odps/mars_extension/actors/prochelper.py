@@ -17,6 +17,7 @@
 import os
 
 from mars.worker import ProcessHelperActor as WorkerProcessHelperActor
+from mars.worker import StatusActor
 from mars.scheduler.utils import SchedulerActor
 
 
@@ -33,6 +34,11 @@ class CupidSchedulerProcessHelperActor(SchedulerActor):
 
         os.environ.update(envs)
         self._cupid_context = context()
+        odps_envs = {
+            'ODPS_BEARER_TOKEN': os.environ['BEARER_TOKEN_INITIAL_VALUE'],
+            'ODPS_ENDPOINT': os.environ['ODPS_RUNTIME_ENDPOINT'],
+        }
+        os.environ.update(odps_envs)
 
 
 class CupidWorkerProcessHelperActor(WorkerProcessHelperActor):
@@ -48,3 +54,15 @@ class CupidWorkerProcessHelperActor(WorkerProcessHelperActor):
 
         os.environ.update(envs)
         self._cupid_context = context()
+
+        odps_envs = {
+            'ODPS_BEARER_TOKEN': os.environ['BEARER_TOKEN_INITIAL_VALUE'],
+            'ODPS_ENDPOINT': os.environ['ODPS_RUNTIME_ENDPOINT'],
+        }
+        os.environ.update(odps_envs)
+
+
+class CupidStatusActor(StatusActor):
+    def enable_status_upload(self, channel_ready=False):
+        if channel_ready:
+            self._reporter_ref.enable_status_upload(_tell=True)

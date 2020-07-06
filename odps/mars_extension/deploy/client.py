@@ -29,6 +29,7 @@ from ... import errors
 
 NOTEBOOK_NAME = 'MarsNotebook'
 CUPID_APP_NAME = 'MarsWeb'
+DEFAULT_RESOURCES = ['public.mars-0.4.2.zip', 'public.pyodps-0.9.3.zip', 'public.pyarrow.zip']
 logger = logging.getLogger(__name__)
 
 
@@ -59,6 +60,7 @@ class MarsCupidClient(object):
         self._worker_config = None
         self._web_config = None
         self._endpoint = None
+        self._has_notebook = False
         self._notebook_endpoint = None
 
         self._mars_session = None
@@ -82,15 +84,29 @@ class MarsCupidClient(object):
 
     def submit(self, worker_num=1, worker_cpu=8, worker_mem=32, disk_num=1, min_worker_num=None, cache_mem=None,
                resources=None, module_path=None, create_session=True, priority=None, running_cluster=None,
-               scheduler_num=1, **kw):
+               scheduler_num=1, notebook=None, **kw):
         try:
             async_ = kw.pop('async_', None)
+            default_resources = kw.pop('default_resources', None) or DEFAULT_RESOURCES
+            if notebook is not None:
+                self._has_notebook = bool(notebook)
+            else:
+                self._has_notebook = options.mars.launch_notebook
             if self._kube_instance is None:
                 if module_path is not None:
                     if isinstance(module_path, (tuple, list)):
                         module_path = list(module_path) + ['odps.mars_extension']
                     else:
                         module_path = [module_path, 'odps.mars_extension']
+
+                if resources is not None:
+                    if isinstance(resources, (tuple, list)):
+                        resources = list(resources)
+                        resources.extend(default_resources)
+                    else:
+                        resources = [resources] + default_resources
+                else:
+                    resources = default_resources
 
                 if cache_mem is None:
                     cache_mem = str(worker_mem * 0.48) + 'G'
@@ -103,16 +119,22 @@ class MarsCupidClient(object):
                     'worker_mem': worker_mem,
                     'cache_mem': cache_mem or '',
                     'disk_num': disk_num,
-                    'resources': resources or ['public.mars-0.4.0rc1.zip',
-                                               'public.pyodps-0.9.1.zip'],
+                    'resources': resources,
                     'module_path': module_path or ['odps.mars_extension'],
                 }
-                if kw.get('mars_app_image', None) is not None:
-                    mars_config['mars_app_image'] = kw['mars_app_image']
-                if kw.get('proxy_endpoint', None) is not None:
-                    mars_config['proxy_endpoint'] = kw['proxy_endpoint']
-                if kw.get('major_task_version', None) is not None:
-                    mars_config['major_task_version'] = kw['major_task_version']
+                if 'mars_app_image' in kw:
+                    mars_config['mars_app_image'] = kw.pop('mars_app_image')
+                if 'mars_image' in kw:
+                    mars_config['mars_image'] = kw.pop('mars_image')
+                if 'proxy_endpoint' in kw:
+                    mars_config['proxy_endpoint'] = kw.pop('proxy_endpoint')
+                if 'major_task_version' in kw:
+                    mars_config['major_task_version'] = kw.pop('major_task_version')
+                mars_config['scheduler_mem'] = kw.pop('scheduler_mem', 32)
+                mars_config['scheduler_cpu'] = kw.pop('scheduler_cpu', 8)
+
+                if self._has_notebook:
+                    mars_config['notebook'] = True
                 self._kube_instance = self._cupid_session.start_kubernetes(
                     async_=True, running_cluster=running_cluster, priority=priority,
                     app_name='mars', app_config=mars_config, **kw)
@@ -177,7 +199,7 @@ class MarsCupidClient(object):
                     self._endpoint = self.get_mars_endpoint()
                     write_log('Mars UI: ' + self._endpoint)
                     self._req_session = self.get_req_session()
-                if self._notebook_endpoint is None:
+                if self._has_notebook and self._notebook_endpoint is None:
                     self._notebook_endpoint = self.get_notebook_endpoint()
                     write_log('Notebook UI: ' + self._notebook_endpoint)
             except KeyboardInterrupt:

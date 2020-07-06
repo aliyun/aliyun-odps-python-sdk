@@ -14,18 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from .oss import to_mars_tensor_via_oss, persist_tensor_via_oss
-except ImportError:
-    to_mars_tensor_via_oss = None
-    persist_tensor_via_oss = None
 
 try:
-    from .core import create_mars_cluster, to_mars_dataframe, persist_mars_dataframe
+    from .core import create_mars_cluster, to_mars_dataframe, \
+        persist_mars_dataframe, run_script_in_mars, run_mars_job
 except ImportError:
     create_mars_cluster = None
     to_mars_dataframe = None
     persist_mars_dataframe = None
+    run_mars_script = None
+    run_mars_job = None
 
 try:
     from . import dataframe
@@ -41,3 +39,18 @@ try:
     from . import actors
 except ImportError:
     actors = None
+
+try:
+    from mars.executor import register
+    from mars.remote.core import RemoteFunction
+    from .core import execute_with_odps_context
+    from .run_script import RunScript
+
+    register(RemoteFunction, execute_with_odps_context(RemoteFunction.execute))
+    register(RunScript, execute_with_odps_context(RunScript.execute))
+except ImportError:
+    pass
+
+
+INTERNAL_PATTERN = '\/[^\.]+\.[^\.-]+\.[^\.-]+\-[^\.-]+\.'
+

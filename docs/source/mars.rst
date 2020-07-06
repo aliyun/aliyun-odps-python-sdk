@@ -52,6 +52,7 @@ Mars
     pip install pyodps>=0.9.2  # pyodps 需要至少 0.9.2
     pip install pymars>=0.4.0rc1  # mars 版本需要至少是 0.4.0rc1
 
+
 .. _odps_entry:
 
 .. rubric:: 准备 ODPS 入口
@@ -65,9 +66,17 @@ ODPS 入口是 MaxCompute 所有操作的基础：
 在 MaxCompute 上使用 Mars，我们提供了简单易用的接口来拉起 Mars 集群，用户不需要关心安装和维护集群。同时，通过 MaxCompute 拉起的 Mars，也支持直接读写 MaxCompute 表。
 
 
+.. rubric:: Mars 简介
+    :class: rubric-h3
+
+Mars 能够加速 Python 数据科学栈，兼容 numpy、pandas 和 scikit-learn 的接口，可以通过查看 `Mars文档 <https://docs.pymars.org/zh_CN/latest/>`__ 了解详细用法，
+并且 Mars 能够直接读写 MaxCompute 表，具体用法可以参考 :ref:`Mars 读写表 <read_write_table>` 。
+
 .. toctree::
    :maxdepth: 1
 
    mars-introduction
    mars-quickstart
    mars-user-guide
+   mars-third-parties
+   mars-faq

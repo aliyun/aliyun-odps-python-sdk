@@ -94,6 +94,22 @@ class Test(TestBase):
         writer.close()
         upload_ss.commit([0, ])
 
+    def _stream_upload_data(self, test_table, records, compress=False, **kw):
+        upload_ss = self.tunnel.create_stream_upload_session(test_table, **kw)
+        writer = upload_ss.open_record_writer(compress=compress)
+
+        # test use right py or c writer
+        self.assertEqual(self.mode, writer._mode())
+
+        for r in records:
+            record = upload_ss.new_record()
+            # test record
+            self.assertEqual(self.mode, record._mode())
+            for i, it in enumerate(r):
+                record[i] = it
+            writer.write(record)
+        writer.close()
+
     def _buffered_upload_data(self, test_table, records, buffer_size=None, compress=False, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
         writer = upload_ss.open_record_writer(buffer_size=buffer_size, compress=compress)
@@ -159,6 +175,18 @@ class Test(TestBase):
         data = self._gen_data()
 
         self._upload_data(test_table_name, data)
+        records = self._download_data(test_table_name)
+        self.assertSequenceEqual(data, records)
+
+        self._delete_table(test_table_name)
+
+    @bothPyAndC
+    def testStreamUploadAndDownloadTunnel(self):
+        test_table_name = tn('pyodps_test_stream_upload')
+        self._create_table(test_table_name)
+        data = self._gen_data()
+
+        self._stream_upload_data(test_table_name, data)
         records = self._download_data(test_table_name)
         self.assertSequenceEqual(data, records)
 

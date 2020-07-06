@@ -17,6 +17,7 @@ import json
 from ctypes import CDLL, RTLD_GLOBAL, create_string_buffer,\
     c_char, c_void_p, c_char_p, c_int32, c_uint32, byref, POINTER
 from ctypes.util import find_library
+from io import IOBase
 
 from odps.compat import BytesIO, six
 from odps.utils import to_binary
@@ -190,7 +191,7 @@ def _call_with_raise(func, *args):
             ChannelApiError_delete(err_ptr)
 
 
-class IStreamWrapper(object):
+class IStreamWrapper(IOBase):
     def __init__(self, ptr, free=True):
         self._ptr = ptr
         self._free = free
@@ -202,6 +203,13 @@ class IStreamWrapper(object):
         if self._free and self._ptr is not None:
             Subprocess_StdIStream_delete(self._ptr)
             self._ptr = None
+
+    @property
+    def closed(self):
+        if self._ptr is None:
+            return True
+        else:
+            return False
 
     def _reset(self):
         self._ptr = None
@@ -225,9 +233,7 @@ class IStreamWrapper(object):
             return buf_io.getvalue()
         else:
             p = create_string_buffer(size)
-            ret_size = Subprocess_StdIStream_read(self._ptr, p, size)
-            if ret_size == 0 and Subprocess_StdIStream_eof(self._ptr):
-                raise SubprocessStreamEOFError('Subprocess stream exhausted')
+            Subprocess_StdIStream_read(self._ptr, p, size)
             return p.raw
 
     def readinto(self, b, offset=0):
@@ -271,7 +277,7 @@ class IStreamWrapper(object):
         return Subprocess_StdIStream_tellg(self._ptr)
 
 
-class OStreamWrapper(object):
+class OStreamWrapper(IOBase):
     def __init__(self, ptr, free=True):
         self._ptr = ptr
         self._free = free
@@ -285,6 +291,13 @@ class OStreamWrapper(object):
         if self._free and self._ptr is not None:
             Subprocess_StdOStream_delete(self._ptr)
             self._ptr = None
+
+    @property
+    def closed(self):
+        if self._ptr is None:
+            return True
+        else:
+            return False
 
     def _reset(self):
         self._ptr = None

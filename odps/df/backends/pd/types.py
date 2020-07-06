@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
 try:
@@ -100,6 +100,10 @@ def df_type_to_np_type(df_type):
 
     if df_type == types.datetime:
         return np.dtype(datetime)
+    elif df_type == types.date:
+        return np.dtype(date)
+    elif df_type == types.timestamp:
+        return np.datetime64(0, 'ns').dtype
     elif df_type == types.decimal:
         return np.dtype(Decimal)
     elif df_type == types.binary:

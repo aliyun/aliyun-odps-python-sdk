@@ -32,20 +32,39 @@ def _build_mars_config(app_config):
 
     mars_config = dict()
 
-    scheduler_num = app_config['scheduler_num']
-    worker_num = app_config['worker_num']
-    worker_cpu = app_config['worker_cpu']
-    worker_mem = app_config['worker_mem']
-    cache_mem = app_config['cache_mem']
-    disk_num = app_config['disk_num']
     resources = app_config['resources']
     module_path = app_config['module_path']
     resources_config = ','.join(resources)
     module_path_config = ','.join(module_path)
+    mars_image = app_config.get('mars_image', None)
+
     mars_config['odps.cupid.resources'] = resources_config
-    mars_config['odps.cupid.kube.appmaster.cmd'] = '/srv/start_server.sh %d %d %d %s %d %s %d' % \
-                                                   (worker_num, worker_cpu, worker_mem, cache_mem, disk_num,
-                                                    module_path_config, scheduler_num)
+    notebook = app_config.get('notebook', None)
+    cmd = '/opt/conda/bin/python /srv/server.py ' \
+          '--scheduler-num {} ' \
+          '--scheduler-cpu {} ' \
+          '--scheduler-mem {} ' \
+          '--worker-num {} ' \
+          '--worker-cpu {} ' \
+          '--worker-mem {} ' \
+          '--disk-num {} ' \
+          '--cache-mem {} ' \
+          '--module-path {} '.format(
+        app_config['scheduler_num'],
+        app_config['scheduler_cpu'],
+        app_config['scheduler_mem'],
+        app_config['worker_num'],
+        app_config['worker_cpu'],
+        app_config['worker_mem'],
+        app_config['disk_num'],
+        app_config['cache_mem'],
+        module_path_config
+    )
+    if mars_image:
+        cmd = cmd + '--mars-image {} '.format(mars_image)
+    if notebook:
+        cmd = cmd + '--with-nootbook '
+    mars_config['odps.cupid.kube.appmaster.cmd'] = cmd
     mars_config['odps.cupid.kube.appmaster.image'] = app_config.get('mars_app_image', None) or \
                                                      options.cupid.mars_image
     return mars_config
@@ -135,6 +154,8 @@ class CupidSession(object):
 
     def start_kubernetes(self, async_=False, priority=None, running_cluster=None, **kw):
         priority = priority or options.priority
+        if priority is None and options.get_priority is not None:
+            priority = options.get_priority(self.odps)
         menginetype = options.cupid.running_engine_type
 
         self._kube_app_name = kw.get('app_name', None)
@@ -149,6 +170,7 @@ class CupidSession(object):
             options.cupid.major_task_version = major_task_version
 
         async_ = kw.get('async', async_)
+        runtime_endpoint = kw.get('runtime_endpoint', None)
         task_operator = task_param_pb.CupidTaskOperator(moperator='startam', menginetype=menginetype)
 
         kub_conf = {
@@ -157,7 +179,8 @@ class CupidSession(object):
             'odps.cupid.engine.running.type': menginetype,
             'odps.cupid.job.capability.duration.hours': options.cupid.job_duration_hours,
             'odps.cupid.channel.init.timeout.seconds': options.cupid.channel_init_timeout_seconds,
-            'odps.moye.runtime.type': options.cupid.application_type
+            'odps.moye.runtime.type': options.cupid.application_type,
+            'odps.runtime.end.point': runtime_endpoint or options.cupid.runtime.endpoint
         }
         app_conf = _build_app_config(self._kube_app_name, self._kube_app_config)
         kub_conf.update(app_conf)

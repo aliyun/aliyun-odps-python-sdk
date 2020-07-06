@@ -26,6 +26,8 @@ PyODPS 的相关依赖会自动安装。
 
 安装有 `合适版本 <https://wiki.python.org/moin/WindowsCompilers>`_ Visual C++和Cython的Windows用户也可使用Tunnel加速功能。
 
+.. _quick_start:
+
 .. rubric:: 快速开始
     :class: rubric-h2
 

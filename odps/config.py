@@ -436,3 +436,4 @@ options.register_option('display.notebook_repr_widget', True, validator=is_bool)
 
 # Mars
 options.register_option('mars.use_common_proxy', True, validator=is_bool)
+options.register_option('mars.launch_notebook', True, validator=is_bool)

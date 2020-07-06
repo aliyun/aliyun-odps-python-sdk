@@ -337,16 +337,14 @@ class Table(LazyLoad):
                 buf.write("LOCATION '%s'\n" % location)
             if resources:
                 buf.write("USING '%s'\n" % resources)
-
+        if stored_as:
+            buf.write("STORED AS %s\n" % escape_odps_string(stored_as))
         if lifecycle is not None and lifecycle > 0:
             buf.write(u'LIFECYCLE %s\n' % lifecycle)
         if shard_num is not None:
             buf.write(u'INTO %s SHARDS' % shard_num)
             if hub_lifecycle is not None:
                 buf.write(u' HUBLIFECYCLE %s\n' % hub_lifecycle)
-
-        if stored_as:
-            buf.write("STORED AS %s\n" % escape_odps_string(stored_as))
 
         return buf.getvalue().strip()
 

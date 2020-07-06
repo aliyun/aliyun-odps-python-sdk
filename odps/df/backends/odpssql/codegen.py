@@ -65,6 +65,8 @@ import sys
 from odps.udf import annotate
 from odps.distcache import get_cache_file, get_cache_table, get_cache_archive
 
+PY2 = sys.version_info[0] == 2
+
 try:
     from odps.distcache import get_cache_archive_filenames
 except ImportError:
@@ -200,6 +202,7 @@ def load_np_generic():
 
 
 UDF_TMPL = '''
+
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(object):
     def __init__(self):
@@ -264,7 +267,7 @@ class %(func_cls_name)s(object):
 
         res = []
         for t, arg in zip(self.from_types, args):
-            if t == 'datetime' and arg is not None and not isinstance(arg, datetime):
+            if t == 'datetime' and arg is not None and not isinstance(arg, datetime) and PY2:
                 res.append(datetime.fromtimestamp(arg / 1000.0))
             elif t == 'decimal' and arg is not None and isinstance(arg, str):
                 res.append(Decimal(arg))
@@ -281,7 +284,7 @@ class %(func_cls_name)s(object):
 
         t = self.to_type
 
-        if t == 'datetime' and isinstance(arg, datetime):
+        if t == 'datetime' and isinstance(arg, datetime) and PY2:
             if isinstance(arg, np_generic):
                 arg = arg.item()
             return self._to_milliseconds(arg)
@@ -308,8 +311,6 @@ class %(func_cls_name)s(object):
 UDTF_TMPL = '''
 import functools
 from odps.udf import BaseUDTF
-
-PY2 = sys.version_info[0] == 2
 
 if PY2:
     string_type = unicode
@@ -392,7 +393,7 @@ class %(func_cls_name)s(BaseUDTF):
 
         res = []
         for t, arg in zip(self.from_types, args):
-            if t == 'datetime' and arg is not None and not isinstance(arg, datetime):
+            if t == 'datetime' and arg is not None and not isinstance(arg, datetime) and PY2:
                 res.append(datetime.fromtimestamp(arg / 1000.0))
             elif t == 'decimal' and arg is not None and not isinstance(arg, Decimal):
                 res.append(Decimal(arg))
@@ -413,7 +414,7 @@ class %(func_cls_name)s(BaseUDTF):
 
         res = []
         for t, arg in zip(self.to_types, args):
-            if t == 'datetime' and isinstance(arg, datetime):
+            if t == 'datetime' and isinstance(arg, datetime) and PY2:
                 if isinstance(arg, np_generic):
                     arg = arg.item()
                 res.append(self._to_milliseconds(arg))
@@ -528,7 +529,7 @@ class %(func_cls_name)s(BaseUDAF):
 
         res = []
         for t, arg in zip(self.from_types, args):
-            if t == 'datetime' and arg is not None and not isinstance(arg, datetime):
+            if t == 'datetime' and arg is not None and not isinstance(arg, datetime) and PY2:
                 res.append(datetime.fromtimestamp(arg / 1000.0))
             elif t == 'decimal' and arg is not None and not isinstance(arg, Decimal):
                 res.append(Decimal(arg))
@@ -545,7 +546,7 @@ class %(func_cls_name)s(BaseUDAF):
 
         t = self.to_type
 
-        if t == 'datetime' and isinstance(arg, datetime):
+        if t == 'datetime' and isinstance(arg, datetime) and PY2:
             if isinstance(arg, np_generic):
                 arg = arg.item()
             return self._to_milliseconds(arg)

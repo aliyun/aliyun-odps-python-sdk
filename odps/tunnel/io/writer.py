@@ -429,3 +429,43 @@ class BufferredRecordWriter(BaseRecordWriter):
     def get_blocks_written(self):
         return self._blocks_written
 
+
+class StreamRecordWriter(BaseRecordWriter):
+    def __init__(self, schema, request_callback, session, slot, compress_option=None, encoding='utf-8'):
+        self.session = session
+        self.slot = slot
+        self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
+
+        if compress_option is None:
+            out = self._req_io
+        elif compress_option.algorithm == \
+                CompressOption.CompressAlgorithm.ODPS_RAW:
+            out = self._req_io
+        elif compress_option.algorithm == \
+                CompressOption.CompressAlgorithm.ODPS_ZLIB:
+            out = DeflateOutputStream(self._req_io)
+        elif compress_option.algorithm == \
+                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
+            out = SnappyOutputStream(self._req_io)
+        else:
+            raise errors.InvalidArgument('Invalid compression algorithm.')
+
+        super(StreamRecordWriter, self).__init__(schema, out, encoding=encoding)
+        self._req_io.start()
+
+    def write(self, record):
+        if self._req_io._async_err:
+            ex_type, ex_value, tb = self._req_io._async_err
+            six.reraise(ex_type, ex_value, tb)
+        super(StreamRecordWriter, self).write(record)
+
+    def close(self):
+        super(StreamRecordWriter, self).close()
+        self._req_io.finish()
+        resp = self._req_io._resp
+        slot_server = resp.headers['odps-tunnel-routed-server']
+        slot_num = int(resp.headers['odps-tunnel-slot-num'])
+        self.session.reload_slots(self.slot, slot_server, slot_num)
+
+    def get_total_bytes(self):
+        return self.n_bytes

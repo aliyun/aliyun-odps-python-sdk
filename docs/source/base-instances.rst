@@ -21,6 +21,8 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 
 停止一个instance可以在odps入口使用 ``stop_instance``，或者对instance对象调用 ``stop`` 方法。
 
+.. _logview:
+
 获取 LogView 地址
 ---------------
 

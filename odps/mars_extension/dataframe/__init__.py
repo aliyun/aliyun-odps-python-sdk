@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .datasource import read_odps_table, DataFrameReadTable
+from .datasource import read_odps_table, DataFrameReadTable, ReadODPSTableRule
 from .datastore import write_odps_table, DataFrameWriteTable
+
+try:
+    from mars.optimizes.runtime.optimizers.dataframe import DataFrameRuntimeOptimizer
+    DataFrameRuntimeOptimizer.register_rule(ReadODPSTableRule)
+except ImportError:
+    pass
 

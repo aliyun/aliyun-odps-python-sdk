@@ -28,6 +28,7 @@ Job 模式中我们只需要写一个处理数据的函数并提交即可，简�
 .. code:: python
 
     def func(s_name, d_name):
+        # 如果能够使用 Mars DataFrame 处理，这里不需要调用 to_pandas
         df = o.to_mars_dataframe(s_name).to_pandas()
         o.persist_mars_dataframe(df, d_name)
 

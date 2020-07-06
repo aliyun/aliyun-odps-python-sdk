@@ -3,6 +3,9 @@ ODPS Python SDK and data analysis framework
 
 |PyPI version| |Docs| |License| |Implementation|
 
+.. container::
+
+--------------
 
 Elegent way to access ODPS API.
 `Documentation <http://pyodps.readthedocs.org/>`__
@@ -134,7 +137,7 @@ Command-line and IPython enhancement
 
    In [3]: %sql select * from pyodps_iris limit 5
    |==========================================|   1 /  1  (100.00%)         2s
-   Out[3]:
+   Out[3]: 
       sepallength  sepalwidth  petallength  petalwidth         name
    0          5.1         3.5          1.4         0.2  Iris-setosa
    1          4.9         3.0          1.4         0.2  Iris-setosa
