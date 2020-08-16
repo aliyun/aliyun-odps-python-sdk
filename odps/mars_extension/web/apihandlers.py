@@ -14,10 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .datasource import read_odps_table, DataFrameReadTable, ReadODPSTableHeadRule
-from .datastore import write_odps_table, DataFrameWriteTable
+import json
+import logging
 
-from mars.optimizes.runtime.dataframe import DataFrameRuntimeOptimizer
-DataFrameRuntimeOptimizer.register_rule(ReadODPSTableHeadRule)
+from mars.web.server import register_web_handler
+from mars.web.apihandlers import MarsApiRequestHandler
+
+logger = logging.getLogger('mars.web')
 
 
+class LoggerHandler(MarsApiRequestHandler):
+    def get(self):
+        pass
+
+    def post(self):
+        content = self.get_argument('content')
+        level = self.get_argument('level', 'warning').lower()
+        getattr(logger, level)(content)
+
+
+register_web_handler('/api/logger', LoggerHandler)

@@ -17,13 +17,15 @@
 
 try:
     from .core import create_mars_cluster, to_mars_dataframe, \
-        persist_mars_dataframe, run_script_in_mars, run_mars_job
+        persist_mars_dataframe, run_script_in_mars, run_mars_job, \
+        list_mars_instances
 except ImportError:
     create_mars_cluster = None
     to_mars_dataframe = None
     persist_mars_dataframe = None
-    run_mars_script = None
+    run_script_in_mars = None
     run_mars_job = None
+    list_mars_instances = None
 
 try:
     from . import dataframe

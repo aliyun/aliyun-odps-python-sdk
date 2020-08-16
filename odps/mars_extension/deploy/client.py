@@ -29,7 +29,7 @@ from ... import errors
 
 NOTEBOOK_NAME = 'MarsNotebook'
 CUPID_APP_NAME = 'MarsWeb'
-DEFAULT_RESOURCES = ['public.mars-0.4.2.zip', 'public.pyodps-0.9.3.zip', 'public.pyarrow.zip']
+DEFAULT_RESOURCES = ['public.mars-0.4.6.zip', 'public.pyodps-0.9.3.2.zip', 'public.pyarrow.zip']
 logger = logging.getLogger(__name__)
 
 
@@ -47,9 +47,9 @@ def _build_namespace_config(namespace):
 
 
 class MarsCupidClient(object):
-    def __init__(self, odps, inst=None):
+    def __init__(self, odps, inst=None, project=None):
         self._odps = odps
-        self._cupid_session = CupidSession(odps)
+        self._cupid_session = CupidSession(odps, project=project)
         self._kube_instance = inst
         self._kube_url = None
         self._kube_client = None
@@ -84,7 +84,7 @@ class MarsCupidClient(object):
 
     def submit(self, worker_num=1, worker_cpu=8, worker_mem=32, disk_num=1, min_worker_num=None, cache_mem=None,
                resources=None, module_path=None, create_session=True, priority=None, running_cluster=None,
-               scheduler_num=1, notebook=None, **kw):
+               scheduler_num=1, notebook=None, task_name=None, **kw):
         try:
             async_ = kw.pop('async_', None)
             default_resources = kw.pop('default_resources', None) or DEFAULT_RESOURCES
@@ -137,7 +137,7 @@ class MarsCupidClient(object):
                     mars_config['notebook'] = True
                 self._kube_instance = self._cupid_session.start_kubernetes(
                     async_=True, running_cluster=running_cluster, priority=priority,
-                    app_name='mars', app_config=mars_config, **kw)
+                    app_name='mars', app_config=mars_config, task_name=task_name, **kw)
                 write_log(self._kube_instance.get_logview_address())
             if async_:
                 return self
@@ -199,9 +199,17 @@ class MarsCupidClient(object):
                     self._endpoint = self.get_mars_endpoint()
                     write_log('Mars UI: ' + self._endpoint)
                     self._req_session = self.get_req_session()
+
+                    self._req_session.post(self._endpoint.rstrip('/') + '/api/logger', data=dict(
+                        content='Mars UI from client: ' + self._endpoint
+                    ))
                 if self._has_notebook and self._notebook_endpoint is None:
                     self._notebook_endpoint = self.get_notebook_endpoint()
                     write_log('Notebook UI: ' + self._notebook_endpoint)
+
+                    self._req_session.post(self._endpoint.rstrip('/') + '/api/logger', data=dict(
+                        content='Notebook UI from client: ' + self._notebook_endpoint
+                    ))
             except KeyboardInterrupt:
                 raise
             except:

@@ -1539,6 +1539,12 @@ class DictSequenceExpr(SequenceExpr):
         super(DictSequenceExpr, self)._init(*args, **kwargs)
 
 
+class TimestampSequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(TimestampSequenceExpr, self)._init(*args, **kwargs)
+        self._data_type = types.timestamp
+
+
 class UnknownSequenceExpr(SequenceExpr):
     def _init(self, *args, **kwargs):
         super(UnknownSequenceExpr, self)._init(*args, **kwargs)

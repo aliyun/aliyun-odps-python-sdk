@@ -102,7 +102,7 @@ Job 模式
         model = MiniBatchKMeans(n_clusters=3, random_state=0, batch_size=BATCH_SIZE)
 
         batch_data = []
-        for row in train:
+        for row in train.iterrows():
             batch_data.append(row[1])
             if len(batch_data) == BATCH_SIZE:
                 model.partial_fit(batch_data)
@@ -138,15 +138,32 @@ Mars 提供 cluster 模式，首先拉起 Mars 集群，接着通过 Mars sessio
     options.verbose = True  # 在 dataworks pyodps3 里已经设置，所以不需要前两行代码
     client = o.create_mars_cluster(3, 4, 16, min_worker_num=2)
 
-这个例子里指定了 worker 数量为 3 的集群，每个 worker 是4核、16G 内存的配置，\ ``min_worker_num`` 指当 worker 已经起了2个后，就可以返回 ``client`` 对象了，而不用等全部 3 个 worker 都启动再返回。Mars 集群的创建过程可能比较慢，需要耐心等待。
+这个例子里指定了 worker 数量为 3 的集群，每个 worker 是4核、16G 内存的配置，\ ``min_worker_num`` 指当 worker 已经起了2个后，
+就可以返回 ``client`` 对象了，而不用等全部 3 个 worker 都启动再返回。Mars 集群的创建过程可能比较慢，需要耐心等待。
 
-对于上面示例中的一个 Mars 集群，除了 worker 使用了12核、48G内存的资源，默认 Mars scheduler 使用8核32G，Mars web 使用1核4G，用户可以通过配置 scheduler_mem 以及 scheduler_cpu 调整 scheduler 使用的资源。
+对于上面示例中的一个 Mars 集群，除了 worker 使用了12核、48G内存的资源，默认 Mars scheduler 使用8核32G，
+Mars web 使用1核4G，用户可以通过配置 scheduler_mem 以及 scheduler_cpu 调整 scheduler 使用的资源。
 
-**注意：申请的单个 worker 内存需大于 1G，CPU 核数和内存的最佳比例为 1：4，例如单 worker 4核、16G。同时，新建的 worker 个数也不要超过 30 个，否则会对镜像服务器造成压力，如果需要使用超过 30 个 worker，请联系我们。**
+**注意：申请的单个 worker 内存需大于 1G，CPU 核数和内存的最佳比例为 1：4，例如单 worker 4核、16G。
+同时，新建的 worker 个数也不要超过 30 个，否则会对镜像服务器造成压力，如果需要使用超过 30 个 worker，请联系我们。**
 
-这个过程中会打印 MaxCompute instance 的 logview、 Mars UI 以及 Notebook 地址。Mars UI 可以用来连接 Mars 集群，亦可以用来查看集群、任务状态。
+这个过程中会打印 MaxCompute instance 的 logview、 Mars UI 以及 Notebook 地址。
+Mars UI 可以用来连接 Mars 集群，亦可以用来查看集群、任务状态。
 
 Mars 集群的创建就是一个 MaxCompute 任务，因此也有 instance id、logview 等 MaxCompute 通用的概念。
+
+.. note::
+    ``name`` 和 ``if_exists`` 参数在 0.9.4 中新增。
+
+.. _if_exists:
+
+``create_mars_cluster`` 有两个参数，``name`` 和 ``if_exists``。``name`` 默认为 ``default``，
+表示创建集群的名称。``if_exists`` 用来指示当集群已经创建时的行为，可以是 reuse、raise 和 ignore。
+下面分别阐述：
+
+* reuse：默认值，当集群已经创建时，复用已经创建的第一个同名集群。
+* raise：如果已经创建同名集群，报错。
+* ignore：总是创建新集群。
 
 
 提交作业
@@ -210,6 +227,14 @@ Mars 集群创建的时候会设置默认 session，通过 ``.execute()`` 执行
     from mars.session import new_session
     new_session('**Mars UI address**').as_default() # 设置为默认 session
 
+其次，可以通过指定 ``name`` 和 ``if_exists`` 参数来复用。如果已经创建一个集群，使用默认名字，则可以：
+
+.. code:: python
+
+    client = o.create_mars_cluster()
+
+因为 ``if_exists`` 默认为 ``reuse``，而集群名称也是用的默认名称。所以这里会直接复用已经创建的集群。
+
 获取 Mars UI 地址
 ~~~~~~~~~~~~~~~~~~~
 
@@ -269,6 +294,13 @@ MaxCompute 表读写支持
     3        1    0
     4        1    1
     5        1    2
+
+当表中含有字符串类型的列时，通过指定 ``use_arrow_dtype=True`` 可以将字符串列读成 arrow string 类型，节省内存使用从而加速任务运行。
+
+.. code:: python
+
+    df = o.to_mars_dataframe('test_mars_string', use_arrow_dtype=True)
+
 
 写表
 ^^^^

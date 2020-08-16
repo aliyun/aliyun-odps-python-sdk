@@ -25,7 +25,10 @@ from mars.web.__main__ import WebApplication
 from .client import CUPID_APP_NAME
 from .utils import wait_all_schedulers_ready
 
-logger = logging.getLogger(__name__)
+from .. import web as _web_plugin
+del _web_plugin
+
+logger = logging.getLogger('mars.web')
 
 
 class CupidWebServiceMain(WebApplication):

@@ -430,5 +430,24 @@ def create_upload_session(session, table):
         session=session, table_name=table.name, project_name=table.project.name, handle=resp.outputTableHandle)
 
 
+def query_table_meta(session, table):
+    controller = CupidRpcController()
+    channel = CupidTaskServiceRpcChannel(session)
+    stub = task_service_pb.CupidTaskService_Stub(channel)
+
+    table_info = task_service_pb.TableInfo(projectName=table.project.name, tableName=table.name)
+    req = task_service_pb.GetTableMetaRequest(lookupName=session.lookup_name, tableInfo=table_info,
+                                              needContent=True, uploadFile='')
+    resp = stub.GetTableMeta(controller, req, None)
+    if controller.Failed():
+        raise CupidError(controller.ErrorText())
+    logger.info(
+        "[CupidTask] getTableMeta call, CurrentInstanceId: %s, "
+        "request: %s, response: %s", session.lookup_name, req, resp,
+    )
+    return json.loads(resp.getTableMetaContent)
+
+
 CupidSession.create_download_session = create_download_session
 CupidSession.create_upload_session = create_upload_session
+CupidSession.query_table_meta = query_table_meta

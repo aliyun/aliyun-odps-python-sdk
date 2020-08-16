@@ -19,12 +19,20 @@ import time
 import uuid
 import logging
 
-from mars.dataframe.operands import DataFrameOperandMixin, DataFrameOperand, ObjectType
+from mars.dataframe.operands import DataFrameOperandMixin, DataFrameOperand
+from mars.dataframe.utils import parse_index
 from mars.serialize import StringField, SeriesField, BoolField, DictField, Int64Field
 
 from ...utils import to_str
 
 logger = logging.getLogger('mars.worker')
+
+try:
+    from mars.core import OutputType
+    _output_type_kw = dict(_output_types=[OutputType.dataframe])
+except ImportError:
+    from mars.dataframe.operands import ObjectType
+    _output_type_kw = dict(_object_type=ObjectType.dataframe)
 
 
 class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
@@ -40,13 +48,13 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
 
     def __init__(self, dtypes=None, odps_params=None, table_name=None, partition_spec=None,
                  over_write=None, write_batch_size=None, **kw):
+        kw.update(_output_type_kw)
         super(DataFrameWriteTable, self).__init__(_dtypes=dtypes,
                                                   _odps_params=odps_params,
                                                   _table_name=table_name,
                                                   _partition_spec=partition_spec,
                                                   _overwrite=over_write,
                                                   _write_batch_size=write_batch_size,
-                                                  _object_type=ObjectType.dataframe,
                                                   **kw)
 
     @property
@@ -79,7 +87,11 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
 
     def __call__(self, x):
         shape = (0,) * len(x.shape)
-        return self.new_dataframe([x], shape=shape)
+        index_value = parse_index(x.index_value.to_pandas()[:0], x.key, 'index')
+        columns_value = parse_index(x.columns_value.to_pandas()[:0],
+                                    x.key, 'columns', store_data=True)
+        return self.new_dataframe([x], shape=shape, dtypes=x.dtypes[:0],
+                                  index_value=index_value, columns_value=columns_value)
 
     @classmethod
     def tile(cls, op):
@@ -103,6 +115,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         upload_session = cupid_session.create_upload_session(data_src)
 
         input_df = build_concatenated_rows_frame(op.inputs[0])
+        out_df = op.outputs[0]
 
         out_chunks = []
         out_chunk_shape = (0,) * len(input_df.shape)
@@ -113,7 +126,8 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
                                                 partition_spec=op.partition_spec,
                                                 cupid_handle=to_str(upload_session.handle),
                                                 block_id=block_id, write_batch_size=op.write_batch_size)
-            out_chunk = chunk_op.new_chunk([chunk], shape=out_chunk_shape, index=chunk.index, dtypes=chunk.dtypes)
+            out_chunk = chunk_op.new_chunk([chunk], shape=out_chunk_shape, index=chunk.index,
+                                           index_value=out_df.index_value, dtypes=chunk.dtypes)
             out_chunks.append(out_chunk)
             blocks[block_id] = op.partition_spec
 
@@ -128,7 +142,8 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
                     chk = chks[0]
                 else:
                     chk_op = DataFrameWriteTableCommit(dtypes=op.dtypes, is_terminal=False)
-                    chk = chk_op.new_chunk(chks, shape=out_chunk_shape, dtypes=op.dtypes)
+                    chk = chk_op.new_chunk(chks, shape=out_chunk_shape,
+                                           index_value=out_df.index_value, dtypes=op.dtypes)
                 new_chunks.append(chk)
             chunks = new_chunks
 
@@ -138,13 +153,13 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
                                                     cupid_handle=to_str(upload_session.handle),
                                                     overwrite=op.overwrite, odps_params=op.odps_params,
                                                     is_terminal=True)
-        commit_table_chunk = commit_table_op.new_chunk(chunks, shape=out_chunk_shape, dtypes=op.dtypes)
+        commit_table_chunk = commit_table_op.new_chunk(chunks, shape=out_chunk_shape,
+                                                       dtypes=op.dtypes, index_value=out_df.index_value)
 
-        out_df = op.outputs[0]
         new_op = op.copy()
-        return new_op.new_dataframes(op.inputs, shape=out_df.shape,
-                                     dtypes=out_df.dtypes, chunks=[commit_table_chunk],
-                                     nsplits=((0,),) * len(out_chunk_shape))
+        return new_op.new_dataframes(op.inputs, shape=out_df.shape, index_value=out_df.index_value,
+                                     dtypes=out_df.dtypes, columns_value=out_df.columns_value,
+                                     chunks=[commit_table_chunk], nsplits=((0,),) * len(out_chunk_shape))
 
 
 class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
@@ -160,13 +175,13 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
 
     def __init__(self, dtypes=None, table_name=None, partition_spec=None, cupid_handle=None,
                  block_id=None, write_batch_size=None, **kw):
+        kw.update(_output_type_kw)
         super(DataFrameWriteTableSplit, self).__init__(_dtypes=dtypes,
                                                        _table_name=table_name,
                                                        _partition_spec=partition_spec,
                                                        _cupid_handle=cupid_handle,
                                                        _block_id=block_id,
                                                        _write_batch_size=write_batch_size,
-                                                       _object_type=ObjectType.dataframe,
                                                        **kw)
 
     @property
@@ -253,6 +268,7 @@ class DataFrameWriteTableCommit(DataFrameOperand, DataFrameOperandMixin):
 
     def __init__(self, dtypes=None, odps_params=None, table_name=None, blocks=None,
                  cupid_handle=None, overwrite=False, is_terminal=None, **kw):
+        kw.update(_output_type_kw)
         super(DataFrameWriteTableCommit, self).__init__(_dtypes=dtypes,
                                                         _odps_params=odps_params,
                                                         _table_name=table_name,
@@ -260,7 +276,6 @@ class DataFrameWriteTableCommit(DataFrameOperand, DataFrameOperandMixin):
                                                         _overwrite=overwrite,
                                                         _cupid_handle=cupid_handle,
                                                         _is_terminal=is_terminal,
-                                                        _object_type=ObjectType.dataframe,
                                                         **kw)
 
     @property

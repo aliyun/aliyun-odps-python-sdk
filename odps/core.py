@@ -15,6 +15,8 @@
 import os
 import json
 import re
+import time
+import random
 import warnings
 from collections import Iterable
 
@@ -851,6 +853,17 @@ class ODPS(object):
         inst.wait_for_success()
         return inst.get_sql_task_cost()
 
+    def _parse_partition_string(self, partition):
+        parts = []
+        for p in split_quoted(partition, ','):
+            kv = [pp.strip() for pp in split_quoted(p, '=')]
+            if len(kv) != 2:
+                raise ValueError('Partition representation malformed.')
+            if not kv[1].startswith('"') and not kv[1].startswith("'"):
+                kv[1] = repr(kv[1])
+            parts.append('%s=%s' % tuple(kv))
+        return ','.join(parts)
+
     def execute_merge_files(self, table, partition=None, project=None, hints=None,
                             priority=None):
         """
@@ -885,15 +898,7 @@ class ODPS(object):
         from .models.tasks import MergeTask
 
         if partition:
-            parts = []
-            for p in split_quoted(partition, ','):
-                kv = [pp.strip() for pp in split_quoted(p, '=')]
-                if len(kv) != 2:
-                    raise ValueError('Partition representation malformed.')
-                if not kv[1].startswith('"') and not kv[1].startswith("'"):
-                    kv[1] = repr(kv[1])
-                parts.append('%s=%s' % tuple(kv))
-            table += " partition(%s)" % (','.join(parts))
+            table += " partition(%s)" % (self._parse_partition_string(partition))
 
         priority = priority or options.priority
         if priority is None and options.get_priority is not None:
@@ -901,6 +906,53 @@ class ODPS(object):
 
         task = MergeTask(table=table)
         task.update_settings(hints)
+
+        project = self.get_project(name=project)
+        return project.instances.create(task=task, priority=priority)
+
+    def execute_archive_table(self, table, partition=None, project=None, hints=None,
+                              priority=None):
+        """
+        Execute a task to archive tables and wait for termination.
+
+        :param table: name of the table to archive
+        :param partition: partition to archive
+        :param project: project name, if not provided, will be the default project
+        :param hints: settings for table archive task.
+        :param priority: instance priority, 9 as default
+        :return: instance
+        :rtype: :class:`odps.models.Instance`
+        """
+        inst = self.run_archive_table(table, partition=partition, project=project, hints=hints,
+                                      priority=priority)
+        inst.wait_for_success()
+        return inst
+
+    def run_archive_table(self, table, partition=None, project=None, hints=None, priority=None):
+        """
+        Start running a task to archive tables.
+
+        :param table: name of the table to archive
+        :param partition: partition to archive
+        :param project: project name, if not provided, will be the default project
+        :param hints: settings for table archive task.
+        :param priority: instance priority, 9 as default
+        :return: instance
+        :rtype: :class:`odps.models.Instance`
+        """
+        from .models.tasks import MergeTask
+
+        if partition:
+            table += " partition(%s)" % (self._parse_partition_string(partition))
+
+        priority = priority or options.priority
+        if priority is None and options.get_priority is not None:
+            priority = options.get_priority(self)
+
+        name = 'archive_task_{0}_{1}'.format(int(time.time()), random.randint(100000, 999999))
+        task = MergeTask(name=name, table=table)
+        task.update_settings(hints)
+        task._update_property_json('archiveSettings', {'odps.merge.archive.flag': True})
 
         project = self.get_project(name=project)
         return project.instances.create(task=task, priority=priority)
@@ -1813,12 +1865,14 @@ except ImportError:
 
 try:
     from .mars_extension import create_mars_cluster, persist_mars_dataframe, \
-        to_mars_dataframe, run_script, run_script_in_mars, run_mars_job
+        to_mars_dataframe, run_script, run_script_in_mars, run_mars_job, \
+        list_mars_instances
     setattr(ODPS, 'create_mars_cluster', create_mars_cluster)
     setattr(ODPS, 'persist_mars_dataframe', persist_mars_dataframe)
     setattr(ODPS, 'to_mars_dataframe', to_mars_dataframe)
     setattr(ODPS, 'run_script_in_mars', run_script_in_mars)
     setattr(ODPS, 'run_mars_job', run_mars_job)
+    setattr(ODPS, 'list_mars_instances', list_mars_instances)
 except ImportError:
     pass
 

@@ -69,7 +69,7 @@ class CupidRpcController(pb_service.RpcController):
 class CupidRpcChannel(pb_service.RpcChannel):
     @staticmethod
     def submit_job(param_pb, running_mode, priority=None, with_resource=False, session=None,
-                   running_cluster=None):
+                   running_cluster=None, task_name='cupid_task'):
         from odps import ODPS, compat
         from odps.models import CupidTask
 
@@ -107,7 +107,7 @@ class CupidRpcChannel(pb_service.RpcChannel):
                 file_settings = json.loads(cf.read()).get('settings', {})
             props.update(file_settings)
 
-        task = CupidTask('cupid_task', task_info, props)
+        task = CupidTask(task_name, task_info, props)
         inst = odps.get_project().instances.create(task=task, priority=priority, running_cluster=running_cluster)
         inst = odps.get_instance(inst.id)
         return inst
