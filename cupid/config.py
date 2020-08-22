@@ -15,7 +15,7 @@
 from odps import options
 
 
-options.register_option('cupid.major_task_version', 'cupid_v2')
+options.register_option('cupid.major_task_version', 'cupid_mars')
 options.register_option('cupid.wait_am_start_time', 600)
 options.register_option('cupid.use_bearer_token', None)
 options.register_option('cupid.settings', None)
@@ -32,4 +32,4 @@ options.register_option('cupid.kube.master_mode', 'cupid')
 options.register_option('cupid.runtime.endpoint', 'http://service.cn.maxcompute.aliyun-inc.com/api')
 
 # mars app config
-options.register_option('cupid.mars_image', None)
+options.register_option('cupid.mars_image', 'mars-app:0.9.3rc')

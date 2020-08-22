@@ -29,11 +29,11 @@ import threading
 import time
 import uuid
 
+from .accounts import AliyunAccount
 from .compat import PY26, pickle, six, builtins, futures
 from .config import options
 from .errors import NoSuchObject
 from . import utils
-from .accounts import AliyunAccount
 
 TEMP_ROOT = utils.build_pyodps_dir('tempobjs')
 SESSION_KEY = '%d_%s' % (int(time.time()), uuid.uuid4())
@@ -404,8 +404,8 @@ def _gen_repository_key(odps):
     if hasattr(odps.account, 'access_id'):
         keys = [odps.account.access_id, odps.endpoint, str(odps.project)]
     elif hasattr(odps.account, 'token'):
-        keys = [odps.account.token, odps.endpoint, str(odps.project)]
-    return hashlib.md5('####'.join(keys).encode('utf-8')).hexdigest()
+        keys = [utils.to_str(odps.account.token), odps.endpoint, str(odps.project)]
+    return hashlib.md5(utils.to_binary('####'.join(keys))).hexdigest()
 
 
 def _put_objects(odps, objs):

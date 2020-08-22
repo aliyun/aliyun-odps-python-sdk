@@ -587,8 +587,7 @@ class Instance(LazyLoad):
         result = _get_detail()
         if not result:
             # todo: this is a workaround for the bug that get_task_detail returns nothing.
-            self.get_task_detail2(task_name)
-            return _get_detail()
+            return self.get_task_detail2(task_name)
         else:
             return result
 

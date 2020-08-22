@@ -78,7 +78,7 @@ def _build_app_config(app_name, app_config):
 
 
 class CupidSession(object):
-    def __init__(self, odps=None):
+    def __init__(self, odps=None, project=None):
         from .runtime import context
         from odps import ODPS
 
@@ -88,6 +88,7 @@ class CupidSession(object):
             self.odps = odps
         else:
             self.odps = ODPS.from_global()
+        self.project = project if project is not None else self.odps.project
 
         self.lookup_name = get_environ('META_LOOKUP_NAME', '')
         self.running = False
@@ -115,7 +116,7 @@ class CupidSession(object):
             'odps.access.id': getattr(self.odps.account, 'access_id', None),
             'odps.access.key': getattr(self.odps.account, 'secret_access_key', None),
             'odps.end.point': self.odps.endpoint,
-            'odps.project.name': self.odps.project,
+            'odps.project.name': self.project,
             'odps.moye.am.cores': '400',
             'odps.cupid.proxy.end.point': options.cupid.proxy_endpoint,
         }
@@ -172,6 +173,7 @@ class CupidSession(object):
         async_ = kw.get('async', async_)
         runtime_endpoint = kw.get('runtime_endpoint', None)
         task_operator = task_param_pb.CupidTaskOperator(moperator='startam', menginetype=menginetype)
+        task_name = kw.get('task_name')
 
         kub_conf = {
             'odps.cupid.kube.master.mode': options.cupid.kube.master_mode,
@@ -185,14 +187,14 @@ class CupidSession(object):
         app_conf = _build_app_config(self._kube_app_name, self._kube_app_config)
         kub_conf.update(app_conf)
         if running_cluster:
-            kub_conf['odps.moye.job.runningcluster'] = running_cluster
+            kub_conf['odps.cupid.task.running.cluster'] = running_cluster
         task_param = task_param_pb.CupidTaskParam(
             jobconf=self.job_conf(conf=kub_conf),
             mcupidtaskoperator=task_operator,
         )
         channel = CupidTaskServiceRpcChannel(self)
         inst = channel.submit_job(task_param, 'eHasFuxiJob', with_resource=True, priority=priority,
-                                  running_cluster=running_cluster, session=self)
+                                  running_cluster=running_cluster, session=self, task_name=task_name)
         if async_:
             return inst
         else:

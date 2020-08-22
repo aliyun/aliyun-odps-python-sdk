@@ -14,9 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-import os
+import hashlib
+import json
+import uuid
 import logging
+import os
+import re
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -27,6 +31,7 @@ from ..df import types as pd_types
 from ..df.backends.odpssql.types import df_type_to_odps_type
 from ..models import Schema
 from ..types import PartitionSpec
+from ..utils import to_binary, write_log
 
 
 logger = logging.getLogger('mars.worker')
@@ -42,9 +47,36 @@ def _check_internal(endpoint):
             raise EnvironmentError('Please install internal version of PyODPS.')
 
 
+def _get_mars_task_name(instance):
+    from ..models.tasks import CupidTask
+
+    for task in instance.tasks or []:
+        if isinstance(task, CupidTask) and 'settings' in task.properties:
+            try:
+                hints = json.loads(task.properties['settings'])
+            except json.JSONDecodeError:
+                continue
+
+            if hints.get('odps.cupid.application.type') == 'mars':
+                return task.name
+
+
+def list_mars_instances(odps, project=None, days=3, return_task_name=False):
+    start_time = datetime.now() - timedelta(days=days)
+    for instance in odps.list_instances(start_time=start_time, project=project,
+                                        status='Running', only_owner=True):
+        task_name = _get_mars_task_name(instance)
+        if task_name is not None:
+            if not return_task_name:
+                yield instance
+            else:
+                yield task_name, instance
+
+
 def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_mem=None, disk_num=1,
                         min_worker_num=None, resources=None, module_path=None, scheduler_num=1,
-                        notebook=None, instance_id=None, **kw):
+                        notebook=None, instance_id=None, name='default', if_exists='reuse',
+                        project=None, **kw):
     """
     :param worker_num: mars cluster worker's number
     :param worker_cpu: number of cpu cores on each mars worker
@@ -57,24 +89,60 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
     :param scheduler_num: the number of schedulers, default is 0
     :param notebook: whether launch jupyter notebook, defaullt is False
     :param instance_id: existing mars cluster's instance id
+    :param name: cluster name, 'default' will be default name
+    :param if_exists: 'reuse', 'raise' or 'ignore',
+                      if 'reuse', will reuse the first created cluster with the same name,
+                      if not created, create a new one;
+                      if 'raise', will fail if cluster with same name created already;
+                      if 'ignore', will always create a new cluster
+    :param project: project name
     :return: class: `MarsClient`
     """
     from .deploy.client import MarsCupidClient
 
+    if if_exists not in ('reuse', 'raise', 'ignore'):
+        raise ValueError('`if_exists` should be "reuse", "raise", or "ignore"')
+
+    task_name = 'MARS_TASK_{}'.format(hashlib.md5(to_binary(name)).hexdigest())
+
     _check_internal(odps.endpoint)
     if instance_id is not None:
-        inst = odps.get_instance(instance_id)
-        client = MarsCupidClient(odps, inst)
+        inst = odps.get_instance(instance_id, project=project)
+        client = MarsCupidClient(odps, inst, project=project)
+    elif if_exists in ('reuse', 'raise'):
+        client = None
+
+        # need to check the instances before
+        for prev_task_name, prev_instance in list_mars_instances(odps, project=project, days=2,
+                                                                 return_task_name=True):
+            if prev_task_name == task_name:
+                # found a instance with the same task name
+                if if_exists == 'reuse':
+                    write_log('Reusing existing Mars cluster({}), logview address: \n{}'.format(
+                        name, prev_instance.get_logview_address()
+                    ))
+                    client = MarsCupidClient(odps, prev_instance, project=project)
+                    break
+                else:
+                    assert if_exists == 'raise'
+                    raise ValueError('Cluster("{}") exists'.format(name))
+
+        if client is None:
+            # not create before, just create a new one
+            client = MarsCupidClient(odps, project=project)
     else:
-        client = MarsCupidClient(odps)
+        client = MarsCupidClient(odps, project=project)
     return client.submit(worker_num, worker_cpu, worker_mem, disk_num=disk_num, min_worker_num=min_worker_num,
                          cache_mem=cache_mem, resources=resources, module_path=module_path, create_session=True,
-                         scheduler_num=scheduler_num, notebook=notebook, **kw)
+                         scheduler_num=scheduler_num, notebook=notebook, task_name=task_name, **kw)
 
 
 def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=None,
-                      sparse=False, columns=None, add_offset=False, cupid_internal_endpoint=None):
+                      sparse=False, columns=None, add_offset=False, calc_nrows=True,
+                      use_arrow_dtype=False, cupid_internal_endpoint=None):
+    from cupid import context
     from .dataframe import read_odps_table
+    from ..utils import init_progress_ui
 
     odps_params = dict(
         project=odps.project, endpoint=cupid_internal_endpoint or cupid_options.cupid.runtime.endpoint)
@@ -83,11 +151,22 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
 
     # get dataframe's shape
     if shape is None:
-        shape = (np.nan, len(data_src.schema.simple_columns))
+        if calc_nrows and context() is None:
+            # obtain count
+            if partition is None:
+                odps_df = data_src.to_df()
+            else:
+                odps_df = data_src.get_partition(partition).to_df()
+            nrows = odps_df.count().execute(use_tunnel=False, ui=init_progress_ui(mock=True))
+        else:
+            nrows = np.nan
+
+        shape = (nrows, len(data_src.schema.simple_columns))
 
     return read_odps_table(odps.get_table(table_name), shape, partition=partition,
                            chunk_bytes=chunk_bytes, sparse=sparse, columns=columns,
-                           odps_params=odps_params, add_offset=add_offset)
+                           odps_params=odps_params, add_offset=add_offset,
+                           use_arrow_dtype=use_arrow_dtype)
 
 
 def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None, write_batch_size=None,
@@ -142,6 +221,11 @@ def run_mars_job(odps, func, args=(), kwargs=None, retry_when_fail=False, n_outp
 
     if 'notebook' not in kw:
         kw['notebook'] = False
+    task_name = kw.get('name', None)
+    if task_name is None:
+        kw['name'] = str(uuid.uuid4())
+        kw['if_exists'] = 'ignore'
+
     cupid_internal_endpoint = kw.pop('cupid_internal_endpoint', None)
     client = odps.create_mars_cluster(**kw)
     try:
@@ -150,7 +234,8 @@ def run_mars_job(odps, func, args=(), kwargs=None, retry_when_fail=False, n_outp
         r.op.extra_params['endpoint'] = cupid_internal_endpoint or cupid_options.cupid.runtime.endpoint
         r.execute()
     finally:
-        client.stop_server()
+        if task_name is None:
+            client.stop_server()
 
 
 def execute_with_odps_context(f):
@@ -168,8 +253,9 @@ def execute_with_odps_context(f):
                 logger.debug('Get bearer token from cupid.')
                 bearer_token = context().get_bearer_token()
                 env['ODPS_BEARER_TOKEN'] = to_str(bearer_token)
-                env['ODPS_ENDPOINT'] = str(op.extra_params['endpoint'])
-                if 'ODPS_PROJECT_NAME' not in env:
+                if 'endpoint' in op.extra_params:
+                    env['ODPS_ENDPOINT'] = str(op.extra_params['endpoint'])
+                if ('project' in op.extra_params) and ('ODPS_PROJECT_NAME' not in env):
                     env['ODPS_PROJECT_NAME'] = str(op.extra_params['project'])
                 f(ctx, op)
                 for out in op.outputs:
