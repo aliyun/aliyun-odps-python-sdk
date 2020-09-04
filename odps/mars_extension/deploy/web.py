@@ -14,62 +14,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json
 import logging
-import socket
+import os
 
-from mars.web.__main__ import WebApplication
-
+from mars.deploy.kubernetes.web import K8SWebApplication
 
 from .client import CUPID_APP_NAME
-from .utils import wait_all_schedulers_ready
+from .core import CupidServiceMixin
 
 from .. import web as _web_plugin
 del _web_plugin
 
-logger = logging.getLogger('mars.web')
+logger = logging.getLogger(__name__)
 
 
-class CupidWebServiceMain(WebApplication):
-    def __init__(self):
-        super(CupidWebServiceMain, self).__init__()
+class CupidWebApplication(CupidServiceMixin, K8SWebApplication):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         from cupid import context
-        self.cupid_context = context()
-
-    def config_args(self, parser):
-        super(CupidWebServiceMain, self).config_args(parser)
-        parser.add_argument('--cupid-scheduler-key', help='scheduler configuration key in cupid')
-
-    def read_cupid_service_info(self, cupid_key):
-        kvstore = self.cupid_context.kv_store()
-        scheduler_endpoints = wait_all_schedulers_ready(kvstore, cupid_key)
-        self.args.schedulers = ','.join(scheduler_endpoints)
-        logger.info('Obtained endpoint from K-V store: %s', ','.join(scheduler_endpoints))
-
-    def config_service(self):
-        if self.args.cupid_scheduler_key:
-            self.read_cupid_service_info(self.args.cupid_scheduler_key)
+        self._cupid_context = context()
 
     def start(self):
-        super(CupidWebServiceMain, self).start()
+        import socket
+        super().start()
 
         host_addr = socket.gethostbyname(socket.gethostname())
         endpoint = 'http://{0}:{1}'.format(host_addr, self.mars_web.port)
-        kvstore = self.cupid_context.kv_store()
+        kvstore = self._cupid_context.kv_store()
         kvstore[CUPID_APP_NAME] = json.dumps(dict(endpoint=endpoint))
 
         if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
             endpoint = socket.gethostname() + "-{}".format(self.mars_web.port)
-        self.cupid_context.register_application(CUPID_APP_NAME, endpoint)
+        self._cupid_context.register_application(CUPID_APP_NAME, endpoint)
 
     def stop(self):
-        self.cupid_context.channel_client.stop()
-        super(CupidWebServiceMain, self).stop()
+        super().stop()
+        if self._cupid_context is not None:
+            self._cupid_context.channel_client.stop()
 
 
-main = CupidWebServiceMain()
+main = CupidWebApplication()
 
 if __name__ == '__main__':
     main()

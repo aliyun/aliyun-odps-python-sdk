@@ -36,3 +36,18 @@ def get_environ(key, default=None):
             val = val.strip('"')
         return val
     return default
+
+
+def build_image_name(app_name):
+    from .config import options
+
+    prefix = options.cupid.image_prefix
+    version = options.cupid.image_version
+
+    if prefix is None:
+        if version is None:
+            return None
+        else:
+            return app_name + ':' + version
+    else:
+        return prefix + app_name + ':' + version

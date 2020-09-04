@@ -25,7 +25,7 @@ from mars.serialize import BytesField, ListField, Int32Field, StringField
 from mars.utils import to_binary
 
 
-logger = logging.getLogger('mars.worker')
+logger = logging.getLogger(__name__)
 
 try:
     from mars.remote.run_script import RunScript

@@ -32,7 +32,7 @@ class CupidUserError(CupidError):
 class CupidCppError(CupidError):
     cpp_error_type = None
 
-    def __new__(cls, err_type, err_msg):
+    def __new__(cls, err_type=None, err_msg=None):
         if cls is not CupidCppError:
             return CupidError.__new__(cls)
         if err_type in _cpp_errors:
@@ -40,7 +40,7 @@ class CupidCppError(CupidError):
         else:
             return CupidError.__new__(cls)
 
-    def __init__(self, err_type, err_msg):
+    def __init__(self, err_type=None, err_msg=None):
         self._err_type = err_type
         self._err_msg = err_msg
 

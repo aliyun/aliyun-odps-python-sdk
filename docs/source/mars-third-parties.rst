@@ -14,7 +14,7 @@ Mars 三方库集成
 
 .. code:: python
 
-    client = o.create_mars_cluster(1, 8, 32, mars_image='extended')
+    client = o.create_mars_cluster(1, 8, 32, image='extended')
 
 接下来就可以使用到 XGBoost 与 LightGBM 的能力，这里我们以 LightGBM 为例：
 
@@ -43,7 +43,7 @@ Mars 三方库集成
 
 .. code:: python
 
-    o.run_mars_job(light_gbm, mars_image='extended')
+    o.run_mars_job(light_gbm, image='extended')
 
 
 使用 faiss 加速 KNN

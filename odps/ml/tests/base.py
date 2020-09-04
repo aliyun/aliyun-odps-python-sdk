@@ -18,9 +18,8 @@ from __future__ import print_function
 import os
 import uuid
 import warnings
-from collections import Iterable
 
-from odps.compat import six
+from odps.compat import six, Iterable
 from odps.config import options
 from odps.df import CollectionExpr
 from odps.df.core import DataFrame

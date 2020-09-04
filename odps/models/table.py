@@ -107,7 +107,7 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
     serde_properties = serializers.JSONNodeField(
         'serDeProperties', type='json', set_to_parent=True)
     reserved = serializers.JSONNodeField(
-        'reserved', type='json', set_to_parent=True)
+        'Reserved', type='json', set_to_parent=True)
     shard = serializers.JSONNodeReferenceField(
         Shard, 'shardInfo', check_before=['shardExist'], set_to_parent=True)
     table_label = serializers.JSONNodeField(
@@ -258,6 +258,10 @@ class Table(LazyLoad):
             buf.write(utils.indent('\n'.join(partition_strs), 4))
 
         return buf.getvalue()
+
+    @property
+    def stored_as(self):
+        return (self.reserved or dict()).get('StoredAs')
 
     @staticmethod
     def gen_create_table_sql(table_name, table_schema, comment=None, if_not_exists=False,

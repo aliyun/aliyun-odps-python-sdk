@@ -14,9 +14,8 @@
 # limitations under the License.
 
 import json
-from collections import Iterable
 
-from ...compat import six
+from ...compat import six, Iterable
 from ...serializers import JSONSerializableModel, JSONNodeField
 from ..utils import ML_ARG_PREFIX
 

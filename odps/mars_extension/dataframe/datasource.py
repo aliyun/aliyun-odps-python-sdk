@@ -29,9 +29,10 @@ from mars.dataframe.utils import parse_index, standardize_range_index, arrow_tab
 from mars.optimizes.runtime.dataframe import DataSourceHeadRule
 
 from ...df.backends.odpssql.types import odps_type_to_df_type
+from ...errors import ODPSError
 from ...utils import to_str
 
-logger = logging.getLogger('mars.worker')
+logger = logging.getLogger(__name__)
 
 READ_CHUNK_LIMIT = 16 * 1024 ** 2
 MAX_CHUNK_SIZE = 512 * 1024 ** 2
@@ -124,10 +125,12 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
         from odps import ODPS
         from odps.accounts import BearerTokenAccount
         from cupid import CupidSession, context
+        from mars.context import get_context
 
         cupid_ctx = context()
         if cupid_ctx is None:
             raise SystemError('No Mars cluster found, please create via `o.create_mars_cluster`.')
+
         bearer_token = cupid_ctx.get_bearer_token()
         account = BearerTokenAccount(bearer_token)
         project = os.environ.get('ODPS_PROJECT_NAME', None)
@@ -137,12 +140,29 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
         o = ODPS(None, None, account=account, **odps_params)
         cupid_session = CupidSession(o)
 
+        mars_context = get_context()
+
         df = op.outputs[0]
         split_size = df.extra_params.chunk_bytes or READ_CHUNK_LIMIT
 
         data_src = o.get_table(op.table_name)
         if op.partition is not None:
             data_src = data_src.get_partition(op.partition)
+
+        try:
+            data_store_size = data_src.size
+        except ODPSError:
+            # fail to get data size, just ignore
+            pass
+        else:
+            if data_store_size < split_size and mars_context is not None:
+                # get worker counts
+                worker_count = max(len(mars_context.get_worker_addresses()), 1)
+                # data is too small, split as many as number of cores
+                split_size = data_store_size // worker_count
+                # at least 1M
+                split_size = max(split_size, 1 * 1024 ** 2)
+                logger.debug('Input data size is too small, split_size is {}'.format(split_size))
 
         logger.debug('Start creating download session of table {} from cupid.'.format(op.table_name))
         while True:
@@ -173,24 +193,34 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
         # Ignore add_offset at this time.
         op._add_offset = False
 
-        for idx, split in enumerate(download_session.splits):
-            chunk_op = DataFrameReadTableSplit(cupid_handle=to_str(split.handle),
-                                               split_index=split.split_index,
-                                               split_file_start=split.split_file_start,
-                                               split_file_end=split.split_file_end,
-                                               schema_file_start=split.schema_file_start,
-                                               schema_file_end=split.schema_file_end,
-                                               add_offset=op.add_offset, dtypes=op.dtypes,
-                                               sparse=op.sparse, split_size=split_size,
-                                               use_arrow_dtype=op.use_arrow_dtype,
-                                               estimate_rows=est_chunk_rows[idx])
-            # the chunk shape is unknown
+        if len(download_session.splits) == 0:
+            logger.debug('Table {} has no data'.format(op.table_name))
+            chunk_op = DataFrameReadTableSplit()
             index_value = parse_index(pd.RangeIndex(0))
             columns_value = parse_index(df.dtypes.index, store_data=True)
             out_chunk = chunk_op.new_chunk(None, shape=(np.nan, df.shape[1]), dtypes=op.dtypes,
                                            index_value=index_value, columns_value=columns_value,
-                                           index=(idx, 0))
-            out_chunks.append(out_chunk)
+                                           index=(0, 0))
+            out_chunks = [out_chunk]
+        else:
+            for idx, split in enumerate(download_session.splits):
+                chunk_op = DataFrameReadTableSplit(cupid_handle=to_str(split.handle),
+                                                   split_index=split.split_index,
+                                                   split_file_start=split.split_file_start,
+                                                   split_file_end=split.split_file_end,
+                                                   schema_file_start=split.schema_file_start,
+                                                   schema_file_end=split.schema_file_end,
+                                                   add_offset=op.add_offset, dtypes=op.dtypes,
+                                                   sparse=op.sparse, split_size=split_size,
+                                                   use_arrow_dtype=op.use_arrow_dtype,
+                                                   estimate_rows=est_chunk_rows[idx])
+                # the chunk shape is unknown
+                index_value = parse_index(pd.RangeIndex(0))
+                columns_value = parse_index(df.dtypes.index, store_data=True)
+                out_chunk = chunk_op.new_chunk(None, shape=(np.nan, df.shape[1]), dtypes=op.dtypes,
+                                               index_value=index_value, columns_value=columns_value,
+                                               index=(idx, 0))
+                out_chunks.append(out_chunk)
 
         if op.add_offset:
             out_chunks = standardize_range_index(out_chunks)
@@ -297,6 +327,10 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
             except TypeError:  # pragma: no cover
                 return False
 
+        if op.split_size is None:
+            ctx[op.outputs[0].key] = (0, 0)
+            return
+
         arrow_size = ORC_COMPRESSION_RATIO * op.split_size
         n_strings = len([dt for dt in op.dtypes if is_object_dtype(dt)])
         if op.estimate_rows or op.nrows:
@@ -312,6 +346,13 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
     def execute(cls, ctx, op):
         import pyarrow as pa
         from cupid.io.table import TableSplit
+
+        if op.cupid_handle is None:
+            empty_df = pd.DataFrame()
+            for name, dtype in op.outputs[0].dtypes.items():
+                empty_df[name] = pd.Series(dtype=dtype)
+            ctx[op.outputs[0].key] = empty_df
+            return
 
         tsp = TableSplit(
             _handle=op.cupid_handle,
@@ -383,6 +424,11 @@ def read_odps_table(table, shape, partition=None, sparse=False, chunk_bytes=None
     table_types = table.schema.types
     df_types = [df_type_to_np_type(odps_type_to_df_type(type), use_arrow_dtype=use_arrow_dtype)
                 for type in table_types]
+
+    if columns is not None:
+        df_types = [df_types[table_columns.index(col)] for col in columns]
+        table_columns = columns
+
     dtypes = pd.Series(df_types, index=table_columns)
 
     op = DataFrameReadTable(odps_params=odps_params, table_name=table_name, partition_spec=partition,

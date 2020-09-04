@@ -24,10 +24,10 @@ from types import FunctionType, MethodType
 from copy import deepcopy
 from functools import partial
 from threading import Thread
-from collections import namedtuple, Iterable
+from collections import namedtuple
 
 from .. import options
-from ..compat import six, getargspec
+from ..compat import six, getargspec, Iterable
 from ..types import Partition
 from ..utils import camel_to_underline, TEMP_TABLE_PREFIX
 from .enums import FieldContinuity, FieldRole

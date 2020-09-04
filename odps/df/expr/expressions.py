@@ -17,7 +17,7 @@
 from __future__ import absolute_import
 import inspect
 import operator
-from collections import defaultdict, Iterable
+from collections import defaultdict
 import functools
 import sys
 
@@ -26,7 +26,7 @@ from .errors import ExpressionError
 from .utils import get_attrs, is_called_by_inspector, highest_precedence_data_type, new_id, \
     is_changed, get_proxied_expr
 from .. import types
-from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys, six, futures
+from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys, six, futures, Iterable
 from ...config import options
 from ...errors import NoSuchObject, DependencyNotInstalledError
 from ...utils import TEMP_TABLE_PREFIX, to_binary, deprecated, survey

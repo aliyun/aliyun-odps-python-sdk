@@ -18,14 +18,13 @@ import re
 import time
 import random
 import warnings
-from collections import Iterable
 
 from .rest import RestClient
 from .config import options
 from .errors import NoSuchObject
 from .tempobj import clean_stored_objects
 from .utils import split_quoted
-from .compat import six
+from .compat import six, Iterable
 from . import models, accounts, errors, utils
 
 

@@ -34,7 +34,7 @@ from ..types import PartitionSpec
 from ..utils import to_binary, write_log
 
 
-logger = logging.getLogger('mars.worker')
+logger = logging.getLogger(__name__)
 
 
 def _check_internal(endpoint):
@@ -73,11 +73,17 @@ def list_mars_instances(odps, project=None, days=3, return_task_name=False):
                 yield task_name, instance
 
 
-def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_mem=None, disk_num=1,
-                        min_worker_num=None, resources=None, module_path=None, scheduler_num=1,
-                        notebook=None, instance_id=None, name='default', if_exists='reuse',
-                        project=None, **kw):
+def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_mem=None,
+                        min_worker_num=None, disk_num=1, disk_size=100,
+                        scheduler_num=1, scheduler_cpu=None, scheduler_mem=None,
+                        web_num=1, web_cpu=None, web_mem=None, with_notebook=False,
+                        notebook_cpu=None, notebook_mem=None, timeout=None,
+                        extra_modules=None, resources=None, instance_id=None, name='default',
+                        if_exists='reuse', project=None, **kw):
     """
+    Create a Mars cluster and a Mars session as default session,
+    then all tasks will be submitted to cluster.
+
     :param worker_num: mars cluster worker's number
     :param worker_cpu: number of cpu cores on each mars worker
     :param worker_mem: memory size on each mars worker
@@ -85,9 +91,9 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
     :param disk_num: number of mounted disk
     :param min_worker_num: return if cluster worker's number reach to min_worker
     :param resources: resources name
-    :param module_path: user defined module path
+    :param extra_modules: user defined module path
     :param scheduler_num: the number of schedulers, default is 0
-    :param notebook: whether launch jupyter notebook, defaullt is False
+    :param with_notebook: whether launch jupyter notebook, defaullt is False
     :param instance_id: existing mars cluster's instance id
     :param name: cluster name, 'default' will be default name
     :param if_exists: 'reuse', 'raise' or 'ignore',
@@ -99,6 +105,9 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
     :return: class: `MarsClient`
     """
     from .deploy.client import MarsCupidClient
+
+    if kw.get('proxy_endpoint', None) is not None:
+        cupid_options.cupid.proxy_endpoint = kw['proxy_endpoint']
 
     if if_exists not in ('reuse', 'raise', 'ignore'):
         raise ValueError('`if_exists` should be "reuse", "raise", or "ignore"')
@@ -132,14 +141,43 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
             client = MarsCupidClient(odps, project=project)
     else:
         client = MarsCupidClient(odps, project=project)
-    return client.submit(worker_num, worker_cpu, worker_mem, disk_num=disk_num, min_worker_num=min_worker_num,
-                         cache_mem=cache_mem, resources=resources, module_path=module_path, create_session=True,
-                         scheduler_num=scheduler_num, notebook=notebook, task_name=task_name, **kw)
+
+    worker_mem = int(worker_mem * 1024 ** 3)
+    cache_mem = int(cache_mem * 1024 ** 3) if cache_mem else None
+    disk_size = int(disk_size * 1024 ** 3)
+    scheduler_mem = int(scheduler_mem * 1024 ** 3) if scheduler_mem else None
+    web_mem = int(web_mem * 1024 ** 3) if web_mem else None
+    notebook_mem = int(notebook_mem * 1024 ** 3) if web_mem else None
+
+    kw = dict(worker_num=worker_num, worker_cpu=worker_cpu, worker_mem=worker_mem,
+              worker_cache_mem=cache_mem, min_worker_num=min_worker_num,
+              worker_disk_num=disk_num, worker_disk_size=disk_size,
+              scheduler_num=scheduler_num, scheduler_cpu=scheduler_cpu,
+              scheduler_mem=scheduler_mem, web_num=web_num, web_cpu=web_cpu,
+              web_mem=web_mem, with_notebook=with_notebook, notebook_cpu=notebook_cpu,
+              notebook_mem=notebook_mem, timeout=timeout, extra_modules=extra_modules,
+              resources=resources, task_name=task_name, **kw)
+    kw = dict((k, v) for k, v in kw.items() if v is not None)
+    return client.submit(**kw)
 
 
 def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=None,
                       sparse=False, columns=None, add_offset=False, calc_nrows=True,
                       use_arrow_dtype=False, cupid_internal_endpoint=None):
+    """
+    Read table to Mars DataFrame.
+
+    :param table_name: table name
+    :param shape: table shape. A tuple like (1000, 3) which means table count is 1000 and schema length is 3.
+    :param partition: partition spec.
+    :param chunk_bytes: Bytes to read for each chunk. Default value is '16M'.
+    :param sparse: if read as sparse DataFrame.
+    :param columns: selected columns.
+    :param add_offset: if standardize the DataFrame's index to RangeIndex. False as default.
+    :param calc_nrows: if calculate nrows if shape is not specified.
+    :param use_arrow_dtype: read to arrow dtype. Reduce memory in some saces.
+    :return: Mars DataFrame.
+    """
     from cupid import context
     from .dataframe import read_odps_table
     from ..utils import init_progress_ui
@@ -148,6 +186,23 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
         project=odps.project, endpoint=cupid_internal_endpoint or cupid_options.cupid.runtime.endpoint)
 
     data_src = odps.get_table(table_name)
+
+    odps_schema = data_src.schema
+    if len(odps_schema.partitions) != 0:
+        if partition is None:
+            raise TypeError('Partition should be specified.')
+
+    for col in columns or []:
+        if col not in odps_schema.names:
+            raise TypeError("Specific column {} doesn't exist in table".format(col))
+
+    # persist view table to a temp table
+    if data_src.is_virtual_view:
+        temp_table_name = table_name + '_temp_mars_table_' + str(uuid.uuid4()).replace('-', '_')
+        odps.create_table(temp_table_name, schema=data_src.schema, stored_as='aliorc', lifecycle=1)
+        data_src.to_df().persist(temp_table_name)
+        table_name = temp_table_name
+        data_src = odps.get_table(table_name)
 
     # get dataframe's shape
     if shape is None:
@@ -171,6 +226,18 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
 
 def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None, write_batch_size=None,
                            unknown_as_string=True, as_type=None, cupid_internal_endpoint=None):
+    """
+    Write Mars DataFrame to table.
+
+    :param df: Mars DataFrame.
+    :param table_name: table to write.
+    :param overwrite: if overwrite the data. False as default.
+    :param partition: partition spec.
+    :param write_batch_size: batch size of records to write. 1024 as default.
+    :param unknown_as_string: set the columns to string type if it's type is Object.
+    :param as_type: specify column dtypes. {'a': 'string'} will set column `a` as string type.
+    :return: None
+    """
     from .dataframe import write_odps_table
 
     dtypes = df.dtypes
@@ -219,8 +286,8 @@ def run_script_in_mars(odps, script, mode='exec', n_workers=1, command_argv=None
 def run_mars_job(odps, func, args=(), kwargs=None, retry_when_fail=False, n_output=None, **kw):
     from mars.remote import spawn
 
-    if 'notebook' not in kw:
-        kw['notebook'] = False
+    if 'with_notebook' not in kw:
+        kw['with_notebook'] = False
     task_name = kw.get('name', None)
     if task_name is None:
         kw['name'] = str(uuid.uuid4())

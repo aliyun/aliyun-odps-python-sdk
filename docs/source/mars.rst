@@ -5,11 +5,6 @@ Mars
 *****
 
 
-.. rubric:: 申请试用
-    :class: rubric-h2
-
-公共云用户我们采用申请开通的方式，需要使用请提工单申请。
-
 .. rubric:: 环境准备
     :class: rubric-h2
 

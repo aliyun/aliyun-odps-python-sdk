@@ -95,6 +95,8 @@ def _main():
     mars_endpoint = wait_mars_ready(cupid_context.kv_store(), CUPID_APP_NAME)
     host_addr = socket.gethostbyname(socket.gethostname())
 
+    os.environ.pop('KUBE_API_ADDRESS')
+
     if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
         notebook_port = DEFAULT_NOTEBOOK_PORT
     else:

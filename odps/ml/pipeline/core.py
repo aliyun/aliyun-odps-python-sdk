@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import namedtuple, Iterable
+
+from collections import namedtuple
 from copy import deepcopy
 from types import MethodType
 
-from ...compat import OrderedDict, reduce, six
+from ...compat import OrderedDict, reduce, six, Iterable
 from ...utils import camel_to_underline, is_namedtuple
 from ..expr.mixin import merge_data
 from ..utils import FieldRole

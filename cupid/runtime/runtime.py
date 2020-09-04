@@ -14,13 +14,14 @@
 
 import json
 import logging
+import os
 
 from ..utils import get_environ
 from ..proto import cupid_process_service_pb2 as process_pb
 from ..rpc import CupidRpcController, SandboxRpcChannel
 
 logger = logging.getLogger(__name__)
-context_holder = [None]
+_pid_to_context = dict()
 
 
 def context():
@@ -29,11 +30,12 @@ def context():
     except ImportError:
         return
 
-    if not context_holder[0]:
+    pid = os.getpid()
+    if pid not in _pid_to_context:
         Subprocess_Container_Init()
         Subprocess_StartFDReceiver()
-        context_holder[0] = RuntimeContext()
-    return context_holder[0]
+        _pid_to_context[pid] = RuntimeContext()
+    return _pid_to_context[pid]
 
 
 class RuntimeContext(object):
@@ -56,6 +58,10 @@ class RuntimeContext(object):
                      client_write_pipe_num, cpu_cores))
         self._channel_client = ChannelSlaveClient(client_write_pipe_num, client_read_pipe_num, 'slave_client')
         self._channel_client.start()
+
+    @staticmethod
+    def is_context_ready():
+        return os.getpid() in _pid_to_context
 
     @property
     def channel_client(self):

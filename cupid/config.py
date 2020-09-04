@@ -32,4 +32,5 @@ options.register_option('cupid.kube.master_mode', 'cupid')
 options.register_option('cupid.runtime.endpoint', 'http://service.cn.maxcompute.aliyun-inc.com/api')
 
 # mars app config
-options.register_option('cupid.mars_image', 'mars-app:0.9.3rc')
+options.register_option('cupid.image_prefix', None)
+options.register_option('cupid.image_version', '0.9.4rc3')
