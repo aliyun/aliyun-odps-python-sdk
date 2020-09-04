@@ -25,7 +25,7 @@ from mars.serialize import StringField, SeriesField, BoolField, DictField, Int64
 
 from ...utils import to_str
 
-logger = logging.getLogger('mars.worker')
+logger = logging.getLogger(__name__)
 
 try:
     from mars.core import OutputType

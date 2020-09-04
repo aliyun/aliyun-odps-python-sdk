@@ -27,7 +27,7 @@ from mars import opcodes as OperandDef
 from ..io import glob
 from ...compat import izip, BytesIO
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class TensorTableCOO(TensorNoInput):

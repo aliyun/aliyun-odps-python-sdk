@@ -25,7 +25,7 @@ import requests
 
 from odps.tests.core import TestBase, to_str, tn, pandas_case
 from odps.compat import unittest, six
-from odps.models import Instance, SQLTask, Schema, session
+from odps.models import Instance, SQLTask, Schema, session, Record
 from odps.errors import ODPSError
 from odps import errors, compat, types as odps_types, utils, options
 
@@ -33,8 +33,8 @@ TEST_SESSION_WORKERS = 4
 TEST_SESSION_WORKER_MEMORY = 512
 
 TEST_TABLE_NAME = "_pyodps__session_test_table"
-TEST_CREATE_SCHEMA = Schema.from_lists(['id'], ['bigint'])
-TEST_UPDATE_STRING = "insert into table %s select count(*) from %s" % (TEST_TABLE_NAME, TEST_TABLE_NAME)
+TEST_CREATE_SCHEMA = Schema.from_lists(['id'], ['string'])
+TEST_DATA = [['1'], ['2'], ['3'], ['4'], ['5']]
 TEST_SELECT_STRING = "select * from %s" % TEST_TABLE_NAME
 
 
@@ -100,11 +100,8 @@ class Test(TestBase):
             raise ex
         # the status should keep consistent
         self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
-        inst = sess_instance.run_sql(TEST_UPDATE_STRING)
-        inst.wait_for_completion()
-        self.assertTrue(inst.status == Instance.Status.TERMINATED)
-        self.assertRaises(errors.ODPSError, lambda: inst.open_reader())
-        self.assertRaises(errors.ODPSError, lambda: inst.open_reader(tunnel=True))
+        records = [Record(schema=TEST_CREATE_SCHEMA, values=values) for values in TEST_DATA]
+        self.odps.write_table(table, 0, records)
         select_inst = sess_instance.run_sql(TEST_SELECT_STRING)
         select_inst.wait_for_completion()
         rows = []
@@ -116,9 +113,10 @@ class Test(TestBase):
             print("LOGVIEW: " + select_inst.get_logview_address())
             print("Task Result:" + str(select_inst.get_task_results()))
             raise ex
-        self.assertTrue(len(rows) == 1)
-        self.assertTrue(len(rows[0]) == 1)
-        self.assertTrue(int(rows[0][0]) == 0)
+        self.assertTrue(len(rows) == len(TEST_DATA))
+        self.assertTrue(len(rows[0]) == len(TEST_DATA[0]))
+        for index in range(5):
+            self.assertTrue(int(rows[index][0]) == int(TEST_DATA[index][0]))
         # OK, close
         sess_instance.stop()
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)

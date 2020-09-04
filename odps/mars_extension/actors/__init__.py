@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # Copyright 1999-2018 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,18 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-def _install():
-    try:
-        from .prochelper import WorkerProcessHelperActor, CupidWorkerProcessHelperActor, \
-            CupidStatusActor, StatusActor
-        from mars.actors import register_actor_implementation
-
-        register_actor_implementation(WorkerProcessHelperActor, CupidWorkerProcessHelperActor)
-        register_actor_implementation(StatusActor, CupidStatusActor)
-    except ImportError:
-        pass
-
-
-_install()
-del _install
+from .session import CupidSessionManagerActor

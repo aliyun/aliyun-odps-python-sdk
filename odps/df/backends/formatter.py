@@ -16,12 +16,11 @@
 
 from distutils.version import LooseVersion
 import itertools
-from collections import Iterable
 import cgi
 
 from ...config import options
 from ... import compat
-from ...compat import u, izip
+from ...compat import u, izip, Iterable
 from ...console import get_terminal_size
 from ...utils import to_text, to_str, indent, require_package
 from ...models import Table

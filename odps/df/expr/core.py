@@ -18,10 +18,10 @@ from __future__ import absolute_import
 
 import itertools
 import weakref
-from collections import deque, defaultdict, Iterable
+from collections import deque, defaultdict
 
 from ... import compat
-from ...compat import six
+from ...compat import six, Iterable
 from ...dag import DAG, Queue
 from . import utils
 

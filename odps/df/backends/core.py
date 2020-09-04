@@ -16,7 +16,6 @@
 
 from __future__ import absolute_import
 
-from collections import Iterable
 import itertools
 import time
 import types
@@ -25,7 +24,7 @@ import sys
 import threading
 from operator import itemgetter
 
-from ...compat import six, Enum
+from ...compat import six, Enum, Iterable
 from ...models import Resource
 from ...config import options
 from ...dag import DAG

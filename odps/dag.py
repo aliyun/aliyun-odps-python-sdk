@@ -15,10 +15,9 @@
 # limitations under the License.
 
 import itertools
-from collections import Iterable
 from copy import deepcopy
 
-from .compat import Queue, six
+from .compat import Queue, six, Iterable
 
 
 class DAGValidationError(Exception):

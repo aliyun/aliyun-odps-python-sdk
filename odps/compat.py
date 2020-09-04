@@ -26,6 +26,10 @@ try:
     ElementTreeParseError = getattr(ElementTree, 'ParseError')
 except AttributeError:
     ElementTreeParseError = getattr(ElementTree, 'XMLParserError')
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 from unicodedata import east_asian_width
 
 from .lib import six
@@ -270,4 +274,5 @@ except ImportError:
 __all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress',
            'reduce', 'reload_module', 'Queue', 'Empty', 'ElementTree', 'ElementTreeParseError',
            'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
-           'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc', 'Monthdelta']
+           'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc', 'Monthdelta',
+           'Iterable']

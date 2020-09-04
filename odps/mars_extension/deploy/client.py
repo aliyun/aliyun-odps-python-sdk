@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
+import json
 import logging
 import time
 import requests
-import json
 
 from cupid import CupidSession
+from cupid.utils import build_image_name
 from mars.session import new_session
 
 from ...utils import write_log
@@ -29,21 +31,8 @@ from ... import errors
 
 NOTEBOOK_NAME = 'MarsNotebook'
 CUPID_APP_NAME = 'MarsWeb'
-DEFAULT_RESOURCES = ['public.mars-0.4.6.zip', 'public.pyodps-0.9.3.2.zip', 'public.pyarrow.zip']
+DEFAULT_RESOURCES = ['public.mars-0.5.0.zip', 'public.pyodps-0.9.5.zip', 'public.pyarrow.zip']
 logger = logging.getLogger(__name__)
-
-
-def _build_namespace_config(namespace):
-    config = {
-        'kind': 'Namespace',
-        'metadata': {
-            'name': namespace,
-            'labels': {
-                'name': namespace
-            }
-        },
-    }
-    return config
 
 
 class MarsCupidClient(object):
@@ -60,7 +49,7 @@ class MarsCupidClient(object):
         self._worker_config = None
         self._web_config = None
         self._endpoint = None
-        self._has_notebook = False
+        self._with_notebook = False
         self._notebook_endpoint = None
 
         self._mars_session = None
@@ -82,22 +71,32 @@ class MarsCupidClient(object):
     def instance_id(self):
         return self._kube_instance.id
 
-    def submit(self, worker_num=1, worker_cpu=8, worker_mem=32, disk_num=1, min_worker_num=None, cache_mem=None,
-               resources=None, module_path=None, create_session=True, priority=None, running_cluster=None,
-               scheduler_num=1, notebook=None, task_name=None, **kw):
+    def submit(self, image=None, scheduler_num=1, scheduler_cpu=8, scheduler_mem=32 * 1024 ** 3,
+               worker_num=1, worker_cpu=8, worker_mem=32 * 1024 ** 3, worker_cache_mem=None,
+               min_worker_num=None, worker_disk_num=1, worker_disk_size=100 * 1024 ** 3,
+               web_num=1, web_cpu=1, web_mem=1024 ** 3, with_notebook=False, notebook_cpu=1,
+               notebook_mem=2 * 1024 ** 3, timeout=None, extra_env=None, extra_modules=None,
+               resources=None, create_session=True, priority=None, running_cluster=None,
+               task_name=None, **kw):
         try:
             async_ = kw.pop('async_', None)
+
+            # compatible with early version
+            mars_image = kw.pop('mars_image', None)
             default_resources = kw.pop('default_resources', None) or DEFAULT_RESOURCES
-            if notebook is not None:
-                self._has_notebook = bool(notebook)
+            instance_idle_timeout = kw.pop('instance_idle_timeout', None)
+            if with_notebook is not None:
+                self._with_notebook = bool(with_notebook)
             else:
-                self._has_notebook = options.mars.launch_notebook
+                self._with_notebook = options.mars.launch_notebook
             if self._kube_instance is None:
-                if module_path is not None:
-                    if isinstance(module_path, (tuple, list)):
-                        module_path = list(module_path) + ['odps.mars_extension']
-                    else:
-                        module_path = [module_path, 'odps.mars_extension']
+                image = image or mars_image or build_image_name('mars')
+
+                extra_modules = extra_modules or []
+                if isinstance(extra_modules, (tuple, list)):
+                    extra_modules = list(extra_modules) + ['odps.mars_extension']
+                else:
+                    extra_modules = [extra_modules, 'odps.mars_extension']
 
                 if resources is not None:
                     if isinstance(resources, (tuple, list)):
@@ -108,36 +107,30 @@ class MarsCupidClient(object):
                 else:
                     resources = default_resources
 
-                if cache_mem is None:
-                    cache_mem = str(worker_mem * 0.48) + 'G'
+                if worker_cache_mem is None:
+                    worker_cache_mem = int(worker_mem * 0.48)
                 else:
-                    cache_mem = str(cache_mem) + 'G'
-                mars_config = {
-                    'scheduler_num': scheduler_num,
-                    'worker_num': worker_num,
-                    'worker_cpu': worker_cpu,
-                    'worker_mem': worker_mem,
-                    'cache_mem': cache_mem or '',
-                    'disk_num': disk_num,
-                    'resources': resources,
-                    'module_path': module_path or ['odps.mars_extension'],
-                }
-                if 'mars_app_image' in kw:
-                    mars_config['mars_app_image'] = kw.pop('mars_app_image')
-                if 'mars_image' in kw:
-                    mars_config['mars_image'] = kw.pop('mars_image')
-                if 'proxy_endpoint' in kw:
-                    mars_config['proxy_endpoint'] = kw.pop('proxy_endpoint')
-                if 'major_task_version' in kw:
-                    mars_config['major_task_version'] = kw.pop('major_task_version')
-                mars_config['scheduler_mem'] = kw.pop('scheduler_mem', 32)
-                mars_config['scheduler_cpu'] = kw.pop('scheduler_cpu', 8)
+                    worker_cache_mem = worker_cache_mem
 
-                if self._has_notebook:
-                    mars_config['notebook'] = True
+                cluster_args = dict(
+                    image=image, scheduler_num=scheduler_num, scheduler_cpu=scheduler_cpu,
+                    scheduler_mem=scheduler_mem, worker_num=worker_num, worker_cpu=worker_cpu,
+                    worker_mem=worker_mem, worker_cache_mem=worker_cache_mem,
+                    min_worker_num=min_worker_num, worker_disk_num=worker_disk_num,
+                    worker_disk_size=worker_disk_size, web_num=web_num, web_cpu=web_cpu,
+                    web_mem=web_mem, with_notebook=with_notebook, notebook_cpu=notebook_cpu,
+                    notebook_mem=notebook_mem, extra_env=extra_env, extra_modules=extra_modules,
+                    instance_idle_timeout=instance_idle_timeout, timeout=timeout)
+
+                command = '/srv/entrypoint.sh %s %s' % (
+                    __name__.rsplit('.', 1)[0] + '.app',
+                    base64.b64encode(json.dumps(cluster_args).encode()).decode()
+                )
+
                 self._kube_instance = self._cupid_session.start_kubernetes(
                     async_=True, running_cluster=running_cluster, priority=priority,
-                    app_name='mars', app_config=mars_config, task_name=task_name, **kw)
+                    app_image=build_image_name('mars'), app_command=command, resources=resources,
+                    task_name=task_name, **kw)
                 write_log(self._kube_instance.get_logview_address())
             if async_:
                 return self
@@ -203,7 +196,7 @@ class MarsCupidClient(object):
                     self._req_session.post(self._endpoint.rstrip('/') + '/api/logger', data=dict(
                         content='Mars UI from client: ' + self._endpoint
                     ))
-                if self._has_notebook and self._notebook_endpoint is None:
+                if self._with_notebook and self._notebook_endpoint is None:
                     self._notebook_endpoint = self.get_notebook_endpoint()
                     write_log('Notebook UI: ' + self._notebook_endpoint)
 
@@ -235,6 +228,10 @@ class MarsCupidClient(object):
                 if self._kube_instance and self._kube_instance.status == self._kube_instance.Status.RUNNING:
                     self._kube_instance.stop()
                 raise
+
+    def restart_session(self):
+        self._mars_session.close()
+        self._mars_session = new_session(self._endpoint, req_session=self._req_session).as_default()
 
     def stop_server(self):
         if self._kube_instance:

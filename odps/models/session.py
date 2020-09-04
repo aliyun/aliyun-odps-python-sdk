@@ -156,7 +156,7 @@ class InSessionInstance(Instance):
         when fetching results.
     """
 
-    __slots__ = ('_project_name', '_session_task_name', '_session_instance', '_is_select')
+    __slots__ = ('_project_name', '_session_task_name', '_session_instance', '_is_select', '_subquery_id')
 
     def __init__(self, **kw):
         if ('session_task_name' not in kw) or ('session_project_name' not in kw) or ('session_instance' not in kw):
@@ -165,6 +165,7 @@ class InSessionInstance(Instance):
         self._project_name = kw.pop("session_project_name", "")
         self._session_instance = kw.pop("session_instance", None)
         self._is_select = kw.pop("session_is_select", False)
+        self._subquery_id = -1
         super(InSessionInstance, self).__init__(**kw)
 
     @utils.survey
@@ -180,23 +181,26 @@ class InSessionInstance(Instance):
     def _open_tunnel_reader(self, **kw):
         if not self._is_select:
             raise errors.InstanceTypeNotSupported("InstanceTunnel cannot be opened at a non-select SQL Task.")
+        
+        while (self._subquery_id == -1) and (self._status != Instance.Status.TERMINATED):
+            self.reload()
+        
+        if self._subquery_id == -1:
+            raise errors.InternalServerError("SubQueryId not returned by the server.")
 
         from ..tunnel.instancetunnel import InstanceDownloadSession
 
         reopen = kw.pop('reopen', False)
         endpoint = kw.pop('endpoint', None)
         kw['sessional'] = True
+        kw['session_subquery_id'] = self._subquery_id
         if 'session_task_name' not in kw:
             kw['session_task_name'] = self._session_task_name
 
         tunnel = self._create_instance_tunnel(endpoint=endpoint)
-        download_id = self._download_id if not reopen else None
 
         try:
-            download_session = tunnel.create_download_session(instance=self,
-                                                              download_id=download_id, **kw)
-            if download_id and download_session.status != InstanceDownloadSession.Status.Normal:
-                download_session = tunnel.create_download_session(instance=self, **kw)
+            download_session = tunnel.create_download_session(instance=self, **kw)
         except errors.InternalServerError:
             e, tb = sys.exc_info()[1:]
             e.__class__ = Instance.DownloadSessionCreationError
@@ -214,7 +218,6 @@ class InSessionInstance(Instance):
                 # we can't count session results before it's
                 # fully retrieved.
                 return -1
-
             @property
             def status(self):
                 # force reload to update download session status
@@ -268,5 +271,6 @@ class InSessionInstance(Instance):
                 self._status = Instance.Status.RUNNING
             else:
                 self._status = Instance.Status.SUSPENDED
+            self._subquery_id = int(query_reslt.get("subQueryId", -1))
         except BaseException as ex:
             raise errors.ODPSError("Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), st_resp.text))

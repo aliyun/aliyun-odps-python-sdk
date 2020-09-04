@@ -27,56 +27,6 @@ logger = logging.getLogger(__name__)
 _CUPID_CONF_PREFIXES = 'odps cupid'.split()
 
 
-def _build_mars_config(app_config):
-    options.cupid.application_type = 'mars'
-
-    mars_config = dict()
-
-    resources = app_config['resources']
-    module_path = app_config['module_path']
-    resources_config = ','.join(resources)
-    module_path_config = ','.join(module_path)
-    mars_image = app_config.get('mars_image', None)
-
-    mars_config['odps.cupid.resources'] = resources_config
-    notebook = app_config.get('notebook', None)
-    cmd = '/opt/conda/bin/python /srv/server.py ' \
-          '--scheduler-num {} ' \
-          '--scheduler-cpu {} ' \
-          '--scheduler-mem {} ' \
-          '--worker-num {} ' \
-          '--worker-cpu {} ' \
-          '--worker-mem {} ' \
-          '--disk-num {} ' \
-          '--cache-mem {} ' \
-          '--module-path {} '.format(
-        app_config['scheduler_num'],
-        app_config['scheduler_cpu'],
-        app_config['scheduler_mem'],
-        app_config['worker_num'],
-        app_config['worker_cpu'],
-        app_config['worker_mem'],
-        app_config['disk_num'],
-        app_config['cache_mem'],
-        module_path_config
-    )
-    if mars_image:
-        cmd = cmd + '--mars-image {} '.format(mars_image)
-    if notebook:
-        cmd = cmd + '--with-nootbook '
-    mars_config['odps.cupid.kube.appmaster.cmd'] = cmd
-    mars_config['odps.cupid.kube.appmaster.image'] = app_config.get('mars_app_image', None) or \
-                                                     options.cupid.mars_image
-    return mars_config
-
-
-def _build_app_config(app_name, app_config):
-    if app_name == 'mars':
-        return _build_mars_config(app_config)
-    else:
-        return dict()
-
-
 class CupidSession(object):
     def __init__(self, odps=None, project=None):
         from .runtime import context
@@ -95,8 +45,6 @@ class CupidSession(object):
         self.save_id = None
         self.job_running_event = threading.Event()
 
-        self._kube_app_name = None
-        self._kube_app_config = None
         self._kube_url = None
 
     def check_running(self, timeout=None):
@@ -153,27 +101,26 @@ class CupidSession(object):
         return 'http://%s.%s' % (self.get_proxy_token(instance, app_name, expired_in_hours),
                                  options.cupid.proxy_endpoint)
 
-    def start_kubernetes(self, async_=False, priority=None, running_cluster=None, **kw):
+    def start_kubernetes(self, async_=False, priority=None, running_cluster=None,
+                         proxy_endpoint=None, major_task_version=None,
+                         app_command=None, app_image=None, resources=None, **kw):
         priority = priority or options.priority
         if priority is None and options.get_priority is not None:
             priority = options.get_priority(self.odps)
         menginetype = options.cupid.running_engine_type
 
-        self._kube_app_name = kw.get('app_name', None)
-        self._kube_app_config = kw.get('app_config', None)
-
-        proxy_endpoint = self._kube_app_config.pop('proxy_endpoint', None)
         if proxy_endpoint is not None:
             options.cupid.proxy_endpoint = proxy_endpoint
-
-        major_task_version = self._kube_app_config.pop('major_task_version', None)
         if major_task_version is not None:
             options.cupid.major_task_version = major_task_version
 
-        async_ = kw.get('async', async_)
-        runtime_endpoint = kw.get('runtime_endpoint', None)
+        async_ = kw.pop('async', async_)
+        runtime_endpoint = kw.pop('runtime_endpoint', None)
         task_operator = task_param_pb.CupidTaskOperator(moperator='startam', menginetype=menginetype)
-        task_name = kw.get('task_name')
+        task_name = kw.pop('task_name', None)
+
+        if len(kw) > 0:
+            raise ValueError('Got unexpected arguments: {}'.format(list(kw.keys())[0]))
 
         kub_conf = {
             'odps.cupid.kube.master.mode': options.cupid.kube.master_mode,
@@ -182,10 +129,11 @@ class CupidSession(object):
             'odps.cupid.job.capability.duration.hours': options.cupid.job_duration_hours,
             'odps.cupid.channel.init.timeout.seconds': options.cupid.channel_init_timeout_seconds,
             'odps.moye.runtime.type': options.cupid.application_type,
-            'odps.runtime.end.point': runtime_endpoint or options.cupid.runtime.endpoint
+            'odps.runtime.end.point': runtime_endpoint or options.cupid.runtime.endpoint,
+            'odps.cupid.resources': ','.join(resources or []),
+            'odps.cupid.kube.appmaster.cmd': app_command,
+            'odps.cupid.kube.appmaster.image': app_image
         }
-        app_conf = _build_app_config(self._kube_app_name, self._kube_app_config)
-        kub_conf.update(app_conf)
         if running_cluster:
             kub_conf['odps.cupid.task.running.cluster'] = running_cluster
         task_param = task_param_pb.CupidTaskParam(

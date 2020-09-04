@@ -21,6 +21,7 @@ from .errors import TunnelError
 from .. import errors, serializers, types
 from ..compat import Enum, six
 from ..models import Projects, Schema
+from ..models.table import TableSchema
 
 try:
     import numpy as np
@@ -29,7 +30,7 @@ except ImportError:
 
 
 class InstanceDownloadSession(serializers.JSONSerializableModel):
-    __slots__ = '_client', '_instance', '_limit_enabled', '_compress_option', '_sessional', '_session_task_name'
+    __slots__ = '_client', '_instance', '_limit_enabled', '_compress_option', '_sessional', '_session_task_name', '_session_subquery_id'
 
     class Status(Enum):
         Unknown = 'UNKNOWN'
@@ -54,8 +55,9 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         self._limit_enabled = limit if limit is not None else kw.get('limit_enabled', False)
         self._sessional = kw.pop("sessional", False)
         self._session_task_name = kw.pop("session_task_name", "")
-        if self._sessional and (not self._session_task_name):
-            raise TunnelError("Taskname('sess_tname') keyword argument must be provided for session instance tunnels.")
+        self._session_subquery_id = int(kw.pop("session_subquery_id", -1))
+        if self._sessional and ((not self._session_task_name) or (self._session_subquery_id == -1)):
+            raise TunnelError("Taskname('session_task_name') and Subquery ID ('session_subquery_id') keyword argument must be provided for session instance tunnels.")
 
         if download_id is None:
             self._init()
@@ -67,45 +69,55 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     def _init(self):
         params = {'downloads': ''}
         headers = {'Content-Length': 0}
-        if self._sessional:
-            params['cached'] = ''
-            params['taskname'] = self._session_task_name
-
-        if self._limit_enabled:
-            params['instance_tunnel_limit_enabled'] = ''
-
-        url = self._instance.resource()
-        resp = self._client.post(url, {}, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            if self.schema is not None:
-                self.schema.build_snapshot()
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        # Now we use DirectDownloadMode to fetch session results(any other method is removed)
+        # This mode, only one request needed. So we dont have to send request here ..
+        if not self._sessional:
+            if self._limit_enabled:
+                params['instance_tunnel_limit_enabled'] = ''
+            url = self._instance.resource()
+            resp = self._client.post(url, {}, params=params, headers=headers)
+            if self._client.is_ok(resp):
+                self.parse(resp, obj=self)
+                if self.schema is not None:
+                    self.schema.build_snapshot()
+            else:
+                e = TunnelError.parse(resp)
+                raise e
 
     def reload(self):
-        params = {'downloadid': self.id}
-        headers = {'Content-Length': 0}
-        if self._sessional:
-            params['cached'] = ''
-            params['taskname'] = self._session_task_name
+        if not self._sessional:
+            params = {'downloadid': self.id}
+            headers = {'Content-Length': 0}
+            if self._sessional:
+                params['cached'] = ''
+                params['taskname'] = self._session_task_name
 
-        url = self._instance.resource()
-        resp = self._client.get(url, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            if self.schema is not None:
-                self.schema.build_snapshot()
+            url = self._instance.resource()
+            resp = self._client.get(url, params=params, headers=headers)
+            if self._client.is_ok(resp):
+                self.parse(resp, obj=self)
+                if self.schema is not None:
+                    self.schema.build_snapshot()
+            else:
+                e = TunnelError.parse(resp)
+                raise e
         else:
-            e = TunnelError.parse(resp)
-            raise e
+            self.status = InstanceDownloadSession.Status.Normal
+
 
     def _open_reader(self, start, count, compress=False, columns=None, reader_cls=None):
         compress_option = self._compress_option or CompressOption()
 
         params = {}
-        headers = {'Content-Length': 0, 'x-odps-tunnel-version': 4}
+        headers = {'x-odps-tunnel-version': 4}
+        if self._sessional:
+            params['cached'] = ''
+            params['taskname'] = self._session_task_name
+            params['queryid'] = str(self._session_subquery_id)
+        else:
+            params['downloadid'] = self.id
+            params['rowrange'] = '(%s,%s)' % (start, count)
+            headers['Content-Length'] = 0
         if compress:
             if compress_option.algorithm == \
                     CompressOption.CompressAlgorithm.ODPS_ZLIB:
@@ -116,10 +128,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             elif compress_option.algorithm != \
                     CompressOption.CompressAlgorithm.ODPS_RAW:
                 raise TunnelError('invalid compression option')
-        params['downloadid'] = self.id
         params['data'] = ''
-        if not self._sessional:
-            params['rowrange'] = '(%s,%s)' % (start, count)
         if columns is not None and len(columns) > 0:
             col_name = lambda col: col.name if isinstance(col, types.Column) else col
             params['columns'] = ','.join(col_name(col) for col in columns)
@@ -129,6 +138,13 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         if not self._client.is_ok(resp):
             e = TunnelError.parse(resp)
             raise e
+        
+        if self._sessional:
+            # in DirectDownloadMode, the schema is brought back in HEADER.
+            # handle this.
+            schema_json = resp.headers.get('odps-tunnel-schema')
+            self.schema = TableSchema()
+            self.schema = self.schema.deserial(schema_json)
 
         content_encoding = resp.headers.get('Content-Encoding')
         if content_encoding is not None:

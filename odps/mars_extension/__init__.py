@@ -23,7 +23,7 @@ except ImportError:
     create_mars_cluster = None
     to_mars_dataframe = None
     persist_mars_dataframe = None
-    run_script_in_mars = None
+    run_mars_script = None
     run_mars_job = None
     list_mars_instances = None
 
@@ -36,11 +36,6 @@ try:
     from . import tensor
 except ImportError:
     tensor = None
-
-try:
-    from . import actors
-except ImportError:
-    actors = None
 
 try:
     from mars.executor import register
