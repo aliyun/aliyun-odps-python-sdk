@@ -198,7 +198,10 @@ setup_options = dict(
     scripts=['scripts/pyou', ],
     install_requires=requirements,
     include_dirs=[],
-    extras_require={'full': full_requirements}
+    extras_require={'full': full_requirements},
+    entry_points={
+        'sqlalchemy.dialects': ['odps = odps.sqlalchemy_odps:ODPSDialect']
+    },
 )
 
 if build_cmd != 'clean' and not PYPY:  # skip cython in pypy

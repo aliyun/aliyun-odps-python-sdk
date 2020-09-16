@@ -30,7 +30,8 @@ except ImportError:
 
 
 class InstanceDownloadSession(serializers.JSONSerializableModel):
-    __slots__ = '_client', '_instance', '_limit_enabled', '_compress_option', '_sessional', '_session_task_name', '_session_subquery_id'
+    __slots__ = '_client', '_instance', '_limit_enabled', '_compress_option', '_sessional', \
+                '_session_task_name', '_session_subquery_id'
 
     class Status(Enum):
         Unknown = 'UNKNOWN'
@@ -103,7 +104,6 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
                 raise e
         else:
             self.status = InstanceDownloadSession.Status.Normal
-
 
     def _open_reader(self, start, count, compress=False, columns=None, reader_cls=None):
         compress_option = self._compress_option or CompressOption()

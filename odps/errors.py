@@ -254,3 +254,7 @@ class RequestTimeTooSkewed(ServerDefinedException):
 
 # Handling error code typo in ODPS error message
 RequestTimeTooSkewd = RequestTimeTooSkewed
+
+
+class NotSupportedError(ODPSError):
+    pass

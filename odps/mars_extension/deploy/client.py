@@ -31,7 +31,7 @@ from ... import errors
 
 NOTEBOOK_NAME = 'MarsNotebook'
 CUPID_APP_NAME = 'MarsWeb'
-DEFAULT_RESOURCES = ['public.mars-0.5.0.zip', 'public.pyodps-0.9.5.zip', 'public.pyarrow.zip']
+DEFAULT_RESOURCES = ['public.mars-0.5.1.zip', 'public.pyodps-0.10.0.zip', 'public.pyarrow.zip']
 logger = logging.getLogger(__name__)
 
 

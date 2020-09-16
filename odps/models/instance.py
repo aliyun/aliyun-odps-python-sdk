@@ -791,6 +791,10 @@ class Instance(LazyLoad):
             def status(self):
                 return download_session.status
 
+            @property
+            def schema(self):
+                return self._schema
+
             def __iter__(self):
                 for record in self.read():
                     yield record
