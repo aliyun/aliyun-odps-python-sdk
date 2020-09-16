@@ -24,6 +24,7 @@ from mars.dataframe.utils import parse_index
 from mars.serialize import StringField, SeriesField, BoolField, DictField, Int64Field
 
 from ...utils import to_str
+from ..utils import convert_pandas_object_to_string
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +46,16 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
     _partition_spec = StringField('partition_spec')
     _overwrite = BoolField('overwrite')
     _write_batch_size = Int64Field('write_batch_size')
+    _unknown_as_string = BoolField('unknown_as_string')
 
     def __init__(self, dtypes=None, odps_params=None, table_name=None, partition_spec=None,
-                 over_write=None, write_batch_size=None, **kw):
+                 unknown_as_string=None, over_write=None, write_batch_size=None, **kw):
         kw.update(_output_type_kw)
         super(DataFrameWriteTable, self).__init__(_dtypes=dtypes,
                                                   _odps_params=odps_params,
                                                   _table_name=table_name,
                                                   _partition_spec=partition_spec,
+                                                  _unknown_as_string=unknown_as_string,
                                                   _overwrite=over_write,
                                                   _write_batch_size=write_batch_size,
                                                   **kw)
@@ -64,6 +67,10 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
     @property
     def dtypes(self):
         return self._dtypes
+
+    @property
+    def unknown_as_string(self):
+        return self._unknown_as_string
 
     @property
     def odps_params(self):
@@ -100,7 +107,11 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         from cupid import CupidSession, context
         from mars.dataframe.utils import build_concatenated_rows_frame
 
-        bearer_token = context().get_bearer_token()
+        cupid_ctx = context()
+        if cupid_ctx is None:
+            raise SystemError('No Mars cluster found, please create via `o.create_mars_cluster`.')
+
+        bearer_token = cupid_ctx.get_bearer_token()
         account = BearerTokenAccount(bearer_token)
         project = os.environ.get('ODPS_PROJECT_NAME', None)
         odps_params = op.odps_params.copy()
@@ -123,6 +134,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         for chunk in input_df.chunks:
             block_id = str(int(time.time())) + '_' + str(uuid.uuid4()).replace('-', '')
             chunk_op = DataFrameWriteTableSplit(dtypes=op.dtypes, table_name=op.table_name,
+                                                unknown_as_string=op.unknown_as_string,
                                                 partition_spec=op.partition_spec,
                                                 cupid_handle=to_str(upload_session.handle),
                                                 block_id=block_id, write_batch_size=op.write_batch_size)
@@ -172,13 +184,15 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
     _cupid_handle = StringField('cupid_handle')
     _block_id = StringField('block_id')
     _write_batch_size = Int64Field('write_batch_size')
+    _unknown_as_string = BoolField('unknown_as_string')
 
     def __init__(self, dtypes=None, table_name=None, partition_spec=None, cupid_handle=None,
-                 block_id=None, write_batch_size=None, **kw):
+                 unknown_as_string=None, block_id=None, write_batch_size=None, **kw):
         kw.update(_output_type_kw)
         super(DataFrameWriteTableSplit, self).__init__(_dtypes=dtypes,
                                                        _table_name=table_name,
                                                        _partition_spec=partition_spec,
+                                                       _unknown_as_string=unknown_as_string,
                                                        _cupid_handle=cupid_handle,
                                                        _block_id=block_id,
                                                        _write_batch_size=write_batch_size,
@@ -195,6 +209,10 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
     @property
     def table_name(self):
         return self._table_name
+
+    @property
+    def unknown_as_string(self):
+        return self._unknown_as_string
 
     @property
     def partition_spec(self):
@@ -221,7 +239,7 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
 
         to_store_data = ctx[op.inputs[0].key]
 
-        odps_schema = pd_to_df_schema(to_store_data, unknown_as_string=True)
+        odps_schema = pd_to_df_schema(to_store_data, unknown_as_string=op.unknown_as_string)
         project_name, table_name = op.table_name.split('.')
         block_writer = BlockWriter(
             _table_name=table_name,
@@ -237,10 +255,11 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
             sink = pa.BufferOutputStream()
 
             batch_size = op.write_batch_size or 1024
-            schema = pa.RecordBatch.from_pandas(to_store_data[:1], preserve_index=False).schema
-            arrow_writer = pa.RecordBatchStreamWriter(sink, schema)
             batch_idx = 0
             batch_data = to_store_data[batch_size * batch_idx: batch_size * (batch_idx + 1)]
+            batch_data = convert_pandas_object_to_string(batch_data)
+            schema = pa.RecordBatch.from_pandas(to_store_data[:1], preserve_index=False).schema
+            arrow_writer = pa.RecordBatchStreamWriter(sink, schema)
             while len(batch_data) > 0:
                 batch = pa.RecordBatch.from_pandas(batch_data, preserve_index=False)
                 arrow_writer.write_batch(batch)
@@ -329,8 +348,11 @@ class DataFrameWriteTableCommit(DataFrameOperand, DataFrameOperandMixin):
         ctx[op.outputs[0].key] = pd.DataFrame()
 
 
-def write_odps_table(df, table, partition=None, overwrite=False, odps_params=None, write_batch_size=None):
+def write_odps_table(df, table, partition=None, overwrite=False, unknown_as_string=None,
+                     odps_params=None, write_batch_size=None):
     table_name = '%s.%s' % (table.project.name, table.name)
     op = DataFrameWriteTable(dtypes=df.dtypes, odps_params=odps_params, table_name=table_name,
-                             partition_spec=partition, over_write=overwrite, write_batch_size=write_batch_size)
+                             unknown_as_string=unknown_as_string,
+                             partition_spec=partition, over_write=overwrite,
+                             write_batch_size=write_batch_size)
     return op(df)

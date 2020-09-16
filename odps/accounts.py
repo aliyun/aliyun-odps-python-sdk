@@ -22,6 +22,7 @@ import hashlib
 import logging
 import threading
 import time
+from datetime import datetime, timedelta
 
 import requests
 
@@ -292,13 +293,33 @@ class SignServerAccount(BaseAccount):
 
 
 class BearerTokenAccount(BaseAccount):
-    def __init__(self, token):
+    def __init__(self, token, expired_hours=5):
         self._token = token
+        self._last_modified_time = None
+        self._expired_time = timedelta(hours=expired_hours)
+
+    def _check_bearer_token(self):
+        from cupid import context
+
+        cupid_context = context()
+        if cupid_context is None:
+            return
+
+        t = datetime.now()
+        if self._last_modified_time is None:
+            token = cupid_context.get_bearer_token()
+            if token != self._token:
+                self._token = token
+                self._last_modified_time = datetime.now()
+        elif (t - self._last_modified_time) > self._expired_time:
+            self._token = cupid_context.get_bearer_token()
+            self._last_modified_time = datetime.now()
 
     @property
     def token(self):
         return self._token
 
     def sign_request(self, req, endpoint):
+        self._check_bearer_token()
         req.headers['x-odps-bearer-token'] = self._token
         LOG.debug('headers after signing: ' + repr(req.headers))

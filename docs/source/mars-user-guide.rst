@@ -166,6 +166,11 @@ Mars 集群的创建就是一个 MaxCompute 任务，因此也有 instance id、
 * ignore：总是创建新集群。
 
 
+.. warning::
+    Mars 集群拉起后，如果三小时内没有作业提交并且没有在运行的作业，集群会自动释放，
+    用户可以通过 ``instance_idle_timeout`` 参数指定最长空闲等待时间
+
+
 提交作业
 ~~~~~~~~~
 

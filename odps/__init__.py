@@ -29,6 +29,12 @@ try:
     from .ipython import load_ipython_extension
 except ImportError:
     pass
+try:
+    from sqlalchemy.dialects import registry
+
+    registry.register('odps', 'odps.sqlalchemy_odps', 'ODPSDialect')
+except ImportError:
+    pass
 
 
 def install_plugins():

@@ -26,12 +26,10 @@ import numpy as np
 import pandas as pd
 from cupid.config import options as cupid_options
 
-from ..df.backends.pd.types import _np_to_df_types
-from ..df import types as pd_types
-from ..df.backends.odpssql.types import df_type_to_odps_type
 from ..models import Schema
 from ..types import PartitionSpec
 from ..utils import to_binary, write_log
+from .utils import use_odps2_type, pd_type_to_odps_type, convert_pandas_object_to_string
 
 
 logger = logging.getLogger(__name__)
@@ -224,8 +222,9 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
                            use_arrow_dtype=use_arrow_dtype)
 
 
+@use_odps2_type
 def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None, write_batch_size=None,
-                           unknown_as_string=True, as_type=None, cupid_internal_endpoint=None):
+                           unknown_as_string=None, as_type=None, cupid_internal_endpoint=None):
     """
     Write Mars DataFrame to table.
 
@@ -248,13 +247,7 @@ def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None
         if as_type and name in as_type:
             odps_types.append(as_type[name])
         else:
-            if t in _np_to_df_types:
-                df_type = _np_to_df_types[t]
-            elif unknown_as_string:
-                df_type = pd_types.string
-            else:
-                raise ValueError('Unknown dtype: {}'.format(t))
-            odps_types.append(df_type_to_odps_type(df_type))
+            odps_types.append(pd_type_to_odps_type(t, name, unknown_as_string=unknown_as_string))
     if partition:
         p = PartitionSpec(partition)
         schema = Schema.from_lists(names, odps_types, p.keys, ['string'] * len(p))
@@ -267,10 +260,11 @@ def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None
     odps_params = dict(project=odps.project,
                        endpoint=cupid_internal_endpoint or cupid_options.cupid.runtime.endpoint)
     if isinstance(df, pd.DataFrame):
-        _write_table_in_cupid(odps, df, table, partition=partition, overwrite=overwrite)
+        _write_table_in_cupid(odps, df, table, partition=partition, overwrite=overwrite,
+                              unknown_as_string=unknown_as_string)
     else:
         write_odps_table(df, table, partition=partition, overwrite=overwrite, odps_params=odps_params,
-                         write_batch_size=write_batch_size).execute()
+                         unknown_as_string=unknown_as_string, write_batch_size=write_batch_size).execute()
 
 
 def run_script_in_mars(odps, script, mode='exec', n_workers=1, command_argv=None, **kw):
@@ -333,7 +327,7 @@ def execute_with_odps_context(f):
     return wrapper
 
 
-def _write_table_in_cupid(odps, df, table, partition=None, overwrite=True):
+def _write_table_in_cupid(odps, df, table, partition=None, overwrite=True, unknown_as_string=None):
     import pyarrow as pa
     from mars.utils import to_str
     from cupid import CupidSession
@@ -355,10 +349,11 @@ def _write_table_in_cupid(odps, df, table, partition=None, overwrite=True):
         sink = pa.BufferOutputStream()
 
         batch_size = 1024
-        schema = pa.RecordBatch.from_pandas(df[:1], preserve_index=False).schema
-        arrow_writer = pa.RecordBatchStreamWriter(sink, schema)
         batch_idx = 0
         batch_data = df[batch_size * batch_idx: batch_size * (batch_idx + 1)]
+        batch_data = convert_pandas_object_to_string(batch_data)
+        schema = pa.RecordBatch.from_pandas(df[:1], preserve_index=False).schema
+        arrow_writer = pa.RecordBatchStreamWriter(sink, schema)
         while len(batch_data) > 0:
             batch = pa.RecordBatch.from_pandas(batch_data, preserve_index=False)
             arrow_writer.write_batch(batch)
