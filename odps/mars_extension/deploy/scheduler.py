@@ -20,7 +20,14 @@ import os
 
 from mars.deploy.kubernetes.scheduler import K8SSchedulerApplication
 
-from .core import CupidServiceMixin
+from .core import CupidServiceMixin, CupidK8SPodsIPWatcher
+
+try:
+    from mars.deploy.kubernetes.scheduler import WorkerWatcherActor
+    class CupidWorkerWatcherActor(WorkerWatcherActor):
+        watcher_cls = CupidK8SPodsIPWatcher
+except ImportError:
+    WorkerWatcherActor = CupidWorkerWatcherActor = None
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +39,8 @@ class CupidSchedulerApplication(CupidServiceMixin, K8SSchedulerApplication):
         from odps.mars_extension.actors import CupidSessionManagerActor
 
         register_actor_implementation(SessionManagerActor, CupidSessionManagerActor)
+        if WorkerWatcherActor is not None:
+            register_actor_implementation(WorkerWatcherActor, CupidWorkerWatcherActor)
         super().__init__(*args, **kwargs)
 
 

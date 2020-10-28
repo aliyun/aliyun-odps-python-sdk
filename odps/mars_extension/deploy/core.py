@@ -58,9 +58,30 @@ class CupidK8SPodsIPWatcher(K8SPodsIPWatcher):
         pod_endpoint = '%s:%s' % (pod_data['status']['pod_ip'], pod_port)
         return pod_name, pod_endpoint if pod_port else None
 
+    def _get_pod_to_ep(self, service_type=None):
+        if service_type is not None:
+            query = self._pool.spawn(self._client.list_namespaced_pod,
+                                     namespace=self._k8s_namespace,
+                                     label_selector=self._get_label_selector(service_type)
+                                     ).result().to_dict()
+        else:
+            query = self._pool.spawn(self._client.list_namespaced_pod,
+                                     namespace=self._k8s_namespace,
+                                     label_selector=self._get_label_selector()
+                                     ).result().to_dict()
+        result = dict()
+        for el in query['items']:
+            name, pod_ep = self._extract_pod_name_ep(el)
+            if pod_ep is not None and not self._extract_pod_ready(el):
+                pod_ep = None
+            if el['status']['phase'] == 'Running':
+                result[name] = pod_ep
+        return result
+
     @staticmethod
     def _extract_pod_ready(obj_data):
-        # TODO
+        if obj_data['status']['phase'] != 'Running':
+            return False
         return True
 
 
@@ -132,6 +153,8 @@ class CupidServiceMixin:
     def create_scheduler_discoverer(self):
         try:
             self.scheduler_discoverer = CupidK8SPodsIPWatcher(label_selector='name=marsscheduler')
+        except TypeError:
+            self.scheduler_discoverer = CupidK8SPodsIPWatcher()
         finally:
             os.environ.pop('KUBE_API_ADDRESS', None)
 

@@ -91,12 +91,19 @@ class CupidMarsConfigMixin:
             pod_file.write(json.dumps(result, indent=2, sort_keys=True))
         return result
 
+    def remove_env(self, name):
+        try:
+            super().remove_env(name)
+        except AttributeError:
+            self._envs.pop(name, None)
+
 
 class CupidMarsSchedulersConfig(CupidMarsConfigMixin, MarsSchedulersConfig):
     def add_default_envs(self):
         super().add_default_envs()
-        self.add_env('MARS_USE_CGROUP_STAT', '0')
+        self.remove_env('MARS_USE_CGROUP_STAT')
         if self.stat_type == 'cgroup':
+            self.add_env('MARS_MEM_USE_CGROUP_STAT', '1')
             self.add_env('MARS_CPU_USE_PROCESS_STAT', '1')
 
 
@@ -110,7 +117,7 @@ class CupidMarsWorkersConfig(CupidMarsConfigMixin, MarsWorkersConfig):
         self.add_env('MARS_LOCK_FREE_FILEIO', '1')
         self.add_env('MARS_DISABLE_PROC_RECOVER', '1')
         self.add_env('MARS_WRITE_SHUFFLE_TO_DISK', '1')
-        self.add_env('MARS_USE_CGROUP_STAT', '0')
+        self.remove_env('MARS_USE_CGROUP_STAT')
         if self.stat_type == 'cgroup':
             self.add_env('MARS_CPU_USE_PROCESS_STAT', '1')
             self.add_env('MARS_MEM_USE_CGROUP_STAT', '1')

@@ -31,7 +31,7 @@ from ... import errors
 
 NOTEBOOK_NAME = 'MarsNotebook'
 CUPID_APP_NAME = 'MarsWeb'
-DEFAULT_RESOURCES = ['public.mars-0.5.1.zip', 'public.pyodps-0.10.0.zip', 'public.pyarrow.zip']
+DEFAULT_RESOURCES = ['public.mars-0.5.2.zip', 'public.pyodps-0.10.1.zip', 'public.pyarrow.zip']
 logger = logging.getLogger(__name__)
 
 
@@ -154,6 +154,10 @@ class MarsCupidClient(object):
     def count_workers(self):
         resp = self._req_session.get(self._endpoint + '/api/worker?action=count', timeout=1)
         return json.loads(resp.text)
+
+    def rescale_workers(self, new_scale, min_workers=None, wait=True, timeout=None):
+        self._mars_session._sess.rescale_workers(
+            new_scale, min_workers=min_workers, wait=wait, timeout=timeout)
 
     def get_logview_address(self):
         return self._kube_instance.get_logview_address()

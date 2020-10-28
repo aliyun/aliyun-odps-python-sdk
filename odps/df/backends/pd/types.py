@@ -87,7 +87,7 @@ def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None):
         if as_type and names[i] in as_type:
             df_types.append(as_type[names[i]])
             continue
-        df_types.append(np_type_to_df_type(dtypes[i], arr,
+        df_types.append(np_type_to_df_type(dtypes.iloc[i], arr,
                                            unknown_as_string=unknown_as_string,
                                            name=names[i]))
 
