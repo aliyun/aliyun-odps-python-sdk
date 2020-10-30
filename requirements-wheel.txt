@@ -1,0 +1,3 @@
+numpy==1.14.5
+cython==0.29.3
+requests>=2.4.0
