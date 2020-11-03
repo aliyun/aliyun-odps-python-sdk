@@ -190,8 +190,6 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
         logger.warning('Estimated chunk rows: %r', est_chunk_rows)
 
         out_chunks = []
-        # Ignore add_offset at this time.
-        op._add_offset = False
 
         if len(download_session.splits) == 0:
             logger.debug('Table {} has no data'.format(op.table_name))

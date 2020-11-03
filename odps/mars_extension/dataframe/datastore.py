@@ -146,7 +146,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         # build commit tree
         combine_size = 8
         chunks = out_chunks
-        while len(chunks) > combine_size:
+        while len(chunks) >= combine_size:
             new_chunks = []
             for i in range(0, len(chunks), combine_size):
                 chks = chunks[i: i + combine_size]

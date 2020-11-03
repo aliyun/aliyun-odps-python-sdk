@@ -321,5 +321,8 @@ class BearerTokenAccount(BaseAccount):
 
     def sign_request(self, req, endpoint):
         self._check_bearer_token()
+        url = req.url[len(endpoint):]
+        url_components = urlparse(unquote(url), allow_fragments=False)
+        self._build_canonical_str(url_components, req)
         req.headers['x-odps-bearer-token'] = self._token
         LOG.debug('headers after signing: ' + repr(req.headers))

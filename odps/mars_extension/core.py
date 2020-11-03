@@ -145,7 +145,7 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
     disk_size = int(disk_size * 1024 ** 3)
     scheduler_mem = int(scheduler_mem * 1024 ** 3) if scheduler_mem else None
     web_mem = int(web_mem * 1024 ** 3) if web_mem else None
-    notebook_mem = int(notebook_mem * 1024 ** 3) if web_mem else None
+    notebook_mem = int(notebook_mem * 1024 ** 3) if notebook_mem else None
 
     kw = dict(worker_num=worker_num, worker_cpu=worker_cpu, worker_mem=worker_mem,
               worker_cache_mem=cache_mem, min_worker_num=min_worker_num,
