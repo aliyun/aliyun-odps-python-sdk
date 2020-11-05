@@ -173,13 +173,23 @@ class ODPSDialect(default.DefaultDialect):
         project = url.host
         if project is None and options.default_project:
             project = options.default_project
-        endpoint = options.endpoint or DEFAULT_ENDPOINT
         access_id = url.username
         if access_id is None and options.account is not None:
             access_id = options.account.access_id
         secret_access_key = url.password
         if secret_access_key is None and options.account is not None:
             secret_access_key = options.account.secret_access_key
+        logview_host = options.log_view_host
+        endpoint = None
+        if url.query:
+            query = url.query
+            if endpoint is None:
+                endpoint = query.pop('endpoint', None)
+            if logview_host is None:
+                logview_host = query.pop('logview_host',
+                                         query.pop('logview', None))
+        if endpoint is None:
+            endpoint = options.endpoint or DEFAULT_ENDPOINT
 
         kwargs = {
             'access_id': access_id,
@@ -194,11 +204,15 @@ class ODPSDialect(default.DefaultDialect):
                                  '"odps://<access_id>:<access_key>@<project_name>", '
                                  'or create an ODPS object and call `.to_global()` '
                                  'to set it to global'.format(k))
+        if logview_host is not None:
+            kwargs['logview_host'] = logview_host
         return [], kwargs
 
     def get_schema_names(self, connection, **kw):
         conn = self._get_dbapi_connection(connection)
-        return [proj.name for proj in conn.odps.list_projects()]
+        fields = ['owner', 'user', 'group', 'prefix']
+        kwargs = {f: kw.get(f) for f in fields}
+        return [proj.name for proj in conn.odps.list_projects(**kwargs)]
 
     def has_table(self, connection, table_name, schema=None):
         full_table = table_name
@@ -229,6 +243,7 @@ class ODPSDialect(default.DefaultDialect):
                     'type': col_type,
                     'nullable': True,
                     'default': None,
+                    'comment': col.comment,
                 })
         except NoSuchObject as e:
             # convert ODPSError to SQLAlchemy NoSuchTableError
@@ -249,10 +264,17 @@ class ODPSDialect(default.DefaultDialect):
 
     def get_table_names(self, connection, schema=None, **kw):
         connection = self._get_dbapi_connection(connection)
-        filter_ = test_setting.get_tables_filter
+        filter_ = getattr(test_setting, 'get_tables_filter', None)
         if filter_ is None:
             filter_ = lambda x: True
         return [t.name for t in connection.odps.list_tables() if filter_(t.name)]
+
+    def get_table_comment(self, connection, table_name, schema=None, **kw):
+        connection = self._get_dbapi_connection(connection)
+        comment = connection.odps.get_table(table_name, project=schema).comment
+        return {
+            'text': comment
+        }
 
     def do_rollback(self, dbapi_connection):
         # No transactions for ODPS

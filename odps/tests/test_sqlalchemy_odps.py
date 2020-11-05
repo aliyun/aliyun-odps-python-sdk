@@ -175,8 +175,6 @@ def with_engine_connection(fn):
 class Test(TestBase):
     def setup(self):
         options.sql.use_odps2_extension = True
-        self.old_endpoint = options.endpoint
-        options.endpoint = self.odps.endpoint
         options.sql.settings = {
             'odps.sql.decimal.odps2': True
         }
@@ -189,13 +187,12 @@ class Test(TestBase):
 
     def teardown(self):
         options.sql.use_odps2_extension = False
-        options.endpoint = self.old_endpoint
         options.sql.settings = None
 
     def create_engine(self):
-        return create_engine('odps://{}:{}@{}'.format(
+        return create_engine('odps://{}:{}@{}/?endpoint={}'.format(
             self.odps.account.access_id, self.odps.account.secret_access_key,
-            self.odps.project))
+            self.odps.project, self.odps.endpoint))
 
     @with_engine_connection
     def test_basic_query(self, engine, connection):
@@ -394,3 +391,15 @@ class Test(TestBase):
     @with_engine_connection
     def test_supports_san_rowcount(self, engine, connection):
         self.assertFalse(engine.dialect.supports_sane_rowcount_returning)
+
+    @with_engine_connection
+    def test_desc_sql(self, engine, connection):
+        sql = 'desc one_row'
+        result = connection.execute(sql).fetchall()
+        self.assertEqual(len(result), 1)
+        self.assertEqual(len(result[0]), 1)
+
+    @with_engine_connection
+    def test_table_comment(self, engine, connection):
+        insp = sqlalchemy.inspect(engine)
+        self.assertEqual(insp.get_table_comment('one_row')['text'], '')

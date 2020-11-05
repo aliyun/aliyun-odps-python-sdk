@@ -44,7 +44,7 @@ class CupidK8SPodsIPWatcher(K8SPodsIPWatcher):
             logger.debug('Cupid context not ready, pod name: {}'.format(pod_name))
             return pod_name, None
 
-        if pod_name in self._pod_to_port:
+        if self._pod_to_port.get(pod_name):
             pod_port = self._pod_to_port[pod_name]
         else:
             pod_kv_data = self.cupid_kv.get(pod_name)
@@ -54,7 +54,9 @@ class CupidK8SPodsIPWatcher(K8SPodsIPWatcher):
                 logger.debug('Get port from kvstore, name: {}, port: {}'.format(pod_name, pod_port))
             else:
                 pod_port = None
-                logger.debug('Cannot get port from kvstore, name: {}'.format(pod_name))
+                if pod_name not in self._pod_to_port:
+                    logger.debug('Cannot get port from kvstore, name: {}'.format(pod_name))
+                    self._pod_to_port[pod_name] = None
         pod_endpoint = '%s:%s' % (pod_data['status']['pod_ip'], pod_port)
         return pod_name, pod_endpoint if pod_port else None
 

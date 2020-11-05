@@ -105,11 +105,12 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         from odps import ODPS
         from odps.accounts import BearerTokenAccount
         from cupid import CupidSession, context
+        from cupid.runtime import RuntimeContext
         from mars.dataframe.utils import build_concatenated_rows_frame
 
-        cupid_ctx = context()
-        if cupid_ctx is None:
+        if not RuntimeContext.is_context_ready():
             raise SystemError('No Mars cluster found, please create via `o.create_mars_cluster`.')
+        cupid_ctx = context()
 
         bearer_token = cupid_ctx.get_bearer_token()
         account = BearerTokenAccount(bearer_token)
@@ -146,7 +147,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         # build commit tree
         combine_size = 8
         chunks = out_chunks
-        while len(chunks) > combine_size:
+        while len(chunks) >= combine_size:
             new_chunks = []
             for i in range(0, len(chunks), combine_size):
                 chks = chunks[i: i + combine_size]

@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .core import LazyLoad, Iterable
+from .core import LazyLoad, Iterable, XMLRemoteModel
 from .. import serializers, errors, utils
 from ..compat import six, Enum
 from .volumes import Volume
@@ -46,11 +46,23 @@ class VolumeFile(serializers.XMLSerializableModel):
         return '/'.join((self.project.name, 'volumes', self.volume.name, self.partition.name, self.name))
 
 
+class VolumePartitionMeta(XMLRemoteModel):
+    length = serializers.XMLNodeField('Length', parse_callback=int, set_to_parent=True)
+    file_number = serializers.XMLNodeField('FileNumber', parse_callback=int, set_to_parent=True)
+
+    def load(self):
+        url = self._parent.resource()
+        params = {'meta': ''}
+        resp = self._client.get(url, params=params)
+        self.parse(self._client, resp, obj=self)
+
+
 class VolumePartition(LazyLoad):
     """
     Represents a partition in a volume.
     """
-    __slots__ = '_volume_tunnel', '_id_thread_local'
+    __slots__ = '_volume_tunnel', '_id_thread_local', \
+                'length', 'file_number'  # meta
 
     class Type(Enum):
         NEW = 'NEW'
@@ -63,10 +75,9 @@ class VolumePartition(LazyLoad):
     owner = serializers.XMLNodeField('Owner')
     type = serializers.XMLNodeField('Type', parse_callback=lambda t: VolumePartition.Type(t.upper()))
     comment = serializers.XMLNodeField('Comment')
-    length = serializers.XMLNodeField('Length', parse_callback=int)
-    file_number = serializers.XMLNodeField('FileNumber', parse_callback=int)
     creation_time = serializers.XMLNodeField('CreationTime', parse_callback=utils.parse_rfc822)
     last_modified_time = serializers.XMLNodeField('LastModifiedTime', parse_callback=utils.parse_rfc822)
+    meta = serializers.XMLNodeReferenceField(VolumePartitionMeta, 'Meta')
 
     _download_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
     _upload_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
@@ -74,6 +85,7 @@ class VolumePartition(LazyLoad):
     def __init__(self, **kwargs):
         super(VolumePartition, self).__init__(**kwargs)
         self._volume_tunnel = None
+        self.meta = VolumePartitionMeta(parent=self, client=self._client)
 
         try:
             del self._id_thread_local
@@ -83,6 +95,7 @@ class VolumePartition(LazyLoad):
     def reload(self):
         resp = self._client.get(self.resource())
         self.parse(self._client, resp, obj=self)
+        self.meta.load()
 
     @property
     def project(self):
@@ -91,6 +104,14 @@ class VolumePartition(LazyLoad):
     @property
     def volume(self):
         return self.parent
+
+    def __getattribute__(self, attr):
+        val = object.__getattribute__(self, attr)
+        if val is None and attr in getattr(VolumePartitionMeta, '__fields'):
+            self.meta.load()
+            return object.__getattribute__(self, attr)
+
+        return super(VolumePartition, self).__getattribute__(attr)
 
     class VolumeFiles(serializers.XMLSerializableModel):
         _root = 'Items'

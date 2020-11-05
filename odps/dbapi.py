@@ -139,13 +139,18 @@ class Cursor(object):
             return
         if self._description is None:
             self._check_download_session()
+            self._description = []
             if self._download_session is not None:
-                self._description = []
                 for col in self._download_session.schema.columns:
                     self._description.append((
                         col.name, col.type.name,
                         None, None, None, None, True
                     ))
+            else:
+                self._description.append((
+                    '_c0', 'string', None, None,
+                    None, None, True
+                ))
         return self._description
 
     @staticmethod
@@ -208,8 +213,18 @@ class Cursor(object):
                 # not select, cannot create session
                 self._download_session = None
 
+    def _fetch_non_select(self):
+        # not select
+        # just return reader.raw
+        with self._instance.open_reader() as reader:
+            return [(reader.raw,)]
+
     def _fetch(self, size):
         self._check_download_session()
+
+        if self._download_session is None:
+            return self._fetch_non_select()
+
         results = []
         i = 0
         while size == -1 or i < size:

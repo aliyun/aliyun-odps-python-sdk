@@ -29,6 +29,8 @@ from ...utils import to_str
 
 
 DEFAULT_NOTEBOOK_PORT = 50003
+ACTOR_ADDRESS = '127.0.0.1:32123'
+ACTOR_UID = 'BearerTokenActor'
 
 
 def start_notebook(port):
@@ -64,9 +66,21 @@ def dump_endpoint(endpoint):
         f.write(endpoint)
 
 
+def refresh_bearer_token(cupid_context):
+    path = os.path.join(os.path.expanduser('~'), '.bearertoken')
+    token = cupid_context.get_bearer_token()
+
+    refresh_time = 60
+    while True:
+        time.sleep(refresh_time)
+        with open(path, 'w') as f:
+            f.write(token)
+
+
 start_code = """
 import os
-from odps import options
+from odps import options, ODPS
+from odps.accounts import BearerTokenAccount
 
 options.verbose = True
 
@@ -75,7 +89,20 @@ path = os.path.join(os.path.expanduser('~'), '.mars')
 with open(path, 'r') as f:
     endpoint = f.read()
 mars_session = new_session(endpoint).as_default()
-"""
+
+def refresh_bearer_token():
+    from mars.actors import new_client
+    actor_client = new_client()
+    ref = actor_client.actor_ref(uid='{}', address='{}')
+    return ref.get_bearer_token()
+
+bearer_token = refresh_bearer_token()
+account = BearerTokenAccount(bearer_token, get_bearer_token_fun=refresh_bearer_token)
+project = os.environ.get('ODPS_PROJECT_NAME')
+endpoint = os.environ.get('ODPS_RUNTIME_ENDPOINT')
+o = ODPS(None, None, account=account, project=project, endpoint=endpoint)
+
+""".format(ACTOR_UID, ACTOR_ADDRESS)
 
 
 def config_startup():
@@ -85,6 +112,21 @@ def config_startup():
     f_path = os.path.join(startup_dir, 'set_default_session.py')
     with open(f_path, 'w') as f:
         f.write(start_code)
+
+
+def create_bearer_token_actor():
+    from mars.actors import create_actor_pool, FunctionActor
+
+    class BearerTokenActor(FunctionActor):
+        def get_bearer_token(self):
+            from cupid import context
+
+            ctx = context()
+            return ctx.get_bearer_token()
+
+    pool = create_actor_pool(address=ACTOR_ADDRESS, n_process=1)
+    pool.create_actor(BearerTokenActor, uid=ACTOR_UID)
+    pool.join()
 
 
 def _main():
@@ -117,6 +159,8 @@ def _main():
     if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
         endpoint = socket.gethostname() + "-{}".format(notebook_port)
     cupid_context.register_application(NOTEBOOK_NAME, endpoint)
+
+    create_bearer_token_actor()
 
 
 if __name__ == '__main__':

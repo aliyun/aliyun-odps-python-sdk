@@ -125,11 +125,13 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
         from odps import ODPS
         from odps.accounts import BearerTokenAccount
         from cupid import CupidSession, context
+        from cupid.runtime import RuntimeContext
         from mars.context import get_context
 
-        cupid_ctx = context()
-        if cupid_ctx is None:
+        if not RuntimeContext.is_context_ready():
             raise SystemError('No Mars cluster found, please create via `o.create_mars_cluster`.')
+
+        cupid_ctx = context()
 
         bearer_token = cupid_ctx.get_bearer_token()
         account = BearerTokenAccount(bearer_token)
@@ -190,8 +192,6 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
         logger.warning('Estimated chunk rows: %r', est_chunk_rows)
 
         out_chunks = []
-        # Ignore add_offset at this time.
-        op._add_offset = False
 
         if len(download_session.splits) == 0:
             logger.debug('Table {} has no data'.format(op.table_name))

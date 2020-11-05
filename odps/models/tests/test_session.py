@@ -45,8 +45,7 @@ class Test(TestBase):
         self.assertTrue(sess_instance)
         # wait to running
         try:
-            while sess_instance.status != Instance.Status.RUNNING:
-                pass
+            sess_instance.wait_for_startup()
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
             print("Task results: " + str(sess_instance.get_task_results()))
@@ -61,8 +60,7 @@ class Test(TestBase):
         self.assertTrue(sess_instance)
         # wait to running
         try:
-            while sess_instance.status != Instance.Status.RUNNING:
-                pass
+            sess_instance.wait_for_startup()
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
             print("Task results: " + str(sess_instance.get_task_results()))
@@ -73,8 +71,7 @@ class Test(TestBase):
         self.assertTrue(att_instance)
         # wait to running
         try:
-            while att_instance.status != Instance.Status.RUNNING:
-                pass
+            att_instance.wait_for_startup()
         except ODPSError as ex:
             print("LOGVIEW: " + att_instance.get_logview_address())
             print("Task results: " + str(att_instance.get_task_results()))
@@ -82,6 +79,41 @@ class Test(TestBase):
         # the status should keep consistent
         self.assertTrue(att_instance.status == Instance.Status.RUNNING)
         # finally stop it.
+        sess_instance.stop()
+
+    def testAttachDefaultSession(self):
+        sess_instance = self.odps.default_session()
+        self.assertTrue(sess_instance)
+        # wait to running
+        try:
+            sess_instance.wait_for_startup()
+        except ODPSError as ex:
+            print("LOGVIEW: " + sess_instance.get_logview_address())
+            print("Task results: " + str(sess_instance.get_task_results()))
+            raise ex
+        # the status should keep consistent
+        self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
+
+    def testSessionFailingSQL(self):
+        self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+        sess_instance = self.odps.create_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+        self.assertTrue(sess_instance)
+        # wait to running
+        try:
+            sess_instance.wait_for_startup()
+        except ODPSError as ex:
+            print("LOGVIEW: " + sess_instance.get_logview_address())
+            print("Task results: " + str(sess_instance.get_task_results()))
+            raise ex
+        # the status should keep consistent
+        self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
+        select_inst = sess_instance.run_sql(TEST_SELECT_STRING)
+        select_inst.wait_for_completion() # should return normally even the task is failed
+        try:
+            select_inst.wait_for_success()
+            self.assertTrue(False) # should not reach here: wait_for_success should throw exception on failed instance
+        except ODPSError as ex:
+            pass # good
         sess_instance.stop()
 
     def testSessionSQL(self):
@@ -92,18 +124,17 @@ class Test(TestBase):
         self.assertTrue(sess_instance)
         # wait to running
         try:
-            while sess_instance.status != Instance.Status.RUNNING:
-                pass
+            sess_instance.wait_for_startup()
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
-            print("Task Result:" + str(sess_instance.get_task_results()))
+            print("Task results: " + str(sess_instance.get_task_results()))
             raise ex
         # the status should keep consistent
         self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
         records = [Record(schema=TEST_CREATE_SCHEMA, values=values) for values in TEST_DATA]
         self.odps.write_table(table, 0, records)
         select_inst = sess_instance.run_sql(TEST_SELECT_STRING)
-        select_inst.wait_for_completion()
+        select_inst.wait_for_success()
         rows = []
         try:
             with select_inst.open_reader(tunnel=True) as rd:
@@ -117,8 +148,7 @@ class Test(TestBase):
         self.assertTrue(len(rows[0]) == len(TEST_DATA[0]))
         for index in range(5):
             self.assertTrue(int(rows[index][0]) == int(TEST_DATA[index][0]))
-        # OK, close
-        sess_instance.stop()
+        # OK, clear up
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
 
 if __name__ == '__main__':

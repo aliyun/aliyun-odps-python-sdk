@@ -145,7 +145,7 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
     disk_size = int(disk_size * 1024 ** 3)
     scheduler_mem = int(scheduler_mem * 1024 ** 3) if scheduler_mem else None
     web_mem = int(web_mem * 1024 ** 3) if web_mem else None
-    notebook_mem = int(notebook_mem * 1024 ** 3) if web_mem else None
+    notebook_mem = int(notebook_mem * 1024 ** 3) if notebook_mem else None
 
     kw = dict(worker_num=worker_num, worker_cpu=worker_cpu, worker_mem=worker_mem,
               worker_cache_mem=cache_mem, min_worker_num=min_worker_num,
@@ -176,7 +176,7 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
     :param use_arrow_dtype: read to arrow dtype. Reduce memory in some saces.
     :return: Mars DataFrame.
     """
-    from cupid import context
+    from cupid.runtime import RuntimeContext
     from .dataframe import read_odps_table
     from ..utils import init_progress_ui
 
@@ -204,7 +204,7 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
 
     # get dataframe's shape
     if shape is None:
-        if calc_nrows and context() is None:
+        if calc_nrows and not RuntimeContext.is_context_ready():
             # obtain count
             if partition is None:
                 odps_df = data_src.to_df()

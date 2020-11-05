@@ -17,6 +17,13 @@ PyODPS 支持集成 SQLAlchemy，可以使用 SQLAlchemy 查询 MaxCompute 数�
    from sqlalchemy import create_engine
    engine = create_engine('odps://<access_id>:<access_key>@<project>')
 
+要在连接串中指定 ``endpoint``，可以按如下方式：
+
+.. code-block:: python
+
+   from sqlalchemy import create_engine
+   engine = create_engine('odps://<access_id>:<access_key>@<project>/?endpoint=<endpoint>')
+
 这里把 ``<access_id>`` 等替换成相应的账号。
 
 对于已有的 ODPS 对象 ``o`` ，调用 ``o.to_global()`` 设为全局账号后，在连接串中就不需要指定了。

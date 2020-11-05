@@ -130,6 +130,10 @@ class ODPS(object):
         return params
 
     def __setstate__(self, state):
+        if 'secret_access_key' in state:
+            # if `secret_access_key` in state
+            self._init(**state)
+            return
         try:
             bearer_token = os.environ['ODPS_BEARER_TOKEN']
             state['project'] = os.environ['ODPS_PROJECT_NAME']
@@ -140,6 +144,9 @@ class ODPS(object):
             self._init(None, None, account=account, **state)
         except KeyError:
             self._init(**state)
+
+    def __mars_tokenize__(self):
+        return self.__getstate__()
 
     @classmethod
     def _from_account(cls, account, project, endpoint=DEFAULT_ENDPOINT,
@@ -1781,6 +1788,14 @@ class ODPS(object):
         return project.instances.create(task=task,
                                         session_project=project,
                                         session_name=session_name)
+
+    def default_session(self):
+        """
+        Attach to the default session of your project.
+
+        :return: A SessionInstance you may execute select tasks within.
+        """
+        return self.attach_session('public.default')
 
     def create_session(self, session_worker_count, session_worker_memory,
             session_name=None, worker_spare_span=None, taskname=None, hints=None):
