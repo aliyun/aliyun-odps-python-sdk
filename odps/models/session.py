@@ -18,10 +18,11 @@ import json
 import xml.dom.minidom as minidom
 import re
 import platform
+import time
 
 
 from .instance import Instance
-from .. import errors, readers, utils
+from .. import errors, readers, utils, options
 from ..compat import six, enum
 from ..models import tasks
 from ..serializers import XMLSerializableModel, XMLNodeField
@@ -38,7 +39,17 @@ class SessionTaskStatus(enum.Enum):
     Failed = 4
     Terminated = 5
     Cancelled = 6
+    Unknown = -1
 
+TASK_STATUS_VALUES = {
+    2: SessionTaskStatus.Running,
+    4: SessionTaskStatus.Failed,
+    5: SessionTaskStatus.Terminated,
+    6: SessionTaskStatus.Cancelled
+    }
+
+def _task_status_value_to_enum(task_status):
+    return TASK_STATUS_VALUES.get(task_status, SessionTaskStatus.Unknown)
 
 def _get_session_failure_info(task_results):
     try:
@@ -64,6 +75,19 @@ class SessionInstance(Instance):
         self._project = kw.pop("session_project", None)
         self._session_name = kw.pop("session_name", "")
         super(SessionInstance, self).__init__(**kw)
+    
+    def wait_for_startup(self, interval=1, retry=True):
+        """
+        Wait for the session to startup(status changed to RUNNING).
+
+        :param interval: time interval to check
+        :return: None
+        """
+        while not self.is_running(retry):
+            try:
+                time.sleep(interval)
+            except KeyboardInterrupt:
+                return
 
     def _parse_result_session_name(self, result_str):
         if not self._session_name:
@@ -131,22 +155,35 @@ class SessionInstance(Instance):
             "key": "status"})
         if not st_resp.ok:
             raise errors.ODPSError("HTTP " + str(st_resp.status_code))
+        session_status = SessionTaskStatus.Unknown
         try:
             poll_result = json.loads(st_resp.text)
             self._parse_result_session_name(poll_result["result"])
-            if poll_result["status"] == SessionTaskStatus.Running.value:
-                self._status = Instance.Status.RUNNING
-            elif poll_result["status"] == SessionTaskStatus.Cancelled.value:
-                raise errors.NoSuchObject("Session attach cancelled")
-            else:
-                self._status = Instance.Status.SUSPENDED
+            session_status = _task_status_value_to_enum(poll_result["status"])
         except BaseException:
             error_string = _get_session_failure_info(self.get_task_results())
             if error_string:
+                self._status = Instance.Status.TERMINATED
                 raise errors.ODPSError("Session operation failed: %s" % error_string)
             else:
                 # this is a task meta info update problem. Just retry.
                 self._status = Instance.Status.SUSPENDED
+                return
+        if session_status == SessionTaskStatus.Running:
+            self._status = Instance.Status.RUNNING
+        elif session_status == SessionTaskStatus.Cancelled:
+            error_string = _get_session_failure_info(self.get_task_results())
+            self._status = Instance.Status.TERMINATED
+            raise errors.ODPSError("Session cancelled: " + error_string)
+        elif session_status == SessionTaskStatus.Failed:
+            error_string = _get_session_failure_info(self.get_task_results())
+            self._status = Instance.Status.TERMINATED
+            raise errors.ODPSError("Session failed: " + error_string)
+        elif poll_result["status"] == SessionTaskStatus.Terminated:
+            self._status = Instance.Status.TERMINATED
+            raise errors.ODPSError("Session terminated.")
+        else:
+            self._status = Instance.Status.SUSPENDED
 
 
 class InSessionInstance(Instance):
@@ -156,16 +193,23 @@ class InSessionInstance(Instance):
         when fetching results.
     """
 
-    __slots__ = ('_project_name', '_session_task_name', '_session_instance', '_is_select', '_subquery_id')
+    __slots__ = '_project_name', '_session_task_name', '_session', \
+            '_session_instance', '_is_select', '_subquery_id', \
+            '_report_result', '_report_warning', '_session_task_status'
 
     def __init__(self, **kw):
-        if ('session_task_name' not in kw) or ('session_project_name' not in kw) or ('session_instance' not in kw):
+        if ('session_task_name' not in kw) \
+                or ('session_project_name' not in kw) \
+                or ('session_instance' not in kw):
             raise errors.InvalidArgument("Creating InSessionInstance without enough information.")
         self._session_task_name = kw.pop("session_task_name", "")
         self._project_name = kw.pop("session_project_name", "")
         self._session_instance = kw.pop("session_instance", None)
         self._is_select = kw.pop("session_is_select", False)
         self._subquery_id = -1
+        self._report_result = ''
+        self._report_warning = ''
+        self._session_task_status = -1
         super(InSessionInstance, self).__init__(**kw)
 
     @utils.survey
@@ -265,12 +309,71 @@ class InSessionInstance(Instance):
             raise errors.ODPSError("HTTP " + str(st_resp.status_code))
         try:
             query_reslt = json.loads(st_resp.text)
-            if query_reslt["status"] == SessionTaskStatus.Terminated.value:
+            query_status = query_reslt["status"]
+            self._report_result = query_reslt["result"]
+            self._report_warning = query_reslt["warnings"]
+            self._session_task_status = _task_status_value_to_enum(query_status)
+            if self._session_task_status == SessionTaskStatus.Terminated \
+                    or self._session_task_status == SessionTaskStatus.Failed \
+                    or self._session_task_status == SessionTaskStatus.Cancelled:
                 self._status = Instance.Status.TERMINATED
-            elif query_reslt["status"] == SessionTaskStatus.Running.value:
+            elif self._session_task_status == SessionTaskStatus.Running:
                 self._status = Instance.Status.RUNNING
             else:
                 self._status = Instance.Status.SUSPENDED
             self._subquery_id = int(query_reslt.get("subQueryId", -1))
         except BaseException as ex:
             raise errors.ODPSError("Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), st_resp.text))
+    
+    def is_successful(self, retry=False):
+        """
+        If the instance runs successfully.
+
+        :return: True if successful else False
+        :rtype: bool
+        """
+
+        if not self.is_terminated(retry=retry):
+            return False
+        if self._session_task_status == SessionTaskStatus.Failed or \
+            self._session_task_status == SessionTaskStatus.Cancelled:
+            return False
+        return True
+
+    def wait_for_success(self, interval=1):
+        """
+        Wait for instance to complete, and check if the instance is successful.
+
+        :param interval: time interval to check
+        :return: None
+        :raise: :class:`odps.errors.ODPSError` if the instance failed
+        """
+
+        self.wait_for_completion(interval=interval)
+
+        if not self.is_successful(retry=True):
+            raise errors.parse_instance_error(self._report_result)
+    
+    def get_warnings(self):
+        """
+        Get the warnings reported by ODPS.
+
+        :return: warning string if ever reported, or empty string for no warning.
+        """
+
+        self.reload()
+        return self._report_warning
+    
+    def get_printable_result(self):
+        """
+        Get the result string that can be directly printed to screen.
+        This should only be used for interactive display. The returning format is not guaranteed.
+
+        :return: The printable result. On not completed or no result returned, will return empty string.
+        :raise: :class:`odps.errors.ODPSError` if the instance failed.
+        """
+
+        self.reload()
+        if self.is_terminated() and not self.is_successful():
+            raise errors.parse_instance_error(self._report_result)
+        return self._report_result

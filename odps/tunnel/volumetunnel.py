@@ -308,7 +308,9 @@ class VolumeReader(object):
             raise IOError('Invalid VolumeReader.')
         return bytearray(buf[:self._data_size])
 
-    def read(self, size=sys.maxsize, break_line=False):
+    def read(self, size=None, break_line=False):
+        if size is None:
+            size = sys.maxsize
         if self._eof:
             return None
         if size == 0:

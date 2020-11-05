@@ -293,26 +293,36 @@ class SignServerAccount(BaseAccount):
 
 
 class BearerTokenAccount(BaseAccount):
-    def __init__(self, token, expired_hours=5):
+    def __init__(self, token, expired_hours=5, get_bearer_token_fun=None):
         self._token = token
         self._last_modified_time = None
         self._expired_time = timedelta(hours=expired_hours)
+        self._get_bearer_token = get_bearer_token_fun or self.get_bearer_token
 
-    def _check_bearer_token(self):
+    @staticmethod
+    def get_bearer_token():
         from cupid import context
 
         cupid_context = context()
         if cupid_context is None:
             return
 
+        return cupid_context.get_bearer_token()
+
+    def _check_bearer_token(self):
         t = datetime.now()
         if self._last_modified_time is None:
-            token = cupid_context.get_bearer_token()
+            token = self._get_bearer_token()
+            if token is None:
+                return
             if token != self._token:
                 self._token = token
                 self._last_modified_time = datetime.now()
         elif (t - self._last_modified_time) > self._expired_time:
-            self._token = cupid_context.get_bearer_token()
+            token = self._get_bearer_token()
+            if token is None:
+                return
+            self._token = token
             self._last_modified_time = datetime.now()
 
     @property

@@ -1789,6 +1789,14 @@ class ODPS(object):
                                         session_project=project,
                                         session_name=session_name)
 
+    def default_session(self):
+        """
+        Attach to the default session of your project.
+
+        :return: A SessionInstance you may execute select tasks within.
+        """
+        return self.attach_session('public.default')
+
     def create_session(self, session_worker_count, session_worker_memory,
             session_name=None, worker_spare_span=None, taskname=None, hints=None):
         """

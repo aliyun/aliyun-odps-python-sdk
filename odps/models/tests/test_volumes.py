@@ -93,6 +93,8 @@ class Test(TestBase):
             writer.write(TEST_FILE_NAME2, FILE_CONTENT2)
         partition.reload()
         self.assertEqual(partition.name, TEST_PARTITION_NAME)
+        self.assertEqual(partition.length, len(FILE_CONTENT) + len(FILE_CONTENT2))
+        self.assertEqual(partition.file_number, 2)
 
         file_path = '/'.join(('', TEST_PARTED_VOLUME_NAME, TEST_PARTITION_NAME, TEST_FILE_NAME))
         file_obj = self.odps.get_volume_file(file_path)

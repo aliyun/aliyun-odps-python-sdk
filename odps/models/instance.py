@@ -28,6 +28,7 @@ from .job import Job
 from .worker import WorkerDetail2, LOG_TYPES_MAPPING
 from .. import serializers, utils, errors, compat, readers, options
 from ..compat import ElementTree, Enum, six, OrderedDict
+from ..utils import to_str
 
 
 class Instance(LazyLoad):
@@ -491,6 +492,22 @@ class Instance(LazyLoad):
                 if not retry or retry_num <= 0:
                     raise
 
+    def is_running(self, retry=False):
+        """
+        If this instance is still running.
+
+        :return: True if still running else False
+        :rtype: bool
+        """
+        retry_num = options.retry_times
+        while retry_num > 0:
+            try:
+                return self.status == Instance.Status.RUNNING
+            except (errors.InternalServerError, errors.RequestTimeTooSkewed):
+                retry_num -= 1
+                if not retry or retry_num <= 0:
+                    raise
+
     def is_successful(self, retry=False):
         """
         If the instance runs successfully.
@@ -658,31 +675,34 @@ class Instance(LazyLoad):
         :return: logview address
         :rtype: str
         """
-        hours = hours or options.log_view_hours
-
         project = self.project
-        url = '%s/authorization' % project.resource()
+        if hasattr(project.odps.account, 'token'):
+            token = to_str(project.odps.account.token)
+        else:
+            hours = hours or options.log_view_hours
 
-        policy = {
-            'expires_in_hours': hours,
-            'policy': {
-                'Statement': [{
-                    'Action': ['odps:Read'],
-                    'Effect': 'Allow',
-                    'Resource': 'acs:odps:*:projects/%s/instances/%s' % \
-                                (project.name, self.id)
-                }],
-                'Version': '1',
+            url = '%s/authorization' % project.resource()
+
+            policy = {
+                'expires_in_hours': hours,
+                'policy': {
+                    'Statement': [{
+                        'Action': ['odps:Read'],
+                        'Effect': 'Allow',
+                        'Resource': 'acs:odps:*:projects/%s/instances/%s' % \
+                                    (project.name, self.id)
+                    }],
+                    'Version': '1',
+                }
             }
-        }
-        headers = {'Content-Type': 'application/json'}
-        params = {'sign_bearer_token': ''}
-        data = json.dumps(policy)
-        res = self._client.post(url, data, headers=headers, params=params)
+            headers = {'Content-Type': 'application/json'}
+            params = {'sign_bearer_token': ''}
+            data = json.dumps(policy)
+            res = self._client.post(url, data, headers=headers, params=params)
 
-        content = res.text if six.PY3 else res.content
-        root = ElementTree.fromstring(content)
-        token = root.find('Result').text
+            content = res.text if six.PY3 else res.content
+            root = ElementTree.fromstring(content)
+            token = root.find('Result').text
 
         link = self.project.odps.logview_host + "/logview/?h=" + self._client.endpoint + "&p=" \
                + project.name + "&i=" + self.id + "&token=" + token

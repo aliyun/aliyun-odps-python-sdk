@@ -33,7 +33,7 @@ class Partition(LazyLoad):
     __slots__ = 'spec', 'creation_time', 'last_meta_modified_time', 'last_modified_time', \
                 'size', '_is_extend_info_loaded', \
                 'is_archived', 'is_exstore', 'lifecycle', \
-                'physical_size', 'file_num'
+                'physical_size', 'file_num', 'reserved' 
 
     class Column(XMLRemoteModel):
 
@@ -63,6 +63,8 @@ class Partition(LazyLoad):
             'PhysicalSize', parse_callback=int, set_to_parent=True)
         file_num = serializers.JSONNodeField(
             'FileNum', parse_callback=int, set_to_parent=True)
+        reserved = serializers.JSONNodeField(
+            'Reserved', type='json', set_to_parent=True)
 
     columns = serializers.XMLNodesReferencesField(Column, 'Column')
     _schema = serializers.XMLNodeReferenceField(PartitionMeta, 'Schema')
@@ -82,7 +84,7 @@ class Partition(LazyLoad):
 
     def __getattribute__(self, attr):
         if attr in ('is_archived', 'is_exstore', 'lifecycle',
-                    'physical_size', 'file_num'):
+                    'physical_size', 'file_num', 'reserved'):
             if not self._is_extend_info_loaded:
                 self.reload_extend_info()
 
