@@ -82,7 +82,7 @@ define('pyodps/common', ['jquery', 'base/js/namespace', '@jupyter-widgets/base']
         var url_parts = require.toUrl(url).split('?', 1);
         var css_url = url_parts[0] + '.css';
         if (url_parts.length > 1) css_url += '?' + url_parts[1];
-        $('head').append('<link type="text/css" rel="stylesheet" href="' + css_url + '" data-pyodps-styles="' + url + '" />');
+        $('head').append('<link type="text/css" rel="stylesheet" href="' + css_url + '" data-pyodps-styles="' + url + '">');
     };
 
     var _instant_widgets = {};

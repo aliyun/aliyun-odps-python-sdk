@@ -1880,13 +1880,14 @@ except ImportError:
 try:
     from .mars_extension import create_mars_cluster, persist_mars_dataframe, \
         to_mars_dataframe, run_script, run_script_in_mars, run_mars_job, \
-        list_mars_instances
+        list_mars_instances, sql_to_mars_dataframe
     setattr(ODPS, 'create_mars_cluster', create_mars_cluster)
     setattr(ODPS, 'persist_mars_dataframe', persist_mars_dataframe)
     setattr(ODPS, 'to_mars_dataframe', to_mars_dataframe)
     setattr(ODPS, 'run_script_in_mars', run_script_in_mars)
     setattr(ODPS, 'run_mars_job', run_mars_job)
     setattr(ODPS, 'list_mars_instances', list_mars_instances)
+    setattr(ODPS, 'sql_to_mars_dataframe', sql_to_mars_dataframe)
 except ImportError:
     pass
 

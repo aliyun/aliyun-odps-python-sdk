@@ -27,6 +27,7 @@ from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
 from .job import Job
 from .worker import WorkerDetail2, LOG_TYPES_MAPPING
 from .. import serializers, utils, errors, compat, readers, options
+from ..accounts import BearerTokenAccount
 from ..compat import ElementTree, Enum, six, OrderedDict
 from ..utils import to_str
 
@@ -676,7 +677,7 @@ class Instance(LazyLoad):
         :rtype: str
         """
         project = self.project
-        if hasattr(project.odps.account, 'token'):
+        if isinstance(project.odps.account, BearerTokenAccount):
             token = to_str(project.odps.account.token)
         else:
             hours = hours or options.log_view_hours

@@ -59,15 +59,17 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
     _columns = ListField('columns')
     _nrows = Int64Field('nrows')
     _use_arrow_dtype = BoolField('use_arrow_dtype')
+    _string_as_binary = BoolField('string_as_binary')
 
     def __init__(self, odps_params=None, table_name=None, partition_spec=None,
                  columns=None, dtypes=None, nrows=None, sparse=None,
-                 add_offset=True, use_arrow_dtype=None, **kw):
+                 add_offset=True, use_arrow_dtype=None, string_as_binary=None, **kw):
         kw.update(_output_type_kw)
         super(DataFrameReadTable, self).__init__(_odps_params=odps_params, _table_name=table_name,
                                                  _partition_spec=partition_spec, _columns=columns,
                                                  _dtypes=dtypes, _nrows=nrows, _sparse=sparse,
                                                  _use_arrow_dtype=use_arrow_dtype,
+                                                 _string_as_binary=string_as_binary,
                                                  _add_offset=add_offset, **kw)
 
     @property
@@ -101,6 +103,10 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
     @property
     def use_arrow_dtype(self):
         return self._use_arrow_dtype
+
+    @property
+    def string_as_binary(self):
+        return self._string_as_binary
 
     @property
     def add_offset(self):
@@ -212,6 +218,7 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
                                                    schema_file_end=split.schema_file_end,
                                                    add_offset=op.add_offset, dtypes=op.dtypes,
                                                    sparse=op.sparse, split_size=split_size,
+                                                   string_as_binary=op.string_as_binary,
                                                    use_arrow_dtype=op.use_arrow_dtype,
                                                    estimate_rows=est_chunk_rows[idx])
                 # the chunk shape is unknown
@@ -243,6 +250,7 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
     _schema_file_start = Int64Field('schema_file_start')
     _schema_file_end = Int64Field('schema_file_end')
     _use_arrow_dtype = BoolField('use_arrow_dtype')
+    _string_as_binary = BoolField('string_as_binary')
     _dtypes = SeriesField('dtypes')
     _nrows = Int64Field('nrows')
 
@@ -251,7 +259,8 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
 
     def __init__(self, cupid_handle=None, split_index=None, split_file_start=None, split_file_end=None,
                  schema_file_start=None, schema_file_end=None, nrows=None, dtypes=None,
-                 split_size=None, use_arrow_dtype=None, estimate_rows=None, sparse=None, **kw):
+                 split_size=None, use_arrow_dtype=None, string_as_binary=None, estimate_rows=None,
+                 sparse=None, **kw):
         kw.update(_output_type_kw)
         super(DataFrameReadTableSplit, self).__init__(_cupid_handle=cupid_handle, _split_index=split_index,
                                                       _split_file_start=split_file_start,
@@ -259,6 +268,7 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
                                                       _schema_file_start=schema_file_start,
                                                       _schema_file_end=schema_file_end,
                                                       _use_arrow_dtype=use_arrow_dtype,
+                                                      _string_as_binary=string_as_binary,
                                                       _nrows=nrows, _estimate_rows=estimate_rows,
                                                       _split_size=split_size, _dtypes=dtypes,
                                                       _sparse=sparse, **kw)
@@ -315,6 +325,10 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
     def use_arrow_dtype(self):
         return self._use_arrow_dtype
 
+    @property
+    def string_as_binary(self):
+        return self._string_as_binary
+
     @classmethod
     def estimate_size(cls, ctx, op):
         import numpy as np
@@ -341,6 +355,19 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
             pd_size = arrow_size * 10 if n_strings else arrow_size
 
         ctx[op.outputs[0].key] = (pd_size, pd_size + arrow_size)
+
+    @classmethod
+    def _cast_string_to_binary(cls, arrow_table):
+        import pyarrow as pa
+
+        new_schema = []
+        for field in arrow_table.schema:
+            if field.type == pa.string():
+                new_schema.append(pa.field(field.name, pa.binary()))
+            else:
+                new_schema.append(field)
+
+        return arrow_table.cast(pa.schema(new_schema))
 
     @classmethod
     def execute(cls, ctx, op):
@@ -375,11 +402,14 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
                 except StopIteration:
                     break
             logger.debug('Read %s rows of this split.', op.nrows)
-            data = arrow_table_to_pandas_dataframe(
-                pa.Table.from_batches(batches),
-                use_arrow_dtype=op.use_arrow_dtype)[:op.nrows]
+            t = pa.Table.from_batches(batches)
+            if op.string_as_binary:
+                t = cls._cast_string_to_binary(t)
+            data = arrow_table_to_pandas_dataframe(t, use_arrow_dtype=op.use_arrow_dtype)[:op.nrows]
         else:
             arrow_table = reader.read_all()
+            if op.string_as_binary:
+                arrow_table = cls._cast_string_to_binary(arrow_table)
             data = arrow_table_to_pandas_dataframe(arrow_table,
                                                    use_arrow_dtype=op.use_arrow_dtype)
         data_columns = data.dtypes.index
@@ -414,7 +444,8 @@ def df_type_to_np_type(df_type, use_arrow_dtype=False):
 
 
 def read_odps_table(table, shape, partition=None, sparse=False, chunk_bytes=None,
-                    columns=None, odps_params=None, add_offset=False, use_arrow_dtype=False):
+                    columns=None, odps_params=None, add_offset=False, use_arrow_dtype=False,
+                    string_as_binary=None):
     import pandas as pd
 
     if chunk_bytes is not None:
@@ -433,7 +464,7 @@ def read_odps_table(table, shape, partition=None, sparse=False, chunk_bytes=None
 
     op = DataFrameReadTable(odps_params=odps_params, table_name=table_name, partition_spec=partition,
                             dtypes=dtypes, sparse=sparse, add_offset=add_offset, columns=columns,
-                            use_arrow_dtype=use_arrow_dtype)
+                            use_arrow_dtype=use_arrow_dtype, string_as_binary=string_as_binary)
     return op(shape, chunk_bytes=chunk_bytes)
 
 
@@ -445,7 +476,14 @@ class ReadODPSTableHeadRule(DataSourceHeadRule):
         op = chunk.op
         inputs = graph.predecessors(chunk)
         if len(inputs) == 1 and isinstance(op, (DataFrameIlocGetItem, SeriesIlocGetItem)) and \
-                op.is_head() and isinstance(inputs[0].op, DataFrameReadTableSplit) and \
+                isinstance(inputs[0].op, DataFrameReadTableSplit) and \
                 inputs[0].key not in keys:
-            return True
+            try:
+                is_head = op.can_be_optimized()
+            except AttributeError:
+                is_head = op.is_head()
+            if is_head:
+                return True
+            else:
+                return False
         return False

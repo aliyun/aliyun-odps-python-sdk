@@ -31,7 +31,7 @@ from ... import errors
 
 NOTEBOOK_NAME = 'MarsNotebook'
 CUPID_APP_NAME = 'MarsWeb'
-DEFAULT_RESOURCES = ['public.mars-0.5.3.zip', 'public.pyodps-0.10.2.zip', 'public.pyarrow.zip']
+DEFAULT_RESOURCES = ['public.mars-0.5.5.zip', 'public.pyodps-0.10.3.zip', 'public.pyarrow.zip']
 logger = logging.getLogger(__name__)
 
 
@@ -71,7 +71,7 @@ class MarsCupidClient(object):
     def instance_id(self):
         return self._kube_instance.id
 
-    def submit(self, image=None, scheduler_num=1, scheduler_cpu=8, scheduler_mem=32 * 1024 ** 3,
+    def submit(self, image=None, scheduler_num=1, scheduler_cpu=4, scheduler_mem=16 * 1024 ** 3,
                worker_num=1, worker_cpu=8, worker_mem=32 * 1024 ** 3, worker_cache_mem=None,
                min_worker_num=None, worker_disk_num=1, worker_disk_size=100 * 1024 ** 3,
                web_num=1, web_cpu=1, web_mem=1024 ** 3, with_notebook=False, notebook_cpu=1,
@@ -85,6 +85,7 @@ class MarsCupidClient(object):
             mars_image = kw.pop('mars_image', None)
             default_resources = kw.pop('default_resources', None) or DEFAULT_RESOURCES
             instance_idle_timeout = kw.pop('instance_idle_timeout', None)
+            node_blacklist = kw.pop('node_blacklist', None)
             if with_notebook is not None:
                 self._with_notebook = bool(with_notebook)
             else:
@@ -120,7 +121,8 @@ class MarsCupidClient(object):
                     worker_disk_size=worker_disk_size, web_num=web_num, web_cpu=web_cpu,
                     web_mem=web_mem, with_notebook=with_notebook, notebook_cpu=notebook_cpu,
                     notebook_mem=notebook_mem, extra_env=extra_env, extra_modules=extra_modules,
-                    instance_idle_timeout=instance_idle_timeout, timeout=timeout)
+                    node_blacklist=node_blacklist, instance_idle_timeout=instance_idle_timeout,
+                    timeout=timeout)
 
                 command = '/srv/entrypoint.sh %s %s' % (
                     __name__.rsplit('.', 1)[0] + '.app',
