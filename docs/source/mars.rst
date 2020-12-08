@@ -43,7 +43,6 @@ Mars
 .. code:: bash
 
     pip install -U pip  # 可选，确保 pip 版本足够新
-    pip install pyarrow==0.12.1  # 目前 pyarrow 版本固定到 0.12.1
     pip install pyodps>=0.9.2  # pyodps 需要至少 0.9.2
     pip install pymars>=0.4.0rc1  # mars 版本需要至少是 0.4.0rc1
 

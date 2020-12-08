@@ -79,6 +79,12 @@ Job 模式中我们只需要写一个处理数据的函数并提交即可，简�
     >>> options.verbose = True
     >>> client = o.create_mars_cluster()  # 会自动找已经创建的，名字为 default 的集群。
 
+集群默认不开启 notebook，要使用 notebook，需要指定 ``with_notebook=True``。
+
+.. code:: python
+
+    >>> client = o.create_mars_cluster(2, 4, 16, with_notebook=True)
+
 通过 ``to_mars_dataframe`` 接口可以读取 ODPS 表。
 
 .. code:: python

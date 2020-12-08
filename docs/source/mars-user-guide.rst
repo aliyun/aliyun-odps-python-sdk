@@ -199,7 +199,8 @@ Mars 集群创建的时候会设置默认 session，通过 ``.execute()`` 执行
 使用 Mars 集群自带的 Jupyter Notebook
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-用户可以通过 `with_notebook` 这个参数指定是否需要拉起 Jupyter Notebook 节点。
+.. note::
+   ``create_mars_cluster`` 指定了 ``with_notebook=True`` 才可以使用 Jupyter Notebook。
 
 新建一个 Notebook 会自动设置 session，提交任务到集群。因此在这个 notebook 内也不需要显示创建 ``session``\ 。
 

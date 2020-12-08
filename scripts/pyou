@@ -35,12 +35,12 @@ def main():
     
     # Import user class
     pkg, name = args.clz.rsplit('.', 1)
-    usermod = __import__(pkg, globals(), locals(), [name,], -1)
+    usermod = __import__(pkg, globals(), locals(), [name,])
     clz = getattr(usermod, name)
 
     # get stdin
     pkg, name = args.I.rsplit('.', 1)
-    usermod = __import__(pkg, globals(), locals(), [name,], -1)
+    usermod = __import__(pkg, globals(), locals(), [name,])
     stdin = getattr(usermod, name)
 
     udf_runner = runners.get_default_runner(clz, delim, null_indicator, stdin)
