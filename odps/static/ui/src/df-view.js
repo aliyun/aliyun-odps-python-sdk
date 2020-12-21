@@ -28,18 +28,18 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', '@jupyter-widgets/base'
     var df_view_pager_sizes = [1, 5, 1];
     var df_view_html = '<div class="row df-view output-suppressor">' +
         '<ul class="df-function-nav nav nav-pills pills-small">' +
-        ' <li class="active"><a class="btn-df-table" data-toggle="tab" href="#show-table-{counter}"><i class="fa fa-table" /></a></li>' +
-        ' <li><a class="btn-bar-chart" data-toggle="tab" href="#show-bar-chart-{counter}"><i class="fa fa-bar-chart" /></a></li>' +
-        ' <li><a class="btn-pie-chart" data-toggle="tab" href="#show-pie-chart-{counter}"><i class="fa fa-pie-chart" /></a></li>' +
-        ' <li><a class="btn-line-chart" data-toggle="tab" href="#show-line-chart-{counter}"><i class="fa fa-line-chart" /></a></li>' +
-        ' <li><a class="btn-scatter-chart" data-toggle="tab" href="#show-scatter-chart-{counter}"><i class="cf cf-scatter-chart" /></a></li>' +
+        ' <li class="active"><a class="btn-df-table" data-toggle="tab" href="#show-table-{counter}"><i class="fa fa-table"></i></a></li>' +
+        ' <li><a class="btn-bar-chart" data-toggle="tab" href="#show-bar-chart-{counter}"><i class="fa fa-bar-chart"></i></a></li>' +
+        ' <li><a class="btn-pie-chart" data-toggle="tab" href="#show-pie-chart-{counter}"><i class="fa fa-pie-chart"></i></a></li>' +
+        ' <li><a class="btn-line-chart" data-toggle="tab" href="#show-line-chart-{counter}"><i class="fa fa-line-chart"></i></a></li>' +
+        ' <li><a class="btn-scatter-chart" data-toggle="tab" href="#show-scatter-chart-{counter}"><i class="cf cf-scatter-chart"></i></a></li>' +
         ' <li class="pull-right">' +
         '  <div class="btn-group df-graph-toolbar" role="group">' +
         '   <button type="button" class="btn btn-default btn-download-graph">' +
-        '    <i class="fa fa-download" />' +
+        '    <i class="fa fa-download"></i>' +
         '   </button>' +
         '   <a type="button" class="btn btn-default btn-config-chart" data-toggle="button" aria-pressed="false" autocomplete="off">' +
-        '    <i class="fa fa-gear" />&nbsp;<i class="btn-config-caret fa fa-caret-down" />' +
+        '    <i class="fa fa-gear"></i>&nbsp;<i class="btn-config-caret fa fa-caret-down"></i>' +
         '   </a>' +
         '  </div>' +
         ' </li>' +
@@ -52,7 +52,7 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', '@jupyter-widgets/base'
         '  <div class="show-row row">' +
         '   <div class="show-body">' +
         '    <div class="show-table-body">' +
-        '     <i class="fa fa-spinner fa-spin fa-2x" />' +
+        '     <i class="fa fa-spinner fa-spin fa-2x"></i>' +
         '    </div>' +
         '    <ul class="df-table-pagination pagination pagination-sm" style="display: none">' +
         '     <li class="df-pager-first df-pager-top">' +
@@ -71,7 +71,7 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', '@jupyter-widgets/base'
         ' </div>' +
         ' <div id="show-bar-chart-{counter}" class="tab-pane fade show-pane show-bar-chart" data-binding="bar">' +
         '  <div class="show-row row">' +
-        '   <div class="show-body"><i class="fa fa-spinner fa-spin fa-2x" /></div>' +
+        '   <div class="show-body"><i class="fa fa-spinner fa-spin fa-2x"></i></div>' +
         '   <div class="show-options" style="display: none">' +
         '    Groups: <select class="groups-selector field-selector" data-placeholder="Select group columns" style="width: 180px" multiple="multiple"></select>' +
         '    Keys: <select class="keys-selector field-selector" data-placeholder="Select key columns" style="width: 180px" multiple="multiple"></select>' +
@@ -85,7 +85,7 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', '@jupyter-widgets/base'
         ' </div>' +
         ' <div id="show-pie-chart-{counter}" class="tab-pane fade show-pane show-pie-chart" data-binding="pie">' +
         '  <div class="show-row row">' +
-        '   <div class="show-body"><i class="fa fa-spinner fa-spin fa-2x" /></div>' +
+        '   <div class="show-body"><i class="fa fa-spinner fa-spin fa-2x"></i></div>' +
         '   <div class="show-options" style="display: none">' +
         '    Keys: <select class="keys-selector field-selector" data-placeholder="Select key columns" style="width: 180px" multiple="multiple"></select>' +
         '    Values: <select class="values-selector field-selector df-with-agg" data-placeholder="Select value columns" style="width: 180px" multiple="multiple"></select>' +
@@ -98,7 +98,7 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', '@jupyter-widgets/base'
         ' </div>' +
         ' <div id="show-line-chart-{counter}" class="tab-pane fade show-pane show-line-chart" data-binding="line">' +
         '  <div class="show-row row">' +
-        '   <div class="show-body"><i class="fa fa-spinner fa-spin fa-2x" /></div>' +
+        '   <div class="show-body"><i class="fa fa-spinner fa-spin fa-2x"></i></div>' +
         '   <div class="show-options" style="display: none">' +
         '    Groups: <select class="groups-selector field-selector" data-placeholder="Select group columns" style="width: 180px" multiple="multiple"></select>' +
         '    X Axis: <select class="keys-selector field-selector df-select-with-id" data-placeholder="Select key columns" style="width: 180px"></select>' +
@@ -112,7 +112,7 @@ define('pyodps/df-view', ['jquery', 'base/js/namespace', '@jupyter-widgets/base'
         ' </div>' +
         ' <div id="show-scatter-chart-{counter}" class="tab-pane fade show-pane show-scatter-chart" data-binding="scatter">' +
         '  <div class="show-row row">' +
-        '   <div class="show-body"><i class="fa fa-spinner fa-spin fa-2x" /></div>' +
+        '   <div class="show-body"><i class="fa fa-spinner fa-spin fa-2x"></i></div>' +
         '   <div class="show-options" style="display: none">' +
         '    Groups: <select class="groups-selector field-selector" data-placeholder="Select group columns" style="width: 180px" multiple="multiple"></select>' +
         '    X Axis: <select class="keys-selector field-selector df-select-with-id" data-placeholder="Select key columns" style="width: 180px"></select>' +

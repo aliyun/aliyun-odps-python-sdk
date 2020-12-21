@@ -156,6 +156,10 @@ full_requirements = [
     'graphviz>=0.4',
     'greenlet>=0.4.10',
 ]
+mars_requirements = [
+    'pymars>=0.5.4',
+    'protobuf>=3.6',
+]
 if sys.version_info[0] == 2:
     full_requirements.append('ipython<6.0.0')
 if sys.platform != 'win32':
@@ -198,7 +202,7 @@ setup_options = dict(
     scripts=['scripts/pyou', ],
     install_requires=requirements,
     include_dirs=[],
-    extras_require={'full': full_requirements},
+    extras_require={'full': full_requirements, 'mars': mars_requirements},
     entry_points={
         'sqlalchemy.dialects': ['odps = odps.sqlalchemy_odps:ODPSDialect']
     },

@@ -17,6 +17,12 @@ The quick way:
 pip install pyodps[full]
 ```
 
+To integrate with [Mars](https://docs.pymars.org/en/latest/):
+
+```
+pip install pyodps#egg=pyodps[mars]
+```
+
 If you don't need to use Jupyter, just type
 
 ```

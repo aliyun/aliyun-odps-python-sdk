@@ -19,7 +19,7 @@
 define('pyodps/ml-retry', ["jquery", "pyodps/common", "@jupyter-widgets/base"], function ($, common, widget) {
     "use strict";
 
-    var retry_html = '<a class="retry-btn" title="Retry"><i class="fa fa-repeat" /></a>';
+    var retry_html = '<a class="retry-btn" title="Retry"><i class="fa fa-repeat"></i></a>';
 
     var MLRetryButton = widget.DOMWidgetView.extend({
         render: function() {

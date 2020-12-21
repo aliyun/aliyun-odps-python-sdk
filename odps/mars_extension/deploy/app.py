@@ -22,7 +22,7 @@ import sys
 from cupid.config import options
 from cupid.utils import build_image_name
 from mars.deploy.kubernetes.client import KubernetesCluster, new_cluster
-from mars.deploy.kubernetes.config import VolumeConfig, \
+from mars.deploy.kubernetes.config import VolumeConfig, HostPathVolumeConfig, \
     MarsReplicationControllerConfig, MarsSchedulersConfig, MarsWorkersConfig, \
     MarsWebsConfig
 from mars.utils import readable_size
@@ -102,6 +102,7 @@ class CupidMarsSchedulersConfig(CupidMarsConfigMixin, MarsSchedulersConfig):
     def add_default_envs(self):
         super().add_default_envs()
         self.remove_env('MARS_USE_CGROUP_STAT')
+        self.add_env('MARS_DISABLE_FAILOVER', '1')
         if self.stat_type == 'cgroup':
             self.add_env('MARS_MEM_USE_CGROUP_STAT', '1')
             self.add_env('MARS_CPU_USE_PROCESS_STAT', '1')
@@ -109,14 +110,16 @@ class CupidMarsSchedulersConfig(CupidMarsConfigMixin, MarsSchedulersConfig):
 
 class CupidMarsWorkersConfig(CupidMarsConfigMixin, MarsWorkersConfig):
     def __init__(self, *args, **kwargs):
-        kwargs['mount_shm'] = kwargs.get('mount_shm', None) or False
+        if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
+            kwargs['mount_shm'] = kwargs.get('mount_shm', None) or False
+        kwargs['min_cache_mem'] = kwargs.get('min_cache_mem', None) or '10%'
         super().__init__(*args, **kwargs)
 
     def add_default_envs(self):
         super().add_default_envs()
         self.add_env('MARS_LOCK_FREE_FILEIO', '1')
         self.add_env('MARS_DISABLE_PROC_RECOVER', '1')
-        self.add_env('MARS_WRITE_SHUFFLE_TO_DISK', '1')
+        self.add_env('MARS_PLASMA_LIMIT', '95%')
         self.remove_env('MARS_USE_CGROUP_STAT')
         if self.stat_type == 'cgroup':
             self.add_env('MARS_CPU_USE_PROCESS_STAT', '1')
@@ -174,6 +177,9 @@ class CupidKubernetesCluster(KubernetesCluster):
         self._notebook_extra_env = kwargs.get('extra_env', None) or dict()
         self._notebook_extra_env.update(kwargs.pop('notebook_extra_env', None) or dict())
 
+        self._node_blacklist = set(kwargs.pop('node_blacklist', None) or [])
+        self._blacklisted_pods = set()
+
         kwargs['image'] = self._build_image_name(kwargs.pop('image', None))
         super().__init__(*args, **kwargs)
 
@@ -211,6 +217,26 @@ class CupidKubernetesCluster(KubernetesCluster):
     def _create_kube_service(self):
         # does not create k8s service as not supported in cupid
         pass
+
+    def _get_ready_pod_count(self, label_selector):
+        if self._node_blacklist:
+            query = self._core_api.list_namespaced_pod(
+                namespace=self._namespace, label_selector=label_selector).to_dict()
+            for el in query['items']:
+                node_name = el.get('spec', {}).get('node_name')
+                pod_name = el['metadata']['name']
+
+                if pod_name in self._blacklisted_pods:
+                    continue
+                if node_name and node_name in self._node_blacklist:
+                    logger.warning('Found node %s in blacklist, will terminate pod %s',
+                                   node_name, pod_name)
+                    try:
+                        self._core_api.delete_namespaced_pod(name=pod_name, namespace=self._namespace)
+                        self._blacklisted_pods.add(pod_name)
+                    except:  # noqa: E722
+                        pass
+        return super()._get_ready_pod_count(label_selector)
 
 
 class MarsCupidServer(object):

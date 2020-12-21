@@ -18,7 +18,7 @@
 try:
     from .core import create_mars_cluster, to_mars_dataframe, \
         persist_mars_dataframe, run_script_in_mars, run_mars_job, \
-        list_mars_instances
+        list_mars_instances, sql_to_mars_dataframe
 except ImportError:
     create_mars_cluster = None
     to_mars_dataframe = None
@@ -26,6 +26,7 @@ except ImportError:
     run_mars_script = None
     run_mars_job = None
     list_mars_instances = None
+    sql_to_mars_dataframe = None
 
 try:
     from . import dataframe

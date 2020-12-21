@@ -33,4 +33,4 @@ options.register_option('cupid.runtime.endpoint', 'http://service.cn.maxcompute.
 
 # mars app config
 options.register_option('cupid.image_prefix', None)
-options.register_option('cupid.image_version', 'v2.0')
+options.register_option('cupid.image_version', 'v2.1')

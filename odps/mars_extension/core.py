@@ -161,7 +161,8 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
 
 def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=None,
                       sparse=False, columns=None, add_offset=False, calc_nrows=True,
-                      use_arrow_dtype=False, cupid_internal_endpoint=None):
+                      use_arrow_dtype=False, string_as_binary=None,
+                      cupid_internal_endpoint=None):
     """
     Read table to Mars DataFrame.
 
@@ -174,6 +175,7 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
     :param add_offset: if standardize the DataFrame's index to RangeIndex. False as default.
     :param calc_nrows: if calculate nrows if shape is not specified.
     :param use_arrow_dtype: read to arrow dtype. Reduce memory in some saces.
+    :param string_as_binary: read string columns as binary type.
     :return: Mars DataFrame.
     """
     from cupid.runtime import RuntimeContext
@@ -219,7 +221,7 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
     return read_odps_table(odps.get_table(table_name), shape, partition=partition,
                            chunk_bytes=chunk_bytes, sparse=sparse, columns=columns,
                            odps_params=odps_params, add_offset=add_offset,
-                           use_arrow_dtype=use_arrow_dtype)
+                           use_arrow_dtype=use_arrow_dtype, string_as_binary=string_as_binary)
 
 
 @use_odps2_type
@@ -265,6 +267,20 @@ def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None
     else:
         write_odps_table(df, table, partition=partition, overwrite=overwrite, odps_params=odps_params,
                          unknown_as_string=unknown_as_string, write_batch_size=write_batch_size).execute()
+
+
+def sql_to_mars_dataframe(odps, sql, lifecycle=None, **to_mars_df_params):
+    lifecycle = lifecycle or cupid_options.temp_lifecycle
+    tmp_table_name = '%s%s' % ('tmp_mars', str(uuid.uuid4()).replace('-', '_'))
+
+    lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
+
+    format_sql = lambda s: 'CREATE TABLE {0} {1}AS \n{2}'.format(tmp_table_name,
+                                                                   lifecycle_str, s)
+
+    create_table_sql = format_sql(sql)
+    odps.execute_sql(create_table_sql)
+    return to_mars_dataframe(odps, tmp_table_name, **to_mars_df_params)
 
 
 def run_script_in_mars(odps, script, mode='exec', n_workers=1, command_argv=None, **kw):
