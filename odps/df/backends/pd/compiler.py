@@ -20,6 +20,7 @@ import re
 import time
 import uuid
 from datetime import datetime
+from distutils.version import LooseVersion
 
 from ..core import Backend
 from ...expr.expressions import *
@@ -48,6 +49,12 @@ try:
 except ImportError:
     pd = None
     np = None
+
+
+if pd is not None:
+    PD_APPLY_HAS_RESULT_TYPE = LooseVersion(pd.__version__) >= '0.23.0'
+else:
+    PD_APPLY_HAS_RESULT_TYPE = False
 
 
 BINARY_OP_TO_PANDAS = {
@@ -1033,8 +1040,12 @@ class PandasCompiler(Backend):
                         return res
                     return next(res)
 
-                return input.apply(func, axis=1, reduce=True,
-                                   args=expr._func_args, **expr._func_kwargs)
+                if PD_APPLY_HAS_RESULT_TYPE:
+                    return input.apply(func, axis=1, result_type='reduce',
+                                    args=expr._func_args, **expr._func_kwargs)
+                else:
+                    return input.apply(func, axis=1, reduce=True,
+                                    args=expr._func_args, **expr._func_kwargs)
 
         self._add_node(expr, handle)
 

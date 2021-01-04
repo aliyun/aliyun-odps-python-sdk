@@ -12,11 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+
 from odps.compat import six
 
 from ..rpc import SandboxRpcChannel, CupidRpcController
-from ..proto import kv_store_service_pb2 as kv_pb
 from ..errors import CupidError
+
+try:
+    from ..proto import kv_store_service_pb2 as kv_pb
+except TypeError:
+    warnings.warn('Cannot import protos from pycupid: '
+        'consider upgrading your protobuf python package.', ImportWarning)
+    raise ImportError
 
 
 class CupidKVStore(object):

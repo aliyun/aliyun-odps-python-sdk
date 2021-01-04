@@ -350,6 +350,9 @@ options.register_option('force_py', False, validator=is_integer)
 # instance create callback
 options.register_option('instance_create_callback', None)
 
+# tunnel read timeout callback
+options.register_option('tunnel_read_timeout_callback', None)
+
 # network connections
 options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
 options.register_option('retry_times', DEFAULT_CONNECT_RETRY_TIMES, validator=is_integer)

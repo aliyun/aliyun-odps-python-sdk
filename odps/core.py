@@ -132,6 +132,8 @@ class ODPS(object):
     def __setstate__(self, state):
         if 'secret_access_key' in state:
             # if `secret_access_key` in state
+            if os.environ.get('ODPS_ENDPOINT', None) is not None:
+                state['endpoint'] = os.environ['ODPS_ENDPOINT']
             self._init(**state)
             return
         try:

@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import json
+import io
 import logging
 import os
 import tempfile
 import time
 import uuid
 import socket
+import sys
 
 from mars.actors.pool.gevent_pool import ActorPool
 from mars.deploy.kubernetes.core import K8SPodsIPWatcher
@@ -129,6 +131,21 @@ class CupidActorPool(ActorPool):
         self._channel_file[idx] = os.path.join(self._env_path, str(uuid.uuid4()))
 
     def post_process_start_child(self, idx):
+        try:
+            # Patch import here.
+            # The reason is that tensorflow relies on protobuf 3+,
+            # meanwhile, cupid channel relies on protobuf 2.4,
+            # however, when cupid channel started below,
+            # tensorflow will recognize the old version of protobuf
+            # even when we set LD_LIBRARY_PATH,
+            # so we import tensorflow in advance to prevent from potential crash.
+            import tensorflow
+        except ImportError:
+            pass
+
+        # set STDOUT to unbuffer mode
+        sys.stdout = io.TextIOWrapper(open(sys.stdout.fileno(), 'wb', 0), write_through=True)
+
         while not os.path.exists(self._channel_file[idx]):
             time.sleep(1)
         try:

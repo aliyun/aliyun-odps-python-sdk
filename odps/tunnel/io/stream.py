@@ -18,8 +18,13 @@ import sys
 import zlib
 import threading
 
-from ... import errors, compat
+from ... import errors, compat, options
 from ...compat import Enum, six
+
+try:
+    from urllib3.exceptions import ReadTimeoutError
+except ImportError:
+    from requests import ReadTimeout as ReadTimeoutError
 
 # used for test case to force thread io
 _FORCE_THREAD = False
@@ -316,8 +321,13 @@ class SimpleInputStream(object):
 
 class RequestsInputStream(SimpleInputStream):
     def _read_block(self):
-        content = self._input.raw.read(self.READ_BLOCK_SIZE, decode_content=True)
-        return content if content else None
+        try:
+            content = self._input.raw.read(self.READ_BLOCK_SIZE, decode_content=True)
+            return content if content else None
+        except ReadTimeoutError:
+            if callable(options.tunnel_read_timeout_callback):
+                options.tunnel_read_timeout_callback(*sys.exc_info())
+            raise
 
 
 class DeflateInputStream(SimpleInputStream):

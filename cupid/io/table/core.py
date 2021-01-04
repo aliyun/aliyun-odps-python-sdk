@@ -15,6 +15,7 @@
 import json
 import logging
 import time
+import warnings
 from types import GeneratorType
 
 from odps import options
@@ -22,10 +23,16 @@ from odps.models import Table, Schema
 from odps.models.partition import Partition as TablePartition
 
 from cupid.rpc import CupidRpcController, CupidTaskServiceRpcChannel, SandboxRpcChannel
-from cupid.proto import cupid_task_service_pb2 as task_service_pb
-from cupid.proto import cupid_subprocess_service_pb2 as subprocess_pb
 from cupid.errors import CupidError
 from cupid.session import CupidSession
+
+try:
+    from cupid.proto import cupid_task_service_pb2 as task_service_pb
+    from cupid.proto import cupid_subprocess_service_pb2 as subprocess_pb
+except TypeError:
+    warnings.warn('Cannot import protos from pycupid: '
+        'consider upgrading your protobuf python package.', ImportWarning)
+    raise ImportError
 
 logger = logging.getLogger(__name__)
 

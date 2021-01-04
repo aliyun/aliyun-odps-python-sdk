@@ -17,7 +17,6 @@
 import sys
 import multiprocessing
 import threading
-import collections
 import time
 import struct
 import os
@@ -25,6 +24,11 @@ import math
 import locale
 import codecs
 import warnings
+
+try:
+    from collections.abc import Iterable
+except ImportError:  # pragma: no cover
+    from collections import Iterable
 
 try:
     import fcntl
@@ -783,7 +787,7 @@ class ProgressBar(six.Iterator):
         else:
             self._silent = False
 
-        if isinstance(total_or_items, collections.Iterable):
+        if isinstance(total_or_items, Iterable):
             self._items = iter(total_or_items)
             self._total = len(total_or_items)
         else:
