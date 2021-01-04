@@ -15,10 +15,17 @@
 import json
 import logging
 import os
+import warnings
 
 from ..utils import get_environ
-from ..proto import cupid_process_service_pb2 as process_pb
 from ..rpc import CupidRpcController, SandboxRpcChannel
+
+try:
+    from ..proto import cupid_process_service_pb2 as process_pb
+except TypeError:
+    warnings.warn('Cannot import protos from pycupid: '
+        'consider upgrading your protobuf python package.', ImportWarning)
+    raise ImportError
 
 logger = logging.getLogger(__name__)
 _pid_to_context = dict()

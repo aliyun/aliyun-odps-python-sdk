@@ -14,13 +14,20 @@
 
 import logging
 import threading
+import warnings
 
 from odps.compat import six
 
 from .config import options
-from .proto import cupidtaskparam_pb2 as task_param_pb
 from .rpc import CupidTaskServiceRpcChannel
 from .utils import get_environ
+
+try:
+    from .proto import cupidtaskparam_pb2 as task_param_pb
+except TypeError:
+    warnings.warn('Cannot import protos from pycupid: '
+        'consider upgrading your protobuf python package.', ImportWarning)
+    raise ImportError
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +143,11 @@ class CupidSession(object):
         }
         if running_cluster:
             kub_conf['odps.cupid.task.running.cluster'] = running_cluster
+        if options.cupid.container_node_label is not None:
+            kub_conf['odps.cupid.container.node.label'] = options.cupid.container_node_label
+        if options.cupid.master.virtual_resource is not None:
+            kub_conf['odps.cupid.master.virtual.resource'] = options.cupid.master.virtual_resource
+
         task_param = task_param_pb.CupidTaskParam(
             jobconf=self.job_conf(conf=kub_conf),
             mcupidtaskoperator=task_operator,

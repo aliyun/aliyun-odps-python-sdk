@@ -18,6 +18,7 @@ import uuid
 import os
 import sys
 import logging
+import warnings
 
 import struct
 import time
@@ -28,8 +29,14 @@ from odps import compat
 
 from . import errors
 from .config import options
-from .proto import cupidtaskparam_pb2
 from .utils import get_property
+
+try:
+    from .proto import cupidtaskparam_pb2
+except TypeError:
+    warnings.warn('Cannot import protos from pycupid: '
+        'consider upgrading your protobuf python package.', ImportWarning)
+    raise ImportError
 
 logger = logging.getLogger(__name__)
 

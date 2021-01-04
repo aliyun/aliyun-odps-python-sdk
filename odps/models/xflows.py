@@ -132,6 +132,10 @@ class XFlows(Iterable):
             hints.update(options.ml.xflow_settings)
         if hints:
             kw['properties'] = hints
+        if options.biz_id:
+            if kw.get('properties') is None:
+                kw['properties'] = OrderedDict()
+            kw['properties']['biz_id'] = str(options.biz_id)
         if parameters:
             new_params = OrderedDict()
             for k, v in six.iteritems(parameters):

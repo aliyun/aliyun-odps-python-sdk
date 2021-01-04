@@ -34,7 +34,7 @@ from ...utils import to_str
 
 logger = logging.getLogger(__name__)
 
-READ_CHUNK_LIMIT = 16 * 1024 ** 2
+READ_CHUNK_LIMIT = 64 * 1024 ** 2
 MAX_CHUNK_SIZE = 512 * 1024 ** 2
 
 ORC_COMPRESSION_RATIO = 5
@@ -374,11 +374,13 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
         import pyarrow as pa
         from cupid.io.table import TableSplit
 
+        out = op.outputs[0]
+
         if op.cupid_handle is None:
             empty_df = pd.DataFrame()
-            for name, dtype in op.outputs[0].dtypes.items():
+            for name, dtype in out.dtypes.items():
                 empty_df[name] = pd.Series(dtype=dtype)
-            ctx[op.outputs[0].key] = empty_df
+            ctx[out.key] = empty_df
             return
 
         tsp = TableSplit(
@@ -413,17 +415,19 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
             data = arrow_table_to_pandas_dataframe(arrow_table,
                                                    use_arrow_dtype=op.use_arrow_dtype)
         data_columns = data.dtypes.index
-        expected_columns = op.outputs[0].dtypes.index
+        expected_columns = out.dtypes.index
         if not data_columns.equals(expected_columns):
             logger.debug("Data columns differs from output columns, "
                          "data columns: {}, output columns: {}".format(data_columns, expected_columns))
-            data.columns = expected_columns
+            data.columns = expected_columns[:len(data.columns)]
+            for extra_col in expected_columns[len(data.columns):]:
+                data[extra_col] = pd.Series([], dtype=out.dtypes[extra_col])
 
         logger.debug('Read split table finished, split index: %s', op.split_index)
         logger.debug('Split data shape is {}, size is {}'.format(
             data.shape,
             data.memory_usage(deep=True).sum()))
-        ctx[op.outputs[0].key] = data
+        ctx[out.key] = data
 
 
 def df_type_to_np_type(df_type, use_arrow_dtype=False):

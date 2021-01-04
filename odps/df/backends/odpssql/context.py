@@ -116,6 +116,9 @@ class ODPSContext(object):
     def get_udf(self, func):
         return self._registered_funcs[func]
 
+    def get_udf_count(self):
+        return len(self._registered_funcs)
+
     def prepare_resources(self, libraries):
         from ....models import Resource
 
