@@ -22,6 +22,7 @@ import logging
 from mars.dataframe.operands import DataFrameOperandMixin, DataFrameOperand
 from mars.dataframe.utils import parse_index
 from mars.serialize import StringField, SeriesField, BoolField, DictField, Int64Field
+from mars.dataframe.utils import build_concatenated_rows_frame
 
 from ...utils import to_str
 from ..utils import convert_pandas_object_to_string
@@ -101,12 +102,11 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
                                   index_value=index_value, columns_value=columns_value)
 
     @classmethod
-    def tile(cls, op):
+    def _tile_cupid(cls, op):
         from odps import ODPS
         from odps.accounts import BearerTokenAccount
         from cupid import CupidSession, context
         from cupid.runtime import RuntimeContext
-        from mars.dataframe.utils import build_concatenated_rows_frame
 
         if not RuntimeContext.is_context_ready():
             raise SystemError('No Mars cluster found, please create via `o.create_mars_cluster`.')
@@ -118,7 +118,8 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         odps_params = op.odps_params.copy()
         if project:
             odps_params['project'] = project
-        o = ODPS(None, None, account=account, **op.odps_params)
+        o = ODPS(None, None, account=account, project=odps_params['project'],
+                 endpoint=odps_params['endpoint'])
         cupid_session = CupidSession(o)
 
         data_src = o.get_table(op.table_name)
@@ -174,6 +175,39 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
                                      dtypes=out_df.dtypes, columns_value=out_df.columns_value,
                                      chunks=[commit_table_chunk], nsplits=((0,),) * len(out_chunk_shape))
 
+    @classmethod
+    def _tile_tunnel(cls, op):
+        out_df = op.outputs[0]
+        in_df = build_concatenated_rows_frame(op.inputs[0])
+
+        out_chunks = []
+        for chunk in in_df.chunks:
+            chunk_op = DataFrameWriteTableSplit(dtypes=op.dtypes, table_name=op.table_name,
+                                                odps_params=op.odps_params,
+                                                partition_spec=op.partition_spec)
+            index_value = parse_index(chunk.index_value.to_pandas()[:0], chunk)
+            out_chunk = chunk_op.new_chunk([chunk], shape=(0, 0),
+                                           index_value=index_value,
+                                           columns_value=out_df.columns_value,
+                                           dtypes=out_df.dtypes,
+                                           index=chunk.index)
+            out_chunks.append(out_chunk)
+
+        new_op = op.copy()
+        params = out_df.params.copy()
+        params.update(dict(chunks=out_chunks, nsplits=((0,) * in_df.chunk_shape[0], (0,))))
+        return new_op.new_tileables([in_df], **params)
+
+
+    @classmethod
+    def tile(cls, op):
+        from cupid.runtime import RuntimeContext
+
+        if RuntimeContext.is_context_ready():
+            return cls._tile_cupid(op)
+        else:
+            return cls._tile_tunnel(op)
+
 
 class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
     _op_type_ = 123461
@@ -187,11 +221,15 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
     _write_batch_size = Int64Field('write_batch_size')
     _unknown_as_string = BoolField('unknown_as_string')
 
-    def __init__(self, dtypes=None, table_name=None, partition_spec=None, cupid_handle=None,
-                 unknown_as_string=None, block_id=None, write_batch_size=None, **kw):
+    # for tunnel
+    _odps_params = DictField('odps_params')
+
+    def __init__(self, dtypes=None, table_name=None, odps_params=None, partition_spec=None,
+                 cupid_handle=None, unknown_as_string=None, block_id=None,  write_batch_size=None, **kw):
         kw.update(_output_type_kw)
         super(DataFrameWriteTableSplit, self).__init__(_dtypes=dtypes,
                                                        _table_name=table_name,
+                                                       _odps_params=odps_params,
                                                        _partition_spec=partition_spec,
                                                        _unknown_as_string=unknown_as_string,
                                                        _cupid_handle=cupid_handle,
@@ -210,6 +248,10 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
     @property
     def table_name(self):
         return self._table_name
+
+    @property
+    def odps_params(self):
+        return self._odps_params
 
     @property
     def unknown_as_string(self):
@@ -232,7 +274,7 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
         return self._write_batch_size
 
     @classmethod
-    def execute(cls, ctx, op):
+    def _execute_in_cupid(cls, ctx, op):
         import pyarrow as pa
         import pandas as pd
         from ...df.backends.pd.types import pd_to_df_schema
@@ -272,6 +314,44 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
 
         block_writer.commit()
         ctx[op.outputs[0].key] = pd.DataFrame()
+
+    @classmethod
+    def _execute_arrow_tunnel(cls, ctx, op):
+        from odps import ODPS
+        from odps.tunnel import TableTunnel
+        import pyarrow as pa
+        import pandas as pd
+
+        project = os.environ.get('ODPS_PROJECT_NAME', None)
+        odps_params = op.odps_params.copy()
+        if project:
+            odps_params['project'] = project
+        o = ODPS(odps_params['access_id'], odps_params['secret_access_key'],
+                 project=odps_params['project'], endpoint=odps_params['endpoint'])
+
+        t = o.get_table(op.table_name)
+        tunnel = TableTunnel(o, project=t.project)
+
+        if op.partition_spec is not None:
+            upload_session = tunnel.create_upload_session(t.name, partition_spec=op.partition_spec)
+        else:
+            upload_session = tunnel.create_upload_session(t.name)
+
+        logger.debug('Start writing table %s split index: %s', op.table_name, op.inputs[0].index)
+        writer = upload_session.open_arrow_writer(0)
+        arrow_rb = pa.RecordBatch.from_pandas(ctx[op.inputs[0].key])
+        writer.write(arrow_rb)
+        writer.close()
+        upload_session.commit([0])
+        logger.debug('Finish writing table %s split index: %s', op.table_name, op.inputs[0].index)
+        ctx[op.outputs[0].key] = pd.DataFrame()
+
+    @classmethod
+    def execute(cls, ctx, op):
+        if op.cupid_handle is not None:
+            cls._execute_in_cupid(ctx, op)
+        else:
+            cls._execute_arrow_tunnel(ctx, op)
 
 
 class DataFrameWriteTableCommit(DataFrameOperand, DataFrameOperandMixin):
@@ -337,7 +417,8 @@ class DataFrameWriteTableCommit(DataFrameOperand, DataFrameOperandMixin):
         if op.is_terminal:
             bearer_token = context().get_bearer_token()
             account = BearerTokenAccount(bearer_token)
-            o = ODPS(None, None, account=account, **op.odps_params)
+            o = ODPS(None, None, account=account, project=op.odps_params['project'],
+                     endpoint=op.odps_params['endpoint'])
             cupid_session = CupidSession(o)
 
             project_name, table_name = op.table_name.split('.')

@@ -26,10 +26,14 @@ import numpy as np
 import pandas as pd
 from cupid.config import options as cupid_options
 
+from ..accounts import AliyunAccount
+from ..config import options as odps_options
 from ..models import Schema
 from ..types import PartitionSpec
 from ..utils import to_binary, write_log
-from .utils import use_odps2_type, pd_type_to_odps_type, convert_pandas_object_to_string
+from .utils import use_odps2_type, pd_type_to_odps_type, \
+    convert_pandas_object_to_string, rewrite_partition_predicate, \
+    check_partition_exist
 
 
 logger = logging.getLogger(__name__)
@@ -60,6 +64,14 @@ def _get_mars_task_name(instance):
 
 
 def list_mars_instances(odps, project=None, days=3, return_task_name=False):
+    """
+    List all running mars instances in your project.
+
+    :param project:  default project name
+    :param days: the days range of filtered instances
+    :param return_task_name: If return task name
+    :return: Instances.
+    """
     start_time = datetime.now() - timedelta(days=days)
     for instance in odps.list_instances(start_time=start_time, project=project,
                                         status='Running', only_owner=True):
@@ -107,8 +119,11 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
     if kw.get('proxy_endpoint', None) is not None:
         cupid_options.cupid.proxy_endpoint = kw['proxy_endpoint']
 
-    if if_exists not in ('reuse', 'raise', 'ignore'):
-        raise ValueError('`if_exists` should be "reuse", "raise", or "ignore"')
+    if if_exists not in ('reuse', 'raise', 'ignore', 'restart'):
+        raise ValueError('`if_exists` should be "reuse", "raise, "ignore" or "restart"')
+
+    if min_worker_num is not None and min_worker_num > worker_num:
+        raise ValueError('`min_worker` cannot greater than `worker_num`')
 
     task_name = 'MARS_TASK_{}'.format(hashlib.md5(to_binary(name)).hexdigest())
 
@@ -116,7 +131,7 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
     if instance_id is not None:
         inst = odps.get_instance(instance_id, project=project)
         client = MarsCupidClient(odps, inst, project=project)
-    elif if_exists in ('reuse', 'raise'):
+    elif if_exists in ('reuse', 'raise', 'restart'):
         client = None
 
         # need to check the instances before
@@ -124,15 +139,21 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
                                                                  return_task_name=True):
             if prev_task_name == task_name:
                 # found a instance with the same task name
-                if if_exists == 'reuse':
-                    write_log('Reusing existing Mars cluster({}), logview address: \n{}'.format(
-                        name, prev_instance.get_logview_address()
-                    ))
+                if if_exists in ('reuse', 'restart'):
+                    if if_exists == 'reuse':
+                        write_log('Reusing existing Mars cluster({}), logview address: \n{}'.format(
+                            name, prev_instance.get_logview_address()
+                        ))
                     client = MarsCupidClient(odps, prev_instance, project=project)
                     break
                 else:
                     assert if_exists == 'raise'
                     raise ValueError('Cluster("{}") exists'.format(name))
+
+        if if_exists == 'restart' and client is not None:
+            # if exists Mars cluster, stop it first
+            client.stop_server()
+            client = None
 
         if client is None:
             # not create before, just create a new one
@@ -159,10 +180,40 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
     return client.submit(**kw)
 
 
+def _get_table_record_count(odps, table_name, partition=None):
+    from ..utils import init_progress_ui
+
+    data_src = odps.get_table(table_name)
+    if partition is not None:
+        if check_partition_exist(data_src, partition):
+            data_src = data_src.get_partition(partition)
+        else:
+            part_cols = [pt.name for pt in data_src.schema.partitions]
+            predicate = rewrite_partition_predicate(partition, part_cols)
+            odps_df = data_src.to_df().query(predicate)
+            return odps_df.count().execute(use_tunnel=False, ui=init_progress_ui(mock=True))
+
+    # check if record_num is valid
+    if getattr(data_src, 'record_num', None) and data_src.record_num > 0:
+        return data_src.record_num
+
+    # check if size from table tunnel is valid
+    try:
+        with data_src.open_reader(timeout=5) as reader:
+            return reader.count
+    except:
+        pass
+
+    # obtain count
+    odps_df = data_src.to_df()
+    return odps_df.count().execute(use_tunnel=False, ui=init_progress_ui(mock=True))
+
+
 def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=None,
                       sparse=False, columns=None, add_offset=False, calc_nrows=True,
-                      use_arrow_dtype=False, string_as_binary=None,
-                      cupid_internal_endpoint=None):
+                      use_arrow_dtype=False, string_as_binary=None, chunk_size=None,
+                      memory_scale=None, cupid_internal_endpoint=None,
+                      append_partitions=False):
     """
     Read table to Mars DataFrame.
 
@@ -170,30 +221,34 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
     :param shape: table shape. A tuple like (1000, 3) which means table count is 1000 and schema length is 3.
     :param partition: partition spec.
     :param chunk_bytes: Bytes to read for each chunk. Default value is '16M'.
+    :param chunk_size: Desired chunk size on rows.
     :param sparse: if read as sparse DataFrame.
     :param columns: selected columns.
     :param add_offset: if standardize the DataFrame's index to RangeIndex. False as default.
     :param calc_nrows: if calculate nrows if shape is not specified.
     :param use_arrow_dtype: read to arrow dtype. Reduce memory in some saces.
     :param string_as_binary: read string columns as binary type.
+    :param memory_scale: Scale that real memory occupation divided with raw file size.
+    :param append_partitions: append partition name when reading partitioned tables.
     :return: Mars DataFrame.
     """
     from cupid.runtime import RuntimeContext
     from .dataframe import read_odps_table
-    from ..utils import init_progress_ui
 
     odps_params = dict(
         project=odps.project, endpoint=cupid_internal_endpoint or cupid_options.cupid.runtime.endpoint)
 
+    if isinstance(odps.account, AliyunAccount):
+        odps_params.update(dict(access_id=odps.account.access_id,
+                                secret_access_key=odps.account.secret_access_key))
+
     data_src = odps.get_table(table_name)
 
-    odps_schema = data_src.schema
-    if len(odps_schema.partitions) != 0:
-        if partition is None:
-            raise TypeError('Partition should be specified.')
+    cols = data_src.schema.columns if append_partitions else data_src.schema.simple_columns
+    col_names = set(c.name for c in cols)
 
     for col in columns or []:
-        if col not in odps_schema.names:
+        if col not in col_names:
             raise TypeError("Specific column {} doesn't exist in table".format(col))
 
     # persist view table to a temp table
@@ -208,25 +263,28 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
     if shape is None:
         if calc_nrows and not RuntimeContext.is_context_ready():
             # obtain count
-            if partition is None:
-                odps_df = data_src.to_df()
-            else:
-                odps_df = data_src.get_partition(partition).to_df()
-            nrows = odps_df.count().execute(use_tunnel=False, ui=init_progress_ui(mock=True))
+            nrows = _get_table_record_count(odps, table_name, partition=partition)
         else:
             nrows = np.nan
 
-        shape = (nrows, len(data_src.schema.simple_columns))
+        if append_partitions:
+            shape = (nrows, len(data_src.schema))
+        else:
+            shape = (nrows, len(data_src.schema.simple_columns))
 
+    memory_scale = memory_scale or odps_options.mars.to_dataframe_memory_scale
     return read_odps_table(odps.get_table(table_name), shape, partition=partition,
                            chunk_bytes=chunk_bytes, sparse=sparse, columns=columns,
-                           odps_params=odps_params, add_offset=add_offset,
-                           use_arrow_dtype=use_arrow_dtype, string_as_binary=string_as_binary)
+                           odps_params=odps_params, add_offset=add_offset, chunk_size=chunk_size,
+                           use_arrow_dtype=use_arrow_dtype, string_as_binary=string_as_binary,
+                           memory_scale=memory_scale, append_partitions=append_partitions)
 
 
 @use_odps2_type
 def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None, write_batch_size=None,
-                           unknown_as_string=None, as_type=None, cupid_internal_endpoint=None):
+                           unknown_as_string=None, as_type=None, drop_table=False, create_table=True,
+                           drop_partition=False, create_partition=None, lifecycle=None,
+                           cupid_internal_endpoint=None):
     """
     Write Mars DataFrame to table.
 
@@ -237,9 +295,16 @@ def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None
     :param write_batch_size: batch size of records to write. 1024 as default.
     :param unknown_as_string: set the columns to string type if it's type is Object.
     :param as_type: specify column dtypes. {'a': 'string'} will set column `a` as string type.
+    :param drop_table: drop table if exists, False as default
+    :param create_table: create table first if not exits, True as default
+    :param drop_partition: drop partition if exists, False as default
+    :param create_partition: create partition if not exists, None as default
+    :param lifecycle: table lifecycle. If absent, `options.lifecycle` will be used.
+
     :return: None
     """
     from .dataframe import write_odps_table
+    from odps.tunnel import TableTunnel
 
     dtypes = df.dtypes
     odps_types = []
@@ -255,15 +320,75 @@ def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None
         schema = Schema.from_lists(names, odps_types, p.keys, ['string'] * len(p))
     else:
         schema = Schema.from_lists(names, odps_types)
-    odps.create_table(table_name, schema, if_not_exists=True, stored_as='aliorc')
+
+    if drop_table:
+        odps.delete_table(table_name, if_exists=True)
+
+    if partition is None:
+        # the non-partitioned table
+        if drop_partition:
+            raise ValueError('Cannot drop partition for non-partition table')
+        if create_partition:
+            raise ValueError('Cannot create partition for non-partition table')
+
+        if create_table or (not odps.exist_table(table_name)):
+            odps.create_table(table_name, schema, if_not_exists=True,
+                              stored_as='aliorc', lifecycle=lifecycle)
+    else:
+        if odps.exist_table(table_name) or not create_table:
+            t = odps.get_table(table_name)
+            partition = t.get_partition(partition)
+            if drop_partition:
+                t.delete_partition(partition, if_exists=True)
+            if create_partition:
+                t.create_partition(partition, if_not_exists=True)
+
+        else:
+            odps.create_table(table_name, schema, stored_as='aliorc',
+                              lifecycle=lifecycle)
+
     table = odps.get_table(table_name)
+
+    if len(table.schema.simple_columns) != len(schema.simple_columns):
+        raise TypeError('Table column number is %s while input DataFrame has %s columns' %
+                        (len(table.schema.simple_columns), len(schema.simple_columns)))
+
+    for c_left, c_right in zip(table.schema.simple_columns, schema.simple_columns):
+        if c_left.name.lower() != c_right.name.lower() or c_left.type != c_right.type:
+            raise TypeError('Column type between provided DataFrame and target table'
+                            ' does not agree with each other. DataFrame column %s type is %s,'
+                            'target table column %s type is %s' %
+                            (c_right.name, c_right.type, c_left.name, c_left.type))
+
     if partition:
         table.create_partition(partition, if_not_exists=True)
     odps_params = dict(project=odps.project,
                        endpoint=cupid_internal_endpoint or cupid_options.cupid.runtime.endpoint)
+    if isinstance(odps.account, AliyunAccount):
+        odps_params.update(dict(access_id=odps.account.access_id,
+                                secret_access_key=odps.account.secret_access_key))
     if isinstance(df, pd.DataFrame):
-        _write_table_in_cupid(odps, df, table, partition=partition, overwrite=overwrite,
-                              unknown_as_string=unknown_as_string)
+        from cupid.runtime import RuntimeContext
+        import pyarrow as pa
+
+        if RuntimeContext.is_context_ready():
+            _write_table_in_cupid(odps, df, table, partition=partition, overwrite=overwrite,
+                                  unknown_as_string=unknown_as_string)
+        else:
+            t = odps.get_table(table_name)
+            tunnel = TableTunnel(odps, project=t.project)
+
+            if partition is not None:
+                upload_session = tunnel.create_upload_session(t.name, partition_spec=partition)
+            else:
+                upload_session = tunnel.create_upload_session(t.name)
+
+            writer = upload_session.open_arrow_writer(0)
+            arrow_rb = pa.RecordBatch.from_pandas(df)
+            writer.write(arrow_rb)
+            writer.close()
+            upload_session.commit([0])
+
     else:
         write_odps_table(df, table, partition=partition, overwrite=overwrite, odps_params=odps_params,
                          unknown_as_string=unknown_as_string, write_batch_size=write_batch_size).execute()

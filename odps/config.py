@@ -435,8 +435,10 @@ options.register_pandas('display.width', 80, validator=any_validator(is_null, is
 options.register_pandas('display.expand_frame_repr', True)
 options.register_pandas('display.show_dimensions', 'truncate', validator=is_in([True, False, 'truncate']))
 
-options.register_option('display.notebook_repr_widget', True, validator=is_bool)
+options.register_option('display.notebook_widget', True, validator=is_bool)
+options.redirect_option('display.notebook_repr_widget', 'display.notebook_widget')
 
 # Mars
 options.register_option('mars.use_common_proxy', True, validator=is_bool)
 options.register_option('mars.launch_notebook', False, validator=is_bool)
+options.register_option('mars.to_dataframe_memory_scale', None, validator=any_validator(is_null, is_integer))

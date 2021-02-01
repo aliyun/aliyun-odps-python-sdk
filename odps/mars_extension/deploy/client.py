@@ -31,7 +31,7 @@ from ... import errors
 
 NOTEBOOK_NAME = 'MarsNotebook'
 CUPID_APP_NAME = 'MarsWeb'
-DEFAULT_RESOURCES = ['public.mars-0.6.1.zip', 'public.pyodps-0.10.4.zip', 'public.pyarrow.zip']
+DEFAULT_RESOURCES = ['public.mars-0.6.3.zip', 'public.pyodps-0.10.5.zip', 'public.pyarrow.zip']
 logger = logging.getLogger(__name__)
 
 
@@ -147,7 +147,7 @@ class MarsCupidClient(object):
     def check_service_ready(self, timeout=1):
         try:
             resp = self._req_session.get(self._endpoint + '/api', timeout=timeout)
-        except (requests.ConnectionError, requests.Timeout):
+        except (requests.ConnectionError, requests.Timeout, errors.ODPSError):
             return False
         if resp.status_code >= 400:
             return False

@@ -86,10 +86,6 @@ else:
 
     # import widgets and display
     try:
-        # currently not support juypterlab
-        if 'dsw_userNumber' in os.environ:
-            raise ImportError
-
         if ipython_major_version < 4:
             from IPython.html import widgets
         else:
@@ -198,9 +194,42 @@ def in_ipython_frontend():
     return False
 
 
+_in_jupyter_lab = None
+
+
+def in_jupyter_lab():
+    global _in_jupyter_lab
+    if _in_jupyter_lab is not None:
+        return _in_jupyter_lab
+
+    # DSW always use jupyter lab
+    for env_name in os.environ.keys():
+        if env_name.lower().startswith('dsw_'):
+            _in_jupyter_lab = True
+            return True
+
+    for arg in sys.argv:
+        if arg.endswith('.json') and os.path.exists(arg):
+            ipy_json_path = os.path.dirname(arg)
+            # jupyter lab will generate a jpserver-{pid}.json, while
+            # jupyter notebook will generate a nbserver-{pid}.json instead
+            lab_cfg_path = os.path.join(ipy_json_path, 'jpserver-%d.json' % os.getppid())
+            if os.path.exists(lab_cfg_path):
+                _in_jupyter_lab = True
+                return True
+    _in_jupyter_lab = False
+    return False
+
+
 def is_widgets_available():
-    if widgets is None:
+    from .config import options
+    if not options.display.notebook_widget or widgets is None:
         return False
+
+    # todo when widget for lab ready, remove this
+    if in_jupyter_lab():
+        return False
+
     if hasattr(widgets.Widget, '_version_validated'):
         return bool(getattr(widgets.Widget, '_version_validated', None))
     else:
@@ -765,10 +794,6 @@ class ProgressBar(six.Iterator):
             # Import only if ipython_widget, i.e., widget in IPython
             # notebook
             try:
-                # currently not support juypterlab
-                if 'dsw_userNumber' in os.environ:
-                    raise ImportError
-
                 if ipython_major_version < 4:
                     from IPython.html import widgets
                 else:

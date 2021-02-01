@@ -271,7 +271,7 @@ msgid "对象补全列举条数限制"
 msgstr "Limit on the number of object complete listing items"
 
 #: ../../source/options.rst:66
-msgid "notebook_repr_widget"
+msgid "display.notebook_widget"
 msgstr ""
 
 #: ../../source/options.rst:66

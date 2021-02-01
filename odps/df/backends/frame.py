@@ -311,7 +311,7 @@ class ResultFrame(six.Iterator):
         # display HTML, so this check can be removed when support for IPython 2.x
         # is no longer needed.
 
-        if self._pandas and options.display.notebook_repr_widget:
+        if self._pandas and options.display.notebook_widget:
             from .. import DataFrame
             from ..ui import show_df_widget
             show_df_widget(DataFrame(self._values, schema=self.schema))

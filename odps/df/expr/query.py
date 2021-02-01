@@ -128,8 +128,7 @@ class ExprVisitor(ast.NodeVisitor):
         left = node.left
         values = []
         for op, comp in zip(ops, comps):
-            new_node = self.visit(ast.Compare(comparators=[comp], left=left,
-                                              ops=[op]))
+            new_node = ast.Compare(comparators=[comp], left=left, ops=[op])
             left = comp
             values.append(new_node)
         return self.visit(ast.BoolOp(op=ast.And(), values=values))
@@ -160,6 +159,9 @@ class ExprVisitor(ast.NodeVisitor):
 
     def visit_Str(self, node):
         return node.s
+
+    def visit_Constant(self, node):
+        return node.value
 
     def visit_List(self, node):
         return [self.visit(e) for e in node.elts]

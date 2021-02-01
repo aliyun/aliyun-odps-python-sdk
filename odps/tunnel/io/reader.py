@@ -14,9 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import struct
 import warnings
+from io import BytesIO
 
-from ..pb.decoder import Decoder
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
+
+
+from ..pb.decoder import Decoder, wire_format
+from ..pb.errors import DecodeError
 from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
 from ... import utils, types, compat
@@ -220,3 +229,153 @@ if TunnelRecordReader is None:
 
         def __exit__(self, *_):
             self.close()
+
+
+class TunnelArrowReader(object):
+    def __init__(self, schema, input_stream, columns=None):
+        self._schema = schema
+        arrow_schema = odps_type_to_arrow_type(schema)
+        if columns is None:
+            self._arrow_schema = arrow_schema
+        else:
+            self._arrow_schema = pa.schema([s for s in arrow_schema if s.name in columns])
+
+        self._reader = input_stream
+        self._crc = Checksum()
+        self._crccrc = Checksum()
+        self._pos = 0
+        self._buffer = BytesIO()
+        self._chunk_size = None
+        self._read_limit = options.table_read_limit
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @staticmethod
+    def _read_unint32(b):
+        return struct.unpack('!I', b)
+
+    def _read_chunk_size(self):
+        try:
+            i = self._read_unint32(self._reader.read(4))
+            self._pos += 4
+            return i[0]  # unpack() result is a 1-element tuple.
+        except struct.error as e:
+            raise DecodeError(e)
+
+    def _read_chunk(self):
+        read_size = self._chunk_size + 4
+        b = self._reader.read(read_size)
+        if 0 < len(b) < 4:
+            raise IOError('Checksum invalid')
+        self._pos += len(b)
+        self._crc.update(b[:-4])
+        self._crccrc.update(b[:-4])
+        return b
+
+    def read(self):
+        if self._read_limit is not None and self._pos >= self._read_limit:
+            warnings.warn('Number of lines read via tunnel already reaches the limitation.')
+            return None
+
+        if self._chunk_size is None:
+            self._chunk_size = self._read_chunk_size()
+
+        while True:
+            b = self._read_chunk()
+            data = b[:-4]
+            crc_data = b[-4:]
+            if len(b) == 0:
+                break
+            if len(b) < self._chunk_size + 4:
+                # is last chunk
+                read_checksum = self._read_unint32(crc_data)[0]
+                checksum = int(self._crccrc.getvalue())
+                if checksum != read_checksum:
+                    raise IOError('Checksum invalid')
+                self._pos += len(data) + 4
+                self._buffer.write(data)
+                self._crccrc.reset()
+                break
+            else:
+                checksum = int(self._crc.getvalue())
+                read_checksum = self._read_unint32(crc_data)[0]
+                if checksum != read_checksum:
+                    raise IOError('Checksum invalid')
+                self._crc.reset()
+                self._buffer.write(data)
+
+        b = self._buffer.getvalue()
+        if len(b) == 0:
+            # empty table
+            return self._arrow_schema.empty_table()
+        else:
+            complete_bytes = self._arrow_schema.serialize().to_pybytes() + b
+            r = pa.ipc.open_stream(complete_bytes).read_all()
+            array_dict = dict((arr._name, arr) for arr in r)
+            new_dict = {}
+            for name, arr in array_dict.items():
+                if arr.type == pa.timestamp('ms'):
+                    datetime = [utils.build_to_datetime()(v) for v in arr.cast('int64').to_numpy()]
+                    new_dict[name] = datetime
+                else:
+                    new_dict[name] = arr
+            return pa.Table.from_pydict(new_dict)
+
+    @property
+    def n_bytes(self):
+        return self._pos
+
+    def get_total_bytes(self):
+        return self.n_bytes
+
+    def close(self):
+        if hasattr(self._reader, 'close'):
+            self._reader.close()
+
+    def to_pandas(self):
+        record_batch = self.read()
+        return record_batch.to_pandas()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+
+def odps_type_to_arrow_type(odps_schema):
+    from ... import types
+    TYPE_MAPPING = {
+        types.string: pa.string(),
+        types.binary: pa.binary(),
+        types.tinyint: pa.int8(),
+        types.smallint: pa.int16(),
+        types.int_: pa.int32(),
+        types.bigint: pa.int64(),
+        types.boolean: pa.bool_(),
+        types.float_: pa.float32(),
+        types.double: pa.float64(),
+        types.date: pa.date32(),
+        types.datetime: pa.timestamp('ms'),
+        types.timestamp: pa.timestamp('ns')
+    }
+
+    arrow_schema = []
+    for schema in odps_schema.simple_columns:
+        col_name = schema.name
+        if schema.type in TYPE_MAPPING:
+            col_type = TYPE_MAPPING[schema.type]
+        else:
+            if isinstance(schema.type, types.Array):
+                col_type = pa.list_(TYPE_MAPPING[schema.type.value_type])
+            elif isinstance(schema.type, types.Decimal):
+                col_type = pa.decimal128(schema.type.precision,
+                                         schema.type.scale)
+            else:
+                raise TypeError('Unsupported type: {}'.format(schema.type))
+
+        arrow_schema.append(pa.field(col_name, col_type))
+
+    return pa.schema(arrow_schema)
