@@ -20,8 +20,8 @@ import random
 import requests
 
 from .base import BaseTunnel
-from .io.writer import RecordWriter, BufferredRecordWriter, StreamRecordWriter
-from .io.reader import TunnelRecordReader
+from .io.writer import RecordWriter, BufferredRecordWriter, StreamRecordWriter, ArrowWriter
+from .io.reader import TunnelRecordReader, TunnelArrowReader
 from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputStream
 from .errors import TunnelError
 from .. import errors, serializers, types, options
@@ -51,7 +51,7 @@ class TableDownloadSession(serializers.JSONSerializableModel):
     schema = serializers.JSONNodeReferenceField(Schema, 'Schema')
 
     def __init__(self, client, table, partition_spec, download_id=None,
-                 compress_option=None, async_=False):
+                 compress_option=None, async_=False, timeout=None):
         super(TableDownloadSession, self).__init__()
 
         self._client = client
@@ -64,13 +64,13 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         self._partition_spec = partition_spec
 
         if download_id is None:
-            self._init(async_=async_)
+            self._init(async_=async_, timeout=timeout)
         else:
             self.id = download_id
             self.reload()
         self._compress_option = compress_option
 
-    def _init(self, async_):
+    def _init(self, async_, timeout):
         params = {'downloads': ''}
         headers = {'Content-Length': 0}
         if self._partition_spec is not None and \
@@ -80,7 +80,7 @@ class TableDownloadSession(serializers.JSONSerializableModel):
             params['asyncmode'] = 'true'
 
         url = self._table.resource()
-        resp = self._client.post(url, {}, params=params, headers=headers)
+        resp = self._client.post(url, {}, params=params, headers=headers, timeout=timeout)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
             while self.status == self.Status.Initiating:
@@ -179,6 +179,29 @@ class TableDownloadSession(serializers.JSONSerializableModel):
             from .pdio.pdreader_c import TunnelPandasReader
             return self._open_reader(start, count, compress=compress, columns=columns,
                                      reader_cls=TunnelPandasReader)
+
+    def open_arrow_reader(self, start, count, columns=None):
+        params = {}
+        headers = {'Content-Length': 0, 'x-odps-tunnel-version': 4}
+        params['downloadid'] = self.id
+        params['data'] = ''
+        params['rowrange'] = '(%s,%s)' % (start, count)
+        if self._partition_spec is not None and len(self._partition_spec) > 0:
+            params['partition'] = self._partition_spec
+        if columns is not None and len(columns) > 0:
+            col_name = lambda col: col.name if isinstance(col, types.Column) else col
+            params['columns'] = ','.join(col_name(col) for col in columns)
+
+        params['arrow'] = ''
+
+        url = self._table.resource()
+        resp = self._client.get(url, stream=True, params=params, headers=headers)
+        if not self._client.is_ok(resp):
+            e = TunnelError.parse(resp)
+            raise e
+
+        input_stream = RequestsInputStream(resp)
+        return TunnelArrowReader(self.schema, input_stream, columns=columns)
 
 
 class TableUploadSession(serializers.JSONSerializableModel):
@@ -290,12 +313,19 @@ class TableUploadSession(serializers.JSONSerializableModel):
 
             def upload(data):
                 self._client.put(url, data=data, params=params, headers=headers)
-            writer = writer_cls(self.schema, upload, compress_option=option)
+            if writer_cls == ArrowWriter:
+                params['arrow'] = ''
+                writer = ArrowWriter(upload, compress_option=option)
+            else:
+                writer = writer_cls(self.schema, upload, compress_option=option)
         return writer
 
     def open_record_writer(self, block_id=None, compress=False, buffer_size=None):
         return self._open_writer(block_id=block_id, compress=compress, buffer_size=buffer_size,
                                  writer_cls=RecordWriter)
+
+    def open_arrow_writer(self, block_id=None):
+        return self._open_writer(block_id=block_id, writer_cls=ArrowWriter)
 
     if np is not None:
         def open_pandas_writer(self, block_id=None, compress=False, buffer_size=None):
@@ -523,7 +553,8 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
 class TableTunnel(BaseTunnel):
     def create_download_session(self, table, async_=False, partition_spec=None,
                                 download_id=None, compress_option=None,
-                                compress_algo=None, compres_level=None, compress_strategy=None):
+                                compress_algo=None, compres_level=None, 
+                                compress_strategy=None, timeout=None):
         if not isinstance(table, six.string_types):
             table = table.name
         table = Projects(client=self.tunnel_rest)[self._project.name].tables[table]
@@ -535,7 +566,7 @@ class TableTunnel(BaseTunnel):
         return TableDownloadSession(self.tunnel_rest, table, partition_spec,
                                     download_id=download_id,
                                     compress_option=compress_option,
-                                    async_=async_,
+                                    async_=async_, timeout=timeout,
                                     )
 
     def create_upload_session(self, table, partition_spec=None,

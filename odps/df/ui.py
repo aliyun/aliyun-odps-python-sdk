@@ -28,10 +28,6 @@ from ..utils import to_text, init_progress_ui
 MAX_TABLE_FETCH_SIZE = 10
 
 try:
-    # currently not support juypterlab
-    if 'dsw_userNumber' in os.environ:
-        raise ImportError
-
     import ipywidgets as widgets
     from IPython.display import display
     from traitlets import Unicode, Dict, Int

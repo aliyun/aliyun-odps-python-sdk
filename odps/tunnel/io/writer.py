@@ -14,6 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import struct
+
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
 from ...config import options
 try:
     if not options.force_py:
@@ -469,3 +480,79 @@ class StreamRecordWriter(BaseRecordWriter):
 
     def get_total_bytes(self):
         return self.n_bytes
+
+
+class ArrowWriter(object):
+
+    CHUNK_SIZE = 65536
+
+    def __init__(self, request_callback, out=None, compress_option=None,
+                 chunk_size=None):
+        self._request_callback = request_callback
+        self._out = out or compat.BytesIO()
+        self._chunk_size = chunk_size or self.CHUNK_SIZE
+        self._crc = Checksum()
+        self._crccrc = Checksum()
+        self._cur_chunk_size = 0
+        self._write_chunk_size()
+
+    def _write_chunk_size(self):
+        self._write_unint32(self._chunk_size)
+
+    def _write_unint32(self, val):
+        data = struct.pack("!I", utils.long_to_uint(val))
+        self._out.write(data)
+
+    def _write_chunk(self, buf):
+        self._out.write(buf)
+        self._crccrc.update(buf)
+        self._cur_chunk_size += len(buf)
+        if self._cur_chunk_size >= self._chunk_size:
+            self._crc.update(buf)
+            checksum = self._crc.getvalue()
+            self._write_unint32(checksum)
+            self._crc.reset()
+            self._cur_chunk_size = 0
+
+    def write(self, data):
+        if isinstance(data, pd.DataFrame):
+            arrow_batch = pa.RecordBatch.from_pandas(data)
+        else:
+            arrow_batch = data
+        assert isinstance(arrow_batch, pa.RecordBatch)
+
+        data = arrow_batch.serialize().to_pybytes()
+        written_bytes = 0
+        while written_bytes < len(data):
+            length = min(self._chunk_size - self._cur_chunk_size,
+                         len(data) - written_bytes)
+            chunk_data = data[written_bytes: written_bytes + length]
+            self._write_chunk(chunk_data)
+            written_bytes += length
+
+    def _flush(self):
+        checksum = self._crccrc.getvalue()
+        self._write_unint32(checksum)
+        self._crccrc.reset()
+
+        def gen():  # synchronize chunk upload
+            data = self._out.getvalue()
+            while data:
+                to_send = data[:options.chunk_size]
+                data = data[options.chunk_size:]
+                yield to_send
+
+        self._request_callback(gen())
+
+    def close(self):
+        self._flush()
+        self._out.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # if an error occurs inside the with block, we do not commit
+        if exc_val is not None:
+            return
+        self.close()

@@ -14,23 +14,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import logging
+import os
 
 import numpy as np
 import pandas as pd
 
 from cupid.errors import CupidError
-from mars.utils import parse_readable_size
-from mars.serialize import StringField, Int64Field, SeriesField, DictField, BoolField, ListField
+from mars.utils import parse_readable_size, ceildiv
+from mars.serialize import StringField, Int64Field, SeriesField, DictField, \
+    BoolField, ListField
 from mars.dataframe import ArrowStringDtype
 from mars.dataframe.operands import DataFrameOperandMixin, DataFrameOperand
-from mars.dataframe.utils import parse_index, standardize_range_index, arrow_table_to_pandas_dataframe
+from mars.dataframe.utils import parse_index, standardize_range_index, \
+    arrow_table_to_pandas_dataframe
 from mars.optimizes.runtime.dataframe import DataSourceHeadRule
+try:
+    from mars.dataframe.datasource.core import HeadOptimizedDataSource, \
+        ColumnPruneSupportedDataSourceMixin
+
+    BASES = (HeadOptimizedDataSource, ColumnPruneSupportedDataSourceMixin)
+    head_can_be_opt = True
+except ImportError:
+    BASES = (DataFrameOperand, DataFrameOperandMixin)
+    head_can_be_opt = False
+try:
+    from mars.core import OutputType
+    _output_type_kw = dict(_output_types=[OutputType.dataframe])
+except ImportError:
+    from mars.dataframe.operands import ObjectType
+    _output_type_kw = dict(_object_type=ObjectType.dataframe)
 
 from ...df.backends.odpssql.types import odps_type_to_df_type
 from ...errors import ODPSError
-from ...utils import to_str
+from ...utils import to_str, to_timestamp
+from ..utils import rewrite_partition_predicate, check_partition_exist
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +58,10 @@ MAX_CHUNK_SIZE = 512 * 1024 ** 2
 ORC_COMPRESSION_RATIO = 5
 STRING_FIELD_OVERHEAD = 50
 
-try:
-    from mars.core import OutputType
-    _output_type_kw = dict(_output_types=[OutputType.dataframe])
-except ImportError:
-    from mars.dataframe.operands import ObjectType
-    _output_type_kw = dict(_object_type=ObjectType.dataframe)
+_Base = type('_DataSource', BASES, dict())
 
 
-class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
+class DataFrameReadTable(_Base):
     _op_type_ = 123450
 
     _odps_params = DictField('odps_params')
@@ -60,17 +73,24 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
     _nrows = Int64Field('nrows')
     _use_arrow_dtype = BoolField('use_arrow_dtype')
     _string_as_binary = BoolField('string_as_binary')
+    _append_partitions = BoolField('append_partitions')
+    _last_modified_time = Int64Field('last_modified_time')
 
     def __init__(self, odps_params=None, table_name=None, partition_spec=None,
                  columns=None, dtypes=None, nrows=None, sparse=None,
-                 add_offset=True, use_arrow_dtype=None, string_as_binary=None, **kw):
+                 add_offset=True, use_arrow_dtype=None, string_as_binary=None,
+                 memory_scale=None, append_partitions=None,
+                 last_modified_time=None, **kw):
         kw.update(_output_type_kw)
         super(DataFrameReadTable, self).__init__(_odps_params=odps_params, _table_name=table_name,
                                                  _partition_spec=partition_spec, _columns=columns,
                                                  _dtypes=dtypes, _nrows=nrows, _sparse=sparse,
                                                  _use_arrow_dtype=use_arrow_dtype,
                                                  _string_as_binary=string_as_binary,
-                                                 _add_offset=add_offset, **kw)
+                                                 _add_offset=add_offset,
+                                                 _append_partitions=append_partitions,
+                                                 _last_modified_time=last_modified_time,
+                                                 _memory_scale=memory_scale, **kw)
 
     @property
     def retryable(self):
@@ -112,7 +132,17 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
     def add_offset(self):
         return self._add_offset
 
-    def __call__(self, shape, chunk_bytes=None):
+    @property
+    def append_partitions(self):
+        return self._append_partitions
+
+    def get_columns(self):
+        return self._columns
+
+    def set_pruned_columns(self, columns):
+        self._columns = columns
+
+    def __call__(self, shape, chunk_bytes=None, chunk_size=None):
         import numpy as np
         import pandas as pd
 
@@ -122,20 +152,26 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
             index_value = parse_index(pd.RangeIndex(shape[0]))
         columns_value = parse_index(self.dtypes.index, store_data=True)
         return self.new_dataframe(None, shape, dtypes=self.dtypes, index_value=index_value,
-                                  columns_value=columns_value, chunk_bytes=chunk_bytes)
+                                  columns_value=columns_value, chunk_bytes=chunk_bytes,
+                                  chunk_size=chunk_size)
+
+    @staticmethod
+    def _filter_partitions(partitions, predicate):
+        cols = partitions[0].partition_spec.keys
+        part_df = pd.DataFrame([part.partition_spec.kv.values() for part in partitions], columns=cols)
+        part_df = part_df.astype(str)
+        part_df['__pt_obj__'] = pd.Series(partitions, dtype=np.dtype('O'))
+
+        predicate = rewrite_partition_predicate(predicate, cols)
+        part_df.query(predicate, inplace=True)
+        return part_df['__pt_obj__'].to_list()
 
     @classmethod
-    def tile(cls, op):
-        import numpy as np
-        import pandas as pd
+    def _tile_cupid(cls, op):
         from odps import ODPS
         from odps.accounts import BearerTokenAccount
         from cupid import CupidSession, context
-        from cupid.runtime import RuntimeContext
         from mars.context import get_context
-
-        if not RuntimeContext.is_context_ready():
-            raise SystemError('No Mars cluster found, please create via `o.create_mars_cluster`.')
 
         cupid_ctx = context()
 
@@ -145,7 +181,8 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
         odps_params = op.odps_params.copy()
         if project:
             odps_params['project'] = project
-        o = ODPS(None, None, account=account, **odps_params)
+        o = ODPS(None, None, account=account, project=odps_params['project'],
+                 endpoint=odps_params['endpoint'])
         cupid_session = CupidSession(o)
 
         mars_context = get_context()
@@ -153,81 +190,93 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
         df = op.outputs[0]
         split_size = df.extra_params.chunk_bytes or READ_CHUNK_LIMIT
 
-        data_src = o.get_table(op.table_name)
-        if op.partition is not None:
-            data_src = data_src.get_partition(op.partition)
-
-        try:
-            data_store_size = data_src.size
-        except ODPSError:
-            # fail to get data size, just ignore
-            pass
+        table_obj = o.get_table(op.table_name)
+        if not table_obj.schema.partitions:
+            data_srcs = [table_obj]
+        elif op.partition is not None and check_partition_exist(table_obj, op.partition):
+            data_srcs = [table_obj.get_partition(op.partition)]
         else:
-            if data_store_size < split_size and mars_context is not None:
-                # get worker counts
-                worker_count = max(len(mars_context.get_worker_addresses()), 1)
-                # data is too small, split as many as number of cores
-                split_size = data_store_size // worker_count
-                # at least 1M
-                split_size = max(split_size, 1 * 1024 ** 2)
-                logger.debug('Input data size is too small, split_size is {}'.format(split_size))
-
-        logger.debug('Start creating download session of table {} from cupid.'.format(op.table_name))
-        while True:
-            try:
-                download_session = cupid_session.create_download_session(
-                    data_src, split_size=split_size, columns=op.columns)
-                break
-            except CupidError:
-                logger.debug('The number of splits exceeds 100000, split_size is {}'.format(split_size))
-                if split_size >= MAX_CHUNK_SIZE:
-                    raise
-                else:
-                    split_size *= 2
-
-        logger.debug('%s table splits have been created.', str(len(download_session.splits)))
-
-        if np.isnan(df.shape[0]):
-            est_chunk_rows = [None] * len(download_session.splits)
-        else:
-            sp_file_sizes = np.array([sp.split_file_end - sp.split_file_start
-                                      for sp in download_session.splits])
-            total_size = sp_file_sizes.sum()
-            est_chunk_rows = sp_file_sizes * df.shape[0] // total_size
-
-        logger.warning('Estimated chunk rows: %r', est_chunk_rows)
+            data_srcs = list(table_obj.partitions)
+            if op.partition is not None:
+                data_srcs = cls._filter_partitions(data_srcs, op.partition)
 
         out_chunks = []
+        chunk_idx = 0
 
-        if len(download_session.splits) == 0:
-            logger.debug('Table {} has no data'.format(op.table_name))
-            chunk_op = DataFrameReadTableSplit()
-            index_value = parse_index(pd.RangeIndex(0))
-            columns_value = parse_index(df.dtypes.index, store_data=True)
-            out_chunk = chunk_op.new_chunk(None, shape=(np.nan, df.shape[1]), dtypes=op.dtypes,
-                                           index_value=index_value, columns_value=columns_value,
-                                           index=(0, 0))
-            out_chunks = [out_chunk]
-        else:
-            for idx, split in enumerate(download_session.splits):
-                chunk_op = DataFrameReadTableSplit(cupid_handle=to_str(split.handle),
-                                                   split_index=split.split_index,
-                                                   split_file_start=split.split_file_start,
-                                                   split_file_end=split.split_file_end,
-                                                   schema_file_start=split.schema_file_start,
-                                                   schema_file_end=split.schema_file_end,
-                                                   add_offset=op.add_offset, dtypes=op.dtypes,
-                                                   sparse=op.sparse, split_size=split_size,
-                                                   string_as_binary=op.string_as_binary,
-                                                   use_arrow_dtype=op.use_arrow_dtype,
-                                                   estimate_rows=est_chunk_rows[idx])
-                # the chunk shape is unknown
+        for data_src in data_srcs:
+            try:
+                data_store_size = data_src.size
+            except ODPSError:
+                # fail to get data size, just ignore
+                pass
+            else:
+                if data_store_size < split_size and mars_context is not None:
+                    # get worker counts
+                    worker_count = max(len(mars_context.get_worker_addresses()), 1)
+                    # data is too small, split as many as number of cores
+                    split_size = data_store_size // worker_count
+                    # at least 1M
+                    split_size = max(split_size, 1 * 1024 ** 2)
+                    logger.debug('Input data size is too small, split_size is %s', split_size)
+
+            logger.debug('Start creating download session of table %s from cupid, '
+                         'columns: %s', op.table_name, op.columns)
+            while True:
+                try:
+                    download_session = cupid_session.create_download_session(
+                        data_src, split_size=split_size, columns=op.columns)
+                    break
+                except CupidError:
+                    logger.debug('The number of splits exceeds 100000, split_size is %s', split_size)
+                    if split_size >= MAX_CHUNK_SIZE:
+                        raise
+                    else:
+                        split_size *= 2
+
+            logger.debug('%s table splits have been created.', str(len(download_session.splits)))
+
+            if np.isnan(df.shape[0]):
+                est_chunk_rows = [None] * len(download_session.splits)
+            else:
+                sp_file_sizes = np.array([sp.split_file_end - sp.split_file_start
+                                         for sp in download_session.splits])
+                total_size = sp_file_sizes.sum()
+                est_chunk_rows = (sp_file_sizes * df.shape[0] // total_size).tolist()
+
+            partition_spec = str(data_src.partition_spec) \
+                if getattr(data_src, 'partition_spec', None) else None
+
+            logger.warning('Estimated chunk rows: %r', est_chunk_rows)
+
+            if len(download_session.splits) == 0:
+                logger.debug('Table %s has no data', op.table_name)
+                chunk_op = DataFrameReadTableSplit()
                 index_value = parse_index(pd.RangeIndex(0))
                 columns_value = parse_index(df.dtypes.index, store_data=True)
                 out_chunk = chunk_op.new_chunk(None, shape=(np.nan, df.shape[1]), dtypes=op.dtypes,
                                                index_value=index_value, columns_value=columns_value,
-                                               index=(idx, 0))
+                                               index=(chunk_idx, 0))
                 out_chunks.append(out_chunk)
+                chunk_idx += 1
+            else:
+                for idx, split in enumerate(download_session.splits):
+                    chunk_op = DataFrameReadTableSplit(
+                        cupid_handle=to_str(split.handle), split_index=split.split_index,
+                        split_file_start=split.split_file_start, split_file_end=split.split_file_end,
+                        schema_file_start=split.schema_file_start, schema_file_end=split.schema_file_end,
+                        add_offset=op.add_offset, dtypes=op.dtypes, sparse=op.sparse,
+                        split_size=split_size, string_as_binary=op.string_as_binary,
+                        use_arrow_dtype=op.use_arrow_dtype, estimate_rows=est_chunk_rows[idx],
+                        partition_spec=partition_spec, append_partitions=op.append_partitions,
+                        nrows=op.nrows, memory_scale=op.memory_scale)
+                    # the chunk shape is unknown
+                    index_value = parse_index(pd.RangeIndex(0))
+                    columns_value = parse_index(df.dtypes.index, store_data=True)
+                    out_chunk = chunk_op.new_chunk(None, shape=(np.nan, df.shape[1]), dtypes=op.dtypes,
+                                                   index_value=index_value, columns_value=columns_value,
+                                                   index=(chunk_idx, 0))
+                    chunk_idx += 1
+                    out_chunks.append(out_chunk)
 
         if op.add_offset:
             out_chunks = standardize_range_index(out_chunks)
@@ -239,10 +288,97 @@ class DataFrameReadTable(DataFrameOperand, DataFrameOperandMixin):
                                      columns_value=df.columns_value,
                                      chunks=out_chunks, nsplits=nsplits)
 
+    @classmethod
+    def _tile_tunnel(cls, op):
+        from odps import ODPS
 
-class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
+        project = os.environ.get('ODPS_PROJECT_NAME', None)
+        odps_params = op.odps_params.copy()
+        if project:
+            odps_params['project'] = project
+        o = ODPS(odps_params['access_id'], odps_params['secret_access_key'],
+                 project=odps_params['project'], endpoint=odps_params['endpoint'])
+
+        table_obj = o.get_table(op.table_name)
+        if not table_obj.schema.partitions:
+            data_srcs = [table_obj]
+        elif op.partition is not None and check_partition_exist(table_obj, op.partition):
+            data_srcs = [table_obj.get_partition(op.partition)]
+        else:
+            data_srcs = list(table_obj.partitions)
+            if op.partition is not None:
+                data_srcs = cls._filter_partitions(data_srcs, op.partition)
+
+        out_chunks = []
+        row_nsplits = []
+        index_start = 0
+        df = op.outputs[0]
+
+        for data_src in data_srcs:
+            data_store_size = data_src.size
+            shape = df.shape
+            chunk_size = df.extra_params.chunk_size
+
+            partition_spec = str(data_src.partition_spec) \
+                if getattr(data_src, 'partition_spec', None) else None
+
+            if chunk_size is None:
+                chunk_bytes = df.extra_params.chunk_bytes or READ_CHUNK_LIMIT
+                chunk_count = data_store_size // chunk_bytes + (data_store_size % chunk_bytes != 0)
+                chunk_size = ceildiv(shape[0], chunk_count)
+                split_size = chunk_bytes
+            else:
+                chunk_count = ceildiv(shape[0], chunk_size)
+                split_size = data_store_size // chunk_count
+
+            for i in range(chunk_count):
+                start_index = chunk_size * i
+                end_index = min(chunk_size * (i + 1), shape[0])
+                row_size = end_index - start_index
+                chunk_op = DataFrameReadTableSplit(
+                    table_name=op.table_name, partition_spec=partition_spec,
+                    start_index=start_index, end_index=end_index, nrows=op.nrows,
+                    odps_params=op.odps_params, add_offset=op.add_offset,
+                    dtypes=op.dtypes, sparse=op.sparse, split_size=split_size,
+                    use_arrow_dtype=op.use_arrow_dtype, estimate_rows=row_size,
+                    append_partitions=op.append_partitions, memory_scale=op.memory_scale)
+                index_value = parse_index(pd.RangeIndex(start_index, end_index))
+                columns_value = parse_index(df.dtypes.index, store_data=True)
+                out_chunk = chunk_op.new_chunk(
+                    None, shape=(row_size, df.shape[1]), dtypes=op.dtypes,
+                    index_value=index_value, columns_value=columns_value, index=(index_start + i, 0))
+                row_nsplits.append(row_size)
+                out_chunks.append(out_chunk)
+
+            index_start += chunk_count
+
+        if op.add_offset:
+            out_chunks = standardize_range_index(out_chunks)
+
+        new_op = op.copy()
+        nsplits = (tuple(row_nsplits), (df.shape[1],))
+        return new_op.new_dataframes(None, shape=df.shape, dtypes=op.dtypes,
+                                     index_value=df.index_value,
+                                     columns_value=df.columns_value,
+                                     chunks=out_chunks, nsplits=nsplits)
+
+    @classmethod
+    def _tile(cls, op):
+        from cupid.runtime import RuntimeContext
+
+        if RuntimeContext.is_context_ready():
+            return cls._tile_cupid(op)
+        else:
+            return cls._tile_tunnel(op)
+
+    if not head_can_be_opt:
+        tile = _tile
+
+
+class DataFrameReadTableSplit(_Base):
     _op_type_ = 123451
 
+    # for cupid
     _cupid_handle = StringField('cupid_handle')
     _split_index = Int64Field('split_index')
     _split_file_start = Int64Field('split_file_start')
@@ -254,24 +390,34 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
     _dtypes = SeriesField('dtypes')
     _nrows = Int64Field('nrows')
 
+    # for tunnel
+    _table_name = StringField('table_name')
+    _partition_spec = StringField('partition_spec')
+    _start_index = Int64Field('start_index')
+    _end_index = Int64Field('end_index')
+    _odps_params = DictField('odps_params')
+
     _split_size = Int64Field('split_size')
+    _append_partitions = BoolField('append_partitions')
     _estimate_rows = Int64Field('estimate_rows')
 
-    def __init__(self, cupid_handle=None, split_index=None, split_file_start=None, split_file_end=None,
-                 schema_file_start=None, schema_file_end=None, nrows=None, dtypes=None,
-                 split_size=None, use_arrow_dtype=None, string_as_binary=None, estimate_rows=None,
-                 sparse=None, **kw):
+    def __init__(self, cupid_handle=None, split_index=None, split_file_start=None,
+                 split_file_end=None, schema_file_start=None, schema_file_end=None,
+                 table_name=None, partition_spec=None, start_index=None, end_index=None,
+                 odps_params=None, nrows=None, dtypes=None, string_as_binary=None,
+                 split_size=None, use_arrow_dtype=None, memory_scale=None, estimate_rows=None,
+                 append_partitions=None, sparse=None, **kw):
         kw.update(_output_type_kw)
-        super(DataFrameReadTableSplit, self).__init__(_cupid_handle=cupid_handle, _split_index=split_index,
-                                                      _split_file_start=split_file_start,
-                                                      _split_file_end=split_file_end,
-                                                      _schema_file_start=schema_file_start,
-                                                      _schema_file_end=schema_file_end,
-                                                      _use_arrow_dtype=use_arrow_dtype,
-                                                      _string_as_binary=string_as_binary,
-                                                      _nrows=nrows, _estimate_rows=estimate_rows,
-                                                      _split_size=split_size, _dtypes=dtypes,
-                                                      _sparse=sparse, **kw)
+        super(DataFrameReadTableSplit, self).__init__(
+            _cupid_handle=cupid_handle, _split_index=split_index,
+            _split_file_start=split_file_start, _split_file_end=split_file_end,
+            _schema_file_start=schema_file_start, _schema_file_end=schema_file_end,
+            _table_name=table_name, _partition_spec=partition_spec,
+            _start_index=start_index, _end_index=end_index, _odps_params=odps_params,
+            _use_arrow_dtype=use_arrow_dtype, _string_as_binary=string_as_binary,
+            _nrows=nrows, _estimate_rows=estimate_rows, _split_size=split_size,
+            _dtypes=dtypes, _append_partitions=append_partitions, _sparse=sparse,
+            _memory_scale=memory_scale, **kw)
 
     @property
     def retryable(self):
@@ -306,6 +452,26 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
         return self._schema_file_end
 
     @property
+    def table_name(self):
+        return self._table_name
+
+    @property
+    def partition_spec(self):
+        return self._partition_spec
+
+    @property
+    def start_index(self):
+        return self._start_index
+
+    @property
+    def end_index(self):
+        return self._end_index
+
+    @property
+    def odps_params(self):
+        return self._odps_params
+
+    @property
     def nrows(self):
         return self._nrows
 
@@ -329,6 +495,10 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
     def string_as_binary(self):
         return self._string_as_binary
 
+    @property
+    def append_partitions(self):
+        return self._append_partitions
+
     @classmethod
     def estimate_size(cls, ctx, op):
         import numpy as np
@@ -345,7 +515,8 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
             ctx[op.outputs[0].key] = (0, 0)
             return
 
-        arrow_size = ORC_COMPRESSION_RATIO * op.split_size
+        mem_scale = op.memory_scale or ORC_COMPRESSION_RATIO
+        arrow_size = mem_scale * op.split_size
         n_strings = len([dt for dt in op.dtypes if is_object_dtype(dt)])
         if op.estimate_rows or op.nrows:
             rows = op.nrows if op.nrows is not None else op.estimate_rows
@@ -370,7 +541,21 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
         return arrow_table.cast(pa.schema(new_schema))
 
     @classmethod
-    def execute(cls, ctx, op):
+    def _append_partition_values(cls, arrow_table, op):
+        import pyarrow as pa
+
+        if op.append_partitions and op.partition_spec:
+            from odps.types import PartitionSpec
+            spec = PartitionSpec(op.partition_spec)
+
+            for col_name, pt_val in spec.items():
+                arrow_table = arrow_table.append_column(
+                    col_name, pa.array([pt_val] * arrow_table.num_rows, pa.string()))
+
+        return arrow_table
+
+    @classmethod
+    def _execute_in_cupid(cls, ctx, op):
         import pyarrow as pa
         from cupid.io.table import TableSplit
 
@@ -393,7 +578,9 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
         )
         logger.debug('Read split table, split index: %s', op.split_index)
         reader = tsp.open_arrow_reader()
-        if op.nrows is not None:
+        if op.nrows is None:
+            arrow_table = reader.read_all()
+        else:
             nrows = 0
             batches = []
             while nrows < op.nrows:
@@ -404,30 +591,79 @@ class DataFrameReadTableSplit(DataFrameOperand, DataFrameOperandMixin):
                 except StopIteration:
                     break
             logger.debug('Read %s rows of this split.', op.nrows)
-            t = pa.Table.from_batches(batches)
-            if op.string_as_binary:
-                t = cls._cast_string_to_binary(t)
-            data = arrow_table_to_pandas_dataframe(t, use_arrow_dtype=op.use_arrow_dtype)[:op.nrows]
-        else:
-            arrow_table = reader.read_all()
-            if op.string_as_binary:
-                arrow_table = cls._cast_string_to_binary(arrow_table)
-            data = arrow_table_to_pandas_dataframe(arrow_table,
-                                                   use_arrow_dtype=op.use_arrow_dtype)
+            arrow_table = pa.Table.from_batches(batches)
+
+        arrow_table = cls._append_partition_values(arrow_table, op)
+
+        if op.string_as_binary:
+            arrow_table = cls._cast_string_to_binary(arrow_table)
+        data = arrow_table_to_pandas_dataframe(arrow_table,
+                                               use_arrow_dtype=op.use_arrow_dtype)
+        if op.nrows is not None:
+            data = data[:op.nrows]
+
         data_columns = data.dtypes.index
         expected_columns = out.dtypes.index
         if not data_columns.equals(expected_columns):
             logger.debug("Data columns differs from output columns, "
-                         "data columns: {}, output columns: {}".format(data_columns, expected_columns))
+                         "data columns: %s, output columns: %s",
+                         data_columns, expected_columns)
             data.columns = expected_columns[:len(data.columns)]
             for extra_col in expected_columns[len(data.columns):]:
                 data[extra_col] = pd.Series([], dtype=out.dtypes[extra_col])
 
         logger.debug('Read split table finished, split index: %s', op.split_index)
-        logger.debug('Split data shape is {}, size is {}'.format(
-            data.shape,
-            data.memory_usage(deep=True).sum()))
+        logger.debug('Split data shape is %s, size is %s',
+                     data.shape, data.memory_usage(deep=True).sum())
         ctx[out.key] = data
+
+    @classmethod
+    def _execute_arrow_tunnel(cls, ctx, op):
+        from odps import ODPS
+        from odps.tunnel import TableTunnel
+
+        project = os.environ.get('ODPS_PROJECT_NAME', None)
+        odps_params = op.odps_params.copy()
+        if project:
+            odps_params['project'] = project
+        o = ODPS(odps_params['access_id'], odps_params['secret_access_key'],
+                 project=odps_params['project'], endpoint=odps_params['endpoint'])
+
+        t = o.get_table(op.table_name)
+        tunnel = TableTunnel(o, project=t.project)
+
+        if op.partition_spec is not None:
+            download_session = tunnel.create_download_session(
+                t.name, partition_spec=op.partition_spec)
+        else:
+            download_session = tunnel.create_download_session(t.name)
+        logger.debug('Start reading table %s(%s) split from %s to %s',
+                     op.table_name, op.partition_spec, op.start_index, op.end_index)
+        if op.nrows is None:
+            count = op.end_index - op.start_index
+        else:
+            count = op.nrows
+
+        with download_session.open_arrow_reader(op.start_index, count) as reader:
+            table = reader.read()
+
+        table = cls._append_partition_values(table, op)
+        if op.string_as_binary:
+            table = cls._cast_string_to_binary(table)
+        data = arrow_table_to_pandas_dataframe(table, use_arrow_dtype=op.use_arrow_dtype)
+
+        logger.debug('Finish reading table %s(%s) split from %s to %s',
+                     op.table_name, op.partition_spec, op.start_index, op.end_index)
+        ctx[op.outputs[0].key] = data
+
+    @classmethod
+    def execute(cls, ctx, op):
+        from cupid.runtime import RuntimeContext
+
+        if RuntimeContext.is_context_ready():
+            cls._execute_in_cupid(ctx, op)
+        else:
+            cls._execute_arrow_tunnel(ctx, op)
 
 
 def df_type_to_np_type(df_type, use_arrow_dtype=False):
@@ -447,16 +683,23 @@ def df_type_to_np_type(df_type, use_arrow_dtype=False):
         return np.dtype('object')
 
 
-def read_odps_table(table, shape, partition=None, sparse=False, chunk_bytes=None,
+def read_odps_table(table, shape, partition=None, sparse=False, chunk_bytes=None, chunk_size=None,
                     columns=None, odps_params=None, add_offset=False, use_arrow_dtype=False,
-                    string_as_binary=None):
+                    string_as_binary=None, memory_scale=None, append_partitions=False):
     import pandas as pd
+
+    if isinstance(chunk_size, (list, tuple)):
+        if len(chunk_size) == 1:
+            chunk_size = chunk_size[0]
+        if len(chunk_size) > 1:
+            raise ValueError('Only support split on rows')
 
     if chunk_bytes is not None:
         chunk_bytes = int(parse_readable_size(chunk_bytes)[0])
     table_name = '%s.%s' % (table.project.name, table.name)
-    table_columns = table.schema.names
-    table_types = table.schema.types
+    cols = table.schema.columns if append_partitions else table.schema.simple_columns
+    table_columns = [c.name for c in cols]
+    table_types = [c.type for c in cols]
     df_types = [df_type_to_np_type(odps_type_to_df_type(type), use_arrow_dtype=use_arrow_dtype)
                 for type in table_types]
 
@@ -468,8 +711,10 @@ def read_odps_table(table, shape, partition=None, sparse=False, chunk_bytes=None
 
     op = DataFrameReadTable(odps_params=odps_params, table_name=table_name, partition_spec=partition,
                             dtypes=dtypes, sparse=sparse, add_offset=add_offset, columns=columns,
-                            use_arrow_dtype=use_arrow_dtype, string_as_binary=string_as_binary)
-    return op(shape, chunk_bytes=chunk_bytes)
+                            use_arrow_dtype=use_arrow_dtype, string_as_binary=string_as_binary,
+                            memory_scale=memory_scale, append_partitions=append_partitions,
+                            last_modified_time=to_timestamp(table.last_modified_time))
+    return op(shape, chunk_bytes=chunk_bytes, chunk_size=chunk_size)
 
 
 class ReadODPSTableHeadRule(DataSourceHeadRule):

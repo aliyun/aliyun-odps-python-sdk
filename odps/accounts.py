@@ -301,12 +301,11 @@ class BearerTokenAccount(BaseAccount):
 
     @staticmethod
     def get_bearer_token():
-        from cupid import context
+        from cupid.runtime import context, RuntimeContext
 
-        cupid_context = context()
-        if cupid_context is None:
+        if not RuntimeContext.is_context_ready():
             return
-
+        cupid_context = context()
         return cupid_context.get_bearer_token()
 
     def _check_bearer_token(self):

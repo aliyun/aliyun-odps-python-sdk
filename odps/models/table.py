@@ -98,6 +98,8 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
         'PhysicalSize', parse_callback=int, set_to_parent=True)
     file_num = serializers.JSONNodeField(
         'FileNum', parse_callback=int, set_to_parent=True)
+    record_num = serializers.JSONNodeField(
+        'recordNum', parse_callback=int, set_to_parent=True)
     location = serializers.JSONNodeField(
         'location', set_to_parent=True)
     storage_handler = serializers.JSONNodeField(
@@ -164,7 +166,7 @@ class Table(LazyLoad):
                    'reserved'
     __slots__ = '_is_extend_info_loaded', 'last_meta_modified_time', 'is_virtual_view', \
                 'lifecycle', 'view_text', 'size', 'shard', '_table_tunnel', \
-                '_id_thread_local'
+                '_id_thread_local', 'record_num'
     __slots__ += _extend_args
 
     name = serializers.XMLNodeField('Name')
@@ -439,16 +441,18 @@ class Table(LazyLoad):
         reopen = kw.pop('reopen', False)
         endpoint = kw.pop('endpoint', None)
         download_id = kw.pop('download_id', None)
+        timeout = kw.pop('timeout', None)
 
         tunnel = self._create_table_tunnel(endpoint=endpoint)
         if download_id is None:
             download_ids = self._download_ids
             download_id = download_ids.get(partition) if not reopen else None
-        download_session = tunnel.create_download_session(table=self, partition_spec=partition,
-                                                          download_id=download_id, **kw)
+        download_session = tunnel.create_download_session(
+            table=self, partition_spec=partition, download_id=download_id, timeout=timeout, **kw)
 
         if download_id and download_session.status != TableDownloadSession.Status.Normal:
-            download_session = tunnel.create_download_session(table=self, partition_spec=partition, **kw)
+            download_session = tunnel.create_download_session(
+                table=self, partition_spec=partition, timeout=timeout, **kw)
         download_ids[partition] = download_session.id
 
         class RecordReader(readers.AbstractRecordReader):

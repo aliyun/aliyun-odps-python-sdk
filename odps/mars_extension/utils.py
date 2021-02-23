@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tokenize
 
+from ..compat import StringIO
 from ..df.backends.pd.types import _np_to_df_types
 from ..df.backends.odpssql.types import df_type_to_odps_type
 from ..df import types
@@ -70,3 +72,29 @@ def convert_pandas_object_to_string(df):
     for col in object_columns:
         df[col] = df[col].map(convert_to_string)
     return df
+
+
+def check_partition_exist(table, partition_spec):
+    try:
+        return table.exist_partition(partition_spec)
+    except ValueError:
+        return False
+
+
+def rewrite_partition_predicate(predicate, cols):
+    def _tokenize_predicate():
+        reader = StringIO(predicate).readline
+        for toknum, tokval, _, _, _ in tokenize.generate_tokens(reader):
+            if toknum == tokenize.NUMBER:
+                toknum = tokenize.STRING
+                tokval = '"%s"' % tokval
+            elif toknum == tokenize.NAME:
+                if tokval not in cols:
+                    toknum = tokenize.STRING
+                    tokval = '"%s"' % tokval
+            elif toknum == tokenize.OP:
+                if tokval == '=':
+                    tokval = '=='
+            yield toknum, tokval
+
+    return tokenize.untokenize(list(_tokenize_predicate()))

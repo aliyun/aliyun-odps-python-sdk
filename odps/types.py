@@ -81,6 +81,10 @@ class PartitionSpec(object):
     def keys(self):
         return compat.lkeys(self.kv)
 
+    def items(self):
+        for k, v in self.kv.items():
+            yield k, v
+
     def __contains__(self, key):
         return key in self.kv
 
