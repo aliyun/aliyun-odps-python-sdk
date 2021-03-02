@@ -25,12 +25,15 @@ from mars.deploy.kubernetes.client import KubernetesCluster, new_cluster
 from mars.deploy.kubernetes.config import VolumeConfig, HostPathVolumeConfig, \
     MarsReplicationControllerConfig, MarsSchedulersConfig, MarsWorkersConfig, \
     MarsWebsConfig
+from mars.deploy.utils import wait_services_ready
 from mars.utils import readable_size
 
 logger = logging.getLogger(__name__)
 
 UI_PORT = 50002
 NOTEBOOK_PORT = 50003
+GS_COORDINATOR_PORT = 63800
+GS_COORDINATOR_GATEWAY_PORT = 64800
 
 
 class DiskDriverVolumeConfig(VolumeConfig):
@@ -103,6 +106,7 @@ class CupidMarsSchedulersConfig(CupidMarsConfigMixin, MarsSchedulersConfig):
         super().add_default_envs()
         self.remove_env('MARS_USE_CGROUP_STAT')
         self.add_env('MARS_DISABLE_FAILOVER', '1')
+        self.add_env('MARS_POD_ROLE', 'scheduler')
         if self.stat_type == 'cgroup':
             self.add_env('MARS_MEM_USE_CGROUP_STAT', '1')
             self.add_env('MARS_CPU_USE_PROCESS_STAT', '1')
@@ -120,6 +124,7 @@ class CupidMarsWorkersConfig(CupidMarsConfigMixin, MarsWorkersConfig):
         self.add_env('MARS_LOCK_FREE_FILEIO', '1')
         self.add_env('MARS_DISABLE_PROC_RECOVER', '1')
         self.add_env('MARS_PLASMA_LIMIT', '95%')
+        self.add_env('MARS_POD_ROLE', 'worker')
         self.remove_env('MARS_USE_CGROUP_STAT')
         if self.stat_type == 'cgroup':
             self.add_env('MARS_CPU_USE_PROCESS_STAT', '1')
@@ -137,6 +142,7 @@ class CupidMarsWebsConfig(CupidMarsConfigMixin, MarsWebsConfig):
 
     def add_default_envs(self):
         super().add_default_envs()
+        self.add_env('MARS_POD_ROLE', 'web')
         if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
             self.add_env('MARS_UI_PORT', str(UI_PORT))
 
@@ -159,8 +165,45 @@ class CupidMarsNotebooksConfig(CupidMarsConfigMixin, MarsReplicationControllerCo
 
     def add_default_envs(self):
         super().add_default_envs()
+        self.add_env('MARS_POD_ROLE', 'notebook')
         if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
             self.add_env('MARS_NOTEBOOK_PORT', self._container_port)
+
+
+class CupidGSCoordinatorConfig(CupidMarsConfigMixin, MarsReplicationControllerConfig):
+    rc_name = 'gscoordinator'
+
+    def __init__(self, *args, **kwargs):
+        if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
+            default_port = GS_COORDINATOR_GATEWAY_PORT
+        else:
+            default_port = None
+        kwargs['service_port'] = kwargs.get('service_port', None) or default_port
+        self._worker_pod_name_list = kwargs.pop('worker_pod_name_list', None)
+        self._worker_pod_ip_list = kwargs.pop('worker_pod_ip_list', None)
+        self._port = GS_COORDINATOR_PORT
+        self._gateway_port = kwargs['service_port']
+        self._worker_num = kwargs.pop('worker_num', 1)
+        super().__init__(*args, **kwargs)
+
+    def build_container_command(self):
+        # replace command with coordinator
+        coordinator_args = dict(
+            port=self._port, gateway_port=self._gateway_port, worker_pod_name_list=self._worker_pod_name_list,
+            worker_pod_ip_list=self._worker_pod_ip_list, num_workers=self._worker_num
+        )
+        cmd = [
+            '/srv/entrypoint.sh', self.get_local_app_module('gscoordinator'),
+            base64.b64encode(json.dumps(coordinator_args).encode()).decode()
+        ]
+        return cmd
+
+    def add_default_envs(self):
+        super().add_default_envs()
+        self.add_env('MARS_POD_ROLE', 'gscoordinator')
+        if os.environ.get('VM_ENGINE_TYPE') == 'hyper':
+            self.add_env('GS_COORDINATOR_GATEWAY_PORT', self._container_port)
+            self.add_env('GS_COORDINATOR_PORT', self._container_port)
 
 
 class CupidKubernetesCluster(KubernetesCluster):
@@ -176,6 +219,12 @@ class CupidKubernetesCluster(KubernetesCluster):
 
         self._notebook_extra_env = kwargs.get('extra_env', None) or dict()
         self._notebook_extra_env.update(kwargs.pop('notebook_extra_env', None) or dict())
+
+        self._with_graphscope = kwargs.pop('with_graphscope', False)
+        self._coordinator_extra_env = kwargs.get('extra_env', None) or dict()
+        self._coordinator_extra_env.update(kwargs.pop('coordinator_extra_env', None) or dict())
+        self._coordinator_cpu = kwargs.pop('coordinator_cpu', None)
+        self._coordinator_mem = kwargs.pop('coordinator_mem', None)
 
         self._node_blacklist = set(kwargs.pop('node_blacklist', None) or [])
         self._blacklisted_pods = set()
@@ -210,8 +259,30 @@ class CupidKubernetesCluster(KubernetesCluster):
             self._core_api.create_namespaced_replication_controller(
                 self._namespace, notebook_config.build())
 
+    def _create_graphscope(self):
+        if self._with_graphscope:
+            # check the worker services are ready
+            limits = [self._worker_num]
+            selectors = ['mars/service-type=' + CupidMarsWorkersConfig.rc_name]
+            wait_services_ready(selectors, limits,
+                                lambda sel: self._get_ready_pod_count(sel),
+                                timeout=self._timeout)
+            # get the worker pod name and ip
+            worker_pod_name_list, worker_pod_ip_list = self._get_pods_name_and_ip(selectors[0])
+            coordinator_config = CupidGSCoordinatorConfig(
+                1, image=self._image, cpu=self._coordinator_cpu, memory=self._coordinator_mem,
+                volumes=self._extra_volumes, pre_stop_command=self._pre_stop_command,
+                worker_pod_name_list=worker_pod_name_list, worker_pod_ip_list=worker_pod_ip_list,
+                worker_num = self._worker_num
+            )
+            coordinator_config.add_simple_envs(self._coordinator_extra_env)
+            self._core_api.create_namespaced_replication_controller(
+                self._namespace, coordinator_config.build())
+
+
     def _create_services(self):
         super()._create_services()
+        self._create_graphscope()
         self._create_notebook()
 
     def _create_kube_service(self):
@@ -237,6 +308,17 @@ class CupidKubernetesCluster(KubernetesCluster):
                     except:  # noqa: E722
                         pass
         return super()._get_ready_pod_count(label_selector)
+
+    def _get_pods_name_and_ip(self, label_selector):
+        pod_name_list = []
+        pod_ip_list = []
+        query = self._core_api.list_namespaced_pod(
+            namespace=self._namespace, label_selector=label_selector).to_dict()
+        for el in query['items']:
+            if el['status']['reason'] == 'CupidStarted':
+                pod_name_list.append(el['metadata']['name'])
+                pod_ip_list.append(el['status']['pod_ip'])
+        return pod_name_list, pod_ip_list
 
 
 class MarsCupidServer(object):
@@ -304,6 +386,7 @@ class MarsCupidServer(object):
 
         extra_env = args_dict.get('extra_env') or dict()
         extra_env['KUBE_API_ADDRESS'] = self._kube_url
+        extra_env['KUBE_NAMESPACE'] = self._instance_id
         args_dict['extra_env'] = extra_env
 
         new_cluster(self.get_instance_kube(), cluster_cls=CupidKubernetesCluster, **args_dict)

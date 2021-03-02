@@ -21,7 +21,7 @@ from . import cupidtaskparam_pb2
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='cupid_task_service.proto',
   package='apsara.odps.cupid.protocol',
-  serialized_pb=_b('\n\x18\x63upid_task_service.proto\x12\x1a\x61psara.odps.cupid.protocol\x1a\x14\x63upidtaskparam.proto\"m\n\x0eTableInputInfo\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x11\n\ttableName\x18\x02 \x01(\t\x12\x0f\n\x07\x63olumns\x18\x03 \x01(\t\x12\x10\n\x08partSpec\x18\x04 \x01(\t\x12\x10\n\x08\x62ucketId\x18\x05 \x01(\x05\"\xa2\x01\n\x12SplitTablesRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x11\n\tsplitSize\x18\x02 \x01(\x05\x12\x12\n\nsplitCount\x18\x03 \x01(\x05\x12\x43\n\x0ftableInputInfos\x18\x04 \x03(\x0b\x32*.apsara.odps.cupid.protocol.TableInputInfo\x12\x0c\n\x04type\x18\x05 \x01(\t\"/\n\x13SplitTablesResponse\x12\x18\n\x10inputTableHandle\x18\x01 \x01(\t\"]\n\x11WriteTableRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x13\n\x0bprojectName\x18\x02 \x01(\t\x12\x11\n\ttableName\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\"/\n\x12WriteTableResponse\x12\x19\n\x11outputTableHandle\x18\x01 \x01(\t\"\xd8\x01\n\x12\x43ommitTableRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x19\n\x11outputTableHandle\x18\x02 \x01(\t\x12\x13\n\x0bprojectName\x18\x03 \x01(\t\x12\x11\n\ttableName\x18\x04 \x01(\t\x12\x13\n\x0bisOverWrite\x18\x05 \x01(\x08\x12\x11\n\tpartSpecs\x18\x06 \x03(\t\x12\x43\n\x0f\x63ommitFileLists\x18\x07 \x03(\x0b\x32*.apsara.odps.cupid.protocol.CommitFileList\"\x15\n\x13\x43ommitTableResponse\"3\n\tTableInfo\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x11\n\ttableName\x18\x02 \x01(\t\"\x8c\x01\n\x13GetTableMetaRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x38\n\ttableInfo\x18\x02 \x01(\x0b\x32%.apsara.odps.cupid.protocol.TableInfo\x12\x13\n\x0bneedContent\x18\x03 \x01(\x08\x12\x12\n\nuploadFile\x18\x04 \x01(\t\"O\n\x14GetTableMetaResponse\x12\x1a\n\x12getTableMetaHandle\x18\x01 \x01(\t\x12\x1b\n\x13getTableMetaContent\x18\x02 \x01(\t\"I\n\x18\x43loseOutputHandleRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x19\n\x11outputTableHandle\x18\x02 \x01(\t\"\x1b\n\x19\x43loseOutputHandleResponse\"\'\n\tClusterKv\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\"N\n\x1bPutOrCreateClusterKvRequest\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\"\x1e\n\x1cPutOrCreateClusterKvResponse\":\n\x16\x44\x65leteClusterKvRequest\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\"\x19\n\x17\x44\x65leteClusterKvResponse\"7\n\x13GetClusterKvRequest\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\"%\n\x14GetClusterKvResponse\x12\r\n\x05value\x18\x01 \x01(\t\"C\n\x1cListByPrefixClusterKvRequest\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x0e\n\x06prefix\x18\x02 \x01(\t\"Y\n\x1dListByPrefixClusterKvResponse\x12\x38\n\tclusterKv\x18\x01 \x03(\x0b\x32%.apsara.odps.cupid.protocol.ClusterKv\"(\n\x17\x43upidProxyTokenResponse\x12\r\n\x05token\x18\x01 \x01(\t\"/\n\x19\x43upidProxyAppNamesRequest\x12\x12\n\ninstanceId\x18\x01 \x01(\t\"+\n\x1a\x43upidProxyAppNamesResponse\x12\r\n\x05names\x18\x01 \x03(\t2\xe7\n\n\x10\x43upidTaskService\x12n\n\x0bSplitTables\x12..apsara.odps.cupid.protocol.SplitTablesRequest\x1a/.apsara.odps.cupid.protocol.SplitTablesResponse\x12k\n\nWriteTable\x12-.apsara.odps.cupid.protocol.WriteTableRequest\x1a..apsara.odps.cupid.protocol.WriteTableResponse\x12n\n\x0b\x43ommitTable\x12..apsara.odps.cupid.protocol.CommitTableRequest\x1a/.apsara.odps.cupid.protocol.CommitTableResponse\x12\x80\x01\n\x11\x43loseOutputHandle\x12\x34.apsara.odps.cupid.protocol.CloseOutputHandleRequest\x1a\x35.apsara.odps.cupid.protocol.CloseOutputHandleResponse\x12\x89\x01\n\x14PutOrCreateClusterKv\x12\x37.apsara.odps.cupid.protocol.PutOrCreateClusterKvRequest\x1a\x38.apsara.odps.cupid.protocol.PutOrCreateClusterKvResponse\x12z\n\x0f\x44\x65leteClusterKv\x12\x32.apsara.odps.cupid.protocol.DeleteClusterKvRequest\x1a\x33.apsara.odps.cupid.protocol.DeleteClusterKvResponse\x12q\n\x0cGetClusterKv\x12/.apsara.odps.cupid.protocol.GetClusterKvRequest\x1a\x30.apsara.odps.cupid.protocol.GetClusterKvResponse\x12\x8c\x01\n\x15ListByPrefixClusterKv\x12\x38.apsara.odps.cupid.protocol.ListByPrefixClusterKvRequest\x1a\x39.apsara.odps.cupid.protocol.ListByPrefixClusterKvResponse\x12q\n\x0cGetTableMeta\x12/.apsara.odps.cupid.protocol.GetTableMetaRequest\x1a\x30.apsara.odps.cupid.protocol.GetTableMetaResponse\x12}\n\x12GetCupidProxyToken\x12\x32.apsara.odps.cupid.protocol.CupidProxyTokenRequest\x1a\x33.apsara.odps.cupid.protocol.CupidProxyTokenResponse\x12\x86\x01\n\x15GetCupidProxyAppNames\x12\x35.apsara.odps.cupid.protocol.CupidProxyAppNamesRequest\x1a\x36.apsara.odps.cupid.protocol.CupidProxyAppNamesResponseB B\x15\x43upidTaskServiceProto\x80\x01\x01\x88\x01\x01\x90\x01\x01')
+  serialized_pb=_b('\n\x18\x63upid_task_service.proto\x12\x1a\x61psara.odps.cupid.protocol\x1a\x14\x63upidtaskparam.proto\"m\n\x0eTableInputInfo\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x11\n\ttableName\x18\x02 \x01(\t\x12\x0f\n\x07\x63olumns\x18\x03 \x01(\t\x12\x10\n\x08partSpec\x18\x04 \x01(\t\x12\x10\n\x08\x62ucketId\x18\x05 \x01(\x05\"\xd4\x01\n\x12SplitTablesRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x11\n\tsplitSize\x18\x02 \x01(\x05\x12\x12\n\nsplitCount\x18\x03 \x01(\x05\x12\x43\n\x0ftableInputInfos\x18\x04 \x03(\x0b\x32*.apsara.odps.cupid.protocol.TableInputInfo\x12\x0c\n\x04type\x18\x05 \x01(\t\x12\x16\n\x0e\x61llowNoColumns\x18\x06 \x01(\x08\x12\x18\n\x10requireSplitMeta\x18\x07 \x01(\x08\"/\n\x13SplitTablesResponse\x12\x18\n\x10inputTableHandle\x18\x01 \x01(\t\"]\n\x11WriteTableRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x13\n\x0bprojectName\x18\x02 \x01(\t\x12\x11\n\ttableName\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\"/\n\x12WriteTableResponse\x12\x19\n\x11outputTableHandle\x18\x01 \x01(\t\"\xd8\x01\n\x12\x43ommitTableRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x19\n\x11outputTableHandle\x18\x02 \x01(\t\x12\x13\n\x0bprojectName\x18\x03 \x01(\t\x12\x11\n\ttableName\x18\x04 \x01(\t\x12\x13\n\x0bisOverWrite\x18\x05 \x01(\x08\x12\x11\n\tpartSpecs\x18\x06 \x03(\t\x12\x43\n\x0f\x63ommitFileLists\x18\x07 \x03(\x0b\x32*.apsara.odps.cupid.protocol.CommitFileList\"\x15\n\x13\x43ommitTableResponse\"3\n\tTableInfo\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x11\n\ttableName\x18\x02 \x01(\t\"\x8c\x01\n\x13GetTableMetaRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x38\n\ttableInfo\x18\x02 \x01(\x0b\x32%.apsara.odps.cupid.protocol.TableInfo\x12\x13\n\x0bneedContent\x18\x03 \x01(\x08\x12\x12\n\nuploadFile\x18\x04 \x01(\t\"O\n\x14GetTableMetaResponse\x12\x1a\n\x12getTableMetaHandle\x18\x01 \x01(\t\x12\x1b\n\x13getTableMetaContent\x18\x02 \x01(\t\"I\n\x18\x43loseOutputHandleRequest\x12\x12\n\nlookupName\x18\x01 \x01(\t\x12\x19\n\x11outputTableHandle\x18\x02 \x01(\t\"\x1b\n\x19\x43loseOutputHandleResponse\"\'\n\tClusterKv\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\"N\n\x1bPutOrCreateClusterKvRequest\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\"\x1e\n\x1cPutOrCreateClusterKvResponse\":\n\x16\x44\x65leteClusterKvRequest\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\"\x19\n\x17\x44\x65leteClusterKvResponse\"7\n\x13GetClusterKvRequest\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\"%\n\x14GetClusterKvResponse\x12\r\n\x05value\x18\x01 \x01(\t\"C\n\x1cListByPrefixClusterKvRequest\x12\x13\n\x0bprojectName\x18\x01 \x01(\t\x12\x0e\n\x06prefix\x18\x02 \x01(\t\"Y\n\x1dListByPrefixClusterKvResponse\x12\x38\n\tclusterKv\x18\x01 \x03(\x0b\x32%.apsara.odps.cupid.protocol.ClusterKv\"(\n\x17\x43upidProxyTokenResponse\x12\r\n\x05token\x18\x01 \x01(\t\"/\n\x19\x43upidProxyAppNamesRequest\x12\x12\n\ninstanceId\x18\x01 \x01(\t\"+\n\x1a\x43upidProxyAppNamesResponse\x12\r\n\x05names\x18\x01 \x03(\t2\xe7\n\n\x10\x43upidTaskService\x12n\n\x0bSplitTables\x12..apsara.odps.cupid.protocol.SplitTablesRequest\x1a/.apsara.odps.cupid.protocol.SplitTablesResponse\x12k\n\nWriteTable\x12-.apsara.odps.cupid.protocol.WriteTableRequest\x1a..apsara.odps.cupid.protocol.WriteTableResponse\x12n\n\x0b\x43ommitTable\x12..apsara.odps.cupid.protocol.CommitTableRequest\x1a/.apsara.odps.cupid.protocol.CommitTableResponse\x12\x80\x01\n\x11\x43loseOutputHandle\x12\x34.apsara.odps.cupid.protocol.CloseOutputHandleRequest\x1a\x35.apsara.odps.cupid.protocol.CloseOutputHandleResponse\x12\x89\x01\n\x14PutOrCreateClusterKv\x12\x37.apsara.odps.cupid.protocol.PutOrCreateClusterKvRequest\x1a\x38.apsara.odps.cupid.protocol.PutOrCreateClusterKvResponse\x12z\n\x0f\x44\x65leteClusterKv\x12\x32.apsara.odps.cupid.protocol.DeleteClusterKvRequest\x1a\x33.apsara.odps.cupid.protocol.DeleteClusterKvResponse\x12q\n\x0cGetClusterKv\x12/.apsara.odps.cupid.protocol.GetClusterKvRequest\x1a\x30.apsara.odps.cupid.protocol.GetClusterKvResponse\x12\x8c\x01\n\x15ListByPrefixClusterKv\x12\x38.apsara.odps.cupid.protocol.ListByPrefixClusterKvRequest\x1a\x39.apsara.odps.cupid.protocol.ListByPrefixClusterKvResponse\x12q\n\x0cGetTableMeta\x12/.apsara.odps.cupid.protocol.GetTableMetaRequest\x1a\x30.apsara.odps.cupid.protocol.GetTableMetaResponse\x12}\n\x12GetCupidProxyToken\x12\x32.apsara.odps.cupid.protocol.CupidProxyTokenRequest\x1a\x33.apsara.odps.cupid.protocol.CupidProxyTokenResponse\x12\x86\x01\n\x15GetCupidProxyAppNames\x12\x35.apsara.odps.cupid.protocol.CupidProxyAppNamesRequest\x1a\x36.apsara.odps.cupid.protocol.CupidProxyAppNamesResponseB B\x15\x43upidTaskServiceProto\x80\x01\x01\x88\x01\x01\x90\x01\x01')
   ,
   dependencies=[cupidtaskparam_pb2.DESCRIPTOR,])
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
@@ -129,6 +129,20 @@ _SPLITTABLESREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
+    _descriptor.FieldDescriptor(
+      name='allowNoColumns', full_name='apsara.odps.cupid.protocol.SplitTablesRequest.allowNoColumns', index=5,
+      number=6, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='requireSplitMeta', full_name='apsara.odps.cupid.protocol.SplitTablesRequest.requireSplitMeta', index=6,
+      number=7, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
   ],
   extensions=[
   ],
@@ -141,7 +155,7 @@ _SPLITTABLESREQUEST = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=190,
-  serialized_end=352,
+  serialized_end=402,
 )
 
 
@@ -170,8 +184,8 @@ _SPLITTABLESRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=354,
-  serialized_end=401,
+  serialized_start=404,
+  serialized_end=451,
 )
 
 
@@ -221,8 +235,8 @@ _WRITETABLEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=403,
-  serialized_end=496,
+  serialized_start=453,
+  serialized_end=546,
 )
 
 
@@ -251,8 +265,8 @@ _WRITETABLERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=498,
-  serialized_end=545,
+  serialized_start=548,
+  serialized_end=595,
 )
 
 
@@ -323,8 +337,8 @@ _COMMITTABLEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=548,
-  serialized_end=764,
+  serialized_start=598,
+  serialized_end=814,
 )
 
 
@@ -346,8 +360,8 @@ _COMMITTABLERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=766,
-  serialized_end=787,
+  serialized_start=816,
+  serialized_end=837,
 )
 
 
@@ -383,8 +397,8 @@ _TABLEINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=789,
-  serialized_end=840,
+  serialized_start=839,
+  serialized_end=890,
 )
 
 
@@ -434,8 +448,8 @@ _GETTABLEMETAREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=843,
-  serialized_end=983,
+  serialized_start=893,
+  serialized_end=1033,
 )
 
 
@@ -471,8 +485,8 @@ _GETTABLEMETARESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=985,
-  serialized_end=1064,
+  serialized_start=1035,
+  serialized_end=1114,
 )
 
 
@@ -508,8 +522,8 @@ _CLOSEOUTPUTHANDLEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1066,
-  serialized_end=1139,
+  serialized_start=1116,
+  serialized_end=1189,
 )
 
 
@@ -531,8 +545,8 @@ _CLOSEOUTPUTHANDLERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1141,
-  serialized_end=1168,
+  serialized_start=1191,
+  serialized_end=1218,
 )
 
 
@@ -568,8 +582,8 @@ _CLUSTERKV = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1170,
-  serialized_end=1209,
+  serialized_start=1220,
+  serialized_end=1259,
 )
 
 
@@ -612,8 +626,8 @@ _PUTORCREATECLUSTERKVREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1211,
-  serialized_end=1289,
+  serialized_start=1261,
+  serialized_end=1339,
 )
 
 
@@ -635,8 +649,8 @@ _PUTORCREATECLUSTERKVRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1291,
-  serialized_end=1321,
+  serialized_start=1341,
+  serialized_end=1371,
 )
 
 
@@ -672,8 +686,8 @@ _DELETECLUSTERKVREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1323,
-  serialized_end=1381,
+  serialized_start=1373,
+  serialized_end=1431,
 )
 
 
@@ -695,8 +709,8 @@ _DELETECLUSTERKVRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1383,
-  serialized_end=1408,
+  serialized_start=1433,
+  serialized_end=1458,
 )
 
 
@@ -732,8 +746,8 @@ _GETCLUSTERKVREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1410,
-  serialized_end=1465,
+  serialized_start=1460,
+  serialized_end=1515,
 )
 
 
@@ -762,8 +776,8 @@ _GETCLUSTERKVRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1467,
-  serialized_end=1504,
+  serialized_start=1517,
+  serialized_end=1554,
 )
 
 
@@ -799,8 +813,8 @@ _LISTBYPREFIXCLUSTERKVREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1506,
-  serialized_end=1573,
+  serialized_start=1556,
+  serialized_end=1623,
 )
 
 
@@ -829,8 +843,8 @@ _LISTBYPREFIXCLUSTERKVRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1575,
-  serialized_end=1664,
+  serialized_start=1625,
+  serialized_end=1714,
 )
 
 
@@ -859,8 +873,8 @@ _CUPIDPROXYTOKENRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1666,
-  serialized_end=1706,
+  serialized_start=1716,
+  serialized_end=1756,
 )
 
 
@@ -889,8 +903,8 @@ _CUPIDPROXYAPPNAMESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1708,
-  serialized_end=1755,
+  serialized_start=1758,
+  serialized_end=1805,
 )
 
 
@@ -919,8 +933,8 @@ _CUPIDPROXYAPPNAMESRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1757,
-  serialized_end=1800,
+  serialized_start=1807,
+  serialized_end=1850,
 )
 
 _SPLITTABLESREQUEST.fields_by_name['tableInputInfos'].message_type = _TABLEINPUTINFO
@@ -1130,8 +1144,8 @@ _CUPIDTASKSERVICE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   options=None,
-  serialized_start=1803,
-  serialized_end=3186,
+  serialized_start=1853,
+  serialized_end=3236,
   methods=[
   _descriptor.MethodDescriptor(
     name='SplitTables',

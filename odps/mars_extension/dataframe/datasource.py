@@ -190,6 +190,14 @@ class DataFrameReadTable(_Base):
         df = op.outputs[0]
         split_size = df.extra_params.chunk_bytes or READ_CHUNK_LIMIT
 
+        out_dtypes = df.dtypes
+        out_shape = df.shape
+        out_columns_value = df.columns_value
+        if op.columns is not None:
+            out_dtypes = out_dtypes[op.columns]
+            out_shape = (df.shape[0], len(op.columns))
+            out_columns_value = parse_index(out_dtypes.index, store_data=True)
+
         table_obj = o.get_table(op.table_name)
         if not table_obj.schema.partitions:
             data_srcs = [table_obj]
@@ -235,13 +243,16 @@ class DataFrameReadTable(_Base):
 
             logger.debug('%s table splits have been created.', str(len(download_session.splits)))
 
-            if np.isnan(df.shape[0]):
-                est_chunk_rows = [None] * len(download_session.splits)
+            meta_chunk_rows = [split.meta_row_count for split in download_session.splits]
+            if np.isnan(out_shape[0]):
+                est_chunk_rows = meta_chunk_rows
             else:
                 sp_file_sizes = np.array([sp.split_file_end - sp.split_file_start
                                          for sp in download_session.splits])
                 total_size = sp_file_sizes.sum()
-                est_chunk_rows = (sp_file_sizes * df.shape[0] // total_size).tolist()
+                ratio_chunk_rows = (sp_file_sizes * out_shape[0] // total_size).tolist()
+                est_chunk_rows = [mr if mr is not None else rr
+                                  for mr, rr in zip(meta_chunk_rows, ratio_chunk_rows)]
 
             partition_spec = str(data_src.partition_spec) \
                 if getattr(data_src, 'partition_spec', None) else None
@@ -252,8 +263,8 @@ class DataFrameReadTable(_Base):
                 logger.debug('Table %s has no data', op.table_name)
                 chunk_op = DataFrameReadTableSplit()
                 index_value = parse_index(pd.RangeIndex(0))
-                columns_value = parse_index(df.dtypes.index, store_data=True)
-                out_chunk = chunk_op.new_chunk(None, shape=(np.nan, df.shape[1]), dtypes=op.dtypes,
+                columns_value = parse_index(out_dtypes.index, store_data=True)
+                out_chunk = chunk_op.new_chunk(None, shape=(np.nan, out_shape[1]), dtypes=op.dtypes,
                                                index_value=index_value, columns_value=columns_value,
                                                index=(chunk_idx, 0))
                 out_chunks.append(out_chunk)
@@ -264,15 +275,16 @@ class DataFrameReadTable(_Base):
                         cupid_handle=to_str(split.handle), split_index=split.split_index,
                         split_file_start=split.split_file_start, split_file_end=split.split_file_end,
                         schema_file_start=split.schema_file_start, schema_file_end=split.schema_file_end,
-                        add_offset=op.add_offset, dtypes=op.dtypes, sparse=op.sparse,
+                        add_offset=op.add_offset, dtypes=out_dtypes, sparse=op.sparse,
                         split_size=split_size, string_as_binary=op.string_as_binary,
                         use_arrow_dtype=op.use_arrow_dtype, estimate_rows=est_chunk_rows[idx],
                         partition_spec=partition_spec, append_partitions=op.append_partitions,
-                        nrows=op.nrows, memory_scale=op.memory_scale)
+                        meta_raw_size=split.meta_raw_size, nrows=meta_chunk_rows[idx] or op.nrows,
+                        memory_scale=op.memory_scale)
                     # the chunk shape is unknown
                     index_value = parse_index(pd.RangeIndex(0))
-                    columns_value = parse_index(df.dtypes.index, store_data=True)
-                    out_chunk = chunk_op.new_chunk(None, shape=(np.nan, df.shape[1]), dtypes=op.dtypes,
+                    columns_value = parse_index(out_dtypes.index, store_data=True)
+                    out_chunk = chunk_op.new_chunk(None, shape=(np.nan, out_shape[1]), dtypes=out_dtypes,
                                                    index_value=index_value, columns_value=columns_value,
                                                    index=(chunk_idx, 0))
                     chunk_idx += 1
@@ -282,10 +294,10 @@ class DataFrameReadTable(_Base):
             out_chunks = standardize_range_index(out_chunks)
 
         new_op = op.copy()
-        nsplits = ((np.nan,) * len(out_chunks), (df.shape[1],))
-        return new_op.new_dataframes(None, shape=df.shape, dtypes=op.dtypes,
+        nsplits = ((np.nan,) * len(out_chunks), (out_shape[1],))
+        return new_op.new_dataframes(None, shape=out_shape, dtypes=op.dtypes,
                                      index_value=df.index_value,
-                                     columns_value=df.columns_value,
+                                     columns_value=out_columns_value,
                                      chunks=out_chunks, nsplits=nsplits)
 
     @classmethod
@@ -314,9 +326,17 @@ class DataFrameReadTable(_Base):
         index_start = 0
         df = op.outputs[0]
 
+        out_dtypes = df.dtypes
+        out_shape = df.shape
+        out_columns_value = df.columns_value
+        if op.columns is not None:
+            out_dtypes = out_dtypes[op.columns]
+            out_shape = (df.shape[0], len(op.columns))
+            out_columns_value = parse_index(out_dtypes.index, store_data=True)
+
         for data_src in data_srcs:
             data_store_size = data_src.size
-            shape = df.shape
+            shape = out_shape
             chunk_size = df.extra_params.chunk_size
 
             partition_spec = str(data_src.partition_spec) \
@@ -338,14 +358,14 @@ class DataFrameReadTable(_Base):
                 chunk_op = DataFrameReadTableSplit(
                     table_name=op.table_name, partition_spec=partition_spec,
                     start_index=start_index, end_index=end_index, nrows=op.nrows,
-                    odps_params=op.odps_params, add_offset=op.add_offset,
-                    dtypes=op.dtypes, sparse=op.sparse, split_size=split_size,
+                    odps_params=op.odps_params, columns=op.columns, add_offset=op.add_offset,
+                    dtypes=out_dtypes, sparse=op.sparse, split_size=split_size,
                     use_arrow_dtype=op.use_arrow_dtype, estimate_rows=row_size,
                     append_partitions=op.append_partitions, memory_scale=op.memory_scale)
                 index_value = parse_index(pd.RangeIndex(start_index, end_index))
-                columns_value = parse_index(df.dtypes.index, store_data=True)
+                columns_value = parse_index(out_dtypes.index, store_data=True)
                 out_chunk = chunk_op.new_chunk(
-                    None, shape=(row_size, df.shape[1]), dtypes=op.dtypes,
+                    None, shape=(row_size, out_shape[1]), dtypes=out_dtypes,
                     index_value=index_value, columns_value=columns_value, index=(index_start + i, 0))
                 row_nsplits.append(row_size)
                 out_chunks.append(out_chunk)
@@ -356,10 +376,10 @@ class DataFrameReadTable(_Base):
             out_chunks = standardize_range_index(out_chunks)
 
         new_op = op.copy()
-        nsplits = (tuple(row_nsplits), (df.shape[1],))
-        return new_op.new_dataframes(None, shape=df.shape, dtypes=op.dtypes,
+        nsplits = (tuple(row_nsplits), (out_shape[1],))
+        return new_op.new_dataframes(None, shape=out_shape, dtypes=op.dtypes,
                                      index_value=df.index_value,
-                                     columns_value=df.columns_value,
+                                     columns_value=out_columns_value,
                                      chunks=out_chunks, nsplits=nsplits)
 
     @classmethod
@@ -396,28 +416,30 @@ class DataFrameReadTableSplit(_Base):
     _start_index = Int64Field('start_index')
     _end_index = Int64Field('end_index')
     _odps_params = DictField('odps_params')
+    _columns = ListField('columns')
 
     _split_size = Int64Field('split_size')
     _append_partitions = BoolField('append_partitions')
     _estimate_rows = Int64Field('estimate_rows')
+    _meta_raw_size = Int64Field('meta_raw_size')
 
     def __init__(self, cupid_handle=None, split_index=None, split_file_start=None,
                  split_file_end=None, schema_file_start=None, schema_file_end=None,
                  table_name=None, partition_spec=None, start_index=None, end_index=None,
-                 odps_params=None, nrows=None, dtypes=None, string_as_binary=None,
+                 odps_params=None, columns=None, nrows=None, dtypes=None, string_as_binary=None,
                  split_size=None, use_arrow_dtype=None, memory_scale=None, estimate_rows=None,
-                 append_partitions=None, sparse=None, **kw):
+                 meta_raw_size=None, append_partitions=None, sparse=None, **kw):
         kw.update(_output_type_kw)
         super(DataFrameReadTableSplit, self).__init__(
             _cupid_handle=cupid_handle, _split_index=split_index,
             _split_file_start=split_file_start, _split_file_end=split_file_end,
             _schema_file_start=schema_file_start, _schema_file_end=schema_file_end,
-            _table_name=table_name, _partition_spec=partition_spec,
+            _table_name=table_name, _partition_spec=partition_spec, _columns=columns,
             _start_index=start_index, _end_index=end_index, _odps_params=odps_params,
             _use_arrow_dtype=use_arrow_dtype, _string_as_binary=string_as_binary,
             _nrows=nrows, _estimate_rows=estimate_rows, _split_size=split_size,
             _dtypes=dtypes, _append_partitions=append_partitions, _sparse=sparse,
-            _memory_scale=memory_scale, **kw)
+            _meta_raw_size=meta_raw_size, _memory_scale=memory_scale, **kw)
 
     @property
     def retryable(self):
@@ -472,6 +494,10 @@ class DataFrameReadTableSplit(_Base):
         return self._odps_params
 
     @property
+    def columns(self):
+        return self._columns
+
+    @property
     def nrows(self):
         return self._nrows
 
@@ -499,6 +525,10 @@ class DataFrameReadTableSplit(_Base):
     def append_partitions(self):
         return self._append_partitions
 
+    @property
+    def meta_raw_size(self):
+        return self._meta_raw_size
+
     @classmethod
     def estimate_size(cls, ctx, op):
         import numpy as np
@@ -515,8 +545,11 @@ class DataFrameReadTableSplit(_Base):
             ctx[op.outputs[0].key] = (0, 0)
             return
 
-        mem_scale = op.memory_scale or ORC_COMPRESSION_RATIO
-        arrow_size = mem_scale * op.split_size
+        arrow_size = (op.memory_scale or ORC_COMPRESSION_RATIO) * op.split_size
+        if op.meta_raw_size is not None:
+            raw_arrow_size = (op.memory_scale or 1) * op.meta_raw_size
+            arrow_size = max(arrow_size, raw_arrow_size)
+
         n_strings = len([dt for dt in op.dtypes if is_object_dtype(dt)])
         if op.estimate_rows or op.nrows:
             rows = op.nrows if op.nrows is not None else op.estimate_rows
@@ -553,6 +586,21 @@ class DataFrameReadTableSplit(_Base):
                     col_name, pa.array([pt_val] * arrow_table.num_rows, pa.string()))
 
         return arrow_table
+
+    @staticmethod
+    def _align_columns(data, expected_dtypes):
+        data_columns = data.dtypes.index
+        expected_columns = expected_dtypes.index
+        if not data_columns.equals(expected_columns):
+            logger.debug("Data columns differs from output columns, "
+                         "data columns: %s, output columns: %s",
+                         data_columns, expected_columns)
+            data.columns = expected_columns[:len(data.columns)]
+            for extra_col in expected_columns[len(data.columns):]:
+                data[extra_col] = pd.Series([], dtype=expected_dtypes[extra_col])
+            if not data.dtypes.index.equals(expected_columns):
+                data = data[expected_columns]
+        return data
 
     @classmethod
     def _execute_in_cupid(cls, ctx, op):
@@ -602,15 +650,7 @@ class DataFrameReadTableSplit(_Base):
         if op.nrows is not None:
             data = data[:op.nrows]
 
-        data_columns = data.dtypes.index
-        expected_columns = out.dtypes.index
-        if not data_columns.equals(expected_columns):
-            logger.debug("Data columns differs from output columns, "
-                         "data columns: %s, output columns: %s",
-                         data_columns, expected_columns)
-            data.columns = expected_columns[:len(data.columns)]
-            for extra_col in expected_columns[len(data.columns):]:
-                data[extra_col] = pd.Series([], dtype=out.dtypes[extra_col])
+        data = cls._align_columns(data, out.dtypes)
 
         logger.debug('Read split table finished, split index: %s', op.split_index)
         logger.debug('Split data shape is %s, size is %s',
@@ -644,13 +684,15 @@ class DataFrameReadTableSplit(_Base):
         else:
             count = op.nrows
 
-        with download_session.open_arrow_reader(op.start_index, count) as reader:
+        with download_session.open_arrow_reader(op.start_index, count, columns=op.columns) as reader:
             table = reader.read()
 
         table = cls._append_partition_values(table, op)
         if op.string_as_binary:
             table = cls._cast_string_to_binary(table)
         data = arrow_table_to_pandas_dataframe(table, use_arrow_dtype=op.use_arrow_dtype)
+
+        data = cls._align_columns(data, op.outputs[0].dtypes)
 
         logger.debug('Finish reading table %s(%s) split from %s to %s',
                      op.table_name, op.partition_spec, op.start_index, op.end_index)
@@ -704,8 +746,11 @@ def read_odps_table(table, shape, partition=None, sparse=False, chunk_bytes=None
                 for type in table_types]
 
     if columns is not None:
-        df_types = [df_types[table_columns.index(col)] for col in columns]
-        table_columns = columns
+        # reorder columns
+        new_columns = [c for c in table_columns if c in columns]
+        df_types = [df_types[table_columns.index(col)] for col in new_columns]
+        table_columns = new_columns
+        columns = new_columns
 
     dtypes = pd.Series(df_types, index=table_columns)
 

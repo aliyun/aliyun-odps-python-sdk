@@ -536,7 +536,7 @@ class ArrowWriter(object):
         self._crccrc.reset()
 
         def gen():  # synchronize chunk upload
-            data = self._out.getvalue()
+            data = self._out.getbuffer()
             while data:
                 to_send = data[:options.chunk_size]
                 data = data[options.chunk_size:]

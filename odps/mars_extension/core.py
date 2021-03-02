@@ -87,7 +87,8 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
                         min_worker_num=None, disk_num=1, disk_size=100,
                         scheduler_num=1, scheduler_cpu=None, scheduler_mem=None,
                         web_num=1, web_cpu=None, web_mem=None, with_notebook=False,
-                        notebook_cpu=None, notebook_mem=None, timeout=None,
+                        notebook_cpu=None, notebook_mem=None, with_graphscope=False,
+                        coordinator_cpu=None, coordinator_mem=None, timeout=None,
                         extra_modules=None, resources=None, instance_id=None, name='default',
                         if_exists='reuse', project=None, **kw):
     """
@@ -167,6 +168,7 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
     scheduler_mem = int(scheduler_mem * 1024 ** 3) if scheduler_mem else None
     web_mem = int(web_mem * 1024 ** 3) if web_mem else None
     notebook_mem = int(notebook_mem * 1024 ** 3) if notebook_mem else None
+    coordinator_mem = int(coordinator_mem * 1024 ** 3) if coordinator_mem else None
 
     kw = dict(worker_num=worker_num, worker_cpu=worker_cpu, worker_mem=worker_mem,
               worker_cache_mem=cache_mem, min_worker_num=min_worker_num,
@@ -174,7 +176,8 @@ def create_mars_cluster(odps, worker_num=1, worker_cpu=8, worker_mem=32, cache_m
               scheduler_num=scheduler_num, scheduler_cpu=scheduler_cpu,
               scheduler_mem=scheduler_mem, web_num=web_num, web_cpu=web_cpu,
               web_mem=web_mem, with_notebook=with_notebook, notebook_cpu=notebook_cpu,
-              notebook_mem=notebook_mem, timeout=timeout, extra_modules=extra_modules,
+              notebook_mem=notebook_mem, with_graphscope=with_graphscope, coordinator_cpu=coordinator_cpu,
+              coordinator_mem=coordinator_mem, timeout=timeout, extra_modules=extra_modules,
               resources=resources, task_name=task_name, **kw)
     kw = dict((k, v) for k, v in kw.items() if v is not None)
     return client.submit(**kw)
@@ -253,7 +256,7 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
 
     # persist view table to a temp table
     if data_src.is_virtual_view:
-        temp_table_name = table_name + '_temp_mars_table_' + str(uuid.uuid4()).replace('-', '_')
+        temp_table_name = data_src.name + '_temp_mars_table_' + str(uuid.uuid4()).replace('-', '_')
         odps.create_table(temp_table_name, schema=data_src.schema, stored_as='aliorc', lifecycle=1)
         data_src.to_df().persist(temp_table_name)
         table_name = temp_table_name
@@ -337,11 +340,11 @@ def persist_mars_dataframe(odps, df, table_name, overwrite=False, partition=None
     else:
         if odps.exist_table(table_name) or not create_table:
             t = odps.get_table(table_name)
-            partition = t.get_partition(partition)
+            table_partition = t.get_partition(partition)
             if drop_partition:
-                t.delete_partition(partition, if_exists=True)
+                t.delete_partition(table_partition, if_exists=True)
             if create_partition:
-                t.create_partition(partition, if_not_exists=True)
+                t.create_partition(table_partition, if_not_exists=True)
 
         else:
             odps.create_table(table_name, schema, stored_as='aliorc',

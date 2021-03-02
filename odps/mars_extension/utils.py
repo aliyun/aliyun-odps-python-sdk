@@ -82,19 +82,43 @@ def check_partition_exist(table, partition_spec):
 
 
 def rewrite_partition_predicate(predicate, cols):
+    cols = [c.lower() for c in cols]
+
     def _tokenize_predicate():
         reader = StringIO(predicate).readline
+        last_num = ''
+        last_bool_cmp = ''
+        last_toknum = None
+
         for toknum, tokval, _, _, _ in tokenize.generate_tokens(reader):
+            if last_toknum != toknum:
+                # handle consecutive operands / numbers
+                if last_num:
+                    yield tokenize.STRING, '"%s"' % last_num
+                    last_num = ''
+                if last_bool_cmp:
+                    if last_bool_cmp not in ('&', '&&', '|', '||'):
+                        raise SyntaxError('Operand %s not recognized' % last_bool_cmp)
+
+                    yield tokenize.OP, last_bool_cmp[-1]
+                    last_bool_cmp = ''
+
+            last_toknum = toknum
+
             if toknum == tokenize.NUMBER:
-                toknum = tokenize.STRING
-                tokval = '"%s"' % tokval
-            elif toknum == tokenize.NAME:
-                if tokval not in cols:
-                    toknum = tokenize.STRING
-                    tokval = '"%s"' % tokval
-            elif toknum == tokenize.OP:
-                if tokval == '=':
-                    tokval = '=='
-            yield toknum, tokval
+                last_num += tokval
+            elif toknum == tokenize.OP and tokval in ('&', '|'):
+                last_bool_cmp += tokval
+            else:
+                if toknum == tokenize.NAME:
+                    if tokval.lower() not in cols:
+                        toknum = tokenize.STRING
+                        tokval = '"%s"' % tokval
+                elif toknum == tokenize.OP:
+                    if tokval == '=':
+                        tokval = '=='
+                    elif tokval == ',':
+                        tokval = '&'
+                yield toknum, tokval
 
     return tokenize.untokenize(list(_tokenize_predicate()))
