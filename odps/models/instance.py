@@ -783,6 +783,10 @@ class Instance(LazyLoad):
 
         reopen = kw.pop('reopen', False)
         endpoint = kw.pop('endpoint', None)
+        rest_client = self._client
+        project = self.project
+        instance_id = self.id
+        tunnel_endpoint = self.project._tunnel_endpoint
 
         tunnel = self._create_instance_tunnel(endpoint=endpoint)
         download_id = self._download_id if not reopen else None
@@ -842,6 +846,43 @@ class Instance(LazyLoad):
                         start, count, compress=compress, columns=columns) as reader:
                     for record in reader[::step]:
                         yield record
+
+            def to_pandas(self, n_process=1):
+                import pandas as pd
+                import multiprocessing
+                from multiprocessing import Pipe
+
+                _mp_context = multiprocessing.get_context('fork')
+
+                if n_process == 1:
+                    return super(RecordReader, self).to_pandas()
+
+                session_id, count = download_session.id, download_session.count
+
+                def read_instance_split(conn, download_id, start, count, idx):
+                    # read part data
+                    from odps.tunnel import InstanceTunnel
+                    instance_tunnel = InstanceTunnel(client=rest_client, project=project,
+                                                     endpoint=tunnel_endpoint)
+                    session = instance_tunnel.create_download_session(instance=instance_id,
+                                                                      download_id=download_id)
+                    with session.open_record_reader(start, count) as reader:
+                        conn.send((idx, reader.to_pandas()))
+
+                split_count = count // n_process + (count % n_process != 0)
+                start = 0
+                conns = []
+                for i in range(n_process):
+                    parent_conn, child_conn = Pipe()
+                    p = _mp_context.Process(target=read_instance_split, args=(child_conn, session_id,
+                                                                              start, split_count, i))
+                    p.start()
+                    start += split_count
+                    conns.append(parent_conn)
+
+                results = [c.recv() for c in conns]
+                splits = sorted(results, key=lambda x: x[0])
+                return pd.concat([d[1] for d in splits]).reset_index(drop=True)
 
             def __enter__(self):
                 return self
