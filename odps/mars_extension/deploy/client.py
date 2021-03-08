@@ -19,6 +19,7 @@ import json
 import logging
 import time
 import requests
+import warnings
 
 from cupid import CupidSession
 from cupid.utils import build_image_name
@@ -31,7 +32,8 @@ from ... import errors
 
 NOTEBOOK_NAME = 'MarsNotebook'
 CUPID_APP_NAME = 'MarsWeb'
-DEFAULT_RESOURCES = ['public.mars-0.6.3.zip', 'public.pyodps-0.10.5.zip', 'public.pyarrow.zip']
+GS_COORDINATOR_NAME = 'GSCoordinator'
+DEFAULT_RESOURCES = ['public.mars-0.6.5.zip', 'public.pyodps-0.10.6.zip', 'public.pyarrow.zip']
 logger = logging.getLogger(__name__)
 
 
@@ -51,6 +53,8 @@ class MarsCupidClient(object):
         self._endpoint = None
         self._with_notebook = False
         self._notebook_endpoint = None
+        self._with_graphscope = False
+        self._graphscope_endpoint = None
 
         self._mars_session = None
         self._req_session = None
@@ -75,7 +79,8 @@ class MarsCupidClient(object):
                worker_num=1, worker_cpu=8, worker_mem=32 * 1024 ** 3, worker_cache_mem=None,
                min_worker_num=None, worker_disk_num=1, worker_disk_size=100 * 1024 ** 3,
                web_num=1, web_cpu=1, web_mem=2 * 1024 ** 3, with_notebook=False, notebook_cpu=1,
-               notebook_mem=2 * 1024 ** 3, timeout=None, extra_env=None, extra_modules=None,
+               notebook_mem=2 * 1024 ** 3, with_graphscope=False, coordinator_cpu=1,
+               coordinator_mem=2 * 1024 ** 3, timeout=None, extra_env=None, extra_modules=None,
                resources=None, create_session=True, priority=None, running_cluster=None,
                task_name=None, **kw):
         try:
@@ -90,6 +95,8 @@ class MarsCupidClient(object):
                 self._with_notebook = bool(with_notebook)
             else:
                 self._with_notebook = options.mars.launch_notebook
+            if with_graphscope is not None:
+                self._with_graphscope = bool(with_graphscope)
             if self._kube_instance is None:
                 image = image or mars_image or build_image_name('mars')
 
@@ -120,7 +127,8 @@ class MarsCupidClient(object):
                     min_worker_num=min_worker_num, worker_disk_num=worker_disk_num,
                     worker_disk_size=worker_disk_size, web_num=web_num, web_cpu=web_cpu,
                     web_mem=web_mem, with_notebook=with_notebook, notebook_cpu=notebook_cpu,
-                    notebook_mem=notebook_mem, extra_env=extra_env, extra_modules=extra_modules,
+                    notebook_mem=notebook_mem, with_graphscope=with_graphscope, coordinator_cpu=coordinator_cpu,
+                    coordinator_mem=coordinator_mem, extra_env=extra_env, extra_modules=extra_modules,
                     node_blacklist=node_blacklist, instance_idle_timeout=instance_idle_timeout,
                     timeout=timeout)
 
@@ -170,6 +178,9 @@ class MarsCupidClient(object):
     def get_notebook_endpoint(self):
         return self._cupid_session.get_proxied_url(self._kube_instance.id, NOTEBOOK_NAME)
 
+    def get_graphscope_endpoint(self):
+        return self._cupid_session.get_proxied_url(self._kube_instance.id, GS_COORDINATOR_NAME)
+
     def get_req_session(self):
         from ...rest import RestClient
 
@@ -193,37 +204,46 @@ class MarsCupidClient(object):
     def wait_for_success(self, min_worker_num=0, create_session=True):
         while True:
             self.check_instance_status()
-            try:
-                if self._endpoint is None:
-                    self._endpoint = self.get_mars_endpoint()
-                    write_log('Mars UI: ' + self._endpoint)
-                    self._req_session = self.get_req_session()
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore')
+                try:
+                    if self._endpoint is None:
+                        self._endpoint = self.get_mars_endpoint()
+                        write_log('Mars UI: ' + self._endpoint)
+                        self._req_session = self.get_req_session()
 
-                    self._req_session.post(self._endpoint.rstrip('/') + '/api/logger', data=dict(
-                        content='Mars UI from client: ' + self._endpoint
-                    ))
-                if self._with_notebook and self._notebook_endpoint is None:
-                    self._notebook_endpoint = self.get_notebook_endpoint()
-                    write_log('Notebook UI: ' + self._notebook_endpoint)
+                        self._req_session.post(self._endpoint.rstrip('/') + '/api/logger', data=dict(
+                            content='Mars UI from client: ' + self._endpoint
+                        ))
+                    if self._with_notebook and self._notebook_endpoint is None:
+                        self._notebook_endpoint = self.get_notebook_endpoint()
+                        write_log('Notebook UI: ' + self._notebook_endpoint)
 
-                    self._req_session.post(self._endpoint.rstrip('/') + '/api/logger', data=dict(
-                        content='Notebook UI from client: ' + self._notebook_endpoint
-                    ))
-            except KeyboardInterrupt:
-                raise
-            except:
-                time.sleep(1)
-                continue
+                        self._req_session.post(self._endpoint.rstrip('/') + '/api/logger', data=dict(
+                            content='Notebook UI from client: ' + self._notebook_endpoint
+                        ))
+                    if self._with_graphscope and self._graphscope_endpoint is None:
+                        self._graphscope_endpoint = self.get_graphscope_endpoint()
+                        write_log('Graphscope endpoint: ' + self._graphscope_endpoint)
 
-            if not self.check_service_ready():
-                continue
-            try:
-                if self.count_workers() >= min_worker_num:
-                    break
-                else:
+                        self._req_session.post(self._endpoint.rstrip('/') + '/api/logger', data=dict(
+                            content='Graphscope endpoint from client: ' + self._graphscope_endpoint
+                        ))
+                except KeyboardInterrupt:
+                    raise
+                except:
                     time.sleep(1)
-            except:
-                continue
+                    continue
+
+                if not self.check_service_ready():
+                    continue
+                try:
+                    if self.count_workers() >= min_worker_num:
+                        break
+                    else:
+                        time.sleep(1)
+                except:
+                    continue
 
         if create_session:
             try:

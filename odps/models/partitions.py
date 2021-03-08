@@ -102,7 +102,10 @@ class Partitions(Iterable):
 
     def create(self, partition_spec, if_not_exists=False, async_=False, **kw):
         async_ = kw.get('async', async_)
-        partition_spec = self._get_partition_spec(partition_spec)
+        if isinstance(partition_spec, Partition):
+            partition_spec = partition_spec.partition_spec
+        else:
+            partition_spec = self._get_partition_spec(partition_spec)
 
         buf = six.StringIO()
         buf.write('ALTER TABLE %s.%s ADD ' % (self.project.name, self.parent.name))

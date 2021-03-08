@@ -442,6 +442,12 @@ class Table(LazyLoad):
         endpoint = kw.pop('endpoint', None)
         download_id = kw.pop('download_id', None)
         timeout = kw.pop('timeout', None)
+        schema = self.schema
+
+        table_name = self.name
+        rest_client = self._client
+        project = self.project
+        tunnel_endpoint = self.project._tunnel_endpoint
 
         tunnel = self._create_table_tunnel(endpoint=endpoint)
         if download_id is None:
@@ -458,6 +464,7 @@ class Table(LazyLoad):
         class RecordReader(readers.AbstractRecordReader):
             def __init__(self):
                 self._it = iter(self)
+                self._schema = schema
 
             @property
             def download_id(self):
@@ -497,6 +504,41 @@ class Table(LazyLoad):
                         start, count, compress=compress, columns=columns) as reader:
                     for record in reader[::step]:
                         yield record
+
+            def to_pandas(self, n_process=1):
+                import pandas as pd
+                import multiprocessing
+                from multiprocessing import Pipe
+
+                _mp_context = multiprocessing.get_context('fork')
+
+                session_id, count = download_session.id, download_session.count
+                if n_process == 1:
+                    return super(RecordReader, self).to_pandas()
+
+                def read_table_split(conn, download_id, start, count, idx):
+                    # read part data
+                    from odps.tunnel import TableTunnel
+                    tunnel = TableTunnel(client=rest_client, project=project,
+                                         endpoint=tunnel_endpoint)
+                    session = tunnel.create_download_session(table_name, download_id=download_id)
+                    data = session.open_record_reader(start, count).to_pandas()
+                    conn.send((idx, data))
+
+                split_count = count // n_process + (count % n_process != 0)
+                start = 0
+                conns = []
+                for i in range(n_process):
+                    parent_conn, child_conn = Pipe()
+                    p = _mp_context.Process(target=read_table_split, args=(child_conn, session_id,
+                                                               start, split_count, i))
+                    p.start()
+                    start += split_count
+                    conns.append(parent_conn)
+
+                results = [c.recv() for c in conns]
+                splits = sorted(results, key=lambda x: x[0])
+                return pd.concat([d[1] for d in splits]).reset_index(drop=True)
 
             def __enter__(self):
                 return self

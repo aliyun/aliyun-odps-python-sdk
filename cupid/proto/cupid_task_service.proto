@@ -57,6 +57,8 @@ message SplitTablesRequest
     optional int32 splitCount = 3;
     repeated TableInputInfo tableInputInfos = 4;
     optional string type = 5;
+    optional bool allowNoColumns = 6;
+    optional bool requireSplitMeta = 7;
 }
 
 message SplitTablesResponse

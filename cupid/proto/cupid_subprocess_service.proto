@@ -21,9 +21,8 @@ service CupidSubProcessService
     // Moving the open&close TMP files into staging Directory for further ddl action
     rpc CommitTableFiles(CommitTableFilesRequest) returns (CommitTableFilesResponse);
 
-    // Internal GetInformation Call
-    // Cupid Worker Directly talk to CupidTask
-    rpc InternalGetInformation(InternalGetInformationRequest) returns (InternalGetInformationResponse);
+    // Get Splits Meta
+    rpc GetSplitsMeta(GetSplitsMetaRequest) returns (GetSplitsMetaResponse);
 }
 
 message InputSplit
@@ -33,6 +32,31 @@ message InputSplit
     optional uint64 splitFileEnd = 3;
     optional uint64 schemaFileStart = 4;
     optional uint64 schemaFileEnd = 5;
+    optional string project = 6;
+    optional string table = 7;
+    optional string partitionSpec = 8;
+}
+
+message BlockMeta
+{
+    optional string fileName = 1;
+    optional uint64 rowCount = 2;
+    optional uint64 rawSize = 3;
+}
+
+message InputSplitMeta
+{
+    repeated BlockMeta blockMeta = 1;
+}
+
+message GetSplitsMetaRequest
+{
+    optional string inputTableHandle = 1;
+}
+
+message GetSplitsMetaResponse
+{
+    repeated InputSplitMeta inputSplitsMeta = 1;
 }
 
 message GetSplitsRequest
@@ -93,16 +117,3 @@ message CommitTableFilesResponse
 {
 
 }
-
-message InternalGetInformationRequest
-{
-    optional string requestProtoBufStr = 1;
-    optional string projectName = 2;
-    optional string instanceId = 3;
-}
-
-message InternalGetInformationResponse
-{
-    optional string responseProtoBufStr = 1;
-}
-

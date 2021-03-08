@@ -194,19 +194,23 @@ def in_ipython_frontend():
     return False
 
 
-_in_jupyter_lab = None
+_backend_name = None
 
 
-def in_jupyter_lab():
-    global _in_jupyter_lab
-    if _in_jupyter_lab is not None:
-        return _in_jupyter_lab
+def get_notebook_backend():
+    global _backend_name
+    if _backend_name is not None:
+        return _backend_name
+
+    if 'VSCODE_PID' in os.environ:
+        _backend_name = 'VSCode'
+        return _backend_name
 
     # DSW always use jupyter lab
     for env_name in os.environ.keys():
         if env_name.lower().startswith('dsw_'):
-            _in_jupyter_lab = True
-            return True
+            _backend_name = 'DSW'
+            return _backend_name
 
     for arg in sys.argv:
         if arg.endswith('.json') and os.path.exists(arg):
@@ -215,10 +219,10 @@ def in_jupyter_lab():
             # jupyter notebook will generate a nbserver-{pid}.json instead
             lab_cfg_path = os.path.join(ipy_json_path, 'jpserver-%d.json' % os.getppid())
             if os.path.exists(lab_cfg_path):
-                _in_jupyter_lab = True
-                return True
-    _in_jupyter_lab = False
-    return False
+                _backend_name = 'JupyterLab'
+                return _backend_name
+    _backend_name = 'JupyterNotebook'
+    return _backend_name
 
 
 def is_widgets_available():
@@ -226,8 +230,8 @@ def is_widgets_available():
     if not options.display.notebook_widget or widgets is None:
         return False
 
-    # todo when widget for lab ready, remove this
-    if in_jupyter_lab():
+    # todo when widget for lab or vscode ready, change this
+    if get_notebook_backend() in ('DSW', 'JupyterLab', 'VSCode'):
         return False
 
     if hasattr(widgets.Widget, '_version_validated'):

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import json
 import logging
 import time
@@ -41,7 +42,8 @@ ATTEMPT_FILE_PREFIX = 'attempt_'
 
 class TableSplit(object):
     __slots__ = '_handle', '_split_index', '_split_file_start', '_split_file_end', \
-                '_schema_file_start', '_schema_file_end'
+                '_schema_file_start', '_schema_file_end', '_meta_row_count', \
+                '_meta_raw_size'
 
     def __init__(self, **kwargs):
         if 'split_proto' in kwargs:
@@ -51,6 +53,12 @@ class TableSplit(object):
             self._split_file_end = split_pb.splitFileEnd
             self._schema_file_start = split_pb.schemaFileStart
             self._schema_file_end = split_pb.schemaFileEnd
+
+        if kwargs.get('meta_proto'):
+            meta_pb = kwargs.pop('meta_proto')
+            self._meta_row_count = sum(bm.rowCount for bm in meta_pb.blockMeta)
+            self._meta_raw_size = sum(bm.rawSize for bm in meta_pb.blockMeta)
+
         for k in self.__slots__:
             if k in kwargs:
                 setattr(self, k, kwargs[k])
@@ -84,6 +92,14 @@ class TableSplit(object):
         return self._schema_file_end
 
     @property
+    def meta_row_count(self):
+        return self._meta_row_count
+
+    @property
+    def meta_raw_size(self):
+        return self._meta_raw_size
+
+    @property
     def split_proto(self):
         return subprocess_pb.InputSplit(
             splitIndexId=self._split_index,
@@ -94,12 +110,12 @@ class TableSplit(object):
         )
 
     def _register_reader(self):
-        controller = CupidRpcController()
         channel = SandboxRpcChannel()
         stub = subprocess_pb.CupidSubProcessService_Stub(channel)
 
         req = subprocess_pb.RegisterTableReaderRequest(inputTableHandle=self._handle,
                                                        inputSplit=self.split_proto)
+        controller = CupidRpcController()
         resp = stub.RegisterTableReader(controller, req, None)
         if controller.Failed():
             raise CupidError(controller.ErrorText())
@@ -343,7 +359,6 @@ class CupidTableUploadSession(object):
 
 
 def create_download_session(session, table_or_parts, split_size=None, split_count=None, columns=None):
-    controller = CupidRpcController()
     channel = CupidTaskServiceRpcChannel(session)
     stub = task_service_pb.CupidTaskService_Stub(channel)
 
@@ -383,32 +398,53 @@ def create_download_session(session, table_or_parts, split_size=None, split_coun
         splitSize=split_size,
         splitCount=split_count,
         tableInputInfos=table_pbs,
+        allowNoColumns=True,
+        requireSplitMeta=True,
     )
 
+    controller = CupidRpcController()
     resp = stub.SplitTables(controller, request, None)
     if controller.Failed():
         raise CupidError(controller.ErrorText())
     logger.info(
         "[CupidTask] splitTables call, CurrentInstanceId: %s, "
         "request: %s, response: %s" % (
-            session.lookup_name,
-            str(request), str(resp),
+            session.lookup_name, str(request), str(resp),
         )
     )
     handle = resp.inputTableHandle
 
-    controller = CupidRpcController()
     channel = SandboxRpcChannel()
     stub = subprocess_pb.CupidSubProcessService_Stub(channel)
 
-    req = subprocess_pb.GetSplitsRequest(inputTableHandle=handle)
+    req = subprocess_pb.GetSplitsMetaRequest(
+        inputTableHandle=handle,
+    )
+    controller = CupidRpcController()
+    resp = stub.GetSplitsMeta(controller, req, None)
+    logger.info(
+        "[CupidTask] getSplitsMeta call, CurrentInstanceId: %s, "
+        "request: %s, response: %s" % (
+            session.lookup_name, str(request), str(resp),
+        )
+    )
+    if controller.Failed():
+        split_meta = itertools.repeat(None)
+        logger.warning('Failed to get results of getSplitsMeta, '
+                       'may running on an old service')
+    else:
+        split_meta = resp.inputSplitsMeta
 
+    req = subprocess_pb.GetSplitsRequest(inputTableHandle=handle)
+    controller = CupidRpcController()
     resp = stub.GetSplits(controller, req, None)
     if controller.Failed():
         raise CupidError(controller.ErrorText())
+
     input_splits = []
-    for info in resp.inputSplits:
-        input_splits.append(TableSplit(split_proto=info, handle=handle, columns=columns))
+    for info, meta in zip(resp.inputSplits, split_meta):
+        input_splits.append(TableSplit(
+            split_proto=info, meta_proto=meta, handle=handle, columns=columns))
     logger.info(
         "[SubProcess] getSplits call, CurrentInstanceId: %s, "
         "request: %s, response: %s" % (
