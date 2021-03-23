@@ -205,6 +205,26 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> for record in reader[5:10]  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
    >>>     # 处理一条记录
 
+直接读取成 Pandas DataFrame:
+
+.. code-block:: python
+
+   >>> with t.open_reader(partition='pt=test') as reader:
+   >>>     pd_df = reader.to_pandas()
+
+
+.. _table_to_pandas_mp:
+
+利用多进程加速读取：
+
+.. code-block:: python
+
+   >>> import multiprocessing
+   >>> n_process = multiprocessing.cpu_count()
+   >>> with t.open_reader(partition='pt=test') as reader:
+   >>>     pd_df = reader.to_pandas(n_process=n_process)
+
+
 更简单的调用方法是使用 ODPS 对象的 ``read_table`` 方法，例如
 
 .. code-block:: python

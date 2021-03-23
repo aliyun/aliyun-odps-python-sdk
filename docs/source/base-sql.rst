@@ -87,6 +87,28 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护
 如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取
 （可能受到 Project 安全设置的限制）。
 
+同时，PyODPS 支持直接将运行结果数据读成 pandas DataFrame。
+
+.. code-block:: python
+
+  >>> # 直接使用 reader 的 to_pandas 方法
+  >>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as reader:
+  >>>     # pd_df 类型为 pandas DataFrame
+  >>>     pd_df = reader.to_pandas()
+
+.. _sql_to_pandas_mp:
+
+如果需要使用多核加速读取速度，可以通过 `n_process` 指定使用进程数
+
+.. code-block:: python
+
+  >>> import multiprocessing
+  >>> n_process = multiprocessing.cpu_count()
+  >>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as reader:
+  >>>     # n_process 指定成机器核数
+  >>>     pd_df = reader.to_pandas(n_process=n_process)
+
+
 设置alias
 ------------
 
