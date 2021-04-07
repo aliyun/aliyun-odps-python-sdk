@@ -75,12 +75,13 @@ class DataFrameReadTable(_Base):
     _string_as_binary = BoolField('string_as_binary')
     _append_partitions = BoolField('append_partitions')
     _last_modified_time = Int64Field('last_modified_time')
+    _with_split_meta_on_tile = BoolField('with_split_meta_on_tile')
 
     def __init__(self, odps_params=None, table_name=None, partition_spec=None,
                  columns=None, dtypes=None, nrows=None, sparse=None,
                  add_offset=True, use_arrow_dtype=None, string_as_binary=None,
                  memory_scale=None, append_partitions=None,
-                 last_modified_time=None, **kw):
+                 last_modified_time=None, with_split_meta_on_tile=False, **kw):
         kw.update(_output_type_kw)
         super(DataFrameReadTable, self).__init__(_odps_params=odps_params, _table_name=table_name,
                                                  _partition_spec=partition_spec, _columns=columns,
@@ -90,7 +91,8 @@ class DataFrameReadTable(_Base):
                                                  _add_offset=add_offset,
                                                  _append_partitions=append_partitions,
                                                  _last_modified_time=last_modified_time,
-                                                 _memory_scale=memory_scale, **kw)
+                                                 _memory_scale=memory_scale,
+                                                 _with_split_meta_on_tile=with_split_meta_on_tile, **kw)
 
     @property
     def retryable(self):
@@ -135,6 +137,10 @@ class DataFrameReadTable(_Base):
     @property
     def append_partitions(self):
         return self._append_partitions
+
+    @property
+    def with_split_meta_on_tile(self):
+        return self._with_split_meta_on_tile
 
     def get_columns(self):
         return self._columns
@@ -232,7 +238,8 @@ class DataFrameReadTable(_Base):
             while True:
                 try:
                     download_session = cupid_session.create_download_session(
-                        data_src, split_size=split_size, columns=op.columns)
+                        data_src, split_size=split_size, columns=op.columns,
+                        with_split_meta=op.with_split_meta_on_tile)
                     break
                 except CupidError:
                     logger.debug('The number of splits exceeds 100000, split_size is %s', split_size)
@@ -727,7 +734,8 @@ def df_type_to_np_type(df_type, use_arrow_dtype=False):
 
 def read_odps_table(table, shape, partition=None, sparse=False, chunk_bytes=None, chunk_size=None,
                     columns=None, odps_params=None, add_offset=False, use_arrow_dtype=False,
-                    string_as_binary=None, memory_scale=None, append_partitions=False):
+                    string_as_binary=None, memory_scale=None, append_partitions=False,
+                    with_split_meta_on_tile=False):
     import pandas as pd
 
     if isinstance(chunk_size, (list, tuple)):
@@ -758,7 +766,8 @@ def read_odps_table(table, shape, partition=None, sparse=False, chunk_bytes=None
                             dtypes=dtypes, sparse=sparse, add_offset=add_offset, columns=columns,
                             use_arrow_dtype=use_arrow_dtype, string_as_binary=string_as_binary,
                             memory_scale=memory_scale, append_partitions=append_partitions,
-                            last_modified_time=to_timestamp(table.last_modified_time))
+                            last_modified_time=to_timestamp(table.last_modified_time),
+                            with_split_meta_on_tile=with_split_meta_on_tile)
     return op(shape, chunk_bytes=chunk_bytes, chunk_size=chunk_size)
 
 

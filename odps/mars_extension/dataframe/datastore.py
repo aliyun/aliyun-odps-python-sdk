@@ -417,8 +417,12 @@ class DataFrameWriteTableCommit(DataFrameOperand, DataFrameOperandMixin):
         if op.is_terminal:
             bearer_token = context().get_bearer_token()
             account = BearerTokenAccount(bearer_token)
-            o = ODPS(None, None, account=account, project=op.odps_params['project'],
-                     endpoint=op.odps_params['endpoint'])
+            project = os.environ.get('ODPS_PROJECT_NAME', None)
+            odps_params = op.odps_params.copy()
+            if project:
+                odps_params['project'] = project
+            o = ODPS(None, None, account=account, project=odps_params['project'],
+                     endpoint=odps_params['endpoint'])
             cupid_session = CupidSession(o)
 
             project_name, table_name = op.table_name.split('.')

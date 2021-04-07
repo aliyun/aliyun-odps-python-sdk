@@ -787,7 +787,6 @@ class Instance(LazyLoad):
         project = self.project
         instance_id = self.id
         tunnel_endpoint = self.project._tunnel_endpoint
-
         tunnel = self._create_instance_tunnel(endpoint=endpoint)
         download_id = self._download_id if not reopen else None
 

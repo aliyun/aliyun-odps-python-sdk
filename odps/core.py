@@ -116,6 +116,9 @@ class ODPS(object):
             self._seahawks_url = kw.pop('seahawks_url', None)
             options.seahawks_url = self._seahawks_url
 
+        self._default_session = None
+        self._default_session_name = ""
+
     def __getstate__(self):
         params = dict(
             project=self.project,
@@ -1772,6 +1775,7 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.run_security_query(query, token=token)
 
+    @utils.deprecated('You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. Try `run_sql_interactive`.')
     def attach_session(self, session_name, taskname=None, hints=None):
         """
         Attach to an existing session.
@@ -1791,14 +1795,16 @@ class ODPS(object):
                                         session_project=project,
                                         session_name=session_name)
 
+    @utils.deprecated('You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. Try `run_sql_interactive`.')
     def default_session(self):
         """
         Attach to the default session of your project.
 
         :return: A SessionInstance you may execute select tasks within.
         """
-        return self.attach_session('public.default')
+        return self.attach_session(models.session.PUBLIC_SESSION_NAME)
 
+    @utils.deprecated('You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. Try `run_sql_interactive`.')
     def create_session(self, session_worker_count, session_worker_memory,
             session_name=None, worker_spare_span=None, taskname=None, hints=None):
         """
@@ -1829,6 +1835,30 @@ class ODPS(object):
         return project.instances.create(task=task,
                                         session_project=project,
                                         session_name=session_name)
+
+    def run_sql_interactive(self, sql, hints=None, **kwargs):
+        """
+        Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration).
+
+        :param sql: the sql query.
+        :param hints: settings for sql query.
+        :return: instance.
+        """
+        cached_is_running = False
+        service_name = kwargs.pop('service_name', models.session.PUBLIC_SESSION_NAME)
+        service_startup_timeout = kwargs.pop('service_startup_timeout', 60)
+        force_reattach = kwargs.pop('force_reattach', False)
+        if self._default_session != None:
+            try:
+                cached_is_running = self._default_session.is_running()
+            except BaseException:
+                pass
+        if force_reattach or not cached_is_running or self._default_session_name != service_name:
+            # should reattach, for whatever reason(timed out, terminated, never created, forced using another session)
+            self._default_session = self.attach_session(service_name)
+            self._default_session.wait_for_startup(0.1, service_startup_timeout)
+            self._default_session_name = service_name
+        return self._default_session.run_sql(sql, hints, **kwargs)
 
     @classmethod
     def _build_account(cls, access_id, secret_access_key):

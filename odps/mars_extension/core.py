@@ -216,7 +216,7 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
                       sparse=False, columns=None, add_offset=False, calc_nrows=True,
                       use_arrow_dtype=False, string_as_binary=None, chunk_size=None,
                       memory_scale=None, cupid_internal_endpoint=None,
-                      append_partitions=False):
+                      append_partitions=False, with_split_meta_on_tile=False):
     """
     Read table to Mars DataFrame.
 
@@ -264,7 +264,7 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
 
     # get dataframe's shape
     if shape is None:
-        if calc_nrows and not RuntimeContext.is_context_ready():
+        if calc_nrows:
             # obtain count
             nrows = _get_table_record_count(odps, table_name, partition=partition)
         else:
@@ -280,7 +280,8 @@ def to_mars_dataframe(odps, table_name, shape=None, partition=None, chunk_bytes=
                            chunk_bytes=chunk_bytes, sparse=sparse, columns=columns,
                            odps_params=odps_params, add_offset=add_offset, chunk_size=chunk_size,
                            use_arrow_dtype=use_arrow_dtype, string_as_binary=string_as_binary,
-                           memory_scale=memory_scale, append_partitions=append_partitions)
+                           memory_scale=memory_scale, append_partitions=append_partitions,
+                           with_split_meta_on_tile=with_split_meta_on_tile)
 
 
 @use_odps2_type

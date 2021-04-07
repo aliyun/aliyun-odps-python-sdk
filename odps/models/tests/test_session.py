@@ -81,6 +81,8 @@ class Test(TestBase):
         # finally stop it.
         sess_instance.stop()
 
+    # note: this test case may fail if the test environment does not have any default
+    #       sessions enabled.
     def testAttachDefaultSession(self):
         sess_instance = self.odps.default_session()
         self.assertTrue(sess_instance)
@@ -116,7 +118,101 @@ class Test(TestBase):
             pass # good
         sess_instance.stop()
 
+    def testDirectExecuteFailingSQL(self):
+        self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+        # the default public session may not exist, so we create one beforehand
+        sess_instance = self.odps.create_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+        self.assertTrue(sess_instance)
+        # wait to running
+        try:
+            sess_instance.wait_for_startup()
+        except ODPSError as ex:
+            print("LOGVIEW: " + sess_instance.get_logview_address())
+            print("Task results: " + str(sess_instance.get_task_results()))
+            raise ex
+        # the status should keep consistent
+        self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
+        select_inst = self.odps.run_sql_interactive(TEST_SELECT_STRING, service_name=sess_instance.name)
+        select_inst.wait_for_completion() # should return normally even the task is failed
+        try:
+            select_inst.wait_for_success()
+            self.assertTrue(False) # should not reach here: wait_for_success should throw exception on failed instance
+        except ODPSError as ex:
+            pass # good
+        sess_instance.stop()
+
     def testSessionSQL(self):
+        self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+        table = self.odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
+        self.assertTrue(table)
+        sess_instance = self.odps.create_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+        self.assertTrue(sess_instance)
+        # wait to running
+        try:
+            sess_instance.wait_for_startup()
+        except ODPSError as ex:
+            print("LOGVIEW: " + sess_instance.get_logview_address())
+            print("Task results: " + str(sess_instance.get_task_results()))
+            raise ex
+        # the status should keep consistent
+        self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
+        records = [Record(schema=TEST_CREATE_SCHEMA, values=values) for values in TEST_DATA]
+        self.odps.write_table(table, 0, records)
+        select_inst = sess_instance.run_sql(TEST_SELECT_STRING)
+        select_inst.wait_for_success()
+        rows = []
+        try:
+            with select_inst.open_reader() as rd:
+                for each_row in rd:
+                    rows.append(each_row.values)
+        except BaseException as ex:
+            print("LOGVIEW: " + select_inst.get_logview_address())
+            print("Task Result:" + str(select_inst.get_task_results()))
+            raise ex
+        self.assertTrue(len(rows) == len(TEST_DATA))
+        self.assertTrue(len(rows[0]) == len(TEST_DATA[0]))
+        for index in range(5):
+            self.assertTrue(int(rows[index][0]) == int(TEST_DATA[index][0]))
+        # OK, clear up
+        self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+
+    def testDirectExecuteSQL(self):
+        self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+        table = self.odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
+        self.assertTrue(table)
+        # the default public session may not exist, so we create one beforehand
+        sess_instance = self.odps.create_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+        self.assertTrue(sess_instance)
+        # wait to running
+        try:
+            sess_instance.wait_for_startup()
+        except ODPSError as ex:
+            print("LOGVIEW: " + sess_instance.get_logview_address())
+            print("Task results: " + str(sess_instance.get_task_results()))
+            raise ex
+        # the status should keep consistent
+        self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
+        records = [Record(schema=TEST_CREATE_SCHEMA, values=values) for values in TEST_DATA]
+        self.odps.write_table(table, 0, records)
+        select_inst = self.odps.run_sql_interactive(TEST_SELECT_STRING, service_name=sess_instance.name)
+        select_inst.wait_for_success()
+        rows = []
+        try:
+            with select_inst.open_reader() as rd:
+                for each_row in rd:
+                    rows.append(each_row.values)
+        except BaseException as ex:
+            print("LOGVIEW: " + select_inst.get_logview_address())
+            print("Task Result:" + str(select_inst.get_task_results()))
+            raise ex
+        self.assertTrue(len(rows) == len(TEST_DATA))
+        self.assertTrue(len(rows[0]) == len(TEST_DATA[0]))
+        for index in range(5):
+            self.assertTrue(int(rows[index][0]) == int(TEST_DATA[index][0]))
+        # OK, clear up
+        self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+
+    def testSessionSQLWithInstanceTunnel(self):
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
         table = self.odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
         self.assertTrue(table)

@@ -15,7 +15,7 @@
 from odps import options
 
 
-options.register_option('cupid.major_task_version', 'cupid_mars')
+options.register_option('cupid.major_task_version', 'cupid_v2')
 options.register_option('cupid.wait_am_start_time', 600)
 options.register_option('cupid.use_bearer_token', None)
 options.register_option('cupid.settings', None)
