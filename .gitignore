@@ -85,3 +85,4 @@ bin/test_pyodpswrapper.py
 
 # documentation
 docs/**/*.mo
+/odps/lab_extension/lib/

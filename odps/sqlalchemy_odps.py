@@ -24,7 +24,8 @@ from sqlalchemy.sql import compiler
 from . import options
 from . import types
 from .compat import six
-from .core import DEFAULT_ENDPOINT
+from .core import ODPS, DEFAULT_ENDPOINT
+from .models.session import PUBLIC_SESSION_NAME
 from .errors import NoSuchObject
 from .utils import to_str, to_text
 
@@ -70,6 +71,7 @@ _odps_type_to_sqlalchemy_type = {
     types.Decimal: sa_types.DECIMAL,
 }
 
+_sqlalchemy_global_reusable_odps = {}
 
 class ODPSIdentifierPreparer(compiler.IdentifierPreparer):
     # Just quote everything to make things simpler / easier to upgrade
@@ -163,6 +165,7 @@ class ODPSDialect(default.DefaultDialect):
     supports_multivalues_insert = True
     type_compiler = ODPSTypeCompiler
     supports_sane_rowcount = False
+    _reused_odps = None
 
     @classmethod
     def dbapi(cls):
@@ -170,6 +173,7 @@ class ODPSDialect(default.DefaultDialect):
         return dbapi
 
     def create_connect_args(self, url):
+        url_string = str(url)
         project = url.host
         if project is None and options.default_project:
             project = options.default_project
@@ -181,6 +185,10 @@ class ODPSDialect(default.DefaultDialect):
             secret_access_key = options.account.secret_access_key
         logview_host = options.log_view_host
         endpoint = None
+        session_name = None
+        use_sqa = False
+        reuse_odps = False
+        fallback_policy = ''
         if url.query:
             query = url.query
             if endpoint is None:
@@ -188,14 +196,28 @@ class ODPSDialect(default.DefaultDialect):
             if logview_host is None:
                 logview_host = query.pop('logview_host',
                                          query.pop('logview', None))
+            if session_name is None:
+                session_name = query.pop('session', None)
+            if use_sqa == False:
+                use_sqa = (query.pop('interactive_mode', 'false') != 'false')
+            if reuse_odps == False:
+                reuse_odps = (query.pop('reuse_odps', 'false') != 'false')
+            if fallback_policy == "":
+                fallback_policy = query.pop('fallback_policy', 'default')
+
         if endpoint is None:
             endpoint = options.endpoint or DEFAULT_ENDPOINT
+        if session_name is None:
+            session_name = PUBLIC_SESSION_NAME
 
         kwargs = {
             'access_id': access_id,
             'secret_access_key': secret_access_key,
             'project': project,
-            'endpoint': endpoint
+            'endpoint': endpoint,
+            'session_name': session_name,
+            'use_sqa': use_sqa,
+            'fallback_policy': fallback_policy
         }
         for k, v in six.iteritems(kwargs):
             if v is None:
@@ -206,13 +228,29 @@ class ODPSDialect(default.DefaultDialect):
                                  'to set it to global'.format(k))
         if logview_host is not None:
             kwargs['logview_host'] = logview_host
+
+        if reuse_odps:
+            # the odps object can only be reused only if it will be identical
+            if (url_string in _sqlalchemy_global_reusable_odps and
+                _sqlalchemy_global_reusable_odps.get(url_string) is not None):
+                kwargs['odps'] = _sqlalchemy_global_reusable_odps.get(url_string)
+                kwargs['access_id'] = None
+                kwargs['secret_access_key'] = None
+            else:
+                _sqlalchemy_global_reusable_odps[url_string] = ODPS(access_id=access_id,
+                        secret_access_key=secret_access_key,
+                        project=project, endpoint=endpoint, logview_host=logview_host)
+
         return [], kwargs
 
     def get_schema_names(self, connection, **kw):
         conn = self._get_dbapi_connection(connection)
         fields = ['owner', 'user', 'group', 'prefix']
-        kwargs = {f: kw.get(f) for f in fields}
-        return [proj.name for proj in conn.odps.list_projects(**kwargs)]
+        if (conn.odps.project is None) or (kw.pop('listall', None) is not None):
+            kwargs = {f: kw.get(f) for f in fields}
+            return [proj.name for proj in conn.odps.list_projects(**kwargs)]
+        else:
+            return [conn.odps.project]
 
     def has_table(self, connection, table_name, schema=None):
         full_table = table_name

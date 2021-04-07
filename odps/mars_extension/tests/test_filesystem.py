@@ -18,7 +18,7 @@ import numpy as np
 
 try:
     import mars
-    from mars.filesystem import get_fs
+    from mars.lib.filesystem import get_fs
 except ImportError:
     mars = None
 

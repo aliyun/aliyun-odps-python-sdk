@@ -59,6 +59,14 @@ try:
 except ImportError:
     pass
 
+try:
+    from mars.lib.filesystem.core import register_filesystem
+    from .filesystem import VolumeFileSystem
+
+    register_filesystem('odps', VolumeFileSystem)
+except ImportError:
+    pass
+
 
 INTERNAL_PATTERN = '\/[^\.]+\.[^\.-]+\.[^\.-]+\-[^\.-]+\.'
 

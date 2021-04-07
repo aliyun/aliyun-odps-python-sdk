@@ -18,7 +18,10 @@ import tempfile
 from urllib.parse import urlparse
 
 import numpy as np
-from mars.filesystem import FileSystem
+try:
+    from mars.lib.filesystem import FileSystem
+except ImportError:
+    from mars.filesystem import FileSystem
 
 from ..core import ODPS
 from ..compat import futures, BytesIO, OrderedDict
@@ -232,7 +235,7 @@ class VolumeFileSystem(FileSystem):
             raise FileNotFoundError('File {} not found'.format(path))
         return ['odps:///{}/volumes/{}/{}'.format(project, volume, f.name) for f in files]
 
-    def delete(self, path):
+    def delete(self, path, recursive: bool = False):
         path = path.strip('/') or self._path
         if '/' not in path:
             path = '{}/{}'.format(self._path, path)
@@ -312,3 +315,27 @@ class VolumeFileSystem(FileSystem):
             vol = self._odps.get_volume(volume, project=project)
             stat = dict(name=path, size=vol.length, created=vol.creation_time)
         return stat
+
+    def _isfilestore(self):
+        return True
+
+    def cat(self, path):
+        raise NotImplementedError
+
+    def exists(self, path):
+        raise NotImplementedError
+
+    def glob(self, path, recursive=False):
+        raise NotImplementedError
+
+    def isdir(self, path):
+        raise NotImplementedError
+
+    def isfile(self, path):
+        raise NotImplementedError
+
+    def rename(self, path, new_path):
+        raise NotImplementedError
+
+    def walk(self, path):
+        raise NotImplementedError

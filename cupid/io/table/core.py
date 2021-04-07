@@ -56,8 +56,11 @@ class TableSplit(object):
 
         if kwargs.get('meta_proto'):
             meta_pb = kwargs.pop('meta_proto')
-            self._meta_row_count = sum(bm.rowCount for bm in meta_pb.blockMeta)
-            self._meta_raw_size = sum(bm.rawSize for bm in meta_pb.blockMeta)
+            try:
+                self._meta_row_count = meta_pb.rowCount
+                self._meta_raw_size = meta_pb.rawSize
+            except AttributeError:
+                pass
 
         for k in self.__slots__:
             if k in kwargs:
@@ -358,7 +361,8 @@ class CupidTableUploadSession(object):
         )
 
 
-def create_download_session(session, table_or_parts, split_size=None, split_count=None, columns=None):
+def create_download_session(session, table_or_parts, split_size=None, split_count=None,
+                            columns=None, with_split_meta=False):
     channel = CupidTaskServiceRpcChannel(session)
     stub = task_service_pb.CupidTaskService_Stub(channel)
 
@@ -399,7 +403,7 @@ def create_download_session(session, table_or_parts, split_size=None, split_coun
         splitCount=split_count,
         tableInputInfos=table_pbs,
         allowNoColumns=True,
-        requireSplitMeta=True,
+        requireSplitMeta=with_split_meta,
     )
 
     controller = CupidRpcController()
@@ -417,23 +421,26 @@ def create_download_session(session, table_or_parts, split_size=None, split_coun
     channel = SandboxRpcChannel()
     stub = subprocess_pb.CupidSubProcessService_Stub(channel)
 
-    req = subprocess_pb.GetSplitsMetaRequest(
-        inputTableHandle=handle,
-    )
-    controller = CupidRpcController()
-    resp = stub.GetSplitsMeta(controller, req, None)
-    logger.info(
-        "[CupidTask] getSplitsMeta call, CurrentInstanceId: %s, "
-        "request: %s, response: %s" % (
-            session.lookup_name, str(request), str(resp),
-        )
-    )
-    if controller.Failed():
+    if not with_split_meta:
         split_meta = itertools.repeat(None)
-        logger.warning('Failed to get results of getSplitsMeta, '
-                       'may running on an old service')
     else:
-        split_meta = resp.inputSplitsMeta
+        req = subprocess_pb.GetSplitsMetaRequest(
+            inputTableHandle=handle,
+        )
+        controller = CupidRpcController()
+        resp = stub.GetSplitsMeta(controller, req, None)
+        logger.info(
+            "[CupidTask] getSplitsMeta call, CurrentInstanceId: %s, "
+            "request: %s, response: %s" % (
+                session.lookup_name, str(request), str(resp),
+            )
+        )
+        if controller.Failed():
+            split_meta = itertools.repeat(None)
+            logger.warning('Failed to get results of getSplitsMeta, '
+                        'may running on an old service')
+        else:
+            split_meta = resp.inputSplitsMeta
 
     req = subprocess_pb.GetSplitsRequest(inputTableHandle=handle)
     controller = CupidRpcController()

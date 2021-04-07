@@ -132,6 +132,11 @@ try:
     has_jupyter = True
 except ImportError:
     has_jupyter = False
+try:
+    from jupyterlab import __version__
+    has_jupyterlab = True
+except ImportError:
+    has_jupyterlab = False
 
 if len(sys.argv) > 1 and sys.argv[1] == 'clean':
     build_cmd = sys.argv[1]
@@ -320,6 +325,30 @@ if build_cmd != 'clean' and has_jupyter:
     setup_options['cmdclass'].update({'install_js': InstallJS, 'build_js': BuildJS})
     extra_install_cmds.append('install_js')
 
+if build_cmd != 'clean' and has_jupyterlab:
+    class InstallJupyterLabExtension(Command):
+        description = "install Jupyterlab Extension"
+        user_options = [
+            ('registry=', 'r', 'npm registry')
+        ]
+
+        def initialize_options(self):
+            self.registry = 'https://registry.npm.taobao.org'
+
+        def finalize_options(self):
+            pass
+
+        def run(self):
+            print(self.registry)
+            os.chdir(os.path.join(os.path.abspath(os.getcwd()), 'odps', 'lab_extension'))
+            print("\033[1;34m" + "Install pyodps-lab-extension" + "\033[0;0m")
+            os.system('npm install --registry=' + self.registry)
+            os.system('pip install .')
+            print("\033[0;32m" + "pyodps-lab-extension install success" + "\033[0;0m")
+
+
+    setup_options['cmdclass'].update({'install_jlab': InstallJupyterLabExtension})
+    extra_install_cmds.append('install_jlab')
 
 setup(**setup_options)
 

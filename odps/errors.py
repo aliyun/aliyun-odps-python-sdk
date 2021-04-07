@@ -92,14 +92,31 @@ _CODE_MAPPING = {
     'ODPS-0430055': 'InternalConnectionError',
 }
 
+_SQA_CODE_MAPPING = {
+    'ODPS-180': 'SQAGenericError',
+    'ODPS-181': 'SQARetryError',
+    'ODPS-182': 'SQAAccessDenied',
+    'ODPS-183': 'SQAResourceNotEnough',
+    'ODPS-184': 'SQAServiceUnavailable',
+    'ODPS-185': 'SQAUnsupportedFeature',
+    'ODPS-186': 'SQAQueryTimedout',
+}
 
 def parse_instance_error(msg):
     msg = utils.to_str(msg)
     msg_parts = reduce(operator.add, (pt.split(':') for pt in msg.split(' - ')))
     msg_parts = [pt.strip() for pt in msg_parts]
     try:
-        msg_code = next(p for p in msg_parts if p in _CODE_MAPPING)
-        cls = globals().get(_CODE_MAPPING[msg_code], ODPSError)
+        msg_code = next(p for p in msg_parts if p.startswith('ODPS-'))
+        if msg_code in _CODE_MAPPING:
+            cls = globals().get(_CODE_MAPPING[msg_code], ODPSError)
+        elif len(msg_code) > 8 and msg_code[:8] in _SQA_CODE_MAPPING:
+            # sometimes SQA will report nested odps errors.
+            # return the outer error type instead of the inner one.
+            cls = globals().get(_SQA_CODE_MAPPING[msg_code[:8]], ODPSError)
+            return cls(msg, code=msg_code)
+        else:
+            cls = ODPSError
     except StopIteration:
         cls = ODPSError
         msg_code = None
@@ -257,4 +274,33 @@ RequestTimeTooSkewd = RequestTimeTooSkewed
 
 
 class NotSupportedError(ODPSError):
+    pass
+
+
+class WaitTimeoutError(ODPSError):
+    pass
+
+class SQAError(ODPSError):
+    pass
+
+class SQAGenericError(SQAError):
+    pass
+
+# if this error is thrown, you may retry your request.
+class SQARetryError(SQAError):
+    pass
+
+class SQAAccessDenied(SQAError):
+    pass
+
+class SQAResourceNotEnough(SQAError):
+    pass
+
+class SQAServiceUnavailable(SQAError):
+    pass
+
+class SQAUnsupportedFeature(SQAError):
+    pass
+
+class SQAQueryTimedout(SQAError):
     pass

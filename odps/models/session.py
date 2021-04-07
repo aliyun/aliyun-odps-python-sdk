@@ -30,6 +30,8 @@ from ..serializers import XMLSerializableModel, XMLNodeField
 
 DEFAULT_TASK_NAME = "PyOdpsSQLRTTask"
 
+PUBLIC_SESSION_NAME = "public.default"
+
 @enum.unique
 class SessionTaskStatus(enum.Enum):
     """
@@ -75,17 +77,25 @@ class SessionInstance(Instance):
         self._project = kw.pop("session_project", None)
         self._session_name = kw.pop("session_name", "")
         super(SessionInstance, self).__init__(**kw)
-    
-    def wait_for_startup(self, interval=1, retry=True):
+
+    def wait_for_startup(self, interval=1, timeout=-1, retry=True):
         """
         Wait for the session to startup(status changed to RUNNING).
 
-        :param interval: time interval to check
+        :param interval: time interval to check (unit seconds)
+        :param timeout: wait timeout (unit seconds), < 0 means no timeout
+        :param retry: if failed to query session status, should we retry silently
+        :raise: :class:`odps.errors.WaitTimeoutError` if wait timeout and session is not started.
         :return: None
         """
+        waited = 0
         while not self.is_running(retry):
+            if timeout > 0:
+                if waited > timeout:
+                    raise errors.WaitTimeoutError("Waited " + waited + " seconds, but session is not started.")
             try:
                 time.sleep(interval)
+                waited += interval
             except KeyboardInterrupt:
                 return
 
@@ -140,9 +150,22 @@ class SessionInstance(Instance):
         if location is None or len(location) == 0:
             raise errors.ODPSError('Invalid response, Location header required.')
 
+        created_subquery_id = -1
+        try:
+            query_reslt = json.loads(resp.text)
+            query_status = query_reslt["status"]
+            if query_status != "ok":
+                raise errors.ODPSError('Failed to run subquery: [' + query_status + "]: " + query_reslt["result"])
+            query_subresult = json.loads(query_reslt["result"])
+            created_subquery_id = query_subresult["queryId"]
+            if created_subquery_id == -1:
+                raise errors.parse_instance_error(query_subresult)
+        except KeyError as ex:
+            raise errors.ODPSError("Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), resp.text))
         instance_id = location.rsplit('/', 1)[1]
 
-        instance = InSessionInstance(session_project_name=project_name, session_task_name=self._task_name, name=instance_id,
+        instance = InSessionInstance(session_project_name=project_name, session_task_name=self._task_name,
+                                     name=instance_id, session_subquery_id=created_subquery_id,
                                      session_instance=self, parent=proj_insts,
                                      session_is_select = is_select, client=self._client)
         return instance
@@ -164,7 +187,7 @@ class SessionInstance(Instance):
             error_string = _get_session_failure_info(self.get_task_results())
             if error_string:
                 self._status = Instance.Status.TERMINATED
-                raise errors.ODPSError("Session operation failed: %s" % error_string)
+                raise errors.parse_instance_error(error_string)
             else:
                 # this is a task meta info update problem. Just retry.
                 self._status = Instance.Status.SUSPENDED
@@ -174,11 +197,11 @@ class SessionInstance(Instance):
         elif session_status == SessionTaskStatus.Cancelled:
             error_string = _get_session_failure_info(self.get_task_results())
             self._status = Instance.Status.TERMINATED
-            raise errors.ODPSError("Session cancelled: " + error_string)
+            raise errors.parse_instance_error(error_string)
         elif session_status == SessionTaskStatus.Failed:
             error_string = _get_session_failure_info(self.get_task_results())
             self._status = Instance.Status.TERMINATED
-            raise errors.ODPSError("Session failed: " + error_string)
+            raise errors.parse_instance_error(error_string)
         elif poll_result["status"] == SessionTaskStatus.Terminated:
             self._status = Instance.Status.TERMINATED
             raise errors.ODPSError("Session terminated.")
@@ -200,35 +223,42 @@ class InSessionInstance(Instance):
     def __init__(self, **kw):
         if ('session_task_name' not in kw) \
                 or ('session_project_name' not in kw) \
-                or ('session_instance' not in kw):
+                or ('session_instance' not in kw) \
+                or ('session_subquery_id' not in kw):
             raise errors.InvalidArgument("Creating InSessionInstance without enough information.")
         self._session_task_name = kw.pop("session_task_name", "")
         self._project_name = kw.pop("session_project_name", "")
         self._session_instance = kw.pop("session_instance", None)
         self._is_select = kw.pop("session_is_select", False)
-        self._subquery_id = -1
+        self._subquery_id = kw.pop("session_subquery_id", -1)
         self._report_result = ''
         self._report_warning = ''
         self._session_task_status = -1
+        if self._subquery_id < 0:
+            raise errors.InternalServerError("Subquery id not legal: " + str(self._subquery_id))
         super(InSessionInstance, self).__init__(**kw)
 
     @utils.survey
-    def _open_result_reader(self, schema=None, task_name=None, **_):
-        # you just can't.
-        # for non-select SQL, no result you may fetch.
-        # for select SQL, use instance tunnel. This is deprecated.
-        if self._is_select:
-            raise errors.InstanceTypeNotSupported("Use tunnel to fetch select result.")
-        else:
+    def _open_result_reader(self, schema=None, task_name=None, **kwargs):
+        """
+        Fetch result directly from odps. This way does not support limiting, and will cache
+        all result in local memory. To achieve better performance and efficiency, use tunnel instead.
+        """
+        if not self._is_select:
             raise errors.InstanceTypeNotSupported("No results for non-select SQL.")
+        self.reload()
+        if not self.is_successful(retry=True):
+            raise errors.ODPSError(
+                'Cannot open reader, instance(%s) may fail or has not finished yet' % self.id)
+        return readers.RecordReader(schema, self._report_result)
 
     def _open_tunnel_reader(self, **kw):
         if not self._is_select:
             raise errors.InstanceTypeNotSupported("InstanceTunnel cannot be opened at a non-select SQL Task.")
-        
+
         while (self._subquery_id == -1) and (self._status != Instance.Status.TERMINATED):
             self.reload()
-        
+
         if self._subquery_id == -1:
             raise errors.InternalServerError("SubQueryId not returned by the server.")
 
@@ -255,13 +285,22 @@ class InSessionInstance(Instance):
         class RecordReader(readers.AbstractRecordReader):
             def __init__(self):
                 self._it = iter(self)
-                self._schema = download_session.schema
+
+            @property
+            def schema(self):
+                # is not available before open_reader().
+                if download_session.schema is None:
+                    # open reader once to enforce schema fetched.
+                    tmprd = download_session.open_record_reader(0, 1)
+                    tmprd.close()
+                return download_session.schema
 
             @property
             def count(self):
                 # we can't count session results before it's
                 # fully retrieved.
                 return -1
+
             @property
             def status(self):
                 # force reload to update download session status
@@ -304,7 +343,7 @@ class InSessionInstance(Instance):
         url = self._session_instance.resource() + "?info"
         st_resp = self._client.get(url, params={"curr_project": self._project_name,
                                                 "taskname": self._session_task_name,
-                                                "key": "result"})
+                                                "key": "result_" + str(self._subquery_id)})
         if not st_resp.ok:
             raise errors.ODPSError("HTTP " + str(st_resp.status_code))
         try:
@@ -324,7 +363,7 @@ class InSessionInstance(Instance):
             self._subquery_id = int(query_reslt.get("subQueryId", -1))
         except BaseException as ex:
             raise errors.ODPSError("Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), st_resp.text))
-    
+
     def is_successful(self, retry=False):
         """
         If the instance runs successfully.
@@ -353,7 +392,7 @@ class InSessionInstance(Instance):
 
         if not self.is_successful(retry=True):
             raise errors.parse_instance_error(self._report_result)
-    
+
     def get_warnings(self):
         """
         Get the warnings reported by ODPS.
@@ -363,7 +402,7 @@ class InSessionInstance(Instance):
 
         self.reload()
         return self._report_warning
-    
+
     def get_printable_result(self):
         """
         Get the result string that can be directly printed to screen.

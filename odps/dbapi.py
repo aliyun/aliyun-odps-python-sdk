@@ -18,8 +18,9 @@ import warnings
 
 from .compat import enum, six
 from .core import ODPS
-from .errors import NotSupportedError, InstanceTypeNotSupported
+from .errors import NotSupportedError, InstanceTypeNotSupported, ODPSError
 from .utils import to_str
+from .models.session import PUBLIC_SESSION_NAME
 
 
 # PEP 249 module globals
@@ -45,10 +46,22 @@ def connect(*args, **kwargs):
     """
     return Connection(*args, **kwargs)
 
+FALLBACK_POLICIES = {
+    "unsupported": ["ODPS-185"],
+    "upgrading": ["ODPS-182", "ODPS-184"],
+    "noresource": ["ODPS-183"],
+    "timeout": ["ODPS-186"],
+    "generic": ["ODPS-180"]
+}
+
+FALLBACK_POLICY_ALIASES = {
+    "default": ["unsupported", "upgrading", "noresource", "timeout"],
+    "all": ["unsupported", "upgrading", "noresource", "timeout", "generic"]
+}
 
 class Connection(object):
     def __init__(self, access_id=None, secret_access_key=None, project=None,
-                 endpoint=None, odps=None, **kw):
+                 endpoint=None, session_name=None, odps=None, **kw):
         if odps is None:
             self._odps = ODPS(access_id=access_id, secret_access_key=secret_access_key,
                               project=project, endpoint=endpoint, **kw)
@@ -56,6 +69,11 @@ class Connection(object):
             if access_id is not None:
                 raise ValueError('Either access_id or odps can be specified')
             self._odps = odps
+        self._session_name = PUBLIC_SESSION_NAME
+        if session_name is not None:
+            self._session_name = session_name
+        self._use_sqa = (kw.pop('use_sqa', False) != False)
+        self._fallback_policy = kw.pop('fallback_policy', '')
 
     @property
     def odps(self):
@@ -69,7 +87,7 @@ class Connection(object):
 
     def cursor(self, *args, **kwargs):
         """Return a new :py:class:`Cursor` object using the connection."""
-        return Cursor(self, *args, **kwargs)
+        return Cursor(self, *args, use_sqa=self._use_sqa, fallback_policy=self._fallback_policy, **kwargs)
 
     def close(self):
         # there is no long polling for ODPS
@@ -89,11 +107,20 @@ default_arraysize = 1000
 
 
 class Cursor(object):
-    def __init__(self, connection, arraysize=default_arraysize):
+    def __init__(self, connection, arraysize=default_arraysize,
+            use_sqa=False, fallback_policy='', **kwargs):
         self._connection = connection
         self._arraysize = arraysize
         self._reset_state()
         self.lastrowid = None
+        self._use_sqa = use_sqa
+        self._fallback_policy = []
+        fallback_policies = map(lambda x: x.strip(), fallback_policy.split(','))
+        for policy in fallback_policies:
+            if policy in FALLBACK_POLICY_ALIASES:
+                self._fallback_policy.extend(FALLBACK_POLICY_ALIASES[policy])
+            else:
+                self._fallback_policy.append(policy)
 
     def _reset_state(self):
         self._state = State.NONE
@@ -194,8 +221,50 @@ class Cursor(object):
         self._reset_state()
 
         odps = self._connection.odps
-        run_sql = odps.run_sql if async_ else odps.execute_sql
+        run_sql = odps.execute_sql
+        if self._use_sqa:
+            run_sql = self._run_sqa_with_fallback
+        if async_:
+            run_sql = odps.run_sql
         self._instance = run_sql(sql)
+
+    def _sqa_error_should_fallback(self, err_str):
+        if 'ODPS-18' not in err_str:
+            return False
+        for fallback_case in self._fallback_policy:
+            fallback_error = FALLBACK_POLICIES.get(fallback_case, None)
+            if fallback_error is None:
+                continue
+            for error_code in fallback_error:
+                if error_code in err_str:
+                    return True
+        return False
+
+
+    def _run_sqa_with_fallback(self, sql, **kw):
+        odps = self._connection.odps
+        session_name = self._connection._session_name
+        inst = None
+        while True:
+            try:
+                if inst is None:
+                    inst = odps.run_sql_interactive(sql, service_name = session_name)
+                else:
+                    inst.wait_for_success(interval=0.5)
+                rd = inst.open_reader(tunnel=True, limit=False)
+                if not rd:
+                    raise ODPSError('failed to create direct download')
+                rd.schema # will check if task is ok
+                self._download_session = rd
+                return inst
+            except ODPSError as e:
+                if self._sqa_error_should_fallback(str(e)):
+                    return odps.execute_sql(sql)
+                elif "OdpsTaskTimeout" in str(e):
+                    # tunnel failed to wait data cache result. fallback to normal wait.
+                    pass
+                else:
+                    raise e
 
     def cancel(self):
         if self._instance is not None:

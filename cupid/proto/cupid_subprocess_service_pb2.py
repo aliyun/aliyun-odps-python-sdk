@@ -20,7 +20,7 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='cupid_subprocess_service.proto',
   package='apsara.odps.cupid.protocol',
-  serialized_pb=_b('\n\x1e\x63upid_subprocess_service.proto\x12\x1a\x61psara.odps.cupid.protocol\"\xb7\x01\n\nInputSplit\x12\x14\n\x0csplitIndexId\x18\x01 \x01(\r\x12\x16\n\x0esplitFileStart\x18\x02 \x01(\x04\x12\x14\n\x0csplitFileEnd\x18\x03 \x01(\x04\x12\x17\n\x0fschemaFileStart\x18\x04 \x01(\x04\x12\x15\n\rschemaFileEnd\x18\x05 \x01(\x04\x12\x0f\n\x07project\x18\x06 \x01(\t\x12\r\n\x05table\x18\x07 \x01(\t\x12\x15\n\rpartitionSpec\x18\x08 \x01(\t\"@\n\tBlockMeta\x12\x10\n\x08\x66ileName\x18\x01 \x01(\t\x12\x10\n\x08rowCount\x18\x02 \x01(\x04\x12\x0f\n\x07rawSize\x18\x03 \x01(\x04\"J\n\x0eInputSplitMeta\x12\x38\n\tblockMeta\x18\x01 \x03(\x0b\x32%.apsara.odps.cupid.protocol.BlockMeta\"0\n\x14GetSplitsMetaRequest\x12\x18\n\x10inputTableHandle\x18\x01 \x01(\t\"\\\n\x15GetSplitsMetaResponse\x12\x43\n\x0finputSplitsMeta\x18\x01 \x03(\x0b\x32*.apsara.odps.cupid.protocol.InputSplitMeta\",\n\x10GetSplitsRequest\x12\x18\n\x10inputTableHandle\x18\x01 \x01(\t\"P\n\x11GetSplitsResponse\x12;\n\x0binputSplits\x18\x01 \x03(\x0b\x32&.apsara.odps.cupid.protocol.InputSplit\"r\n\x1aRegisterTableReaderRequest\x12\x18\n\x10inputTableHandle\x18\x01 \x01(\t\x12:\n\ninputSplit\x18\x02 \x01(\x0b\x32&.apsara.odps.cupid.protocol.InputSplit\"\\\n\x1bRegisterTableReaderResponse\x12\x0e\n\x06schema\x18\x01 \x01(\t\x12\x14\n\x0creadIterator\x18\x02 \x01(\t\x12\x17\n\x0fpartitionSchema\x18\x03 \x01(\t\"\xb5\x01\n\x1aRegisterTableWriterRequest\x12\x19\n\x11outputTableHandle\x18\x01 \x01(\t\x12\x13\n\x0bprojectName\x18\x02 \x01(\t\x12\x11\n\ttableName\x18\x03 \x01(\t\x12\x17\n\x0f\x61ttemptFileName\x18\x04 \x01(\t\x12\x10\n\x08partSpec\x18\x05 \x01(\t\x12\x0e\n\x06schema\x18\x06 \x01(\t\x12\x19\n\x11tableMetaFileName\x18\x07 \x01(\t\"@\n\x1bRegisterTableWriterResponse\x12!\n\x19subprocessWriteTableLabel\x18\x01 \x01(\t\"U\n\x10\x43ommitActionInfo\x12\x10\n\x08partSpec\x18\x01 \x01(\t\x12\x17\n\x0f\x61ttemptFileName\x18\x02 \x01(\t\x12\x16\n\x0e\x63ommitFileName\x18\x03 \x01(\t\"\xa5\x01\n\x17\x43ommitTableFilesRequest\x12\x19\n\x11outputTableHandle\x18\x01 \x01(\t\x12\x13\n\x0bprojectName\x18\x02 \x01(\t\x12\x11\n\ttableName\x18\x03 \x01(\t\x12G\n\x11\x63ommitActionInfos\x18\x04 \x03(\x0b\x32,.apsara.odps.cupid.protocol.CommitActionInfo\"\x1a\n\x18\x43ommitTableFilesResponse2\x89\x05\n\x16\x43upidSubProcessService\x12h\n\tGetSplits\x12,.apsara.odps.cupid.protocol.GetSplitsRequest\x1a-.apsara.odps.cupid.protocol.GetSplitsResponse\x12\x86\x01\n\x13RegisterTableReader\x12\x36.apsara.odps.cupid.protocol.RegisterTableReaderRequest\x1a\x37.apsara.odps.cupid.protocol.RegisterTableReaderResponse\x12\x86\x01\n\x13RegisterTableWriter\x12\x36.apsara.odps.cupid.protocol.RegisterTableWriterRequest\x1a\x37.apsara.odps.cupid.protocol.RegisterTableWriterResponse\x12}\n\x10\x43ommitTableFiles\x12\x33.apsara.odps.cupid.protocol.CommitTableFilesRequest\x1a\x34.apsara.odps.cupid.protocol.CommitTableFilesResponse\x12t\n\rGetSplitsMeta\x12\x30.apsara.odps.cupid.protocol.GetSplitsMetaRequest\x1a\x31.apsara.odps.cupid.protocol.GetSplitsMetaResponseB&B\x1b\x43upidSubProcessServiceProto\x80\x01\x01\x88\x01\x01\x90\x01\x01')
+  serialized_pb=_b('\n\x1e\x63upid_subprocess_service.proto\x12\x1a\x61psara.odps.cupid.protocol\"\xb7\x01\n\nInputSplit\x12\x14\n\x0csplitIndexId\x18\x01 \x01(\r\x12\x16\n\x0esplitFileStart\x18\x02 \x01(\x04\x12\x14\n\x0csplitFileEnd\x18\x03 \x01(\x04\x12\x17\n\x0fschemaFileStart\x18\x04 \x01(\x04\x12\x15\n\rschemaFileEnd\x18\x05 \x01(\x04\x12\x0f\n\x07project\x18\x06 \x01(\t\x12\r\n\x05table\x18\x07 \x01(\t\x12\x15\n\rpartitionSpec\x18\x08 \x01(\t\"3\n\x0eInputSplitMeta\x12\x10\n\x08rowCount\x18\x01 \x01(\x04\x12\x0f\n\x07rawSize\x18\x02 \x01(\x04\"0\n\x14GetSplitsMetaRequest\x12\x18\n\x10inputTableHandle\x18\x01 \x01(\t\"\\\n\x15GetSplitsMetaResponse\x12\x43\n\x0finputSplitsMeta\x18\x01 \x03(\x0b\x32*.apsara.odps.cupid.protocol.InputSplitMeta\",\n\x10GetSplitsRequest\x12\x18\n\x10inputTableHandle\x18\x01 \x01(\t\"P\n\x11GetSplitsResponse\x12;\n\x0binputSplits\x18\x01 \x03(\x0b\x32&.apsara.odps.cupid.protocol.InputSplit\"r\n\x1aRegisterTableReaderRequest\x12\x18\n\x10inputTableHandle\x18\x01 \x01(\t\x12:\n\ninputSplit\x18\x02 \x01(\x0b\x32&.apsara.odps.cupid.protocol.InputSplit\"\\\n\x1bRegisterTableReaderResponse\x12\x0e\n\x06schema\x18\x01 \x01(\t\x12\x14\n\x0creadIterator\x18\x02 \x01(\t\x12\x17\n\x0fpartitionSchema\x18\x03 \x01(\t\"\xb5\x01\n\x1aRegisterTableWriterRequest\x12\x19\n\x11outputTableHandle\x18\x01 \x01(\t\x12\x13\n\x0bprojectName\x18\x02 \x01(\t\x12\x11\n\ttableName\x18\x03 \x01(\t\x12\x17\n\x0f\x61ttemptFileName\x18\x04 \x01(\t\x12\x10\n\x08partSpec\x18\x05 \x01(\t\x12\x0e\n\x06schema\x18\x06 \x01(\t\x12\x19\n\x11tableMetaFileName\x18\x07 \x01(\t\"@\n\x1bRegisterTableWriterResponse\x12!\n\x19subprocessWriteTableLabel\x18\x01 \x01(\t\"U\n\x10\x43ommitActionInfo\x12\x10\n\x08partSpec\x18\x01 \x01(\t\x12\x17\n\x0f\x61ttemptFileName\x18\x02 \x01(\t\x12\x16\n\x0e\x63ommitFileName\x18\x03 \x01(\t\"\xa5\x01\n\x17\x43ommitTableFilesRequest\x12\x19\n\x11outputTableHandle\x18\x01 \x01(\t\x12\x13\n\x0bprojectName\x18\x02 \x01(\t\x12\x11\n\ttableName\x18\x03 \x01(\t\x12G\n\x11\x63ommitActionInfos\x18\x04 \x03(\x0b\x32,.apsara.odps.cupid.protocol.CommitActionInfo\"\x1a\n\x18\x43ommitTableFilesResponse2\x89\x05\n\x16\x43upidSubProcessService\x12h\n\tGetSplits\x12,.apsara.odps.cupid.protocol.GetSplitsRequest\x1a-.apsara.odps.cupid.protocol.GetSplitsResponse\x12\x86\x01\n\x13RegisterTableReader\x12\x36.apsara.odps.cupid.protocol.RegisterTableReaderRequest\x1a\x37.apsara.odps.cupid.protocol.RegisterTableReaderResponse\x12\x86\x01\n\x13RegisterTableWriter\x12\x36.apsara.odps.cupid.protocol.RegisterTableWriterRequest\x1a\x37.apsara.odps.cupid.protocol.RegisterTableWriterResponse\x12}\n\x10\x43ommitTableFiles\x12\x33.apsara.odps.cupid.protocol.CommitTableFilesRequest\x1a\x34.apsara.odps.cupid.protocol.CommitTableFilesResponse\x12t\n\rGetSplitsMeta\x12\x30.apsara.odps.cupid.protocol.GetSplitsMetaRequest\x1a\x31.apsara.odps.cupid.protocol.GetSplitsMetaResponseB&B\x1b\x43upidSubProcessServiceProto\x80\x01\x01\x88\x01\x01\x90\x01\x01')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -106,30 +106,23 @@ _INPUTSPLIT = _descriptor.Descriptor(
 )
 
 
-_BLOCKMETA = _descriptor.Descriptor(
-  name='BlockMeta',
-  full_name='apsara.odps.cupid.protocol.BlockMeta',
+_INPUTSPLITMETA = _descriptor.Descriptor(
+  name='InputSplitMeta',
+  full_name='apsara.odps.cupid.protocol.InputSplitMeta',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='fileName', full_name='apsara.odps.cupid.protocol.BlockMeta.fileName', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-    _descriptor.FieldDescriptor(
-      name='rowCount', full_name='apsara.odps.cupid.protocol.BlockMeta.rowCount', index=1,
-      number=2, type=4, cpp_type=4, label=1,
+      name='rowCount', full_name='apsara.odps.cupid.protocol.InputSplitMeta.rowCount', index=0,
+      number=1, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='rawSize', full_name='apsara.odps.cupid.protocol.BlockMeta.rawSize', index=2,
-      number=3, type=4, cpp_type=4, label=1,
+      name='rawSize', full_name='apsara.odps.cupid.protocol.InputSplitMeta.rawSize', index=1,
+      number=2, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -146,37 +139,7 @@ _BLOCKMETA = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=248,
-  serialized_end=312,
-)
-
-
-_INPUTSPLITMETA = _descriptor.Descriptor(
-  name='InputSplitMeta',
-  full_name='apsara.odps.cupid.protocol.InputSplitMeta',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='blockMeta', full_name='apsara.odps.cupid.protocol.InputSplitMeta.blockMeta', index=0,
-      number=1, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  options=None,
-  is_extendable=False,
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=314,
-  serialized_end=388,
+  serialized_end=299,
 )
 
 
@@ -205,8 +168,8 @@ _GETSPLITSMETAREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=390,
-  serialized_end=438,
+  serialized_start=301,
+  serialized_end=349,
 )
 
 
@@ -235,8 +198,8 @@ _GETSPLITSMETARESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=440,
-  serialized_end=532,
+  serialized_start=351,
+  serialized_end=443,
 )
 
 
@@ -265,8 +228,8 @@ _GETSPLITSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=534,
-  serialized_end=578,
+  serialized_start=445,
+  serialized_end=489,
 )
 
 
@@ -295,8 +258,8 @@ _GETSPLITSRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=580,
-  serialized_end=660,
+  serialized_start=491,
+  serialized_end=571,
 )
 
 
@@ -332,8 +295,8 @@ _REGISTERTABLEREADERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=662,
-  serialized_end=776,
+  serialized_start=573,
+  serialized_end=687,
 )
 
 
@@ -376,8 +339,8 @@ _REGISTERTABLEREADERRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=778,
-  serialized_end=870,
+  serialized_start=689,
+  serialized_end=781,
 )
 
 
@@ -448,8 +411,8 @@ _REGISTERTABLEWRITERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=873,
-  serialized_end=1054,
+  serialized_start=784,
+  serialized_end=965,
 )
 
 
@@ -478,8 +441,8 @@ _REGISTERTABLEWRITERRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1056,
-  serialized_end=1120,
+  serialized_start=967,
+  serialized_end=1031,
 )
 
 
@@ -522,8 +485,8 @@ _COMMITACTIONINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1122,
-  serialized_end=1207,
+  serialized_start=1033,
+  serialized_end=1118,
 )
 
 
@@ -573,8 +536,8 @@ _COMMITTABLEFILESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1210,
-  serialized_end=1375,
+  serialized_start=1121,
+  serialized_end=1286,
 )
 
 
@@ -596,17 +559,15 @@ _COMMITTABLEFILESRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1377,
-  serialized_end=1403,
+  serialized_start=1288,
+  serialized_end=1314,
 )
 
-_INPUTSPLITMETA.fields_by_name['blockMeta'].message_type = _BLOCKMETA
 _GETSPLITSMETARESPONSE.fields_by_name['inputSplitsMeta'].message_type = _INPUTSPLITMETA
 _GETSPLITSRESPONSE.fields_by_name['inputSplits'].message_type = _INPUTSPLIT
 _REGISTERTABLEREADERREQUEST.fields_by_name['inputSplit'].message_type = _INPUTSPLIT
 _COMMITTABLEFILESREQUEST.fields_by_name['commitActionInfos'].message_type = _COMMITACTIONINFO
 DESCRIPTOR.message_types_by_name['InputSplit'] = _INPUTSPLIT
-DESCRIPTOR.message_types_by_name['BlockMeta'] = _BLOCKMETA
 DESCRIPTOR.message_types_by_name['InputSplitMeta'] = _INPUTSPLITMETA
 DESCRIPTOR.message_types_by_name['GetSplitsMetaRequest'] = _GETSPLITSMETAREQUEST
 DESCRIPTOR.message_types_by_name['GetSplitsMetaResponse'] = _GETSPLITSMETARESPONSE
@@ -626,13 +587,6 @@ InputSplit = _reflection.GeneratedProtocolMessageType('InputSplit', (_message.Me
   # @@protoc_insertion_point(class_scope:apsara.odps.cupid.protocol.InputSplit)
   ))
 _sym_db.RegisterMessage(InputSplit)
-
-BlockMeta = _reflection.GeneratedProtocolMessageType('BlockMeta', (_message.Message,), dict(
-  DESCRIPTOR = _BLOCKMETA,
-  __module__ = 'cupid_subprocess_service_pb2'
-  # @@protoc_insertion_point(class_scope:apsara.odps.cupid.protocol.BlockMeta)
-  ))
-_sym_db.RegisterMessage(BlockMeta)
 
 InputSplitMeta = _reflection.GeneratedProtocolMessageType('InputSplitMeta', (_message.Message,), dict(
   DESCRIPTOR = _INPUTSPLITMETA,
@@ -728,8 +682,8 @@ _CUPIDSUBPROCESSSERVICE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   options=None,
-  serialized_start=1406,
-  serialized_end=2055,
+  serialized_start=1317,
+  serialized_end=1966,
   methods=[
   _descriptor.MethodDescriptor(
     name='GetSplits',

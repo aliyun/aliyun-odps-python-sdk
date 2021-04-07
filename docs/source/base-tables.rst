@@ -215,7 +215,12 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. _table_to_pandas_mp:
 
-利用多进程加速读取：
+利用多进程加速读取:
+
+.. note::
+
+    目前多进程加速在 Windows 下无法使用。
+
 
 .. code-block:: python
 

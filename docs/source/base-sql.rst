@@ -98,7 +98,12 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护
 
 .. _sql_to_pandas_mp:
 
-如果需要使用多核加速读取速度，可以通过 `n_process` 指定使用进程数
+如果需要使用多核加速读取速度，可以通过 `n_process` 指定使用进程数:
+
+.. note::
+
+    目前多进程加速在 Windows 下无法使用。
+
 
 .. code-block:: python
 

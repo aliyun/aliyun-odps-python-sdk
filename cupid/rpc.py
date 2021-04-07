@@ -39,6 +39,7 @@ except TypeError:
     raise ImportError
 
 logger = logging.getLogger(__name__)
+logger_mars = logging.getLogger('odps.mars_extension.cupid')
 
 if sys.version_info[0] >= 3:
     b64decodebytes = base64.decodebytes
@@ -191,6 +192,7 @@ class CupidTaskServiceRpcChannel(CupidRpcChannel):
             taskServiceRequest=task_service_req
         )
         inst = self.submit_job(task_param, 'eAsyncNotFuxiJob', session=self.cupid_session)
+        logger_mars.debug('Cupid task instance: %s, method: %s' % (inst.id, method.name))
 
         resp_str = self.wait_cupid_instance(inst)
         if isinstance(resp_str, six.text_type):

@@ -37,16 +37,10 @@ message InputSplit
     optional string partitionSpec = 8;
 }
 
-message BlockMeta
-{
-    optional string fileName = 1;
-    optional uint64 rowCount = 2;
-    optional uint64 rawSize = 3;
-}
-
 message InputSplitMeta
 {
-    repeated BlockMeta blockMeta = 1;
+    optional uint64 rowCount = 1;
+    optional uint64 rawSize = 2;
 }
 
 message GetSplitsMetaRequest
