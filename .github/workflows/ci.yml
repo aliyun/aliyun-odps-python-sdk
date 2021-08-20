@@ -56,3 +56,39 @@ jobs:
       run: |
         source ./.github/workflows/reload-env.sh
         source ./.github/workflows/upload-packages.sh
+
+  build-aarch64:
+    name: "Build on ${{ matrix.pyver }} aarch64"
+    strategy:
+      matrix:
+        pyver: [cp36-cp36m, cp37-cp37m, cp38-cp38, cp39-cp39]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    env:
+      py: /opt/python/${{ matrix.pyver }}/bin/python
+      img: quay.io/pypa/manylinux2014_aarch64
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Set up QEMU
+      id: qemu
+      uses: docker/setup-qemu-action@v1
+    - name: Make wheel
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
+          ${{ env.img }} \
+            bash -exc 'yum install -y wget && \
+            wget -q "https://github.com/conda-forge/miniforge/releases/download/4.8.2-1/Miniforge3-4.8.2-1-Linux-aarch64.sh" -O archiconda.sh &&\
+            chmod +x archiconda.sh && \
+            ./archiconda.sh -b -p /opt/conda && \
+            export PATH="/opt/conda/bin:$PATH" && \
+            ${{ env.py }} -m pip install --upgrade pip setuptools wheel coverage cython && \
+            ${{ env.py }} -m pip install -r requirements.txt && \
+            ${{ env.py }} setup.py bdist_wheel && \
+            auditwheel repair dist/*.whl'
+    - name: Publish wheels to PyPI
+      if: startsWith(github.ref, 'refs/tags/') && matrix.no-deploy != '1'
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_PASSWORD }}
+        packages_dir: wheelhouse
