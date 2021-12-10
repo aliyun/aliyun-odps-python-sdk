@@ -851,10 +851,13 @@ class Instance(LazyLoad):
                 import multiprocessing
                 from multiprocessing import Pipe
 
-                _mp_context = multiprocessing.get_context('fork')
-
                 if n_process == 1:
                     return super(RecordReader, self).to_pandas()
+
+                try:
+                    _mp_context = multiprocessing.get_context('fork')
+                except ValueError:
+                    raise ValueError('`n_process > 1` is not supported on Windows.')
 
                 session_id, count = download_session.id, download_session.count
 
