@@ -510,11 +510,14 @@ class Table(LazyLoad):
                 import multiprocessing
                 from multiprocessing import Pipe
 
-                _mp_context = multiprocessing.get_context('fork')
-
                 session_id, count = download_session.id, download_session.count
                 if n_process == 1:
                     return super(RecordReader, self).to_pandas()
+
+                try:
+                    _mp_context = multiprocessing.get_context('fork')
+                except ValueError:
+                    raise ValueError('`n_process > 1` is not supported on Windows.')
 
                 def read_table_split(conn, download_id, start, count, idx):
                     # read part data
