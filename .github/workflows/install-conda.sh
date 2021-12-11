@@ -14,7 +14,10 @@ elif [[ $UNAME == "mingw"* ]] || [[ $UNAME == "msys"* ]]; then
   FILE_EXT="exe"
 
   if [[ $PYTHON == "2.7"* ]]; then
-    choco install -y -r vcpython27
+    curl -L -o VCForPython27.msi "https://github.com/reider-roque/sulley-win-installer/raw/master/VCForPython27.msi"
+    echo "msiexec.exe /i VCForPython27.msi ALLUSERS=1 /qn /norestart" > install-vcpython27.cmd
+    cmd "/c install-vcpython27.cmd"
+    rm install-vcpython27.cmd VCForPython27.msi
   fi
 fi
 
