@@ -4,6 +4,9 @@ secret_access_key=
 project=
 endpoint=
 
+[cupid]
+proxy_endpoint=
+
 [predict]
 endpoint=
 

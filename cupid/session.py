@@ -19,6 +19,7 @@ import warnings
 from odps.compat import six
 
 from .config import options
+from .errors import CupidMasterTimeoutError
 from .rpc import CupidTaskServiceRpcChannel
 from .utils import get_environ
 
@@ -152,13 +153,22 @@ class CupidSession(object):
             jobconf=self.job_conf(conf=kub_conf),
             mcupidtaskoperator=task_operator,
         )
-        channel = CupidTaskServiceRpcChannel(self)
-        inst = channel.submit_job(task_param, 'eHasFuxiJob', with_resource=True, priority=priority,
-                                  running_cluster=running_cluster, session=self, task_name=task_name)
-        if async_:
-            return inst
-        else:
-            return self.get_instance_kube(inst)
+
+        retrial = 0
+
+        while True:
+            retrial += 1
+            channel = CupidTaskServiceRpcChannel(self)
+            inst = channel.submit_job(task_param, 'eHasFuxiJob', with_resource=True, priority=priority,
+                                    running_cluster=running_cluster, session=self, task_name=task_name)
+            if async_:
+                return inst
+            else:
+                try:
+                    return self.get_instance_kube(inst)
+                except CupidMasterTimeoutError:
+                    if retrial == 3:
+                        raise
 
     def get_instance_kube_api(self, inst, expired_in_hours=None):
         if self._kube_url is None:

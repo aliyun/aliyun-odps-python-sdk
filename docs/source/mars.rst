@@ -18,7 +18,7 @@ Mars
 .. rubric:: 开箱即用的环境
     :class: rubric-h3
 
-开箱即用的环境，如 dataworks 的 **pyodps3 节点**\ ，已经包含了 PyODPS 和 Mars。
+开箱即用的环境，如 DataWorks 的 **pyodps3 节点**\ ，已经包含了 PyODPS 和 Mars。
 
 在新建的 pyodps3 节点里运行如下命令检查版本，确保满足要求。
 
@@ -31,6 +31,18 @@ Mars
     print(mars_version)
 
 输出的第一个为 PyODPS 版本，第二个为 Mars 版本。要求 **PyODPS 至少是 0.9.0**\ 。
+
+目前 DataWorks 中安装了 0.6 和 0.8 两个版本的 Mars，可以通过在代码头部增加 ``mars_version`` 注释的方式选择版本。例如，
+
+.. code:: python
+
+    # -*- mars_version: 0.8 -*-
+    from mars import __version__ as mars_version
+
+    # 将会输出 0.8.x
+    print(mars_version)
+
+如不注释，默认为 0.6。
 
 
 .. rubric:: 其他环境
@@ -53,7 +65,7 @@ Mars
 
 ODPS 入口是 MaxCompute 所有操作的基础：
 
--  对于开箱即用的环境，如 dataworks，我们会自动创建 ``o`` 即 ODPS 入口实例，因此可以不需要创建。
+-  对于开箱即用的环境，如 DataWorks，我们会自动创建 ``o`` 即 ODPS 入口实例，因此可以不需要创建。
 -  对于其他环境，需要通过 ``access_id``\ 、\ ``access_key`` 等参数创建，详细参考 :ref:`快速开始 <quick_start>` 。
 
 在 MaxCompute 上使用 Mars，我们提供了简单易用的接口来拉起 Mars 集群，用户不需要关心安装和维护集群。同时，通过 MaxCompute 拉起的 Mars，也支持直接读写 MaxCompute 表。

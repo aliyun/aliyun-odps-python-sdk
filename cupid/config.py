@@ -31,8 +31,8 @@ options.register_option('cupid.container_node_label', None)
 options.register_option('cupid.job_duration_hours', 25920)
 options.register_option('cupid.channel_init_timeout_seconds', 120)
 options.register_option('cupid.kube.master_mode', 'cupid')
-options.register_option('cupid.runtime.endpoint', 'http://service.cn.maxcompute.aliyun-inc.com/api')
+options.register_option('cupid.runtime.endpoint', None)
 
 # mars app config
 options.register_option('cupid.image_prefix', None)
-options.register_option('cupid.image_version', 'v2.1')
+options.register_option('cupid.image_version', 'v0.7.1')

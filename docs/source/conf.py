@@ -20,7 +20,11 @@ import tempfile
 import textwrap
 import codecs
 import re
-from sphinx.directives import Include
+try:
+    from sphinx.directives import Include
+except ImportError:
+    from sphinx.directives.other import Include
+
 
 dirname = os.path.dirname
 docroot = os.path.dirname(os.path.abspath(__file__))
@@ -414,15 +418,15 @@ def merge_po(dest_file, *src_files):
 def setup(app):
     if with_internal:
         tags.add('internal')
-    app.add_stylesheet('theme_override.css')
-    app.add_javascript('theme_override.js')
+    app.add_css_file('theme_override.css')
+    app.add_js_file('theme_override.js')
     if not on_rtd:
-        app.add_stylesheet('theme_override-nrtd.css')
-        app.add_javascript('theme_override-nrtd.js')
+        app.add_css_file('theme_override-nrtd.css')
+        app.add_js_file('theme_override-nrtd.js')
         if os.path.exists(os.path.join(docroot, '_static', 'theme_override-nrtd-int.css')):
-            app.add_stylesheet('theme_override-nrtd-int.css')
+            app.add_css_file('theme_override-nrtd-int.css')
         if os.path.exists(os.path.join(docroot, '_static', 'theme_override-nrtd-int.js')):
-            app.add_javascript('theme_override-nrtd-int.js')
+            app.add_js_file('theme_override-nrtd-int.js')
 
     app.add_directive('intinclude', IncludeInternal)
     app.add_directive('extinclude', IncludeExternal)

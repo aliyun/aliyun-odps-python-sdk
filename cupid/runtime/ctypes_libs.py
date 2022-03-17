@@ -14,7 +14,7 @@
 
 import os
 import json
-from ctypes import CDLL, RTLD_GLOBAL, create_string_buffer,\
+from ctypes import CDLL, RTLD_GLOBAL, create_string_buffer, \
     c_char, c_void_p, c_char_p, c_int32, c_uint32, byref, POINTER
 from ctypes.util import find_library
 from io import IOBase
@@ -381,6 +381,10 @@ class ChannelOutputWriter(object):
         # sync
         self._stream.result()
         self._stream.close()
+
+    @property
+    def closed(self):
+        return self._stream.closed
 
     def flush(self):
         self._stream.flush()

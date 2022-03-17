@@ -142,7 +142,7 @@ class ODPS(object):
         try:
             bearer_token = os.environ['ODPS_BEARER_TOKEN']
             state['project'] = os.environ['ODPS_PROJECT_NAME']
-            state['endpoint'] = os.environ['ODPS_ENDPOINT']
+            state['endpoint'] = os.environ.get('ODPS_RUNTIME_ENDPOINT') or os.environ['ODPS_ENDPOINT']
             account = accounts.BearerTokenAccount(bearer_token)
             state.pop('access_id', None)
             state.pop('secret_access_key', None)
@@ -1910,15 +1910,37 @@ except ImportError:
     pass
 
 try:
-    from .mars_extension import create_mars_cluster, persist_mars_dataframe, \
-        to_mars_dataframe, run_script, run_script_in_mars, run_mars_job, \
-        list_mars_instances, sql_to_mars_dataframe
+    from .mars_extension import create_mars_cluster
     setattr(ODPS, 'create_mars_cluster', create_mars_cluster)
+except ImportError:
+    pass
+try:
+    from .mars_extension import persist_mars_dataframe
     setattr(ODPS, 'persist_mars_dataframe', persist_mars_dataframe)
+except ImportError:
+    pass
+try:
+    from .mars_extension import to_mars_dataframe
     setattr(ODPS, 'to_mars_dataframe', to_mars_dataframe)
+except ImportError:
+    pass
+try:
+    from .mars_extension import run_script_in_mars
     setattr(ODPS, 'run_script_in_mars', run_script_in_mars)
+except ImportError:
+    pass
+try:
+    from .mars_extension import run_mars_job
     setattr(ODPS, 'run_mars_job', run_mars_job)
+except ImportError:
+    pass
+try:
+    from .mars_extension import list_mars_instances
     setattr(ODPS, 'list_mars_instances', list_mars_instances)
+except ImportError:
+    pass
+try:
+    from .mars_extension import sql_to_mars_dataframe
     setattr(ODPS, 'sql_to_mars_dataframe', sql_to_mars_dataframe)
 except ImportError:
     pass

@@ -49,6 +49,8 @@ def np_type_to_df_type(dtype, arr=None, unknown_as_string=False, name=None):
 
     name = ', field: ' + name if name else ''
     if arr is None or len(arr) == 0:
+        if dtype == np.dtype(object) and unknown_as_string:
+            return types.string
         raise TypeError('Unknown dtype: %s%s' % (dtype, name))
 
     for it in arr:

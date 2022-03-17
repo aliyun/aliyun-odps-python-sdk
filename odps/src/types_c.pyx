@@ -1,11 +1,11 @@
 # Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -28,7 +28,8 @@ cdef int64_t bigint_max = types.bigint._bounds[1]
 cdef int string_len_max = types.string._max_length
 cdef int decimal_int_len_max = 36
 cdef int decimal_scale_max = 18
-cdef object to_scale = decimal.Decimal(str(10 ** -decimal_scale_max))
+cdef object to_scale = decimal.Decimal("1e-%s" % decimal_scale_max)
+cdef object decimal_ctx = decimal.Context(prec=decimal_int_len_max)
 
 cdef:
     int64_t BOOL_TYPE_ID = types.boolean._type_id
@@ -139,7 +140,7 @@ cdef object _validate_decimal(object val):
     if not isinstance(val, decimal.Decimal):
         val = decimal.Decimal(utils.to_str(val))
 
-    scaled_val = val.quantize(to_scale, decimal.ROUND_HALF_UP)
+    scaled_val = val.quantize(to_scale, decimal.ROUND_HALF_UP, decimal_ctx)
     int_len = len(str(scaled_val)) - decimal_scale_max - 1
     if int_len > decimal_int_len_max:
         raise ValueError(

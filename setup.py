@@ -298,8 +298,8 @@ if build_cmd != 'clean' and has_jupyter:
             pass
 
         def run(self):
-            if not which('npm') or not which('grunt'):
-                raise Exception('You need to install npm and grunt before building the scripts.')
+            if not which('npm'):
+                raise Exception('You need to install npm before building the scripts.')
 
             cwd = os.getcwd()
 
@@ -314,7 +314,7 @@ if build_cmd != 'clean' and has_jupyter:
                 print(cmd + ' exited with error: %d' % ret)
 
             print('executing grunt')
-            ret = os.system('grunt')
+            ret = os.system('npm run grunt')
             ret >>= 8
             if ret != 0:
                 print('grunt exited with error: %d' % ret)

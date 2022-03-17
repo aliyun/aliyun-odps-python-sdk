@@ -68,7 +68,7 @@ class Partitions(Iterable):
     def project(self):
         return self.parent.project
 
-    def iterate_partitions(self, spec=None):
+    def iterate_partitions(self, spec=None, reverse=False):
         if spec is not None:
             spec = self._get_partition_spec(spec)
 
@@ -76,6 +76,8 @@ class Partitions(Iterable):
             'partitions': '',
             'expectmarker': 'true'
         }
+        if reverse:
+            params['reverse'] = ''
         if spec is not None and not spec.is_empty:
             params['partition'] = str(spec)
 

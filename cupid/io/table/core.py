@@ -154,6 +154,17 @@ class TableSplit(object):
         logger.debug('Obtained schema: %s', schema)
         return context.channel_client.create_pandas_reader(read_iter, schema)
 
+    def open_arrow_file_reader(self):
+        from ...runtime import context
+        import pyarrow as pa
+
+        context = context()
+
+        read_iter, schema = self._register_reader()
+
+        params = dict(type='ReadByLabel', label=read_iter, arrow=True, batch=True)
+        return context.channel_client.create_file_reader('createTableInputStream', json.dumps(params).encode())
+
     def open_arrow_reader(self):
         from ...runtime import context
         import pyarrow as pa
