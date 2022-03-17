@@ -16,10 +16,10 @@
 
 from __future__ import absolute_import
 import inspect
-import operator
-from collections import defaultdict
 import functools
+import operator
 import sys
+from collections import defaultdict
 
 from .core import Node, NodeMetaclass
 from .errors import ExpressionError
@@ -66,6 +66,14 @@ def _wrap_method_repr(func):
         return obj
 
     return inner
+
+
+def max_pt_function(table_name=None, expr=None):
+    from ...models import Table
+    from .. import func
+    if isinstance(getattr(expr, 'data', None), Table):
+        table_name = table_name or expr.data.name
+    return func.max_pt(table_name)
 
 
 def repr_obj(obj):
@@ -678,6 +686,8 @@ class CollectionExpr(Expr):
             env = frame.copy()
         finally:
             del frame
+
+        env['max_pt'] = ReprWrapper(functools.partial(max_pt_function, expr=self), repr)
 
         visitor = CollectionVisitor(self, env)
         predicate = visitor.eval(expr)
@@ -1316,6 +1326,8 @@ class TypedExpr(Expr):
             env = frame.copy()
         finally:
             del frame
+
+        env['max_pt'] = ReprWrapper(functools.partial(max_pt_function, expr=self), repr)
 
         visitor = SequenceVisitor(self, env)
         return visitor.eval(str_expr, rewrite=rewrite)

@@ -70,7 +70,10 @@ else:
         from IPython.utils import io as ipyio
         # On Windows in particular this is necessary, as the io.stdout stream
         # in IPython gets hooked up to some pyreadline magic to handle colors
-        IPythonIOStream = ipyio.IOStream
+        try:
+            IPythonIOStream = ipyio.IOStream
+        except AttributeError:
+            IPythonIOStream = None
     else:
         OutStream = None
         IPythonIOStream = None

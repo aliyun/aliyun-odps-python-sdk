@@ -87,6 +87,12 @@ def get_config():
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             tunnel_endpoint = None
 
+        from cupid import options as cupid_options
+        try:
+            cupid_options.cupid.proxy_endpoint = config.get("cupid", "proxy_endpoint")
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            pass
+
         config.odps = ODPS(access_id, secret_access_key, project, endpoint,
                            tunnel_endpoint=tunnel_endpoint, seahawks_url=seahawks_url)
 

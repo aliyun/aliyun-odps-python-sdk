@@ -14,12 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import tokenize
+
+import numpy as np
+import pandas as pd
 
 from ..compat import StringIO
 from ..df.backends.pd.types import _np_to_df_types
 from ..df.backends.odpssql.types import df_type_to_odps_type
 from ..df import types
+from ..errors import ODPSError
 
 
 def pd_type_to_odps_type(dtype, col_name, unknown_as_string=None):
@@ -40,6 +45,7 @@ def pd_type_to_odps_type(dtype, col_name, unknown_as_string=None):
 
 
 def use_odps2_type(func):
+    @functools.wraps(func)
     def wrapped(*args, **kwargs):
         from odps import options
         old_value = options.sql.use_odps2_extension
@@ -77,7 +83,7 @@ def convert_pandas_object_to_string(df):
 def check_partition_exist(table, partition_spec):
     try:
         return table.exist_partition(partition_spec)
-    except ValueError:
+    except (ValueError, ODPSError):
         return False
 
 
@@ -111,7 +117,10 @@ def rewrite_partition_predicate(predicate, cols):
                 last_bool_cmp += tokval
             else:
                 if toknum == tokenize.NAME:
-                    if tokval.lower() not in cols:
+                    lower_tokval = tokval.lower()
+                    if lower_tokval == 'max_pt':
+                        tokval = '@' + lower_tokval
+                    elif lower_tokval not in cols:
                         toknum = tokenize.STRING
                         tokval = '"%s"' % tokval
                 elif toknum == tokenize.OP:
@@ -122,3 +131,56 @@ def rewrite_partition_predicate(predicate, cols):
                 yield toknum, tokval
 
     return tokenize.untokenize(list(_tokenize_predicate()))
+
+
+def calc_max_partition(table_name=None, odps=None,
+                       query_table_name=None, result_cache=None):
+    result_cache = result_cache or dict()
+    table_name = table_name or query_table_name
+    if table_name in result_cache:
+        return result_cache[table_name]
+
+    table = odps.get_table(table_name)
+    if not table.schema.partitions:
+        raise ValueError('Table %r not partitioned' % table_name)
+    first_part_name = table.schema.partitions[0].name
+
+    reversed_table_parts = sorted(
+        list(table.partitions),
+        key=lambda part: str(part.partition_spec.kv[first_part_name]),
+        reverse=True  # make larger partition come first
+    )
+    result = next((
+        part.partition_spec.kv[first_part_name]
+        for part in reversed_table_parts if part.physical_size > 0
+    ), None)
+
+    if result is None:
+        raise ValueError('Table %r has no partitions or none of '
+                         'the partitions have any data' % table_name)
+    result_cache[table_name] = result
+    return result
+
+
+def filter_partitions(odps, partitions, predicate):
+    cols = partitions[0].partition_spec.keys
+    part_df = pd.DataFrame(
+        [part.partition_spec.kv.values() for part in partitions], columns=cols
+    )
+    part_df = part_df.astype(str)
+    part_df['__pt_obj__'] = pd.Series(partitions, dtype=np.dtype('O'))
+
+    predicate = rewrite_partition_predicate(predicate, cols)
+
+    global_dict = globals().copy()
+    query_table = partitions[0].parent.parent
+    query_table_name = query_table.project.name + '.' + query_table.name
+    result_cache = dict()
+    global_dict['max_pt'] = functools.partial(
+        calc_max_partition, odps=odps, query_table_name=query_table_name,
+        result_cache=result_cache)
+
+    part_df.query(predicate, engine='python',
+                  global_dict=global_dict, inplace=True)
+
+    return part_df['__pt_obj__'].to_list()

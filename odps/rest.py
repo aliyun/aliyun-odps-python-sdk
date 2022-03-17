@@ -26,9 +26,6 @@ try:
     from requests import ConnectTimeout
 except ImportError:
     from requests import Timeout as ConnectTimeout
-import requests.packages.urllib3.util.ssl_
-requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
-requests.packages.urllib3.disable_warnings()
 
 from . import __version__
 from . import errors, utils
@@ -36,11 +33,37 @@ from .config import options
 from .utils import get_survey_calls, clear_survey_calls
 from .compat import six
 
+try:
+    import requests.packages.urllib3.util.ssl_
+    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
+    requests.packages.urllib3.disable_warnings()
+except ImportError:
+    pass
+
+try:
+    import urllib3.util.ssl_
+    urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
+    urllib3.disable_warnings()
+except ImportError:
+    pass
+
 
 LOG = logging.getLogger(__name__)
 
+_default_user_agent = None
+
 
 def default_user_agent():
+    global _default_user_agent
+    if _default_user_agent is not None:
+        return _default_user_agent
+
+    try:
+        import mars
+        mars_version = mars.__version__
+    except ImportError:
+        mars_version = "Unknown"
+
     py_implementation = platform.python_implementation()
     py_version = platform.python_version()
     try:
@@ -50,10 +73,16 @@ def default_user_agent():
         py_system = 'Unknown'
         py_release = 'Unknown'
 
-    ua_template = Template(options.user_agent_pattern or '$pyodps_version $python_version $os_version')
-    return ua_template.safe_substitute(pyodps_version='%s/%s' % ('pyodps', __version__),
-                                       python_version='%s/%s' % (py_implementation, py_version),
-                                       os_version='%s/%s' % (py_system, py_release))
+    ua_template = Template(
+        options.user_agent_pattern or '$pyodps_version $mars_version $python_version $os_version'
+    )
+    _default_user_agent = ua_template.safe_substitute(
+        pyodps_version='%s/%s' % ('pyodps', __version__),
+        mars_version='%s/%s' % ('mars', mars_version),
+        python_version='%s/%s' % (py_implementation, py_version),
+        os_version='%s/%s' % (py_system, py_release)
+    )
+    return _default_user_agent
 
 
 class RestClient(object):

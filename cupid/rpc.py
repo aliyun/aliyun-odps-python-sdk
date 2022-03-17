@@ -24,8 +24,9 @@ import struct
 import time
 
 from google.protobuf import service as pb_service
-from odps.compat import six
 from odps import compat
+from odps.compat import six
+from odps.errors import InvalidStateSetting, NoSuchObject
 
 from . import errors
 from .config import options
@@ -147,11 +148,14 @@ class CupidRpcChannel(pb_service.RpcChannel):
         return details_pb
 
     @classmethod
-    def wait_cupid_instance(cls, inst, state=None):
+    def wait_cupid_instance(cls, inst, state=None, master_timeout=120):
         state = state or 'success'
         wait_keys = ('running', 'success', 'ready')
+        sleep_time = 0
+
         while True:
             result = cls.get_cupid_status(inst)
+            sleep_time = min(5, sleep_time + 1)
             if result.HasField('failed'):
                 if result.failed.HasField('cupidTaskFailed'):
                     msg = result.failed.cupidTaskFailed.cupidTaskFailedMsg
@@ -166,12 +170,12 @@ class CupidRpcChannel(pb_service.RpcChannel):
             elif result.HasField(state):
                 return getattr(getattr(result, state), state + 'Msg')
             elif any(result.HasField(wk) for wk in wait_keys):
-                time.sleep(1)
+                time.sleep(sleep_time)
             else:
                 msg_pb = str(result)
                 if msg_pb != '':
                     logger.warning('Unexpected status: %s' % msg_pb)
-                time.sleep(1)
+                time.sleep(sleep_time)
 
 
 class CupidTaskServiceRpcChannel(CupidRpcChannel):

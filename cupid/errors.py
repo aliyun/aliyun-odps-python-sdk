@@ -29,6 +29,10 @@ class CupidUserError(CupidError):
     pass
 
 
+class CupidMasterTimeoutError(CupidError):
+    pass
+
+
 class CupidCppError(CupidError):
     cpp_error_type = None
 

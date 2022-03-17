@@ -1,0 +1,13 @@
+"@inherits": "@mars/deploy/oscar/config.yml"
+cluster:
+  backend: cupid_k8s
+storage:
+  backends: [plasma]
+  plasma:
+    store_memory: 50%
+web:
+  extra_discovery_modules:
+  - "odps.mars_extension.oscar.web"
+third_party_modules:
+  - "pyarrow.plasma"
+  - "odps.mars_extension.oscar.bearer_token_init"

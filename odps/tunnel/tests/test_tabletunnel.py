@@ -140,11 +140,11 @@ class Test(TestBase):
         return [
             ('hello \x00\x00 world', 2**63-1, math.pi, datetime(2015, 9, 19, 2, 11, 25, 33000),
              True, Decimal('3.14'), ['simple', 'easy'], OrderedDict({'s': 1})),
-            ('goodbye', 222222, math.e, datetime(2020, 3, 10), False, Decimal('2.555555'),
+            ('goodbye', 222222, math.e, datetime(2020, 3, 10), False, Decimal('1234567898765431'),
              ['true', None], OrderedDict({'true': 1})),
-            ('c' * 300, -2 ** 63 + 1, -2.222, datetime(1999, 5, 25, 3, 10), True, Decimal(22222),
+            ('c' * 300, -2 ** 63 + 1, -2.222, datetime(1999, 5, 25, 3, 10), True, Decimal(28318318318318318),
              ['false'], OrderedDict({'false': 0})),
-            ('c' * 20, -2 ** 11 + 1, 2.222, datetime(1961, 10, 30, 11, 32), True, Decimal(33333),
+            ('c' * 20, -2 ** 11 + 1, 2.222, datetime(1961, 10, 30, 11, 32), True, Decimal('12345678.98765431'),
              ['true'], OrderedDict({'false': 0})),
         ]
 

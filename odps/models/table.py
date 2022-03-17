@@ -462,9 +462,10 @@ class Table(LazyLoad):
         download_ids[partition] = download_session.id
 
         class RecordReader(readers.AbstractRecordReader):
-            def __init__(self):
+            def __init__(self, partition_spec=None):
                 self._it = iter(self)
                 self._schema = schema
+                self._partition_spec = partition_spec
 
             @property
             def download_id(self):
@@ -519,12 +520,13 @@ class Table(LazyLoad):
                 except ValueError:
                     raise ValueError('`n_process > 1` is not supported on Windows.')
 
-                def read_table_split(conn, download_id, start, count, idx):
+                def read_table_split(conn, download_id, start, count, idx, partition_spec=None):
                     # read part data
                     from odps.tunnel import TableTunnel
                     tunnel = TableTunnel(client=rest_client, project=project,
                                          endpoint=tunnel_endpoint)
-                    session = tunnel.create_download_session(table_name, download_id=download_id)
+                    session = tunnel.create_download_session(table_name, download_id=download_id,
+                                                             partition_spec=partition_spec)
                     data = session.open_record_reader(start, count).to_pandas()
                     conn.send((idx, data))
 
@@ -534,7 +536,7 @@ class Table(LazyLoad):
                 for i in range(n_process):
                     parent_conn, child_conn = Pipe()
                     p = _mp_context.Process(target=read_table_split, args=(child_conn, session_id,
-                                                               start, split_count, i))
+                                                               start, split_count, i, self._partition_spec))
                     p.start()
                     start += split_count
                     conns.append(parent_conn)
@@ -549,7 +551,7 @@ class Table(LazyLoad):
             def __exit__(self, exc_type, exc_val, exc_tb):
                 pass
 
-        return RecordReader()
+        return RecordReader(partition)
 
     def open_writer(self, partition=None, blocks=None, **kw):
         """

@@ -358,7 +358,7 @@ def odps_type_to_arrow_type(odps_schema):
         types.float_: pa.float32(),
         types.double: pa.float64(),
         types.date: pa.date32(),
-        types.datetime: pa.timestamp('ms'),
+        types.datetime: pa.timestamp('ns'),
         types.timestamp: pa.timestamp('ns')
     }
 

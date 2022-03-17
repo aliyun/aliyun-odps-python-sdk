@@ -1002,6 +1002,7 @@ class Decimal(CompositeMixin):
 
     _max_precision = 38
     _max_scale = 18
+    _decimal_ctx = _decimal.Context(prec=_max_precision)
 
     def __init__(self, precision=None, scale=None, nullable=True):
         super(Decimal, self).__init__(nullable=nullable)
@@ -1055,7 +1056,7 @@ class Decimal(CompositeMixin):
         if not isinstance(val, _decimal.Decimal) and isinstance(val, DECIMAL_TYPES):
             val = _decimal.Decimal(str(val))
         to_scale = _decimal.Decimal(str(10 ** -self._max_scale))
-        scaled_val = val.quantize(to_scale, _decimal.ROUND_HALF_UP)
+        scaled_val = val.quantize(to_scale, _decimal.ROUND_HALF_UP, self._decimal_ctx)
         int_len = len(str(scaled_val)) - self._max_scale - 1
         if int_len > self._max_precision:
             raise ValueError(
