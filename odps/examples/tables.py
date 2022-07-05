@@ -1,5 +1,5 @@
 # encoding: utf-8
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import warnings
 
 from itertools import groupby, product
 
-from ..compat import pickle, urlretrieve, reduce, six, OrderedDict
+from ..compat import pickle, urlretrieve, six, OrderedDict
 from ..tunnel import TableTunnel
 from ..utils import load_static_text_file, build_pyodps_dir
 

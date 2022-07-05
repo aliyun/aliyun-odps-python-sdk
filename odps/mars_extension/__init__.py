@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,16 +23,30 @@ try:
 except AttributeError:
     raise ImportError("Mars package broken")
 
-if LooseVersion(mars_version) >= LooseVersion('0.7'):
-    from .oscar.core import create_mars_cluster, to_mars_dataframe, \
-        persist_mars_dataframe, run_script_in_mars, run_mars_job, \
-        list_mars_instances, sql_to_mars_dataframe
+if LooseVersion(mars_version) >= LooseVersion("0.7"):
+    from .oscar import dataframe
+    from .oscar.core import (
+        create_mars_cluster,
+        to_mars_dataframe,
+        persist_mars_dataframe,
+        run_script_in_mars,
+        run_mars_job,
+        list_mars_instances,
+        sql_to_mars_dataframe,
+    )
     from .oscar.deploy.client import MarsCupidClient, CUPID_APP_NAME, NOTEBOOK_NAME
 else:
-    from .legacy import create_mars_cluster, to_mars_dataframe, \
-        persist_mars_dataframe, run_script_in_mars, run_mars_job, \
-        list_mars_instances, sql_to_mars_dataframe
+    from .legacy import (
+        create_mars_cluster,
+        dataframe,
+        to_mars_dataframe,
+        persist_mars_dataframe,
+        run_script_in_mars,
+        run_mars_job,
+        list_mars_instances,
+        sql_to_mars_dataframe,
+    )
     from .legacy.deploy.client import MarsCupidClient, CUPID_APP_NAME, NOTEBOOK_NAME
 
 
-INTERNAL_PATTERN = '\/[^\.]+\.[^\.-]+\.[^\.-]+\-[^\.-]+\.'
+INTERNAL_PATTERN = "\/[^\.]+\.[^\.-]+\.[^\.-]+\-[^\.-]+\."

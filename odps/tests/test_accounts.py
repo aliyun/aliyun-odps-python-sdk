@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,10 +16,15 @@
 
 import uuid
 
-from odps import ODPS
-from odps import errors
+from odps import ODPS, errors
+from odps.compat import unittest
 from odps.tests.core import TestBase, tn
 from odps.accounts import SignServer, SignServerAccount, SignServerError, BearerTokenAccount
+
+try:
+    from cupid.runtime import context as cupid_context
+except ImportError:
+    cupid_context = None
 
 
 class Test(TestBase):
@@ -56,6 +61,7 @@ class Test(TestBase):
         finally:
             server.stop()
 
+    @unittest.skipIf(cupid_context is None, "cannot import cupid context")
     def testBearerTokenAccount(self):
         self.odps.delete_table(tn('test_bearer_token_account_table'), if_exists=True)
         t = self.odps.create_table(tn('test_bearer_token_account_table'), 'col string', lifecycle=1)

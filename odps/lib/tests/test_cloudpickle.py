@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import json
 import multiprocessing
 import os
 import pickle
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -72,7 +73,7 @@ with open(r'{pickled_file}', 'w') as f:
 """.replace('{module_name}', __name__).replace('{dump_code}', repr(DUMP_CODE))
 
 
-def pickled_runner(q, pickled, args, kwargs, **kw):
+def pickled_runner(out_file, pickled, args, kwargs, **kw):
     try:
         wrapper = kw.pop('wrapper', None)
         impl = kwargs.pop('impl', (3, 5, 'cpython'))
@@ -81,7 +82,8 @@ def pickled_runner(q, pickled, args, kwargs, **kw):
         else:
             wrapper = lambda v, a, kw: v(*a, **kw)
         deserial = loads(base64.b64decode(pickled), impl=impl, dump_code=DUMP_CODE)
-        q.put(wrapper(deserial, args, kwargs))
+        with open(out_file, "wb") as out_file:
+            out_file.write(pickle.dumps(wrapper(deserial, args, kwargs)))
     except:
         traceback.print_exc()
         raise
@@ -92,11 +94,19 @@ def run_pickled(pickled, *args, **kwargs):
     wrapper_kw = {}
     if 'wrapper' in kwargs:
         wrapper_kw['wrapper'] = dumps(kwargs.pop('wrapper'))
-    queue = multiprocessing.Queue()
-    proc = multiprocessing.Process(target=pickled_runner, args=(queue, pickled, args, kwargs), kwargs=wrapper_kw)
-    proc.start()
-    proc.join()
-    return queue.get(timeout=5)
+
+    tmp_dir = tempfile.mkdtemp(prefix="test_pyodps_")
+    try:
+        fn = os.path.join(tmp_dir, "pickled_result.bin")
+        proc = multiprocessing.Process(
+            target=pickled_runner, args=(fn, pickled, args, kwargs), kwargs=wrapper_kw
+        )
+        proc.start()
+        proc.join()
+        with open(fn, "rb") as in_file:
+            return pickle.loads(in_file.read())
+    finally:
+        shutil.rmtree(tmp_dir)
 
 
 def _gen_nested_yield_obj():
@@ -327,7 +337,7 @@ class Test(TestBase):
         proc = subprocess.Popen([executable, ts_name])
         proc.wait()
         if not os.path.exists(tp_name):
-            raise SystemError('Pickle error occured!')
+            raise SystemError('Pickle error occurred!')
         else:
             with open(tp_name, 'r') as f:
                 pickled = f.read().strip()
@@ -335,7 +345,7 @@ class Test(TestBase):
             os.unlink(tp_name)
 
             if not pickled:
-                raise SystemError('Pickle error occured!')
+                raise SystemError('Pickle error occurred!')
         return pickled
 
     def testRangeObject(self):

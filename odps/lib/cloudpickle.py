@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -392,7 +392,14 @@ class CloudPickler(Pickler):
 
     @staticmethod
     def _extract_code_args(obj):
-        if PY3:
+        if PY38:
+            args = (
+                obj.co_argcount, obj.co_posonlyargcount, obj.co_kwonlyargcount, obj.co_nlocals,
+                obj.co_stacksize, obj.co_flags, obj.co_code, obj.co_consts, obj.co_names,
+                obj.co_varnames, obj.co_filename, obj.co_name, obj.co_firstlineno, obj.co_lnotab,
+                obj.co_freevars, obj.co_cellvars
+            )
+        elif PY3:
             args = (
                 obj.co_argcount, obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
                 obj.co_flags, obj.co_code, obj.co_consts, obj.co_names, obj.co_varnames,

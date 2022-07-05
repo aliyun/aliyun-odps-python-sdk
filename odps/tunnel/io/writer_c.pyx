@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,13 +20,14 @@ from ...src.types_c cimport BaseRecord, SchemaSnapshot
 from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport Encoder
 
+from ... import types, compat, utils
+from ...compat import six
+from ...src.utils_c cimport CMillisecondsConverter
 from ..pb.wire_format import WIRETYPE_VARINT as PY_WIRETYPE_VARINT, \
     WIRETYPE_FIXED32 as PY_WIRETYPE_FIXED32,\
     WIRETYPE_FIXED64 as PY_WIRETYPE_FIXED64,\
     WIRETYPE_LENGTH_DELIMITED as PY_WIRETYPE_LENGTH_DELIMITED
 from ..wireconstants import ProtoWireConstants
-from ... import types, compat, utils, errors
-from ...compat import six
 
 cdef:
     uint32_t WIRETYPE_VARINT = PY_WIRETYPE_VARINT
@@ -85,9 +86,9 @@ cdef class ProtobufRecordWriter:
         self.flush()
         self._output.flush()
 
-    cpdef _refresh_buffer(self):
+    cpdef int _refresh_buffer(self) except -1:
         """Control the buffer size of _encoder. Flush if necessary"""
-        if len(self._encoder) > self._buffer_size:
+        if self._encoder.position() > self._buffer_size:
             self.flush()
 
     @property
@@ -97,35 +98,35 @@ cdef class ProtobufRecordWriter:
     def __len__(self):
         return self.n_bytes
 
-    cpdef _write_tag(self, int field_num, int wire_type):
+    cpdef int _write_tag(self, int field_num, int wire_type) except -1:
         self._encoder.append_tag(field_num, wire_type)
         self._refresh_buffer()
 
-    cpdef _write_raw_long(self, int64_t val):
+    cpdef int _write_raw_long(self, int64_t val) except -1:
         self._encoder.append_sint64(val)
         self._refresh_buffer()
 
-    cpdef _write_raw_int(self, int32_t val):
+    cpdef int _write_raw_int(self, int32_t val) except -1:
         self._encoder.append_sint32(val)
         self._refresh_buffer()
 
-    cpdef _write_raw_uint(self, uint32_t val):
+    cpdef int _write_raw_uint(self, uint32_t val) except -1:
         self._encoder.append_uint32(val)
         self._refresh_buffer()
 
-    cpdef _write_raw_bool(self, bint val):
+    cpdef int _write_raw_bool(self, bint val) except -1:
         self._encoder.append_bool(val)
         self._refresh_buffer()
 
-    cpdef _write_raw_float(self, float val):
+    cpdef int _write_raw_float(self, float val) except -1:
         self._encoder.append_float(val)
         self._refresh_buffer()
 
-    cpdef _write_raw_double(self, double val):
+    cpdef int _write_raw_double(self, double val) except -1:
         self._encoder.append_double(val)
         self._refresh_buffer()
 
-    cpdef _write_raw_string(self, bytes val):
+    cpdef int _write_raw_string(self, bytes val) except -1:
         self._encoder.append_string(val)
         self._refresh_buffer()
 
@@ -143,7 +144,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._crccrc_c = Checksum()
         self._curr_cursor_c = 0
         self._n_columns = len(self._columns)
-        self._to_milliseconds = utils.build_to_milliseconds()
+        self._mills_converter = CMillisecondsConverter()
         self._to_days = utils.to_days
 
         super(BaseRecordWriter, self).__init__(out)
@@ -242,7 +243,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             long l_val
             int nanosecs
 
-        l_val = self._to_milliseconds(py_datetime) / 1000
+        l_val = self._mills_converter.to_milliseconds(py_datetime) / 1000
         nanosecs = data.microsecond * 1000 + data.nanosecond
         self._crc_c.c_update_long(l_val)
         self._write_raw_long(l_val)
@@ -267,7 +268,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         if data_type_id == BOOL_TYPE_ID:
             self._write_bool(val)
         elif data_type_id == DATETIME_TYPE_ID:
-            l_val = self._to_milliseconds(val)
+            l_val = self._mills_converter.to_milliseconds(val)
             self._write_long(l_val)
         elif data_type_id == DATE_TYPE_ID:
             self._write_long(self._to_days(val))

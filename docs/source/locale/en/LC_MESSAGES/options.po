@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.8.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-12-05 11:38+0800\n"
+"POT-Creation-Date: 2022-06-29 16:26+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.6.0\n"
+"Generated-By: Babel 2.9.1\n"
 
 #: ../../source/options.rst:5
 msgid "配置选项"
@@ -210,7 +210,7 @@ msgid "缓存在连接池的连接数"
 msgstr "Number of cached connections in the connection pool"
 
 #: ../../source/options.rst:52 ../../source/options.rst:54
-#: ../../source/options.rst:64
+#: ../../source/options.rst:56 ../../source/options.rst:64
 msgid "10"
 msgstr ""
 
@@ -229,10 +229,6 @@ msgstr ""
 #: ../../source/options.rst:56
 msgid "连接超时"
 msgstr "Connection time-out"
-
-#: ../../source/options.rst:56
-msgid "5"
-msgstr ""
 
 #: ../../source/options.rst:58
 msgid "read_timeout"
@@ -275,8 +271,8 @@ msgid "display.notebook_widget"
 msgstr ""
 
 #: ../../source/options.rst:66
-msgid "使用交互式图表"
-msgstr "Use interactive graphs"
+msgid "使用交互式插件"
+msgstr "Use interactive plugins"
 
 #: ../../source/options.rst:66 ../../source/options.rst:80
 #: ../../source/options.rst:92 ../../source/options.rst:93

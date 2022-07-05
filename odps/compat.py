@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ from .lib import six
 PY26 = six.PY2 and sys.version_info[1] == 6
 PY27 = six.PY2 and sys.version_info[1] == 7
 LESS_PY26 = sys.version_info[:2] < (2, 6)
+LESS_PY27 = sys.version_info[:2] < (2, 7)
 LESS_PY32 = sys.version_info[:2] < (3, 2)
 LESS_PY33 = sys.version_info[:2] < (3, 3)
 LESS_PY34 = sys.version_info[:2] < (3, 4)
@@ -56,6 +57,12 @@ import decimal
 DECIMAL_TYPES = [decimal.Decimal, ]
 
 import json  # don't remove
+
+try:
+    TimeoutError = TimeoutError
+except NameError:
+    TimeoutError = type('TimeoutError', (RuntimeError,), {})
+
 
 if six.PY3:
     lrange = lambda *x: list(range(*x))
@@ -223,6 +230,10 @@ try:
     import pandas as pd
     if not hasattr(pd.DataFrame, 'sort_values'):
         pd.DataFrame.sort_values = pd.DataFrame.sort
+
+    from pandas.core.internals import blocks as pd_blocks
+    if not hasattr(pd_blocks, "new_block"):
+        pd_blocks.new_block = pd_blocks.make_block
 except ImportError:
     pass
 
@@ -275,4 +286,4 @@ __all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dict
            'reduce', 'reload_module', 'Queue', 'Empty', 'ElementTree', 'ElementTreeParseError',
            'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
            'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc', 'Monthdelta',
-           'Iterable']
+           'Iterable', 'TimeoutError']

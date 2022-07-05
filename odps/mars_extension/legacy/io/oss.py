@@ -1,4 +1,4 @@
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ from ....compat import urlparse
 
 
 class OSSRandomReader(object):
-    mode = 'rb'
+    mode = "rb"
 
     def __init__(self, bucket, key):
         self._bucket = bucket
@@ -69,7 +69,7 @@ class OSSRandomReader(object):
 
 
 class OSSWriter(object):
-    mode = 'wb'
+    mode = "wb"
 
     def __init__(self, bucket, key):
         self._bucket = bucket
@@ -89,12 +89,14 @@ class OSSWriter(object):
 
 
 class OSSFileSystem(object):
-    sep = '/'
+    sep = "/"
 
-    def __init__(self, endpoint=None, access_id=None, secret_access_key=None,
-                 bucket_name=None):
-        self._bucket = oss2.Bucket(oss2.Auth(access_id, secret_access_key),
-                                   endpoint, bucket_name)
+    def __init__(
+        self, endpoint=None, access_id=None, secret_access_key=None, bucket_name=None
+    ):
+        self._bucket = oss2.Bucket(
+            oss2.Auth(access_id, secret_access_key), endpoint, bucket_name
+        )
 
     def _normalize_path(self, path):
         parse_result = urlparse(path)
@@ -108,7 +110,7 @@ class OSSFileSystem(object):
 
         prefix_pos = 0
         while prefix_pos < len(path):
-            if str.isalnum(path[prefix_pos]) or path[prefix_pos] in '_/':
+            if str.isalnum(path[prefix_pos]) or path[prefix_pos] in "_/":
                 prefix_pos += 1
             else:
                 break
@@ -116,18 +118,19 @@ class OSSFileSystem(object):
 
         for obj_info in oss2.ObjectIterator(self._bucket, prefix_path):
             if fnmatch.fnmatch(obj_info.key, path):
-                yield 'oss://' + obj_info.key
+                yield "oss://" + obj_info.key
 
-    def open(self, path, mode='rb'):
+    def open(self, path, mode="rb"):
         path = self._normalize_path(path)
-        if mode == 'rb':
+        if mode == "rb":
             return OSSRandomReader(self._bucket, path)
-        elif mode == 'wb':
+        elif mode == "wb":
             return OSSWriter(self._bucket, path)
         else:
-            raise NotImplementedError('Does not support mode except `rb` and `wb`')
+            raise NotImplementedError("Does not support mode except `rb` and `wb`")
 
 
 from . import core
+
 if oss2:
-    core._file_systems['oss'] = OSSFileSystem
+    core._file_systems["oss"] = OSSFileSystem

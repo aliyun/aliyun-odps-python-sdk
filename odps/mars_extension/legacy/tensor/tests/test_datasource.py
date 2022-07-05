@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ from odps.compat import unittest
 
 try:
     from mars.graph import DirectedGraph
+
     try:
         from mars.executor import Executor
     except:
@@ -29,7 +30,7 @@ except ImportError:
     read_coo = None
 
 
-@unittest.skipIf(read_coo is None, 'mars not installed')
+@unittest.skipIf(read_coo is None, "mars not installed")
 class Test(TestBase):
     def setup(self):
         self.executor = Executor()
@@ -43,25 +44,44 @@ class Test(TestBase):
         import numpy as np
         import scipy.sparse as sps
 
-        dir_name = tempfile.mkdtemp(prefix='mars-test-tensor-read')
+        dir_name = tempfile.mkdtemp(prefix="mars-test-tensor-read")
         try:
             data_src = []
             for x in range(2):
                 for y in range(2):
                     mat = sps.random(50, 50, 0.1)
                     data_src.append(mat)
-                    df = pd.DataFrame(dict(x=mat.row, y=mat.col, val=mat.data),
-                                      columns=['x', 'y', 'val'])
-                    pq.write_table(pa.Table.from_pandas(df), dir_name + '/' +
-                                   'table@%d,%d.parquet' % (x, y))
+                    df = pd.DataFrame(
+                        dict(x=mat.row, y=mat.col, val=mat.data),
+                        columns=["x", "y", "val"],
+                    )
+                    pq.write_table(
+                        pa.Table.from_pandas(df),
+                        dir_name + "/" + "table@%d,%d.parquet" % (x, y),
+                    )
 
-            t = read_coo(dir_name + '/*.parquet', ['x', 'y'], 'val', shape=(100, 100), chunk_size=50,
-                         sparse=True)
+            t = read_coo(
+                dir_name + "/*.parquet",
+                ["x", "y"],
+                "val",
+                shape=(100, 100),
+                chunk_size=50,
+                sparse=True,
+            )
             res = self.executor.execute_tensor(t)
-            [np.testing.assert_equal(r.toarray(), e.toarray()) for r, e in zip(res, data_src)]
+            [
+                np.testing.assert_equal(r.toarray(), e.toarray())
+                for r, e in zip(res, data_src)
+            ]
 
-            t = read_coo(dir_name + '/*.parquet', ['x', 'y'], 'val', shape=(100, 100), chunk_size=50,
-                         sparse=True)
+            t = read_coo(
+                dir_name + "/*.parquet",
+                ["x", "y"],
+                "val",
+                shape=(100, 100),
+                chunk_size=50,
+                sparse=True,
+            )
             DirectedGraph.from_json(t.build_graph(tiled=False).to_json())
             DirectedGraph.from_json(t.build_graph(tiled=False).to_json())
         finally:

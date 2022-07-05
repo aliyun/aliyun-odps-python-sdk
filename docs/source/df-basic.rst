@@ -764,15 +764,29 @@ DataFrame上的所有操作并不会立即执行，只有当用户显式调用\ 
         Scalar[int8]
           5
 
-此时打印或者repr对象，会显示整棵抽象语法树。
+此时打印或者 repr 对象，会显示整棵抽象语法树。如果需要执行，则必须手动调用 ``execute`` 方法：
 
+.. code:: python
+
+    >>> iris[iris.sepallength < 5][:5].execute()
+       sepallength  sepalwidth  petallength  petalwidth         name
+    0          4.9         3.0          1.4         0.2  Iris-setosa
+    1          4.7         3.2          1.3         0.2  Iris-setosa
+    2          4.6         3.1          1.5         0.2  Iris-setosa
+    3          4.6         3.4          1.4         0.3  Iris-setosa
+    4          4.4         2.9          1.4         0.2  Iris-setosa
+
+读取执行结果
+~~~~~~~~~~
+
+``execute`` 或 ``head`` 函数输出的结果为 ``ResultFrame`` 类型，可从中读取结果。
 
 .. note::
 
-    ResultFrame是结果集合，不能参与后续计算。
+    ResultFrame 是结果集合，不能参与后续计算。
 
 
-ResultFrame可以迭代取出每条记录：
+ResultFrame 可以迭代取出每条记录：
 
 
 .. code:: python
@@ -792,6 +806,9 @@ ResultFrame 也支持在安装有 pandas 的前提下转换为 pandas DataFrame 
 
     >>> pd_df = iris.head(3).to_pandas()  # 返回 pandas DataFrame
     >>> wrapped_df = iris.head(3).to_pandas(wrap=True)  # 返回使用 Pandas 后端的 PyODPS DataFrame
+
+
+关于如何使用 pandas，请参考 `pandas 文档 <https://pandas.pydata.org/docs/>`_ 。pandas 为开源库，ODPS 不对其结果负责。
 
 
 保存执行结果为 ODPS 表

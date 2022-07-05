@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ from ...utils import to_str
 def _load_bearer_token_environ():
     from .cupid_service import CupidServiceClient
 
-    if 'CUPID_SERVICE_SOCKET' not in os.environ:
+    if "CUPID_SERVICE_SOCKET" not in os.environ:
         return
     bearer_token = CupidServiceClient().get_bearer_token()
-    os.environ['ODPS_BEARER_TOKEN'] = to_str(bearer_token)
-    os.environ['ODPS_ENDPOINT'] = os.environ['ODPS_RUNTIME_ENDPOINT']
+    os.environ["ODPS_BEARER_TOKEN"] = to_str(bearer_token)
+    os.environ["ODPS_ENDPOINT"] = os.environ["ODPS_RUNTIME_ENDPOINT"]
 
 
 _load_bearer_token_environ()

@@ -1,4 +1,4 @@
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ _file_systems = dict()
 
 def _get_scheme(path):
     result = urlparse(path)
-    return result.scheme if result.scheme else 'file'
+    return result.scheme if result.scheme else "file"
 
 
 def open(path, mode, **kwargs):

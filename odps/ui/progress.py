@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,17 +14,16 @@
 # limitations under the License.
 
 import json
-import os
 import time
 import uuid
 import logging
 
-from .common import build_trait
 from ..config import options
 from ..compat import OrderedDict, six
 from ..errors import InternalServerError, RequestTimeTooSkewed
 from ..models.instance import Instance
 from ..serializers import JSONSerializableModel, JSONNodeField, JSONNodesReferencesField
+from .common import build_trait
 
 PROGRESS_RETRY = 3
 PROGRESS_RETRY_DELAY = 0.15
@@ -179,7 +178,7 @@ try:
     if ipython_major_version < 4:
         from IPython.utils.traitlets import Unicode, List
     else:
-        from traitlets import Unicode, List
+        from traitlets import Unicode, List  # noqa: F401
     from IPython.display import display
 except Exception:
     InstancesProgress = None

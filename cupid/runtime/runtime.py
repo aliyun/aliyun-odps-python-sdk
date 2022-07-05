@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@ import json
 import logging
 import os
 import warnings
+
+from odps.compat import enum
 
 from ..utils import get_environ
 from ..rpc import CupidRpcController, SandboxRpcChannel
@@ -43,6 +45,24 @@ def context():
         Subprocess_StartFDReceiver()
         _pid_to_context[pid] = RuntimeContext()
     return _pid_to_context[pid]
+
+
+class ContainerStatus(enum.Enum):
+    START = 1
+    TERMINATED = 2
+    RUNNING = 3
+
+
+class WorkItemProgress(enum.Enum):
+    WIP_WAITING = 1      # waiting for enough resource
+    WIP_READY = 2        # resource ready, but not running yet
+    WIP_RUNNING = 3
+    WIP_TERMINATING = 4  # worker has tried to terminate the work item but is not yet confirmed
+    WIP_TERMINATED = 5   # work confirms that the work item is terminated normally
+    WIP_FAILED = 6       # worker confirms that the work item has failed
+    WIP_INTERRUPTED = 7
+    WIP_DEAD = 8
+    WIP_INTERRUPTING = 9
 
 
 class RuntimeContext(object):
@@ -103,3 +123,13 @@ class RuntimeContext(object):
         env = process_pb.EnvEntry()
         resp = stub.Prepare(controller, env, None)
         return resp.entries
+
+    def report_container_status(self, status, message, progress, timeout=-1):
+        params = json.dumps(dict(
+            status=str(status.value),
+            message=json.dumps(dict(
+                status=message,
+                progress=str(progress.value),
+            )),
+        ))
+        self._channel_client.sync_call("report_container_status", params, timeout=timeout)

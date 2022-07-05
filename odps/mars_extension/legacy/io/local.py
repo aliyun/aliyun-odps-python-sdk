@@ -1,4 +1,4 @@
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,11 +35,12 @@ class LocalFileSystem(object):
 
     def glob(self, path):
         for p in glob.glob(self._normalize_path(path)):
-            yield 'file://' + p
+            yield "file://" + p
 
-    def open(self, path, mode='rb'):
+    def open(self, path, mode="rb"):
         return open(self._normalize_path(path), mode)
 
 
 from . import core
-core._file_systems['file'] = LocalFileSystem
+
+core._file_systems["file"] = LocalFileSystem

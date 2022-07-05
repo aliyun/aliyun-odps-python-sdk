@@ -424,6 +424,13 @@ apply 的自定义函数接收一个参数，为上一步 Collection 的一行�
     >>>
     >>> iris.apply(handle, axis=1, names=['iris_add', 'iris_sub'], types=['float', 'float']).count()
     300
+    >>> iris.apply(handle, axis=1, names=['iris_add', 'iris_sub'], types=['float', 'float']).head(5)
+       iris_add  iris_sub
+    0       1.6       8.6
+    1       1.2       1.6
+    2       1.9       7.9
+    3       1.2       1.6
+    4       1.5       7.9
 
 我们也可以在函数上来注释返回的字段和类型，这样就不需要在函数调用时再指定。
 
@@ -439,6 +446,13 @@ apply 的自定义函数接收一个参数，为上一步 Collection 的一行�
     >>>
     >>> iris.apply(handle, axis=1).count()
     300
+    >>> iris.apply(handle, axis=1).head(5)
+       iris_add  iris_sub
+    0       1.6       8.6
+    1       1.2       1.6
+    2       1.9       7.9
+    3       1.2       1.6
+    4       1.5       7.9
 
 也可以使用 map-only 的 map_reduce，和 axis=1 的apply操作是等价的。
 
@@ -446,6 +460,13 @@ apply 的自定义函数接收一个参数，为上一步 Collection 的一行�
 
     >>> iris.map_reduce(mapper=handle).count()
     300
+    >>> iris.map_reduce(mapper=handle).head(5)
+       iris_add  iris_sub
+    0       1.6       8.6
+    1       1.2       1.6
+    2       1.9       7.9
+    3       1.2       1.6
+    4       1.5       7.9
 
 如果想调用 ODPS 上已经存在的 UDTF，则函数指定为函数名即可。
 

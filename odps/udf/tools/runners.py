@@ -1,11 +1,11 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -59,7 +59,7 @@ def initialize():
     """
     distcache.get_cache_table = utils.get_cache_table
 
-    
+
 def _get_types(types):
     entries = []
     for t in types.split(','):
@@ -138,7 +138,7 @@ class ArgFormater(object):
 
     DELIM = '\t'
     NULL_INDICATOR = 'NULL'
-    
+
     def __init__(self, types):
         self.types = types
 
@@ -152,7 +152,7 @@ class BaseCollector(object):
     """
     def __init__(self, schema):
         self.schema = schema
-        
+
     def _validate_records(self, *args):
         if len(args) != len(self.schema):
             raise Exception('Schema error: ' + repr(args))
@@ -165,8 +165,8 @@ class BaseCollector(object):
     def collect(self, *args):
         self._validate_records(*args)
         self.handle_collect(*args)
-    
-    
+
+
 class StdoutCollector(BaseCollector):
     """Collect the results to stdout.
     """
@@ -195,7 +195,7 @@ class DirectCollector(BaseCollector):
 
 
 class BaseRunner(object):
-    
+
     def __init__(self, udf_class, feed, collector):
         self.udf_class = udf_class
         self.feed = feed
@@ -284,7 +284,10 @@ class TypeEntry(object):
 
 register_type('TP_BIGINT',   'bigint',   six.integer_types)
 register_type('TP_STRING',   'string',   six.string_types)
-register_type('TP_DATETIME', 'datetime', six.integer_types)
+if sys.version_info[0] == 2:
+    register_type('TP_DATETIME', 'datetime', six.integer_types)
+else:
+    register_type('TP_DATETIME', 'datetime', datetime)
 register_type('TP_DOUBLE',   'double',   float)
 register_type('TP_BOOLEAN',  'boolean',  bool)
 register_type('TP_STAR',     '*',        lambda x: x)

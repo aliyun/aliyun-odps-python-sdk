@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from .core import Iterable
-from .resource import Resource, FileResource, TableResource
+from .resource import Resource, FileResource
 from .. import serializers, errors
 from ..compat import six
 
@@ -55,8 +55,12 @@ class Resources(Iterable):
     def __iter__(self):
         return self.iterate()
 
-    def iterate(self):
+    def iterate(self, name=None, owner=None):
         params = {'expectmarker': 'true'}
+        if name is not None:
+            params['name'] = name
+        if owner is not None:
+            params['owner'] = owner
 
         def _it():
             last_marker = params.get('marker')

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ def NullScalar(tp):
     """
     return Scalar(_value_type=tp)
 
+
 func = FuncFactory()
 
 try:
@@ -44,18 +45,20 @@ try:
 
     def wrap(func):
         def inner(*args, **kwargs):
-            as_type = kwargs.pop('as_type', None)
-            unknown_as_string = kwargs.pop('unknown_as_string', False)
+            as_type = kwargs.pop("as_type", None)
+            unknown_as_string = kwargs.pop("unknown_as_string", False)
 
             res = func(*args, **kwargs)
             if isinstance(res, pd.DataFrame):
-                return DataFrame(res, as_type=as_type,
-                                 unknown_as_string=unknown_as_string)
+                return DataFrame(
+                    res, as_type=as_type, unknown_as_string=unknown_as_string
+                )
             return res
+
         return inner
 
     for k, v in six.iteritems(dict(locals())):
-        if k.startswith('read_') and inspect.isfunction(v):
+        if k.startswith("read_") and inspect.isfunction(v):
             locals()[k] = wrap(v)
 except ImportError:
     pass

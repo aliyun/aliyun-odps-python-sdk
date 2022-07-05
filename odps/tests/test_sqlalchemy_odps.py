@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2020 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,9 @@
 # limitations under the License.
 
 import contextlib
-import functools
 import decimal
+import functools
+import logging
 import unittest
 
 from odps import options
@@ -31,7 +32,7 @@ try:
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import types
-    from sqlalchemy.engine import create_engine
+    from sqlalchemy.engine import create_engine, reflection
     from sqlalchemy.exc import NoSuchTableError
     from sqlalchemy.schema import Column, MetaData, Table
     from sqlalchemy.sql import expression
@@ -58,6 +59,19 @@ except ImportError:
     dependency_installed = False
 else:
     dependency_installed = True
+
+if not hasattr(unittest, "skipIf"):
+
+    def skipIf(condition, reason):
+        def wrapper(obj):
+            if condition:
+                logging.warning("Skipping test %r due to reason %s", obj, reason)
+                return None
+            return obj
+
+        return wrapper
+
+    unittest.skipIf = skipIf
 
 
 def create_one_row(o):
@@ -146,8 +160,7 @@ def create_many_rows(o):
             b STRING
         )
         """)
-        DataFrame(df).persist('many_rows', partition="b='blah'",
-                              odps=o)
+        DataFrame(df).persist("many_rows", partition="b='blah'", odps=o)
 
 
 def create_test(o):
@@ -171,7 +184,9 @@ def with_engine_connection(fn):
     return wrapped_fn
 
 
-@unittest.skipIf(not dependency_installed, 'dependency for sqlalchemy_odps not installed')
+@unittest.skipIf(
+    not dependency_installed, 'dependency for sqlalchemy_odps not installed'
+)
 class Test(TestBase):
     def setup(self):
         options.sql.use_odps2_extension = True
@@ -184,6 +199,10 @@ class Test(TestBase):
         create_one_row(self.odps)
         create_one_row_complex(self.odps)
         create_test(self.odps)
+
+        # patch to make methods compatible
+        if not hasattr(reflection.Inspector, "reflect_table"):
+            reflection.Inspector.reflect_table = reflection.Inspector.reflecttable
 
     def teardown(self):
         options.sql.use_odps2_extension = False
@@ -223,9 +242,8 @@ class Test(TestBase):
     def test_reflect_include_columns(self, engine, connection):
         """When passed include_columns, reflecttable should filter out other columns"""
         one_row_complex = Table('one_row_complex', MetaData(bind=engine))
-        engine.dialect.reflecttable(
-            connection, one_row_complex, include_columns=['int'],
-            exclude_columns=[], resolve_fks=True)
+        insp = reflection.Inspector.from_engine(engine)
+        insp.reflect_table(one_row_complex, include_columns=['int'], exclude_columns=[])
         self.assertEqual(len(one_row_complex.c), 1)
         self.assertIsNotNone(one_row_complex.c.int)
         self.assertRaises(AttributeError, lambda: one_row_complex.c.tinyint)
@@ -237,23 +255,25 @@ class Test(TestBase):
         self.assertEqual(len(dummy.c), 1)
         self.assertIsNotNone(dummy.c.a)
 
-    @pytest.mark.filterwarnings('default:Omitting:sqlalchemy.exc.SAWarning')
+    @pytest.mark.filterwarnings(
+        "default:Omitting:sqlalchemy.exc.SAWarning"
+        if dependency_installed
+        else "default"
+    )
     @with_engine_connection
     def test_reflect_partitions(self, engine, connection):
         """reflecttable should get the partition column as an index"""
         many_rows = Table('many_rows', MetaData(bind=engine), autoload=True)
         self.assertEqual(len(many_rows.c), 2)
 
+        insp = reflection.Inspector.from_engine(engine)
+
         many_rows = Table('many_rows', MetaData(bind=engine))
-        engine.dialect.reflecttable(
-            connection, many_rows, include_columns=['a'],
-            exclude_columns=[], resolve_fks=True)
+        insp.reflect_table(many_rows, include_columns=['a'], exclude_columns=[])
         self.assertEqual(len(many_rows.c), 1)
 
         many_rows = Table('many_rows', MetaData(bind=engine))
-        engine.dialect.reflecttable(
-            connection, many_rows, include_columns=['b'],
-            exclude_columns=[], resolve_fks=True)
+        insp.reflect_table(many_rows, include_columns=['b'], exclude_columns=[])
         self.assertEqual(len(many_rows.c), 1)
 
     @with_engine_connection
@@ -378,8 +398,9 @@ class Test(TestBase):
 
     @with_engine_connection
     def test_insert_values(self, engine, connection):
-        table = Table('insert_test', MetaData(bind=engine),
-                      Column('a', sqlalchemy.types.Integer))
+        table = Table(
+            'insert_test', MetaData(bind=engine), Column('a', sqlalchemy.types.Integer)
+        )
         table.drop(checkfirst=True)
         table.create()
         connection.execute(table.insert([{'a': 1}, {'a': 2}]))

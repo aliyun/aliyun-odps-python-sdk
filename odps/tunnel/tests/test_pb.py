@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -86,6 +86,7 @@ class Test(TestBase):
             encoder.append_uint32(2 ** 30)
             encoder.append_tag(6, WIRETYPE_VARINT)
             encoder.append_uint64(2 ** 40)
+            encoder.append_string(b"VAL" * 65000)
             buffer_size = len(encoder)
 
             tube = io.BytesIO(encoder.tostring())
@@ -104,6 +105,7 @@ class Test(TestBase):
             self.assertEqual(2 ** 30, decoder.read_uint32())
             self.assertEqual((6, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
             self.assertEqual(2 ** 40, decoder.read_uint64())
+            self.assertEqual(b"VAL" * 65000, decoder.read_string())
             self.assertEqual(buffer_size, decoder.position())
         except ImportError:
             warnings.warn('No Encoder or Decoder built by cython found')

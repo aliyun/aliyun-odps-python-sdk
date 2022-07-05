@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import traceback
 try:
     from string import letters
 except ImportError:
-    from string import ascii_letters as letters
+    from string import ascii_letters as letters  # noqa: F401
 
 
 class Test(TestBase):

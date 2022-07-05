@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -179,7 +179,7 @@ def in_interactive_session():
         return not hasattr(main, '__file__')
 
     try:
-        return __IPYTHON__ or check_main()
+        return __IPYTHON__ or check_main()  # noqa: F821
     except:
         return check_main()
 
@@ -355,9 +355,8 @@ def _get_terminal_size_linux():
             import fcntl
             import termios
             import struct
-            import os
-            cr = struct.unpack(
-                'hh', fcntl.ioctl(fd, termios.TIOCGWINSZ, '1234'))
+
+            cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ, '1234'))
         except:
             return None
         return cr
@@ -802,10 +801,11 @@ class ProgressBar(six.Iterator):
             # notebook
             try:
                 if ipython_major_version < 4:
-                    from IPython.html import widgets
+                    from IPython.html import widgets  # noqa: F401
                 else:
-                    from ipywidgets import widgets
-                from IPython.display import display
+                    from ipywidgets import widgets  # noqa: F401
+                from IPython.display import display  # noqa: F401
+
                 ipython_widget = is_widgets_available()
             except ImportError:
                 ipython_widget = False

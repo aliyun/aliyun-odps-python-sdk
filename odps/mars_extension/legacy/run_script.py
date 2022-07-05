@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,16 +39,33 @@ except ImportError:
     class RunScript(LearnMergeDictOperand):
         _op_type_ = 743210
 
-        _code = BytesField('code')
-        _mode = StringField('mode')
-        _command_args = ListField('command_args')
-        _world_size = Int32Field('world_size')
-        _rank = Int32Field('rank')
+        _code = BytesField("code")
+        _mode = StringField("mode")
+        _command_args = ListField("command_args")
+        _world_size = Int32Field("world_size")
+        _rank = Int32Field("rank")
 
-        def __init__(self, code=None, mode=None, command_args=None, world_size=None, rank=None,
-                     merge=None, output_types=None, **kw):
-            super().__init__(_code=code, _mode=mode, _command_args=command_args, _world_size=world_size,
-                             _rank=rank, _merge=merge, _output_types=output_types, **kw)
+        def __init__(
+            self,
+            code=None,
+            mode=None,
+            command_args=None,
+            world_size=None,
+            rank=None,
+            merge=None,
+            output_types=None,
+            **kw
+        ):
+            super().__init__(
+                _code=code,
+                _mode=mode,
+                _command_args=command_args,
+                _world_size=world_size,
+                _rank=rank,
+                _merge=merge,
+                _output_types=output_types,
+                **kw
+            )
             if self._output_types is None:
                 self._output_types = [OutputType.object]
 
@@ -84,26 +101,30 @@ except ImportError:
                 out_chunks.append(chunk_op.new_chunk(None, index=(i,)))
 
             new_op = op.copy()
-            return new_op.new_tileables(op.inputs, chunks=out_chunks,
-                                        nsplits=(tuple(np.nan for _ in range(len(out_chunks))),))
+            return new_op.new_tileables(
+                op.inputs,
+                chunks=out_chunks,
+                nsplits=(tuple(np.nan for _ in range(len(out_chunks))),),
+            )
 
         @classmethod
         def _execute_with_subprocess(cls, op, env=None):
             # write source code into a temp file
-            fd, filename = tempfile.mkstemp('.py')
-            with os.fdopen(fd, 'wb') as f:
+            fd, filename = tempfile.mkstemp(".py")
+            with os.fdopen(fd, "wb") as f:
                 f.write(op.code)
-            logger.debug('Write code to temp file.')
+            logger.debug("Write code to temp file.")
 
             env = env or dict()
             envs = os.environ.copy().update(env)
             try:
                 # exec code in a new process
-                process = subprocess.Popen([sys.executable, filename] + op.command_args,
-                                           env=envs)
+                process = subprocess.Popen(
+                    [sys.executable, filename] + op.command_args, env=envs
+                )
                 process.wait()
                 if process.returncode != 0:
-                    raise RuntimeError('Run script failed')
+                    raise RuntimeError("Run script failed")
 
             finally:
                 os.remove(filename)
@@ -124,13 +145,13 @@ except ImportError:
 
             # set mars envs
             env = os.environ
-            env['MARS_SCHEDULER_ADDRESS'] = str(scheduler_address)
-            env['MARS_SESSION_ID'] = str(session_id)
-            env['RANK'] = str(op.rank)
+            env["MARS_SCHEDULER_ADDRESS"] = str(scheduler_address)
+            env["MARS_SESSION_ID"] = str(session_id)
+            env["RANK"] = str(op.rank)
 
         @classmethod
         def _build_locals(cls, ctx, op):
-            logger.debug('Start to create mars session.')
+            logger.debug("Start to create mars session.")
             sess = ctx.get_current_session().as_default()
 
             return dict(session=sess)
@@ -144,15 +165,15 @@ except ImportError:
             cls._set_envs(ctx, op)
 
             try:
-                if op.mode == 'spawn':
+                if op.mode == "spawn":
                     cls._execute_with_subprocess(op)
-                elif op.mode == 'exec':
+                elif op.mode == "exec":
                     cls._execute_with_exec(op, local=cls._build_locals(ctx, op))
                 else:
-                    raise TypeError('Unsupported mode {}'.format(op.mode))
+                    raise TypeError("Unsupported mode {}".format(op.mode))
 
                 if op.rank == 0:
-                    ctx[op.outputs[0].key] = {'status': 'ok'}
+                    ctx[op.outputs[0].key] = {"status": "ok"}
                 else:
                     ctx[op.outputs[0].key] = {}
             finally:
@@ -161,6 +182,7 @@ except ImportError:
 
 def _build_locals_in_odps(cls, ctx, op):
     from odps import ODPS
+
     o = ODPS.from_environments()
     sess = ctx.get_current_session().as_default()
     return dict(o=o, session=sess, odps=o)
@@ -169,19 +191,28 @@ def _build_locals_in_odps(cls, ctx, op):
 RunScript._build_locals = classmethod(_build_locals_in_odps)
 
 
-def run_script(script, n_workers=1, mode='exec', command_argv=None,
-               odps_params=None, session=None, run_kwargs=None):
-    if hasattr(script, 'read'):
+def run_script(
+    script,
+    n_workers=1,
+    mode="exec",
+    command_argv=None,
+    odps_params=None,
+    session=None,
+    run_kwargs=None,
+):
+    if hasattr(script, "read"):
         code = script.read()
     else:
-        with open(os.path.abspath(script), 'rb') as f:
+        with open(os.path.abspath(script), "rb") as f:
             code = f.read()
-    if mode not in ['exec', 'spawn']:
-        raise TypeError('Unsupported mode {}'.format(mode))
+    if mode not in ["exec", "spawn"]:
+        raise TypeError("Unsupported mode {}".format(mode))
 
-    op = RunScript(code=to_binary(code), mode=mode, world_size=n_workers,
-                   command_args=command_argv)
-    op.extra_params['project'] = odps_params['project']
-    op.extra_params['endpoint'] = os.environ.get('ODPS_RUNTIME_ENDPOINT') or odps_params['endpoint']
+    op = RunScript(
+        code=to_binary(code), mode=mode, world_size=n_workers, command_args=command_argv
+    )
+    op.extra_params["project"] = odps_params["project"]
+    op.extra_params["endpoint"] = (
+        os.environ.get("ODPS_RUNTIME_ENDPOINT") or odps_params["endpoint"]
+    )
     return op().execute(session=session, **(run_kwargs or {})).fetch(session=session)
-

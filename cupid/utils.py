@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import platform
 import sys
 
 
@@ -38,16 +39,20 @@ def get_environ(key, default=None):
     return default
 
 
-def build_image_name(app_name):
+def build_image_name(app_name, with_dist_suffix=True):
     from .config import options
 
     prefix = options.cupid.image_prefix
     version = options.cupid.image_version
+    if with_dist_suffix:
+        dist_suffix = "-cp" + "".join(str(x) for x in sys.version_info[:2]) + "-" + platform.machine() + "-cpu"
+    else:
+        dist_suffix = ""
 
     if prefix is None:
         if version is None:
             return None
         else:
-            return app_name + ':' + version
+            return app_name + ':' + version + dist_suffix
     else:
-        return prefix + app_name + ':' + version
+        return prefix + app_name + ':' + version + dist_suffix

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,7 +75,8 @@ class PandasRedirection(Redirection):
         super(PandasRedirection, self).__init__(*args, **kw)
         self._val = None
         try:
-            import pandas
+            import pandas  # noqa: F401
+
             self._use_pd = True
         except ImportError:
             self._use_pd = False
@@ -321,6 +322,7 @@ def is_in(vals):
 
 
 options = Config()
+options.register_option('is_global_account_overwritable', True, validator=is_bool)
 options.register_option('account', None)
 options.register_option('endpoint', None)
 options.redirect_option('end_point', 'endpoint')
@@ -342,6 +344,7 @@ options.register_option('temp_lifecycle', 1, validator=is_integer)
 options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
 options.register_option('table_read_limit', None, validator=any_validator(is_null, is_integer))
 options.register_option('completion_size', 10, validator=is_integer)
+options.register_option('default_task_settings', None, validator=any_validator(is_null, is_dict))
 
 # c or python mode, use for UT, in other cases, please do not modify the value
 options.register_option('force_c', False, validator=is_integer)
@@ -349,6 +352,7 @@ options.register_option('force_py', False, validator=is_integer)
 
 # instance create callback
 options.register_option('instance_create_callback', None)
+options.register_option("tunnel_session_create_callback", None)
 
 # tunnel read timeout callback
 options.register_option('tunnel_read_timeout_callback', None)
@@ -442,3 +446,4 @@ options.redirect_option('display.notebook_repr_widget', 'display.notebook_widget
 options.register_option('mars.use_common_proxy', True, validator=is_bool)
 options.register_option('mars.launch_notebook', False, validator=is_bool)
 options.register_option('mars.to_dataframe_memory_scale', None, validator=any_validator(is_null, is_integer))
+options.register_option('mars.container_status_timeout', 120, validator=is_integer)

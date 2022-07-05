@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-import json
+import json  # noqa: F401
 import re
 import time
 import random
@@ -55,8 +55,9 @@ class ODPS(object):
     :param secret_access_key: Aliyun Access Key
     :param project: default project name
     :param endpoint: Rest service URL
-    :param tunnel_endpoint:  Tunnel service URL
-    :param logview_host:  Logview host URL
+    :param tunnel_endpoint: Tunnel service URL
+    :param logview_host: Logview host URL
+    :param app_account: Application account, instance of `odps.accounts.AppAccount` used for dual authentication
 
     :Example:
 
@@ -74,11 +75,9 @@ class ODPS(object):
     >>> odps.delete_table('test_table')
     """
     def __init__(self, access_id=None, secret_access_key=None, project=None,
-                 endpoint=None, **kw):
-        """
-        """
+                 endpoint=None, app_account=None, **kw):
         self._init(access_id=access_id, secret_access_key=secret_access_key, project=project,
-                   endpoint=endpoint, **kw)
+                   endpoint=endpoint, app_account=app_account, **kw)
         clean_stored_objects(self)
 
     def _init(self, access_id=None, secret_access_key=None, project=None,
@@ -102,22 +101,31 @@ class ODPS(object):
 
         self._tunnel_endpoint = kw.pop('tunnel_endpoint', options.tunnel.endpoint)
 
-        if kw.get('logview_host'):
-            self._logview_host = kw.pop('logview_host', None)
-        else:
-            self._logview_host = options.log_view_host or self.get_logview_host()
+        self._logview_host = (
+            kw.pop("logview_host", None)
+            or options.log_view_host
+            or self.get_logview_host()
+        )
 
         self._projects = models.Projects(client=self.rest)
         if project:
             self._project = self.get_project()
 
-        self._seahawks_url = None
-        if kw.get('seahawks_url'):
-            self._seahawks_url = kw.pop('seahawks_url', None)
+        self._seahawks_url = kw.pop("seahawks_url", None)
+        if self._seahawks_url:
             options.seahawks_url = self._seahawks_url
 
         self._default_session = None
         self._default_session_name = ""
+
+        if kw:
+            raise TypeError(
+                "Argument %s not acceptable, please check your spellings"
+                % ", ".join(kw.keys()),
+            )
+        # Make instance to global
+        if options.is_global_account_overwritable:
+            self.to_global(overwritable=True)
 
     def __getstate__(self):
         params = dict(
@@ -437,7 +445,7 @@ class ODPS(object):
             for block, records in zip(blocks, records_iterators):
                 writer.write(block, records)
 
-    def list_resources(self, project=None):
+    def list_resources(self, project=None, prefix=None, owner=None):
         """
         List all resources of a project.
 
@@ -447,7 +455,7 @@ class ODPS(object):
         """
 
         project = self.get_project(name=project)
-        for resource in project.resources:
+        for resource in project.resources.iterate(name=prefix, owner=owner):
             yield resource
 
     def get_resource(self, name, project=None):
@@ -587,7 +595,7 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.resources.delete(name)
 
-    def list_functions(self, project=None):
+    def list_functions(self, project=None, prefix=None, owner=None):
         """
         List all functions of a project.
 
@@ -597,7 +605,7 @@ class ODPS(object):
         """
 
         project = self.get_project(name=project)
-        for function in project.functions:
+        for function in project.functions.iterate(name=prefix, owner=owner):
             yield function
 
     def get_function(self, name, project=None):
@@ -1864,7 +1872,8 @@ class ODPS(object):
     def _build_account(cls, access_id, secret_access_key):
         return accounts.AliyunAccount(access_id, secret_access_key)
 
-    def to_global(self):
+    def to_global(self, overwritable=False):
+        options.is_global_account_overwritable = overwritable
         options.account = self.account
         options.default_project = self.project
         options.endpoint = self.endpoint
@@ -1905,7 +1914,7 @@ models.RestModel.odps = property(fget=_get_odps_from_model)
 del _get_odps_from_model
 
 try:
-    from .internal.core import *
+    from .internal.core import *  # noqa: F401
 except ImportError:
     pass
 

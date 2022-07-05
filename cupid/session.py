@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -115,7 +115,7 @@ class CupidSession(object):
         priority = priority or options.priority
         if priority is None and options.get_priority is not None:
             priority = options.get_priority(self.odps)
-        menginetype = options.cupid.running_engine_type
+        menginetype = options.cupid.engine_running_type
 
         if proxy_endpoint is not None:
             options.cupid.proxy_endpoint = proxy_endpoint

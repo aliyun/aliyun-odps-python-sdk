@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,14 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import calendar
-import operator
+import json
 import logging
+import operator
 from datetime import datetime
 
 from . import utils
-from .compat import six, reduce, ElementTree as ET, ElementTreeParseError as ETParseError
+from .compat import (
+    LESS_PY27,
+    six,
+    reduce,
+    ElementTree as ET,
+    ElementTreeParseError as ETParseError,
+    TimeoutError
+)
 
 LOG = logging.getLogger(__name__)
 
@@ -77,7 +84,7 @@ def throw_if_parsable(resp):
     if resp.status_code == 404:
         raise NoSuchObject('No such object.')
     else:
-        text = resp.text if six.PY3 else resp.content
+        text = resp.content.decode() if six.PY3 else resp.content
         if text:
             raise ODPSError(text, code=str(resp.status_code))
         else:
@@ -85,11 +92,12 @@ def throw_if_parsable(resp):
 
 
 _CODE_MAPPING = {
-    'ODPS-0010000': 'InternalServerError',
-    'ODPS-0110141': 'DataVersionError',
-    'ODPS-0123055': 'ScriptError',
-    'ODPS-0130131': 'NoSuchTable',
-    'ODPS-0430055': 'InternalConnectionError',
+    "ODPS-0010000": "InternalServerError",
+    "ODPS-0110141": "DataVersionError",
+    "ODPS-0123055": "ScriptError",
+    "ODPS-0130131": "NoSuchTable",
+    "ODPS-0130013": "NoPermission",
+    "ODPS-0430055": "InternalConnectionError",
 }
 
 _SQA_CODE_MAPPING = {
@@ -101,6 +109,7 @@ _SQA_CODE_MAPPING = {
     'ODPS-185': 'SQAUnsupportedFeature',
     'ODPS-186': 'SQAQueryTimedout',
 }
+
 
 def parse_instance_error(msg):
     msg = utils.to_str(msg)
@@ -136,10 +145,10 @@ class ODPSError(RuntimeError):
         self.host_id = host_id
 
     def __str__(self):
-        if hasattr(self, 'message'):
+        if LESS_PY27 and hasattr(self, 'message'):
             message = self.message
         else:
-            message = self.args[0]  # py3
+            message = self.args[0]
         if self.request_id:
             message = 'RequestId: %s\n%s' % (self.request_id, message)
         if self.instance_id:
@@ -167,7 +176,7 @@ class ODPSError(RuntimeError):
         return error
 
 
-class ConnectTimeout(ODPSError):
+class ConnectTimeout(ODPSError, TimeoutError):
     pass
 
 
@@ -241,11 +250,27 @@ class ScriptError(ServerDefinedException):
     pass
 
 
+class ParseError(ServerDefinedException):
+    pass
+
+
 class DataVersionError(InternalServerError):
     pass
 
 
 class InstanceTypeNotSupported(ServerDefinedException):
+    pass
+
+
+class InvalidParameter(ServerDefinedException):
+    pass
+
+
+class StreamSessionNotFound(ServerDefinedException):
+    pass
+
+
+class OverwriteModeNotAllowed(ServerDefinedException):
     pass
 
 
@@ -277,7 +302,7 @@ class NotSupportedError(ODPSError):
     pass
 
 
-class WaitTimeoutError(ODPSError):
+class WaitTimeoutError(ODPSError, TimeoutError):
     pass
 
 class SQAError(ODPSError):

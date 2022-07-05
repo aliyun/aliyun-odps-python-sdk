@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,11 +43,7 @@ cdef:
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
 
 
-def init_module():
-    import_datetime()
-
-
-init_module()
+import_datetime()
 
 
 cdef object _validate_bigint(object val):
@@ -59,38 +55,38 @@ cdef object _validate_bigint(object val):
 
 cdef object _validate_string(object val):
     cdef:
-        bytes bytes_val
-        unicode u_val
         size_t s_size
+        unicode u_val
 
     if isinstance(val, bytes):
-        bytes_val = val
-        u_val = bytes_val.decode('utf-8')
+        s_size = len(<bytes> val)
+        u_val = (<bytes> val).decode('utf-8')
     elif isinstance(val, unicode):
-        u_val = val
-        bytes_val = val.encode('utf-8')
+        u_val = <unicode> val
+        s_size = 4 * len(u_val)
+        if s_size > string_len_max:
+            # only encode when strings are long enough
+            s_size = len(u_val.encode('utf-8'))
     else:
         raise TypeError("Invalid data type: expect bytes or unicode, got %s" % type(val))
 
-    s_size = len(bytes_val)
     if s_size <= string_len_max:
         return u_val
     raise ValueError(
         "InvalidData: Length of string(%s) is more than %sM.'" %
-        (val, string_len_max / (1024 ** 2)))
+        (val, string_len_max / (1024 ** 2))
+    )
 
 
 cdef object _validate_binary(object val):
     cdef:
-        bytes bytes_val
-        unicode u_val
         size_t s_size
+        bytes bytes_val
 
     if isinstance(val, bytes):
-        bytes_val = val
+        bytes_val = <bytes> val
     elif isinstance(val, unicode):
-        u_val = val
-        bytes_val = val.encode('utf-8')
+        bytes_val = (<unicode> val).encode('utf-8')
     else:
         raise TypeError("Invalid data type: expect bytes or unicode, got %s" % type(val))
 
@@ -203,15 +199,20 @@ cdef object validate_value(object val, object value_type):
 cdef class SchemaSnapshot:
     def __cinit__(self, schema):
         cdef int type_id, i
+        self._columns = schema.columns
         self._col_count = len(schema)
         self._col_types = [c.type for c in schema.columns]
         self._col_type_ids = [t._type_id if t._type_id is not None else -1 for t in self._col_types]
         self._col_nullable = [t.nullable for t in self._col_types]
         if isinstance(schema, types.OdpsSchema):
-            self._col_is_partition = [1 if schema.is_partition(c) else 0
-                                      for c in schema.columns]
+            self._col_is_partition = [
+                1 if schema.is_partition(c) else 0
+                for c in schema.columns
+            ]
+            self._partition_col_count = sum(self._col_is_partition)
         else:
             self._col_is_partition = [0] * self._col_count
+            self._partition_col_count = 0
 
         self._col_validators.resize(self._col_count)
         for i in range(self._col_count):
@@ -259,13 +260,13 @@ cdef class BaseRecord:
             self._c_columns = columns
             self._c_name_indexes = dict((col.name, i) for i, col in enumerate(self._columns))
         else:
-            self._c_columns = schema.columns
+            self._c_columns = schema.columns if self._c_schema_snapshot is None else self._c_schema_snapshot._columns
             self._c_name_indexes = schema._name_indexes
 
         if self._c_columns is None:
             raise ValueError('Either columns or schema should not be provided')
 
-        self._c_values = [None, ] * len(self._c_columns)
+        self._c_values = [None] * len(self._c_columns)
         if values is not None:
             self._sets(values)
 
@@ -296,8 +297,11 @@ cdef class BaseRecord:
     def _mode(self):
         return 'c'
 
-    def _exclude_partition_columns(self):
-        return [col for col in self._c_columns if not isinstance(col, types.Partition)]
+    cdef size_t _get_non_partition_col_count(self):
+        if self._c_schema_snapshot is not None:
+            return self._c_schema_snapshot._col_count - self._c_schema_snapshot._partition_col_count
+        else:
+            return len([col for col in self._c_columns if not isinstance(col, types.Partition)])
 
     cpdef object get_by_name(self, object name):
         cdef int idx = self._c_name_indexes[name]
@@ -329,13 +333,28 @@ cdef class BaseRecord:
     cpdef _sets(self, object values):
         cdef int i
         cdef object value
+        cdef size_t n_values
 
-        if len(values) != len(self._c_columns) and \
-                        len(values) != len(self._exclude_partition_columns()):
-            raise ValueError('The values set to records are against the schema, '
-                             'expect len %s, got len %s' % (len(self._c_columns), len(values)))
-        for i, value in enumerate(values):
-            self._set(i, value)
+        if type(values) is list:
+            n_values = len(<list>values)
+        else:
+            n_values = len(values)
+
+        if (
+            n_values != len(self._c_columns) and
+            n_values != self._get_non_partition_col_count()
+        ):
+            raise ValueError(
+                'The values set to records are against the schema, '
+                'expect len %s, got len %s' % (len(self._c_columns), n_values)
+            )
+
+        if type(values) is list:
+            for i, value in enumerate(<list>values):
+                self._set(i, value)
+        else:
+            for i, value in enumerate(values):
+                self._set(i, value)
 
     def __getitem__(self, item):
         if isinstance(item, (bytes, unicode)):
@@ -384,6 +403,8 @@ cdef class BaseRecord:
 
     @property
     def n_columns(self):
+        if self._c_schema_snapshot is not None:
+            return self._c_schema_snapshot._col_count
         return len(self._c_columns)
 
     def get_columns_count(self):  # compatible

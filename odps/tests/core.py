@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@ import tempfile
 import time
 import warnings
 
-from .. import compat, utils
+from .. import compat
 from .. import ODPS
+from ..compat import six, ConfigParser
 from ..errors import InternalServerError, NoSuchObject
 from ..tunnel import TableTunnel
-from ..compat import six, ConfigParser
 
 LOCK_FILE_NAME = os.path.join(tempfile.gettempdir(), 'pyodps_test_lock_')
 
@@ -87,10 +87,11 @@ def get_config():
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
             tunnel_endpoint = None
 
-        from cupid import options as cupid_options
         try:
+            from cupid import options as cupid_options
+
             cupid_options.cupid.proxy_endpoint = config.get("cupid", "proxy_endpoint")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError, ImportError):
             pass
 
         config.odps = ODPS(access_id, secret_access_key, project, endpoint,

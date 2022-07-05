@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,13 +50,13 @@ EXPECTED_PRIORITY_XFLOW_INSTANCE_XML = '''<?xml version="1.0" encoding="utf-8"?>
         <Value>value</Value>
       </Parameter>
     </Parameters>
+    <Priority>1</Priority>
     <Config>
       <Property>
         <Name>odps.setting</Name>
         <Value>value</Value>
       </Property>
     </Config>
-    <Priority>1</Priority>
   </XflowInstance>
 </Instance>
 '''
@@ -102,11 +102,15 @@ class Test(TestBase):
         model_name = tn('test_xflow_model')
         try:
             xflow_inst = self.odps.run_xflow(
-                'LogisticRegression', 'algo_public',
-                dict(featureColNames='sepal_length,sepal_width,petal_length,petal_width',
-                     labelColName='category',
-                     inputTableName=table.name,
-                     modelName=model_name)
+                'LogisticRegression',
+                'algo_public',
+                dict(
+                    featureColNames='sepal_length,sepal_width,petal_length,petal_width',
+                    labelColName='category',
+                    inputTableName=table.name,
+                    modelName=model_name,
+                ),
+                hints={"settings": "{\"SKYNET_ID\": \"12345\"}"}
             )
             sub_insts = dict()
             for k, v in self.odps.iter_xflow_sub_instances(xflow_inst):

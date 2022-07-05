@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -244,6 +244,7 @@ class Analyzer(BaseAnalyzer):
                     return self.days * 86400.0 + self.seconds + self.microseconds * 1.0e-6
             else:
                 from datetime import timedelta
+
                 def total_seconds(self):
                     return self.total_seconds()
 

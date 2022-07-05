@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ from libc.string cimport *
 from libcpp.vector cimport vector
 
 from ...src.types_c cimport SchemaSnapshot
+from ...src.utils_c cimport CMillisecondsConverter
 from ..pb.decoder_c cimport Decoder
 from ..checksum_c cimport Checksum
 
@@ -30,7 +31,7 @@ cdef class BaseTunnelRecordReader:
     cdef object _last_error
     cdef public object _schema
     cdef object _columns
-    cdef object _to_datetime
+    cdef CMillisecondsConverter _mills_converter
     cdef object _to_date
     cdef Decoder _reader
     cdef Checksum _crc

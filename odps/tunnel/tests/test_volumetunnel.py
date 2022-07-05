@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,6 +17,7 @@
 from odps.compat import irange
 from odps.tests.core import TestBase, tn
 from odps.tunnel import CompressOption
+from odps.tunnel.volumetunnel import VolumeTunnel
 
 TEST_PARTED_VOLUME_NAME = tn('pyodps_test_p_volume')
 TEST_FS_VOLUME_NAME = tn('pyodps_test_fs_volume')
@@ -28,11 +29,33 @@ TEST_MODULUS = 251
 
 
 class Test(TestBase):
+    def setUp(self):
+        def wrap_fun(func):
+            def wrapped(self, *args, **kwargs):
+                ret = func(self, *args, **kwargs)
+                repr(ret)
+                return ret
+
+            wrapped.__name__ = func.__name__
+            wrapped.__doc__ = func.__doc__
+            return wrapped
+
+        self._old_create_download_session = VolumeTunnel.create_download_session
+        self._old_create_upload_session = VolumeTunnel.create_upload_session
+
+        VolumeTunnel.create_download_session = wrap_fun(
+            self._old_create_download_session
+        )
+        VolumeTunnel.create_upload_session = wrap_fun(self._old_create_upload_session)
+        super(Test, self).setUp()
+
     def tearDown(self):
         if self.odps.exist_volume(TEST_PARTED_VOLUME_NAME):
             self.odps.delete_volume(TEST_PARTED_VOLUME_NAME)
         if self.odps.exist_volume(TEST_FS_VOLUME_NAME):
             self.odps.delete_volume(TEST_FS_VOLUME_NAME)
+        VolumeTunnel.create_download_session = self._old_create_download_session
+        VolumeTunnel.create_upload_session = self._old_create_upload_session
         super(Test, self).tearDown()
 
     @staticmethod

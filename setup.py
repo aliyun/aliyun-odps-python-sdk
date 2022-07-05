@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -163,7 +163,7 @@ full_requirements = [
 ]
 mars_requirements = [
     'pymars>=0.5.4',
-    'protobuf>=3.6',
+    'protobuf>=3.6,<4.0',
 ]
 if sys.version_info[0] == 2:
     full_requirements.append('ipython<6.0.0')
@@ -232,9 +232,9 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
         extensions = [
             Extension('odps.src.types_c', ['odps/src/types_c.pyx'], **extension_kw),
             Extension('odps.src.crc32c_c', ['odps/src/crc32c_c.pyx'], **extension_kw),
+            Extension('odps.src.utils_c', ['odps/src/utils_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.encoder_c', ['odps/tunnel/pb/encoder_c.pyx'], **extension_kw),
             Extension('odps.tunnel.pb.decoder_c', ['odps/tunnel/pb/decoder_c.pyx'], **extension_kw),
-            Extension('odps.tunnel.pb.util_c', ['odps/tunnel/pb/util_c.pyx'], **extension_kw),
             Extension('odps.tunnel.io.writer_c', ['odps/tunnel/io/writer_c.pyx'], **extension_kw),
             Extension('odps.tunnel.io.reader_c', ['odps/tunnel/io/reader_c.pyx'], **extension_kw),
             Extension('odps.tunnel.checksum_c', ['odps/tunnel/checksum_c.pyx'], **extension_kw),

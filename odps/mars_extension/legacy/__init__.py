@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +16,15 @@
 
 
 try:
-    from .core import create_mars_cluster, to_mars_dataframe, \
-        persist_mars_dataframe, run_script_in_mars, run_mars_job, \
-        list_mars_instances, sql_to_mars_dataframe
+    from .core import (
+        create_mars_cluster,
+        to_mars_dataframe,
+        persist_mars_dataframe,
+        run_script_in_mars,
+        run_mars_job,
+        list_mars_instances,
+        sql_to_mars_dataframe,
+    )
 except ImportError:
     create_mars_cluster = None
     to_mars_dataframe = None
@@ -55,7 +61,7 @@ try:
     from mars.filesystem import file_systems
     from .filesystem import VolumeFileSystem
 
-    file_systems['odps'] = VolumeFileSystem
+    file_systems["odps"] = VolumeFileSystem
 except ImportError:
     pass
 
@@ -63,6 +69,6 @@ try:
     from mars.lib.filesystem.core import register_filesystem
     from .filesystem import VolumeFileSystem
 
-    register_filesystem('odps', VolumeFileSystem)
+    register_filesystem("odps", VolumeFileSystem)
 except ImportError:
     pass

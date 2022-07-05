@@ -1,6 +1,6 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ class CupidWorkerCommandRunner(CupidCommandRunnerMixin, K8SWorkerCommandRunner):
             super().__call__(*args, **kwargs)
         except:
             import traceback
+
             traceback.print_exc()
             raise
         finally:
@@ -47,5 +48,5 @@ class CupidWorkerCommandRunner(CupidCommandRunnerMixin, K8SWorkerCommandRunner):
 
 main = CupidWorkerCommandRunner()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

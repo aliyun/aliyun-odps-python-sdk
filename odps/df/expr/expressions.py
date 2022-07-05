@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -68,12 +68,16 @@ def _wrap_method_repr(func):
     return inner
 
 
-def max_pt_function(table_name=None, expr=None):
+def make_max_pt_function(expr=None):
     from ...models import Table
     from .. import func
-    if isinstance(getattr(expr, 'data', None), Table):
-        table_name = table_name or expr.data.name
-    return func.max_pt(table_name)
+
+    def max_pt(table_name=None):
+        if isinstance(getattr(expr, 'data', None), Table):
+            table_name = table_name or expr.data.name
+        return func.max_pt(table_name)
+
+    return max_pt
 
 
 def repr_obj(obj):
@@ -687,7 +691,7 @@ class CollectionExpr(Expr):
         finally:
             del frame
 
-        env['max_pt'] = ReprWrapper(functools.partial(max_pt_function, expr=self), repr)
+        env['max_pt'] = ReprWrapper(make_max_pt_function(self), repr)
 
         visitor = CollectionVisitor(self, env)
         predicate = visitor.eval(expr)
@@ -1327,7 +1331,7 @@ class TypedExpr(Expr):
         finally:
             del frame
 
-        env['max_pt'] = ReprWrapper(functools.partial(max_pt_function, expr=self), repr)
+        env['max_pt'] = ReprWrapper(make_max_pt_function(self), repr)
 
         visitor = SequenceVisitor(self, env)
         return visitor.eval(str_expr, rewrite=rewrite)

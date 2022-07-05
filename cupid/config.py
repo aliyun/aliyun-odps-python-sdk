@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ options.register_option('cupid.worker.virtual_resource', None)
 options.register_option('cupid.master.virtual_resource', None)
 options.register_option('cupid.master_type', 'kubernetes')
 options.register_option('cupid.application_type', 'mars')
-options.register_option('cupid.running_engine_type', None)
+options.register_option('cupid.engine_running_type', 'default')
 options.register_option('cupid.container_node_label', None)
 options.register_option('cupid.job_duration_hours', 25920)
 options.register_option('cupid.channel_init_timeout_seconds', 120)
@@ -35,4 +35,4 @@ options.register_option('cupid.runtime.endpoint', None)
 
 # mars app config
 options.register_option('cupid.image_prefix', None)
-options.register_option('cupid.image_version', 'v0.7.1')
+options.register_option('cupid.image_version', 'v0.11.1')

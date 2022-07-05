@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -85,6 +85,8 @@ os._exit(0)
 cleanup_mode = False
 cleanup_timeout = 0
 host_pid = os.getpid()
+if six.PY3:  # make flake8 happy
+    unicode = str
 
 
 class ExecutionEnv(object):

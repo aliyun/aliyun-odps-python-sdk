@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,10 +16,11 @@
 
 # for performance
 import cProfile
-from pstats import Stats
 import re
+import sys
 from decimal import Decimal
 from datetime import datetime, timedelta
+from pstats import Stats
 
 from odps import options
 from odps.tests.core import TestBase, to_str
@@ -628,8 +629,12 @@ class Test(TestBase):
         expr = self.expr.birth - millisecond(100)
         engine = ODPSEngine(self.odps)
         engine.compile(expr)
-        self._testify_udf([to_milliseconds(d - timedelta(milliseconds=100)) for d in data],
-                          [(d, 100, '-') for d in data], engine)
+        if sys.version_info[0] == 2:
+            self._testify_udf([to_milliseconds(d - timedelta(milliseconds=100)) for d in data],
+                              [(d, 100, '-') for d in data], engine)
+        else:
+            self._testify_udf([d - timedelta(milliseconds=100) for d in data],
+                              [(d, 100, '-') for d in data], engine)
 
         expr = self.expr.birth - datetime.now()
         engine = ODPSEngine(self.odps)

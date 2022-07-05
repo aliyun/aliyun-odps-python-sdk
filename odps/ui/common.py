@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import json
-import os
 
 
 MAX_SCRIPT_LOAD_SEC = 5
@@ -35,7 +34,7 @@ try:
         from IPython.utils.traitlets import Unicode, List
         traitlets_version = (3, 0)
     else:
-        from traitlets import Unicode, List
+        from traitlets import Unicode, List  # noqa: F401
         from traitlets import version_info as traitlets_version
     from IPython.display import display
 except Exception:

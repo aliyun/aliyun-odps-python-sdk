@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,9 +22,11 @@ try:
     from .datasource import read_coo
     from .datastore import write_coo
 except ImportError as e:
-    if 'CI_MODE' in os.environ and pkgutil.find_loader('mars') is not None:
-        if sys.version_info[0] > 2:  # todo remove this check when mars package under py27mu is fixed
+    if "CI_MODE" in os.environ and pkgutil.find_loader("mars") is not None:
+        if (
+            sys.version_info[0] > 2
+        ):  # todo remove this check when mars package under py27mu is fixed
             raise
     read_coo, write_coo = None, None
 
-__all__ = ['read_coo', 'write_coo']
+__all__ = ["read_coo", "write_coo"]

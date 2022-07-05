@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,20 +17,40 @@
 import logging
 
 from mars.services.web.core import MarsRequestHandler
+from tornado.web import HTTPError
 
 logger = logging.getLogger(__name__)
 
 
-class LoggerHandler(MarsRequestHandler):
+class PyODPSHandler(MarsRequestHandler):
     def get(self):
         pass
 
     def post(self):
-        content = self.get_argument('content')
-        level = self.get_argument('level', 'warning').lower()
+        action = self.get_argument("action", "write_log")
+        if action == "write_log":
+            self._handle_write_log()
+        elif action == "terminate":
+            self._handle_terminate()
+        else:  # pragma: no cover
+            raise HTTPError(400, "Invalid action %r" % action)
+
+    def _handle_write_log(self):
+        content = self.get_argument("content")
+        level = self.get_argument("level", "warning").lower()
         getattr(logger, level)(content)
+
+    def _handle_terminate(self):
+        from .cupid_service import CupidServiceClient
+        from cupid import ContainerStatus, WorkItemProgress
+
+        message = self.get_argument("message", "")
+        CupidServiceClient().report_container_status(
+            ContainerStatus.TERMINATED, message, WorkItemProgress.WIP_TERMINATING
+        )
 
 
 web_handlers = {
-    '/api/pyodps_logger': LoggerHandler,
+    "/api/pyodps": PyODPSHandler,
+    "/api/pyodps_logger": PyODPSHandler,
 }

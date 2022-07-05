@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +30,9 @@ from .. import serializers, utils
 from ..compat import six
 
 
+_notset = object()
+
+
 class Project(LazyLoad):
     """
     Project is the counterpart of **database** in a RDBMS.
@@ -52,7 +55,12 @@ class Project(LazyLoad):
     """
 
     _user_cache = dict()
-    __slots__ = '_policy_cache', '_tunnel_endpoint'
+    __slots__ = (
+        "_policy_cache",
+        "_tunnel_endpoint",
+        "_all_props_loaded",
+        "_extended_props_loaded",
+    )
 
     class Cluster(XMLRemoteModel):
 
@@ -67,7 +75,7 @@ class Project(LazyLoad):
             return ret
 
     class ExtendedProperties(XMLRemoteModel):
-        extended_properties = serializers.XMLNodePropertiesField('ExtendedProperties', 'Property',
+        _extended_properties = serializers.XMLNodePropertiesField('ExtendedProperties', 'Property',
                                                                  key_tag='Name', value_tag='Value',
                                                                  set_to_parent=True)
 
@@ -90,20 +98,25 @@ class Project(LazyLoad):
     project_group_name = serializers.XMLNodeField('ProjectGroupName')
     properties = serializers.XMLNodePropertiesField('Properties', 'Property',
                                                     key_tag='Name', value_tag='Value')
-    extended_properties = serializers.XMLNodePropertiesField('ExtendedProperties', 'Property',
+    _extended_properties = serializers.XMLNodePropertiesField('ExtendedProperties', 'Property',
                                                              key_tag='Name', value_tag='Value')
     state = serializers.XMLNodeField('State')
     clusters = serializers.XMLNodesReferencesField(Cluster, 'Clusters', 'Cluster')
 
     def __init__(self, *args, **kwargs):
         self._tunnel_endpoint = None
+        self._policy_cache = None
+        self._all_props_loaded = False
         super(Project, self).__init__(*args, **kwargs)
 
-    def reload(self):
+    def reload(self, all_props=False):
         self._policy_cache = None
 
         url = self.resource()
-        resp = self._client.get(url)
+        params = dict()
+        if all_props:
+            params["properties"] = "all"
+        resp = self._client.get(url, params=params)
 
         self.parse(self._client, resp, obj=self)
 
@@ -112,22 +125,22 @@ class Project(LazyLoad):
         self.last_modified_time = utils.parse_rfc822(resp.headers['Last-Modified'])
 
         self._loaded = True
+        self._all_props_loaded = all_props
+        self._extended_props_loaded = False
 
-    def __getattribute__(self, attr):
-        if attr == 'extended_properties':
-            url = self.resource()
-            params = {'extended': ''}
+    @property
+    def extended_properties(self):
+        if self._extended_props_loaded:
+            return self._getattr("_extended_properties")
 
-            resp = self._client.get(url, params=params)
-            Project.ExtendedProperties.parse(self._client, resp, parent=self)
+        url = self.resource()
+        params = {"extended": ""}
 
-            return self._getattr('extended_properties')
+        resp = self._client.get(url, params=params)
+        Project.ExtendedProperties.parse(self._client, resp, parent=self)
 
-        return super(Project, self).__getattribute__(attr)
-
-    def __init__(self, **kw):
-        super(Project, self).__init__(**kw)
-        self._policy_cache = None
+        self._extended_props_loaded = True
+        return self._getattr("_extended_properties")
 
     @property
     def tables(self):
@@ -177,14 +190,14 @@ class Project(LazyLoad):
     @property
     def system_info(self):
         resp = self._client.get(self.resource() + '/system')
-        return json.loads(resp.text if six.PY3 else resp.content)
+        return json.loads(resp.content.decode() if six.PY3 else resp.content)
 
     @property
     def policy(self):
         if self._policy_cache is None:
             params = dict(policy='')
             resp = self._client.get(self.resource(), params=params)
-            self._policy_cache = resp.text if six.PY3 else resp.content
+            self._policy_cache = resp.content.decode() if six.PY3 else resp.content
         if self._policy_cache:
             return json.loads(self._policy_cache)
         else:
@@ -219,3 +232,15 @@ class Project(LazyLoad):
 
         resp = self.AuthQueryResponse.parse(self._client.post(url, headers=headers, data=req_obj))
         return json.loads(resp.result)
+
+    def get_property(self, item, default=_notset):
+        if not self._all_props_loaded:
+            self.reload(all_props=True)
+        if item in self.properties:
+            return self.properties[item]
+        try:
+            return self.extended_properties[item]
+        except KeyError:
+            if default is _notset:
+                raise
+            return default

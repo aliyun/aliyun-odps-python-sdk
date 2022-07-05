@@ -8,24 +8,24 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-27 18:22+0800\n"
+"POT-Creation-Date: 2022-06-29 16:57+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.9.1\n"
 
 #: ../../source/df-element.rst:4
 msgid "列运算"
 msgstr "Column operations"
 
-#: ../../source/df-element.rst:9
+#: ../../source/df-element.rst:6
 msgid "from odps.df import DataFrame"
 msgstr ""
 
-#: ../../source/df-element.rst:15
+#: ../../source/df-element.rst:10
 msgid ""
 "iris = DataFrame(o.get_table('pyodps_iris'))\n"
 "lens = DataFrame(o.get_table('pyodps_ml_100k_lens'))"
@@ -51,7 +51,7 @@ msgstr ""
 "can use isnull or notnull to determine whether or not a field is NULL, "
 "and use fillna to replace NULL fields with specified values."
 
-#: ../../source/df-element.rst:33
+#: ../../source/df-element.rst:24
 msgid ""
 ">>> iris.sepallength.isnull().head(5)\n"
 "   sepallength\n"
@@ -73,7 +73,7 @@ msgstr ""
 "parameter if the condition is true, or the second parameter if the "
 "condition is false."
 
-#: ../../source/df-element.rst:49
+#: ../../source/df-element.rst:39
 msgid ""
 ">>> (iris.sepallength > 5).ifelse('gt5', 'lte5').rename('cmp5').head(5)\n"
 "   cmp5\n"
@@ -88,7 +88,7 @@ msgstr ""
 msgid "switch用于多条件判断的情况。"
 msgstr "The switch function is used to handle multiple conditions."
 
-#: ../../source/df-element.rst:61
+#: ../../source/df-element.rst:52
 msgid ""
 ">>> iris.sepallength.switch(4.9, 'eq4.9', 5.0, 'eq5.0', "
 "default='noeq').rename('equalness').head(5)\n"
@@ -100,7 +100,7 @@ msgid ""
 "4      eq5.0"
 msgstr ""
 
-#: ../../source/df-element.rst:72
+#: ../../source/df-element.rst:62
 msgid ""
 ">>> from odps.df import switch\n"
 ">>> switch(iris.sepallength == 4.9, 'eq4.9', iris.sepallength == 5.0, "
@@ -119,7 +119,7 @@ msgstr ""
 "In PyODPS versions 0.7.8 and higher, you can change the column values of "
 "a dataset based on the following conditions:"
 
-#: ../../source/df-element.rst:86
+#: ../../source/df-element.rst:75
 msgid ""
 ">>> iris[iris.sepallength > 5, 'cmp5'] = 'gt5'\n"
 ">>> iris[iris.sepallength <= 5, 'cmp5'] = 'lte5'\n"
@@ -143,7 +143,7 @@ msgstr ""
 "multiplication (\\*), and division (/) are supported. In addition, "
 "operations such as log, sin are also supported."
 
-#: ../../source/df-element.rst:101
+#: ../../source/df-element.rst:92
 msgid ""
 ">>> (iris.sepallength * 10).log().head(5)\n"
 "   sepallength\n"
@@ -154,7 +154,7 @@ msgid ""
 "4     3.912023"
 msgstr ""
 
-#: ../../source/df-element.rst:115
+#: ../../source/df-element.rst:102
 msgid ""
 ">>> fields = [iris.sepallength,\n"
 ">>>           (iris.sepallength / 2).rename('sepallength除以2'),\n"
@@ -340,7 +340,7 @@ msgstr "Returns a number truncated to the specified decimal place."
 msgid "对于sequence，也支持其于其他sequence或者scalar的比较。"
 msgstr "You can compare a Sequence object with another Sequence or Scalar object."
 
-#: ../../source/df-element.rst:159
+#: ../../source/df-element.rst:150
 msgid ""
 ">>> (iris.sepallength < 5).head(5)\n"
 "   sepallength\n"
@@ -360,7 +360,7 @@ msgstr ""
 "as \\ ``3 <= iris.sepallength <= 5``\\. But you can use the between "
 "function to determine whether a field is within a certain range."
 
-#: ../../source/df-element.rst:172
+#: ../../source/df-element.rst:163
 msgid ""
 ">>> (iris.sepallength.between(3, 5)).head(5)\n"
 "   sepallength\n"
@@ -377,7 +377,7 @@ msgstr ""
 "By default, the between function specifies an interval that includes "
 "endpoints. To specify an open interval, set inclusive to False."
 
-#: ../../source/df-element.rst:184
+#: ../../source/df-element.rst:175
 msgid ""
 ">>> (iris.sepallength.between(3, 5, inclusive=False)).head(5)\n"
 "   sepallength\n"
@@ -398,7 +398,7 @@ msgstr ""
 "The DataFrame API provides a number of string-related operations for "
 "Sequence and Scalar objects."
 
-#: ../../source/df-element.rst:203
+#: ../../source/df-element.rst:190
 msgid ""
 ">>> fields = [\n"
 ">>>     iris.name.upper().rename('upper_name'),\n"
@@ -763,7 +763,7 @@ msgstr ""
 "For datetime type Sequence or Scalar objects, the following time-related "
 "built-in functions are provided."
 
-#: ../../source/df-element.rst:266
+#: ../../source/df-element.rst:252
 msgid ""
 ">>> df = lens[[lens.unix_timestamp.astype('datetime').rename('dt')]]\n"
 ">>> df[df.dt,\n"
@@ -860,7 +860,7 @@ msgstr ""
 "you can retrieve the date 3 days before the current date. Subtracting one"
 " date column from another returns the difference in milliseconds."
 
-#: ../../source/df-element.rst:308
+#: ../../source/df-element.rst:287
 msgid ""
 ">>> df\n"
 "                           a                          b\n"
@@ -924,7 +924,7 @@ msgstr ""
 msgid "示例如下："
 msgstr "The following are some examples:"
 
-#: ../../source/df-element.rst:380
+#: ../../source/df-element.rst:335
 msgid ""
 ">>> df\n"
 "   id         a                            b\n"
@@ -1018,7 +1018,7 @@ msgstr ""
 msgid "explode 也可以和 :ref:`dflateralview` 结合，以将原有列和 explode 的结果相结合，例子如下："
 msgstr "You can also combine explode with the lateral view as follows:"
 
-#: ../../source/df-element.rst:401
+#: ../../source/df-element.rst:383
 msgid ""
 ">>> df[df.id, df.a.explode()]\n"
 "   id   a\n"
@@ -1097,7 +1097,7 @@ msgstr ""
 "``isin``\\ or \\ ``notin``\\ returns whether or not the elements in a "
 "Sequence object exist in a collection element."
 
-#: ../../source/df-element.rst:436
+#: ../../source/df-element.rst:426
 msgid ""
 ">>> iris.sepallength.isin([4.9, 5.1]).rename('sepallength').head(5)\n"
 "   sepallength\n"
@@ -1112,7 +1112,7 @@ msgstr ""
 msgid "cut提供离散化的操作，可以将Sequence的数据拆成几个区段。"
 msgstr "The cut method divides Sequence data into several segments."
 
-#: ../../source/df-element.rst:448
+#: ../../source/df-element.rst:439
 msgid ""
 ">>> iris.sepallength.cut(range(6), labels=['0-1', '1-2', '2-3', '3-4', "
 "'4-5']).rename('sepallength_cut').head(5)\n"
@@ -1130,7 +1130,7 @@ msgstr ""
 "``include_under``\\ and \\ ``include_over``\\ specify the lower interval "
 "and upper interval to be included respectively."
 
-#: ../../source/df-element.rst:461
+#: ../../source/df-element.rst:451
 msgid ""
 ">>> labels = ['0-1', '1-2', '2-3', '3-4', '4-5', '5-']\n"
 ">>> iris.sepallength.cut(range(6), labels=labels, "
@@ -1153,7 +1153,7 @@ msgstr ""
 "DataFrame allows you to call the map method on a Sequence object so as to"
 " call custom functions on all of its elements."
 
-#: ../../source/df-element.rst:478
+#: ../../source/df-element.rst:469
 msgid ""
 ">>> iris.sepallength.map(lambda x: x + 1).head(5)\n"
 "   sepallength\n"
@@ -1176,9 +1176,9 @@ msgstr ""
 "If the type of Sequence has been changed after calling the map method, "
 "you need to explicitly specify the new type."
 
-#: ../../source/df-element.rst:493
+#: ../../source/df-element.rst:484
 msgid ""
-">>> iris.sepallength.map(lambda x: 't'+str(x), 'string').head(5)\n"
+">>> iris.sepallength.map(lambda x: 't' + str(x), rtype='string').head(5)\n"
 "   sepallength\n"
 "0         t5.1\n"
 "1         t4.9\n"
@@ -1194,7 +1194,7 @@ msgstr ""
 "variable changes outside the function, the value of this variable within "
 "the function also changes. For example:"
 
-#: ../../source/df-element.rst:501
+#: ../../source/df-element.rst:496
 msgid ""
 ">>> dfs = []\n"
 ">>> for i in range(10):\n"
@@ -1210,7 +1210,7 @@ msgstr ""
 "this problem, you can use the function as the return of another function,"
 " or use ``functools.partial``. For example:"
 
-#: ../../source/df-element.rst:512
+#: ../../source/df-element.rst:505
 msgid ""
 ">>> dfs = []\n"
 ">>> def get_mapper(i):\n"
@@ -1223,7 +1223,7 @@ msgstr ""
 msgid "或"
 msgstr "Or"
 
-#: ../../source/df-element.rst:521
+#: ../../source/df-element.rst:515
 msgid ""
 ">>> import functools\n"
 ">>> dfs = []\n"
@@ -1281,11 +1281,11 @@ msgstr ""
 "code executes normally before writing production code using MapReduce API"
 " in Python 3."
 
-#: ../../source/df-element.rst:541
+#: ../../source/df-element.rst:542
 msgid "引用资源"
 msgstr "Reference Resources"
 
-#: ../../source/df-element.rst:543
+#: ../../source/df-element.rst:544
 msgid ""
 "自定义函数也能读取ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。 "
 "此时，自定义函数需要写成函数闭包或callable的类。"
@@ -1294,7 +1294,7 @@ msgstr ""
 "file resources, or reference Collection objects as resources. To do that,"
 " you need to write your functions as a closure or callable class."
 
-#: ../../source/df-element.rst:555
+#: ../../source/df-element.rst:547
 msgid ""
 ">>> file_resource = o.create_resource('pyodps_iris_file', 'file', "
 "file_obj='Iris-setosa')\n"
@@ -1306,7 +1306,7 @@ msgid ""
 "1  Iris-versicolor"
 msgstr ""
 
-#: ../../source/df-element.rst:582
+#: ../../source/df-element.rst:557
 msgid ""
 ">>> def myfunc(resources):  # resources按调用顺序传入\n"
 ">>>     names = set()\n"
@@ -1361,17 +1361,17 @@ msgstr ""
 "1  Iris-versicolor   True\n"
 "2   Iris-virginica  False"
 
-#: ../../source/df-element.rst:583
+#: ../../source/df-element.rst:584
 msgid "注：分区表资源在读取时不包含分区字段。"
 msgstr ""
 "Note: when reading the partitioned tables, partition fields are not "
 "included."
 
-#: ../../source/df-element.rst:588
+#: ../../source/df-element.rst:589
 msgid "使用第三方Python库"
 msgstr "Use third-party Python libraries"
 
-#: ../../source/df-element.rst:590
+#: ../../source/df-element.rst:591
 msgid ""
 "现在用户可以把第三方 Python 包作为资源上传到 MaxCompute，支持的格式有 whl、egg、zip 以及 tar.gz。 "
 "在全局或者在立即执行的方法时，指定需要使用的包文件。即可以在自定义函数中使用第三方库。"
@@ -1381,17 +1381,17 @@ msgstr ""
 "specify the package files when using them globally or in actions. Custom "
 "functions can also use third-party libraries."
 
-#: ../../source/df-element.rst:593
+#: ../../source/df-element.rst:594
 msgid "值得注意的是，第三方库的依赖库，也必须指定，否则依然会有导入错误。"
 msgstr ""
 "Note that the dependencies of the third-party libraries also need to be "
 "specified. Otherwise errors may occur when importing the files."
 
-#: ../../source/df-element.rst:595
+#: ../../source/df-element.rst:598
 msgid "下面我们会以 python-dateutil 这个包作为例子。"
 msgstr "Take the following python-dateutil package as an example."
 
-#: ../../source/df-element.rst:597
+#: ../../source/df-element.rst:600
 msgid ""
 "首先，我们可以使用pip download命令，下载包以及其依赖到某个路径。 这里下载后会出现两个包：six-1.10.0-py2.py3"
 "-none-any.whl和python_dateutil-2.5.3-py2.py3-none-any.whl "
@@ -1402,15 +1402,15 @@ msgstr ""
 "six-1.10.0-py2.py3-none-any.whl and python_dateutil-2.5.3-py2.py3-none-"
 "any.whl. Note that the packages must support Linux environment."
 
-#: ../../source/df-element.rst:601
+#: ../../source/df-element.rst:604
 msgid "$ pip download python-dateutil -d /to/path/"
 msgstr ""
 
-#: ../../source/df-element.rst:605
+#: ../../source/df-element.rst:608
 msgid "然后我们分别把两个文件上传到ODPS资源"
 msgstr "Then upload the files to MaxCompute as resources."
 
-#: ../../source/df-element.rst:612
+#: ../../source/df-element.rst:610
 msgid ""
 ">>> # 这里要确保资源名的后缀是正确的文件类型\n"
 ">>> odps.create_resource('six.whl', 'file', "
@@ -1424,11 +1424,11 @@ msgstr ""
 ">>> odps.create_resource('python_dateutil.whl', 'file', "
 "file_obj=open('python_dateutil-2.5.3-py2.py3-none-any.whl', 'rb'))"
 
-#: ../../source/df-element.rst:613
+#: ../../source/df-element.rst:616
 msgid "现在我们有个DataFrame，只有一个string类型字段。"
 msgstr "Now you have a DataFrame object that only contains a string field."
 
-#: ../../source/df-element.rst:621
+#: ../../source/df-element.rst:618
 msgid ""
 ">>> df\n"
 "               datestr\n"
@@ -1436,11 +1436,11 @@ msgid ""
 "1  2015-08-26 14:03:29"
 msgstr ""
 
-#: ../../source/df-element.rst:622
+#: ../../source/df-element.rst:625
 msgid "全局配置使用到的三方库："
 msgstr "Set the third-party library as global:"
 
-#: ../../source/df-element.rst:637
+#: ../../source/df-element.rst:627
 msgid ""
 ">>> from odps import options\n"
 ">>>\n"
@@ -1455,11 +1455,11 @@ msgid ""
 "1     2015"
 msgstr ""
 
-#: ../../source/df-element.rst:638
+#: ../../source/df-element.rst:641
 msgid "或者，通过立即运行方法的 ``libraries`` 参数指定："
 msgstr "Or use the ``libraries`` attribute of an action to specify the package:"
 
-#: ../../source/df-element.rst:651
+#: ../../source/df-element.rst:644
 msgid ""
 ">>> def get_year(t):\n"
 ">>>     from dateutil.parser import parse\n"
@@ -1472,7 +1472,7 @@ msgid ""
 "1     2015"
 msgstr ""
 
-#: ../../source/df-element.rst:652
+#: ../../source/df-element.rst:655
 msgid ""
 "PyODPS 默认支持执行纯 Python 且不含文件操作的第三方库。在较新版本的 MaxCompute 服务下，PyODPS "
 "也支持执行带有二进制代码或带有文件操作的 Python 库。这些库的后缀必须是 cp27-cp27m-manylinux1_x86_64， 以 "
@@ -1490,7 +1490,7 @@ msgstr ""
 "project. The following example demonstrates how to upload and use the "
 "special functions in scipy:"
 
-#: ../../source/df-element.rst:672
+#: ../../source/df-element.rst:660
 msgid ""
 ">>> # 对于含有二进制代码的包，必须使用 Archive 方式上传资源，whl 后缀需要改为 zip\n"
 ">>> odps.create_resource('scipy.zip', 'archive', "
@@ -1526,7 +1526,7 @@ msgstr ""
 ">>>\n"
 ">>> df.float_col.map(psi).execute(libraries=['scipy.zip'])"
 
-#: ../../source/df-element.rst:673
+#: ../../source/df-element.rst:676
 msgid ""
 "对于只提供源码的二进制包，可以在 Linux Shell 中打包成 Wheel 再上传，Mac 和 Windows 中生成的 Wheel 包无法在"
 " MaxCompute 中使用："
@@ -1535,15 +1535,15 @@ msgstr ""
 "into .whl files and uploaded through Linux shell. .whl files generated in"
 " Mac and Windows are not usable in MaxCompute:"
 
-#: ../../source/df-element.rst:676
+#: ../../source/df-element.rst:679
 msgid "python setup.py bdist_wheel"
 msgstr ""
 
-#: ../../source/df-element.rst:682
+#: ../../source/df-element.rst:685
 msgid "使用计数器"
 msgstr "Use the counter"
 
-#: ../../source/df-element.rst:684
+#: ../../source/df-element.rst:687
 msgid ""
 "from odps.udf import get_execution_context\n"
 "\n"
@@ -1556,15 +1556,15 @@ msgid ""
 "df.field.map(h)"
 msgstr ""
 
-#: ../../source/df-element.rst:696
+#: ../../source/df-element.rst:699
 msgid "logview 的 JSONSummary 中即可找到计数器值。"
 msgstr "You can find the value of the counter in the JSONSummary of LogView."
 
-#: ../../source/df-element.rst:700
+#: ../../source/df-element.rst:703
 msgid "调用ODPS内建或者已定义函数"
 msgstr "Call MaxCompute built-in functions or UDFs"
 
-#: ../../source/df-element.rst:702
+#: ../../source/df-element.rst:705
 msgid ""
 "要想调用 ODPS 上的内建或者已定义函数，来生成列，我们可以使用 ``func`` 接口，该接口默认函数返回值为 String， 可以用 "
 "rtype 参数指定返回值。"
@@ -1573,7 +1573,7 @@ msgstr ""
 "or UDFs to generate columns. This interface returns a string type by "
 "default. You can use the rtype parameter to specify the return type."
 
-#: ../../source/df-element.rst:716
+#: ../../source/df-element.rst:708
 msgid ""
 ">>> from odps.df import func\n"
 ">>>\n"
@@ -1601,9 +1601,24 @@ msgstr ""
 "rtype='float', project='udf_project',\n"
 ">>>                               name='new_col')]"
 
-#: ../../source/df-element.rst:718
+#: ../../source/df-element.rst:721
 msgid "注意：在使用 Pandas 后端时，不支持执行带有 ``func`` 的表达式。"
 msgstr ""
 "Note: when executing under pandas backend, executing expressions "
 "containing ``func`` is not supported."
+
+#~ msgid ""
+#~ ">>> iris.sepallength.map(lambda x: 't'+str(x), 'string').head(5)\n"
+#~ "   sepallength\n"
+#~ "0         t5.1\n"
+#~ "1         t4.9\n"
+#~ "2         t4.7\n"
+#~ "3         t4.6\n"
+#~ "4         t5.0"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "推荐参考「`打包 Python 依赖上 ODPS 跑的小技巧 "
+#~ "<https://www.atatech.org/articles/163152>`_」。"
+#~ msgstr ""
 

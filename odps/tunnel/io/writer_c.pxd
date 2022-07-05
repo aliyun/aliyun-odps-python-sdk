@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ from libc.stdint cimport *
 from libc.string cimport *
 
 from ...src.types_c cimport BaseRecord, SchemaSnapshot
+from ...src.utils_c cimport CMillisecondsConverter
 from ..checksum_c cimport Checksum
 from ..pb.encoder_c cimport Encoder
 
@@ -33,21 +34,25 @@ cdef class ProtobufRecordWriter:
     cpdef flush(self)
     cpdef close(self)
     cpdef flush_all(self)
-    cpdef _refresh_buffer(self)
-    cpdef _write_tag(self, int field_num, int wire_type)
-    cpdef _write_raw_long(self, int64_t val)
-    cpdef _write_raw_int(self, int32_t val)
-    cpdef _write_raw_uint(self, uint32_t val)
-    cpdef _write_raw_bool(self, bint val)
-    cpdef _write_raw_float(self, float val)
-    cpdef _write_raw_double(self, double val)
-    cpdef _write_raw_string(self, bytes val)
+    cpdef int _refresh_buffer(self) except -1
+    cpdef int _write_tag(self, int field_num, int wire_type) except -1
+    cpdef int _write_raw_long(self, int64_t val) except -1
+    cpdef int _write_raw_int(self, int32_t val) except -1
+    cpdef int _write_raw_uint(self, uint32_t val) except -1
+    cpdef int _write_raw_bool(self, bint val) except -1
+    cpdef int _write_raw_float(self, float val) except -1
+    cpdef int _write_raw_double(self, double val) except -1
+    cpdef int _write_raw_string(self, bytes val) except -1
 
 
 cdef class BaseRecordWriter(ProtobufRecordWriter):
+    cdef object _encoding
+    cdef object _schema
+    cdef object _columns
     cdef size_t _curr_cursor_c
-    cdef object _to_milliseconds
+    cdef object _to_days
     cdef object _reader_schema
+    cdef CMillisecondsConverter _mills_converter
     cdef Checksum _crc_c
     cdef Checksum _crccrc_c
     cdef SchemaSnapshot _schema_snapshot

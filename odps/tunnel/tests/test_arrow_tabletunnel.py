@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import math
 try:
     from string import letters
 except ImportError:
-    from string import ascii_letters as letters
+    from string import ascii_letters as letters  # noqa: F401
 try:
     import pytz
 except ImportError:
@@ -41,6 +41,7 @@ from odps.compat import unittest
 from odps.models import Schema
 
 
+@unittest.skipIf(pa is None, "need to install pyarrow")
 class Test(TestBase):
     def _upload_data(self, test_table, data, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)

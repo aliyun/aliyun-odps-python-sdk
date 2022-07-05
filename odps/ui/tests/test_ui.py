@@ -1,11 +1,11 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -13,9 +13,6 @@
 # limitations under the License.
 
 import json
-import os
-import sys
-import textwrap
 
 from odps.ui.tests.base import UITestBase, setup_kernel, ui_case
 from odps.compat import six
@@ -28,7 +25,7 @@ class TestUI(UITestBase):
     def test_html_notify(self):
         with setup_kernel() as client:
             client.execute('from odps.ui import html_notify')
-            shell_msg = client.get_shell_msg(block=True, timeout=TIMEOUT)
+            shell_msg = client.get_shell_msg(timeout=TIMEOUT)
             content = shell_msg['content']
             self.assertEqual(content['status'], 'ok')
 
@@ -37,6 +34,6 @@ class TestUI(UITestBase):
             assert any(u"TestMessage" in json.dumps(l)
                        for l in six.itervalues(iopub_data))
 
-            shell_msg = client.get_shell_msg(block=True, timeout=TIMEOUT)
+            shell_msg = client.get_shell_msg(timeout=TIMEOUT)
             content = shell_msg['content']
             self.assertEqual(content['status'], 'ok')

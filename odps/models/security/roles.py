@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -53,7 +53,7 @@ class Role(LazyLoad):
         if self._policy_cache is None:
             params = dict(policy='')
             resp = self._client.get(self.resource(), params=params)
-            self._policy_cache = resp.text if six.PY3 else resp.content
+            self._policy_cache = resp.content.decode() if six.PY3 else resp.content
         return json.loads(self._policy_cache)
 
     @policy.setter

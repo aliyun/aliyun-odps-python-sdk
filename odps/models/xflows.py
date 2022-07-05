@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import time
 
 from .core import Iterable, XMLRemoteModel
 from .xflow import XFlow
-from .instances import Instances
 from .instance import Instance
 from .. import serializers, errors, compat, options
 from ..compat import six, OrderedDict
@@ -101,7 +101,7 @@ class XFlows(Iterable):
         return xflow
 
     class XFlowInstance(XMLRemoteModel):
-        __slots__ = 'xflow_project', 'xflow_name', 'parameters', 'properties', 'priority'
+        __slots__ = 'xflow_project', 'xflow_name', 'parameters', 'priority', 'properties'
         _root = 'XflowInstance'
 
         xflow_project = serializers.XMLNodeField('Project')
@@ -128,6 +128,9 @@ class XFlows(Iterable):
     def run_xflow(self, xflow_instance=None, project=None, hints=None, parameters=None, **kw):
         project = project or self.parent
         hints = hints or {}
+        if options.default_task_settings:
+            hints["settings"] = json.dumps(options.default_task_settings)
+
         if options.ml.xflow_settings:
             hints.update(options.ml.xflow_settings)
         if hints:
@@ -209,5 +212,3 @@ class XFlows(Iterable):
             return True
         except errors.ODPSError:
             return False
-
-
