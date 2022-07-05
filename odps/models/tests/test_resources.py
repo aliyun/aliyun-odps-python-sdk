@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 import zipfile
 
 from odps.tests.core import TestBase, to_str, tn
-from odps.compat import unittest, six
+from odps.compat import unittest, six, ConfigParser
 from odps import compat
 from odps.models import Resource, FileResource, TableResource, VolumeArchiveResource, \
     VolumeFileResource, Schema
@@ -59,7 +59,10 @@ class Test(TestBase):
         self.assertFalse(self.odps.exist_resource(non_exists_resource))
 
     def testTableResource(self):
-        secondary_project = self.config.get('test', 'secondary_project')
+        try:
+            secondary_project = self.config.get('test', 'secondary_project')
+        except ConfigParser.NoOptionError:
+            secondary_project = None
 
         test_table_name = tn('pyodps_t_tmp_resource_table')
         schema = Schema.from_lists(['id', 'name'], ['string', 'string'])

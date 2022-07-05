@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ else:
 
 
 class RequestsIO(object):
-    CHUNK_SIZE = 1024
+    CHUNK_SIZE = 64 * 1024
 
     def __new__(cls, *args, **kwargs):
         if cls is RequestsIO:
@@ -233,7 +233,7 @@ class SnappyOutputStream(object):
 
 class SimpleInputStream(object):
 
-    READ_BLOCK_SIZE = 1024 * 10
+    READ_BLOCK_SIZE = 1024 * 64
 
     def __init__(self, input):
         self._input = input

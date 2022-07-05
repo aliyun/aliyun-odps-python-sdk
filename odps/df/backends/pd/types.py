@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,13 +32,13 @@ _df_to_np_types = dict()
 
 if has_np:
     _np_int_types = list(map(np.dtype, [np.int_, np.int8, np.int16, np.int32, np.int64]))
-    _np_float_types = list(map(np.dtype, [np.float, np.float32, np.float64]))
+    _np_float_types = list(map(np.dtype, [np.float_, np.float32, np.float64]))
 
     for np_type in _np_int_types + _np_float_types:
         _np_to_df_types[np_type] = getattr(types, str(np_type))
 
-    _np_to_df_types[np.dtype(np.bool)] = types.boolean
-    _np_to_df_types[np.dtype(np.str)] = types.string
+    _np_to_df_types[np.dtype(np.bool_)] = types.boolean
+    _np_to_df_types[np.dtype(np.str_)] = types.string
 
     _df_to_np_types = dict((v, k) for k, v in six.iteritems(_np_to_df_types))
 

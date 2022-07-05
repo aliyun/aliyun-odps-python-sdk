@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-06-25 15:28+0800\n"
+"POT-Creation-Date: 2022-06-29 16:26+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.9.1\n"
 
 #: ../../source/base-sql.rst:4
 msgid "SQL"
@@ -142,8 +142,8 @@ msgstr ""
 "calling Instance Tunnel, PyODPS reports a warning and automatically calls"
 " the old Result interface instead. If the result of Instance Tunnel does "
 "not meet your expectation, set this option to `False`. When calling "
-"open_reader, you can also use the ``tunnel`` parameter to specify "
-"which result interface to use. For example:"
+"open_reader, you can also use the ``tunnel`` parameter to specify which "
+"result interface to use. For example:"
 
 #: ../../source/base-sql.rst:71
 msgid ""
@@ -159,13 +159,13 @@ msgid ""
 ">>>         # 处理每一个record"
 msgstr ""
 ">>> # Use Instance Tunnel\n"
-">>> with o.execute_sql('select * from dual').open_reader(tunnel=True)"
-" as reader:\n"
+">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
+"reader:\n"
 ">>>     for record in reader:\n"
 ">>>         # process every record\n"
 ">>> # Use Results interface\n"
-">>> with o.execute_sql('select * from "
-"dual').open_reader(tunnel=False) as reader:\n"
+">>> with o.execute_sql('select * from dual').open_reader(tunnel=False) as"
+" reader:\n"
 ">>>     for record in reader:\n"
 ">>>         # process every record"
 
@@ -181,9 +181,9 @@ msgstr ""
 "is limited. If `options.tunnel.limit_instance_tunnel` is not set, a data "
 "cap is automatically enabled. The number of downloadable data records is "
 "set in your project configuration. This is usually set to 10,000. If you "
-"want to change the amount of downloadable data, you can add the "
-"`limit` option in open_reader, or set "
-"`options.tunnel.limit_instance_tunnel` to `True`."
+"want to change the amount of downloadable data, you can add the `limit` "
+"option in open_reader, or set `options.tunnel.limit_instance_tunnel` to "
+"`True`."
 
 #: ../../source/base-sql.rst:87
 msgid ""
@@ -195,18 +195,59 @@ msgstr ""
 "to another table and use these methods to read data. This may be limited "
 "by project security settings."
 
-#: ../../source/base-sql.rst:91
+#: ../../source/base-sql.rst:90
+msgid "同时，PyODPS 支持直接将运行结果数据读成 pandas DataFrame。"
+msgstr "PyODPS also supports reading data as pandas DataFrames."
+
+#: ../../source/base-sql.rst:92
+msgid ""
+">>> # 直接使用 reader 的 to_pandas 方法\n"
+">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
+"reader:\n"
+">>>     # pd_df 类型为 pandas DataFrame\n"
+">>>     pd_df = reader.to_pandas()"
+msgstr ""
+">>> # use to_pandas() method of the reader directly\n"
+">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as reader:\n"
+">>>     # type of pd_df is pandas DataFrame\n"
+">>>     pd_df = reader.to_pandas()"
+
+#: ../../source/base-sql.rst:101
+msgid "如果需要使用多核加速读取速度，可以通过 `n_process` 指定使用进程数:"
+msgstr "If you want to accelerate data reading with multiple cores, you can specify `n_process` with number of cores you want to use:"
+
+#: ../../source/base-sql.rst:105
+msgid "目前多进程加速在 Windows 下无法使用。"
+msgstr "Currently multiple process acceleration is not available under Windows."
+
+#: ../../source/base-sql.rst:108
+msgid ""
+">>> import multiprocessing\n"
+">>> n_process = multiprocessing.cpu_count()\n"
+">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
+"reader:\n"
+">>>     # n_process 指定成机器核数\n"
+">>>     pd_df = reader.to_pandas(n_process=n_process)"
+msgstr ""
+">>> import multiprocessing\n"
+">>> n_process = multiprocessing.cpu_count()\n"
+">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
+"reader:\n"
+">>>     # n_process should be number of processes to use\n"
+">>>     pd_df = reader.to_pandas(n_process=n_process)"
+
+#: ../../source/base-sql.rst:118
 msgid "设置alias"
 msgstr "Set alias"
 
-#: ../../source/base-sql.rst:93
+#: ../../source/base-sql.rst:120
 msgid "有时在运行时，比如某个UDF引用的资源是动态变化的，我们可以alias旧的资源名到新的资源，这样免去了重新删除并重新创建UDF的麻烦。"
 msgstr ""
 "Some resources referenced by a UDF are dynamically changing at runtime. "
 "You can create an alias for the old resource and use it as a new "
 "resource."
 
-#: ../../source/base-sql.rst:95
+#: ../../source/base-sql.rst:122
 msgid ""
 "from odps.models import Schema\n"
 "\n"
@@ -278,11 +319,11 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:131
+#: ../../source/base-sql.rst:158
 msgid "2"
 msgstr ""
 
-#: ../../source/base-sql.rst:135
+#: ../../source/base-sql.rst:162
 msgid ""
 "res2 = o.create_resource('test_alias_res2', 'file', file_obj='2')\n"
 "# 把内容为1的资源alias成内容为2的资源，我们不需要修改UDF或资源\n"
@@ -303,15 +344,15 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:144
+#: ../../source/base-sql.rst:171
 msgid "3"
 msgstr ""
 
-#: ../../source/base-sql.rst:150
+#: ../../source/base-sql.rst:177
 msgid "在交互式环境执行 SQL"
 msgstr "Execute SQL statements in an interactive environment"
 
-#: ../../source/base-sql.rst:152
+#: ../../source/base-sql.rst:179
 msgid ""
 "在 ipython 和 jupyter 里支持 :ref:`使用 SQL 插件的方式运行 SQL <sqlinter>`，且支持 "
 ":ref:`参数化查询 <sqlparam>`， 详情参阅 :ref:`文档 <sqlinter>`。"
@@ -320,18 +361,18 @@ msgstr ""
 "statements<sqlinter>`. Besides, :ref:`parameterized query<sqlparam>` is "
 "also supported. For details, see :ref:`Documentation<sqlinter>`."
 
-#: ../../source/base-sql.rst:158
+#: ../../source/base-sql.rst:185
 msgid "设置 biz_id"
 msgstr "Set biz_id"
 
-#: ../../source/base-sql.rst:160
+#: ../../source/base-sql.rst:187
 msgid "在少数情形下，可能在提交 SQL 时，需要同时提交 biz_id，否则执行会报错。此时，你可以设置全局 options 里的 biz_id。"
 msgstr ""
 "In a few cases, it may be necessary to submit biz_id when submitting SQL "
 "statements. Otherwise an error occurs during execution. You can set the "
 "biz_id in options globally."
 
-#: ../../source/base-sql.rst:162
+#: ../../source/base-sql.rst:189
 msgid ""
 "from odps import options\n"
 "\n"

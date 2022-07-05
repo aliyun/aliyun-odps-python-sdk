@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2019 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,20 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
-import json
-import time
-import random
-import textwrap
-from datetime import datetime, timedelta
-
-import requests
-
-from odps.tests.core import TestBase, to_str, tn, pandas_case
-from odps.compat import unittest, six
-from odps.models import Instance, SQLTask, Schema, session, Record
+from odps.tests.core import TestBase
+from odps.compat import unittest
+from odps.models import Instance, Schema, Record
 from odps.errors import ODPSError
-from odps import errors, compat, types as odps_types, utils, options
 
 TEST_SESSION_WORKERS = 4
 TEST_SESSION_WORKER_MEMORY = 512
@@ -113,9 +103,10 @@ class Test(TestBase):
         select_inst.wait_for_completion() # should return normally even the task is failed
         try:
             select_inst.wait_for_success()
-            self.assertTrue(False) # should not reach here: wait_for_success should throw exception on failed instance
-        except ODPSError as ex:
-            pass # good
+            # should not reach here: wait_for_success should throw exception on failed instance
+            self.assertTrue(False)
+        except ODPSError:
+            pass  # good
         sess_instance.stop()
 
     def testDirectExecuteFailingSQL(self):
@@ -136,9 +127,10 @@ class Test(TestBase):
         select_inst.wait_for_completion() # should return normally even the task is failed
         try:
             select_inst.wait_for_success()
-            self.assertTrue(False) # should not reach here: wait_for_success should throw exception on failed instance
-        except ODPSError as ex:
-            pass # good
+            # should not reach here: wait_for_success should throw exception on failed instance
+            self.assertTrue(False)
+        except ODPSError:
+            pass  # good
         sess_instance.stop()
 
     def testSessionSQL(self):

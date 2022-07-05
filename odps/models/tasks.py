@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -162,6 +162,9 @@ def format_cdata(query, semicolon=False):
 
 def collect_settings(value, glob):
     settings = dict()
+    if options.default_task_settings:
+        settings = options.default_task_settings
+
     if glob:
         if options.sql.use_odps2_extension:
             settings['odps.sql.type.system.odps2'] = True
@@ -274,6 +277,6 @@ class SQLRTTask(Task):
 
 
 try:
-    from ..internal.models.tasks import *
+    from ..internal.models.tasks import *  # noqa: F401
 except ImportError:
     pass

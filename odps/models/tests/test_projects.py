@@ -1,11 +1,11 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -36,15 +36,15 @@ class Test(TestBase):
 
         self.assertEqual(project.name, self.odps.project)
 
-        self.assertIsNone(project._getattr('owner'))
-        self.assertIsNone(project._getattr('comment'))
-        self.assertIsNone(project._getattr('creation_time'))
-        self.assertIsNone(project._getattr('last_modified_time'))
-        self.assertIsNone(project._getattr('project_group_name'))
-        self.assertIsNone(project._getattr('properties'))
-        self.assertIsNone(project._getattr('extended_properties'))
-        self.assertIsNone(project._getattr('state'))
-        self.assertIsNone(project._getattr('clusters'))
+        self.assertIsNone(project._getattr("owner"))
+        self.assertIsNone(project._getattr("comment"))
+        self.assertIsNone(project._getattr("creation_time"))
+        self.assertIsNone(project._getattr("last_modified_time"))
+        self.assertIsNone(project._getattr("project_group_name"))
+        self.assertIsNone(project._getattr("properties"))
+        self.assertIsNone(project._getattr("_extended_properties"))
+        self.assertIsNone(project._getattr("state"))
+        self.assertIsNone(project._getattr("clusters"))
 
         self.assertFalse(project.is_loaded)
 
@@ -58,6 +58,10 @@ class Test(TestBase):
         self.assertIsInstance(project.state, six.string_types)
 
         self.assertTrue(project.is_loaded)
+
+        with self.assertRaises(KeyError):
+            project.get_property("non_exist_property")
+        self.assertIsNone(project.get_property("non_exist_property", None), None)
 
     def testListProjects(self):
         projects = [next(self.odps.list_projects(max_items=1)) for _ in range(2)]

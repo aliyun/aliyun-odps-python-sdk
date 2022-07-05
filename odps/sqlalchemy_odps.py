@@ -1,4 +1,4 @@
-# Copyright 1999-2020 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ from sqlalchemy import types as sa_types
 from sqlalchemy.databases import mysql
 from sqlalchemy.engine import default, Engine
 from sqlalchemy.exc import NoSuchTableError
-from sqlalchemy.sql import compiler
+from sqlalchemy.sql import compiler, sqltypes
 
 from . import options
 from . import types
@@ -146,6 +146,12 @@ class ODPSTypeCompiler(compiler.GenericTypeCompiler):
         return 'TIMESTAMP'
 
 
+if hasattr(sqltypes.String, "RETURNS_UNICODE"):
+    _return_unicode_str = sqltypes.String.RETURNS_UNICODE
+else:
+    _return_unicode_str = True
+
+
 class ODPSDialect(default.DefaultDialect):
     name = 'odps'
     driver = 'rest'
@@ -160,7 +166,7 @@ class ODPSDialect(default.DefaultDialect):
     supports_native_boolean = True
     supports_unicode_statements = True
     supports_unicode_binds = True
-    returns_unicode_strings = True
+    returns_unicode_strings = _return_unicode_str
     description_encoding = None
     supports_multivalues_insert = True
     type_compiler = ODPSTypeCompiler
@@ -190,12 +196,13 @@ class ODPSDialect(default.DefaultDialect):
         reuse_odps = False
         fallback_policy = ''
         if url.query:
-            query = url.query
+            query = dict(url.query)
             if endpoint is None:
                 endpoint = query.pop('endpoint', None)
             if logview_host is None:
-                logview_host = query.pop('logview_host',
-                                         query.pop('logview', None))
+                logview_host = query.pop(
+                    'logview_host', query.pop('logview', None)
+                )
             if session_name is None:
                 session_name = query.pop('session', None)
             if use_sqa == False:
@@ -231,15 +238,21 @@ class ODPSDialect(default.DefaultDialect):
 
         if reuse_odps:
             # the odps object can only be reused only if it will be identical
-            if (url_string in _sqlalchemy_global_reusable_odps and
-                _sqlalchemy_global_reusable_odps.get(url_string) is not None):
+            if (
+                url_string in _sqlalchemy_global_reusable_odps
+                and _sqlalchemy_global_reusable_odps.get(url_string) is not None
+            ):
                 kwargs['odps'] = _sqlalchemy_global_reusable_odps.get(url_string)
                 kwargs['access_id'] = None
                 kwargs['secret_access_key'] = None
             else:
-                _sqlalchemy_global_reusable_odps[url_string] = ODPS(access_id=access_id,
-                        secret_access_key=secret_access_key,
-                        project=project, endpoint=endpoint, logview_host=logview_host)
+                _sqlalchemy_global_reusable_odps[url_string] = ODPS(
+                    access_id=access_id,
+                    secret_access_key=secret_access_key,
+                    project=project,
+                    endpoint=endpoint,
+                    logview_host=logview_host,
+                )
 
         return [], kwargs
 

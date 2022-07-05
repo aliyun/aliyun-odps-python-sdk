@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ except ImportError:
     pd = None
 
 from ...config import options
+
 try:
     if not options.force_py:
         from .writer_c import BaseRecordWriter
@@ -36,8 +37,12 @@ except ImportError as e:
         raise e
     BaseRecordWriter = None
 from ..pb.encoder import Encoder
-from ..pb.wire_format import WIRETYPE_VARINT, WIRETYPE_FIXED32, WIRETYPE_FIXED64,\
-    WIRETYPE_LENGTH_DELIMITED
+from ..pb.wire_format import (
+    WIRETYPE_VARINT,
+    WIRETYPE_FIXED32,
+    WIRETYPE_FIXED64,
+    WIRETYPE_LENGTH_DELIMITED,
+)
 from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
 from .stream import CompressOption, SnappyOutputStream, DeflateOutputStream, RequestsIO
@@ -45,11 +50,22 @@ from ... import types, compat, utils, errors, options
 from ...compat import six
 
 
-varint_tag_types = types.integer_types + (types.boolean, types.datetime, types.date, types.interval_year_month)
-length_delim_tag_types = (types.string, types.binary, types.timestamp, types.interval_day_time)
+varint_tag_types = types.integer_types + (
+    types.boolean,
+    types.datetime,
+    types.date,
+    types.interval_year_month,
+)
+length_delim_tag_types = (
+    types.string,
+    types.binary,
+    types.timestamp,
+    types.interval_day_time,
+)
 
 
 if BaseRecordWriter is None:
+
     class ProtobufWriter(object):
         """
         ProtobufWriter is a stream-interface wrapper around encoder_c.Encoder(c)
@@ -130,16 +146,15 @@ if BaseRecordWriter is None:
             self._encoder.append_string(val)
             self._refresh_buffer()
 
-
     class BaseRecordWriter(ProtobufWriter):
-        def __init__(self, schema, out, encoding='utf-8'):
+        def __init__(self, schema, out, encoding="utf-8"):
             self._encoding = encoding
             self._schema = schema
             self._columns = self._schema.columns
             self._crc = Checksum()
             self._crccrc = Checksum()
             self._curr_cursor = 0
-            self._to_milliseconds = utils.build_to_milliseconds()
+            self._to_milliseconds = utils.MillisecondsConverter().to_milliseconds
             self._to_days = utils.to_days
 
             super(BaseRecordWriter, self).__init__(out)
@@ -149,7 +164,7 @@ if BaseRecordWriter is None:
             n_columns = len(self._columns)
 
             if n_record_fields > n_columns:
-                raise IOError('record fields count is more than schema.')
+                raise IOError("record fields count is more than schema.")
 
             for i in range(min(n_record_fields, n_columns)):
                 if self._schema.is_partition(self._columns[i]):
@@ -171,11 +186,20 @@ if BaseRecordWriter is None:
                     self._write_tag(pb_index, WIRETYPE_FIXED64)
                 elif data_type in length_delim_tag_types:
                     self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
-                elif isinstance(data_type, (types.Char, types.Varchar, types.Decimal, types.Array,
-                                            types.Map, types.Struct)):
+                elif isinstance(
+                    data_type,
+                    (
+                        types.Char,
+                        types.Varchar,
+                        types.Decimal,
+                        types.Array,
+                        types.Map,
+                        types.Struct,
+                    ),
+                ):
                     self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
                 else:
-                    raise IOError('Invalid data type: %s' % data_type)
+                    raise IOError("Invalid data type: %s" % data_type)
                 self._write_field(val, data_type)
 
             checksum = utils.long_to_int(self._crc.getvalue())
@@ -279,7 +303,7 @@ if BaseRecordWriter is None:
             elif isinstance(data_type, types.Struct):
                 self._write_struct(val, data_type)
             else:
-                raise IOError('Invalid data type: %s' % data_type)
+                raise IOError("Invalid data type: %s" % data_type)
 
         @property
         def count(self):
@@ -308,7 +332,7 @@ class RecordWriter(BaseRecordWriter):
     This writer uploads the output of serializer asynchronously within a long-lived http connection.
     """
 
-    def __init__(self, schema, request_callback, compress_option=None, encoding='utf-8'):
+    def __init__(self, schema, request_callback, compress_option=None, encoding="utf-8"):
         self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
 
         if compress_option is None:
@@ -349,8 +373,14 @@ class BufferredRecordWriter(BaseRecordWriter):
 
     BUFFER_SIZE = 10485760
 
-    def __init__(self, schema, request_callback, compress_option=None,
-                 encoding='utf-8', buffer_size=None):
+    def __init__(
+        self,
+        schema,
+        request_callback,
+        compress_option=None,
+        encoding="utf-8",
+        buffer_size=None,
+    ):
         self._buffer_size = buffer_size or self.BUFFER_SIZE
         self._request_callback = request_callback
         self._block_id = 0
@@ -371,7 +401,7 @@ class BufferredRecordWriter(BaseRecordWriter):
                 CompressOption.CompressAlgorithm.ODPS_SNAPPY:
             out = SnappyOutputStream(self._buffer)
         else:
-            raise errors.InvalidArgument('Invalid compression algorithm.')
+            raise errors.InvalidArgument("Invalid compression algorithm.")
 
         super(BufferredRecordWriter, self).__init__(schema, out, encoding=encoding)
 
@@ -419,7 +449,7 @@ class BufferredRecordWriter(BaseRecordWriter):
                 CompressOption.CompressAlgorithm.ODPS_SNAPPY:
             out = SnappyOutputStream(self._buffer)
         else:
-            raise errors.InvalidArgument('Invalid compression algorithm.')
+            raise errors.InvalidArgument("Invalid compression algorithm.")
 
         self._re_init(out)
         self._curr_cursor = 0
@@ -442,7 +472,15 @@ class BufferredRecordWriter(BaseRecordWriter):
 
 
 class StreamRecordWriter(BaseRecordWriter):
-    def __init__(self, schema, request_callback, session, slot, compress_option=None, encoding='utf-8'):
+    def __init__(
+        self,
+        schema,
+        request_callback,
+        session,
+        slot,
+        compress_option=None,
+        encoding="utf-8",
+    ):
         self.session = session
         self.slot = slot
         self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)

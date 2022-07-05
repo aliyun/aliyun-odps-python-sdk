@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,8 @@ from odps.compat import unittest
 from odps.ipython.magics import ODPSSql
 
 try:
-    import IPython
+    import IPython  # noqa: F401
+
     has_ipython = True
 except ImportError:
     has_ipython = False

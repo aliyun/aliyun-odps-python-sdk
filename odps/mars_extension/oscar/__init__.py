@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 from .run_script import execute_with_odps_context
 from .filesystem import VolumeFileSystem
 
+from mars import __version__ as mars_version
 from mars.lib.filesystem.core import register_filesystem
 from mars.remote.run_script import RunScript
 from mars.remote.core import RemoteFunction
@@ -24,4 +25,20 @@ from mars.remote.core import RemoteFunction
 
 RemoteFunction.register_executor(execute_with_odps_context(RemoteFunction.execute))
 RunScript.register_executor(execute_with_odps_context(RunScript.execute))
-register_filesystem('odps', VolumeFileSystem)
+register_filesystem("odps", VolumeFileSystem)
+
+
+# hotfix v0.8 bug
+if mars_version.startswith("0.8"):
+    import pandas as pd
+    from mars import utils as mars_utils
+
+    def on_serialize_nsplits(value):
+        if value is None:
+            return None
+        new_nsplits = []
+        for dim_splits in value:
+            new_nsplits.append(tuple(None if pd.isna(v) else v for v in dim_splits))
+        return tuple(new_nsplits)
+
+    mars_utils.on_serialize_nsplits.__code__ = on_serialize_nsplits.__code__

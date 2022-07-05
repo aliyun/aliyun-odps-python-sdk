@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ except ImportError:
     def namedtuple(typename, field_names, rename=False):
         return _namedtuple(typename, field_names)
 
+
 try:
     string_types = (unicode, basestring)
     iteritems = lambda d: d.iteritems()
@@ -37,7 +38,9 @@ class NamedTupleMixin(object):
         if item in self._name_map:
             return self[self._name_map[item]]
         else:
-            raise AttributeError("'%s' object has no attribute '%s'" % (type(self).__name__, str(item)))
+            raise AttributeError(
+                "'%s' object has no attribute '%s'" % (type(self).__name__, str(item))
+            )
 
     def asdict(self):
         return OrderedDict(zip(self._names, self))
@@ -49,8 +52,8 @@ class NamedTupleMixin(object):
 
 def xnamedtuple(typename, field_names):
     if isinstance(field_names, string_types):
-        field_names = field_names.replace(',', ' ').split()
-    base_nt = namedtuple(typename + '_base', field_names, rename=True)
+        field_names = field_names.replace(",", " ").split()
+    base_nt = namedtuple(typename + "_base", field_names, rename=True)
     nt = type(typename, (base_nt, NamedTupleMixin), {})
     nt._name_map = dict((v, k) for k, v in enumerate(field_names))
     nt._names = field_names

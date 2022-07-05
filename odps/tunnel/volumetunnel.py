@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,7 +25,7 @@ from .checksum import Checksum
 from .errors import TunnelError
 from .. import serializers, options
 from ..models import errors
-from ..compat import irange, Enum, six, BytesIO
+from ..compat import irange, Enum, six
 from ..utils import to_binary, to_text
 
 MAX_CHUNK_SIZE = 256 * 1024 * 1024
@@ -170,6 +170,14 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
         else:
             self.id = download_id
             self.reload()
+        if options.tunnel_session_create_callback:
+            options.tunnel_session_create_callback(self)
+
+    def __repr__(self):
+        return (
+            "<VolumeDownloadSession id=%s project_name=%s volume_name=%s partition_spec=%s>"
+            % (self.id, self.project_name, self.volume_name, self.partition_spec)
+        )
 
     def resource(self):
         return self._client.endpoint + '/projects/%s/tunnel/downloads' % self.project_name
@@ -443,6 +451,14 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
             self.id = upload_id
             self.reload()
         self._compress_option = compress_option
+        if options.tunnel_session_create_callback:
+            options.tunnel_session_create_callback(self)
+
+    def __repr__(self):
+        return (
+            "<VolumeUploadSession id=%s project_name=%s volume_name=%s partition_spec=%s>"
+            % (self.id, self.project_name, self.volume_name, self.partition_spec)
+        )
 
     def resource(self):
         return self._client.endpoint + '/projects/%s/tunnel/uploads' % self.project_name

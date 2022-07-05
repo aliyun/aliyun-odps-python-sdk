@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-12-25 09:52+0800\n"
+"POT-Creation-Date: 2022-06-29 16:26+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.6.0\n"
+"Generated-By: Babel 2.9.1\n"
 
 #: ../../source/base-models.rst:4
 msgid "XFlow 和模型"
@@ -138,11 +138,21 @@ msgid ""
 "hints={'odps.xxx.yyy': 10})"
 msgstr ""
 
-#: ../../source/base-models.rst:60
+#: ../../source/base-models.rst:61
+msgid "如果需要任务运行到指定卡型的机器上，可以在 hints 中增加如下配置："
+msgstr ""
+
+#: ../../source/base-models.rst:63
+msgid ""
+">>> hints={\"settings\": json.dumps({\"odps.algo.hybrid.deploy.info\": "
+"\"xxxxx\"})"
+msgstr ""
+
+#: ../../source/base-models.rst:68
 msgid "使用 options.ml.xflow_settings 可以配置全局设置："
 msgstr "You can use options.ml.xflow_settings to configure the global settings:"
 
-#: ../../source/base-models.rst:62
+#: ../../source/base-models.rst:70
 msgid ""
 ">>> from odps import options\n"
 ">>> options.ml.xflow_settings = {'odps.xxx.yyy': 10}\n"
@@ -151,7 +161,7 @@ msgid ""
 ">>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters)"
 msgstr ""
 
-#: ../../source/base-models.rst:69
+#: ../../source/base-models.rst:77
 msgid ""
 "PAI 命令的文档可以参考 `这份文档 "
 "<https://help.aliyun.com/document_detail/42703.html>`_ 。"
@@ -159,11 +169,11 @@ msgstr ""
 "Details about PAI commands can be found in `this page "
 "<https://help.aliyun.com/document_detail/42703.html>`_ 。"
 
-#: ../../source/base-models.rst:72
+#: ../../source/base-models.rst:80
 msgid "离线模型"
 msgstr "Offline models"
 
-#: ../../source/base-models.rst:74
+#: ../../source/base-models.rst:82
 msgid ""
 "离线模型是 XFlow 分类 / 回归算法输出的模型。用户可以使用 PyODPS ML 或直接使用 odps.run_xflow "
 "创建一个离线模型，例如下面使用 run_xflow 的例子："
@@ -172,7 +182,7 @@ msgstr ""
 "algorithms. You can directly call odps.run_xflow to create an offline "
 "model. For example:"
 
-#: ../../source/base-models.rst:77
+#: ../../source/base-models.rst:85
 msgid ""
 ">>> o.run_xflow('LogisticRegression', 'algo_public', "
 "dict(modelName='logistic_regression_model_name',\n"
@@ -182,33 +192,33 @@ msgid ""
 "inputTableName='bank_data'))"
 msgstr ""
 
-#: ../../source/base-models.rst:83
+#: ../../source/base-models.rst:91
 msgid "在模型创建后，用户可以列出当前 Project 下的模型："
 msgstr ""
 "After creating the models, you can list the models under the current "
 "project as follows:"
 
-#: ../../source/base-models.rst:85
+#: ../../source/base-models.rst:93
 msgid ">>> models = o.list_offline_models(prefix='prefix')"
 msgstr ""
 
-#: ../../source/base-models.rst:89
+#: ../../source/base-models.rst:97
 msgid "也可以通过模型名获取模型并读取模型 PMML（如果支持）："
 msgstr ""
 "You can also retrieve the models and read their PMML (if supported) by "
 "the model names:"
 
-#: ../../source/base-models.rst:91
+#: ../../source/base-models.rst:99
 msgid ""
 ">>> model = o.get_offline_model('logistic_regression_model_name')\n"
 ">>> pmml = model.get_model()"
 msgstr ""
 
-#: ../../source/base-models.rst:96
+#: ../../source/base-models.rst:104
 msgid "复制离线模型可以使用下列语句："
 msgstr "You can copy a model using the following statement:"
 
-#: ../../source/base-models.rst:98
+#: ../../source/base-models.rst:106
 msgid ""
 ">>> model = o.get_offline_model('logistic_regression_model_name')\n"
 ">>> # 复制到当前 project\n"
@@ -224,11 +234,11 @@ msgstr ""
 ">>> new_model2 = model.copy('logistic_regression_model_name_new2', "
 "project='new_project')"
 
-#: ../../source/base-models.rst:106
+#: ../../source/base-models.rst:114
 msgid "删除模型可使用下列语句："
 msgstr "You can delete a model using the following statement:"
 
-#: ../../source/base-models.rst:108
+#: ../../source/base-models.rst:116
 msgid ">>> o.delete_offline_model('logistic_regression_model_name')"
 msgstr ""
 

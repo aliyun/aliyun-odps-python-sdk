@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ except ImportError:
     pa = None
 
 
-from ..pb.decoder import Decoder, wire_format
+from ..pb.decoder import Decoder
 from ..pb.errors import DecodeError
 from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
@@ -57,7 +57,7 @@ if TunnelRecordReader is None:
             self._crccrc = Checksum()
             self._curr_cursor = 0
             self._read_limit = options.table_read_limit
-            self._to_datetime = utils.build_to_datetime()
+            self._to_datetime = utils.MillisecondsConverter().from_milliseconds
             self._to_date = utils.to_date
 
         def _mode(self):
@@ -246,6 +246,7 @@ class TunnelArrowReader(object):
         self._pos = 0
         self._buffer = BytesIO()
         self._chunk_size = None
+        self._to_datetime = utils.MillisecondsConverter().from_milliseconds
         self._read_limit = options.table_read_limit
 
     @property
@@ -317,7 +318,7 @@ class TunnelArrowReader(object):
             new_dict = {}
             for name, arr in array_dict.items():
                 if arr.type == pa.timestamp('ms'):
-                    datetime = [utils.build_to_datetime()(v) for v in arr.cast('int64').to_numpy()]
+                    datetime = [self._to_datetime(v) for v in arr.cast('int64').to_numpy()]
                     new_dict[name] = datetime
                 else:
                     new_dict[name] = arr

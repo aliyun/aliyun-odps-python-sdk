@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@ from libcpp.vector cimport vector
 ctypedef object (*_VALIDATE_FUNC)(object val)
 
 cdef class SchemaSnapshot:
+    cdef list _columns
     cdef int _col_count
+    cdef int _partition_col_count
     cdef list _col_types
     cdef vector[int] _col_type_ids
     cdef vector[int] _col_is_partition
@@ -35,6 +37,8 @@ cdef class BaseRecord:
 
     cpdef object get_by_name(self, object name)
     cpdef set_by_name(self, object name, object value)
+
+    cdef size_t _get_non_partition_col_count(self)
 
     cpdef object _get(self, int i)
     cpdef _set(self, int i, object value)

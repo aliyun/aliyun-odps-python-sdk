@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import multiprocessing
 import os
 import re
 import shutil
-import string
 import struct
 import sys
 import threading
@@ -50,8 +49,14 @@ try:
     import pytz
 except ImportError:
     pytz = None
+try:
+    from odps.src.utils_c import CMillisecondsConverter
+except ImportError:
+    CMillisecondsConverter = None
 
-TEMP_TABLE_PREFIX = 'tmp_pyodps_'
+TEMP_TABLE_PREFIX = "tmp_pyodps_"
+if six.PY3:  # make flake8 happy
+    unicode = str
 
 
 def deprecated(msg, cond=None):
@@ -273,99 +278,85 @@ def to_timestamp(dt, local_tz=None, is_dst=False):
     return int(to_milliseconds(dt, local_tz=local_tz, is_dst=is_dst) / 1000.0)
 
 
-def _get_tz(tz):
-    if isinstance(tz, six.string_types):
-        if pytz is None:
-            raise ImportError('Package `pytz` is needed when specifying string-format time zone.')
-        else:
-            return pytz.timezone(tz)
-    else:
-        return tz
+class MillisecondsConverter(object):
+    _inst_cache = dict()
 
-
-def build_to_milliseconds(local_tz=None, is_dst=False):
-    from . import options
-    utc = compat.utc
-    local_tz = local_tz if local_tz is not None else options.local_timezone
-    allow_antique = options.allow_antique_date or _antique_mills is None
-
-    if local_tz is None:
-        local_tz = True
-
-    if isinstance(local_tz, bool):
-
-        if local_tz:
-            _mktime = time.mktime
-        else:
-            _mktime = calendar.timegm
-
-        def to_milliseconds(dt):
-            if dt.tzinfo is not None:
-                mills = int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
+    @classmethod
+    def _get_tz(cls, tz):
+        if isinstance(tz, six.string_types):
+            if pytz is None:
+                raise ImportError('Package `pytz` is needed when specifying string-format time zone.')
             else:
-                mills = int((_mktime(dt.timetuple()) + dt.microsecond / 1000000.0) * 1000)
-            if not allow_antique and mills < _antique_mills:
-                raise OverflowError(_antique_errmsg)
-            return mills
-
-        return to_milliseconds
-    else:
-        tz = _get_tz(local_tz)
-        if hasattr(tz, 'localize'):
-            localize = lambda dt: tz.localize(dt, is_dst=is_dst)
+                return pytz.timezone(tz)
         else:
-            localize = lambda dt: dt.replace(tzinfo=tz)
+            return tz
 
-        def to_milliseconds(dt):
-            if dt.tzinfo is None:
-                dt = localize(dt)
-            mills = int((calendar.timegm(dt.astimezone(utc).timetuple()) + dt.microsecond / 1000000.0) * 1000)
-            if not allow_antique and mills < _antique_mills:
-                raise OverflowError(_antique_errmsg)
-            return mills
+    def __new__(cls, local_tz=None, is_dst=False):
+        cache_key = (cls, local_tz, is_dst)
+        if cache_key in cls._inst_cache:
+            return cls._inst_cache[cache_key]
+        o = super(MillisecondsConverter, cls).__new__(cls)
+        o.__init__(local_tz, is_dst)
+        cls._inst_cache[cache_key] = o
+        return o
 
-        return to_milliseconds
+    def __init__(self, local_tz=None, is_dst=False):
+        self._local_tz = local_tz if local_tz is not None else options.local_timezone
+        if self._local_tz is None:
+            self._local_tz = True
+        self._use_default_tz = type(self._local_tz) is bool
 
+        self._allow_antique = options.allow_antique_date or _antique_mills is None
+        self._is_dst = is_dst
 
-def to_milliseconds(dt, local_tz=None, is_dst=False):
-    f = build_to_milliseconds(local_tz, is_dst=is_dst)
-    return f(dt)
-
-
-def build_to_datetime(local_tz=None):
-    utc = compat.utc
-    long_type = compat.long_type
-    local_tz = local_tz if local_tz is not None else options.local_timezone
-    allow_antique = options.allow_antique_date or _antique_mills is None
-
-    if local_tz is None:
-        local_tz = True
-
-    if isinstance(local_tz, bool):
-        if local_tz:
-            _fromtimestamp = datetime.fromtimestamp
+        if self._local_tz:
+            self._mktime = time.mktime
+            self._fromtimestamp = datetime.fromtimestamp
         else:
-            _fromtimestamp = datetime.utcfromtimestamp
+            self._mktime = calendar.timegm
+            self._fromtimestamp = datetime.utcfromtimestamp
 
-        def to_datetime(milliseconds):
-            if not allow_antique and milliseconds < _antique_mills:
-                raise OverflowError(_antique_errmsg)
-            seconds = long_type(milliseconds / 1000)
-            microseconds = long_type(milliseconds) % 1000 * 1000
-            return _fromtimestamp(seconds).replace(microsecond=microseconds)
+        self._tz = self._get_tz(self._local_tz) if not self._use_default_tz else None
+        if hasattr(self._tz, 'localize'):
+            self._localize = lambda dt: self._tz.localize(dt, is_dst=is_dst)
+        else:
+            self._localize = lambda dt: dt.replace(tzinfo=self._tz)
 
-        return to_datetime
-    else:
-        tz = _get_tz(local_tz)
+    def to_milliseconds(self, dt):
+        if not self._use_default_tz and dt.tzinfo is None:
+            dt = self._localize(dt)
 
-        def to_datetime(milliseconds):
-            if not allow_antique and milliseconds < _antique_mills:
-                raise OverflowError(_antique_errmsg)
-            seconds = int(milliseconds / 1000)
-            microseconds = milliseconds % 1000 * 1000
-            return datetime.utcfromtimestamp(seconds).replace(microsecond=microseconds, tzinfo=utc).astimezone(tz)
+        if dt.tzinfo is not None:
+            mills = int((calendar.timegm(
+                dt.astimezone(compat.utc).timetuple()) + dt.microsecond / 1000000.0
+            ) * 1000)
+        else:
+            mills = int((self._mktime(dt.timetuple()) + dt.microsecond / 1000000.0) * 1000)
 
-        return to_datetime
+        if not self._allow_antique and mills < _antique_mills:
+            raise OverflowError(_antique_errmsg)
+        return mills
+
+    def from_milliseconds(self, milliseconds):
+        if not self._allow_antique and milliseconds < _antique_mills:
+            raise OverflowError(_antique_errmsg)
+
+        seconds = compat.long_type(milliseconds / 1000)
+        microseconds = compat.long_type(milliseconds) % 1000 * 1000
+        if self._use_default_tz:
+            return self._fromtimestamp(seconds).replace(microsecond=microseconds)
+        else:
+            return datetime.utcfromtimestamp(seconds)\
+                .replace(microsecond=microseconds, tzinfo=compat.utc)\
+                .astimezone(self._tz)
+
+
+def to_milliseconds(dt, local_tz=None, is_dst=False, force_py=False):
+    cls = CMillisecondsConverter
+    if force_py or cls is None:
+        cls = MillisecondsConverter
+    f = cls(local_tz, is_dst=is_dst)
+    return f.to_milliseconds(dt)
 
 
 def to_days(dt):
@@ -378,9 +369,12 @@ def to_date(delta_day):
     return start_day + timedelta(delta_day)
 
 
-def to_datetime(milliseconds, local_tz=None):
-    f = build_to_datetime(local_tz)
-    return f(milliseconds)
+def to_datetime(milliseconds, local_tz=None, force_py=False):
+    cls = CMillisecondsConverter
+    if force_py or cls is None:
+        cls = MillisecondsConverter
+    f = cls(local_tz)
+    return f.from_milliseconds(milliseconds)
 
 
 def strptime_with_tz(dt, format='%Y-%m-%d %H:%M:%S'):
@@ -631,9 +625,19 @@ def init_progress_ui(val=1, lock=False, use_console=True, mock=False):
 
 
 def escape_odps_string(src):
-    trans_dict = {'\b': r'\b', '\t': r'\t', '\n': r'\n', '\r': r'\r', '\'': r'\'', '\"': r'\"', '\\': r'\\',
-                  '\;': r'\;', '\Z': r'\Z', '\0': r'\0'}
-    return ''.join(trans_dict[ch] if ch in trans_dict else ch for ch in src)
+    trans_dict = {
+        "\b": r"\b",
+        "\t": r"\t",
+        "\n": r"\n",
+        "\r": r"\r",
+        "'": r"\'",
+        '"': r"\"",
+        "\\": r"\\",
+        ";": r"\;",
+        "Z": r"\Z",
+        "\0": r"\0",
+    }
+    return "".join(trans_dict[ch] if ch in trans_dict else ch for ch in src)
 
 
 def replace_sql_parameters(sql, ns):
@@ -756,7 +760,7 @@ def build_pyodps_dir(*args):
 def object_getattr(obj, attr, default=None):
     try:
         return object.__getattribute__(obj, attr)
-    except AttributeError as e:
+    except AttributeError:
         return default
 
 

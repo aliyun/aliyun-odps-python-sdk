@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,16 +16,16 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-from util_c cimport *
-
 
 cdef class Decoder:
-    cdef int _pos
+    cdef size_t _pos
     cdef object _stream
+    cdef bytes _buffer
+    cdef char* _begin
+    cdef char* _end
+    cdef bint _is_source_eof
 
-    cpdef int position(self)
-
-    cpdef add_offset(self, int n)
+    cpdef size_t position(self)
 
     cpdef int32_t read_field_number(self) except? -1
 
@@ -46,3 +46,7 @@ cdef class Decoder:
     cpdef float read_float(self) except? -1.0
 
     cpdef bytes read_string(self)
+
+    cdef void _load_next_buffer(self)
+
+    cdef bint _is_eof(self)

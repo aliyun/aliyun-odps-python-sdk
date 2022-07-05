@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ import math
 import random
 import time
 from datetime import datetime, date
-from decimal import Decimal
 from multiprocessing.pool import ThreadPool
 
 try:
@@ -30,18 +29,18 @@ try:
 except ImportError:
     pytz = None
 
-from odps.compat import reload_module
-from odps.tests.core import TestBase, to_str, tn, snappy_case, pandas_case, odps2_typed_case
-from odps.compat import unittest, OrderedDict, Decimal, Monthdelta
-from odps.models import Schema
 from odps import types, options
+from odps.tests.core import TestBase, to_str, tn, snappy_case, pandas_case, odps2_typed_case
+from odps.compat import reload_module, unittest, OrderedDict, Decimal, Monthdelta
+from odps.models import Schema
 from odps.tunnel import TableTunnel
 
 
 def bothPyAndC(func):
     def inner(self, *args, **kwargs):
         try:
-            import cython
+            import cython  # noqa: F401
+
             ts = 'py', 'c'
         except ImportError:
             ts = 'py',
@@ -77,8 +76,14 @@ def bothPyAndC(func):
 
 
 class Test(TestBase):
+    def setUp(self):
+        random.seed(0)
+        super(Test, self).setUp()
+
     def _upload_data(self, test_table, records, compress=False, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
+        # make sure session reprs work well
+        repr(upload_ss)
         writer = upload_ss.open_record_writer(0, compress=compress)
 
         # test use right py or c writer
@@ -96,6 +101,8 @@ class Test(TestBase):
 
     def _stream_upload_data(self, test_table, records, compress=False, **kw):
         upload_ss = self.tunnel.create_stream_upload_session(test_table, **kw)
+        # make sure session reprs work well
+        repr(upload_ss)
         writer = upload_ss.open_record_writer(compress=compress)
 
         # test use right py or c writer
@@ -109,9 +116,12 @@ class Test(TestBase):
                 record[i] = it
             writer.write(record)
         writer.close()
+        upload_ss.abort()
 
     def _buffered_upload_data(self, test_table, records, buffer_size=None, compress=False, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
+        # make sure session reprs work well
+        repr(upload_ss)
         writer = upload_ss.open_record_writer(buffer_size=buffer_size, compress=compress)
         for r in records:
             record = upload_ss.new_record()
@@ -124,6 +134,8 @@ class Test(TestBase):
     def _download_data(self, test_table, compress=False, columns=None, **kw):
         count = kw.pop('count', 4)
         download_ss = self.tunnel.create_download_session(test_table, **kw)
+        # make sure session reprs work well
+        repr(download_ss)
         with download_ss.open_record_reader(0, count, compress=compress, columns=columns) as reader:
             # test use right py or c writer
             self.assertEqual(self.mode, reader._mode())
@@ -162,8 +174,10 @@ class Test(TestBase):
                  'array<string>', 'map<string,bigint>']
 
         self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(table_name,
-                                      schema=Schema.from_lists(fields, types, ['ds'], ['string']))
+        return self.odps.create_table(
+            table_name,
+            schema=Schema.from_lists(fields, types, ['ds'], ['string'])
+        )
 
     def _delete_table(self, table_name):
         self.odps.delete_table(table_name)
@@ -182,7 +196,7 @@ class Test(TestBase):
 
     @bothPyAndC
     def testStreamUploadAndDownloadTunnel(self):
-        test_table_name = tn('pyodps_test_stream_upload')
+        test_table_name = tn('pyodps_test_stream_upload_' + self.mode)
         self._create_table(test_table_name)
         data = self._gen_data()
 
@@ -209,11 +223,11 @@ class Test(TestBase):
     @bothPyAndC
     @unittest.skipIf(pytz is None, 'pytz not installed')
     def testBufferredUploadAndDownloadWithTimezone(self):
-        from odps.utils import _get_tz
+        from odps.utils import MillisecondsConverter
         zones = (False, True, 'Asia/Shanghai', 'America/Los_Angeles')
         try:
             for zone in zones:
-                tz = _get_tz(zone)
+                tz = MillisecondsConverter._get_tz(zone)
                 options.local_timezone = zone
                 table, data = self._gen_table(size=10)
                 self._buffered_upload_data(table, data)

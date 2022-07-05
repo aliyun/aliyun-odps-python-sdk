@@ -483,7 +483,7 @@ DataFrame函数支持对Sequence使用map，它会对它的每个元素调用自
 
 .. code:: python
 
-    >>> iris.sepallength.map(lambda x: 't'+str(x), 'string').head(5)
+    >>> iris.sepallength.map(lambda x: 't' + str(x), rtype='string').head(5)
        sepallength
     0         t5.1
     1         t4.9
@@ -534,6 +534,7 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
     由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS
     Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常
     执行。
+
 
 .. _function_resource:
 
@@ -591,6 +592,8 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
 在全局或者在立即执行的方法时，指定需要使用的包文件。即可以在自定义函数中使用第三方库。
 
 值得注意的是，第三方库的依赖库，也必须指定，否则依然会有导入错误。
+
+.. intinclude:: df-element-wheel-int.rst
 
 下面我们会以 python-dateutil 这个包作为例子。
 

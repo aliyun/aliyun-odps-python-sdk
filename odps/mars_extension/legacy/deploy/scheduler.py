@@ -1,6 +1,6 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
-import os
 
 from mars.deploy.kubernetes.scheduler import K8SSchedulerApplication
 
@@ -24,8 +22,10 @@ from .core import CupidServiceMixin, CupidK8SPodsIPWatcher
 
 try:
     from mars.deploy.kubernetes.scheduler import WorkerWatcherActor
+
     class CupidWorkerWatcherActor(WorkerWatcherActor):
         watcher_cls = CupidK8SPodsIPWatcher
+
 except ImportError:
     WorkerWatcherActor = CupidWorkerWatcherActor = None
 
@@ -46,5 +46,5 @@ class CupidSchedulerApplication(CupidServiceMixin, K8SSchedulerApplication):
 
 main = CupidSchedulerApplication()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

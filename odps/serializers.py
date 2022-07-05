@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -362,7 +362,7 @@ class XMLSerializableModel(SerializableModel):
             kw['_parent'] = kw.pop('parent')
         if isinstance(response, requests.Response):
             # PY2 prefer bytes, while PY3 prefer str
-            response = response.text if six.PY3 else response.content
+            response = response.content.decode() if six.PY3 else response.content
         return cls.deserial(response, obj=obj, **kw)
 
     def serialize(self):
@@ -389,7 +389,7 @@ class JSONSerializableModel(SerializableModel):
             kw['_parent'] = kw.pop('parent')
         if isinstance(response, requests.Response):
             # PY2 prefer bytes, while PY3 prefer str
-            response = response.text if six.PY3 else response.content
+            response = response.content.decode() if six.PY3 else response.content
         return cls.deserial(response, obj=obj, **kw)
 
     def serialize(self, **kwargs):

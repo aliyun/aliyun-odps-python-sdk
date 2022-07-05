@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 import itertools
 
 from odps.tests.core import TestBase, to_str, tn
-from odps.compat import unittest
+from odps.compat import unittest, ConfigParser
 from odps.models import Resource
 from odps import errors
 
@@ -69,8 +69,11 @@ class Test(TestBase):
         self.assertIsNotNone(function._getattr('_resources'))
 
     def testCreateDeleteUpdateFunction(self):
-        secondary_project = self.config.get('test', 'secondary_project')
-        secondary_user = self.config.get('test', 'secondary_user')
+        try:
+            secondary_project = self.config.get('test', 'secondary_project')
+            secondary_user = self.config.get('test', 'secondary_user')
+        except ConfigParser.NoOptionError:
+            secondary_project = secondary_user = None
 
         test_resource_name = tn('pyodps_t_tmp_test_function_resource') + '.py'
         test_resource_name2 = tn('pyodps_t_tmp_test_function_resource2') + '.py'
@@ -124,7 +127,8 @@ class Test(TestBase):
             test_resource_name2, 'file', file_obj='Hello World'
         )
         test_function.resources.append(test_resource2)
-        test_function.owner = secondary_user
+        if secondary_user:
+            test_function.owner = secondary_user
         test_function.update()
 
         test_function_id = id(test_function)
@@ -132,7 +136,8 @@ class Test(TestBase):
         test_function = self.odps.get_function(test_function_name)
         self.assertNotEqual(test_function_id, id(test_function))
         self.assertEqual(len(test_function.resources), 2)
-        self.assertEqual(test_function.owner, secondary_user)
+        if secondary_user:
+            self.assertEqual(test_function.owner, secondary_user)
 
         test_resource3 = None
         test_function3 = None

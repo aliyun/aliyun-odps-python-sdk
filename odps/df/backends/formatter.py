@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,17 +16,26 @@
 
 from distutils.version import LooseVersion
 import itertools
-import cgi
 
 from ...config import options
 from ... import compat
-from ...compat import u, izip, Iterable
+from ...compat import u, izip, Iterable, LESS_PY35
 from ...console import get_terminal_size
 from ...utils import to_text, to_str, indent, require_package
 from ...models import Table
 from ..types import *
 from ..expr.expressions import CollectionExpr, Scalar
 from ..utils import is_source_collection, traverse_until_source
+
+
+if LESS_PY35:
+    import cgi
+
+    escape = cgi.escape
+else:
+    import html
+
+    escape = html.escape
 
 
 def is_integer(val):
@@ -1396,7 +1405,7 @@ class ExprExecutionGraphFormatter(object):
             if compiled:
                 eid = traversed[id(expr_node)]
                 compiled = '<TABLE ALIGN="LEFT" BORDER="0">%s</TABLE>' % ''.join(
-                    '<TR><TD ALIGN="LEFT">%s</TD></TR>' % cgi.escape(l) for l in compiled.split('\n'))
+                    '<TR><TD ALIGN="LEFT">%s</TD></TR>' % escape(l) for l in compiled.split('\n'))
 
                 write_indent_newline(
                     'COMPILED{0} [shape=record, style="filled", fillcolor="SkyBlue", label=<\n'

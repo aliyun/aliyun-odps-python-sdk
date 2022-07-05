@@ -8,24 +8,24 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-11-08 12:46+0800\n"
+"POT-Creation-Date: 2022-06-29 16:26+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.6.0\n"
+"Generated-By: Babel 2.9.1\n"
 
 #: ../../source/df-sort-distinct-apply.rst:4
 msgid "排序、去重、采样、数据变换"
 msgstr "Sorting, deduplication, sampling, and data transformation"
 
-#: ../../source/df-sort-distinct-apply.rst:9
+#: ../../source/df-sort-distinct-apply.rst:6
 msgid "from odps.df import DataFrame"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:13
+#: ../../source/df-sort-distinct-apply.rst:10
 msgid "iris = DataFrame(o.get_table('pyodps_iris'))"
 msgstr ""
 
@@ -39,7 +39,7 @@ msgstr ""
 "You can sort Collection objects only. Use the sort or sort\\_values "
 "method to start sorting."
 
-#: ../../source/df-sort-distinct-apply.rst:28
+#: ../../source/df-sort-distinct-apply.rst:19
 msgid ""
 ">>> iris.sort('sepalwidth').head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth             name\n"
@@ -56,7 +56,7 @@ msgstr ""
 "To sort data in a descending order, set the \\ ``ascending``\\ parameter "
 "to False."
 
-#: ../../source/df-sort-distinct-apply.rst:40
+#: ../../source/df-sort-distinct-apply.rst:31
 msgid ""
 ">>> iris.sort('sepalwidth', ascending=False).head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name\n"
@@ -71,7 +71,7 @@ msgstr ""
 msgid "也可以这样调用，来进行降序排列："
 msgstr "You can also sort data in a descending order in the following way:"
 
-#: ../../source/df-sort-distinct-apply.rst:52
+#: ../../source/df-sort-distinct-apply.rst:43
 msgid ""
 ">>> iris.sort(-iris.sepalwidth).head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name\n"
@@ -86,7 +86,7 @@ msgstr ""
 msgid "多字段排序也很简单："
 msgstr "The system sorts multiple fields easily as shown in the following code:"
 
-#: ../../source/df-sort-distinct-apply.rst:64
+#: ../../source/df-sort-distinct-apply.rst:55
 msgid ""
 ">>> iris.sort(['sepalwidth', 'petallength']).head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth             name\n"
@@ -106,7 +106,7 @@ msgstr ""
 "\\ ``ascending``\\ parameter with a list of boolean values. The length of"
 " the list must be equal to that of sorted fields."
 
-#: ../../source/df-sort-distinct-apply.rst:76
+#: ../../source/df-sort-distinct-apply.rst:67
 msgid ""
 ">>> iris.sort(['sepalwidth', 'petallength'], ascending=[True, "
 "False]).head(5)\n"
@@ -122,7 +122,7 @@ msgstr ""
 msgid "下面效果是一样的："
 msgstr "To achieve the same effect, the preceding code can be modified as follows:"
 
-#: ../../source/df-sort-distinct-apply.rst:89
+#: ../../source/df-sort-distinct-apply.rst:79
 msgid ""
 ">>> iris.sort(['sepalwidth', -iris.petallength]).head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth             name\n"
@@ -153,7 +153,7 @@ msgstr "Deduplication"
 msgid "去重在Collection上，用户可以调用distinct方法。"
 msgstr "To deduplicate Collection objects, use the distinct method."
 
-#: ../../source/df-sort-distinct-apply.rst:108
+#: ../../source/df-sort-distinct-apply.rst:101
 msgid ""
 ">>> iris[['name']].distinct()\n"
 "              name\n"
@@ -162,7 +162,7 @@ msgid ""
 "2   Iris-virginica"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:116
+#: ../../source/df-sort-distinct-apply.rst:109
 msgid ""
 ">>> iris.distinct('name')\n"
 "              name\n"
@@ -171,7 +171,7 @@ msgid ""
 "2   Iris-virginica"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:124
+#: ../../source/df-sort-distinct-apply.rst:117
 msgid ""
 ">>> iris.distinct('name', 'sepallength').head(3)\n"
 "          name  sepallength\n"
@@ -186,7 +186,7 @@ msgstr ""
 "To deduplicate Sequence objects, use the unique method. However, the "
 "Sequence object for the unique method cannot be used in column selection."
 
-#: ../../source/df-sort-distinct-apply.rst:135
+#: ../../source/df-sort-distinct-apply.rst:127
 msgid ""
 ">>> iris.name.unique()\n"
 "              name\n"
@@ -199,7 +199,7 @@ msgstr ""
 msgid "下面的代码是错误的用法。"
 msgstr "We do not recommend that you use the following code:"
 
-#: ../../source/df-sort-distinct-apply.rst:142
+#: ../../source/df-sort-distinct-apply.rst:138
 msgid ">>> iris[iris.name, iris.name.unique()]  # 错误的"
 msgstr ">>> iris[iris.name, iris.name.unique()]  # this line produces an error"
 
@@ -233,7 +233,7 @@ msgstr ""
 "Data is divided into parts by using this method. You can select the part "
 "number that you want to sample."
 
-#: ../../source/df-sort-distinct-apply.rst:163
+#: ../../source/df-sort-distinct-apply.rst:157
 msgid ""
 ">>> iris.sample(parts=10)  # 分成10份，默认取第0份\n"
 ">>> iris.sample(parts=10, i=0)  # 手动指定取第0份\n"
@@ -261,7 +261,7 @@ msgstr ""
 "that you want to sample using this method. To enable sampling with "
 "replacement, set the ``replace`` parameter to True."
 
-#: ../../source/df-sort-distinct-apply.rst:172
+#: ../../source/df-sort-distinct-apply.rst:168
 msgid ""
 ">>> iris.sample(n=100)  # 选取100条数据\n"
 ">>> iris.sample(frac=0.3)  # 采样30%的数据"
@@ -280,7 +280,7 @@ msgstr ""
 " proportion of data that you want sample in this way. To enable sampling "
 "with replacement, set the ``replace`` parameter to True."
 
-#: ../../source/df-sort-distinct-apply.rst:181
+#: ../../source/df-sort-distinct-apply.rst:177
 msgid ""
 ">>> iris.sample(n=100, weights='sepal_length')\n"
 ">>> iris.sample(n=100, weights='sepal_width', replace=True)"
@@ -300,7 +300,7 @@ msgstr ""
 " the number of items (the ``n`` parameter) for each label. Currently, "
 "stratified sampling does not support replacement."
 
-#: ../../source/df-sort-distinct-apply.rst:191
+#: ../../source/df-sort-distinct-apply.rst:187
 msgid ""
 ">>> iris.sample(strata='category', n={'Iris Setosa': 10, 'Iris "
 "Versicolour': 10})\n"
@@ -318,7 +318,7 @@ msgstr ""
 "DataFrame supports data scaling by using the maximum, minimum, mean, and "
 "standard deviation. The following is an example for scaling:"
 
-#: ../../source/df-sort-distinct-apply.rst:206
+#: ../../source/df-sort-distinct-apply.rst:197
 msgid ""
 "    name  id  fid\n"
 "0  name1   4  5.3\n"
@@ -333,7 +333,7 @@ msgstr ""
 msgid "使用 min_max_scale 方法进行归一化："
 msgstr "You can use the min_max_scale method to normalize data:"
 
-#: ../../source/df-sort-distinct-apply.rst:219
+#: ../../source/df-sort-distinct-apply.rst:209
 msgid ""
 ">>> df.min_max_scale(columns=['fid'])\n"
 "    name  id       fid\n"
@@ -354,7 +354,7 @@ msgstr ""
 "output range. The following is an example of how to output values in the "
 "range of (-1, 1):"
 
-#: ../../source/df-sort-distinct-apply.rst:233
+#: ../../source/df-sort-distinct-apply.rst:223
 msgid ""
 ">>> df.min_max_scale(columns=['fid'], feature_range=(-1, 1))\n"
 "    name  id       fid\n"
@@ -376,7 +376,7 @@ msgstr ""
 " with “_scaled”. To change the suffix, use the suffix parameter, as shown"
 " in the following code:"
 
-#: ../../source/df-sort-distinct-apply.rst:247
+#: ../../source/df-sort-distinct-apply.rst:237
 msgid ""
 ">>> df.min_max_scale(columns=['fid'], preserve=True)\n"
 "    name  id  fid  fid_scaled\n"
@@ -395,7 +395,7 @@ msgstr ""
 "more group columns and to retrieve the minimum and maximum from the "
 "specified column to scale data, as shown in the following code:"
 
-#: ../../source/df-sort-distinct-apply.rst:260
+#: ../../source/df-sort-distinct-apply.rst:250
 msgid ""
 ">>> df.min_max_scale(columns=['fid'], group=['name'])\n"
 "    name  id       fid\n"
@@ -419,7 +419,7 @@ msgstr ""
 "The std_scale method scales data by using standard normal distribution, "
 "as shown in the following code:"
 
-#: ../../source/df-sort-distinct-apply.rst:275
+#: ../../source/df-sort-distinct-apply.rst:265
 msgid ""
 ">>> df.std_scale(columns=['fid'])\n"
 "    name  id       fid\n"
@@ -448,7 +448,7 @@ msgstr ""
 "DataFrame supports removing or filling null values. The following data is"
 " the example for processing:"
 
-#: ../../source/df-sort-distinct-apply.rst:293
+#: ../../source/df-sort-distinct-apply.rst:283
 msgid ""
 "   id   name   f1   f2   f3   f4\n"
 "0   0  name1  1.0  NaN  3.0  4.0\n"
@@ -466,7 +466,7 @@ msgstr ""
 "You can use the dropna method to delete the rows that contain null values"
 " in the subset object, as follows:"
 
-#: ../../source/df-sort-distinct-apply.rst:301
+#: ../../source/df-sort-distinct-apply.rst:296
 msgid ""
 ">>> df.dropna(subset=['f1', 'f2', 'f3', 'f4'])\n"
 "   id   name   f1   f2   f3   f4\n"
@@ -479,7 +479,7 @@ msgstr ""
 "If the rows also contain non-null values, you can use how='all' to keep "
 "these rows, as follows:"
 
-#: ../../source/df-sort-distinct-apply.rst:314
+#: ../../source/df-sort-distinct-apply.rst:304
 msgid ""
 ">>> df.dropna(how='all', subset=['f1', 'f2', 'f3', 'f4'])\n"
 "   id   name   f1   f2   f3   f4\n"
@@ -497,7 +497,7 @@ msgstr ""
 "To specify the minimum number of non-null values in the rows, use the "
 "thresh parameter to keep qualified rows, as shown in the following code:"
 
-#: ../../source/df-sort-distinct-apply.rst:326
+#: ../../source/df-sort-distinct-apply.rst:317
 msgid ""
 ">>> df.dropna(thresh=3, subset=['f1', 'f2', 'f3', 'f4'])\n"
 "   id   name   f1   f2   f3   f4\n"
@@ -515,7 +515,7 @@ msgstr ""
 "values in an existing column. In the following example, null values are "
 "replaced with a constant:"
 
-#: ../../source/df-sort-distinct-apply.rst:340
+#: ../../source/df-sort-distinct-apply.rst:329
 msgid ""
 ">>> df.fillna(100, subset=['f1', 'f2', 'f3', 'f4'])\n"
 "   id   name     f1     f2     f3     f4\n"
@@ -534,7 +534,7 @@ msgstr ""
 "You can replace null values with values in the specified existing column,"
 " as shown in the following code:"
 
-#: ../../source/df-sort-distinct-apply.rst:354
+#: ../../source/df-sort-distinct-apply.rst:343
 msgid ""
 ">>> df.fillna(df.f2, subset=['f1', 'f2', 'f3', 'f4'])\n"
 "   id   name   f1   f2   f3   f4\n"
@@ -581,7 +581,7 @@ msgstr "Forward filling"
 msgid "例如："
 msgstr "Example:"
 
-#: ../../source/df-sort-distinct-apply.rst:386
+#: ../../source/df-sort-distinct-apply.rst:366
 msgid ""
 ">>> df.fillna(method='bfill', subset=['f1', 'f2', 'f3', 'f4'])\n"
 "   id   name   f1   f2   f3   f4\n"
@@ -633,7 +633,7 @@ msgstr ""
 "in the function to retrieve data in a field from the row in the preceding"
 " Collection object."
 
-#: ../../source/df-sort-distinct-apply.rst:409
+#: ../../source/df-sort-distinct-apply.rst:402
 msgid ""
 ">>> iris.apply(lambda row: row.sepallength + row.sepalwidth, axis=1, "
 "reduce=True, types='float').rename('sepaladd').head(3)\n"
@@ -660,7 +660,7 @@ msgstr ""
 "If reduce is False in your function, you can use the ``yield``\\ keyword "
 "to return multiple rows."
 
-#: ../../source/df-sort-distinct-apply.rst:427
+#: ../../source/df-sort-distinct-apply.rst:416
 msgid ""
 ">>> iris.count()\n"
 "150\n"
@@ -673,16 +673,24 @@ msgid ""
 ">>>\n"
 ">>> iris.apply(handle, axis=1, names=['iris_add', 'iris_sub'], "
 "types=['float', 'float']).count()\n"
-"300"
+"300\n"
+">>> iris.apply(handle, axis=1, names=['iris_add', 'iris_sub'], "
+"types=['float', 'float']).head(5)\n"
+"   iris_add  iris_sub\n"
+"0       1.6       8.6\n"
+"1       1.2       1.6\n"
+"2       1.9       7.9\n"
+"3       1.2       1.6\n"
+"4       1.5       7.9"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:428
+#: ../../source/df-sort-distinct-apply.rst:435
 msgid "我们也可以在函数上来注释返回的字段和类型，这样就不需要在函数调用时再指定。"
 msgstr ""
 "You can also annotate your function with returned field names and types. "
 "In this way, you do not need to specify them when calling your function."
 
-#: ../../source/df-sort-distinct-apply.rst:442
+#: ../../source/df-sort-distinct-apply.rst:438
 msgid ""
 ">>> from odps.df import output\n"
 ">>>\n"
@@ -694,34 +702,48 @@ msgid ""
 "row.petalwidth\n"
 ">>>\n"
 ">>> iris.apply(handle, axis=1).count()\n"
-"300"
+"300\n"
+">>> iris.apply(handle, axis=1).head(5)\n"
+"   iris_add  iris_sub\n"
+"0       1.6       8.6\n"
+"1       1.2       1.6\n"
+"2       1.9       7.9\n"
+"3       1.2       1.6\n"
+"4       1.5       7.9"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:443
+#: ../../source/df-sort-distinct-apply.rst:457
 msgid "也可以使用 map-only 的 map_reduce，和 axis=1 的apply操作是等价的。"
 msgstr ""
 "Calling ``map_reduce`` without reducers is equal to calling ``apply`` "
 "method with axis=1."
 
-#: ../../source/df-sort-distinct-apply.rst:449
+#: ../../source/df-sort-distinct-apply.rst:459
 msgid ""
 ">>> iris.map_reduce(mapper=handle).count()\n"
-"300"
+"300\n"
+">>> iris.map_reduce(mapper=handle).head(5)\n"
+"   iris_add  iris_sub\n"
+"0       1.6       8.6\n"
+"1       1.2       1.6\n"
+"2       1.9       7.9\n"
+"3       1.2       1.6\n"
+"4       1.5       7.9"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:450
+#: ../../source/df-sort-distinct-apply.rst:471
 msgid "如果想调用 ODPS 上已经存在的 UDTF，则函数指定为函数名即可。"
 msgstr ""
 "To use an existing user-defined table function (UDTF) in MaxCompute, "
 "specify the name of the UDTF."
 
-#: ../../source/df-sort-distinct-apply.rst:455
+#: ../../source/df-sort-distinct-apply.rst:473
 msgid ""
 ">>> iris['name', 'sepallength'].apply('your_func', axis=1, "
 "names=['name2', 'sepallength2'], types=['string', 'float'])"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:456
+#: ../../source/df-sort-distinct-apply.rst:477
 msgid ""
 "使用 apply 对行操作，且 ``reduce``\\ 为 False 时，可以使用 :ref:`dflateralview` "
 "与已有的行结合，用于后续聚合等操作。"
@@ -730,7 +752,7 @@ msgstr ""
 " this row with an existing row by using :ref:`dflateralview` to prepare "
 "for aggregation."
 
-#: ../../source/df-sort-distinct-apply.rst:468
+#: ../../source/df-sort-distinct-apply.rst:479
 msgid ""
 ">>> from odps.df import output\n"
 ">>>\n"
@@ -744,17 +766,17 @@ msgid ""
 ">>> iris[iris.category, iris.apply(handle, axis=1)]"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:470
+#: ../../source/df-sort-distinct-apply.rst:491
 msgid "对所有列调用自定义聚合"
 msgstr "Using custom aggregations for all columns"
 
-#: ../../source/df-sort-distinct-apply.rst:472
+#: ../../source/df-sort-distinct-apply.rst:493
 msgid "调用apply方法，当我们不指定axis，或者axis为0的时候，我们可以通过传入一个自定义聚合类来对所有sequence进行聚合操作。"
 msgstr ""
 "When you use the apply method and axis is not specified or is 0, call a "
 "custom aggregation to aggregate all Sequence objects."
 
-#: ../../source/df-sort-distinct-apply.rst:474
+#: ../../source/df-sort-distinct-apply.rst:495
 msgid ""
 "class Agg(object):\n"
 "\n"
@@ -775,7 +797,7 @@ msgid ""
 "        return buffer[0] / buffer[1]"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:499
+#: ../../source/df-sort-distinct-apply.rst:515
 msgid ""
 ">>> iris.exclude('name').apply(Agg)\n"
 "   sepallength_aggregation  sepalwidth_aggregation  "
@@ -784,18 +806,18 @@ msgid ""
 "3.758667                1.198667"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:501
+#: ../../source/df-sort-distinct-apply.rst:522
 msgid "目前，受限于 Python UDF，自定义函数无法支持将 list / dict 类型作为初始输入或最终输出结果。"
 msgstr ""
 "Limited by Python UDFs, custom aggregations cannot specify the input or "
 "the output result type as the list or dict type."
 
-#: ../../source/df-sort-distinct-apply.rst:504
-#: ../../source/df-sort-distinct-apply.rst:670
+#: ../../source/df-sort-distinct-apply.rst:525
+#: ../../source/df-sort-distinct-apply.rst:691
 msgid "引用资源"
 msgstr "Referring to resources"
 
-#: ../../source/df-sort-distinct-apply.rst:506
+#: ../../source/df-sort-distinct-apply.rst:527
 msgid ""
 "类似于对 :ref:`map <map>` "
 "方法的resources参数，每个resource可以是ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。"
@@ -803,7 +825,7 @@ msgstr ""
 "Similar to the resources parameter for :ref:`map <map>` , resources can "
 "be tables, files, or Collection objects that you refer to in MaxCompute."
 
-#: ../../source/df-sort-distinct-apply.rst:508
+#: ../../source/df-sort-distinct-apply.rst:529
 msgid ""
 "对于axis为1，也就是在行上操作，我们需要写一个函数闭包或者callable的类。 而对于列上的聚合操作，我们只需在 "
 "\\_\\_init\\_\\_ 函数里读取资源即可。"
@@ -812,7 +834,7 @@ msgstr ""
 "class. For column aggregation, you can read resources by using the "
 "\\_\\_init\\_\\_ function."
 
-#: ../../source/df-sort-distinct-apply.rst:535
+#: ../../source/df-sort-distinct-apply.rst:533
 msgid ""
 ">>> words_df\n"
 "                     sentence\n"
@@ -838,49 +860,49 @@ msgid ""
 "2  Life short use Python"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:536
+#: ../../source/df-sort-distinct-apply.rst:557
 msgid "可以看到这里的stop_words是存放于本地，但在真正执行时会被上传到ODPS作为资源引用。"
 msgstr ""
 "In this example, ``stop_words`` is a local variable which is referenced "
 "as a resource in MaxCompute during execution."
 
-#: ../../source/df-sort-distinct-apply.rst:540
-#: ../../source/df-sort-distinct-apply.rst:716
+#: ../../source/df-sort-distinct-apply.rst:561
+#: ../../source/df-sort-distinct-apply.rst:737
 msgid "使用第三方Python库"
 msgstr "Using a third-party Python library"
 
-#: ../../source/df-sort-distinct-apply.rst:542
-#: ../../source/df-sort-distinct-apply.rst:719
+#: ../../source/df-sort-distinct-apply.rst:563
+#: ../../source/df-sort-distinct-apply.rst:740
 msgid "使用方法类似 :ref:`map中使用第三方Python库 <third_party_library>` 。"
 msgstr ""
 "The usage is similar to :ref:`the usage of a third-party Python library "
 "in map <third_party_library>` ."
 
-#: ../../source/df-sort-distinct-apply.rst:544
-#: ../../source/df-sort-distinct-apply.rst:721
+#: ../../source/df-sort-distinct-apply.rst:565
+#: ../../source/df-sort-distinct-apply.rst:742
 msgid "可以在全局指定使用的库："
 msgstr "Specify the library globally as shown in the following code:"
 
-#: ../../source/df-sort-distinct-apply.rst:550
-#: ../../source/df-sort-distinct-apply.rst:728
+#: ../../source/df-sort-distinct-apply.rst:567
+#: ../../source/df-sort-distinct-apply.rst:744
 msgid ""
 ">>> from odps import options\n"
 ">>> options.df.libraries = ['six.whl', 'python_dateutil.whl']"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:551
-#: ../../source/df-sort-distinct-apply.rst:729
+#: ../../source/df-sort-distinct-apply.rst:572
+#: ../../source/df-sort-distinct-apply.rst:750
 msgid "或者在立即执行的方法中，局部指定："
 msgstr "Otherwise, specify the library regionally in the executed method:"
 
-#: ../../source/df-sort-distinct-apply.rst:556
+#: ../../source/df-sort-distinct-apply.rst:574
 msgid ""
 ">>> df.apply(my_func, axis=1).to_pandas(libraries=['six.whl', "
 "'python_dateutil.whl'])"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:558
-#: ../../source/df-sort-distinct-apply.rst:737
+#: ../../source/df-sort-distinct-apply.rst:579
+#: ../../source/df-sort-distinct-apply.rst:758
 msgid ""
 "由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS"
 " Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常 "
@@ -893,11 +915,11 @@ msgstr ""
 " normally before you implement the production operations using the "
 "MapReduce API (application program interface) of Python 3."
 
-#: ../../source/df-sort-distinct-apply.rst:565
+#: ../../source/df-sort-distinct-apply.rst:586
 msgid "MapReduce API"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:568
+#: ../../source/df-sort-distinct-apply.rst:589
 msgid ""
 "PyODPS DataFrame也支持MapReduce "
 "API，用户可以分别编写map和reduce函数（map_reduce可以只有mapper或者reducer过程）。 "
@@ -907,7 +929,7 @@ msgstr ""
 "reduce functions respectively, because map_reduce may include the mapper "
 "or reducer process only. The following code is an example of a wordcount:"
 
-#: ../../source/df-sort-distinct-apply.rst:601
+#: ../../source/df-sort-distinct-apply.rst:593
 msgid ""
 ">>> def mapper(row):\n"
 ">>>     for word in row[0].split():\n"
@@ -942,9 +964,9 @@ msgstr ""
 ">>>         yield word.lower(), 1\n"
 ">>>\n"
 ">>> def reducer(keys):\n"
-">>>     # we use a list here instead of letting cnt = 0, or cnt in"
-"function h will be treated as a local variable whose value cannot "
-"be used outside the function\n"
+">>>     # we use a list here instead of letting cnt = 0, or cnt "
+"in function h will be treated as a local variable whose value cannot be "
+"used outside the function\n"
 ">>>     cnt = [0]\n"
 ">>>     def h(row, done):  # done == True indicates that all rows with "
 "current key are visited\n"
@@ -968,14 +990,14 @@ msgstr ""
 "6     use    1\n"
 "7   world    1"
 
-#: ../../source/df-sort-distinct-apply.rst:602
+#: ../../source/df-sort-distinct-apply.rst:623
 msgid "group参数用来指定reduce按哪些字段做分组，如果不指定，会按全部字段做分组。"
 msgstr ""
 "Use the group parameter to specify the fields that you want to group with"
 " the reduce function. If you do not specify the fields, all fields are "
 "grouped."
 
-#: ../../source/df-sort-distinct-apply.rst:604
+#: ../../source/df-sort-distinct-apply.rst:625
 msgid ""
 "其中对于reducer来说，会稍微有些不同。它需要接收聚合的keys初始化，并能继续处理按这些keys聚合的每行数据。 "
 "第2个参数表示这些keys相关的所有行是不是都迭代完成。"
@@ -985,11 +1007,11 @@ msgstr ""
 "second parameter done indicates whether all the rows related to these "
 "keys have been completely iterated."
 
-#: ../../source/df-sort-distinct-apply.rst:607
+#: ../../source/df-sort-distinct-apply.rst:628
 msgid "这里写成函数闭包的方式，主要为了方便，当然我们也能写成callable的类。"
 msgstr "The function closure is convenient, and the callable is also allowed."
 
-#: ../../source/df-sort-distinct-apply.rst:609
+#: ../../source/df-sort-distinct-apply.rst:630
 msgid ""
 "class reducer(object):\n"
 "    def __init__(self, keys):\n"
@@ -1010,11 +1032,11 @@ msgstr ""
 "        if done:\n"
 "            yield row.word, self.cnt"
 
-#: ../../source/df-sort-distinct-apply.rst:620
+#: ../../source/df-sort-distinct-apply.rst:641
 msgid "使用 ``output``\\ 来注释会让代码更简单些。"
 msgstr "You can annotate with ``output``\\ to simplify the code."
 
-#: ../../source/df-sort-distinct-apply.rst:651
+#: ../../source/df-sort-distinct-apply.rst:643
 msgid ""
 ">>> from odps.df import output\n"
 ">>>\n"
@@ -1053,9 +1075,9 @@ msgstr ""
 ">>>\n"
 ">>> @output(['word', 'cnt'], ['string', 'int'])\n"
 ">>> def reducer(keys):\n"
-">>>     # we use a list here instead of letting cnt = 0, or cnt in"
-"function h will be treated as a local variable whose value cannot "
-"be used outside the function\n"
+">>>     # we use a list here instead of letting cnt = 0, or cnt "
+"in function h will be treated as a local variable whose value cannot be "
+"used outside the function\n"
 ">>>     cnt = [0]\n"
 ">>>     def h(row, done):  # done == True indicates that all rows with "
 "current key are visited\n"
@@ -1075,7 +1097,7 @@ msgstr ""
 "6     use    1\n"
 "7   world    1"
 
-#: ../../source/df-sort-distinct-apply.rst:652
+#: ../../source/df-sort-distinct-apply.rst:673
 msgid ""
 "有时候我们在迭代的时候需要按某些列排序，则可以使用 ``sort``\\ 参数，来指定按哪些列排序，升序降序则通过 ``ascending``\\"
 " 参数指定。 ``ascending`` 参数可以是一个bool值，表示所有的 ``sort``\\ 字段是相同升序或降序， "
@@ -1088,11 +1110,11 @@ msgstr ""
 "``sort``\\ fields are in an ascending or descending order,  or it may be "
 "a list, whose length must be the same as that of the ``sort``\\ fields."
 
-#: ../../source/df-sort-distinct-apply.rst:658
+#: ../../source/df-sort-distinct-apply.rst:679
 msgid "指定combiner"
 msgstr "Specifying the combiner"
 
-#: ../../source/df-sort-distinct-apply.rst:660
+#: ../../source/df-sort-distinct-apply.rst:681
 msgid ""
 "combiner表示在map_reduce "
 "API里表示在mapper端，就先对数据进行聚合操作，它的用法和reducer是完全一致的，但不能引用资源。 "
@@ -1103,29 +1125,29 @@ msgstr ""
 "reference resources. The field name and type that the combiner outputs "
 "must be consistent with the mapper."
 
-#: ../../source/df-sort-distinct-apply.rst:663
+#: ../../source/df-sort-distinct-apply.rst:684
 msgid "上面的例子，我们就可以使用reducer作为combiner来先在mapper端对数据做初步的聚合，减少shuffle出去的数据量。"
 msgstr ""
 "In the preceding example, you can use the reducer as the combiner to "
 "aggregate data in the mapper to reduce shuffled data."
 
-#: ../../source/df-sort-distinct-apply.rst:668
+#: ../../source/df-sort-distinct-apply.rst:686
 msgid ">>> words_df.map_reduce(mapper, reducer, combiner=reducer, group='word')"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:672
+#: ../../source/df-sort-distinct-apply.rst:693
 msgid "在MapReduce API里，我们能分别指定mapper和reducer所要引用的资源。"
 msgstr ""
 "You can respectively specify resources referenced by the mapper and the "
 "reducer in MapReduce API."
 
-#: ../../source/df-sort-distinct-apply.rst:674
+#: ../../source/df-sort-distinct-apply.rst:695
 msgid "如下面的例子，我们对mapper里的单词做停词过滤，在reducer里对白名单的单词数量加5。"
 msgstr ""
 "In the following example, you filter stop words in the mapper, and the "
 "number of whitelisted words in the reducer is plus 5."
 
-#: ../../source/df-sort-distinct-apply.rst:714
+#: ../../source/df-sort-distinct-apply.rst:697
 msgid ""
 ">>> white_list_file = o.create_resource('pyodps_white_list_words', "
 "'file', file_obj='Python\\nWorld')\n"
@@ -1167,48 +1189,48 @@ msgid ""
 "5     use    1"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:735
+#: ../../source/df-sort-distinct-apply.rst:752
 msgid ""
 ">>> df.map_reduce(mapper=my_mapper, reducer=my_reducer, "
 "group='key').execute(libraries=['six.whl', 'python_dateutil.whl'])"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:743
+#: ../../source/df-sort-distinct-apply.rst:764
 msgid "重排数据"
 msgstr "Reshuffling data"
 
-#: ../../source/df-sort-distinct-apply.rst:745
+#: ../../source/df-sort-distinct-apply.rst:766
 msgid "有时候我们的数据在集群上分布可能是不均匀的，我们需要对数据重排。调用 ``reshuffle`` 接口即可。"
 msgstr ""
 "If data is unevenly distributed in a cluster, you need to reshuffle the "
 "data by using the ``reshuffle`` API."
 
-#: ../../source/df-sort-distinct-apply.rst:752
+#: ../../source/df-sort-distinct-apply.rst:769
 msgid ">>> df1 = df.reshuffle()"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:753
+#: ../../source/df-sort-distinct-apply.rst:774
 msgid "默认会按随机数做哈希来分布。也可以指定按那些列做分布，且可以指定重排后的排序顺序。"
 msgstr ""
 "By default, data is hashed as random numbers. You can also distribute the"
 " data by a specified column, and sort the reshuffled data in a specified "
 "order."
 
-#: ../../source/df-sort-distinct-apply.rst:760
+#: ../../source/df-sort-distinct-apply.rst:777
 msgid ">>> df1.reshuffle('name', sort='id', ascending=False)"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:762
+#: ../../source/df-sort-distinct-apply.rst:783
 msgid "布隆过滤器"
 msgstr "Bloom filter"
 
-#: ../../source/df-sort-distinct-apply.rst:765
+#: ../../source/df-sort-distinct-apply.rst:786
 msgid "PyODPS DataFrame提供了 ``bloom_filter`` 接口来进行布隆过滤器的计算。"
 msgstr ""
 "PyODPS DataFrame provides the ``bloom_filter`` API to calculate with a "
 "Bloom filter."
 
-#: ../../source/df-sort-distinct-apply.rst:767
+#: ../../source/df-sort-distinct-apply.rst:788
 msgid ""
 "给定某个collection，和它的某个列计算的sequence1，我们能对另外一个sequence2进行布隆过滤，sequence1不在sequence2中的一定会过滤，"
 " 但可能不能完全过滤掉不存在于sequence2中的数据，这也是一种近似的方法。"
@@ -1219,13 +1241,13 @@ msgstr ""
 "data that is not in sequence2 may not be filtered out completely. This is"
 " an approximate method."
 
-#: ../../source/df-sort-distinct-apply.rst:770
+#: ../../source/df-sort-distinct-apply.rst:791
 msgid "这样的好处是能快速对collection进行快速过滤一些无用数据。"
 msgstr ""
 "This method can quickly filter out some useless data from the Collection "
 "object."
 
-#: ../../source/df-sort-distinct-apply.rst:772
+#: ../../source/df-sort-distinct-apply.rst:793
 msgid ""
 "这在大规模join的时候，一边数据量远大过另一边数据，而大部分并不会join上的场景很有用。 "
 "比如，我们在join用户的浏览数据和交易数据时，用户的浏览大部分不会带来交易，我们可以利用交易数据先对浏览数据进行布隆过滤， "
@@ -1239,7 +1261,7 @@ msgstr ""
 "data before joining visit data with transaction data to enhance operation"
 " performance."
 
-#: ../../source/df-sort-distinct-apply.rst:793
+#: ../../source/df-sort-distinct-apply.rst:797
 msgid ""
 ">>> df1 = DataFrame(pd.DataFrame({'a': ['name1', 'name2', 'name3', "
 "'name1'], 'b': [1, 2, 3, 4]}))\n"
@@ -1276,7 +1298,7 @@ msgstr ""
 "0  name1  1\n"
 "1  name1  4"
 
-#: ../../source/df-sort-distinct-apply.rst:794
+#: ../../source/df-sort-distinct-apply.rst:815
 msgid "这里由于数据量很小，df1中的a为name2和name3的行都被正确过滤掉了，当数据量很大的时候，可能会有一定的数据不能被过滤。"
 msgstr ""
 "The preceding code processes a small volume of data. Therefore, the rows "
@@ -1284,14 +1306,14 @@ msgstr ""
 "However, when processing large volumes of data, the system may not filter"
 " out some data that meets the specified condition."
 
-#: ../../source/df-sort-distinct-apply.rst:796
+#: ../../source/df-sort-distinct-apply.rst:817
 msgid "如之前提的join场景中，少量不能过滤并不能并不会影响正确性，但能较大提升join的性能。"
 msgstr ""
 "As shown in the preceding join operation, some data that cannot be "
 "filtered out does not affect the program correctness, but can enhance the"
 " operation performance."
 
-#: ../../source/df-sort-distinct-apply.rst:798
+#: ../../source/df-sort-distinct-apply.rst:819
 msgid ""
 "我们可以传入 ``capacity`` 和 ``error_rate`` 来设置数据的量以及错误率，默认值是 ``3000`` 和 "
 "``0.01``。"
@@ -1299,24 +1321,24 @@ msgstr ""
 "You can use ``capacity`` and ``error_rate`` to specify the data capacity "
 "and error rate, ``3000`` and ``0.01`` by default."
 
-#: ../../source/df-sort-distinct-apply.rst:801
+#: ../../source/df-sort-distinct-apply.rst:822
 msgid "要注意，调大 ``capacity`` 或者减小 ``error_rate`` 会增加内存的使用，所以应当根据实际情况选择一个合理的值。"
 msgstr ""
 "Tuning the ``capacity`` value up or the ``error_rate`` value down "
 "increases the usage of memory. Therefore, you need to select a proper "
 "value as needed."
 
-#: ../../source/df-sort-distinct-apply.rst:807
+#: ../../source/df-sort-distinct-apply.rst:828
 msgid "透视表（pivot_table）"
 msgstr "Pivot table"
 
-#: ../../source/df-sort-distinct-apply.rst:809
+#: ../../source/df-sort-distinct-apply.rst:830
 msgid "PyODPS DataFrame提供透视表的功能。我们通过几个例子来看使用。"
 msgstr ""
 "PyODPS DataFrame provides the pivot_table feature. You can use this "
 "feature as shown in the following example."
 
-#: ../../source/df-sort-distinct-apply.rst:826
+#: ../../source/df-sort-distinct-apply.rst:833
 msgid ""
 ">>> df\n"
 "     A    B      C  D  E\n"
@@ -1331,13 +1353,13 @@ msgid ""
 "8  bar  two  large  7  1"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:827
+#: ../../source/df-sort-distinct-apply.rst:848
 msgid "最简单的透视表必须提供一个 ``rows`` 参数，表示按一个或者多个字段做取平均值的操作。"
 msgstr ""
 "The simplest pivot_table must provide the ``rows`` parameter to retrieve "
 "the mean from one or more fields."
 
-#: ../../source/df-sort-distinct-apply.rst:835
+#: ../../source/df-sort-distinct-apply.rst:850
 msgid ""
 ">>> df['A', 'D', 'E'].pivot_table(rows='A')\n"
 "     A  D_mean  E_mean\n"
@@ -1345,11 +1367,11 @@ msgid ""
 "1  foo     2.2    4.40"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:836
+#: ../../source/df-sort-distinct-apply.rst:857
 msgid "rows可以提供多个，表示按多个字段做聚合。"
 msgstr "You can specify multiple rows to aggregate multiple fields."
 
-#: ../../source/df-sort-distinct-apply.rst:849
+#: ../../source/df-sort-distinct-apply.rst:859
 msgid ""
 ">>> df.pivot_table(rows=['A', 'B', 'C'])\n"
 "     A    B      C  D_mean  E_mean\n"
@@ -1362,13 +1384,13 @@ msgid ""
 "6  foo  two  small     3.0     5.0"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:850
+#: ../../source/df-sort-distinct-apply.rst:871
 msgid "我们可以指定 ``values`` 来显示指定要计算的列。"
 msgstr ""
 "Specify the ``values`` parameter to display the column that you want to "
 "calculate."
 
-#: ../../source/df-sort-distinct-apply.rst:860
+#: ../../source/df-sort-distinct-apply.rst:873
 msgid ""
 ">>> df.pivot_table(rows=['A', 'B'], values='D')\n"
 "     A    B    D_mean\n"
@@ -1378,13 +1400,13 @@ msgid ""
 "3  foo  two  3.000000"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:861
+#: ../../source/df-sort-distinct-apply.rst:882
 msgid "计算值列时，默认会计算平均值，用户可以指定一个或者多个聚合函数。"
 msgstr ""
 "By default, the system calculates the mean of the column specified in "
 "values. You can specify one or more aggregate functions."
 
-#: ../../source/df-sort-distinct-apply.rst:871
+#: ../../source/df-sort-distinct-apply.rst:884
 msgid ""
 ">>> df.pivot_table(rows=['A', 'B'], values=['D'], aggfunc=['mean', "
 "'count', 'sum'])\n"
@@ -1395,13 +1417,13 @@ msgid ""
 "3  foo  two  3.000000        2      6"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:872
+#: ../../source/df-sort-distinct-apply.rst:893
 msgid "我们也可以把原始数据的某一列的值，作为新的collection的列。 **这也是透视表最强大的地方。**"
 msgstr ""
 "You can also use the values of a column in original data as a new "
 "Collection column. **This is the most powerful benefit of pivot_table.**"
 
-#: ../../source/df-sort-distinct-apply.rst:882
+#: ../../source/df-sort-distinct-apply.rst:895
 msgid ""
 ">>> df.pivot_table(rows=['A', 'B'], values='D', columns='C')\n"
 "     A    B  large_D_mean  small_D_mean\n"
@@ -1411,11 +1433,11 @@ msgid ""
 "3  foo  two           NaN           3.0"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:883
+#: ../../source/df-sort-distinct-apply.rst:904
 msgid "我们可以提供 ``fill_value`` 来填充空值。"
 msgstr "The system provides ``fill_value`` to replace null values."
 
-#: ../../source/df-sort-distinct-apply.rst:894
+#: ../../source/df-sort-distinct-apply.rst:906
 msgid ""
 ">>> df.pivot_table(rows=['A', 'B'], values='D', columns='C', "
 "fill_value=0)\n"
@@ -1426,21 +1448,21 @@ msgid ""
 "3  foo  two             0             3"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:896
+#: ../../source/df-sort-distinct-apply.rst:917
 msgid "Key-Value 字符串转换"
 msgstr "Key-value string transformation"
 
-#: ../../source/df-sort-distinct-apply.rst:898
+#: ../../source/df-sort-distinct-apply.rst:919
 msgid "DataFrame 提供了将 Key-Value 对展开为列，以及将普通列转换为 Key-Value 列的功能。"
 msgstr ""
 "DataFrame can extract key-value pairs into a column, and transform a "
 "common column to a key-value column."
 
-#: ../../source/df-sort-distinct-apply.rst:900
+#: ../../source/df-sort-distinct-apply.rst:921
 msgid "我们的数据为"
 msgstr "The following code is the example for transformation:"
 
-#: ../../source/df-sort-distinct-apply.rst:910
+#: ../../source/df-sort-distinct-apply.rst:923
 msgid ""
 ">>> df\n"
 "    name               kv\n"
@@ -1450,11 +1472,11 @@ msgid ""
 "3  name2      k9=1.1,k2=1"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:911
+#: ../../source/df-sort-distinct-apply.rst:932
 msgid "可以通过 extract_kv 方法将 Key-Value 字段展开："
 msgstr "Use the extract_kv method to extract key-value fields:"
 
-#: ../../source/df-sort-distinct-apply.rst:921
+#: ../../source/df-sort-distinct-apply.rst:934
 msgid ""
 ">>> df.extract_kv(columns=['kv'], kv_delim='=', item_delim=',')\n"
 "   name   kv_k1  kv_k2  kv_k3  kv_k5  kv_k7  kv_k9\n"
@@ -1464,7 +1486,7 @@ msgid ""
 "3  name2    NaN    1.0    NaN    NaN    NaN    1.1"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:922
+#: ../../source/df-sort-distinct-apply.rst:943
 msgid ""
 "其中，需要展开的字段名由 columns 指定，Key 和 Value 之间的分隔符，以及 Key-Value 对之间的分隔符分别由 "
 "kv_delim 和 item_delim 这两个参数指定，默认分别为半角冒号和半角逗号。输出的字段名为原字段名和 Key "
@@ -1479,7 +1501,7 @@ msgstr ""
 "to specify the value to replace None. The following example is the "
 "processing result of the preceding df data."
 
-#: ../../source/df-sort-distinct-apply.rst:934
+#: ../../source/df-sort-distinct-apply.rst:947
 msgid ""
 ">>> df.extract_kv(columns=['kv'], kv_delim='=', fill_value=0)\n"
 "   name   kv_k1  kv_k2  kv_k3  kv_k5  kv_k7  kv_k9\n"
@@ -1489,13 +1511,13 @@ msgid ""
 "3  name2    0.0    1.0    0.0    0.0    0.0    1.1"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:935
+#: ../../source/df-sort-distinct-apply.rst:956
 msgid "DataFrame 也支持将多列数据转换为一个 Key-Value 列。例如，"
 msgstr ""
 "DataFrame can also transform multiple columns to one key-value column. "
 "The following code is an example for transformation:"
 
-#: ../../source/df-sort-distinct-apply.rst:945
+#: ../../source/df-sort-distinct-apply.rst:958
 msgid ""
 ">>> df\n"
 "   name    k1   k2   k3    k5   k7   k9\n"
@@ -1505,11 +1527,11 @@ msgid ""
 "3  name2  NaN  1.0  NaN   NaN  NaN  1.1"
 msgstr ""
 
-#: ../../source/df-sort-distinct-apply.rst:946
+#: ../../source/df-sort-distinct-apply.rst:967
 msgid "可通过 to_kv 方法转换为 Key-Value 表示的格式："
 msgstr "You can use the to_kv method to transform data to the key-value format:"
 
-#: ../../source/df-sort-distinct-apply.rst:955
+#: ../../source/df-sort-distinct-apply.rst:969
 msgid ""
 ">>> df.to_kv(columns=['k1', 'k2', 'k3', 'k5', 'k7', 'k9'], kv_delim='=')\n"
 "    name               kv\n"

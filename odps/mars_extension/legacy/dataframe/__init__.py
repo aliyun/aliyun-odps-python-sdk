@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2018 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,5 @@ from .datasource import read_odps_table, DataFrameReadTable, ReadODPSTableHeadRu
 from .datastore import write_odps_table, DataFrameWriteTable
 
 from mars.optimizes.runtime.dataframe import DataFrameRuntimeOptimizer
+
 DataFrameRuntimeOptimizer.register_rule(ReadODPSTableHeadRule)
-
-

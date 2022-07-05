@@ -1,4 +1,4 @@
-# Copyright 1999-2020 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,17 +27,21 @@ from ...tunnel.volumetunnel import VolumeTunnel
 from ...utils import to_binary, to_str
 
 
-DIR_ERROR_MSG = 'Argument `path` illegal, expect to be ' \
-                'odps:///**project**/volumes/**volume**/, ' \
-                'got {}'
+DIR_ERROR_MSG = (
+    "Argument `path` illegal, expect to be "
+    "odps:///**project**/volumes/**volume**/, "
+    "got {}"
+)
 
-FILE_ERROR_MSG = 'Argument `path` illegal, expect to be ' \
-                'odps:///**project**/volumes/**volume**/**file**, ' \
-                'got {}'
+FILE_ERROR_MSG = (
+    "Argument `path` illegal, expect to be "
+    "odps:///**project**/volumes/**volume**/**file**, "
+    "got {}"
+)
 
-DEFAULT_CHUNK_SIZE = 512 * 1024 ** 2
+DEFAULT_CHUNK_SIZE = 512 * 1024**2
 
-META_FILE_NAME = '_meta_'
+META_FILE_NAME = "_meta_"
 
 
 class _VolumeFileObject(object):
@@ -63,36 +67,40 @@ class _VolumeFileObject(object):
             content = to_str(meta_reader.read())
             meta = OrderedDict()
             length = 0
-            for line in content.split('\n'):
-                if ',' in line:
-                    filename, size = line.split(',', 1)
+            for line in content.split("\n"):
+                if "," in line:
+                    filename, size = line.split(",", 1)
                     size = int(size)
                     meta[filename] = size
                     length += size
 
         temp_dir = self._temp_dir or tempfile.mkdtemp()
-        write_filename = os.path.join(temp_dir, self._volume_parted.volume.name,
-                                      self._volume_parted.name)
+        write_filename = os.path.join(
+            temp_dir, self._volume_parted.volume.name, self._volume_parted.name
+        )
         os.makedirs(os.path.dirname(write_filename), exist_ok=True)
 
-        with open(write_filename, 'wb') as f:
+        with open(write_filename, "wb") as f:
             for size in meta.values():
-                f.write(b'\0' * size)
+                f.write(b"\0" * size)
 
-        with open(write_filename, 'rb+') as f:
+        with open(write_filename, "rb+") as f:
             m = mmap.mmap(f.fileno(), length)
             offsets = [0] + np.cumsum(list(meta.values())).tolist()
 
             volume_part = self._volume_parted
-            volume_tunnel = VolumeTunnel(client=volume_part._client, project=volume_part.project,
-                                         endpoint=volume_part.project._tunnel_endpoint)
+            volume_tunnel = VolumeTunnel(
+                client=volume_part._client,
+                project=volume_part.project,
+                endpoint=volume_part.project._tunnel_endpoint,
+            )
 
             def _write(filename, start, end):
-                with volume_tunnel.create_download_session(volume_part.volume.name,
-                                                           volume_part.name,
-                                                           filename).open() as reader:
+                with volume_tunnel.create_download_session(
+                    volume_part.volume.name, volume_part.name, filename
+                ).open() as reader:
                     content_part = reader.read()
-                    m[start: end] = content_part
+                    m[start:end] = content_part
 
             executor = futures.ThreadPoolExecutor(8)
             fs = []
@@ -102,14 +110,15 @@ class _VolumeFileObject(object):
             [f.result() for f in fs]
 
         self._read_filename = write_filename
-        self._reader = open(write_filename, 'rb')
+        self._reader = open(write_filename, "rb")
 
     def read(self, size=None):
         self._volume_parted.reload()
         if self._volume_parted.file_number == 1:
             if self._reader is None:
                 self._reader = self._volume_parted.open_reader(
-                    list(self._volume_parted.files)[0].name)
+                    list(self._volume_parted.files)[0].name
+                )
             return self._reader.read(size=size)
         else:
             if self._reader is None:
@@ -152,8 +161,10 @@ class _VolumeFileObject(object):
                 self._flush_to_volume_file()
                 self._index = 0
             if len(self._meta) > 1:
-                meta_content = '\n'.join('{},{}'.format(filename, size)
-                                         for filename, size in self._meta.items())
+                meta_content = "\n".join(
+                    "{},{}".format(filename, size)
+                    for filename, size in self._meta.items()
+                )
                 # write meta file if file length > 1
                 self._writer.write(META_FILE_NAME, to_binary(meta_content))
             self._writer.__exit__(None, None, None)
@@ -188,7 +199,7 @@ class VolumeFileSystem(FileSystem):
             odps = ODPS.from_global()
         if odps is None:
             # still None, raise error
-            raise ValueError('`odps` should be specified for VolumeFileSystem')
+            raise ValueError("`odps` should be specified for VolumeFileSystem")
 
         self._odps = odps
         self._path = path
@@ -200,7 +211,7 @@ class VolumeFileSystem(FileSystem):
         parsed = urlparse(uri)
         options = dict()
         if parsed.path:
-            options['path'] = parsed.path.strip('/')
+            options["path"] = parsed.path.strip("/")
         return options
 
     @staticmethod
@@ -208,105 +219,120 @@ class VolumeFileSystem(FileSystem):
         options = VolumeFileSystem.parse_from_path(path)
         error_msg = DIR_ERROR_MSG if not is_file else FILE_ERROR_MSG
 
-        if 'path' not in options:
+        if "path" not in options:
             raise ValueError(error_msg.format(path))
 
-        path = options['path']
-        splits = path.split('/')
+        path = options["path"]
+        splits = path.split("/")
         expect_size = 3 if not is_file else 4
         if len(splits) != expect_size:
             raise ValueError(error_msg.format(path))
 
         volumes = splits[1]
-        if volumes.lower() != 'volumes':
+        if volumes.lower() != "volumes":
             raise ValueError(error_msg.format(path))
 
         return splits[:1] + splits[2:]
 
     def ls(self, path):
-        path = path.strip('/') or self._path
+        path = path.strip("/") or self._path
         project, volume = self._extract_info(path)
         try:
             files = self._odps.list_volume_partitions(volume, project=project)
         except NoSuchObject:
-            raise FileNotFoundError('File {} not found'.format(path))
-        return ['odps:///{}/volumes/{}/{}'.format(project, volume, f.name) for f in files]
+            raise FileNotFoundError("File {} not found".format(path))
+        return [
+            "odps:///{}/volumes/{}/{}".format(project, volume, f.name) for f in files
+        ]
 
     def delete(self, path, recursive: bool = False):
-        path = path.strip('/') or self._path
-        if '/' not in path:
-            path = '{}/{}'.format(self._path, path)
+        path = path.strip("/") or self._path
+        if "/" not in path:
+            path = "{}/{}".format(self._path, path)
         options = VolumeFileSystem.parse_from_path(path)
-        fpath = options['path']
+        fpath = options["path"]
 
-        splits = fpath.split('/')
+        splits = fpath.split("/")
         if len(splits) == 3:
             is_file = False
         elif len(splits) == 4:
             is_file = True
         else:
-            raise ValueError('Argument `path` illegal, expect to be ' 
-                             'odps:///**project**/volumes/**volume**/ or'
-                             'odps:///**project**/volumes/**volume**/**partition**/, '
-                             'got {}'.format(path))
+            raise ValueError(
+                "Argument `path` illegal, expect to be "
+                "odps:///**project**/volumes/**volume**/ or"
+                "odps:///**project**/volumes/**volume**/**partition**/, "
+                "got {}".format(path)
+            )
 
         if is_file:
             project, volume, partition = self._extract_info(path, is_file=True)
-            if self._odps.exist_volume_partition(volume, partition=partition,
-                                                 project=project):
-                self._odps.delete_volume_partition(volume, partition=partition,
-                                                   project=project)
+            if self._odps.exist_volume_partition(
+                volume, partition=partition, project=project
+            ):
+                self._odps.delete_volume_partition(
+                    volume, partition=partition, project=project
+                )
         else:
             project, volume = self._extract_info(path)
             if self._odps.exist_volume(volume, project=project):
                 self._odps.delete_volume(volume, project=project)
 
-    def open(self, path, mode='rb'):
-        if mode not in ('rb', 'wb'):
-            raise ValueError('`mode` can be `rb` or `wb` only')
+    def open(self, path, mode="rb"):
+        if mode not in ("rb", "wb"):
+            raise ValueError("`mode` can be `rb` or `wb` only")
 
-        path = path.strip('/') or self._path
-        if '/' not in path:
-            path = '{}/{}'.format(self._path, path)
+        path = path.strip("/") or self._path
+        if "/" not in path:
+            path = "{}/{}".format(self._path, path)
         project, volume, partition = self._extract_info(path, is_file=True)
-        volume_parted = self._odps.get_volume_partition(volume, partition=partition,
-                                                        project=project)
+        volume_parted = self._odps.get_volume_partition(
+            volume, partition=partition, project=project
+        )
 
-        return _VolumeFileObject(volume_parted, mode, temp_dir=self._temp_dir,
-                                 chunk_size=self._chunk_size)
+        return _VolumeFileObject(
+            volume_parted, mode, temp_dir=self._temp_dir, chunk_size=self._chunk_size
+        )
 
     def mkdir(self, path, create_parents=True):
         assert create_parents
 
-        path = path.strip('/') or self._path
+        path = path.strip("/") or self._path
         project, volume = self._extract_info(path)
 
         if not self._odps.exist_volume(volume, project=project):
             self._odps.create_parted_volume(volume, project=project)
 
     def stat(self, path):
-        path = path.strip('/') or self._path
-        if '/' not in path:
-            path = '{}/{}'.format(self._path, path)
+        path = path.strip("/") or self._path
+        if "/" not in path:
+            path = "{}/{}".format(self._path, path)
         options = VolumeFileSystem.parse_from_path(path)
-        fpath = options['path']
+        fpath = options["path"]
 
-        splits = fpath.split('/')
+        splits = fpath.split("/")
         if len(splits) == 3:
             is_file = False
         elif len(splits) == 4:
             is_file = True
         else:
-            raise ValueError('Argument `path` illegal, expect to be ' 
-                             'odps:///**project**/volumes/**volume**/ or'
-                             'odps:///**project**/volumes/**volume**/**partition**/, '
-                             'got {}'.format(path))
+            raise ValueError(
+                "Argument `path` illegal, expect to be "
+                "odps:///**project**/volumes/**volume**/ or"
+                "odps:///**project**/volumes/**volume**/**partition**/, "
+                "got {}".format(path)
+            )
 
         if is_file:
             project, volume, partition = self._extract_info(path, is_file=True)
-            volume_parted = self._odps.get_volume_partition(volume, partition=partition,
-                                                            project=project)
-            stat = dict(name=path, size=volume_parted.length, created=volume_parted.creation_time)
+            volume_parted = self._odps.get_volume_partition(
+                volume, partition=partition, project=project
+            )
+            stat = dict(
+                name=path,
+                size=volume_parted.length,
+                created=volume_parted.creation_time,
+            )
         else:
             project, volume = self._extract_info(path)
             vol = self._odps.get_volume(volume, project=project)

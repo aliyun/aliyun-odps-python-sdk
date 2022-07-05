@@ -1,4 +1,4 @@
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ def install_plugins():
         from .ml import install_plugin, install_mixin
     except (ImportError, SyntaxError):
         pass
+
 
 install_plugins()
 del install_plugins

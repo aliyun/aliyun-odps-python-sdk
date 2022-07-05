@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2020 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ def connect(*args, **kwargs):
     """
     return Connection(*args, **kwargs)
 
+
 FALLBACK_POLICIES = {
     "unsupported": ["ODPS-185"],
     "upgrading": ["ODPS-182", "ODPS-184"],
@@ -59,10 +60,14 @@ FALLBACK_POLICY_ALIASES = {
     "all": ["unsupported", "upgrading", "noresource", "timeout", "generic"]
 }
 
+
 class Connection(object):
     def __init__(self, access_id=None, secret_access_key=None, project=None,
                  endpoint=None, session_name=None, odps=None, **kw):
         if odps is None:
+            # pop unsupported
+            kw.pop("use_sqa", None)
+            kw.pop("fallback_policy", None)
             self._odps = ODPS(access_id=access_id, secret_access_key=secret_access_key,
                               project=project, endpoint=endpoint, **kw)
         else:
@@ -254,7 +259,7 @@ class Cursor(object):
                 rd = inst.open_reader(tunnel=True, limit=False)
                 if not rd:
                     raise ODPSError('failed to create direct download')
-                rd.schema # will check if task is ok
+                rd.schema  # will check if task is ok
                 self._download_session = rd
                 return inst
             except ODPSError as e:

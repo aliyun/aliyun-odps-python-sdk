@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import shutil
 import tempfile
 
 from odps.compat import unittest, StringIO
-from odps.inter import *
 from odps.config import options
 from odps.errors import InteractiveError
-from odps.inter import *
+from odps.inter import enter, setup, teardown, Room, list_rooms
 from odps.lib import cloudpickle
 from odps.models import Schema
 from odps.tests.core import TestBase, tn

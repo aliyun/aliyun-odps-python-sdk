@@ -25,7 +25,6 @@ Mars 的基础镜像中安装了一些常见的三方库，可以直接在 remot
     cachetools                4.1.1
     certifi                   2020.6.20
     cffi                      1.14.0
-    chardet                   3.0.4
     cloudpickle               1.5.0
     conda                     4.8.3
     conda-package-handling    1.7.0
@@ -158,7 +157,6 @@ extended 镜像中的三方库以及版本如下：
     cachetools                4.1.1
     certifi                   2020.11.8
     cffi                      1.14.0
-    chardet                   3.0.4
     cloudpickle               1.5.0
     conda                     4.9.2
     conda-package-handling    1.7.0
@@ -338,7 +336,6 @@ tensorflow 镜像中的三方库以及版本如下：
     cachetools                4.1.1
     certifi                   2020.6.20
     cffi                      1.14.0
-    chardet                   3.0.4
     cloudpickle               1.5.0
     conda                     4.9.2
     conda-package-handling    1.7.0

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ from decimal import Decimal
 try:
     from string import letters
 except ImportError:
-    from string import ascii_letters as letters
+    from string import ascii_letters as letters  # noqa: F401
 
 from odps.compat import reload_module
 from odps.tests.core import TestBase, tn, snappy_case
@@ -34,7 +34,8 @@ from odps.tunnel import TableTunnel, InstanceTunnel
 def bothPyAndC(func):
     def inner(self, *args, **kwargs):
         try:
-            import cython
+            import cython  # noqa: F401
+
             ts = 'py', 'c'
         except ImportError:
             ts = 'py',
@@ -79,6 +80,8 @@ class Test(TestBase):
 
     def _upload_data(self, test_table, records, compress=False, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
+        # make sure session reprs work well
+        repr(upload_ss)
         writer = upload_ss.open_record_writer(0, compress=compress)
 
         # test use right py or c writer
@@ -97,6 +100,8 @@ class Test(TestBase):
     def _download_instance_data(self, test_instance, compress=False, columns=None, **kw):
         count = kw.pop('count', 3)
         download_ss = self.instance_tunnel.create_download_session(test_instance, **kw)
+        # make sure session reprs work well
+        repr(download_ss)
         with download_ss.open_record_reader(0, count, compress=compress, columns=columns) as reader:
             # test use right py or c writer
             self.assertEqual(self.mode, reader._mode())

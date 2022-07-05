@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 import sys
 import base64
 import json
+import threading
 import time
 import warnings
 from datetime import datetime
@@ -30,6 +31,16 @@ from .. import serializers, utils, errors, compat, readers, options
 from ..accounts import BearerTokenAccount
 from ..compat import ElementTree, Enum, six, OrderedDict
 from ..utils import to_str
+
+
+def _with_status_api_lock(func):
+    def wrapped(self, *args, **kw):
+        with self._status_api_lock:
+            return func(self, *args, **kw)
+
+    wrapped.__name__ = func.__name__
+    wrapped.__doc__ = func.__doc__
+    return wrapped
 
 
 class Instance(LazyLoad):
@@ -54,7 +65,15 @@ class Instance(LazyLoad):
     >>>    print(reader.raw)  # just return the raw result
     """
 
-    __slots__ = '_task_results', '_is_sync', '_instance_tunnel', '_id_thread_local'
+    __slots__ = (
+        "_task_results",
+        "_is_sync",
+        "_instance_tunnel",
+        "_id_thread_local",
+        "_status_api_lock",
+        "_logview_address",
+        "_logview_address_time",
+    )
 
     _download_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
 
@@ -73,6 +92,11 @@ class Instance(LazyLoad):
             self._status = Instance.Status.TERMINATED
         else:
             self._is_sync = False
+
+        self._status_api_lock = threading.RLock()
+
+        self._logview_address = None
+        self._logview_address_time = None
 
     @property
     def id(self):
@@ -303,6 +327,7 @@ class Instance(LazyLoad):
     def project(self):
         return self.parent.parent
 
+    @_with_status_api_lock
     def get_task_results_without_format(self):
         if self._is_sync:
             return self._task_results
@@ -313,6 +338,7 @@ class Instance(LazyLoad):
         instance_result = Instance.InstanceResult.parse(self._client, resp)
         return compat.OrderedDict([(r.name, r.result) for r in instance_result.task_results])
 
+    @_with_status_api_lock
     def get_task_results(self):
         """
         Get all the task results.
@@ -327,6 +353,7 @@ class Instance(LazyLoad):
         else:
             return compat.OrderedDict([(k, str(result)) for k, result in six.iteritems(results)])
 
+    @_with_status_api_lock
     def get_task_result(self, task_name):
         """
         Get a single task result.
@@ -337,6 +364,7 @@ class Instance(LazyLoad):
         """
         return self.get_task_results().get(task_name)
 
+    @_with_status_api_lock
     def get_task_summary(self, task_name):
         """
         Get a task's summary, mostly used for MapReduce.
@@ -359,6 +387,7 @@ class Instance(LazyLoad):
 
                 return summary
 
+    @_with_status_api_lock
     def get_task_statuses(self):
         """
         Get all tasks' statuses
@@ -374,6 +403,7 @@ class Instance(LazyLoad):
 
         return dict([(task.name, task) for task in self._tasks])
 
+    @_with_status_api_lock
     def get_task_names(self):
         """
         Get names of all tasks
@@ -384,6 +414,7 @@ class Instance(LazyLoad):
 
         return compat.lkeys(self.get_task_statuses())
 
+    @_with_status_api_lock
     def get_task_cost(self, task_name):
         """
         Get task cost
@@ -415,6 +446,7 @@ class Instance(LazyLoad):
 
             return Instance.TaskCost(cpu_cost, memory, input_size)
 
+    @_with_status_api_lock
     def get_task_info(self, task_name, key):
         """
         Get task related information.
@@ -428,6 +460,7 @@ class Instance(LazyLoad):
         resp = self._client.get(self.resource(), params=params)
         return resp.text
 
+    @_with_status_api_lock
     def put_task_info(self, task_name, key, value):
         """
         Put information into a task.
@@ -442,6 +475,7 @@ class Instance(LazyLoad):
 
         self._client.put(self.resource(), params=params, headers=headers, data=body)
 
+    @_with_status_api_lock
     def get_task_quota(self, task_name):
         """
         Get queueing info of the task.
@@ -454,6 +488,7 @@ class Instance(LazyLoad):
         resp = self._client.get(self.resource(), params=params)
         return json.loads(resp.text)
 
+    @_with_status_api_lock
     def get_sql_task_cost(self):
         """
         Get cost information of the sql task.
@@ -471,6 +506,7 @@ class Instance(LazyLoad):
         return Instance.SQLCost(udf_num, complexity, input_size)
 
     @property
+    @_with_status_api_lock
     def status(self):
         if self._status != Instance.Status.TERMINATED:
             self.reload()
@@ -534,21 +570,25 @@ class Instance(LazyLoad):
     def is_sync(self):
         return self._is_sync
 
-    def wait_for_completion(self, interval=1):
+    def wait_for_completion(self, interval=1, timeout=None):
         """
         Wait for the instance to complete, and neglect the consequence.
 
         :param interval: time interval to check
+        :param timeout: time
         :return: None
         """
 
+        start_time = time.time()
         while not self.is_terminated(retry=True):
             try:
                 time.sleep(interval)
+                if timeout is not None and time.time() - start_time > timeout:
+                    raise errors.WaitTimeoutError(instance_id=self.id)
             except KeyboardInterrupt:
                 break
 
-    def wait_for_success(self, interval=1):
+    def wait_for_success(self, interval=1, timeout=None):
         """
         Wait for instance to complete, and check if the instance is successful.
 
@@ -557,7 +597,7 @@ class Instance(LazyLoad):
         :raise: :class:`odps.errors.ODPSError` if the instance failed
         """
 
-        self.wait_for_completion(interval=interval)
+        self.wait_for_completion(interval=interval, timeout=timeout)
 
         if not self.is_successful(retry=True):
             for task_name, task in six.iteritems(self.get_task_statuses()):
@@ -570,6 +610,7 @@ class Instance(LazyLoad):
                     exc.instance_id = self.id
                     raise exc
 
+    @_with_status_api_lock
     def get_task_progress(self, task_name):
         """
         Get task's current progress
@@ -584,6 +625,7 @@ class Instance(LazyLoad):
         resp = self._client.get(self.resource(), params=params)
         return Instance.Task.TaskProgress.parse(self._client, resp)
 
+    @_with_status_api_lock
     def get_task_detail(self, task_name):
         """
         Get task's detail
@@ -599,8 +641,10 @@ class Instance(LazyLoad):
                       'taskname': task_name}
 
             resp = self._client.get(self.resource(), params=params)
-            return json.loads(resp.text if six.PY3 else resp.content,
-                              object_pairs_hook=OrderedDict)
+            return json.loads(
+                resp.content.decode() if six.PY3 else resp.content,
+                object_pairs_hook=OrderedDict
+            )
 
         result = _get_detail()
         if not result:
@@ -609,6 +653,7 @@ class Instance(LazyLoad):
         else:
             return result
 
+    @_with_status_api_lock
     def get_task_detail2(self, task_name):
         """
         Get task's detail v2
@@ -624,12 +669,13 @@ class Instance(LazyLoad):
                   'taskname': task_name}
 
         resp = self._client.get(self.resource(), params=params)
-        res = resp.text if six.PY3 else resp.content
+        res = resp.content.decode() if six.PY3 else resp.content
         try:
             return json.loads(res, object_pairs_hook=OrderedDict)
         except ValueError:
             return res
 
+    @_with_status_api_lock
     def get_task_workers(self, task_name=None, json_obj=None):
         """
         Get workers from task
@@ -646,6 +692,7 @@ class Instance(LazyLoad):
             json_obj = self.get_task_detail2(task_name)
         return WorkerDetail2.extract_from_json(json_obj, client=self._client, parent=self)
 
+    @_with_status_api_lock
     def get_worker_log(self, log_id, log_type, size=0):
         """
         Get logs from worker.
@@ -668,6 +715,7 @@ class Instance(LazyLoad):
         return resp.text
     get_worker_log.__doc__ = get_worker_log.__doc__.format(log_types=', '.join(sorted(six.iterkeys(LOG_TYPES_MAPPING))))
 
+    @_with_status_api_lock
     def get_logview_address(self, hours=None):
         """
         Get logview address of the instance object by hours.
@@ -676,6 +724,12 @@ class Instance(LazyLoad):
         :return: logview address
         :rtype: str
         """
+        if (
+            self._logview_address is not None
+            and time.time() - self._logview_address_time < 600
+        ):
+            return self._logview_address
+
         project = self.project
         if isinstance(project.odps.account, BearerTokenAccount):
             token = to_str(project.odps.account.token)
@@ -701,12 +755,23 @@ class Instance(LazyLoad):
             data = json.dumps(policy)
             res = self._client.post(url, data, headers=headers, params=params)
 
-            content = res.text if six.PY3 else res.content
+            content = res.content.decode() if six.PY3 else res.content
             root = ElementTree.fromstring(content)
             token = root.find('Result').text
 
-        link = self.project.odps.logview_host + "/logview/?h=" + self._client.endpoint + "&p=" \
-               + project.name + "&i=" + self.id + "&token=" + token
+        link = (
+            self.project.odps.logview_host
+            + "/logview/?h="
+            + self._client.endpoint
+            + "&p="
+            + project.name
+            + "&i="
+            + self.id
+            + "&token="
+            + token
+        )
+        self._logview_address = link
+        self._logview_address_time = time.time()
         return link
 
     def __str__(self):

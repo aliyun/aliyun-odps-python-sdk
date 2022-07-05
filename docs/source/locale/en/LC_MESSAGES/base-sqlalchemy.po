@@ -1,0 +1,129 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2022.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.11.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2022-06-29 16:26+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../source/base-sqlalchemy.rst:4
+msgid "集成 SQLAlchemy"
+msgstr "Integration of SQLAlchemy"
+
+#: ../../source/base-sqlalchemy.rst:6
+msgid "在 PyODPS 0.10.0 中开始支持"
+msgstr "Supported since PyODPS 0.10.0"
+
+#: ../../source/base-sqlalchemy.rst:8
+msgid "PyODPS 支持集成 SQLAlchemy，可以使用 SQLAlchemy 查询 MaxCompute 数据。"
+msgstr "PyODPS supports integration of SQLAlchemy and can use it to query data in MaxCompute."
+
+#: ../../source/base-sqlalchemy.rst:11
+msgid "创建连接"
+msgstr "Create connections"
+
+#: ../../source/base-sqlalchemy.rst:13
+msgid "创建连接可以在连接串中指定 ``access_id``、``access_key`` 和 ``project`` 等。"
+msgstr "You can create MaxCompute connection by specifying ``access_id``, ``access_key``, ``project`` and other arguments in a connection string."
+
+#: ../../source/base-sqlalchemy.rst:15
+msgid ""
+"from sqlalchemy import create_engine\n"
+"engine = create_engine('odps://<access_id>:<access_key>@<project>')"
+msgstr ""
+
+#: ../../source/base-sqlalchemy.rst:20
+msgid "要在连接串中指定 ``endpoint``，可以按如下方式："
+msgstr "You can use methods below to specify ``endpoint`` in connection strings:"
+
+#: ../../source/base-sqlalchemy.rst:22
+msgid ""
+"from sqlalchemy import create_engine\n"
+"engine = "
+"create_engine('odps://<access_id>:<access_key>@<project>/?endpoint=<endpoint>')"
+msgstr ""
+
+#: ../../source/base-sqlalchemy.rst:27
+msgid "这里把 ``<access_id>`` 等替换成相应的账号。"
+msgstr "Replace ``<access_id>`` and other placeholders with real account information."
+
+#: ../../source/base-sqlalchemy.rst:29
+msgid "对于已有的 ODPS 对象 ``o`` ，调用 ``o.to_global()`` 设为全局账号后，在连接串中就不需要指定了。"
+msgstr "For existing ODPS entries, after calling ``o.to_global()`` to make accounts global, there is no need to specify connection strings in detail again."
+
+#: ../../source/base-sqlalchemy.rst:31
+msgid ""
+"from sqlalchemy import create_engine\n"
+"o.to_global()  # set ODPS object as global one\n"
+"engine = create_engine('odps://')"
+msgstr ""
+
+#: ../../source/base-sqlalchemy.rst:37
+msgid "接着创建连接。"
+msgstr "Then connections can be created."
+
+#: ../../source/base-sqlalchemy.rst:39
+msgid "conn = engine.connect()"
+msgstr ""
+
+#: ../../source/base-sqlalchemy.rst:45
+msgid "调用 SQLAlchemy 接口"
+msgstr "Using SQLAlchemy interfaces"
+
+#: ../../source/base-sqlalchemy.rst:47
+msgid "创建了连接之后，就可以正常调用 SQLAlchemy 接口。以下对建表、写入数据、查询分别举例说明。"
+msgstr "After establishing connections, you can call SQLAlchemy interfaces as usual. Here are examples for creating, writing data and querying."
+
+#: ../../source/base-sqlalchemy.rst:50
+msgid "建表"
+msgstr "Creating tables"
+
+#: ../../source/base-sqlalchemy.rst:52
+msgid ""
+"from sqlalchemy import Table, Column, Integer, String, MetaData\n"
+"metadata = MetaData()\n"
+"\n"
+"users = Table('users', metadata,\n"
+"    Column('id', Integer),\n"
+"    Column('name', String),\n"
+"    Column('fullname', String),\n"
+")\n"
+"\n"
+"metadata.create_all(engine)"
+msgstr ""
+
+#: ../../source/base-sqlalchemy.rst:67
+msgid "写入数据"
+msgstr "Writing data"
+
+#: ../../source/base-sqlalchemy.rst:69
+msgid ""
+"ins = users.insert().values(id=1, name='jack', fullname='Jack Jones')\n"
+"conn.execute(ins)"
+msgstr ""
+
+#: ../../source/base-sqlalchemy.rst:76
+msgid "查询数据"
+msgstr "Querying"
+
+#: ../../source/base-sqlalchemy.rst:78
+msgid ""
+">>> from sqlalchemy.sql import select\n"
+">>> s = select([users])\n"
+">>> result = conn.execute(s)\n"
+">>> for row in result:\n"
+">>>     print(row)\n"
+"(1, 'jack', 'Jack Jones')"
+msgstr ""
+

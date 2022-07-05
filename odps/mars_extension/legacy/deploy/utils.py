@@ -1,6 +1,6 @@
 # !/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,14 +21,14 @@ from ....utils import to_str
 
 
 def wait_all_schedulers_ready(kv_store, scheduler_keys):
-    schedulers = scheduler_keys.split(',')
+    schedulers = scheduler_keys.split(",")
     while True:
         scheduler_endpoints = []
         for scheduler_key in schedulers:
             json_val = to_str(kv_store.get(scheduler_key))
             if json_val:
                 config = json.loads(to_str(json_val))
-                scheduler_endpoints.append(to_str(config['endpoint']))
+                scheduler_endpoints.append(to_str(config["endpoint"]))
         if len(scheduler_endpoints) == len(schedulers):
             break
         time.sleep(1)

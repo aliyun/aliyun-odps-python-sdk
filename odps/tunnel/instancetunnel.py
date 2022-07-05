@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputS
 from .errors import TunnelError
 from .. import errors, serializers, types
 from ..compat import Enum, six
+from ..config import options
 from ..models import Projects, Schema
 from ..models.table import TableSchema
 
@@ -66,6 +67,15 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             self.id = download_id
             self.reload()
         self._compress_option = compress_option
+        if options.tunnel_session_create_callback:
+            options.tunnel_session_create_callback(self)
+
+    def __repr__(self):
+        return "<InstanceDownloadSession id=%s project_name=%s instance_id=%s>" % (
+            self.id,
+            self._instance.project.name,
+            self._instance.id,
+        )
 
     def _init(self):
         params = {'downloads': ''}
@@ -138,7 +148,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         if not self._client.is_ok(resp):
             e = TunnelError.parse(resp)
             raise e
-        
+
         if self._sessional:
             # in DirectDownloadMode, the schema is brought back in HEADER.
             # handle this.
@@ -190,14 +200,14 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
 
 class InstanceTunnel(BaseTunnel):
     def create_download_session(self, instance, download_id=None, limit=None, compress_option=None,
-                                compress_algo=None, compres_level=None, compress_strategy=None, **kw):
+                                compress_algo=None, compress_level=None, compress_strategy=None, **kw):
         if not isinstance(instance, six.string_types):
             instance = instance.id
         instance = Projects(client=self.tunnel_rest)[self._project.name].instances[instance]
         compress_option = compress_option
         if compress_option is None and compress_algo is not None:
             compress_option = CompressOption(
-                compress_algo=compress_algo, level=compres_level, strategy=compress_strategy)
+                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
 
         if limit is None:
             limit = kw.get('limit_enabled', False)

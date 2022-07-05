@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
-# 
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #      http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -16,12 +16,16 @@
 from libc.stdint cimport *
 from libc.string cimport *
 
-cdef int read_input_byte(object input) except? -1:
-    cdef bytes input_bytes = input.read(1)
-    cdef char *ptr = input_bytes
-    return ptr[0]
 
-cdef int32_t get_varint32(object input) except? -1:
+cdef int read_input_byte(char** input, char* end) nogil:
+    if input[0] >= end:
+        return 0
+    cdef int value = input[0][0]
+    input[0] += 1
+    return value
+
+
+cdef int32_t get_varint32(char** input, char* end, size_t* pos) nogil:
     """
     Deserialize a protobuf varint read from input stream; update
     offset based on number of bytes consumed.
@@ -32,17 +36,17 @@ cdef int32_t get_varint32(object input) except? -1:
     cdef int val_byte
 
     while True:
-        val_byte = read_input_byte(input)
+        val_byte = read_input_byte(input, end)
         value += (val_byte & 0x7F) * base
-        if (val_byte & 0x80):
-            base *= 128
+        if val_byte & 0x80:
+            base <<= 7
             index += 1
         else:
-            input.add_offset(index + 1)
+            pos[0] += index + 1
             return value
 
 
-cdef int64_t get_varint64(object input) except? -1:
+cdef int64_t get_varint64(char** input, char* end, size_t* pos) nogil:
     """
     Deserialize a protobuf varint read from input stream; update
     offset based on number of bytes consumed.
@@ -53,17 +57,17 @@ cdef int64_t get_varint64(object input) except? -1:
     cdef int val_byte
 
     while True:
-        val_byte = read_input_byte(input)
+        val_byte = read_input_byte(input, end)
         value += (val_byte & 0x7F) * base
-        if (val_byte & 0x80):
-            base *= 128
+        if val_byte & 0x80:
+            base <<= 7
             index += 1
         else:
-            input.add_offset(index + 1)
+            pos[0] += index + 1
             return value
 
 
-cdef int32_t get_signed_varint32(object input) except? -1:
+cdef int32_t get_signed_varint32(char** input, char* end, size_t* pos) nogil:
     """
     Deserialize a signed protobuf varint read from input stream;
     update offset based on number of bytes consumed.
@@ -74,17 +78,17 @@ cdef int32_t get_signed_varint32(object input) except? -1:
     cdef int val_byte
 
     while True:
-        val_byte = read_input_byte(input)
+        val_byte = read_input_byte(input, end)
         value += (val_byte & 0x7F) * base
-        if (val_byte & 0x80):
-            base *= 128
+        if val_byte & 0x80:
+            base <<= 7
             index += 1
         else:
-            input.add_offset(index + 1)
+            pos[0] += index + 1
             return <int32_t>((value >> 1) ^ (-(value & 1))) # zigzag decoding
 
 
-cdef int64_t get_signed_varint64(object input) except? -1:
+cdef int64_t get_signed_varint64(char** input, char* end, size_t* pos) nogil:
     """
     Deserialize a signed protobuf varint read from input stream;
     update offset based on number of bytes consumed.
@@ -95,17 +99,17 @@ cdef int64_t get_signed_varint64(object input) except? -1:
     cdef int val_byte
 
     while True:
-        val_byte = read_input_byte(input)
+        val_byte = read_input_byte(input, end)
         value += (val_byte & 0x7F) * base
-        if (val_byte & 0x80):
-            base *= 128
+        if val_byte & 0x80:
+            base <<= 7
             index += 1
         else:
-            input.add_offset(index + 1)
+            pos[0] += index + 1
             return <int64_t>((value >> 1) ^ (-(value & 1))) # zigzag decoding
 
 
-cdef int set_varint32(int32_t varint, bytearray buf):
+cdef int set_varint32(int32_t varint, bytearray buf) except -1:
     """
     Serialize an integer into a protobuf varint; return the number of bytes
     serialized.
@@ -125,7 +129,8 @@ cdef int set_varint32(int32_t varint, bytearray buf):
     buf.append(<unsigned char>bits)
     return idx + 1
 
-cdef int set_varint64(int64_t varint, bytearray buf):
+
+cdef int set_varint64(int64_t varint, bytearray buf) except -1:
     """
     Serialize an integer into a protobuf varint; return the number of bytes
     serialized.
@@ -145,13 +150,8 @@ cdef int set_varint64(int64_t varint, bytearray buf):
     buf.append(<unsigned char>bits)
     return idx + 1
 
-def to_varint(varint):
-    buf = bytearray()
-    set_varint64(varint, buf)
-    return buf
 
-
-cdef int set_signed_varint32(int32_t varint, bytearray buf):
+cdef int set_signed_varint32(int32_t varint, bytearray buf) except -1:
     """
     Serialize an integer into a signed protobuf varint; return the number of
     bytes serialized.
@@ -172,7 +172,7 @@ cdef int set_signed_varint32(int32_t varint, bytearray buf):
     return idx + 1
 
 
-cdef int set_signed_varint64(int64_t varint, bytearray buf):
+cdef int set_signed_varint64(int64_t varint, bytearray buf) except -1:
     """
     Serialize an integer into a signed protobuf varint; return the number of
     bytes serialized.
@@ -191,9 +191,3 @@ cdef int set_signed_varint64(int64_t varint, bytearray buf):
 
     buf.append(<unsigned char>bits)
     return idx + 1
-
-
-def to_signed_varint(varint):
-    buf = bytearray()
-    set_signed_varint64(varint, buf)
-    return buf

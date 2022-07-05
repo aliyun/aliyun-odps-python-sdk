@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ try:
     import numpy as np
 
     np_int_types = map(np.dtype, [np.int_, np.int8, np.int16, np.int32, np.int64])
-    np_float_types = map(np.dtype, [np.float, np.float16, np.float32, np.float64])
+    np_float_types = map(np.dtype, [np.float_, np.float16, np.float32, np.float64])
     np_to_odps_types = dict([(t, odps_types.bigint) for t in np_int_types] +
                             [(t, odps_types.double) for t in np_float_types])
 except ImportError:
@@ -203,7 +203,11 @@ else:
                             try:
                                 from pandas.io.parsers import ParserError as CParserError
                             except ImportError:
+                                pass
+                            try:
                                 from pandas.parser import CParserError
+                            except ImportError:
+                                CParserError = ValueError
 
                             if not hasattr(reader, 'raw'):
                                 res = ResultFrame([rec.values for rec in reader],

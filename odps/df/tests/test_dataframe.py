@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -154,7 +154,10 @@ class Test(TestBase):
         delay.execute()
         self.assertSequenceEqual(data2[0], pd_df_future.result().iloc[0].tolist())
 
-        exc_future = (expr2.col0 / 0).to_pandas(async_=True)
+        def raiser(_x):
+            raise ValueError
+
+        exc_future = expr2.col0.map(raiser).to_pandas(async_=True)
         self.assertRaises(ODPSError, exc_future.result)
 
     @pandas_case

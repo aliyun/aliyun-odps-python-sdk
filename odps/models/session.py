@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2019 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,19 +13,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import sys
 import json
-import xml.dom.minidom as minidom
 import re
-import platform
 import time
 
-
-from .instance import Instance
-from .. import errors, readers, utils, options
+from .. import errors, readers, utils
 from ..compat import six, enum
 from ..models import tasks
 from ..serializers import XMLSerializableModel, XMLNodeField
+from .instance import Instance
 
 
 DEFAULT_TASK_NAME = "PyOdpsSQLRTTask"
@@ -118,7 +116,7 @@ class SessionInstance(Instance):
         if not task.query.strip().lower().startswith("select"):
             is_select = False
 
-        job = proj_insts._create_job(task=task)
+        _job = proj_insts._create_job(task=task)  # noqa: F841
         rquery = task.query
         if not rquery.endswith(";"):
             rquery = rquery + ";"
@@ -262,9 +260,7 @@ class InSessionInstance(Instance):
         if self._subquery_id == -1:
             raise errors.InternalServerError("SubQueryId not returned by the server.")
 
-        from ..tunnel.instancetunnel import InstanceDownloadSession
-
-        reopen = kw.pop('reopen', False)
+        kw.pop('reopen', False)
         endpoint = kw.pop('endpoint', None)
         kw['sessional'] = True
         kw['session_subquery_id'] = self._subquery_id

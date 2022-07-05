@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 import calendar
 import datetime
+import functools
 import os
 import time
 from collections import namedtuple
@@ -23,6 +24,10 @@ from collections import namedtuple
 from odps import utils
 from odps.tests.core import TestBase, module_depend_case
 from odps.compat import unittest, long_type
+try:
+    from odps.src.utils_c import CMillisecondsConverter
+except ImportError:
+    CMillisecondsConverter = None
 
 mytimetuple = namedtuple(
     'TimeTuple',
@@ -111,56 +116,58 @@ class Test(TestBase):
             def tzname(self, dt):
                 return "UTC"
 
-        to_milliseconds = utils.to_milliseconds
-        to_datetime = utils.to_datetime
+        for force_py in ([False, True] if CMillisecondsConverter else [True]):
+            to_milliseconds = functools.partial(utils.to_milliseconds, force_py=force_py)
+            to_datetime = functools.partial(utils.to_datetime, force_py=force_py)
 
-        base_time = datetime.datetime.now().replace(microsecond=0)
-        base_time_utc = datetime.datetime.utcfromtimestamp(time.mktime(base_time.timetuple()))
-        milliseconds = long_type(time.mktime(base_time.timetuple())) * 1000
+            base_time = datetime.datetime.now().replace(microsecond=0)
+            base_time_utc = datetime.datetime.utcfromtimestamp(time.mktime(base_time.timetuple()))
+            milliseconds = long_type(time.mktime(base_time.timetuple())) * 1000
 
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=True))
-        self.assertEqual(milliseconds, to_milliseconds(base_time_utc, local_tz=False))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=True))
+            self.assertEqual(milliseconds, to_milliseconds(base_time_utc, local_tz=False))
 
-        self.assertEqual(to_datetime(milliseconds, local_tz=True), base_time)
-        self.assertEqual(to_datetime(milliseconds, local_tz=False), base_time_utc)
+            self.assertEqual(to_datetime(milliseconds, local_tz=True), base_time)
+            self.assertEqual(to_datetime(milliseconds, local_tz=False), base_time_utc)
 
-        base_time = datetime.datetime.now(tz=GMT8()).replace(microsecond=0)
-        milliseconds = long_type(calendar.timegm(base_time.astimezone(UTC()).timetuple())) * 1000
+            base_time = datetime.datetime.now(tz=GMT8()).replace(microsecond=0)
+            milliseconds = long_type(calendar.timegm(base_time.astimezone(UTC()).timetuple())) * 1000
 
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=True))
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=False))
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=UTC()))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=True))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=False))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=UTC()))
 
-        self.assertEqual(to_datetime(milliseconds, local_tz=GMT8()), base_time)
+            self.assertEqual(to_datetime(milliseconds, local_tz=GMT8()), base_time)
 
-        base_time = base_time.replace(tzinfo=None)
+            base_time = base_time.replace(tzinfo=None)
 
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=GMT8()))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=GMT8()))
 
     @module_depend_case('pytz')
     def testTimeConvertPytz(self):
         import pytz
 
-        to_milliseconds = utils.to_milliseconds
-        to_datetime = utils.to_datetime
+        for force_py in ([False, True] if CMillisecondsConverter else [True]):
+            to_milliseconds = functools.partial(utils.to_milliseconds, force_py=force_py)
+            to_datetime = functools.partial(utils.to_datetime, force_py=force_py)
 
-        base_time = datetime.datetime.now(tz=pytz.timezone('Etc/GMT-8')).replace(microsecond=0)
-        milliseconds = long_type(calendar.timegm(base_time.astimezone(pytz.utc).timetuple())) * 1000
+            base_time = datetime.datetime.now(tz=pytz.timezone('Etc/GMT-8')).replace(microsecond=0)
+            milliseconds = long_type(calendar.timegm(base_time.astimezone(pytz.utc).timetuple())) * 1000
 
-        self.assertEqual(to_datetime(milliseconds, local_tz='Etc/GMT-8'), base_time)
+            self.assertEqual(to_datetime(milliseconds, local_tz='Etc/GMT-8'), base_time)
 
-        base_time = base_time.replace(tzinfo=None)
+            base_time = base_time.replace(tzinfo=None)
 
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz='Etc/GMT-8'))
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=pytz.timezone('Etc/GMT-8')))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz='Etc/GMT-8'))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=pytz.timezone('Etc/GMT-8')))
 
-        base_time = datetime.datetime.now(tz=pytz.timezone('Etc/GMT-8')).replace(microsecond=0)
-        milliseconds = time.mktime(base_time.timetuple()) * 1000
+            base_time = datetime.datetime.now(tz=pytz.timezone('Etc/GMT-8')).replace(microsecond=0)
+            milliseconds = time.mktime(base_time.timetuple()) * 1000
 
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=True))
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=False))
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz='Etc/GMT-1'))
-        self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=pytz.timezone('Etc/GMT-1')))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=True))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=False))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz='Etc/GMT-1'))
+            self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=pytz.timezone('Etc/GMT-1')))
 
     def testThreadLocalAttribute(self):
         class TestClass(object):

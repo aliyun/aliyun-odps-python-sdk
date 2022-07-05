@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,16 @@
 from copy import deepcopy
 
 from odps.accounts import AliyunAccount
-from odps.config import Config, options, option_context, is_integer, is_null, any_validator, OptionError
-from odps.tests.core import TestBase, pandas_case
+from odps.config import (
+    Config,
+    options,
+    option_context,
+    is_integer,
+    is_null,
+    any_validator,
+    OptionError,
+)
+from odps.tests.core import TestBase
 from odps.compat import unittest
 
 

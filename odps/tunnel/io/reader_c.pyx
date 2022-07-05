@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,20 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+import warnings
 from libc.stdint cimport *
 from libc.string cimport *
 
 from ...src.types_c cimport BaseRecord
+from ...src.utils_c cimport CMillisecondsConverter
 from ..pb.decoder_c cimport Decoder
 from ..checksum_c cimport Checksum
 
-import sys
-import warnings
-from ..wireconstants import ProtoWireConstants
 from ... import utils, types, compat, options
 from ...compat import six
 from ...models import Record
 from ...readers import AbstractRecordReader
+from ..wireconstants import ProtoWireConstants
 
 
 cdef:
@@ -88,7 +89,7 @@ cdef class BaseTunnelRecordReader:
         self._crccrc = Checksum()
         self._curr_cursor = 0
         self._read_limit = -1 if options.table_read_limit is None else options.table_read_limit
-        self._to_datetime = utils.build_to_datetime()
+        self._mills_converter = CMillisecondsConverter()
         self._to_date = utils.to_date
 
     def _mode(self):
@@ -222,7 +223,7 @@ cdef class BaseTunnelRecordReader:
             self._last_error = sys.exc_info()
             raise
         self._crc.c_update_long(val)
-        return self._to_datetime(val)
+        return self._mills_converter.from_milliseconds(val)
 
     cdef object _read_date(self):
         cdef int64_t val
@@ -256,7 +257,7 @@ cdef class BaseTunnelRecordReader:
         except:
             self._last_error = sys.exc_info()
             raise
-        return pd_timestamp(self._to_datetime(val * 1000)) + pd_timedelta(nanoseconds=nano_secs)
+        return pd_timestamp(self._mills_converter.from_milliseconds(val * 1000)) + pd_timedelta(nanoseconds=nano_secs)
 
     cdef object _read_interval_day_time(self):
         cdef:

@@ -23,7 +23,7 @@ msgstr "Frequently asked questions"
 
 #: ../../source/faq.rst:8
 msgid "如何查看当前使用的 PyODPS 版本"
-msgstr ""
+msgstr "How to look for the version of PyODPS you are using"
 
 #: ../../source/faq.rst:9
 msgid ""
