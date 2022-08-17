@@ -28,6 +28,7 @@ from cpython.datetime cimport (
     datetime_new,
     import_datetime,
 )
+from libc.stdint cimport int64_t
 from libc.time cimport time_t, tm, mktime, localtime, gmtime
 from datetime import datetime
 
@@ -102,8 +103,8 @@ cdef class CMillisecondsConverter:
         p_tm.tm_isdst = -1
 
     @cython.cdivision(True)
-    cpdef long to_milliseconds(self, datetime dt) except? -1:
-        cdef long mills
+    cpdef int64_t to_milliseconds(self, datetime dt) except? -1:
+        cdef int64_t mills
         cdef tm tm_result
         cdef time_t unix_ts
         cdef bint with_tzinfo = datetime_hastzinfo(dt)
@@ -133,9 +134,9 @@ cdef class CMillisecondsConverter:
         return mills
 
     @cython.cdivision(True)
-    cpdef datetime from_milliseconds(self, long milliseconds):
+    cpdef datetime from_milliseconds(self, int64_t milliseconds):
         cdef time_t seconds
-        cdef long microseconds
+        cdef int64_t microseconds
         cdef tm* p_tm
 
         if not self._allow_antique and milliseconds < _antique_mills:

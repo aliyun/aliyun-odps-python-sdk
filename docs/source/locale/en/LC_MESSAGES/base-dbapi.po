@@ -1,0 +1,106 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2022.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.11.2\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2022-07-31 22:03+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../source/base-dbapi.rst:4
+msgid "DBAPI 接口"
+msgstr "DBAPI Interface"
+
+#: ../../source/base-dbapi.rst:6
+msgid "在 PyODPS 0.10.0 中开始支持。事务操作不被 MaxCompute 支持，因而未实现相关接口。"
+msgstr ""
+"Supported since PyODPS 0.10.0. As transaction operations are not supported "
+"in MaxCompute, related interfaces are not implemented."
+
+#: ../../source/base-dbapi.rst:8
+msgid ""
+"PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_ "
+"兼容的数据库访问接口访问 MaxCompute。"
+msgstr ""
+"PyODPS supports accessing MaxCompute data via `Python DBAPI "
+"<https://peps.python.org/pep-0249/>`_ compatible interfaces."
+
+#: ../../source/base-dbapi.rst:12
+msgid "创建连接"
+msgstr "Create connections"
+
+#: ../../source/base-dbapi.rst:13
+msgid "可以通过指定 ``access_id``、``access_key``、``project``和``endpoint`` 来建立连接："
+msgstr ""
+"Connections can be established via ``access_id``, ``access_key``, `project`` "
+"and ``endpoint``."
+
+#: ../../source/base-dbapi.rst:16
+msgid ""
+">>> import odps.dbapi\n"
+">>> conn = odps.dbapi.connect('<access_id>', '<access_key>', '<project>',"
+" '<endpoint>')"
+msgstr ""
+
+#: ../../source/base-dbapi.rst:21
+msgid "也可以使用现有的 ODPS 入口对象来建立连接："
+msgstr "Existing ODPS entry objects can also be used."
+
+#: ../../source/base-dbapi.rst:23
+msgid ""
+">>> import odps.dbapi\n"
+">>> conn = odps.dbapi.connect(o)  # type(o) is ODPS"
+msgstr ""
+
+#: ../../source/base-dbapi.rst:29
+msgid "执行 SQL"
+msgstr "Execute SQL statements"
+
+#: ../../source/base-dbapi.rst:30
+msgid "创建游标并在游标上执行 SQL："
+msgstr "Create a cursor and execute SQL statement on it."
+
+#: ../../source/base-dbapi.rst:32
+msgid ""
+">>> cursor = conn.cursor()\n"
+">>> cursor.execute(\"SELECT * FROM pyodps_iris\")\n"
+">>> print(cursor.description)\n"
+"[('sepal_length', 'double', None, None, None, None, True),\n"
+" ('sepal_width', 'double', None, None, None, None, True),\n"
+" ('petal_length', 'double', None, None, None, None, True),\n"
+" ('petal_width', 'double', None, None, None, None, True),\n"
+" ('category', 'string', None, None, None, None, True)]"
+msgstr ""
+
+#: ../../source/base-dbapi.rst:44
+msgid "读取结果"
+msgstr "Read results"
+
+#: ../../source/base-dbapi.rst:45
+msgid "使用和标准的 DBAPI 一样使用迭代的方式读取结果："
+msgstr "Use iterations to read results just like standard DBAPI."
+
+#: ../../source/base-dbapi.rst:47
+msgid ""
+">>> for rec in cursor:\n"
+">>>     print(rec)"
+msgstr ""
+
+#: ../../source/base-dbapi.rst:52
+msgid "也可以一次性读取所有结果："
+msgstr "You can also fetch all results at once."
+
+#: ../../source/base-dbapi.rst:54
+msgid ">>> print(cursor.fetchall())"
+msgstr ""
+

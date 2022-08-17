@@ -19,6 +19,12 @@ import pickle
 import textwrap
 from datetime import datetime
 
+try:
+    import pandas as pd
+    import pyarrow as pa
+except (AttributeError, ImportError):
+    pd = pa = None
+
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
 from odps.errors import NoSuchObject
@@ -440,6 +446,28 @@ class Test(TestBase):
                 raise ValueError('Mock error')
         except ValueError as ex:
             self.assertEqual(str(ex), 'Mock error')
+
+    @unittest.skipIf(pa is None, "Need pyarrow to run this test")
+    def testSimpleArrowReadWriteTable(self):
+        test_table_name = tn('pyodps_t_tmp_simpe_arrow_read_write_table')
+        schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self.odps.create_table(test_table_name, schema)
+        partition = 'pt=20151122'
+        table.create_partition(partition)
+
+        with table.open_writer(partition, arrow=True) as writer:
+            writer.write(pd.DataFrame({"num": list("ABCDE")}))
+
+        with table.open_reader(partition, arrow=True) as reader:
+            self.assertEqual(reader.count, 5)
+            batches = list(reader)
+            self.assertEqual(len(batches), 1)
+            self.assertEqual(batches[0].num_rows, 5)
+
+        table.drop()
 
 
 if __name__ == '__main__':

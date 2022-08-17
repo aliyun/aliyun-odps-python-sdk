@@ -2203,7 +2203,7 @@ class Test(TestBase):
     def testMapJoin(self):
         joined = self.expr.join(self.expr1, on=[], mapjoin=True)
         expected = \
-            'SELECT /*+mapjoin(t2)*/ t1.`name` AS `name_x`, t1.`id` AS `id_x`, t1.`fid` AS `fid_x`, ' \
+            'SELECT /*+ mapjoin(t2) */ t1.`name` AS `name_x`, t1.`id` AS `id_x`, t1.`fid` AS `fid_x`, ' \
             't1.`isMale` AS `isMale_x`, t1.`scale` AS `scale_x`, t1.`birth` AS `birth_x`, t2.`name` AS `name_y`, ' \
             't2.`id` AS `id_y`, t2.`fid` AS `fid_y`, t2.`isMale` AS `isMale_y`, t2.`scale` AS `scale_y`, ' \
             't2.`birth` AS `birth_y` \n' \
@@ -2212,8 +2212,8 @@ class Test(TestBase):
             '  mocked_project.`pyodps_test_expr_table1` t2'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(joined, prettify=False)))
 
-        joined = self.expr.join(self.expr1, on=[lambda x,y:x.name>y.name], mapjoin=True).select(self.expr1.name)
-        expected = 'SELECT /*+mapjoin(t2)*/ t2.`name` AS `name_y` \n' \
+        joined = self.expr.join(self.expr1, on=[lambda x, y: x.name > y.name], mapjoin=True).select(self.expr1.name)
+        expected = 'SELECT /*+ mapjoin(t2) */ t2.`name` AS `name_y` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    'INNER JOIN \n' \
                    '  mocked_project.`pyodps_test_expr_table1` t2\n' \
@@ -2221,7 +2221,7 @@ class Test(TestBase):
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(joined, prettify=False)))
 
         joined = self.expr.join(self.expr1, on=[], mapjoin=True).join(self.expr2, on=[], mapjoin=True).select(self.expr.name)
-        expected = 'SELECT /*+mapjoin(t2,t3)*/ t1.`name` AS `name_x` \n' \
+        expected = 'SELECT /*+ mapjoin(t2, t3) */ t1.`name` AS `name_x` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    'INNER JOIN \n' \
                    '  mocked_project.`pyodps_test_expr_table1` t2 \n' \
@@ -2230,11 +2230,11 @@ class Test(TestBase):
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(joined, prettify=False)))
         joined = self.expr.join(self.expr1.join(self.expr2, on=[], mapjoin=True).select(self.expr2.name), mapjoin=True, on=[]).select(self.expr.name)
 
-        expected = 'SELECT /*+mapjoin(t4)*/ t1.`name` \n' \
+        expected = 'SELECT /*+ mapjoin(t4) */ t1.`name` \n' \
                    'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                    'INNER JOIN \n' \
                    '  (\n' \
-                   '    SELECT /*+mapjoin(t3)*/ t3.`name` AS `name_y` \n' \
+                   '    SELECT /*+ mapjoin(t3) */ t3.`name` AS `name_y` \n' \
                    '    FROM mocked_project.`pyodps_test_expr_table1` t2 \n' \
                    '    INNER JOIN \n' \
                    '      mocked_project.`pyodps_test_expr_table2` t3\n' \
@@ -2243,7 +2243,7 @@ class Test(TestBase):
 
         joined = self.expr['name', 'id'].join(self.expr1.limit(4), on=[], mapjoin=True)
 
-        expected = 'SELECT /*+mapjoin(t4)*/ t2.`name` AS `name_x`, t2.`id` AS `id_x`, t4.`name` AS `name_y`, ' \
+        expected = 'SELECT /*+ mapjoin(t4) */ t2.`name` AS `name_x`, t2.`id` AS `id_x`, t4.`name` AS `name_y`, ' \
                    't4.`id` AS `id_y`, t4.`fid`, t4.`isMale`, t4.`scale`, t4.`birth` \n' \
                    'FROM (\n' \
                    '  SELECT t1.`name`, t1.`id` \n' \
@@ -2260,7 +2260,7 @@ class Test(TestBase):
         expr = joined[joined.id_x == 1]
         expected = 'SELECT * \n' \
                    'FROM (\n' \
-                   '  SELECT /*+mapjoin(t4)*/ t2.`name` AS `name_x`, t2.`id` AS `id_x`, ' \
+                   '  SELECT /*+ mapjoin(t4) */ t2.`name` AS `name_x`, t2.`id` AS `id_x`, ' \
                    't4.`name` AS `name_y`, t4.`id` AS `id_y`, t4.`fid`, t4.`isMale`, ' \
                    't4.`scale`, t4.`birth` \n' \
                    '  FROM (\n' \
@@ -2298,7 +2298,7 @@ class Test(TestBase):
 
         expected = 'SELECT t9.`cid`, AVG(t9.`ux`) AS `x`, AVG(t9.`uy`) AS `y` \n' \
                    'FROM (\n' \
-                   '  SELECT /*+mapjoin(t8)*/ t2.`uid`, t2.`ux`, t2.`uy`, t8.`cid`, ' \
+                   '  SELECT /*+ mapjoin(t8) */ t2.`uid`, t2.`ux`, t2.`uy`, t8.`cid`, ' \
                    'ROW_NUMBER() OVER (PARTITION BY t2.`uid` ' \
                    'ORDER BY (POW(t2.`ux` - t8.`x`, 2)) + (POW(t2.`uy` - t8.`y`, 2))) AS `row_number` \n' \
                    '  FROM (\n' \
@@ -2309,7 +2309,7 @@ class Test(TestBase):
                    '    (\n' \
                    '      SELECT t7.`cid`, AVG(t7.`ux`) AS `x`, AVG(t7.`uy`) AS `y` \n' \
                    '      FROM (\n' \
-                   '        SELECT /*+mapjoin(t6)*/ t4.`uid`, t4.`ux`, t4.`uy`, t6.`cid`, ' \
+                   '        SELECT /*+ mapjoin(t6) */ t4.`uid`, t4.`ux`, t4.`uy`, t6.`cid`, ' \
                    'ROW_NUMBER() OVER (PARTITION BY t4.`uid` ' \
                    'ORDER BY (POW(t4.`ux` - t6.`x`, 2)) + (POW(t4.`uy` - t6.`y`, 2))) AS `row_number` \n' \
                    '        FROM (\n' \
@@ -2330,6 +2330,68 @@ class Test(TestBase):
                    'WHERE t9.`row_number` == 1 \n' \
                    'GROUP BY t9.`cid`'
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(center, prettify=False)))
+
+    def testSkewJoin(self):
+        joined = self.expr.join(self.expr1, on=['name', 'id'], skewjoin=True)
+        expected = 'SELECT /*+ skewjoin(t2) */ t1.`name`, t1.`id`, t1.`fid` AS `fid_x`, ' \
+                   't1.`isMale` AS `isMale_x`, t1.`scale` AS `scale_x`, t1.`birth` AS `birth_x`, ' \
+                   't2.`fid` AS `fid_y`, t2.`isMale` AS `isMale_y`, t2.`scale` AS `scale_y`, ' \
+                   't2.`birth` AS `birth_y` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table1` t2\n' \
+                   'ON (t1.`name` == t2.`name`) AND (t1.`id` == t2.`id`)'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(joined, prettify=False)))
+
+        joined = self.expr.join(self.expr1, on=['name', 'id'], skewjoin=['id'])
+        expected = 'SELECT /*+ skewjoin(t2(id)) */ t1.`name`, t1.`id`, t1.`fid` AS `fid_x`, ' \
+                   't1.`isMale` AS `isMale_x`, t1.`scale` AS `scale_x`, t1.`birth` AS `birth_x`, ' \
+                   't2.`fid` AS `fid_y`, t2.`isMale` AS `isMale_y`, t2.`scale` AS `scale_y`, ' \
+                   't2.`birth` AS `birth_y` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table1` t2\n' \
+                   'ON (t1.`name` == t2.`name`) AND (t1.`id` == t2.`id`)'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(joined, prettify=False)))
+
+        joined = self.expr.join(self.expr1, on=['name', 'id'],
+                                skewjoin=[{'name': 'a', 'id': 1}, {'id': 2, 'name': 'b'}])
+        expected = 'SELECT /*+ skewjoin(t2(id, name)((1, \'a\'), (2, \'b\'))) */ t1.`name`, t1.`id`, ' \
+                   't1.`fid` AS `fid_x`, t1.`isMale` AS `isMale_x`, t1.`scale` AS `scale_x`, ' \
+                   't1.`birth` AS `birth_x`, t2.`fid` AS `fid_y`, t2.`isMale` AS `isMale_y`, ' \
+                   't2.`scale` AS `scale_y`, t2.`birth` AS `birth_y` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table1` t2\n' \
+                   'ON (t1.`name` == t2.`name`) AND (t1.`id` == t2.`id`)'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(joined, prettify=False)))
+
+        expr = joined[joined.id == 1]
+        expected = 'SELECT * \n' \
+                   'FROM (\n' \
+                   '  SELECT /*+ skewjoin(t2(id, name)((1, \'a\'), (2, \'b\'))) */ t1.`name`, ' \
+                   't1.`id`, t1.`fid` AS `fid_x`, t1.`isMale` AS `isMale_x`, t1.`scale` AS `scale_x`, ' \
+                   't1.`birth` AS `birth_x`, t2.`fid` AS `fid_y`, t2.`isMale` AS `isMale_y`, ' \
+                   't2.`scale` AS `scale_y`, t2.`birth` AS `birth_y` \n' \
+                   '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   '  INNER JOIN \n' \
+                   '    mocked_project.`pyodps_test_expr_table1` t2\n' \
+                   '  ON (t1.`name` == t2.`name`) AND (t1.`id` == t2.`id`) \n' \
+                   ') t3 \n' \
+                   'WHERE t3.`id` == 1'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+        joined = self.expr.join(self.expr1, on=['id'], skewjoin=True) \
+            .join(self.expr2, on=[], mapjoin=True) \
+            .select(self.expr.name)
+        expected = 'SELECT /*+ mapjoin(t3), skewjoin(t2) */ t1.`name` AS `name_x` \n' \
+                   'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table1` t2\n' \
+                   'ON t1.`id` == t2.`id` \n' \
+                   'INNER JOIN \n' \
+                   '  mocked_project.`pyodps_test_expr_table2` t3'
+        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(joined, prettify=False)))
 
     def testJoinMapReduce(self):
         expr = self.expr.left_join(self.expr3.select(new_id=self.expr3['id']), on=('id', 'new_id'))

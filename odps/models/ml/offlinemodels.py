@@ -26,6 +26,10 @@ class OfflineModels(Iterable):
     max_items = serializers.XMLNodeField('MaxItems', parse_callback=int)
     offline_models = serializers.XMLNodesReferencesField(OfflineModel, 'OfflineModel')
 
+    @property
+    def project(self):
+        return self.parent
+
     def _get(self, item):
         return OfflineModel(client=self._client, parent=self, name=item)
 

@@ -33,7 +33,7 @@ from ...utils import get_default_resource_files, build_mars_image_name
 NOTEBOOK_NAME = "MarsNotebook"
 CUPID_APP_NAME = "MarsWeb"
 GS_COORDINATOR_NAME = "GSCoordinator"
-DEFAULT_RESOURCES = ["pymars-0.6.11", "pyodps-0.11.1", "pyarrow-4.0.0"]
+DEFAULT_RESOURCES = ["pymars-0.6.11", "pyodps-0.11.2", "pyarrow-4.0.0"]
 
 logger = logging.getLogger(__name__)
 

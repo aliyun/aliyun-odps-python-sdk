@@ -29,7 +29,7 @@ from ..df import types
 from ..errors import ODPSError
 
 
-def pd_type_to_odps_type(dtype, col_name, unknown_as_string=None):
+def pd_type_to_odps_type(dtype, col_name, unknown_as_string=None, project=None):
     import numpy as np
 
     if dtype in _np_to_df_types:
@@ -45,7 +45,7 @@ def pd_type_to_odps_type(dtype, col_name, unknown_as_string=None):
             "or `as_type` to set column dtype".format(dtype, col_name)
         )
 
-    return df_type_to_odps_type(df_type)
+    return df_type_to_odps_type(df_type, project=project)
 
 
 def use_odps2_type(func):
@@ -208,9 +208,7 @@ def get_default_resource_files(names, project="public"):
     suffix = (
         "-cp"
         + "".join(str(x) for x in sys.version_info[:2])
-        + "-"
-        + platform.machine()
-        + ".zip"
+        + "-x86_64.zip"  # todo fix for other architectures
     )
     return [project + "." + name + suffix for name in names]
 

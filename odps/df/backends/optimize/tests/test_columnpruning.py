@@ -275,7 +275,7 @@ class Test(TestBase):
         joined = self.expr.join(self.expr2, on=[self.expr.name == self.expr2.name], mapjoin=True)
         joined2 = joined.join(self.expr, on=[joined.id_x == self.expr.id], mapjoin=True)
 
-        expected = 'SELECT /*+mapjoin(t2,t3)*/ t1.`name` AS `name_x`, t1.`id` AS `id_x`, ' \
+        expected = 'SELECT /*+ mapjoin(t2, t3) */ t1.`name` AS `name_x`, t1.`id` AS `id_x`, ' \
                    't1.`fid` AS `fid_x`, t1.`isMale` AS `isMale_x`, t1.`scale` AS `scale_x`, ' \
                    't1.`birth` AS `birth_x`, t1.`ds` AS `ds_x`, t2.`id` AS `id_y`, ' \
                    't2.`fid` AS `fid_y`, t2.`isMale` AS `isMale_y`, t2.`scale` AS `scale_y`, ' \

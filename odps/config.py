@@ -331,8 +331,10 @@ options.register_option('app_account', None)
 options.register_option('local_timezone', None)
 options.register_option('allow_antique_date', False)
 options.register_option('user_agent_pattern', '$pyodps_version $python_version $os_version')
-options.register_option('log_view_host', None)
-options.register_option('log_view_hours', 24 * 30, validator=is_integer)
+options.register_option('logview_host', None)
+options.register_option('logview_hours', 24 * 30, validator=is_integer)
+options.redirect_option('log_view_host', 'logview_host')
+options.redirect_option('log_view_hours', 'logview_hours')
 options.register_option('api_proxy', None)
 options.register_option('data_proxy', None)
 options.redirect_option('tunnel_proxy', 'data_proxy')
@@ -350,11 +352,10 @@ options.register_option('default_task_settings', None, validator=any_validator(i
 options.register_option('force_c', False, validator=is_integer)
 options.register_option('force_py', False, validator=is_integer)
 
-# instance create callback
+# callbacks for wrappers
 options.register_option('instance_create_callback', None)
 options.register_option("tunnel_session_create_callback", None)
-
-# tunnel read timeout callback
+options.register_option("result_reader_create_callback", None)
 options.register_option('tunnel_read_timeout_callback', None)
 
 # network connections
@@ -384,7 +385,7 @@ options.register_option('console.use_color', False, validator=is_bool)
 
 # SQL
 options.register_option('sql.settings', None, validator=any_validator(is_null, is_dict))
-options.register_option('sql.use_odps2_extension', False, validator=is_bool)
+options.register_option('sql.use_odps2_extension', None, validator=any_validator(is_null, is_bool))
 
 # DataFrame
 options.register_option('interactive', is_interactive(), validator=is_bool)
@@ -398,7 +399,7 @@ options.register_option('df.analyze', True, validator=is_bool)
 options.register_option('df.use_cache', True, validator=is_bool)
 options.register_option('df.quote', True, validator=is_bool)
 options.register_option('df.dump_udf', False, validator=is_bool)
-options.register_option('df.supersede_libraries', False, validator=is_bool)
+options.register_option('df.supersede_libraries', True, validator=is_bool)
 options.register_option('df.libraries', None)
 options.register_option('df.odps.sort.limit', 10000)
 options.register_option('df.sqlalchemy.execution_options', None, validator=any_validator(is_null, is_dict))

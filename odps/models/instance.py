@@ -24,13 +24,20 @@ from datetime import datetime
 
 import requests
 
-from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
-from .job import Job
-from .worker import WorkerDetail2, LOG_TYPES_MAPPING
 from .. import serializers, utils, errors, compat, readers, options
 from ..accounts import BearerTokenAccount
 from ..compat import ElementTree, Enum, six, OrderedDict
 from ..utils import to_str
+from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
+from .job import Job
+from .readers import TunnelRecordReader, TunnelArrowReader
+from .worker import WorkerDetail2, LOG_TYPES_MAPPING
+
+
+_RESULT_LIMIT_HELPER_MSG = (
+    'See https://pyodps.readthedocs.io/zh_CN/latest/base-sql.html#read-sql-exec-result '
+    'for more information.'
+)
 
 
 def _with_status_api_lock(func):
@@ -41,6 +48,51 @@ def _with_status_api_lock(func):
     wrapped.__name__ = func.__name__
     wrapped.__doc__ = func.__doc__
     return wrapped
+
+
+class InstanceRecordReader(TunnelRecordReader):
+    def __init__(self, instance, download_session):
+        super(InstanceRecordReader, self).__init__(
+            instance, download_session
+        )
+        self._schema = download_session.schema
+
+    @property
+    def schema(self):
+        return self._schema
+
+    def _get_process_split_reader(self):
+        rest_client = self._parent._client
+        project = self._parent.project.name
+        tunnel_endpoint = self._parent.project._tunnel_endpoint
+        instance_id = self._parent.id
+
+        def read_instance_split(conn, download_id, start, count, idx):
+            # read part data
+            from ..tunnel import InstanceTunnel
+
+            instance_tunnel = InstanceTunnel(
+                client=rest_client, project=project, endpoint=tunnel_endpoint
+            )
+            session = instance_tunnel.create_download_session(
+                instance=instance_id, download_id=download_id
+            )
+            with session.open_record_reader(start, count) as reader:
+                conn.send((idx, reader.to_pandas()))
+
+        return read_instance_split
+
+
+class InstanceArrowReader(TunnelArrowReader):
+    def __init__(self, instance, download_session):
+        super(InstanceArrowReader, self).__init__(
+            instance, download_session
+        )
+        self._schema = download_session.schema
+
+    @property
+    def schema(self):
+        return self._schema
 
 
 class Instance(LazyLoad):
@@ -734,7 +786,7 @@ class Instance(LazyLoad):
         if isinstance(project.odps.account, BearerTokenAccount):
             token = to_str(project.odps.account.token)
         else:
-            hours = hours or options.log_view_hours
+            hours = hours or options.logview_hours
 
             url = '%s/authorization' % project.resource()
 
@@ -841,23 +893,24 @@ class Instance(LazyLoad):
                 'Cannot open reader, job has no sql task')
 
         result = self.get_task_result(task_name)
-        return readers.RecordReader(schema, result)
+        reader = readers.RecordReader(schema, result)
+        if options.result_reader_create_callback:
+            options.result_reader_create_callback(reader)
+        return reader
 
     def _open_tunnel_reader(self, **kw):
         from ..tunnel.instancetunnel import InstanceDownloadSession
 
         reopen = kw.pop('reopen', False)
         endpoint = kw.pop('endpoint', None)
-        rest_client = self._client
-        project = self.project
-        instance_id = self.id
-        tunnel_endpoint = self.project._tunnel_endpoint
+        arrow = kw.pop("arrow", False)
         tunnel = self._create_instance_tunnel(endpoint=endpoint)
         download_id = self._download_id if not reopen else None
 
         try:
-            download_session = tunnel.create_download_session(instance=self,
-                                                              download_id=download_id, **kw)
+            download_session = tunnel.create_download_session(
+                instance=self, download_id=download_id, **kw
+            )
             if download_id and download_session.status != InstanceDownloadSession.Status.Normal:
                 download_session = tunnel.create_download_session(instance=self, **kw)
         except errors.InternalServerError:
@@ -867,97 +920,10 @@ class Instance(LazyLoad):
 
         self._download_id = download_session.id
 
-        class RecordReader(readers.AbstractRecordReader):
-            def __init__(self):
-                self._it = iter(self)
-                self._schema = download_session.schema
-
-            @property
-            def count(self):
-                return download_session.count
-
-            @property
-            def status(self):
-                return download_session.status
-
-            @property
-            def schema(self):
-                return self._schema
-
-            def __iter__(self):
-                for record in self.read():
-                    yield record
-
-            def __next__(self):
-                return next(self._it)
-
-            next = __next__
-
-            def _iter(self, start=None, end=None, step=None):
-                count = self._calc_count(start, end, step)
-                return self.read(start=start, count=count, step=step)
-
-            def read(self, start=None, count=None, step=None,
-                     compress=False, columns=None):
-                start = start or 0
-                step = step or 1
-                count = count * step if count is not None else self.count-start
-
-                if count == 0:
-                    return
-
-                with download_session.open_record_reader(
-                        start, count, compress=compress, columns=columns) as reader:
-                    for record in reader[::step]:
-                        yield record
-
-            def to_pandas(self, n_process=1):
-                import pandas as pd
-                import multiprocessing
-                from multiprocessing import Pipe
-
-                if n_process == 1:
-                    return super(RecordReader, self).to_pandas()
-
-                try:
-                    _mp_context = multiprocessing.get_context('fork')
-                except ValueError:
-                    raise ValueError('`n_process > 1` is not supported on Windows.')
-
-                session_id, count = download_session.id, download_session.count
-
-                def read_instance_split(conn, download_id, start, count, idx):
-                    # read part data
-                    from odps.tunnel import InstanceTunnel
-                    instance_tunnel = InstanceTunnel(client=rest_client, project=project,
-                                                     endpoint=tunnel_endpoint)
-                    session = instance_tunnel.create_download_session(instance=instance_id,
-                                                                      download_id=download_id)
-                    with session.open_record_reader(start, count) as reader:
-                        conn.send((idx, reader.to_pandas()))
-
-                split_count = count // n_process + (count % n_process != 0)
-                start = 0
-                conns = []
-                for i in range(n_process):
-                    parent_conn, child_conn = Pipe()
-                    p = _mp_context.Process(target=read_instance_split, args=(child_conn, session_id,
-                                                                              start, split_count, i))
-                    p.start()
-                    start += split_count
-                    conns.append(parent_conn)
-
-                results = [c.recv() for c in conns]
-                splits = sorted(results, key=lambda x: x[0])
-                return pd.concat([d[1] for d in splits]).reset_index(drop=True)
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                pass
-
-        return RecordReader()
+        if arrow:
+            return InstanceArrowReader(self, download_session)
+        else:
+            return InstanceRecordReader(self, download_session)
 
     def open_reader(self, *args, **kwargs):
         """
@@ -1020,7 +986,8 @@ class Instance(LazyLoad):
                     raise
                 if not kwargs.get('limit'):
                     warnings.warn('Instance tunnel not supported, will fallback to '
-                                  'conventional ways. 10000 records will be limited.')
+                                  'conventional ways. 10000 records will be limited. '
+                                  + _RESULT_LIMIT_HELPER_MSG)
             except requests.Timeout:
                 # tunnel creation timed out, which might be caused by too many files
                 # on the service.
@@ -1028,7 +995,8 @@ class Instance(LazyLoad):
                     raise
                 if not kwargs.get('limit'):
                     warnings.warn('Instance tunnel timed out, will fallback to '
-                                  'conventional ways. 10000 records will be limited.')
+                                  'conventional ways. 10000 records will be limited.'
+                                  + _RESULT_LIMIT_HELPER_MSG)
             except (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported):
                 # this is for DDL sql instances such as `show partitions` which raises
                 # InternalServerError when creating download sessions.
@@ -1039,7 +1007,8 @@ class Instance(LazyLoad):
                 if not auto_fallback_protection:
                     raise
                 if not kwargs.get('limit'):
-                    warnings.warn('Project under protection, 10000 records will be limited.')
+                    warnings.warn('Project under protection, 10000 records will be limited.'
+                                  + _RESULT_LIMIT_HELPER_MSG)
                     kwargs['limit'] = True
                     return self._open_tunnel_reader(**kwargs)
 

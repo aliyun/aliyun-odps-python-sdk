@@ -311,28 +311,33 @@ def microsecond(val):
     return MicroSecondScalar(_value=val, _value_type=types.int64)
 
 
-_datetime_methods = dict(
-    date=_date,
-    time=_time,
+_date_methods = dict(
     year=_year,
     month=_month,
     day=_day,
-    hour=_hour,
-    minute=_minute,
-    second=_second,
-    microsecond=_microsecond,
     week=_week,
     weekofyear=_weekofyear,
     dayofweek=_weekday,
     weekday=_weekday,
     dayofyear=_dayofyear,
-    unix_timestamp=_unix_timestamp,
     is_month_start=_is_month_start,
     is_month_end=_is_month_end,
     is_year_start=_is_year_start,
     is_year_end=_is_year_end,
+)
+_datetime_methods = dict(
+    date=_date,
+    time=_time,
+    hour=_hour,
+    minute=_minute,
+    second=_second,
+    microsecond=_microsecond,
+    unix_timestamp=_unix_timestamp,
     strftime=_strftime
 )
+_datetime_methods.update(_date_methods)
 
+utils.add_method(DateSequenceExpr, _date_methods)
 utils.add_method(DatetimeSequenceExpr, _datetime_methods)
+utils.add_method(DateScalar, _date_methods)
 utils.add_method(DatetimeScalar, _datetime_methods)

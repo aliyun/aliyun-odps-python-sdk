@@ -16,7 +16,7 @@
 
 import uuid
 
-from odps import ODPS, errors
+from odps import ODPS, errors, options
 from odps.compat import unittest
 from odps.tests.core import TestBase, tn
 from odps.accounts import SignServer, SignServerAccount, SignServerError, BearerTokenAccount
@@ -41,6 +41,7 @@ class Test(TestBase):
             t.drop(async_=True)
         finally:
             server.stop()
+            options.account = options.default_project = options.endpoint = None
 
     def testTokenizedSignServerAccount(self):
         server = SignServer(token=str(uuid.uuid4()))

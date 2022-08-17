@@ -56,6 +56,7 @@ class ODPSContext(object):
 
         self._indent_size = indent_size
         self._mapjoin_hints = []
+        self._skewjoin_hints = []
 
         self._path_to_resources = dict()
 

@@ -58,11 +58,11 @@ XFlow 的一个 Instance 包含若干个子 Instance，需要使用下面的方�
     >>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters, hints={'odps.xxx.yyy': 10})
 
 
-如果需要任务运行到指定卡型的机器上，可以在 hints 中增加如下配置：
+例如，如果需要任务运行到指定卡型的机器上，可以在 hints 中增加如下配置：
 
 .. code-block:: python
 
-    >>> hints={"settings": json.dumps({"odps.algo.hybrid.deploy.info": "xxxxx"})
+    >>> hints={"settings": json.dumps({"odps.algo.hybrid.deploy.info": "xxxxx"})}
 
 
 使用 options.ml.xflow_settings 可以配置全局设置：
@@ -74,7 +74,7 @@ XFlow 的一个 Instance 包含若干个子 Instance，需要使用下面的方�
     >>> parameters = {'param1': 'param_value1', 'param2': 'param_value2', ...}
     >>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters)
 
-PAI 命令的文档可以参考 `这份文档 <https://help.aliyun.com/document_detail/42703.html>`_ 。
+PAI 命令的文档可以参考 `这份文档 <https://help.aliyun.com/document_detail/114368.html>`_ 里列出的各个"组件参考"章节。
 
 离线模型
 ---------
@@ -85,8 +85,8 @@ run_xflow 的例子：
 .. code:: python
 
     >>> o.run_xflow('LogisticRegression', 'algo_public', dict(modelName='logistic_regression_model_name',
-    >>>                regularizedLevel='1', maxIter='100', regularizedType='l1', epsilon='0.000001', labelColName='y',
-    >>>                featureColNames='pdays,emp_var_rate', goodValue='1', inputTableName='bank_data'))
+    >>>             regularizedLevel='1', maxIter='100', regularizedType='l1', epsilon='0.000001', labelColName='y',
+    >>>             featureColNames='pdays,emp_var_rate', goodValue='1', inputTableName='bank_data'))
 
 在模型创建后，用户可以列出当前 Project 下的模型：
 

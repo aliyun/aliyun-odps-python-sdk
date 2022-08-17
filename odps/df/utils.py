@@ -26,6 +26,20 @@ class FunctionWrapper(object):
     def __call__(self, *args, **kwargs):
         return self._func(*args, **kwargs)
 
+    def __reduce__(self):
+        def wrapper_restorer(func, names, types):
+            try:
+                from odps.df import output
+            except ImportError:
+                return func
+
+            return output(names, types)(func)
+
+        return (
+            wrapper_restorer,
+            (self._func, self.output_names, self.output_types),
+        )
+
 
 def output_names(*names):
     if len(names) == 1 and isinstance(names[0], (tuple, list)):

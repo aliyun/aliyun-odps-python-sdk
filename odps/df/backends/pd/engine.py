@@ -307,15 +307,20 @@ class PandasEngine(Engine):
                     t.create_partition(partition, if_not_exists=True)
             else:
                 partition = self._get_partition(partition)
+                project_obj = odps.get_project(project)
                 column_names = [n for n in expr.schema.names if n not in partition]
-                column_types = [df_type_to_odps_type(expr.schema[n].type)
-                                for n in column_names]
+                column_types = [
+                    df_type_to_odps_type(expr.schema[n].type, project=project_obj)
+                    for n in column_names
+                ]
                 partition_names = [n for n in partition.keys]
                 partition_types = ['string'] * len(partition_names)
                 t = odps.create_table(
-                    name, TableSchema.from_lists(column_names, column_types,
-                                                 partition_names, partition_types),
-                    project=project, lifecycle=lifecycle)
+                    name, TableSchema.from_lists(
+                        column_names, column_types, partition_names, partition_types
+                    ),
+                    project=project, lifecycle=lifecycle
+                )
                 if create_partition is None or create_partition is True:
                     t.create_partition(partition)
         else:

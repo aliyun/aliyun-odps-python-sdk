@@ -1555,6 +1555,12 @@ class DictSequenceExpr(SequenceExpr):
         super(DictSequenceExpr, self)._init(*args, **kwargs)
 
 
+class DateSequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(DateSequenceExpr, self)._init(*args, **kwargs)
+        self._data_type = types.date
+
+
 class TimestampSequenceExpr(SequenceExpr):
     def _init(self, *args, **kwargs):
         super(TimestampSequenceExpr, self)._init(*args, **kwargs)
@@ -1862,6 +1868,12 @@ class StringScalar(Scalar):
     def _init(self, *args, **kwargs):
         super(StringScalar, self)._init(*args, **kwargs)
         self._value_type = types.string
+
+
+class DateScalar(Scalar):
+    def _init(self, *args, **kwargs):
+        super(DateScalar, self)._init(*args, **kwargs)
+        self._value_type = types.date
 
 
 class DatetimeScalar(Scalar):

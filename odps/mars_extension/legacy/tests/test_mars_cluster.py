@@ -180,6 +180,8 @@ class Test(TestBase):
 
     def testExtended(self):
         def func():
+            import lightgbm  # noqa: F401
+            import xgboost  # noqa: F401
             import mars.tensor as mt
             from mars.learn.contrib.lightgbm import LGBMClassifier
 

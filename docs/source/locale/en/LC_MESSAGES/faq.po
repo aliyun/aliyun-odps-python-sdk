@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-08-20 10:25+0800\n"
+"POT-Creation-Date: 2022-07-08 11:10+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.9.1\n"
 
 #: ../../source/faq.rst:5
 msgid "常见问题"
@@ -31,47 +31,123 @@ msgid ""
 "print(odps.__version__)"
 msgstr ""
 
-#: ../../source/faq.rst:18
+msgid "怎么配置 SQL / DataFrame 的执行选项？"
+msgstr ""
+"How to configure execution options in SQL or DataFrame"
+
+#: ../../source/faq.rst:20
+msgid ""
+"ODPS SQL 的执行选项可在 `这里 "
+"<https://help.aliyun.com/apsara/enterprise/v_3_12_0_20200630/odps"
+"/enterprise-ascm-user-guide/common-maxcompute-sql-parameter-"
+"settings.html>`_ 找到。设置时，可将该选项设置到 ``options.sql.settings``，即"
+msgstr ""
+"You can find a list of options "
+"for MaxCompute SQL `here "
+"<https://help.aliyun.com/apsara/enterprise/v_3_12_0_20200630/odps"
+"/enterprise-ascm-user-guide/common-maxcompute-sql-parameter-"
+"settings.html>`_ .These settings"
+" can be configured at "
+"``options.sql.settings``. For instance,"
+
+#: ../../source/faq.rst:22
+msgid ""
+"from odps import options\n"
+"# 将 <option_name> 和 <option_value> 替换为选项名和选项值\n"
+"options.sql.settings = {'<option_name>': '<option_value>'}"
+msgstr ""
+"from odps import options\n"
+"# replace <option_name> and <option_value> "
+"with true option names and values\n"
+""
+"options.sql.settings = {'<option_name>': '<option_value>'}"
+
+#: ../../source/faq.rst:28
+msgid "也可在每次调用执行时即席配置，该配置中的配置项会覆盖全局配置。"
+msgstr ""
+"You may also configure these options "
+"at every execution, which will override"
+" the global ones."
+
+#: ../../source/faq.rst:30
+msgid "当使用 ``odps.execute_sql`` 时，可以使用"
+msgstr ""
+"When you are using ``odps.execute_sql``, "
+"you can configure these options via"
+
+#: ../../source/faq.rst:32
+msgid ""
+"from odps import options\n"
+"# 将 <option_name> 和 <option_value> 替换为选项名和选项值\n"
+"o.execute_sql('<sql_statement>', hints={'<option_name>': "
+"'<option_value>'})"
+msgstr ""
+"from odps import options\n"
+"# replace <option_name> and <option_value> "
+"with true option names and values\n"
+""
+"o.execute_sql('<sql_statement>', hints={'<option_name>': "
+"'<option_value>'})"
+
+#: ../../source/faq.rst:38
+msgid "当使用 ``dataframe.execute`` 或 ``dataframe.persist`` 时，可以使用"
+msgstr ""
+"When using ``DataFrame.execute`` or "
+"``DataFrame.persist``, you can configure these"
+" options via"
+
+#: ../../source/faq.rst:40
+msgid ""
+"from odps import options\n"
+"# 将 <option_name> 和 <option_value> 替换为选项名和选项值\n"
+"df.persist('<table_name>', hints={'<option_name>': '<option_value>'})"
+msgstr ""
+"from odps import options\n"
+"# replace <option_name> and <option_value> "
+"with true option names and values\n"
+""
+"df.persist('<table_name>', hints={'<option_name>': '<option_value>'})"
+
 msgid "读取数据时报\"project is protected\""
 msgstr ""
 "An error occurred while reading data: \"project is protected\". How can I"
 " deal with this error?"
 
-#: ../../source/faq.rst:19
+#: ../../source/faq.rst:49
 msgid "Project 上的安全策略禁止读取表中的数据，此时，如果想使用全部数据，有以下选项可用："
 msgstr ""
 "The project security policy disables reading data from tables. To "
 "retrieve all the data, you can apply the following solutions:"
 
-#: ../../source/faq.rst:21
+#: ../../source/faq.rst:51
 msgid "联系 Project Owner 增加例外规则"
 msgstr "Contact the Project Owner to add exceptions."
 
-#: ../../source/faq.rst:22
+#: ../../source/faq.rst:52
 msgid "使用 DataWorks 或其他脱敏工具先对数据进行脱敏，导出到非保护 Project，再进行读取"
 msgstr ""
 "Use DataWorks or other masking tool to mask the data and export the data "
 "as an unprotected project before reading."
 
-#: ../../source/faq.rst:24
+#: ../../source/faq.rst:54
 msgid "如果只想查看部分数据，有以下选项"
 msgstr "To retrieve part of the data, you can apply the following solutions:"
 
-#: ../../source/faq.rst:26
+#: ../../source/faq.rst:56
 msgid "改用 ``o.execute_sql('select * from <table_name>').open_reader()``"
 msgstr "Use ``o.execute_sql('select * from <table_name>').open_reader()``"
 
-#: ../../source/faq.rst:27
+#: ../../source/faq.rst:57
 msgid "改用 :ref:`DataFrame <df>`，``o.get_table('<table_name>').to_df()``"
 msgstr "Use :ref:`DataFrame <df>`, ``o.get_table('<table_name>').to_df()``"
 
-#: ../../source/faq.rst:30
+#: ../../source/faq.rst:60
 msgid "出现 ImportError，并且在 ipython 或者 jupyter 下使用"
 msgstr ""
 "An error occurred while using IPython and Jupyter: ImportError. How can I"
 " deal with this error?"
 
-#: ../../source/faq.rst:31
+#: ../../source/faq.rst:61
 msgid ""
 "如果 ``from odps import errors`` 也不行，则是缺少 ipython 组件，执行 ``pip install -U "
 "jupyter`` 解决。"
@@ -79,13 +155,13 @@ msgstr ""
 "If running ``from odps import errors`` does not fix the error, you need "
 "to execute ``pip install -U jupyter`` to install the ipython component."
 
-#: ../../source/faq.rst:34
+#: ../../source/faq.rst:64
 msgid "执行 SQL 通过 open_reader 只能取到最多1万条记录，如何取多余1万条？"
 msgstr ""
 "I can only retrieve a maximum of 10,000 items of data by executing SQL "
 "command open_reader. How can I retrieve more than 10,000 items of data?"
 
-#: ../../source/faq.rst:35
+#: ../../source/faq.rst:65
 msgid ""
 "使用 ``create table as select ...`` 把SQL的结果保存成表，再使用 :ref:`table.open_reader"
 " <table_open_reader>` 来读取。"
@@ -93,47 +169,47 @@ msgstr ""
 "Use ``create table as select ...`` to save the SQL execution result to a "
 "table, and use :ref:`table.open_reader <table_open_reader>` to read data."
 
-#: ../../source/faq.rst:38
+#: ../../source/faq.rst:68
 msgid "上传 pandas DataFrame 到 ODPS 时报错：ODPSError: ODPS entrance should be provided"
 msgstr ""
 "An error occurred while uploading pandas DataFrame to MaxCompute ODPS: "
 "ODPSError: ODPS entrance should be provided. How can I deal with this "
 "error?"
 
-#: ../../source/faq.rst:39
+#: ../../source/faq.rst:69
 msgid "原因是没有找到全局的ODPS入口，有三个方法："
 msgstr ""
 "You need to set the ODPS object to global in one of the three following "
 "ways:"
 
-#: ../../source/faq.rst:41
+#: ../../source/faq.rst:71
 #, python-format
 msgid "使用 :ref:`room 机制 <cl>` ，``%enter`` 的时候，会配置全局入口"
 msgstr ""
 "When using :ref:`room mechanism <cl>` , ``%enter`` , configure the global"
 " ODPS object."
 
-#: ../../source/faq.rst:42
+#: ../../source/faq.rst:72
 msgid "对odps入口调用 ``to_global`` 方法"
 msgstr "Call the ``to_global`` method when using the ODPS object."
 
-#: ../../source/faq.rst:43
+#: ../../source/faq.rst:73
 msgid "使用odps参数，``DataFrame(pd_df).persist('your_table', odps=odps)``"
 msgstr ""
 "Use the MaxCompute parameter ``DataFrame(pd_df).persist('your_table', "
 "odps=odps)``."
 
-#: ../../source/faq.rst:46
+#: ../../source/faq.rst:76
 msgid "在 DataFrame 中如何使用 max_pt ？"
 msgstr "How can I use max_pt in DataFrame?"
 
-#: ../../source/faq.rst:47
+#: ../../source/faq.rst:77
 msgid "使用 ``odps.df.func`` 模块来调用 ODPS 内建函数"
 msgstr ""
 "Use the ``odps.df.func`` module to call the built-in functions of "
 "MaxCompute."
 
-#: ../../source/faq.rst:49
+#: ../../source/faq.rst:79
 msgid ""
 "from odps.df import func\n"
 "df = o.get_table('your_table').to_df()\n"
@@ -144,20 +220,20 @@ msgstr ""
 "df[df.ds == func.max_pt('your_project.your_table')]  # ds is a partition "
 "column"
 
-#: ../../source/faq.rst:56
+#: ../../source/faq.rst:86
 msgid "通过 DataFrame 写表时报 table lifecycle is not specified in mandatory mode"
 msgstr ""
 "Error \"table lifecycle is not specified in mandatory mode\" occurred "
 "when persisting DataFrame to table"
 
-#: ../../source/faq.rst:57
+#: ../../source/faq.rst:87
 msgid "Project 要求对每张表设置 lifecycle，因而需要在每次执行时设置"
 msgstr ""
 "Your project requires that every table should be created with a "
 "lifecycle. Thus you should run the code below every time you run your own"
 " code."
 
-#: ../../source/faq.rst:59
+#: ../../source/faq.rst:89
 msgid ""
 "from odps import options\n"
 "options.lifecycle = 7  # 或者你期望的 lifecycle 整数值，单位为天"
@@ -165,7 +241,7 @@ msgstr ""
 "from odps import options\n"
 "options.lifecycle = 7  # or your expected lifecycle in days"
 
-#: ../../source/faq.rst:65
+#: ../../source/faq.rst:95
 msgid ""
 "执行 SQL 时报 Please add put { \"odps.sql.submit.mode\" : \"script\"} for "
 "multi-statement query in settings"
@@ -173,17 +249,16 @@ msgstr ""
 "Error \"Please add put { \"odps.sql.submit.mode\" : \"script\"} for "
 "multi-statement query in settings\" occurred when executing SQL scripts"
 
-#: ../../source/faq.rst:66
+#: ../../source/faq.rst:96
 msgid "请参考 :ref:`SQL设置运行参数 <sql_hints>` 。"
 msgstr ""
 "Please read :ref:`set runtime parameters <sql_hints>` for more "
 "information."
 
-#: ../../source/faq.rst:69
 msgid "如何遍历 PyODPS DataFrame 中的每行数据"
 msgstr "How to enumerate rows in PyODPS DataFrame"
 
-#: ../../source/faq.rst:70
+#: ../../source/faq.rst:101
 msgid ""
 "PyODPS DataFrame 不支持遍历每行数据。这样设计的原因是由于 PyODPS DataFrame 面向大规模数据设计，在这种场景下， "
 "数据遍历是非常低效的做法。我们建议使用 DataFrame 提供的 ``apply`` 或 ``map_reduce`` "

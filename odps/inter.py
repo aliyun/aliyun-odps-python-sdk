@@ -63,13 +63,14 @@ class Room(object):
                     'Failed to enter a room: %s' % self._room_name)
 
             def _config_rooms(access_id, access_key, default_project, endpoint, tunnel_endpoint=None,
-                              seahawks_url=None, **kwargs):
+                              seahawks_url=None, logview_host=None, **kwargs):
                 options.loads(kwargs.get('options', {}))
 
                 options.account = ODPS._build_account(access_id, access_key)
                 options.endpoint = endpoint
                 options.default_project = default_project
                 options.tunnel.endpoint = tunnel_endpoint
+                options.logview_host = logview_host
                 options.seahawks_url = seahawks_url
 
             if isinstance(obj[-1], dict):
@@ -83,9 +84,14 @@ class Room(object):
 
     @property
     def odps(self):
-        return ODPS._from_account(options.account, options.default_project,
-                                  endpoint=options.endpoint, tunnel_endpoint=options.tunnel.endpoint,
-                                  seahawks_url=options.seahawks_url)
+        return ODPS._from_account(
+            options.account,
+            options.default_project,
+            endpoint=options.endpoint,
+            tunnel_endpoint=options.tunnel.endpoint,
+            logview_host=options.logview_host,
+            seahawks_url=options.seahawks_url,
+        )
 
     def __getattr__(self, attr):
         try:
@@ -176,9 +182,9 @@ def _get_room_dir(room_name, mkdir=False):
     return room_dir
 
 
-def setup(access_id, access_key, default_project,
-          endpoint=None, tunnel_endpoint=None, seahawks_url=None,
-          room=DEFAULT_ROOM_NAME, with_options=False, **kwargs):
+def setup(access_id, access_key, default_project, endpoint=None, tunnel_endpoint=None,
+          seahawks_url=None, logview_host=None, room=DEFAULT_ROOM_NAME,
+          with_options=False, **kwargs):
     room_dir = _get_room_dir(room, mkdir=True)
     odps_file = os.path.join(room_dir, ODPS_FILE_NAME)
 
@@ -193,8 +199,8 @@ def setup(access_id, access_key, default_project,
             'This room(%s) has been configured before, '
             'you can teardown it first' % room)
 
-    obj = (access_id, access_key, default_project,
-           endpoint, tunnel_endpoint, seahawks_url, kwargs)
+    obj = (access_id, access_key, default_project, endpoint, tunnel_endpoint,
+           seahawks_url, logview_host, kwargs)
 
     with open(odps_file, 'wb') as f:
         pickle.dump(obj, f, protocol=0)

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-06-29 16:26+0800\n"
+"POT-Creation-Date: 2022-07-25 16:07+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -433,7 +433,7 @@ msgstr ""
 #: odps.df.expr.collections.sort_values:3 odps.df.expr.groupby.groupby:3
 #: odps.df.expr.merge._drop:7 odps.df.expr.merge.concat:7
 #: odps.df.expr.merge.inner_join:12 odps.df.expr.merge.intersect:3
-#: odps.df.expr.merge.intersect:6 odps.df.expr.merge.join:14
+#: odps.df.expr.merge.intersect:6 odps.df.expr.merge.join:17
 #: odps.df.expr.merge.left_join:18 odps.df.expr.merge.outer_join:18
 #: odps.df.expr.merge.right_join:18 odps.df.expr.merge.setdiff:7
 #: odps.df.expr.merge.union:6 odps.df.tools.libtools.bloomfilter:10 of
@@ -796,6 +796,13 @@ msgstr ""
 #: odps.df.expr.merge.join:13 odps.df.expr.merge.left_join:12
 #: odps.df.expr.merge.outer_join:12 odps.df.expr.merge.right_join:12 of
 msgid "set use mapjoin or not, default value False."
+msgstr ""
+
+#: odps.df.expr.merge.join:14 of
+msgid ""
+"set use of skewjoin or not, default value False. Can specify True if the "
+"collection is skew, or a list specifying columns with skew values, or a "
+"list of dicts specifying skew combinations."
 msgstr ""
 
 #: odps.ml.expr.mixin.MLCollectionMixin.key_value:1

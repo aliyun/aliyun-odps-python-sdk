@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-06-29 16:26+0800\n"
+"POT-Creation-Date: 2022-07-31 15:02+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -94,17 +94,17 @@ msgstr ""
 ">>> o.execute_sql('select * from pyodps_iris')  # global hints configured"
 " in options.sql.settings will be added"
 
-#: ../../source/base-sql.rst:49
+#: ../../source/base-sql.rst:50
 msgid "读取SQL执行结果"
 msgstr "View SQL results"
 
-#: ../../source/base-sql.rst:51
+#: ../../source/base-sql.rst:52
 msgid "运行 SQL 的 instance 能够直接执行 ``open_reader`` 的操作，一种情况是SQL返回了结构化的数据。"
 msgstr ""
 "You can execute the ``open_reader`` method to retrieve SQL execution "
 "results. In the following example, structured data is returned. "
 
-#: ../../source/base-sql.rst:53
+#: ../../source/base-sql.rst:54
 msgid ""
 ">>> with o.execute_sql('select * from dual').open_reader() as reader:\n"
 ">>>     for record in reader:\n"
@@ -114,19 +114,19 @@ msgstr ""
 ">>>     for record in reader:\n"
 ">>>         # process every record"
 
-#: ../../source/base-sql.rst:59
+#: ../../source/base-sql.rst:60
 msgid "另一种情况是 SQL 可能执行的比如 ``desc``，这时通过 ``reader.raw`` 属性取到原始的SQL执行结果。"
 msgstr ""
 "When commands such as ``desc`` are executed, you can use the "
 "``reader.raw`` attribute to get the original execution results. "
 
-#: ../../source/base-sql.rst:61
+#: ../../source/base-sql.rst:62
 msgid ""
 ">>> with o.execute_sql('desc dual').open_reader() as reader:\n"
 ">>>     print(reader.raw)"
 msgstr ""
 
-#: ../../source/base-sql.rst:66
+#: ../../source/base-sql.rst:67
 msgid ""
 "如果 `options.tunnel.use_instance_tunnel == True`，在调用 open_reader 时，PyODPS "
 "会默认调用 Instance Tunnel， 否则会调用旧的 Result 接口。如果你使用了版本较低的 MaxCompute 服务，或者调用 "
@@ -145,7 +145,7 @@ msgstr ""
 "open_reader, you can also use the ``tunnel`` parameter to specify which "
 "result interface to use. For example:"
 
-#: ../../source/base-sql.rst:71
+#: ../../source/base-sql.rst:72
 msgid ""
 ">>> # 使用 Instance Tunnel\n"
 ">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
@@ -169,7 +169,7 @@ msgstr ""
 ">>>     for record in reader:\n"
 ">>>         # process every record"
 
-#: ../../source/base-sql.rst:82
+#: ../../source/base-sql.rst:83
 msgid ""
 "PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护的 Project，通过 Tunnel 下载数据受限。此时， 如果 "
 "`options.tunnel.limit_instance_tunnel` 未设置，会自动打开数据量限制。此时，可下载的数据条数受到 "
@@ -185,7 +185,7 @@ msgstr ""
 "option in open_reader, or set `options.tunnel.limit_instance_tunnel` to "
 "`True`."
 
-#: ../../source/base-sql.rst:87
+#: ../../source/base-sql.rst:88
 msgid ""
 "如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取 "
 "（可能受到 Project 安全设置的限制）。"
@@ -195,11 +195,11 @@ msgstr ""
 "to another table and use these methods to read data. This may be limited "
 "by project security settings."
 
-#: ../../source/base-sql.rst:90
+#: ../../source/base-sql.rst:91
 msgid "同时，PyODPS 支持直接将运行结果数据读成 pandas DataFrame。"
 msgstr "PyODPS also supports reading data as pandas DataFrames."
 
-#: ../../source/base-sql.rst:92
+#: ../../source/base-sql.rst:93
 msgid ""
 ">>> # 直接使用 reader 的 to_pandas 方法\n"
 ">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
@@ -208,19 +208,22 @@ msgid ""
 ">>>     pd_df = reader.to_pandas()"
 msgstr ""
 ">>> # use to_pandas() method of the reader directly\n"
-">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as reader:\n"
+">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
+"reader:\n"
 ">>>     # type of pd_df is pandas DataFrame\n"
 ">>>     pd_df = reader.to_pandas()"
 
-#: ../../source/base-sql.rst:101
+#: ../../source/base-sql.rst:102
 msgid "如果需要使用多核加速读取速度，可以通过 `n_process` 指定使用进程数:"
-msgstr "If you want to accelerate data reading with multiple cores, you can specify `n_process` with number of cores you want to use:"
+msgstr ""
+"If you want to accelerate data reading with multiple cores, you can "
+"specify `n_process` with number of cores you want to use:"
 
-#: ../../source/base-sql.rst:105
+#: ../../source/base-sql.rst:106
 msgid "目前多进程加速在 Windows 下无法使用。"
 msgstr "Currently multiple process acceleration is not available under Windows."
 
-#: ../../source/base-sql.rst:108
+#: ../../source/base-sql.rst:109
 msgid ""
 ">>> import multiprocessing\n"
 ">>> n_process = multiprocessing.cpu_count()\n"
@@ -236,18 +239,22 @@ msgstr ""
 ">>>     # n_process should be number of processes to use\n"
 ">>>     pd_df = reader.to_pandas(n_process=n_process)"
 
-#: ../../source/base-sql.rst:118
+#: ../../source/base-sql.rst:119
+msgid "目前 Instance 结果暂不支持使用 Arrow 格式读取。"
+msgstr "Currently Arrow format is not supported for instance results yet."
+
+#: ../../source/base-sql.rst:122
 msgid "设置alias"
 msgstr "Set alias"
 
-#: ../../source/base-sql.rst:120
+#: ../../source/base-sql.rst:124
 msgid "有时在运行时，比如某个UDF引用的资源是动态变化的，我们可以alias旧的资源名到新的资源，这样免去了重新删除并重新创建UDF的麻烦。"
 msgstr ""
 "Some resources referenced by a UDF are dynamically changing at runtime. "
 "You can create an alias for the old resource and use it as a new "
 "resource."
 
-#: ../../source/base-sql.rst:122
+#: ../../source/base-sql.rst:126
 msgid ""
 "from odps.models import Schema\n"
 "\n"
@@ -319,11 +326,11 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:158
+#: ../../source/base-sql.rst:162
 msgid "2"
 msgstr ""
 
-#: ../../source/base-sql.rst:162
+#: ../../source/base-sql.rst:166
 msgid ""
 "res2 = o.create_resource('test_alias_res2', 'file', file_obj='2')\n"
 "# 把内容为1的资源alias成内容为2的资源，我们不需要修改UDF或资源\n"
@@ -344,15 +351,15 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:171
+#: ../../source/base-sql.rst:175
 msgid "3"
 msgstr ""
 
-#: ../../source/base-sql.rst:177
+#: ../../source/base-sql.rst:181
 msgid "在交互式环境执行 SQL"
 msgstr "Execute SQL statements in an interactive environment"
 
-#: ../../source/base-sql.rst:179
+#: ../../source/base-sql.rst:183
 msgid ""
 "在 ipython 和 jupyter 里支持 :ref:`使用 SQL 插件的方式运行 SQL <sqlinter>`，且支持 "
 ":ref:`参数化查询 <sqlparam>`， 详情参阅 :ref:`文档 <sqlinter>`。"
@@ -361,18 +368,18 @@ msgstr ""
 "statements<sqlinter>`. Besides, :ref:`parameterized query<sqlparam>` is "
 "also supported. For details, see :ref:`Documentation<sqlinter>`."
 
-#: ../../source/base-sql.rst:185
+#: ../../source/base-sql.rst:189
 msgid "设置 biz_id"
 msgstr "Set biz_id"
 
-#: ../../source/base-sql.rst:187
+#: ../../source/base-sql.rst:191
 msgid "在少数情形下，可能在提交 SQL 时，需要同时提交 biz_id，否则执行会报错。此时，你可以设置全局 options 里的 biz_id。"
 msgstr ""
 "In a few cases, it may be necessary to submit biz_id when submitting SQL "
 "statements. Otherwise an error occurs during execution. You can set the "
 "biz_id in options globally."
 
-#: ../../source/base-sql.rst:189
+#: ../../source/base-sql.rst:193
 msgid ""
 "from odps import options\n"
 "\n"

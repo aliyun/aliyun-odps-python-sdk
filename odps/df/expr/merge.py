@@ -26,7 +26,8 @@ from ...models import Schema
 
 class JoinCollectionExpr(CollectionExpr):
     __slots__ = '_how', '_left_suffix', '_right_suffix', '_column_origins', \
-                '_renamed_columns', '_column_conflict', '_mapjoin'
+                '_renamed_columns', '_column_conflict', '_mapjoin', '_skewjoin', \
+                '_skewjoin_values'
     _args = '_lhs', '_rhs', '_predicate'
 
     def _init(self, *args, **kwargs):
@@ -38,9 +39,13 @@ class JoinCollectionExpr(CollectionExpr):
 
         super(JoinCollectionExpr, self)._init(*args, **kwargs)
         if not isinstance(self._lhs, CollectionExpr):
-            raise TypeError('Can only join collection expressions, got %s for left expr.' % type(self._lhs))
+            raise TypeError(
+                'Can only join collection expressions, got %s for left expr.' % type(self._lhs)
+            )
         if not isinstance(self._rhs, CollectionExpr):
-            raise TypeError('Can only join collection expressions, got %s for right expr.' % type(self._rhs))
+            raise TypeError(
+                'Can only join collection expressions, got %s for right expr.' % type(self._rhs)
+            )
 
         if self._rhs is self._lhs:
             self._rhs = self._rhs.view()
@@ -52,7 +57,8 @@ class JoinCollectionExpr(CollectionExpr):
             overlaps = set(self._lhs.schema.names).intersection(self._rhs.schema.names)
             if len(overlaps) > 0:
                 raise ValueError(
-                    'Column conflict exists in join, overlap columns: %s' % ','.join(overlaps))
+                    'Column conflict exists in join, overlap columns: %s' % ','.join(overlaps)
+                )
 
         self._set_schema()
         self._validate_predicates(self._predicate)
@@ -569,7 +575,7 @@ def _make_different_sources(left, right, predicate=None):
     return left, subs.get(right, right)
 
 
-def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False):
+def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False, skewjoin=False):
     """
     Join two collections.
 
@@ -584,6 +590,9 @@ def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False
     :param how: 'inner', 'left', 'right', or 'outer'
     :param suffixes: when name conflict, the suffix will be added to both columns.
     :param mapjoin: set use mapjoin or not, default value False.
+    :param skewjoin: set use of skewjoin or not, default value False. Can specify True if
+        the collection is skew, or a list specifying columns with skew values, or a list of
+        dicts specifying skew combinations.
     :return: collection
 
     :Example:
@@ -598,9 +607,41 @@ def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False
     >>> df.join(df2, on=['name', ('id', 'id1')])
     >>> df.join(df2, on=[df.name == df2.name, df.id == df2.id1])
     >>> df.join(df2, mapjoin=False)
+    >>> df.join(df2, skewjoin=True)
+    >>> df.join(df2, skewjoin=["c0", "c1"])
+    >>> df.join(df2, skewjoin=[{"c0": 1, "c1": "2"}, {"c0": 3, "c1": "4"}])
     """
+    if mapjoin and skewjoin:
+        raise TypeError("Cannot specify mapjoin and skewjoin at the same time")
     if on is None and not mapjoin:
         on = [name for name in left.schema.names if name in right.schema._name_indexes]
+
+    skewjoin_values = None
+    if isinstance(skewjoin, (dict, six.string_types)):
+        skewjoin = [skewjoin]
+    if isinstance(skewjoin, list):
+        if (
+            all(isinstance(c, six.string_types) for c in skewjoin)
+            and any(c not in right.schema.names for c in skewjoin)
+        ):
+            raise ValueError(
+                "All columns specified in `skewjoin` need to exist in the right collection"
+            )
+        elif (
+            all(isinstance(c, dict) for c in skewjoin)
+        ):
+            cols = sorted(skewjoin[0].keys())
+            cols_set = set(cols)
+            if any(c not in right.schema.names for c in cols):
+                raise ValueError(
+                    "All columns specified in `skewjoin` need to exist in the right collection"
+                )
+            if any(cols_set != set(c.keys()) for c in skewjoin):
+                raise ValueError("All values in `skewjoin` need to have same columns")
+            skewjoin_values = [[d[c] for c in cols] for d in skewjoin]
+            skewjoin = cols
+    elif skewjoin and not isinstance(skewjoin, bool):
+        raise TypeError("Cannot accept skewjoin type %s" % type(skewjoin))
 
     if isinstance(suffixes, (tuple, list)) and len(suffixes) == 2:
         left_suffix, right_suffix = suffixes
@@ -616,14 +657,19 @@ def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False
     left, right = _make_different_sources(left, right, on)
 
     try:
-        return _join_dict[how.upper()](_lhs=left, _rhs=right, _predicate=on, _left_suffix=left_suffix,
-                                       _right_suffix=right_suffix, _mapjoin=mapjoin)
+        return _join_dict[how.upper()](
+            _lhs=left, _rhs=right, _predicate=on, _left_suffix=left_suffix, _right_suffix=right_suffix,
+            _mapjoin=mapjoin, _skewjoin=skewjoin, _skewjoin_values=skewjoin_values
+        )
     except KeyError:
-        return JoinCollectionExpr(_lhs=left, _rhs=right, _predicate=on, _how=how, _left_suffix=left_suffix,
-                                  _right_suffix=right_suffix, _mapjoin=mapjoin)
+        return JoinCollectionExpr(
+            _lhs=left, _rhs=right, _predicate=on, _how=how, _left_suffix=left_suffix,
+            _right_suffix=right_suffix, _mapjoin=mapjoin, _skewjoin=skewjoin,
+            _skewjoin_values=skewjoin_values
+        )
 
 
-def inner_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
+def inner_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, skewjoin=False):
     """
     Inner join two collections.
 
@@ -651,10 +697,12 @@ def inner_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False):
     >>> df.inner_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
 
-    return join(left, right, on, suffixes=suffixes, mapjoin=mapjoin)
+    return join(left, right, on, suffixes=suffixes, mapjoin=mapjoin, skewjoin=skewjoin)
 
 
-def left_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_columns=None):
+def left_join(
+    left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_columns=None, skewjoin=False
+):
     """
     Left join two collections.
 
@@ -687,11 +735,13 @@ def left_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_
     >>> df.left_join(df2, on=['name', ('id', 'id1')])
     >>> df.left_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
-    joined = join(left, right, on, how='left', suffixes=suffixes, mapjoin=mapjoin)
+    joined = join(left, right, on, how='left', suffixes=suffixes, mapjoin=mapjoin, skewjoin=skewjoin)
     return joined._merge_joined_fields(merge_columns)
 
 
-def right_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_columns=None):
+def right_join(
+    left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_columns=None, skewjoin=False
+):
     """
     Right join two collections.
 
@@ -724,11 +774,13 @@ def right_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge
     >>> df.right_join(df2, on=['name', ('id', 'id1')])
     >>> df.right_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
-    joined = join(left, right, on, how='right', suffixes=suffixes, mapjoin=mapjoin)
+    joined = join(left, right, on, how='right', suffixes=suffixes, mapjoin=mapjoin, skewjoin=skewjoin)
     return joined._merge_joined_fields(merge_columns)
 
 
-def outer_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_columns=None):
+def outer_join(
+    left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge_columns=None, skewjoin=False
+):
     """
     Outer join two collections.
 
@@ -761,7 +813,7 @@ def outer_join(left, right, on=None, suffixes=('_x', '_y'), mapjoin=False, merge
     >>> df.outer_join(df2, on=['name', ('id', 'id1')])
     >>> df.outer_join(df2, on=[df.name == df2.name, df.id == df2.id1])
     """
-    joined = join(left, right, on, how='outer', suffixes=suffixes, mapjoin=mapjoin)
+    joined = join(left, right, on, how='outer', suffixes=suffixes, mapjoin=mapjoin, skewjoin=skewjoin)
     return joined._merge_joined_fields(merge_columns)
 
 

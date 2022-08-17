@@ -26,7 +26,7 @@ from ...compat import u, six, izip as zip
 from ...config import options
 from ...console import get_console_size, in_interactive_session, \
     in_ipython_frontend, in_qtconsole
-from ...utils import to_str, to_text
+from ...utils import to_str, to_text, deprecated
 from ...models import Schema
 from ...types import Partition
 from . import formatter as fmt
@@ -169,6 +169,7 @@ class ResultFrame(six.Iterator):
                     values = [r[item[1]] for r in self[item[0]]._values]
                     return values
 
+    @deprecated("Direct call of next(ResultFrame) is deprecated")
     def __next__(self):
         self._cursor += 1
         try:
@@ -180,10 +181,12 @@ class ResultFrame(six.Iterator):
             raise StopIteration
 
     def __iter__(self):
+        cursor = 0
         while True:
             try:
-                yield next(self)
-            except StopIteration:
+                yield self[cursor]
+                cursor += 1
+            except IndexError:
                 return
 
     def concat(self, frame, axis=0):

@@ -88,8 +88,8 @@ def detect_metrics_fallback(df):
     _metrics_fallback_detected = True
     odps = ODPS.from_global()
     for src in df.data_source():
-        if hasattr(src, 'odps'):
-            odps = src.odps
+        if hasattr(src, 'project'):
+            odps = src.project.odps
 
     try:
         odps.execute_xflow('MultiClassEvaluation', xflow_project=options.ml.xflow_project)

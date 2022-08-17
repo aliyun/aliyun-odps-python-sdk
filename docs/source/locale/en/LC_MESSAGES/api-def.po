@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-06-29 16:26+0800\n"
+"POT-Creation-Date: 2022-07-31 15:02+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2120,17 +2120,25 @@ msgstr ""
 msgid "the tunnel service URL"
 msgstr ""
 
+#: odps.models.table.Table.open_reader:7 of
+msgid "use existing download_id to download table contents"
+msgstr ""
+
+#: odps.models.table.Table.open_reader:8 of
+msgid "use arrow tunnel to read data"
+msgstr ""
+
 #: odps.models.instance.Instance.open_reader:18
 #: odps.models.partition.Partition.open_reader:6
-#: odps.models.table.Table.open_reader:7 odps.models.table.Table.open_writer:11
+#: odps.models.table.Table.open_reader:9 odps.models.table.Table.open_writer:12
 #: of
 msgid "compression algorithm, level and strategy"
 msgstr ""
 
 #: odps.models.instance.Instance.open_reader:20
 #: odps.models.partition.Partition.open_reader:8
-#: odps.models.table.Table.open_reader:9 odps.models.table.Table.open_writer:13
-#: of
+#: odps.models.table.Table.open_reader:11
+#: odps.models.table.Table.open_writer:14 of
 msgid ""
 "compression algorithm, work when ``compress_option`` is not provided, can"
 " be ``zlib``, ``snappy``"
@@ -2140,20 +2148,16 @@ msgstr ""
 #: odps.models.instance.Instance.open_reader:23
 #: odps.models.partition.Partition.open_reader:10
 #: odps.models.partition.Partition.open_reader:11
-#: odps.models.table.Table.open_reader:11
-#: odps.models.table.Table.open_reader:12
-#: odps.models.table.Table.open_writer:15
-#: odps.models.table.Table.open_writer:16 of
+#: odps.models.table.Table.open_reader:13
+#: odps.models.table.Table.open_reader:14
+#: odps.models.table.Table.open_writer:16
+#: odps.models.table.Table.open_writer:17 of
 msgid "used for ``zlib``, work when ``compress_option`` is not provided"
-msgstr ""
-
-#: odps.models.table.Table.open_reader:13 of
-msgid "use existing download_id to download table contents"
 msgstr ""
 
 #: odps.models.instance.Instance.open_reader:24
 #: odps.models.partition.Partition.open_reader:12
-#: odps.models.table.Table.open_reader:14 of
+#: odps.models.table.Table.open_reader:15 of
 msgid "reader, ``count`` means the full size, ``status`` means the tunnel status"
 msgstr ""
 
@@ -2173,7 +2177,11 @@ msgstr ""
 msgid "use existing upload_id to upload data"
 msgstr ""
 
-#: odps.models.table.Table.open_writer:17 of
+#: odps.models.table.Table.open_writer:11 of
+msgid "use arrow tunnel to write data"
+msgstr ""
+
+#: odps.models.table.Table.open_writer:18 of
 msgid "writer, status means the tunnel writer status"
 msgstr ""
 

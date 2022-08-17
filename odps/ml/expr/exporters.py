@@ -140,9 +140,11 @@ get_output_table_partitions = get_output_table_partition
 def get_input_model_name(expr, input_name):
     model_expr = get_ml_input(expr, input_name)
     model_obj = getattr(model_expr, '_source_data', None)
+    rest_client = getattr(model_obj, "_client", None)
+    client_project = getattr(rest_client, "project", None)
     if model_obj is None:
         return None
-    elif model_obj.project.name == model_obj.odps.project:
+    elif model_obj.project.name == client_project:
         return model_obj.name
     else:
         return model_obj.project.name + '.' + model_obj.name

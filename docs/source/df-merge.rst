@@ -19,11 +19,11 @@
 .. parsed-literal::
 
     odps.Schema {
-      movie_id                            int64       
-      title                               string      
-      release_date                        string      
-      video_release_date                  string      
-      imdb_url                            string      
+      movie_id                            int64
+      title                               string
+      release_date                        string
+      video_release_date                  string
+      imdb_url                            string
     }
 
 
@@ -38,10 +38,10 @@
 .. parsed-literal::
 
     odps.Schema {
-      user_id                     int64     
-      movie_id                    int64     
-      rating                      int64     
-      unix_timestamp              int64     
+      user_id                     int64
+      movie_id                    int64
+      rating                      int64
+      unix_timestamp              int64
     }
 
 
@@ -89,10 +89,10 @@ API会寻找名字相同的列，并作为 join 的条件。
     >>> ratings2 = ratings[ratings.exclude('movie_id'), ratings.movie_id.rename('movie_id2')]
     >>> ratings2.dtypes
     odps.Schema {
-      user_id                     int64     
-      rating                      int64     
-      unix_timestamp              int64     
-      movie_id2                   int64     
+      user_id                     int64
+      rating                      int64
+      unix_timestamp              int64
+      movie_id2                   int64
     }
     >>> movies.join(ratings2, on=[('movie_id', 'movie_id2')]).head(3)
        movie_id              title  release_date  video_release_date                                           imdb_url  user_id  rating  unix_timestamp  movie_id2
@@ -135,7 +135,34 @@ self-join的时候，可以调用\ ``view``\ 方法，这样就可以分别取�
 
     >>> movies.left_join(ratings, on='movie_id', merge_columns=True)
 
-要使用 **mapjoin**\ 也很简单，只需将mapjoin设为True，执行时会对右表做mapjoin操作。
+要使用 **mapjoin**\ 需要将 mapjoin 设为 True ，执行时会对右表做 mapjoin 操作，例如
+
+.. code:: python
+
+    >>> movies.left_join(ratings, on='movie_id', mapjoin=True)
+
+要使用 **skewjoin**\ 需要将 skewjoin 设为 True ，执行时会对右表做 skewjoin 操作，例如
+
+.. code:: python
+
+    >>> movies.left_join(ratings, on='movie_id', skewjoin=True)
+
+如果需要指定特定列有偏斜，可以将 skewjoin 设为对应列，如果有多列应指定为 list，例如：
+
+.. code:: python
+
+    >>> movies.left_join(ratings, on=['user_id', 'movie_id'], skewjoin=['user_id', 'movie_id'])
+
+如果已知列上的某些值（或者组合）有偏斜，可以将 skewjoin 设为列上对应值组成的 dict，如有多个值应当指定为这些 dict 组成的 list，例如
+
+.. code:: python
+
+    >>> movies.left_join(
+        ratings, on=['user_id', 'movie_id'],
+        skewjoin=[{'user_id': 0, 'movie_id': 0}, {'user_id': 1, 'movie_id': 1}],
+    )
+
+MaxCompute 推荐为偏斜列指定具体的值，如不指定会带来额外的统计开销。在指定值时，需要保证列每组数据的列都相同。
 
 用户也能join分别来自ODPS和pandas的Collection，或者join分别来自ODPS和数据库的Collection，此时计算会在ODPS上执行。
 

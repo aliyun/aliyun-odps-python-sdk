@@ -59,14 +59,14 @@ def get_default_engine(*exprs):
             engine = expr_engines[0]
             src = srcs[0]
             if engine in (Engines.ODPS, Engines.ALGO):
-                expr_odps = src.odps
+                expr_odps = src.project.odps
             elif engine in (Engines.PANDAS, Engines.SQLALCHEMY):
                 expr_odps = None
             else:
                 raise NotImplementedError
         else:
-            table_src = next(it for it in srcs if hasattr(it, 'odps'))
-            expr_odps = table_src.odps
+            table_src = next(it for it in srcs if hasattr(it, 'project'))
+            expr_odps = table_src.project.odps
         if expr_odps is not None:
             odps = expr_odps
 

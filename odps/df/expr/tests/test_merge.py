@@ -63,6 +63,27 @@ class Test(TestBase):
 
         e.join(e1, mapjoin=True).join(e2, mapjoin=True)
 
+    def testJoinSkewJoin(self):
+        e = self.expr
+        e1 = self.expr1
+        joined = e.join(e1, ['fid'], skewjoin=True)
+        self.assertTrue(joined._skewjoin)
+        joined = e.join(e1, ['fid'], skewjoin='fid')
+        self.assertEqual(joined._skewjoin, ['fid'])
+        joined = e.join(e1, ['fid'], skewjoin=['fid'])
+        self.assertEqual(joined._skewjoin, ['fid'])
+        joined = e.join(e1, ['fid'], skewjoin=[{'fid': 0.5}])
+        self.assertEqual(joined._skewjoin, ['fid'])
+        self.assertEqual(joined._skewjoin_values, [[0.5]])
+
+        self.assertRaises(TypeError, lambda: e.join(e1, ['fid'], skewjoin=1))
+        self.assertRaises(ValueError, lambda: e.join(e1, ['fid'], skewjoin={'non-exist': 1}))
+        self.assertRaises(ValueError, lambda: e.join(e1, ['fid'], skewjoin=['non-exist']))
+        self.assertRaises(ValueError, lambda: e.join(e1, ['fid'], skewjoin=[{'non-exist': 1}]))
+        self.assertRaises(
+            ValueError, lambda: e.join(e1, ['fid'], skewjoin=[{'fid': 1}, {'id': 2}])
+        )
+
     def testJoin(self):
         e = self.expr
         e1 = self.expr1

@@ -328,7 +328,15 @@ class ODPSSQLEngine(Engine):
             if force_tunnel or result is not None:
                 return result
 
-        sql = self._compile(expr, libraries=libraries)
+        old_odps2_extension_cfg = options.sql.use_odps2_extension
+        try:
+            if old_odps2_extension_cfg is None:
+                project_obj = self._odps.get_project()
+                project_prop = project_obj.properties.get("odps.sql.type.system.odps2")
+                options.sql.use_odps2_extension = ("true" == (project_prop or "false").lower())
+            sql = self._compile(expr, libraries=libraries)
+        finally:
+            options.sql.use_odps2_extension = old_odps2_extension_cfg
 
         cache_data = None
         if not no_permission and isinstance(expr, CollectionExpr) and not isinstance(expr, Summary):
@@ -432,7 +440,7 @@ class ODPSSQLEngine(Engine):
                     ui.inc(progress_proportion)
             else:
                 ui.inc(progress_proportion)
-                odps_type = types.df_type_to_odps_type(src_expr._value_type)
+                odps_type = types.df_type_to_odps_type(src_expr._value_type, project=instance.project)
                 res = types.odps_types.validate_value(reader[0][0], odps_type)
                 context.cache(src_expr, res)
                 return res
@@ -456,6 +464,7 @@ class ODPSSQLEngine(Engine):
             self._odps.delete_table(name, project=project, if_exists=True)
 
         table_name = name if project is None else '%s.`%s`' % (project, name)
+        project_obj = self._odps.get_project(project)
         if partitions is None and partition is None:
             # the non-partitioned table
             if drop_partition:
@@ -476,7 +485,7 @@ class ODPSSQLEngine(Engine):
                     schema = types.df_schema_to_odps_schema(expr.schema, ignorecase=True)
                 else:
                     col_name = expr.name
-                    tp = types.df_type_to_odps_type(expr.dtype)
+                    tp = types.df_type_to_odps_type(expr.dtype, project=project_obj)
                     schema = Schema.from_lists([col_name, ], [tp, ])
                 self._odps.create_table(name, Schema(columns=schema.columns),
                                         project=project, lifecycle=lifecycle)
@@ -502,8 +511,10 @@ class ODPSSQLEngine(Engine):
             else:
                 partition = self._get_partition(partition)
                 column_names = [n for n in expr.schema.names if n not in partition]
-                column_types = [types.df_type_to_odps_type(expr.schema[n].type)
-                                for n in column_names]
+                column_types = [
+                    types.df_type_to_odps_type(expr.schema[n].type, project=project_obj)
+                    for n in column_names
+                ]
                 partition_names = [n for n in partition.keys]
                 partition_types = ['string'] * len(partition_names)
                 t = self._odps.create_table(
@@ -534,7 +545,7 @@ class ODPSSQLEngine(Engine):
                 schema = types.df_schema_to_odps_schema(expr.schema, ignorecase=True)
             else:
                 col_name = expr.name
-                tp = types.df_type_to_odps_type(expr.dtype)
+                tp = types.df_type_to_odps_type(expr.dtype, project=project_obj)
                 schema = Schema.from_lists([col_name, ], [tp, ])
 
             for p in partitions:

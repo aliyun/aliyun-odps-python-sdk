@@ -107,7 +107,11 @@ class Test(TestBase):
     def testBinaryImport(self):
         zip_io = StringIO()
         zip_f = zipfile.ZipFile(zip_io, 'w')
-        zip_f.writestr('testa/a.so', '')
+        zip_f.writestr('test_a/a.so', '')
+        zip_f.writestr('test_a/__init__.py', '')
+        zip_f.writestr('testdir/test_b/b.so', '')
+        zip_f.writestr('testdir/test_b/__init__.py', '')
+        zip_f.writestr('test_direct.py', '')
         zip_f.close()
 
         zip_io.seek(0)
@@ -115,8 +119,11 @@ class Test(TestBase):
 
         try:
             zip_io.seek(0)
-            CompressImporter(zipfile.ZipFile(zip_io, 'r'), extract=True, _match_version=False)
+            CompressImporter(zipfile.ZipFile(zip_io, 'r'), extract=True)
             self.assertTrue(os.path.exists(CompressImporter._extract_path))
+            import test_direct, test_a, test_b
+            del test_direct, test_a, test_b
+            del sys.modules['test_direct'], sys.modules['test_a'], sys.modules['test_b']
         finally:
             shutil.rmtree(CompressImporter._extract_path)
             CompressImporter._extract_path = None

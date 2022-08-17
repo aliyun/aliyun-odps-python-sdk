@@ -57,6 +57,7 @@ class Project(LazyLoad):
     _user_cache = dict()
     __slots__ = (
         "_policy_cache",
+        "_logview_host",
         "_tunnel_endpoint",
         "_all_props_loaded",
         "_extended_props_loaded",
@@ -191,6 +192,21 @@ class Project(LazyLoad):
     def system_info(self):
         resp = self._client.get(self.resource() + '/system')
         return json.loads(resp.content.decode() if six.PY3 else resp.content)
+
+    @property
+    def odps(self):
+        from ..core import ODPS
+
+        client = self._client
+
+        return ODPS._from_account(
+            client.account,
+            client.project,
+            endpoint=client.endpoint,
+            tunnel_endpoint=self._tunnel_endpoint,
+            logview_host=self._logview_host,
+            app_account=getattr(client, 'app_account', None),
+        )
 
     @property
     def policy(self):

@@ -29,7 +29,7 @@ from . import models, accounts, errors, utils
 
 
 DEFAULT_ENDPOINT = 'http://service.odps.aliyun.com/api'
-LOG_VIEW_HOST_DEFAULT = 'http://logview.odps.aliyun.com'
+LOGVIEW_HOST_DEFAULT = 'http://logview.odps.aliyun.com'
 
 DROP_TABLE_REGEX = re.compile(r'^\s*drop\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
 
@@ -75,9 +75,9 @@ class ODPS(object):
     >>> odps.delete_table('test_table')
     """
     def __init__(self, access_id=None, secret_access_key=None, project=None,
-                 endpoint=None, app_account=None, **kw):
+                 endpoint=None, app_account=None, logview_host=None, **kw):
         self._init(access_id=access_id, secret_access_key=secret_access_key, project=project,
-                   endpoint=endpoint, app_account=app_account, **kw)
+                   endpoint=endpoint, app_account=app_account, logview_host=logview_host, **kw)
         clean_stored_objects(self)
 
     def _init(self, access_id=None, secret_access_key=None, project=None,
@@ -103,8 +103,8 @@ class ODPS(object):
 
         self._logview_host = (
             kw.pop("logview_host", None)
-            or options.log_view_host
             or self.get_logview_host()
+            or options.logview_host
         )
 
         self._projects = models.Projects(client=self.rest)
@@ -207,6 +207,7 @@ class ODPS(object):
             return name
         proj = self._projects[name]
         proj._tunnel_endpoint = self._tunnel_endpoint
+        proj._logview_host = self._logview_host
         return proj
 
     def exist_project(self, name):
@@ -1569,7 +1570,7 @@ class ODPS(object):
         except:
             logview_host = None
         if not logview_host:
-            logview_host = LOG_VIEW_HOST_DEFAULT
+            logview_host = LOGVIEW_HOST_DEFAULT
         return logview_host
 
     def get_logview_address(self, instance_id, hours=None, project=None):
@@ -1582,7 +1583,7 @@ class ODPS(object):
         :return: logview address
         :rtype: str
         """
-        hours = hours or options.log_view_hours
+        hours = hours or options.logview_hours
         inst = self.get_instance(instance_id, project=project)
         return inst.get_logview_address(hours=hours)
 
@@ -1877,14 +1878,21 @@ class ODPS(object):
         options.account = self.account
         options.default_project = self.project
         options.endpoint = self.endpoint
+        options.logview_host = self.logview_host
         options.tunnel.endpoint = self._tunnel_endpoint
         options.app_account = self.app_account
 
     @classmethod
     def from_global(cls):
         if options.account is not None and options.default_project is not None:
-            return cls._from_account(options.account, options.default_project,
-                                     endpoint=options.endpoint, app_account=options.app_account)
+            return cls._from_account(
+                options.account,
+                options.default_project,
+                endpoint=options.endpoint,
+                tunnel_endpoint=options.tunnel.endpoint,
+                logview_host=options.logview_host,
+                app_account=options.app_account,
+            )
         else:
             return None
 
@@ -1898,20 +1906,6 @@ class ODPS(object):
             return cls(None, None, account=account, project=project, endpoint=endpoint)
         except KeyError:
             return None
-
-
-def _get_odps_from_model(self):
-    client = self._client
-    account = client.account
-    endpoint = client.endpoint
-    project = client.project
-    app_account = getattr(client, 'app_account', None)
-
-    return ODPS._from_account(account, project, endpoint=endpoint, app_account=app_account)
-
-
-models.RestModel.odps = property(fget=_get_odps_from_model)
-del _get_odps_from_model
 
 try:
     from .internal.core import *  # noqa: F401

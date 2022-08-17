@@ -19,6 +19,8 @@ import logging
 import operator
 from datetime import datetime
 
+from requests import ConnectTimeout as RequestsConnectTimeout
+
 from . import utils
 from .compat import (
     LESS_PY27,
@@ -176,7 +178,7 @@ class ODPSError(RuntimeError):
         return error
 
 
-class ConnectTimeout(ODPSError, TimeoutError):
+class ConnectTimeout(ODPSError, TimeoutError, RequestsConnectTimeout):
     pass
 
 
@@ -305,27 +307,35 @@ class NotSupportedError(ODPSError):
 class WaitTimeoutError(ODPSError, TimeoutError):
     pass
 
+
 class SQAError(ODPSError):
     pass
 
+
 class SQAGenericError(SQAError):
     pass
+
 
 # if this error is thrown, you may retry your request.
 class SQARetryError(SQAError):
     pass
 
+
 class SQAAccessDenied(SQAError):
     pass
+
 
 class SQAResourceNotEnough(SQAError):
     pass
 
+
 class SQAServiceUnavailable(SQAError):
     pass
 
+
 class SQAUnsupportedFeature(SQAError):
     pass
+
 
 class SQAQueryTimedout(SQAError):
     pass

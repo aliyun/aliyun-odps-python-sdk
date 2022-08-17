@@ -29,11 +29,16 @@ try:
 except ImportError:
     pytz = None
 
+import mock
+import pytest
+import requests
+
 from odps import types, options
 from odps.tests.core import TestBase, to_str, tn, snappy_case, pandas_case, odps2_typed_case
 from odps.compat import reload_module, unittest, OrderedDict, Decimal, Monthdelta
 from odps.models import Schema
 from odps.tunnel import TableTunnel
+from odps.tunnel.errors import TunnelWriteTimeout
 
 
 def bothPyAndC(func):
@@ -789,6 +794,21 @@ class Test(TestBase):
                             and isinstance(it2, float) and math.isnan(it2):
                         continue
                     self.assertEqual(it1, it2)
+
+        table.drop()
+
+    def testWriteTimeout(self):
+        table, data = self._gen_table()
+
+        def _patched(*_, **__):
+            raise requests.ConnectionError("timed out")
+
+        with mock.patch("odps.rest.RestClient.put", new=_patched):
+            with pytest.raises(TunnelWriteTimeout) as ex_info:
+                records = [table.new_record(values=d) for d in data]
+                self.odps.write_table(table, 0, records)
+
+            assert isinstance(ex_info.value, requests.ConnectionError)
 
         table.drop()
 

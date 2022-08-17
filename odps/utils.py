@@ -42,6 +42,11 @@ from base64 import b64encode
 from datetime import datetime, date, timedelta
 from email.utils import parsedate_tz, formatdate
 
+try:
+    from collections.abc import Hashable, Mapping, Iterable
+except ImportError:
+    from collections import Hashable, Mapping, Iterable
+
 from . import compat, options
 from .compat import six, getargspec, FixedOffset
 
@@ -69,7 +74,7 @@ def deprecated(msg, cond=None):
             if isinstance(msg, six.string_types):
                 warn_msg += ' ' + msg
             if cond is None or cond():
-                warnings.warn(warn_msg, category=DeprecationWarning)
+                warnings.warn(warn_msg, category=DeprecationWarning, stacklevel=2)
             return func(*args, **kwargs)
         _new_func.__name__ = func.__name__
         _new_func.__doc__ = func.__doc__
@@ -805,11 +810,11 @@ def gen_temp_table():
 
 
 def hashable(obj):
-    if isinstance(obj, collections.Hashable):
+    if isinstance(obj, Hashable):
         items = obj
-    elif isinstance(obj, collections.Mapping):
+    elif isinstance(obj, Mapping):
         items = type(obj)((k, hashable(v)) for k, v in six.iteritems(obj))
-    elif isinstance(obj, collections.Iterable):
+    elif isinstance(obj, Iterable):
         items = tuple(hashable(item) for item in obj)
     else:
         raise TypeError(type(obj))

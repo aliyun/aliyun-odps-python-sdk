@@ -232,7 +232,7 @@ class Test(TestBase):
         self.assertEqual(len(df.execute()), 3)
 
         df['id3'] = df['id2'] * 2
-        self.assertEqual(len(next(df.execute())), 4)
+        self.assertEqual(len(df.execute()[0]), 4)
 
         del df['id2']
         res = df.execute()

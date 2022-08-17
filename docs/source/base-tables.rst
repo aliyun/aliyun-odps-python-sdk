@@ -193,7 +193,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
    >>> with t.open_reader(partition='pt=test') as reader:
    >>>     count = reader.count
-   >>>     for record in reader[5:10]  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
+   >>>     for record in reader[5:10]:  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
    >>>         # 处理一条记录
 
 不使用 with 表达式的写法：
@@ -202,7 +202,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
    >>> reader = t.open_reader(partition='pt=test')
    >>> count = reader.count
-   >>> for record in reader[5:10]  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
+   >>> for record in reader[5:10]:  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
    >>>     # 处理一条记录
 
 直接读取成 Pandas DataFrame:
@@ -211,7 +211,6 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
    >>> with t.open_reader(partition='pt=test') as reader:
    >>>     pd_df = reader.to_pandas()
-
 
 .. _table_to_pandas_mp:
 
@@ -336,6 +335,44 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
         # 最后执行 commit，并指定所有 block
         upload_session.commit(block_ids)
+
+.. _table_arrow_io:
+
+使用 Arrow 格式读写数据
+--------------------
+`Apache Arrow <https://arrow.apache.org/>`_ 是一种跨语言的通用数据读写格式，支持在各种不同平台间进行数据交换。
+自2021年起， MaxCompute 支持使用 Arrow 格式读取表数据，PyODPS 则从 0.11.2 版本开始支持该功能。具体地，如果在
+Python 环境中安装 pyarrow 后，在调用 ``open_reader`` 或者 ``open_writer`` 时增加 ``arrow=True`` 参数，即可读写
+`Arrow RecordBatch <https://arrow.apache.org/docs/python/data.html#record-batches>`_ 。
+
+按 RecordBatch 读取表内容：
+
+.. code-block:: python
+
+   >>> reader = t.open_reader(partition='pt=test', arrow=True)
+   >>> count = reader.count
+   >>> for batch in reader:  # 可以执行多次，直到将所有 RecordBatch 读完
+   >>>     # 处理一个 RecordBatch，例如转换为 Pandas
+   >>>     print(batch.to_pandas())
+
+写入 RecordBatch：
+
+.. code-block:: python
+
+   >>> import pandas as pd
+   >>> import pyarrow as pa
+   >>>
+   >>> with t.open_writer(partition='pt=test', create_partition=True, arrow=True) as writer:
+   >>>     records = [[111, 'aaa', True],
+   >>>                [222, 'bbb', False],
+   >>>                [333, 'ccc', True],
+   >>>                [444, '中文', False]]
+   >>>     df = pd.DataFrame(records, columns=["int_val", "str_val", "bool_val"])
+   >>>     # 写入 RecordBatch
+   >>>     batch = pa.RecordBatch.from_pandas(df)
+   >>>     writer.write(batch)
+   >>>     # 也可以直接写入 Pandas DataFrame
+   >>>     writer.write(df)
 
 删除表
 -------
@@ -476,10 +513,17 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
        record = table.new_record(['test2', 'id2'])
        writer.write(record)
 
+   import pandas as pd
+   import pyarrow as pa
+
+   with upload_session.open_arrow_writer() as writer:
+       df = pd.DataFrame({"name": ["test1", "test2"], "id": ["id1", "id2"]})
+       batch = pa.RecordBatch.from_pandas(df)
+       writer.write(batch)
+
 
 下载
 ~~~~~~
-
 
 .. code-block:: python
 
@@ -491,3 +535,7 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
    with download_session.open_record_reader(0, download_session.count) as reader:
        for record in reader:
            # 处理每条记录
+
+   with download_session.open_arrow_reader(0, download_session.count) as reader:
+       for batch in reader:
+           # 处理每个 Arrow RecordBatch
