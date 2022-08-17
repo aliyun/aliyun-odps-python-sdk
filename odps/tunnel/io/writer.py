@@ -18,7 +18,7 @@ import struct
 
 try:
     import pyarrow as pa
-except ImportError:
+except (AttributeError, ImportError):
     pa = None
 try:
     import pandas as pd
@@ -49,6 +49,8 @@ from .stream import CompressOption, SnappyOutputStream, DeflateOutputStream, Req
 from ... import types, compat, utils, errors, options
 from ...compat import six
 
+_CompressAlgorithm = CompressOption.CompressAlgorithm
+
 
 varint_tag_types = types.integer_types + (
     types.boolean,
@@ -62,6 +64,19 @@ length_delim_tag_types = (
     types.timestamp,
     types.interval_day_time,
 )
+
+
+def _wrap_compress_stream(buffer, compress_option=None):
+    algo = getattr(compress_option, "algorithm", None)
+
+    if algo is None or algo == _CompressAlgorithm.ODPS_RAW:
+        return buffer
+    elif algo == _CompressAlgorithm.ODPS_ZLIB:
+        return DeflateOutputStream(buffer)
+    elif algo == _CompressAlgorithm.ODPS_SNAPPY:
+        return SnappyOutputStream(buffer)
+    else:
+        raise errors.InvalidArgument('Invalid compression algorithm.')
 
 
 if BaseRecordWriter is None:
@@ -335,19 +350,7 @@ class RecordWriter(BaseRecordWriter):
     def __init__(self, schema, request_callback, compress_option=None, encoding="utf-8"):
         self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
 
-        if compress_option is None:
-            out = self._req_io
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_RAW:
-            out = self._req_io
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_ZLIB:
-            out = DeflateOutputStream(self._req_io)
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-            out = SnappyOutputStream(self._req_io)
-        else:
-            raise errors.InvalidArgument('Invalid compression algorithm.')
+        out = _wrap_compress_stream(self._req_io, compress_option)
         super(RecordWriter, self).__init__(schema, out, encoding=encoding)
         self._req_io.start()
 
@@ -389,20 +392,7 @@ class BufferredRecordWriter(BaseRecordWriter):
         self._n_bytes_written = 0
         self._compress_option = compress_option
 
-        if self._compress_option is None:
-            out = self._buffer
-        elif self._compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_RAW:
-            out = self._buffer
-        elif self._compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_ZLIB:
-            out = DeflateOutputStream(self._buffer)
-        elif self._compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-            out = SnappyOutputStream(self._buffer)
-        else:
-            raise errors.InvalidArgument("Invalid compression algorithm.")
-
+        out = _wrap_compress_stream(self._buffer, compress_option)
         super(BufferredRecordWriter, self).__init__(schema, out, encoding=encoding)
 
     def write(self, record):
@@ -437,20 +427,7 @@ class BufferredRecordWriter(BaseRecordWriter):
         self._block_id += 1
         self._buffer = compat.BytesIO()
 
-        if self._compress_option is None:
-            out = self._buffer
-        elif self._compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_RAW:
-            out = self._buffer
-        elif self._compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_ZLIB:
-            out = DeflateOutputStream(self._buffer)
-        elif self._compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-            out = SnappyOutputStream(self._buffer)
-        else:
-            raise errors.InvalidArgument("Invalid compression algorithm.")
-
+        out = _wrap_compress_stream(self._buffer, self._compress_option)
         self._re_init(out)
         self._curr_cursor = 0
         self._crccrc.reset()
@@ -485,20 +462,7 @@ class StreamRecordWriter(BaseRecordWriter):
         self.slot = slot
         self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
 
-        if compress_option is None:
-            out = self._req_io
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_RAW:
-            out = self._req_io
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_ZLIB:
-            out = DeflateOutputStream(self._req_io)
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-            out = SnappyOutputStream(self._req_io)
-        else:
-            raise errors.InvalidArgument('Invalid compression algorithm.')
-
+        out = _wrap_compress_stream(self._req_io, compress_option)
         super(StreamRecordWriter, self).__init__(schema, out, encoding=encoding)
         self._req_io.start()
 
@@ -526,12 +490,17 @@ class ArrowWriter(object):
 
     def __init__(self, request_callback, out=None, compress_option=None,
                  chunk_size=None):
+        if pa is None:
+            raise ValueError("To use arrow writer you need to install pyarrow")
+
         self._request_callback = request_callback
-        self._out = out or compat.BytesIO()
+        self._buffer = out or compat.BytesIO()
         self._chunk_size = chunk_size or self.CHUNK_SIZE
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._cur_chunk_size = 0
+
+        self._output = _wrap_compress_stream(self._buffer, compress_option)
         self._write_chunk_size()
 
     def _write_chunk_size(self):
@@ -539,10 +508,10 @@ class ArrowWriter(object):
 
     def _write_unint32(self, val):
         data = struct.pack("!I", utils.long_to_uint(val))
-        self._out.write(data)
+        self._output.write(data)
 
     def _write_chunk(self, buf):
-        self._out.write(buf)
+        self._output.write(buf)
         self._crccrc.update(buf)
         self._cur_chunk_size += len(buf)
         if self._cur_chunk_size >= self._chunk_size:
@@ -573,8 +542,10 @@ class ArrowWriter(object):
         self._write_unint32(checksum)
         self._crccrc.reset()
 
+        self._output.flush()
+
         def gen():  # synchronize chunk upload
-            data = self._out.getbuffer()
+            data = self._buffer.getbuffer()
             while data:
                 to_send = data[:options.chunk_size]
                 data = data[options.chunk_size:]
@@ -584,7 +555,7 @@ class ArrowWriter(object):
 
     def close(self):
         self._flush()
-        self._out.close()
+        self._buffer.close()
 
     def __enter__(self):
         return self

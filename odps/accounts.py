@@ -16,7 +16,6 @@
 """
 
 import base64
-import cgi
 import hmac
 import hashlib
 import logging
@@ -26,7 +25,7 @@ from datetime import datetime, timedelta
 
 import requests
 
-from .compat import six
+from .compat import six, cgi
 from .compat import urlparse, unquote, parse_qsl
 from . import compat, utils, options
 

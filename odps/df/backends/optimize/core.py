@@ -167,7 +167,10 @@ class Optimizer(Backend):
             return
         if expr._lateral_view:
             return
-        if isinstance(expr.input, JoinCollectionExpr) and expr.input._mapjoin:
+        if (
+            isinstance(expr.input, JoinCollectionExpr)
+            and (expr.input._mapjoin or expr.input._skewjoin)
+        ):
             return
         self._visit_need_compact_collection(expr)
 

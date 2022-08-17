@@ -14,13 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import struct
 import warnings
-from io import BytesIO
+from io import IOBase, BytesIO
 
 try:
-    import pyarrow as pa
+    import numpy as np
 except ImportError:
+    np = None
+try:
+    import pyarrow as pa
+except (AttributeError, ImportError):
     pa = None
 
 
@@ -231,27 +236,22 @@ if TunnelRecordReader is None:
             self.close()
 
 
-class TunnelArrowReader(object):
-    def __init__(self, schema, input_stream, columns=None):
-        self._schema = schema
-        arrow_schema = odps_type_to_arrow_type(schema)
-        if columns is None:
-            self._arrow_schema = arrow_schema
-        else:
-            self._arrow_schema = pa.schema([s for s in arrow_schema if s.name in columns])
+class ArrowStreamReader(IOBase):
+    def __init__(self, raw_reader, arrow_schema):
+        self._reader = raw_reader
 
-        self._reader = input_stream
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._pos = 0
-        self._buffer = BytesIO()
         self._chunk_size = None
-        self._to_datetime = utils.MillisecondsConverter().from_milliseconds
-        self._read_limit = options.table_read_limit
 
-    @property
-    def schema(self):
-        return self._schema
+        self._buffers = collections.deque()
+        self._buffers.append(
+            BytesIO(arrow_schema.serialize().to_pybytes())
+        )
+
+    def readable(self):
+        return True
 
     @staticmethod
     def _read_unint32(b):
@@ -275,54 +275,127 @@ class TunnelArrowReader(object):
         self._crccrc.update(b[:-4])
         return b
 
-    def read(self):
+    def _fill_next_buffer(self):
+        if self._chunk_size is None:
+            self._chunk_size = self._read_chunk_size()
+
+        b = self._read_chunk()
+        data = b[:-4]
+        crc_data = b[-4:]
+        if len(b) == 0:
+            return
+
+        if len(b) < self._chunk_size + 4:
+            # is last chunk
+            read_checksum = self._read_unint32(crc_data)[0]
+            checksum = int(self._crccrc.getvalue())
+            if checksum != read_checksum:
+                raise IOError('Checksum invalid')
+            self._pos += len(data) + 4
+            self._buffers.append(BytesIO(data))
+            self._crccrc.reset()
+        else:
+            checksum = int(self._crc.getvalue())
+            read_checksum = self._read_unint32(crc_data)[0]
+            if checksum != read_checksum:
+                raise IOError('Checksum invalid')
+            self._crc.reset()
+            self._buffers.append(BytesIO(data))
+
+    def read(self, nbytes=None):
+        tot_size = 0
+        bufs = []
+        while nbytes is None or tot_size < nbytes:
+            if not self._buffers:
+                self._fill_next_buffer()
+                if not self._buffers:
+                    break
+
+            to_read = nbytes - tot_size if nbytes is not None else None
+            buf = self._buffers[0].read(to_read)
+            if not buf:
+                self._buffers.popleft()
+            else:
+                bufs.append(buf)
+                tot_size += len(buf)
+        if len(bufs) == 1:
+            return bufs[0]
+        return b''.join(bufs)
+
+    def close(self):
+        if hasattr(self._reader, 'close'):
+            self._reader.close()
+
+
+class TunnelArrowReader(object):
+    def __init__(self, schema, input_stream, columns=None):
+        if pa is None:
+            raise ValueError("To use arrow reader you need to install pyarrow")
+
+        self._schema = schema
+        arrow_schema = odps_type_to_arrow_type(schema)
+        if columns is None:
+            self._arrow_schema = arrow_schema
+        else:
+            self._arrow_schema = pa.schema([s for s in arrow_schema if s.name in columns])
+
+        self._reader = ArrowStreamReader(input_stream, self._arrow_schema)
+        self._pos = 0
+        self._arrow_stream = None
+        self._to_datetime = utils.MillisecondsConverter().from_milliseconds
+        self._read_limit = options.table_read_limit
+
+        self.closed = False
+
+    @property
+    def schema(self):
+        return self._schema
+
+    def read_next_batch(self):
+        if self._arrow_stream is None:
+            self._arrow_stream = pa.ipc.open_stream(self._reader)
+
         if self._read_limit is not None and self._pos >= self._read_limit:
             warnings.warn('Number of lines read via tunnel already reaches the limitation.')
             return None
 
-        if self._chunk_size is None:
-            self._chunk_size = self._read_chunk_size()
+        try:
+            batch = self._arrow_stream.read_next_batch()
+            self._pos += batch.num_rows
+        except StopIteration:
+            return None
 
-        while True:
-            b = self._read_chunk()
-            data = b[:-4]
-            crc_data = b[-4:]
-            if len(b) == 0:
-                break
-            if len(b) < self._chunk_size + 4:
-                # is last chunk
-                read_checksum = self._read_unint32(crc_data)[0]
-                checksum = int(self._crccrc.getvalue())
-                if checksum != read_checksum:
-                    raise IOError('Checksum invalid')
-                self._pos += len(data) + 4
-                self._buffer.write(data)
-                self._crccrc.reset()
-                break
+        array_dict = dict((arr._name, arr) for arr in batch)
+        names, arrays = [], []
+        for name, arr in array_dict.items():
+            names.append(name)
+            if arr.type == pa.timestamp('ms'):
+                dt_col = np.vectorize(self._to_datetime)(arr.cast('int64').to_numpy())
+                arrays.append(dt_col)
             else:
-                checksum = int(self._crc.getvalue())
-                read_checksum = self._read_unint32(crc_data)[0]
-                if checksum != read_checksum:
-                    raise IOError('Checksum invalid')
-                self._crc.reset()
-                self._buffer.write(data)
+                arrays.append(arr)
+        return pa.RecordBatch.from_arrays(arrays, names=names)
 
-        b = self._buffer.getvalue()
-        if len(b) == 0:
-            # empty table
+    def read(self):
+        batches = []
+        while True:
+            batch = self.read_next_batch()
+            if batch is None:
+                break
+            batches.append(batch)
+
+        if not batches:
             return self._arrow_schema.empty_table()
-        else:
-            complete_bytes = self._arrow_schema.serialize().to_pybytes() + b
-            r = pa.ipc.open_stream(complete_bytes).read_all()
-            array_dict = dict((arr._name, arr) for arr in r)
-            new_dict = {}
-            for name, arr in array_dict.items():
-                if arr.type == pa.timestamp('ms'):
-                    datetime = [self._to_datetime(v) for v in arr.cast('int64').to_numpy()]
-                    new_dict[name] = datetime
-                else:
-                    new_dict[name] = arr
-            return pa.Table.from_pydict(new_dict)
+        return pa.Table.from_batches(batches)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        batch = self.read_next_batch()
+        if batch is None:
+            raise StopIteration
+        return batch
 
     @property
     def n_bytes(self):
@@ -336,8 +409,8 @@ class TunnelArrowReader(object):
             self._reader.close()
 
     def to_pandas(self):
-        record_batch = self.read()
-        return record_batch.to_pandas()
+        pa_table = self.read()
+        return pa_table.to_pandas()
 
     def __enter__(self):
         return self
@@ -348,6 +421,7 @@ class TunnelArrowReader(object):
 
 def odps_type_to_arrow_type(odps_schema):
     from ... import types
+
     TYPE_MAPPING = {
         types.string: pa.string(),
         types.binary: pa.binary(),

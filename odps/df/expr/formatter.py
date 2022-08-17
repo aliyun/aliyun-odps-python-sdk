@@ -23,7 +23,6 @@ from .collections import SortedColumn
 from .reduction import Count, GroupedCount
 from .window import Window
 from .merge import JoinCollectionExpr, UnionCollectionExpr
-from ...utils import get_id
 
 
 class ExprFormatter(object):
@@ -42,7 +41,7 @@ class ExprFormatter(object):
         return 'ref_%s' % curr
 
     def _format_source_collection(self, expr, buf=None, indent=0):
-        expr_id = get_id(expr)
+        expr_id = utils.get_id(expr)
         if expr_id in self._cache:
             return self._cache[expr_id]
 
@@ -65,7 +64,7 @@ class ExprFormatter(object):
             return buf.getvalue()
 
     def _format_transformed_collection(self, expr, buf=None, indent=0):
-        expr_id = get_id(expr)
+        expr_id = utils.get_id(expr)
         if expr_id in self._cache:
             return self._cache[expr_id]
 

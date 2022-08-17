@@ -20,7 +20,6 @@ import os
 import random
 import sys
 import types
-import warnings
 from collections import defaultdict
 
 
@@ -41,10 +40,14 @@ if sys.version_info[0] <= 2:
     iterkeys = lambda d: d.iterkeys()
     itervalues = lambda d: d.itervalues()
     string_types = (basestring, unicode)
+    BASE = object
 else:
+    import importlib.abc
+
     iterkeys = lambda d: d.keys()
     itervalues = lambda d: d.values()
     string_types = (str, bytes)
+    BASE = importlib.abc.MetaPathFinder
 
 
 def _clean_extract():
@@ -58,7 +61,7 @@ class CompressImportError(ImportError):
     pass
 
 
-class CompressImporter(object):
+class CompressImporter(BASE):
     """
     A PEP-302-style importer that can import from a zipfile.
 
@@ -78,26 +81,33 @@ class CompressImporter(object):
         self._files = []
         self._prefixes = defaultdict(lambda: set(['']))
         self._extract = kwargs.get('extract', False)
-        self._supersede = kwargs.get('supersede', False)
-        self._match_version = kwargs.get('_match_version', True)
+        self._supersede = kwargs.get('supersede', True)
         self._local_warned = False
 
         for f in compressed_files:
             if isinstance(f, zipfile.ZipFile):
-                bin_package = any(n.endswith('.so') or n.endswith('.pxd') or n.endswith('.dylib')
-                                  for n in f.namelist())
+                bin_package = any(
+                    n.endswith('.so') or n.endswith('.pxd') or n.endswith('.dylib')
+                    for n in f.namelist()
+                )
                 need_extract = True
             elif isinstance(f, tarfile.TarFile):
-                bin_package = any(m.name.endswith('.so') or m.name.endswith('.pxd') or m.name.endswith('.dylib')
-                                  for m in f.getmembers())
+                bin_package = any(
+                    m.name.endswith('.so') or m.name.endswith('.pxd') or m.name.endswith('.dylib')
+                    for m in f.getmembers()
+                )
                 need_extract = True
             elif isinstance(f, dict):
-                bin_package = any(name.endswith('.so') or name.endswith('.pxd') or name.endswith('.dylib')
-                                  for name in iterkeys(f))
+                bin_package = any(
+                    name.endswith('.so') or name.endswith('.pxd') or name.endswith('.dylib')
+                    for name in iterkeys(f)
+                )
                 need_extract = False
             elif isinstance(f, list):
-                bin_package = any(name.endswith('.so') or name.endswith('.pxd') or name.endswith('.dylib')
-                                  for name in f)
+                bin_package = any(
+                    name.endswith('.so') or name.endswith('.pxd') or name.endswith('.dylib')
+                    for name in f
+                )
                 need_extract = False
             else:
                 raise TypeError('Compressed file can only be zipfile.ZipFile or tarfile.TarFile')
@@ -112,6 +122,7 @@ class CompressImporter(object):
                     f = self._extract_archive(f)
 
             prefixes = set([''])
+            rendered_names = set()
             dir_prefixes = set()
             if isinstance(f, zipfile.ZipFile):
                 for name in f.namelist():
@@ -144,7 +155,7 @@ class CompressImporter(object):
 
                 for name in rendered_names:
                     name = name if name.endswith('/') else (name.rsplit('/', 1)[0] + '/')
-                    if name in prefixes or '/tests/' in name:
+                    if name in prefixes or '/tests/' in name or '/__pycache__/' in name:
                         continue
                     if name + '__init__.py' not in rendered_names:
                         prefixes.add(name)
@@ -164,7 +175,7 @@ class CompressImporter(object):
                         continue
                     parent_exist = False
                     for pp in path_patch:
-                        if p[:len(pp)] == pp:
+                        if p[:len(pp)] == pp and p.rstrip('/') + '/__init__.py' in rendered_names:
                             parent_exist = True
                             break
                     if parent_exist:
@@ -183,14 +194,6 @@ class CompressImporter(object):
         if not self._extract:
             raise SystemError('We do not allow file-type resource for binary packages. Please upload an '
                               'archive-typed resource instead.')
-        if self._match_version and (sys.version_info[:2] != (2, 7) or sys.maxunicode != 65535 or os.name != 'posix'):
-            if not self._local_warned:
-                self._local_warned = True
-                warnings.warn('Your python version may not match the version on MaxCompute clusters. '
-                              'Package installed in your site-packages will be used instead of those '
-                              'specified in libraries. If no corresponding packages were discovered, '
-                              'an ImportError might be raised in execution.')
-            return
 
         cls = type(self)
         if not cls._extract_path:
@@ -207,11 +210,11 @@ class CompressImporter(object):
         elif isinstance(archive, tarfile.TarFile):
             archive.extractall(extract_dir)
 
-        mock_archive = dict()
+        mock_archive = list()
         for root, dirs, files in os.walk(extract_dir):
             for name in files:
                 full_name = os.path.join(root, name)
-                mock_archive[name] = open(full_name, 'rb')
+                mock_archive.append(full_name)
         return mock_archive
 
     def _get_info(self, fullmodname):

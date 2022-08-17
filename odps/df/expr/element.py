@@ -618,7 +618,7 @@ def _switch(expr, *args, **kw):
         raise errors.ExpressionError('Switch must accept more than one condition')
 
     if all(isinstance(arg, tuple) and len(arg) == 2 for arg in args):
-        conditions, thens = zip(*args)
+        conditions, thens = [list(tp) for tp in zip(*args)]
     else:
         conditions = [arg for i, arg in enumerate(args) if i % 2 == 0]
         thens = [arg for i, arg in enumerate(args) if i % 2 == 1]

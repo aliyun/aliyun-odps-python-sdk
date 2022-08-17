@@ -197,7 +197,7 @@ def odps2_typed_case(func):
         try:
             func(*args, **kwargs)
         finally:
-            options.sql.use_odps2_extension = False
+            options.sql.use_odps2_extension = None
             options.sql.settings = old_settings
 
     _wrapped.__name__ = func.__name__

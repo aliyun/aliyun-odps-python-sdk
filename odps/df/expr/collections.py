@@ -419,7 +419,12 @@ def _apply_horizontal(expr, func, names=None, types=None, resources=None,
             names = (names,)
 
     if names is None:
-        raise ValueError('Apply on rows should provide column names')
+        raise ValueError(
+            'Apply on rows to provide multiple values should provide all column names, '
+            'for instance, df.apply(func, axis=1, names=["A", "B"], types=["float", "float"]). '
+            'See https://pyodps.readthedocs.io/zh_CN/latest/df-sort-distinct-apply.html#dfudtfapp '
+            'for more information.'
+        )
     tps = (string,) * len(names) if types is None else tuple(validate_data_type(t) for t in types)
     schema = Schema.from_lists(names, tps)
 

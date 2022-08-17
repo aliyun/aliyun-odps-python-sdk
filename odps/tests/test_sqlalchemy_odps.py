@@ -205,7 +205,7 @@ class Test(TestBase):
             reflection.Inspector.reflect_table = reflection.Inspector.reflecttable
 
     def teardown(self):
-        options.sql.use_odps2_extension = False
+        options.sql.use_odps2_extension = None
         options.sql.settings = None
 
     def create_engine(self):

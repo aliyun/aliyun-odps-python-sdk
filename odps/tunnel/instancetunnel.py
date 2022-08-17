@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from .base import BaseTunnel
-from .io.reader import TunnelRecordReader
+from .io.reader import TunnelRecordReader, TunnelArrowReader
 from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputStream
 from .errors import TunnelError
 from .. import errors, serializers, types
@@ -59,7 +59,10 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         self._session_task_name = kw.pop("session_task_name", "")
         self._session_subquery_id = int(kw.pop("session_subquery_id", -1))
         if self._sessional and ((not self._session_task_name) or (self._session_subquery_id == -1)):
-            raise TunnelError("Taskname('session_task_name') and Subquery ID ('session_subquery_id') keyword argument must be provided for session instance tunnels.")
+            raise TunnelError(
+                "Taskname('session_task_name') and Subquery ID ('session_subquery_id') "
+                "keyword argument must be provided for session instance tunnels."
+            )
 
         if download_id is None:
             self._init()
@@ -190,6 +193,10 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     def open_record_reader(self, start, count, compress=False, columns=None):
         return self._open_reader(start, count, compress=compress, columns=columns,
                                  reader_cls=TunnelRecordReader)
+
+    def open_arrow_reader(self, start, count, compress=False, columns=None):
+        return self._open_reader(start, count, compress=compress, columns=columns,
+                                 reader_cls=TunnelArrowReader)
 
     if np is not None:
         def open_pandas_reader(self, start, count, compress=False, columns=None):

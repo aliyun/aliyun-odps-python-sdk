@@ -16,29 +16,41 @@
 
 import json
 
-from ..compat import ElementTree as ET
+import requests
+
+from ..compat import ElementTree as ET, TimeoutError
+from ..errors import ODPSError
 
 
-class TunnelError(RuntimeError):
+class TunnelError(ODPSError):
 
     @classmethod
     def parse(cls, resp):
         try:
             root = ET.fromstring(resp.content)
-            error = TunnelError()
-            error.code = root.find('./Code').text
-            error.msg = root.find('./Message').text
-            
+            code = root.find('./Code').text
+            msg = root.find('./Message').text
             request_id = root.find('./RequestId')
             if request_id:
-                error.request_id = request_id.text
+                request_id = request_id.text
             else:
-                error.request_id = resp.headers.get('x-odps-request-id')
+                request_id = resp.headers.get('x-odps-request-id')
+
+            error = TunnelError(msg, code=code, request_id=request_id)
         except:
-            error.request_id = resp.headers['x-odps-request-id']
+            request_id = resp.headers['x-odps-request-id']
             obj = json.loads(resp.content)
-            error.msg = obj['Message']
-            error.code = obj['InvalidArgument']
-            
+            msg = obj['Message']
+            code = obj['InvalidArgument']
+
+            error = TunnelError(msg, code=code, request_id=request_id)
+
         return error
 
+
+class TunnelReadTimeout(TunnelError, TimeoutError, requests.ReadTimeout):
+    pass
+
+
+class TunnelWriteTimeout(TunnelError, TimeoutError, requests.ConnectionError):
+    pass

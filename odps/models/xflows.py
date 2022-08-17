@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import time
 
 from .core import Iterable, XMLRemoteModel
@@ -107,10 +106,14 @@ class XFlows(Iterable):
         xflow_project = serializers.XMLNodeField('Project')
         xflow_name = serializers.XMLNodeField('Xflow')
         parameters = serializers.XMLNodePropertiesField(
-            'Parameters', 'Parameter', key_tag='Key', value_tag='Value', required=True)
-        properties = serializers.XMLNodePropertiesField('Config', 'Property',
-                                                        key_tag='Name', value_tag='Value')
-        priority = serializers.XMLNodeField('Priority', parse_callback=int, serialize_callback=int)
+            'Parameters', 'Parameter', key_tag='Key', value_tag='Value', required=True
+        )
+        priority = serializers.XMLNodeField(
+            'Priority', parse_callback=int, serialize_callback=int
+        )
+        properties = serializers.XMLNodePropertiesField(
+            'Config', 'Property', key_tag='Name', value_tag='Value'
+        )
 
     class AnonymousSubmitXFlowInstance(XMLRemoteModel):
         _root = 'Instance'
@@ -128,9 +131,6 @@ class XFlows(Iterable):
     def run_xflow(self, xflow_instance=None, project=None, hints=None, parameters=None, **kw):
         project = project or self.parent
         hints = hints or {}
-        if options.default_task_settings:
-            hints["settings"] = json.dumps(options.default_task_settings)
-
         if options.ml.xflow_settings:
             hints.update(options.ml.xflow_settings)
         if hints:
@@ -186,10 +186,10 @@ class XFlows(Iterable):
         for x_result in filter(lambda xr: xr.node_type != 'Local',
                                six.itervalues(self.get_xflow_results(instance))):
             if x_result.node_type == 'Instance':
-                inst_dict[x_result.name] = self.odps.get_instance(x_result.instance_id)
+                inst_dict[x_result.name] = self.parent.odps.get_instance(x_result.instance_id)
             elif x_result.node_type == 'SubWorkflow':
-                sub_instance = self.odps.get_instance(x_result.instance_id)
-                sub_inst_dict = self.odps.get_xflow_sub_instances(sub_instance)
+                sub_instance = self.parent.odps.get_instance(x_result.instance_id)
+                sub_inst_dict = self.parent.odps.get_xflow_sub_instances(sub_instance)
                 inst_dict.update(**sub_inst_dict)
         return inst_dict
 

@@ -47,6 +47,8 @@ _df_to_odps_types = {
     df_types.string: odps_types.string,
     df_types.datetime: odps_types.datetime,
     df_types.binary: odps_types.string,
+    df_types.timestamp: odps_types.timestamp,
+    df_types.date: odps_types.date,
 }
 
 _df_to_odps_types2 = {
@@ -91,8 +93,15 @@ def odps_schema_to_df_schema(odps_schema):
     return Schema.from_lists(names, types)
 
 
-def df_type_to_odps_type(df_type):
-    if options.sql.use_odps2_extension:
+def df_type_to_odps_type(df_type, use_odps2_types=None, project=None):
+    if use_odps2_types is None:
+        if options.sql.use_odps2_extension is None and project is not None:
+            project_prop = project.properties.get("odps.sql.type.system.odps2")
+            use_odps2_types = ("true" == (project_prop or "false").lower())
+        else:
+            use_odps2_types = bool(options.sql.use_odps2_extension)
+
+    if use_odps2_types:
         df_to_odps_types = _df_to_odps_types2
     else:
         df_to_odps_types = _df_to_odps_types
@@ -104,26 +113,37 @@ def df_type_to_odps_type(df_type):
     elif df_type == df_types.decimal:
         return odps_types.Decimal()
     elif isinstance(df_type, df_types.List):
-        return odps_types.Array(df_type_to_odps_type(df_type.value_type))
+        return odps_types.Array(
+            df_type_to_odps_type(df_type.value_type, use_odps2_types=use_odps2_types)
+        )
     elif isinstance(df_type, df_types.Dict):
-        return odps_types.Map(df_type_to_odps_type(df_type.key_type),
-                              df_type_to_odps_type(df_type.value_type))
+        return odps_types.Map(
+            df_type_to_odps_type(df_type.key_type, use_odps2_types=use_odps2_types),
+            df_type_to_odps_type(df_type.value_type, use_odps2_types=use_odps2_types),
+        )
     else:
         raise KeyError(repr(df_type))
 
 
-def df_schema_to_odps_schema(df_schema, ignorecase=False):
+def df_schema_to_odps_schema(df_schema, ignorecase=False, project=None):
     names = [col.name.lower() if ignorecase else col.name
              for col in df_schema._columns]
-    types = [df_type_to_odps_type(col.type) for col in df_schema._columns]
+    types = [
+        df_type_to_odps_type(col.type, project=project)
+        for col in df_schema._columns
+    ]
 
     partition_names, partition_types = None, None
     if df_schema.partitions:
-        partition_names = [col.name.lower() if ignorecase else col.name
-                           for col in df_schema.partitions]
-        partition_types = [df_type_to_odps_type(col.type)
-                           for col in df_schema.partitions]
+        partition_names = [
+            col.name.lower() if ignorecase else col.name
+            for col in df_schema.partitions
+        ]
+        partition_types = [
+            df_type_to_odps_type(col.type, project=project)
+            for col in df_schema.partitions
+        ]
 
-    return Schema.from_lists(names, types,
-                             partition_names=partition_names,
-                             partition_types=partition_types)
+    return Schema.from_lists(
+        names, types, partition_names=partition_names, partition_types=partition_types
+    )

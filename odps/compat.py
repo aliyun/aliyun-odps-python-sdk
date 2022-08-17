@@ -19,7 +19,10 @@ import itertools
 import platform
 import warnings
 try:
-    import xml.etree.cElementTree as ElementTree
+    if sys.version_info[:2] < (3, 3):
+        import xml.etree.cElementTree as ElementTree
+    else:
+        import xml.etree.ElementTree as ElementTree
 except ImportError:
     import xml.etree.ElementTree as ElementTree
 try:
@@ -121,6 +124,8 @@ if six.PY3:
 
     from datetime import timedelta
     total_seconds = timedelta.total_seconds
+
+    from .lib import cgi_compat as cgi
 else:
     lrange = range
     lzip = zip
@@ -197,6 +202,7 @@ else:
 
     import __builtin__ as builtins  # don't remove
     from .lib import futures  # don't remove
+    import cgi
 
 if PY26:
     try:
@@ -286,4 +292,4 @@ __all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dict
            'reduce', 'reload_module', 'Queue', 'Empty', 'ElementTree', 'ElementTreeParseError',
            'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
            'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc', 'Monthdelta',
-           'Iterable', 'TimeoutError']
+           'Iterable', 'TimeoutError', 'cgi']

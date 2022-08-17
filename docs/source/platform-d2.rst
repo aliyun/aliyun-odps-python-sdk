@@ -25,6 +25,10 @@ DataWorks 的 PyODPS 节点中，将会包含一个全局的变量 ``odps`` 或�
     print(o.exist_table('pyodps_iris'))
 
 
+.. Note::
+    o 变量在 PyODPS 节点执行前已经提前赋值。除非确定必须这么做，请不要手动设置该变量，这将导致 ODPS 入口被改写，
+    并可能使节点在生产调度时由于默认账号发生变化从而导致权限错误。
+
 执行SQL
 ==========
 
@@ -104,6 +108,8 @@ DataFrame
 
     print('ds=' + args['ds'])
 
+上面的 print 语句将在 DataWorks 窗口中输出
+
 .. code-block:: text
 
     ds=20161116
@@ -113,6 +119,14 @@ DataFrame
 .. code-block:: python
 
     o.get_table('table_name').get_partition('ds=' + args['ds'])
+
+关于如何使用调度参数的详细例子可以参考 `DataWorks 文档 <https://help.aliyun.com/document_detail/417492.htm>`_ 。
+
+.. Note::
+    args 变量在 PyODPS 节点执行前已经提前赋值，请不要手动设置该变量，这将导致调度参数被改写。
+
+    SQL 节点中可用的 ${param_name} 写法不能在 PyODPS 节点中使用，
+    即便在某些情况下它似乎输出了正确的结果。
 
 受限功能
 =========

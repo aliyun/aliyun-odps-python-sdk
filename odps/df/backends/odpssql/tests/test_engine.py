@@ -116,7 +116,7 @@ class Test(TestBase):
         res = self.engine._handle_cases(self.expr, self.faked_bar)
         result = self._get_result(res)
         self.assertEqual(data, result)
-        self.assertIsNotNone(next(res)['name'])
+        self.assertIsNotNone(list(res)[0]['name'])
 
         expr = self.expr['name', self.expr.id.rename('new_id')]
         res = self.engine._handle_cases(expr, self.faked_bar)
@@ -515,7 +515,7 @@ class Test(TestBase):
             self.assertEqual(res[0][0], const)
         finally:
             options.tunnel.string_as_binary = False
-            options.sql.use_odps2_extension = False
+            options.sql.use_odps2_extension = None
 
     def testFunctions(self):
         data = self._gen_data(5, value_range=(-1000, 1000))
@@ -1312,8 +1312,12 @@ class Test(TestBase):
         def my_func(row):
             return row.name, row.scale + 1, row.birth
 
-        expr = self.expr['name', 'id', 'scale', 'birth'].apply(my_func, axis=1, names=['name', 'scale', 'birth'],
-                                                               types=['string', 'decimal', 'datetime'])
+        expr = self.expr['name', 'id', 'scale', 'birth'].apply(
+            my_func,
+            axis=1,
+            names=['name', 'scale', 'birth'],
+            types=['string', 'decimal', 'datetime'],
+        )
 
         res = self.engine.execute(expr)
         result = self._get_result(res)
@@ -1336,6 +1340,30 @@ class Test(TestBase):
                 yield r[1]
 
         self.assertEqual([r[0] for r in result], [r for r in gen_expected(data) if r > 1])
+
+        # test custom apply with wrapper
+        @output(['name', 'scale', 'birth'], ['string', 'decimal', 'datetime'])
+        def my_func3(row):
+            return row.name, row.scale + 1, row.birth
+
+        expr = self.expr['name', 'id', 'scale', 'birth'].apply(my_func3, axis=1)
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual([[r[0], r[1]] for r in result], [[r[0], r[4] + 1] for r in data])
+
+        # test custom apply with invocation of other custom apply functions
+        @output(['name', 'scale', 'birth'], ['string', 'decimal', 'datetime'])
+        def my_func4(row):
+            return my_func3(row)
+
+        expr = self.expr['name', 'id', 'scale', 'birth'].apply(my_func4, axis=1)
+
+        res = self.engine.execute(expr)
+        result = self._get_result(res)
+
+        self.assertEqual([[r[0], r[1]] for r in result], [[r[0], r[4] + 1] for r in data])
 
     def testDatetime(self):
         data = self._gen_data(5)

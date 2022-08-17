@@ -64,6 +64,9 @@ FALLBACK_POLICY_ALIASES = {
 class Connection(object):
     def __init__(self, access_id=None, secret_access_key=None, project=None,
                  endpoint=None, session_name=None, odps=None, **kw):
+        if isinstance(access_id, ODPS):
+            access_id, odps = None, access_id
+
         if odps is None:
             # pop unsupported
             kw.pop("use_sqa", None)
@@ -233,6 +236,10 @@ class Cursor(object):
             run_sql = odps.run_sql
         self._instance = run_sql(sql)
 
+    def executemany(self, operation, seq_of_parameters):
+        for parameter in seq_of_parameters:
+            self.execute(operation, parameter)
+
     def _sqa_error_should_fallback(self, err_str):
         if 'ODPS-18' not in err_str:
             return False
@@ -244,7 +251,6 @@ class Cursor(object):
                 if error_code in err_str:
                     return True
         return False
-
 
     def _run_sqa_with_fallback(self, sql, **kw):
         odps = self._connection.odps
@@ -308,6 +314,21 @@ class Cursor(object):
                 break
             i += 1
         return results
+
+    def __iter__(self):
+        while True:
+            res = self.fetchone()
+            if res is not None:
+                yield res
+            else:
+                break
+
+    def next(self):
+        res = self.fetchone()
+        if res is not None:
+            yield res
+        else:
+            raise StopIteration
 
     def fetchone(self):
         self._check_download_session()

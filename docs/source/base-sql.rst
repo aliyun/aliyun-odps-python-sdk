@@ -44,6 +44,7 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
    >>> options.sql.settings = {'odps.sql.mapper.split.size': 16}
    >>> o.execute_sql('select * from pyodps_iris')  # 会根据全局配置添加hints
 
+.. _read_sql_exec_result:
 
 读取SQL执行结果
 ---------------
@@ -113,6 +114,9 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护
   >>>     # n_process 指定成机器核数
   >>>     pd_df = reader.to_pandas(n_process=n_process)
 
+.. note::
+
+    目前 Instance 结果暂不支持使用 Arrow 格式读取。
 
 设置alias
 ------------

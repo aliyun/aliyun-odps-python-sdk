@@ -158,7 +158,10 @@ class Rewriter(BaseRewriter):
             self._sub(expr.input, sub)
 
     def visit_apply_collection(self, expr):
-        if isinstance(expr._input, JoinCollectionExpr) and expr._input._mapjoin:
+        if (
+            isinstance(expr._input, JoinCollectionExpr)
+            and (expr._input._mapjoin or expr._input._skewjoin)
+        ):
             node = expr._input
             projection = JoinProjectCollectionExpr(
                 _input=node, _schema=node.schema,

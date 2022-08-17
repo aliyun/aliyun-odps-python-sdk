@@ -33,28 +33,29 @@ except ImportError:
 
 try:
     import pyarrow as pa
-except:
+except (ImportError, AttributeError):
     pa = None
 
 from odps.tests.core import TestBase, tn
 from odps.compat import unittest
+from odps.config import options
 from odps.models import Schema
 
 
 @unittest.skipIf(pa is None, "need to install pyarrow")
 class Test(TestBase):
-    def _upload_data(self, test_table, data, **kw):
+    def _upload_data(self, test_table, data, compress=False, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
-        writer = upload_ss.open_arrow_writer(0)
+        writer = upload_ss.open_arrow_writer(0, compress=compress)
 
         writer.write(data)
         writer.close()
         upload_ss.commit([0, ])
 
-    def _download_data(self, test_table, columns=None, **kw):
+    def _download_data(self, test_table, columns=None, compress=False, **kw):
         count = kw.pop('count', 4)
         download_ss = self.tunnel.create_download_session(test_table, **kw)
-        with download_ss.open_arrow_reader(0, count, columns=columns) as reader:
+        with download_ss.open_arrow_reader(0, count, compress=compress, columns=columns) as reader:
             return reader.to_pandas()
 
     def _gen_data(self, repeat=1):
@@ -87,9 +88,12 @@ class Test(TestBase):
     def testUploadAndDownloadByRawTunnel(self):
         test_table_name = tn('pyodps_test_arrow_tunnel')
         self._create_table(test_table_name)
-        data = self._gen_data()
+        pd_df = self._download_data(test_table_name)
+        self.assertEqual(len(pd_df), 0)
 
+        data = self._gen_data()
         self._upload_data(test_table_name, data)
+
         pd_df = self._download_data(test_table_name)
         pd.testing.assert_frame_equal(data.to_pandas(), pd_df)
 
@@ -130,6 +134,25 @@ class Test(TestBase):
         records = self._download_data(test_table_name, partition_spec=test_table_partition,
                                       columns=['int_num'])
         pd.testing.assert_frame_equal(data.to_pandas()[['int_num']], records)
+
+    def testUploadAndDownloadWithCompress(self):
+        raw_chunk_size = options.chunk_size
+        options.chunk_size = 16
+
+        try:
+            test_table_name = tn('pyodps_test_arrow_zlib_tunnel')
+            self.odps.delete_table(test_table_name, if_exists=True)
+
+            self._create_table(test_table_name)
+            data = self._gen_data()
+
+            self._upload_data(test_table_name, data, compress=True)
+            records = self._download_data(test_table_name, compress=True)
+            pd.testing.assert_frame_equal(data.to_pandas(), records)
+
+            self._delete_table(test_table_name)
+        finally:
+            options.chunk_size = raw_chunk_size
 
 
 if __name__ == '__main__':

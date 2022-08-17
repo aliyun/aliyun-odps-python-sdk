@@ -33,7 +33,7 @@ class Partition(LazyLoad):
     __slots__ = 'spec', 'creation_time', 'last_meta_modified_time', 'last_modified_time', \
                 'size', '_is_extend_info_loaded', \
                 'is_archived', 'is_exstore', 'lifecycle', \
-                'physical_size', 'file_num', 'reserved' 
+                'physical_size', 'file_num', 'reserved'
 
     class Column(XMLRemoteModel):
 
@@ -126,6 +126,10 @@ class Partition(LazyLoad):
     @property
     def table(self):
         return self.parent.parent
+
+    @property
+    def project(self):
+        return self.table.project
 
     def reload(self):
         url = self.resource()

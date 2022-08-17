@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from cpython.datetime cimport datetime
+from libc.stdint cimport int64_t
 from libc.time cimport tm
 
 
@@ -27,5 +28,5 @@ cdef class CMillisecondsConverter:
         bint _tz_has_localize
 
     cdef int _build_tm_struct(self, datetime dt, tm *p_tm) except? -1
-    cpdef long to_milliseconds(self, datetime dt) except? -1
-    cpdef datetime from_milliseconds(self, long milliseconds)
+    cpdef int64_t to_milliseconds(self, datetime dt) except? -1
+    cpdef datetime from_milliseconds(self, int64_t milliseconds)

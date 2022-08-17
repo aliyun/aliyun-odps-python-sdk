@@ -422,7 +422,9 @@ def persist_mars_dataframe(
             odps_types.append(as_type[name])
         else:
             odps_types.append(
-                pd_type_to_odps_type(t, name, unknown_as_string=unknown_as_string)
+                pd_type_to_odps_type(
+                    t, name, unknown_as_string=unknown_as_string, project=odps.get_project()
+                )
             )
     if partition:
         p = PartitionSpec(partition)

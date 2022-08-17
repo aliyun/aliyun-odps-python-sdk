@@ -59,8 +59,7 @@ def default_user_agent():
         return _default_user_agent
 
     try:
-        import mars
-        mars_version = mars.__version__
+        from mars import __version__ as mars_version
     except ImportError:
         mars_version = "Unknown"
 
@@ -165,7 +164,8 @@ class RestClient(object):
 
         LOG.debug('response.status_code %d' % res.status_code)
         LOG.debug('response.headers: \n%s' % res.headers)
-        if not stream: LOG.debug('response.content: %s\n' % (res.content))
+        if not stream:
+            LOG.debug('response.content: %s\n' % (res.content))
         # Automatically detect error
         if not self.is_ok(res):
             errors.throw_if_parsable(res)

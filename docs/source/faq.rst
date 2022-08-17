@@ -14,6 +14,35 @@
 .. intinclude:: faq-int.rst
 .. extinclude:: faq-ext.rst
 
+.. rubric:: 怎么配置 SQL / DataFrame 的执行选项？
+    :name: faq_options
+
+ODPS SQL 的执行选项可在 `这里 <https://help.aliyun.com/apsara/enterprise/v_3_12_0_20200630/odps/enterprise-ascm-user-guide/common-maxcompute-sql-parameter-settings.html>`_ 找到。设置时，可将该选项设置到 ``options.sql.settings``，即
+
+.. code-block:: python
+
+    from odps import options
+    # 将 <option_name> 和 <option_value> 替换为选项名和选项值
+    options.sql.settings = {'<option_name>': '<option_value>'}
+
+也可在每次调用执行时即席配置，该配置中的配置项会覆盖全局配置。
+
+- 当使用 ``odps.execute_sql`` 时，可以使用
+
+  .. code-block:: python
+
+      from odps import options
+      # 将 <option_name> 和 <option_value> 替换为选项名和选项值
+      o.execute_sql('<sql_statement>', hints={'<option_name>': '<option_value>'})
+
+- 当使用 ``dataframe.execute`` 或 ``dataframe.persist`` 时，可以使用
+
+  .. code-block:: python
+
+      from odps import options
+      # 将 <option_name> 和 <option_value> 替换为选项名和选项值
+      df.persist('<table_name>', hints={'<option_name>': '<option_value>'})
+
 .. rubric:: 读取数据时报"project is protected"
     :name: faq_protected
 

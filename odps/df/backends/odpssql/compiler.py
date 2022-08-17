@@ -214,6 +214,19 @@ class OdpsSQLCompiler(Backend):
         if expr._mapjoin:
             self._ctx._mapjoin_hints.append(self._ctx.get_collection_alias(expr.rhs)[0])
 
+        if expr._skewjoin:
+            skewjoin_expr = self._ctx.get_collection_alias(expr.rhs)[0]
+            if isinstance(expr._skewjoin, list):
+                skewjoin_expr += '({0})'.format(', '.join(expr._skewjoin))
+            if expr._skewjoin_values:
+                skewjoin_expr += '({0})'.format(
+                    ', '.join(
+                        '({0})'.format(', '.join(repr(s) for s in values))
+                        for values in expr._skewjoin_values
+                    )
+                )
+            self._ctx._skewjoin_hints.append(skewjoin_expr)
+
         args = expr.args
         self._ctx._expr_raw_args[id(expr)] = args
         for arg_name in expr._args:
@@ -306,8 +319,11 @@ class OdpsSQLCompiler(Backend):
                 node.accept(self)
                 traversed.add(id(node))
 
-        if expr is root_expr and self._select_clause is None and \
-                self._ctx._mapjoin_hints:
+        if (
+            expr is root_expr
+            and self._select_clause is None
+            and (self._ctx._mapjoin_hints or self._ctx._skewjoin_hints)
+        ):
             self.add_select_clause(expr, '* ')
 
         sql = self.to_sql().strip()
@@ -468,10 +484,22 @@ class OdpsSQLCompiler(Backend):
             self.sub_sql_to_from_clause(expr.input)
 
         self._select_clause = select_clause
+        join_hints = []
         if self._ctx._mapjoin_hints:
-            self._select_clause = '/*+mapjoin({0})*/ {1}'.format(
-                ','.join(self._ctx._mapjoin_hints), self._select_clause)
+            join_hints.append(
+                'mapjoin({0})'.format(', '.join(self._ctx._mapjoin_hints))
+            )
             self._ctx._mapjoin_hints = []
+        if self._ctx._skewjoin_hints:
+            join_hints.append(
+                'skewjoin({0})'.format(', '.join(self._ctx._skewjoin_hints))
+            )
+            self._ctx._skewjoin_hints = []
+
+        if join_hints:
+            self._select_clause = '/*+ {0} */ {1}'.format(
+                ', '.join(join_hints), self._select_clause
+            )
 
     def add_from_clause(self, expr, from_clause):
         if self._from_clause is None:

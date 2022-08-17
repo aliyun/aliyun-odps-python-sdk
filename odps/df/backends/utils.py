@@ -166,7 +166,9 @@ def _reorder_pd(frame, table, cast=False):
         if dest_col.name not in df_col_dict:
             data_dict[dest_col.name] = [None] * size
         else:
-            src_type = df_type_to_odps_type(df_col_dict[dest_col.name].type)
+            src_type = df_type_to_odps_type(
+                df_col_dict[dest_col.name].type, project=table.project
+            )
             if src_type == dest_col.type:
                 data_dict[dest_col.name] = frame.values[case_dict[dest_col.name]]
             elif dest_col.type.can_implicit_cast(src_type) or cast:

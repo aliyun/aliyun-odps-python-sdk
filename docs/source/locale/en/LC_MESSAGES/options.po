@@ -97,7 +97,7 @@ msgid "默认 Project"
 msgstr "Default project"
 
 #: ../../source/options.rst:31
-msgid "log_view_host"
+msgid "logview_host"
 msgstr ""
 
 #: ../../source/options.rst:31
@@ -105,7 +105,7 @@ msgid "LogView 主机名"
 msgstr "LogView host name"
 
 #: ../../source/options.rst:33
-msgid "log_view_hours"
+msgid "logview_hours"
 msgstr ""
 
 #: ../../source/options.rst:33
@@ -412,9 +412,9 @@ msgid "df.supersede_libraries"
 msgstr ""
 
 #: ../../source/options.rst:99
-msgid "使用自行上传的numpy替换服务中的版本"
+msgid "使用自行上传的包替换服务中的版本"
 msgstr ""
-"Use ``numpy`` package resource to supersede the version provided by "
+"Use uploaded package resource to supersede the version provided by "
 "MaxCompute"
 
 #: ../../source/options.rst:100

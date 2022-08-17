@@ -189,7 +189,7 @@ class ODPSDialect(default.DefaultDialect):
         secret_access_key = url.password
         if secret_access_key is None and options.account is not None:
             secret_access_key = options.account.secret_access_key
-        logview_host = options.log_view_host
+        logview_host = options.logview_host
         endpoint = None
         session_name = None
         use_sqa = False

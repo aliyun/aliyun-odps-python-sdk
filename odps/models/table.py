@@ -14,13 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 from datetime import datetime
+from types import GeneratorType
 
-from .core import LazyLoad, JSONRemoteModel
-from .record import Record
-from .partitions import Partitions
+try:
+    import pyarrow as pa
+except (AttributeError, ImportError):
+    pa = None
+
 from .. import types as odps_types, serializers, utils, readers
 from ..compat import six, dir2
+from .core import LazyLoad, JSONRemoteModel
+from .readers import TunnelArrowReader, TunnelRecordReader
+from .record import Record
+from .partitions import Partitions
 
 
 class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
@@ -126,6 +134,179 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
 
     def __dir__(self):
         return sorted(set(dir2(self)) - set(type(self)._parent_attrs))
+
+
+class TableRecordReader(TunnelRecordReader):
+    def __init__(self, table, download_session, partition_spec=None):
+        super(TableRecordReader, self).__init__(
+            table, download_session
+        )
+        self._partition_spec = partition_spec
+
+    @property
+    def schema(self):
+        return self._parent.schema
+
+    def _get_process_split_reader(self):
+        rest_client = self._parent._client
+        table_name = self._parent.name
+        project = self._parent.project.name
+        tunnel_endpoint = self._download_session._client.endpoint
+        partition_spec = self._partition_spec
+
+        def read_table_split(conn, download_id, start, count, idx):
+            # read part data
+            from ..tunnel import TableTunnel
+
+            tunnel = TableTunnel(
+                client=rest_client, project=project, endpoint=tunnel_endpoint
+            )
+            session = tunnel.create_download_session(
+                table_name, download_id=download_id, partition_spec=partition_spec
+            )
+            data = session.open_record_reader(start, count).to_pandas()
+            conn.send((idx, data))
+
+        return read_table_split
+
+
+class TableArrowReader(TunnelArrowReader):
+    @property
+    def schema(self):
+        return self._parent.schema
+
+
+class AbstractTableWriter(object):
+    def __init__(
+        self,
+        table,
+        upload_session,
+        blocks=None,
+        commit=True,
+    ):
+        self._table = table
+        self._upload_session = upload_session
+        self._commit = commit
+        self._closed = False
+
+        self._blocks = blocks or upload_session.blocks or [0, ]
+        self._blocks_writes = [False] * len(self._blocks)
+        self._blocks_writers = [None] * len(self._blocks)
+
+        for block in (upload_session.blocks or ()):
+            self._blocks_writes[self._blocks.index(block)] = True
+
+    @property
+    def upload_id(self):
+        return self._upload_session.id
+
+    @property
+    def status(self):
+        return self._upload_session.status
+
+    def _open_writer(self, block_id, compress):
+        raise NotImplementedError
+
+    def _write_contents(self, writer, *args):
+        raise NotImplementedError
+
+    def write(self, *args, **kwargs):
+        if self._closed:
+            raise IOError('Cannot write to a closed writer.')
+
+        block_id = kwargs.get('block_id')
+        if block_id is None:
+            if type(args[0]) in six.integer_types:
+                block_id = args[0]
+                args = args[1:]
+            else:
+                block_id = 0
+
+        compress = kwargs.get('compress', False)
+        idx = self._blocks.index(block_id)
+        writer = self._blocks_writers[idx]
+        if writer is None:
+            writer = self._open_writer(block_id, compress)
+
+        self._write_contents(writer, *args)
+        self._blocks_writes[idx] = True
+
+    def close(self):
+        for writer in self._blocks_writers:
+            if writer is not None:
+                writer.close()
+
+        if self._commit:
+            written_blocks = [
+                block
+                for block, block_write in zip(self._blocks, self._blocks_writes)
+                if block_write
+            ]
+            self._upload_session.commit(written_blocks)
+
+        self._closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # if an error occurs inside the with block, we do not commit
+        if exc_val is not None:
+            return
+        self.close()
+
+
+class TableRecordWriter(AbstractTableWriter):
+    def _open_writer(self, block_id, compress):
+        writer = self._upload_session.open_record_writer(
+            block_id, compress=compress
+        )
+        self._blocks_writers[block_id] = writer
+        return writer
+
+    def _write_contents(self, writer, *args):
+        if len(args) == 1:
+            arg = args[0]
+            if isinstance(arg, Record):
+                records = [arg, ]
+            elif isinstance(arg, (list, tuple)):
+                if isinstance(arg[0], Record):
+                    records = arg
+                elif isinstance(arg[0], (list, tuple)):
+                    records = (self._table.new_record(vals) for vals in arg)
+                else:
+                    records = [self._table.new_record(arg), ]
+            elif isinstance(arg, GeneratorType):
+                try:
+                    # peek the first element and then put back
+                    next_arg = six.next(arg)
+                    chained = itertools.chain((next_arg,), arg)
+                    if isinstance(next_arg, Record):
+                        records = chained
+                    else:
+                        records = (self._table.new_record(vals) for vals in chained)
+                except StopIteration:
+                    records = ()
+            else:
+                raise ValueError('Unsupported record type.')
+        elif len(args) > 1:
+            records = args
+        else:
+            raise ValueError('Cannot write to table without contents.')
+
+        for record in records:
+            writer.write(record)
+
+
+class TableArrowWriter(AbstractTableWriter):
+    def _open_writer(self, block_id, compress):
+        writer = self._upload_session.open_arrow_writer(block_id)
+        self._blocks_writers[block_id] = writer
+        return writer
+
+    def _write_contents(self, writer, *args):
+        for arg in args:
+            writer.write(arg)
 
 
 class Table(LazyLoad):
@@ -411,7 +592,16 @@ class Table(LazyLoad):
                                          endpoint=endpoint or self.project._tunnel_endpoint)
         return self._table_tunnel
 
-    def open_reader(self, partition=None, **kw):
+    def open_reader(
+        self,
+        partition=None,
+        reopen=False,
+        endpoint=None,
+        download_id=None,
+        timeout=None,
+        arrow=False,
+        **kw
+    ):
         """
         Open the reader to read the entire records from this table or its partition.
 
@@ -419,13 +609,14 @@ class Table(LazyLoad):
         :param reopen: the reader will reuse last one, reopen is true means open a new reader.
         :type reopen: bool
         :param endpoint: the tunnel service URL
+        :param download_id: use existing download_id to download table contents
+        :param arrow: use arrow tunnel to read data
         :param compress_option: compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :param compress_algo: compression algorithm, work when ``compress_option`` is not provided,
                               can be ``zlib``, ``snappy``
         :param compress_level: used for ``zlib``, work when ``compress_option`` is not provided
         :param compress_strategy: used for ``zlib``, work when ``compress_option`` is not provided
-        :param download_id: use existing download_id to download table contents
         :return: reader, ``count`` means the full size, ``status`` means the tunnel status
 
         :Example:
@@ -438,18 +629,8 @@ class Table(LazyLoad):
 
         from ..tunnel.tabletunnel import TableDownloadSession
 
-        reopen = kw.pop('reopen', False)
-        endpoint = kw.pop('endpoint', None)
-        download_id = kw.pop('download_id', None)
-        timeout = kw.pop('timeout', None)
-        schema = self.schema
-
-        table_name = self.name
-        rest_client = self._client
-        project = self.project
-        tunnel_endpoint = self.project._tunnel_endpoint
-
         tunnel = self._create_table_tunnel(endpoint=endpoint)
+        download_ids = dict()
         if download_id is None:
             download_ids = self._download_ids
             download_id = download_ids.get(partition) if not reopen else None
@@ -461,99 +642,23 @@ class Table(LazyLoad):
                 table=self, partition_spec=partition, timeout=timeout, **kw)
         download_ids[partition] = download_session.id
 
-        class RecordReader(readers.AbstractRecordReader):
-            def __init__(self, partition_spec=None):
-                self._it = iter(self)
-                self._schema = schema
-                self._partition_spec = partition_spec
+        if arrow:
+            return TableArrowReader(self, download_session)
+        else:
+            return TableRecordReader(self, download_session, partition)
 
-            @property
-            def download_id(self):
-                return download_session.id
-
-            @property
-            def count(self):
-                return download_session.count
-
-            @property
-            def status(self):
-                return download_session.status
-
-            def __iter__(self):
-                for record in self.read():
-                    yield record
-
-            def __next__(self):
-                return next(self._it)
-
-            next = __next__
-
-            def _iter(self, start=None, end=None, step=None):
-                count = self._calc_count(start, end, step)
-                return self.read(start=start, count=count, step=step)
-
-            def read(self, start=None, count=None, step=None,
-                     compress=False, columns=None):
-                start = start or 0
-                step = step or 1
-                count = count*step if count is not None else self.count-start
-
-                if count == 0:
-                    return
-
-                with download_session.open_record_reader(
-                        start, count, compress=compress, columns=columns) as reader:
-                    for record in reader[::step]:
-                        yield record
-
-            def to_pandas(self, n_process=1):
-                import pandas as pd
-                import multiprocessing
-                from multiprocessing import Pipe
-
-                session_id, count = download_session.id, download_session.count
-                if n_process == 1:
-                    return super(RecordReader, self).to_pandas()
-
-                try:
-                    _mp_context = multiprocessing.get_context('fork')
-                except ValueError:
-                    raise ValueError('`n_process > 1` is not supported on Windows.')
-
-                def read_table_split(conn, download_id, start, count, idx, partition_spec=None):
-                    # read part data
-                    from odps.tunnel import TableTunnel
-                    tunnel = TableTunnel(client=rest_client, project=project,
-                                         endpoint=tunnel_endpoint)
-                    session = tunnel.create_download_session(table_name, download_id=download_id,
-                                                             partition_spec=partition_spec)
-                    data = session.open_record_reader(start, count).to_pandas()
-                    conn.send((idx, data))
-
-                split_count = count // n_process + (count % n_process != 0)
-                start = 0
-                conns = []
-                for i in range(n_process):
-                    parent_conn, child_conn = Pipe()
-                    p = _mp_context.Process(target=read_table_split, args=(child_conn, session_id,
-                                                               start, split_count, i, self._partition_spec))
-                    p.start()
-                    start += split_count
-                    conns.append(parent_conn)
-
-                results = [c.recv() for c in conns]
-                splits = sorted(results, key=lambda x: x[0])
-                return pd.concat([d[1] for d in splits]).reset_index(drop=True)
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                pass
-
-        return RecordReader(partition)
-
-    def open_writer(self, partition=None, blocks=None, **kw):
+    def open_writer(
+        self,
+        partition=None,
+        blocks=None,
+        reopen=False,
+        create_partition=False,
+        commit=True,
+        endpoint=None,
+        upload_id=None,
+        arrow=False,
+        **kw
+    ):
         """
         Open the writer to write records into this table or its partition.
 
@@ -565,6 +670,7 @@ class Table(LazyLoad):
         :type create_partition: bool
         :param endpoint: the tunnel service URL
         :param upload_id: use existing upload_id to upload data
+        :param arrow: use arrow tunnel to write data
         :param compress_option: compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :param compress_algo: compression algorithm, work when ``compress_option`` is not provided,
@@ -583,13 +689,6 @@ class Table(LazyLoad):
         """
 
         from ..tunnel.tabletunnel import TableUploadSession
-        table_object = self
-
-        reopen = kw.pop('reopen', False)
-        commit = kw.pop('commit', True)
-        create_partition = kw.pop('create_partition', False)
-        endpoint = kw.pop('endpoint', None)
-        upload_id = kw.pop('upload_id', None)
 
         if partition and not isinstance(partition, odps_types.PartitionSpec):
             partition = odps_types.PartitionSpec(partition)
@@ -600,8 +699,11 @@ class Table(LazyLoad):
         if upload_id is None:
             upload_ids = self._upload_ids
             upload_id = upload_ids.get(partition) if not reopen else None
-        upload_session = tunnel.create_upload_session(table=self, partition_spec=partition,
-                                                      upload_id=upload_id, **kw)
+        else:
+            upload_ids = dict()
+        upload_session = tunnel.create_upload_session(
+            table=self, partition_spec=partition, upload_id=upload_id, **kw
+        )
 
         if upload_id and upload_session.status.value != TableUploadSession.Status.Normal.value:
             # check upload session status
@@ -609,102 +711,15 @@ class Table(LazyLoad):
             upload_id = None
         upload_ids[partition] = upload_session.id
 
-        blocks = blocks or upload_session.blocks or [0, ]
-        blocks_writes = [False] * len(blocks)
-        blocks_writers = [None] * len(blocks)
+        writer_cls = TableArrowWriter if arrow else TableRecordWriter
 
-        if upload_id:
-            for block in upload_session.blocks:
-                blocks_writes[blocks.index(block)] = True
-
-        class RecordWriter(object):
-            def __init__(self, table):
-                self._table = table
-                self._closed = False
-
-            @property
-            def upload_id(self):
-                return upload_session.id
-
-            @property
-            def status(self):
-                return upload_session.status
-
-            def write(self, *args, **kwargs):
-                from types import GeneratorType
-                from itertools import chain
-
-                if self._closed:
-                    raise IOError('Cannot write to a closed writer.')
-
-                block_id = kwargs.get('block_id')
-                if block_id is None:
-                    if isinstance(args[0], six.integer_types):
-                        block_id = args[0]
-                        args = args[1:]
-                    else:
-                        block_id = 0
-
-                if len(args) == 1:
-                    arg = args[0]
-                    if isinstance(arg, Record):
-                        records = [arg, ]
-                    elif isinstance(arg, (list, tuple)):
-                        if isinstance(arg[0], Record):
-                            records = arg
-                        elif isinstance(arg[0], (list, tuple)):
-                            records = (table_object.new_record(vals) for vals in arg)
-                        else:
-                            records = [table_object.new_record(arg), ]
-                    elif isinstance(arg, GeneratorType):
-                        try:
-                            # peek the first element and then put back
-                            next_arg = six.next(arg)
-                            chained = chain((next_arg, ), arg)
-                            if isinstance(next_arg, Record):
-                                records = chained
-                            else:
-                                records = (table_object.new_record(vals) for vals in chained)
-                        except StopIteration:
-                            records = ()
-                    else:
-                        raise ValueError('Unsupported record type.')
-                elif len(args) > 1:
-                    records = args
-                else:
-                    raise ValueError('Cannot write no records to table.')
-
-                compress = kwargs.get('compress', False)
-                idx = blocks.index(block_id)
-                writer = blocks_writers[idx]
-                if writer is None:
-                    writer = blocks_writers[idx] = \
-                        upload_session.open_record_writer(block_id, compress=compress)
-
-                for record in records:
-                    writer.write(record)
-                blocks_writes[idx] = True
-
+        class _RecordWriter(writer_cls):
             def close(self):
-                [writer.close() for writer in blocks_writers if writer is not None]
-
+                super(_RecordWriter, self).close()
                 if commit:
-                    written_blocks = [block for block, block_write in zip(blocks, blocks_writes) if block_write]
-                    upload_session.commit(written_blocks)
                     upload_ids[partition] = None
 
-                self._closed = True
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                # if an error occurs inside the with block, we do not commit
-                if exc_val is not None:
-                    return
-                self.close()
-
-        return RecordWriter(self)
+        return _RecordWriter(self, upload_session, blocks, commit)
 
     @property
     def project(self):

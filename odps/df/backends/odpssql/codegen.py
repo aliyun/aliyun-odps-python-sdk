@@ -56,6 +56,12 @@ UDF_TMPL_HEADER = '''\
 
 %(xnamedtuple)s
 
+try:
+    # workaround for character not in range error
+    import _strptime
+except:
+    pass
+
 import base64
 import inspect
 import time
