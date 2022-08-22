@@ -42,3 +42,13 @@ if mars_version.startswith("0.8"):
         return tuple(new_nsplits)
 
     mars_utils.on_serialize_nsplits.__code__ = on_serialize_nsplits.__code__
+
+try:
+    from pandas._libs import lib as _pandas__libs_lib
+    from mars import utils as mars_utils
+
+    if not hasattr(_pandas__libs_lib, "NoDefault"):
+        _pandas__libs_lib.NoDefault = mars_utils.NoDefault
+        _pandas__libs_lib.no_default = mars_utils.no_default
+except ImportError:
+    pass

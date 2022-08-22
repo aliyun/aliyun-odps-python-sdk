@@ -349,7 +349,7 @@ class TableUploadSession(serializers.JSONSerializableModel):
 
             if writer_cls == ArrowWriter:
                 params['arrow'] = ''
-                writer = ArrowWriter(upload, compress_option=option)
+                writer = ArrowWriter(self.schema, upload, compress_option=option)
             else:
                 writer = writer_cls(self.schema, upload, compress_option=option)
         return writer

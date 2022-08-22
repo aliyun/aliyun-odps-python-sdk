@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import math
 
 try:
@@ -44,6 +45,14 @@ from odps.models import Schema
 
 @unittest.skipIf(pa is None, "need to install pyarrow")
 class Test(TestBase):
+    def setUp(self):
+        super().setUp()
+        options.sql.use_odps2_extension = True
+
+    def tearDown(self):
+        options.sql.use_odps2_extension = None
+        super().tearDown()
+
     def _upload_data(self, test_table, data, compress=False, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
         writer = upload_ss.open_arrow_writer(0, compress=compress)
@@ -64,23 +73,33 @@ class Test(TestBase):
         data['int_num'] = [2**63-1, 222222, -2 ** 63 + 1, -2 ** 11 + 1] * repeat
         data['float_num'] = [math.pi, math.e, -2.222, 2.222] * repeat
         data['bool'] = [True, False, True, True] * repeat
+        data['date'] = [
+            datetime.date.today() + datetime.timedelta(days=idx) for idx in range(4)
+        ]
+        data['dt'] = [
+            datetime.datetime.now() + datetime.timedelta(days=idx)
+            for idx in range(4)
+        ] * repeat
 
         return pa.RecordBatch.from_pandas(pd.DataFrame(data))
 
     def _create_table(self, table_name):
-        fields = ['id', 'int_num', 'float_num', 'bool']
-        types = ['string', 'bigint', 'double', 'boolean']
+        fields = ['id', 'int_num', 'float_num', 'bool', 'date', 'dt']
+        types = ['string', 'bigint', 'double', 'boolean', 'date', 'datetime']
 
         self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(table_name, schema=Schema.from_lists(fields, types), lifecycle=1)
+        return self.odps.create_table(
+            table_name, schema=Schema.from_lists(fields, types), lifecycle=1
+        )
 
     def _create_partitioned_table(self, table_name):
-        fields = ['id', 'int_num', 'float_num', 'bool']
-        types = ['string', 'bigint', 'double', 'boolean']
+        fields = ['id', 'int_num', 'float_num', 'bool', 'date', 'dt']
+        types = ['string', 'bigint', 'double', 'boolean', 'date', 'datetime']
 
         self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(table_name,
-                                      schema=Schema.from_lists(fields, types, ['ds'], ['string']))
+        return self.odps.create_table(
+            table_name, schema=Schema.from_lists(fields, types, ['ds'], ['string'])
+        )
 
     def _delete_table(self, table_name):
         self.odps.delete_table(table_name)
@@ -96,6 +115,29 @@ class Test(TestBase):
 
         pd_df = self._download_data(test_table_name)
         pd.testing.assert_frame_equal(data.to_pandas(), pd_df)
+
+        data_dict = dict(zip(data.schema.names, data.columns))
+        data_dict["float_num"] = data_dict["float_num"].cast("float32")
+        new_data = pa.RecordBatch.from_arrays(
+            list(data_dict.values()), names=list(data_dict.keys())
+        )
+        self._upload_data(test_table_name, new_data)
+
+        data_dict['int_num'] = data['id']
+        new_data = pa.RecordBatch.from_arrays(
+            list(data_dict.values()), names=list(data_dict.keys())
+        )
+        with self.assertRaises(ValueError) as err_info:
+            self._upload_data(test_table_name, new_data)
+        assert "Failed to cast" in str(err_info.exception)
+
+        data_dict.pop('int_num')
+        new_data = pa.RecordBatch.from_arrays(
+            list(data_dict.values()), names=list(data_dict.keys())
+        )
+        with self.assertRaises(ValueError) as err_info:
+            self._upload_data(test_table_name, new_data)
+        assert "not contain" in str(err_info.exception)
 
     def testDownloadWithSpecifiedColumns(self):
         test_table_name = tn('pyodps_test_arrow_tunnel_columns')
