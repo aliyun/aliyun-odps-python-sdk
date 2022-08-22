@@ -614,7 +614,7 @@ class CupidServiceClient:
     def write_table_data(self, writer_config, to_store_data, write_batch_size=None):
         import pyarrow as pa
         from odps.mars_extension.utils import convert_pandas_object_to_string
-        from odps.tunnel.io.reader import odps_type_to_arrow_type
+        from odps.tunnel.io.types import odps_schema_to_arrow_schema
 
         writer_config = writer_config.copy()
         self._send_cupid_service_request(REQUEST_TYPE_WRITE_TABLE_DATA, writer_config)
@@ -627,7 +627,7 @@ class CupidServiceClient:
             batch_size * batch_idx : batch_size * (batch_idx + 1)
         ]
         batch_data = convert_pandas_object_to_string(batch_data)
-        schema = odps_type_to_arrow_type((writer_config["_table_schema"]))
+        schema = odps_schema_to_arrow_schema((writer_config["_table_schema"]))
         arrow_writer = _create_arrow_writer(sock_out_file, schema)
         while len(batch_data) > 0:
             batch = pa.RecordBatch.from_pandas(

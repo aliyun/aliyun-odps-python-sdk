@@ -278,13 +278,13 @@ class ODPS(object):
         project = self.get_project(name=project)
         return name in project.tables
 
-    def create_table(self, name, schema, project=None, comment=None, if_not_exists=False,
+    def create_table(self, name, schema=None, project=None, comment=None, if_not_exists=False,
                      lifecycle=None, shard_num=None, hub_lifecycle=None, async_=False, **kw):
         """
-        Create an table by given schema and other optional parameters.
+        Create a table by given schema and other optional parameters.
 
         :param name: table name
-        :param schema: table schema. Can be an instance of :class:`odps.models.Schema` or a string like 'col1 string, col2 bigint'
+        :param schema: table schema. Can be an instance of :class:`odps.models.TableSchema` or a string like 'col1 string, col2 bigint'
         :param project: project name, if not provided, will be the default project
         :param comment:  table comment
         :param if_not_exists:  will not create if this table already exists, default False
@@ -300,8 +300,11 @@ class ODPS(object):
         :return: the created Table if not async else odps instance
         :rtype: :class:`odps.models.Table` or :class:`odps.models.Instance`
 
-        .. seealso:: :class:`odps.models.Table`, :class:`odps.models.Schema`
+        .. seealso:: :class:`odps.models.Table`, :class:`odps.models.TableSchema`
         """
+
+        if "table_schema" in kw:
+            schema = kw["table_schema"]
 
         if isinstance(name, six.string_types):
             name = name.strip()
@@ -1906,6 +1909,17 @@ class ODPS(object):
             return cls(None, None, account=account, project=project, endpoint=endpoint)
         except KeyError:
             return None
+
+
+def _get_odps_from_model(self):
+    cur = self
+    while cur is not None and not isinstance(cur, models.Project):
+        cur = cur.parent
+    return cur.odps if cur else None
+
+
+models.RestModel.odps = property(fget=_get_odps_from_model)
+del _get_odps_from_model
 
 try:
     from .internal.core import *  # noqa: F401

@@ -45,7 +45,7 @@ def bothPyAndC(func):
                 from odps import models
                 reload_module(models)
 
-                Schema, Record = models.Schema, models.Record
+                Schema, Record = models.TableSchema, models.Record
 
                 func(self, *args, **kwargs)
             finally:

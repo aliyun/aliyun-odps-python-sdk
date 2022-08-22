@@ -617,7 +617,7 @@ msgstr ""
 
 #: odps.core.ODPS.create_table:4 of
 msgid ""
-"table schema. Can be an instance of :class:`odps.models.Schema` or a "
+"table schema. Can be an instance of :class:`odps.models.TableSchema` or a "
 "string like 'col1 string, col2 bigint'"
 msgstr ""
 
@@ -654,7 +654,7 @@ msgid ":class:`odps.models.Table` or :class:`odps.models.Instance`"
 msgstr ""
 
 #: odps.core.ODPS.create_table:20 of
-msgid ":class:`odps.models.Table`, :class:`odps.models.Schema`"
+msgid ":class:`odps.models.Table`, :class:`odps.models.TableSchema`"
 msgstr ""
 
 #: odps.core.ODPS.create_user:1 of

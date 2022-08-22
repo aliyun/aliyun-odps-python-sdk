@@ -29,14 +29,15 @@ except (AttributeError, ImportError):
     pa = None
 
 
-from ..pb.decoder import Decoder
-from ..pb.errors import DecodeError
-from ..checksum import Checksum
-from ..wireconstants import ProtoWireConstants
 from ... import utils, types, compat
 from ...models import Record
 from ...readers import AbstractRecordReader
 from ...config import options
+from ..pb.decoder import Decoder
+from ..pb.errors import DecodeError
+from ..checksum import Checksum
+from ..wireconstants import ProtoWireConstants
+from .types import odps_schema_to_arrow_schema
 
 try:
     if not options.force_py:
@@ -333,7 +334,7 @@ class TunnelArrowReader(object):
             raise ValueError("To use arrow reader you need to install pyarrow")
 
         self._schema = schema
-        arrow_schema = odps_type_to_arrow_type(schema)
+        arrow_schema = odps_schema_to_arrow_schema(schema)
         if columns is None:
             self._arrow_schema = arrow_schema
         else:
@@ -365,16 +366,14 @@ class TunnelArrowReader(object):
         except StopIteration:
             return None
 
-        array_dict = dict((arr._name, arr) for arr in batch)
-        names, arrays = [], []
-        for name, arr in array_dict.items():
-            names.append(name)
+        arrays = []
+        for arr in batch:
             if arr.type == pa.timestamp('ms'):
                 dt_col = np.vectorize(self._to_datetime)(arr.cast('int64').to_numpy())
                 arrays.append(dt_col)
             else:
                 arrays.append(arr)
-        return pa.RecordBatch.from_arrays(arrays, names=names)
+        return pa.RecordBatch.from_arrays(arrays, names=batch.schema.names)
 
     def read(self):
         batches = []
@@ -417,40 +416,3 @@ class TunnelArrowReader(object):
 
     def __exit__(self, *_):
         self.close()
-
-
-def odps_type_to_arrow_type(odps_schema):
-    from ... import types
-
-    TYPE_MAPPING = {
-        types.string: pa.string(),
-        types.binary: pa.binary(),
-        types.tinyint: pa.int8(),
-        types.smallint: pa.int16(),
-        types.int_: pa.int32(),
-        types.bigint: pa.int64(),
-        types.boolean: pa.bool_(),
-        types.float_: pa.float32(),
-        types.double: pa.float64(),
-        types.date: pa.date32(),
-        types.datetime: pa.timestamp('ns'),
-        types.timestamp: pa.timestamp('ns')
-    }
-
-    arrow_schema = []
-    for schema in odps_schema.simple_columns:
-        col_name = schema.name
-        if schema.type in TYPE_MAPPING:
-            col_type = TYPE_MAPPING[schema.type]
-        else:
-            if isinstance(schema.type, types.Array):
-                col_type = pa.list_(TYPE_MAPPING[schema.type.value_type])
-            elif isinstance(schema.type, types.Decimal):
-                col_type = pa.decimal128(schema.type.precision,
-                                         schema.type.scale)
-            else:
-                raise TypeError('Unsupported type: {}'.format(schema.type))
-
-        arrow_schema.append(pa.field(col_name, col_type))
-
-    return pa.schema(arrow_schema)

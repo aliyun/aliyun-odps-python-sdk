@@ -12,7 +12,7 @@ Definitions
 .. autoclass:: odps.models.Table
     :members:
 
-.. autoclass:: odps.models.Schema
+.. autoclass:: odps.models.TableSchema
     :members:
 
 .. autoclass:: odps.models.table.TableSchema

@@ -192,10 +192,15 @@ class AttributeDict(dict):
             self[k].loads(v)
 
     def dumps(self):
+        from .accounts import BaseAccount
+
         result_dict = dict()
         for k, v in six.iteritems(self):
             if isinstance(v, AttributeDict):
                 result_dict.update((k + '.' + sk, sv) for sk, sv in six.iteritems(v.dumps()))
+            elif isinstance(v[0], BaseAccount) or callable(v[0]):
+                # ignore accounts in config dumps
+                result_dict[k] = None
             elif isinstance(v[0], Redirection):
                 result_dict[k] = v[0].getvalue(silent=True)
             else:

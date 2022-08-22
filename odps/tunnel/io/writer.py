@@ -46,6 +46,7 @@ from ..pb.wire_format import (
 from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
 from .stream import CompressOption, SnappyOutputStream, DeflateOutputStream, RequestsIO
+from .types import odps_schema_to_arrow_schema
 from ... import types, compat, utils, errors, options
 from ...compat import six
 
@@ -488,11 +489,13 @@ class ArrowWriter(object):
 
     CHUNK_SIZE = 65536
 
-    def __init__(self, request_callback, out=None, compress_option=None,
+    def __init__(self, schema, request_callback, out=None, compress_option=None,
                  chunk_size=None):
         if pa is None:
             raise ValueError("To use arrow writer you need to install pyarrow")
 
+        self._schema = schema
+        self._arrow_schema = odps_schema_to_arrow_schema(schema)
         self._request_callback = request_callback
         self._buffer = out or compat.BytesIO()
         self._chunk_size = chunk_size or self.CHUNK_SIZE
@@ -526,6 +529,23 @@ class ArrowWriter(object):
             arrow_batch = pa.RecordBatch.from_pandas(data)
         else:
             arrow_batch = data
+
+        if not arrow_batch.schema.equals(self._arrow_schema):
+            type_dict = dict(zip(arrow_batch.schema.names, arrow_batch.schema.types))
+            column_dict = dict(zip(arrow_batch.schema.names, arrow_batch.columns))
+            arrays = []
+            for name, tp in zip(self._arrow_schema.names, self._arrow_schema.types):
+                if name not in column_dict:
+                    raise ValueError("Input record batch does not contain column %s" % name)
+
+                if tp == type_dict[name]:
+                    arrays.append(column_dict[name])
+                else:
+                    try:
+                        arrays.append(column_dict[name].cast(tp))
+                    except pa.ArrowInvalid:
+                        raise ValueError("Failed to cast column %s to type %s" % (name, tp))
+            arrow_batch = pa.RecordBatch.from_arrays(arrays, names=self._arrow_schema.names)
         assert isinstance(arrow_batch, pa.RecordBatch)
 
         data = arrow_batch.serialize().to_pybytes()

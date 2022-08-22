@@ -18,7 +18,7 @@ from .core import RestModel
 from .projects import Projects
 from .project import Project
 from .tables import Tables
-from .table import Table, TableSchema as Schema  # Schema is to keep compatible
+from .table import Table, TableSchema
 from .instances import Instances
 from .instance import Instance
 from .functions import Functions
@@ -34,5 +34,6 @@ from .tasks import *
 from .record import Record
 from .worker import Worker
 
+Schema = TableSchema  # Schema is to keep compatible
 Column = Schema.TableColumn
 Partition = Schema.TablePartition
