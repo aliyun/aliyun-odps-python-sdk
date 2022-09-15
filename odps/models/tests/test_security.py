@@ -14,7 +14,7 @@
 
 import json
 
-from odps.errors import NoSuchObject, ODPSError
+from odps.errors import NoSuchObject, ODPSError, SecurityQueryError
 from odps.tests.core import TestBase, tn, global_locked
 from odps.compat import unittest
 
@@ -113,8 +113,6 @@ class Test(TestBase):
 
     @global_locked
     def testProjectMethods(self):
-        assert 'ALIYUN' in self.project.run_security_query('LIST ACCOUNTPROVIDERS')
-
         cur_user = self.project.current_user
         assert cur_user.id is not None and cur_user.display_name is not None
 
@@ -202,6 +200,25 @@ class Test(TestBase):
 
         self.project.users.delete(secondary_user)
         self.project.roles.delete(role)
+
+    def testSecurityQuery(self):
+        assert 'ALIYUN' in self.odps.run_security_query('LIST ACCOUNTPROVIDERS')
+        assert 'ALIYUN' in self.odps.execute_security_query('LIST ACCOUNTPROVIDERS')
+
+        inst = self.odps.run_security_query(
+            'INSTALL PACKAGE %s.non_exist_package' % self.project.name
+        )
+        assert isinstance(inst, self.project.AuthQueryInstance)
+
+        with self.assertRaises(SecurityQueryError):
+            inst.wait_for_success()
+        assert inst.is_terminated
+        assert not inst.is_successful
+
+        with self.assertRaises(SecurityQueryError):
+            self.odps.execute_security_query(
+                'INSTALL PACKAGE %s.non_exist_package' % self.project.name
+            )
 
 
 if __name__ == '__main__':

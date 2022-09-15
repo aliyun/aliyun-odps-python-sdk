@@ -100,7 +100,10 @@ class AbstractRecordReader(object):
 
         kw = dict()
         data = [r for r in self]
-        if getattr(self, '_schema', None) is not None:
+        if getattr(self, 'schema', None) is not None:
+            kw['schema'] = odps_schema_to_df_schema(self.schema)
+        elif getattr(self, '_schema', None) is not None:
+            # do not remove as there might be coverage missing
             kw['schema'] = odps_schema_to_df_schema(self._schema)
         elif getattr(self, '_columns', None) is not None:
             cols = []

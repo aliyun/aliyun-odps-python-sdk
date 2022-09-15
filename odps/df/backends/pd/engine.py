@@ -214,7 +214,7 @@ class PandasEngine(Engine):
                     raise ValueError(
                         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
 
-        return CompressImporter(*readers, extract=True, supersede=options.df.supersede_libraries)
+        return CompressImporter(*readers, extract_binary=True, supersede=options.df.supersede_libraries)
 
     @with_thirdparty_libs
     def _do_execute(self, expr_dag, expr, ui=None, progress_proportion=1,

@@ -308,6 +308,10 @@ class WaitTimeoutError(ODPSError, TimeoutError):
     pass
 
 
+class SecurityQueryError(ODPSError):
+    pass
+
+
 class SQAError(ODPSError):
     pass
 

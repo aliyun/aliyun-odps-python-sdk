@@ -47,6 +47,6 @@ cdef class Decoder:
 
     cpdef bytes read_string(self)
 
-    cdef void _load_next_buffer(self)
+    cdef int _load_next_buffer(self) except -1
 
     cdef bint _is_eof(self)

@@ -73,6 +73,10 @@ if TunnelRecordReader is None:
         def count(self):
             return self._curr_cursor
 
+        @property
+        def schema(self):
+            return self._schema
+
         def _read_field(self, data_type):
             if data_type == types.float_:
                 val = self._reader.read_float()

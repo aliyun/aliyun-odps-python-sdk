@@ -21,6 +21,9 @@ from ..compat import urlparse, six
 from .. import options
 
 
+TUNNEL_VERSION = 5
+
+
 class BaseTunnel(object):
     def __init__(self, odps=None, client=None, project=None, endpoint=None):
         self._client = odps.rest if odps is not None else client

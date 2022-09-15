@@ -15,7 +15,10 @@
 # limitations under the License.
 
 import json
+import time
 
+from ..compat import Enum
+from ..errors import SecurityQueryError
 from .core import LazyLoad, XMLRemoteModel
 from .functions import Functions
 from .instances import Instances, CachedInstances
@@ -88,6 +91,51 @@ class Project(LazyLoad):
     class AuthQueryResponse(serializers.XMLSerializableModel):
         _root = 'Authorization'
         result = serializers.XMLNodeField('Result')
+
+    class AuthQueryStatus(Enum):
+        TERMINATED = "TERMINATED"
+        RUNNING = "RUNNING"
+        FAILED = "FAILED"
+
+    class AuthQueryStatusResponse(serializers.XMLSerializableModel):
+        _root = "AuthorizationQuery"
+        result = serializers.XMLNodeField('Result')
+        status = serializers.XMLNodeField(
+            'Status', parse_callback=lambda s: Project.AuthQueryStatus(s.upper())
+        )
+
+    class AuthQueryInstance(object):
+        def __init__(self, project, instance_id, output_json=True):
+            self.project = project
+            self.instance_id = instance_id
+            self.output_json = output_json
+
+        def wait_for_completion(self, interval=1):
+            while not self.is_terminated:
+                time.sleep(interval)
+
+        def wait_for_success(self, interval=1):
+            self.wait_for_completion(interval=interval)
+            status = self.query_status()
+            if status.status == Project.AuthQueryStatus.TERMINATED:
+                return json.loads(status.result) if self.output_json else status.result
+            else:
+                raise SecurityQueryError("Authorization query failed: " + status.result)
+
+        def query_status(self):
+            resource = self.project.resource() + "/authorization/" + self.instance_id
+            resp = self.project._client.get(resource)
+            return Project.AuthQueryStatusResponse.parse(resp)
+
+        @property
+        def is_terminated(self):
+            status = self.query_status()
+            return status.status != Project.AuthQueryStatus.RUNNING
+
+        @property
+        def is_successful(self):
+            status = self.query_status()
+            return status.status == Project.AuthQueryStatus.TERMINATED
 
     name = serializers.XMLNodeField('Name')
     owner = serializers.XMLNodeField('Owner')
@@ -239,15 +287,19 @@ class Project(LazyLoad):
                                         id=user['ID'], display_name=user['DisplayName'])
         return user_cache[user_key]
 
-    def run_security_query(self, query, token=None):
+    def run_security_query(self, query, token=None, output_json=True):
         url = self.resource() + '/authorization'
-        req_obj = self.AuthQueryRequest(query=query, use_json=True).serialize()
-        headers = dict()
+        req_obj = self.AuthQueryRequest(query=query, use_json=output_json).serialize()
+        headers = {'Content-Type': 'application/xml'}
         if token:
             headers['odps-x-supervision-token'] = token
 
-        resp = self.AuthQueryResponse.parse(self._client.post(url, headers=headers, data=req_obj))
-        return json.loads(resp.result)
+        query_resp = self._client.post(url, headers=headers, data=req_obj)
+        resp = self.AuthQueryResponse.parse(query_resp)
+
+        if query_resp.status_code == 200:
+            return json.loads(resp.result) if output_json else resp.result
+        return Project.AuthQueryInstance(self, resp.result, output_json=output_json)
 
     def get_property(self, item, default=_notset):
         if not self._all_props_loaded:

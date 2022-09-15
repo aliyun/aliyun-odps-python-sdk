@@ -22,7 +22,7 @@ import requests
 from .. import errors, serializers, types, options
 from ..compat import Enum, six
 from ..models import Projects, Record, Schema
-from .base import BaseTunnel
+from .base import BaseTunnel, TUNNEL_VERSION
 from .io.writer import RecordWriter, BufferredRecordWriter, StreamRecordWriter, ArrowWriter
 from .io.reader import TunnelRecordReader, TunnelArrowReader
 from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputStream
@@ -33,7 +33,6 @@ try:
 except ImportError:
     np = None
 
-TUNNEL_VERSION = 5
 TUNNEL_DATA_TRANSFORM_VERSION = "v1"
 
 
@@ -347,11 +346,10 @@ class TableUploadSession(serializers.JSONSerializableModel):
             def upload(data):
                 self._client.put(url, data=data, params=params, headers=headers)
 
-            if writer_cls == ArrowWriter:
+            if writer_cls is ArrowWriter:
                 params['arrow'] = ''
-                writer = ArrowWriter(self.schema, upload, compress_option=option)
-            else:
-                writer = writer_cls(self.schema, upload, compress_option=option)
+
+            writer = writer_cls(self.schema, upload, compress_option=option)
         return writer
 
     def open_record_writer(self, block_id=None, compress=False, buffer_size=None):
