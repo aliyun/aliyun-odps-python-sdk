@@ -367,6 +367,9 @@ class Table(LazyLoad):
 
     def __init__(self, **kwargs):
         self._is_extend_info_loaded = False
+        if "table_schema" in kwargs:
+            kwargs["schema"] = kwargs.pop("table_schema")
+
         super(Table, self).__init__(**kwargs)
 
         try:

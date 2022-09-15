@@ -15,14 +15,15 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-import zipfile
-import tarfile
-import sys
 import os
 import shutil
+import sys
+import tarfile
 import tempfile
+import textwrap
+import zipfile
 
-from odps.compat import BytesIO as StringIO, six
+from odps.compat import BytesIO, six
 from odps.tests.core import TestBase
 from odps.compat import unittest
 from odps.lib import importer
@@ -48,27 +49,29 @@ class Test(TestBase):
         sys.meta_path = self.meta_path
 
     def testImport(self):
-        zip_io = StringIO()
+        zip_io = BytesIO()
         zip_f = zipfile.ZipFile(zip_io, 'w')
         zip_f.writestr('testa/a.py', 'a = 1')
         zip_f.close()
 
-        tar_io = StringIO()
+        tar_io = BytesIO()
         tar_f = tarfile.TarFile(fileobj=tar_io, mode='w')
-        tar_f.addfile(tarfile.TarInfo(name='testb/__init__.py'), fileobj=StringIO())
+        tar_f.addfile(tarfile.TarInfo(name='testb/__init__.py'), fileobj=BytesIO())
         info = tarfile.TarInfo(name='testb/b.py')
-        c = to_binary('from a import a; b = a + 1')
-        s = StringIO(c)
+        c = b'from a import a; b = a + 1'
+        s = BytesIO(c)
         info.size = len(c)
         tar_f.addfile(info, fileobj=s)
         tar_f.close()
 
         dict_io_init = dict()
-        dict_io_init['/opt/test_pyodps_dev/testc/__init__.py'] = StringIO()
-        dict_io_init['/opt/test_pyodps_dev/testc/c.py'] = StringIO(to_binary('from a import a; c = a + 2'))
+        dict_io_init['/opt/test_pyodps_dev/testc/__init__.py'] = BytesIO()
+        dict_io_init['/opt/test_pyodps_dev/testc/c.py'] = BytesIO(b'from a import a; c = a + 2')
+        dict_io_init['/opt/test_pyodps_dev/testc/sub/__init__.py'] = BytesIO(b'from . import mod')
+        dict_io_init['/opt/test_pyodps_dev/testc/sub/mod.py'] = BytesIO(b'from ..c import c')
 
         dict_io_file = dict()
-        dict_io_file['/opt/test_pyodps_dev/testd/d.py'] = StringIO(to_binary('from a import a; d = a + 3'))
+        dict_io_file['/opt/test_pyodps_dev/testd/d.py'] = BytesIO(b'from a import a; d = a + 3')
 
         zip_io.seek(0)
         tar_io.seek(0)
@@ -86,12 +89,13 @@ class Test(TestBase):
         from testc.c import c
         self.assertEqual(c, 3)
         self.assertRaises(ImportError, __import__, 'c', fromlist=[])
+        self.assertRaises(ImportError, __import__, 'sub', fromlist=[])
         from d import d
         self.assertEqual(d, 4)
 
     def testRealImport(self):
         six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
-        zip_io = StringIO()
+        zip_io = BytesIO()
         zip_f = zipfile.ZipFile(zip_io, 'w')
         zip_f.write(six_path, arcname='mylib/five.py')
         zip_f.close()
@@ -104,13 +108,42 @@ class Test(TestBase):
         import five
         self.assertEqual(list(to_binary('abc')), list(five.binary_type(to_binary('abc'))))
 
+    def testImportWithPackageResource(self):
+        test_src = textwrap.dedent("""
+        import os
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "src_file.txt"), "r") as sf:
+            pass
+        """)
+
+        zip_io = BytesIO()
+        zip_f = zipfile.ZipFile(zip_io, 'w')
+        zip_f.writestr('test_all_imp/src_file.txt', '')
+        zip_f.writestr('test_all_imp/__init__.py', test_src)
+        zip_f.close()
+
+        zip_io.seek(0)
+        old_meta_path = [mp for mp in sys.meta_path]
+
+        with self.assertRaises(IOError):
+            sys.meta_path.append(CompressImporter(zipfile.ZipFile(zip_io, 'r'), extract_binary=True))
+            __import__("test_all_imp")
+
+        sys.meta_path = old_meta_path
+        sys.modules.pop("test_all_imp", None)
+
+        try:
+            CompressImporter(zipfile.ZipFile(zip_io, 'r'), extract_all=True)
+            __import__("test_all_imp")
+        finally:
+            shutil.rmtree(CompressImporter._extract_path)
+            sys.meta_path = old_meta_path
+            sys.modules.pop("test_all_imp", None)
+
     def testBinaryImport(self):
-        zip_io = StringIO()
+        zip_io = BytesIO()
         zip_f = zipfile.ZipFile(zip_io, 'w')
         zip_f.writestr('test_a/a.so', '')
         zip_f.writestr('test_a/__init__.py', '')
-        zip_f.writestr('testdir/test_b/b.so', '')
-        zip_f.writestr('testdir/test_b/__init__.py', '')
         zip_f.writestr('test_direct.py', '')
         zip_f.close()
 
@@ -119,11 +152,11 @@ class Test(TestBase):
 
         try:
             zip_io.seek(0)
-            CompressImporter(zipfile.ZipFile(zip_io, 'r'), extract=True)
+            CompressImporter(zipfile.ZipFile(zip_io, 'r'), extract_binary=True)
             self.assertTrue(os.path.exists(CompressImporter._extract_path))
-            import test_direct, test_a, test_b
-            del test_direct, test_a, test_b
-            del sys.modules['test_direct'], sys.modules['test_a'], sys.modules['test_b']
+            import test_direct, test_a
+            del test_direct, test_a
+            del sys.modules['test_direct'], sys.modules['test_a']
         finally:
             shutil.rmtree(CompressImporter._extract_path)
             CompressImporter._extract_path = None

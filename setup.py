@@ -254,7 +254,8 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
             pass
 
         setup_options['cmdclass'].update({'build_ext': build_ext})
-        setup_options['ext_modules'] = cythonize(extensions)
+        force_recompile = bool(int(os.getenv("CYTHON_FORCE_RECOMPILE", "0")))
+        setup_options['ext_modules'] = cythonize(extensions, force=force_recompile)
     except:
         pass
 

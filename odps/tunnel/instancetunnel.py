@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base import BaseTunnel
+from .base import BaseTunnel, TUNNEL_VERSION
 from .io.reader import TunnelRecordReader, TunnelArrowReader
 from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputStream
 from .errors import TunnelError
@@ -82,9 +82,12 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
 
     def _init(self):
         params = {'downloads': ''}
-        headers = {'Content-Length': 0}
+        headers = {
+            'Content-Length': 0,
+            'x-odps-tunnel-version': TUNNEL_VERSION,
+        }
         # Now we use DirectDownloadMode to fetch session results(any other method is removed)
-        # This mode, only one request needed. So we dont have to send request here ..
+        # This mode, only one request needed. So we don't have to send request here ..
         if not self._sessional:
             if self._limit_enabled:
                 params['instance_tunnel_limit_enabled'] = ''
@@ -101,7 +104,10 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     def reload(self):
         if not self._sessional:
             params = {'downloadid': self.id}
-            headers = {'Content-Length': 0}
+            headers = {
+                'Content-Length': 0,
+                'x-odps-tunnel-version': TUNNEL_VERSION,
+            }
             if self._sessional:
                 params['cached'] = ''
                 params['taskname'] = self._session_task_name
@@ -118,11 +124,11 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         else:
             self.status = InstanceDownloadSession.Status.Normal
 
-    def _open_reader(self, start, count, compress=False, columns=None, reader_cls=None):
+    def _open_reader(self, start, count, compress=False, columns=None, arrow=False, reader_cls=None):
         compress_option = self._compress_option or CompressOption()
 
         params = {}
-        headers = {'x-odps-tunnel-version': 4}
+        headers = {'x-odps-tunnel-version': TUNNEL_VERSION}
         if self._sessional:
             params['cached'] = ''
             params['taskname'] = self._session_task_name
@@ -145,6 +151,9 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         if columns is not None and len(columns) > 0:
             col_name = lambda col: col.name if isinstance(col, types.Column) else col
             params['columns'] = ','.join(col_name(col) for col in columns)
+
+        if arrow:
+            params['arrow'] = ''
 
         url = self._instance.resource()
         resp = self._client.get(url, stream=True, params=params, headers=headers)
@@ -191,18 +200,21 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         return reader_cls(self.schema, input_stream, columns=columns)
 
     def open_record_reader(self, start, count, compress=False, columns=None):
-        return self._open_reader(start, count, compress=compress, columns=columns,
-                                 reader_cls=TunnelRecordReader)
+        return self._open_reader(
+            start, count, compress=compress, columns=columns, reader_cls=TunnelRecordReader
+        )
 
     def open_arrow_reader(self, start, count, compress=False, columns=None):
-        return self._open_reader(start, count, compress=compress, columns=columns,
-                                 reader_cls=TunnelArrowReader)
+        return self._open_reader(
+            start, count, compress=compress, columns=columns, arrow=True, reader_cls=TunnelArrowReader
+        )
 
     if np is not None:
         def open_pandas_reader(self, start, count, compress=False, columns=None):
             from .pdio.pdreader_c import TunnelPandasReader
-            return self._open_reader(start, count, compress=compress, columns=columns,
-                                     reader_cls=TunnelPandasReader)
+            return self._open_reader(
+                start, count, compress=compress, columns=columns, reader_cls=TunnelPandasReader
+            )
 
 
 class InstanceTunnel(BaseTunnel):

@@ -1776,16 +1776,38 @@ class ODPS(object):
         setattr(sec_options, option_name, value)
         sec_options.update()
 
-    def run_security_query(self, query, project=None, token=None):
+    def run_security_query(self, query, project=None, token=None, output_json=True):
         """
-        Run a security query to grant / revoke / query privileges
+        Run a security query to grant / revoke / query privileges. If the query is `install package`
+        or `uninstall package`, return a waitable AuthQueryInstance object, otherwise returns
+        the result string or json value.
 
-        :param query: query text
-        :param project: project name, if not provided, will be the default project
-        :return: a JSON object representing the result.
+        :param str query: query text
+        :param str project: project name, if not provided, will be the default project
+        :param bool output_json: parse json for the output
+        :return: result string / json object
         """
         project = self.get_project(name=project)
-        return project.run_security_query(query, token=token)
+        return project.run_security_query(query, token=token, output_json=output_json)
+
+    def execute_security_query(self, query, project=None, token=None, output_json=True):
+        """
+        Execute a security query to grant / revoke / query privileges and returns
+        the result string or json value.
+
+        :param str query: query text
+        :param str project: project name, if not provided, will be the default project
+        :param bool output_json: parse json for the output
+        :return: result string / json object
+        """
+        from .models import Project
+
+        instance_or_result = self.run_security_query(
+            query, project=project, token=token, output_json=output_json
+        )
+        if not isinstance(instance_or_result, Project.AuthQueryInstance):
+            return instance_or_result
+        return instance_or_result.wait_for_success()
 
     @utils.deprecated('You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. Try `run_sql_interactive`.')
     def attach_session(self, session_name, taskname=None, hints=None):

@@ -303,6 +303,7 @@ def to_mars_dataframe(
         runtime_endpoint
         or kw.pop("cupid_internal_endpoint", None)
         or cupid_options.cupid.runtime.endpoint
+        or odps.endpoint
     )
     odps_params = dict(project=odps.project, endpoint=runtime_endpoint)
 
@@ -484,6 +485,7 @@ def persist_mars_dataframe(
         runtime_endpoint
         or kw.pop("cupid_internal_endpoint", None)
         or cupid_options.cupid.runtime.endpoint
+        or odps.endpoint
     )
     odps_params = dict(project=odps.project, endpoint=runtime_endpoint)
     if isinstance(odps.account, AliyunAccount):
@@ -519,7 +521,7 @@ def run_script_in_mars(odps, script, mode="exec", n_workers=1, command_argv=None
     )
     odps_params = dict(
         project=odps.project,
-        endpoint=runtime_endpoint or cupid_options.cupid.runtime.endpoint,
+        endpoint=runtime_endpoint or cupid_options.cupid.runtime.endpoint or odps.endpoint,
     )
     run_script(
         script,
@@ -558,7 +560,7 @@ def run_mars_job(
         )
         r.op.extra_params["project"] = odps.project
         r.op.extra_params["endpoint"] = (
-            runtime_endpoint or cupid_options.cupid.runtime.endpoint
+            runtime_endpoint or cupid_options.cupid.runtime.endpoint or odps.endpoint
         )
         r.execute()
     finally:

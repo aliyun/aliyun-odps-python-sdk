@@ -162,12 +162,12 @@ cdef class Decoder:
         else:
             return b''.join(result)
 
-    cdef void _load_next_buffer(self):
+    cdef int _load_next_buffer(self) except -1:
         cdef bytes data = self._stream.read(_BUFFER_SIZE)
         cdef size_t length = len(data)
         if length == 0:
             self._is_source_eof = True
-            return
+            return 0
 
         cdef bytes left
         if self._end - self._begin > 0:
@@ -178,6 +178,7 @@ cdef class Decoder:
 
         self._begin = self._buffer
         self._end = self._begin + len(self._buffer)
+        return 0
 
     cdef bint _is_eof(self):
         return self._is_source_eof and (self._begin >= self._end)

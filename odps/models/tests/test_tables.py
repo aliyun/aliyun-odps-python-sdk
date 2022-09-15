@@ -20,10 +20,11 @@ import textwrap
 from datetime import datetime
 
 try:
+    import numpy as np
     import pandas as pd
     import pyarrow as pa
 except (AttributeError, ImportError):
-    pd = pa = None
+    np = pd = pa = None
 
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
@@ -396,6 +397,11 @@ class Test(TestBase):
             self.assertEqual(record[0], '1')
             self.assertEqual(record.num, '1')
 
+        if pd is not None:
+            with table.open_reader(partition, reopen=True) as reader:
+                pd_data = reader.to_pandas()
+                self.assertEqual(len(pd_data), 1)
+
         partition = 'pt=20151123'
         self.assertRaises(NoSuchObject, lambda: table.open_writer(partition, create_partition=False))
 
@@ -447,9 +453,24 @@ class Test(TestBase):
         except ValueError as ex:
             self.assertEqual(str(ex), 'Mock error')
 
+    @unittest.skipIf(pd is None, "Need pandas to run this test")
+    def testMultiProcessToPandas(self):
+        test_table_name = tn('pyodps_t_tmp_mproc_read_table')
+        schema = Schema.from_lists(['num'], ['bigint'])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self.odps.create_table(test_table_name, schema)
+        with table.open_writer(arrow=True) as writer:
+            writer.write(pd.DataFrame({"num": np.random.randint(0, 1000, 1000)}))
+
+        with table.open_reader() as reader:
+            pd_data = reader.to_pandas(n_process=2)
+            assert len(pd_data) == 1000
+
     @unittest.skipIf(pa is None, "Need pyarrow to run this test")
     def testSimpleArrowReadWriteTable(self):
-        test_table_name = tn('pyodps_t_tmp_simpe_arrow_read_write_table')
+        test_table_name = tn('pyodps_t_tmp_simple_arrow_read_write_table')
         schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
@@ -466,6 +487,10 @@ class Test(TestBase):
             batches = list(reader)
             self.assertEqual(len(batches), 1)
             self.assertEqual(batches[0].num_rows, 5)
+
+        with table.open_reader(partition, reopen=True, arrow=True) as reader:
+            pd_data = reader.to_pandas()
+            self.assertEqual(len(pd_data), 5)
 
         table.drop()
 

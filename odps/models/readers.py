@@ -159,9 +159,8 @@ class TunnelArrowReader(object):
         ) as reader:
             return reader.read()
 
-    def to_pandas(self):
-        with self._download_session.open_arrow_reader() as reader:
-            return reader.to_pandas()
+    def to_pandas(self, start=None, count=None, columns=None):
+        return self.read_all(start=start, count=count, columns=columns).to_pandas()
 
     def __enter__(self):
         return self

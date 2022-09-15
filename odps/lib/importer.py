@@ -53,7 +53,7 @@ else:
 def _clean_extract():
     if CompressImporter._extract_path:
         import shutil
-        shutil.rmtree(CompressImporter._extract_path)
+        shutil.rmtree(CompressImporter._extract_path, ignore_errors=True)
 
 
 class CompressImportError(ImportError):
@@ -80,9 +80,9 @@ class CompressImporter(BASE):
         """
         self._files = []
         self._prefixes = defaultdict(lambda: set(['']))
-        self._extract = kwargs.get('extract', False)
+        self._extract_binary = kwargs.get('extract_binary', kwargs.get('extract', False))
+        self._extract_all = kwargs.get('extract_all', False)
         self._supersede = kwargs.get('supersede', True)
-        self._local_warned = False
 
         for f in compressed_files:
             if isinstance(f, zipfile.ZipFile):
@@ -113,35 +113,39 @@ class CompressImporter(BASE):
                 raise TypeError('Compressed file can only be zipfile.ZipFile or tarfile.TarFile')
 
             if bin_package:
+                # binary packages need to be extracted before use
                 if not ALLOW_BINARY:
-                    raise SystemError('Cannot load binary package. It is quite possible that you are using an old '
-                                      'MaxCompute service which does not support binary packages. If this is '
-                                      'not true, please set `odps.isolation.session.enable` to True or ask your '
-                                      'project owner to change project-level configuration.')
+                    raise SystemError(
+                        'Cannot load binary package. It is quite possible that you are using an old '
+                        'MaxCompute service which does not support binary packages. If this is '
+                        'not true, please set `odps.isolation.session.enable` to True or ask your '
+                        'project owner to change project-level configuration.'
+                    )
                 if need_extract:
                     f = self._extract_archive(f)
+            elif need_extract and self._extract_all:
+                # when it is forced to extract even if it is a text package, also extract
+                f = self._extract_archive(f)
 
-            prefixes = set([''])
-            rendered_names = set()
             dir_prefixes = set()
             if isinstance(f, zipfile.ZipFile):
                 for name in f.namelist():
                     name = name if name.endswith('/') else (name.rsplit('/', 1)[0] + '/')
-                    if name in prefixes:
+                    if name in dir_prefixes:
                         continue
                     try:
                         f.getinfo(name + '__init__.py')
                     except KeyError:
-                        prefixes.add(name)
+                        dir_prefixes.add(name)
             elif isinstance(f, tarfile.TarFile):
                 for member in f.getmembers():
                     name = member.name if member.isdir() else member.name.rsplit('/', 1)[0]
-                    if name in prefixes:
+                    if name in dir_prefixes:
                         continue
                     try:
                         f.getmember(name + '/__init__.py')
                     except KeyError:
-                        prefixes.add(name + '/')
+                        dir_prefixes.add(name + '/')
             elif isinstance(f, (list, dict)):
                 # Force ArchiveResource to run under binary mode to resolve manually
                 # opening __file__ paths in pure-python code.
@@ -155,45 +159,46 @@ class CompressImporter(BASE):
 
                 for name in rendered_names:
                     name = name if name.endswith('/') else (name.rsplit('/', 1)[0] + '/')
-                    if name in prefixes or '/tests/' in name or '/__pycache__/' in name:
+                    if name in dir_prefixes or '/tests/' in name or '/__pycache__/' in name:
                         continue
                     if name + '__init__.py' not in rendered_names:
-                        prefixes.add(name)
                         dir_prefixes.add(name)
                     else:
                         if '/' in name.rstrip('/'):
                             ppath = name.rstrip('/').rsplit('/', 1)[0]
                         else:
                             ppath = ''
-                        prefixes.add(ppath)
                         dir_prefixes.add(ppath)
 
+            # make sure only root packages are included,
+            # otherwise relative imports might be broken
+            path_patch = []
+            for p in sorted(dir_prefixes):
+                parent_exist = False
+                for pp in path_patch:
+                    if p[:len(pp)] == pp:
+                        parent_exist = True
+                        break
+                if parent_exist:
+                    continue
+                path_patch.append(p)
+
             if bin_package:
-                path_patch = []
-                for p in sorted(dir_prefixes):
-                    if p in sys.path:
-                        continue
-                    parent_exist = False
-                    for pp in path_patch:
-                        if p[:len(pp)] == pp and p.rstrip('/') + '/__init__.py' in rendered_names:
-                            parent_exist = True
-                            break
-                    if parent_exist:
-                        continue
-                    path_patch.append(p)
+                path_patch = [p for p in path_patch if p not in sys.path]
                 if self._supersede:
                     sys.path = path_patch + sys.path
                 else:
                     sys.path = sys.path + path_patch
             else:
                 self._files.append(f)
-                if prefixes:
-                    self._prefixes[id(f)] = sorted(prefixes)
+                self._prefixes[id(f)] = sorted([''] + path_patch)
 
     def _extract_archive(self, archive):
-        if not self._extract:
-            raise SystemError('We do not allow file-type resource for binary packages. Please upload an '
-                              'archive-typed resource instead.')
+        if not self._extract_binary and not self._extract_all:
+            raise SystemError(
+                'We do not allow file-type resource for binary packages. Please upload an '
+                'archive-typed resource instead.'
+            )
 
         cls = type(self)
         if not cls._extract_path:

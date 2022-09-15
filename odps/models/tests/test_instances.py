@@ -23,6 +23,11 @@ from datetime import datetime, timedelta
 
 import requests
 
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
 from odps.tests.core import TestBase, to_str, tn, pandas_case, odps2_typed_case
 from odps.compat import unittest, six
 from odps.models import Instance, SQLTask, Schema
@@ -295,6 +300,15 @@ class Test(TestBase):
             records = list(reader)
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['count'], '6')
+
+        if pd is not None:
+            with instance.open_reader(tunnel=True) as reader:
+                pd_data = reader.to_pandas()
+                self.assertEqual(len(pd_data), 1)
+
+            with instance.open_reader(tunnel=False) as reader:
+                pd_data = reader.to_pandas()
+                self.assertEqual(len(pd_data), 1)
 
         table.drop()
 

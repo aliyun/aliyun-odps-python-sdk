@@ -432,3 +432,7 @@ class TunnelRecordReader(BaseTunnelRecordReader, AbstractRecordReader):
         return record
 
     next = __next__
+
+    @property
+    def schema(self):
+        return self._schema
