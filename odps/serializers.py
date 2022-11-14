@@ -20,6 +20,7 @@ from xml.dom import minidom
 import inspect
 
 import requests
+import email.header
 
 from . import compat, utils
 from .compat import ElementTree, six
@@ -50,6 +51,9 @@ def _route_json_path(root, *keys, **kw):
     create_if_not_exists = kw.get('create_if_not_exists', False)
 
     if isinstance(root, six.string_types):
+        root = email.header.decode_header(root)[0][0]
+        if isinstance(root, bytes):
+            root = root.decode("utf-8")
         root = json.loads(root)
 
     for key in keys:
@@ -297,6 +301,9 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
             if issubclass(obj_type, XMLSerializableModel):
                 content = ElementTree.fromstring(content)
             else:
+                content = email.header.decode_header(content)[0][0]
+                if isinstance(content, bytes):
+                    content = content.decode("utf-8")
                 content = json.loads(content)
 
         parent_kw = dict()

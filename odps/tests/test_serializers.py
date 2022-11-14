@@ -16,6 +16,8 @@
 
 from datetime import datetime
 import time
+import email.header
+import base64
 
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest
@@ -67,6 +69,19 @@ LIST_OBJ_LAST_TMPL = '''<?xml version="1.0" ?>
 </objs>
 '''
 
+expected_ascii_json = {
+  "default_value":1,
+  "name":"test1",
+  "nullable":True,
+  "type":"bigint",
+}
+
+expected_email_header_json = {
+  "default_value":1,
+  "name":"测试一",
+  "nullable":True,
+  "type":"bigint",
+}
 
 class Example(XMLSerializableModel):
     __slots__ = 'name', 'type', 'date', 'lessons', 'teacher', 'student',\
@@ -119,6 +134,15 @@ class Example(XMLSerializableModel):
     professors = XMLNodesReferencesField(Teacher, 'Professors', 'Professor')
     properties = XMLNodePropertiesField('Config', 'Property', key_tag='Name', value_tag='Value')
     jsn = XMLNodeReferenceField(Json, 'json')
+
+
+class JsonExample(JSONSerializableModel):
+    __slots__ = 'default_value', 'name', 'nullable', 'type'
+
+    default_value = JSONNodeField('default_value')
+    name = JSONNodeField('name')
+    nullable = JSONNodeField('nullable')
+    type = JSONNodeField('type')
 
 
 class Test(TestBase):
@@ -182,6 +206,32 @@ class Test(TestBase):
             i += 1
 
         self.assertEqual(i, 3)
+
+    def testJsonSerializeAscii(self):
+        jsn = JsonExample(default_value=1, name="test1", nullable=True, type="bigint")
+        sel = jsn.serialize()
+        self.assertEqual(to_str(json.dumps(expected_ascii_json)), to_str(sel))
+
+        encoded_str = json.dumps(expected_ascii_json)
+        parsed = jsn.parse(encoded_str)
+        self.assertEqual(expected_ascii_json["default_value"], parsed.default_value)
+        self.assertEqual(expected_ascii_json["name"], parsed.name)
+        self.assertEqual(expected_ascii_json["nullable"], parsed.nullable)
+        self.assertEqual(expected_ascii_json["type"], parsed.type)
+
+    def testJsonSerializeEmailHeader(self):
+        jsn = JsonExample(default_value=1, name="测试一", nullable=True, type="bigint")
+        sel = jsn.serialize()
+        self.assertEqual(to_str(json.dumps(expected_email_header_json)), to_str(sel))
+
+        json_bytes = json.dumps(expected_email_header_json).encode("ascii")
+        email_header = email.header.Header(json_bytes, "UTF-8")
+        encoded_str = email_header.encode(maxlinelen=0)
+        parsed = jsn.parse(encoded_str)
+        self.assertEqual(expected_email_header_json["default_value"], parsed.default_value)
+        self.assertEqual(expected_email_header_json["name"], parsed.name)
+        self.assertEqual(expected_email_header_json["nullable"], parsed.nullable)
+        self.assertEqual(expected_email_header_json["type"], parsed.type)
 
 
 if __name__ == "__main__":
