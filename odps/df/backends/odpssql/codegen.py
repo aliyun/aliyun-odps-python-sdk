@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,6 +56,12 @@ UDF_TMPL_HEADER = '''\
 
 %(xnamedtuple)s
 
+try:
+    # workaround for character not in range error
+    import _strptime
+except:
+    pass
+
 import base64
 import inspect
 import time
@@ -64,6 +70,8 @@ import sys
 
 from odps.udf import annotate
 from odps.distcache import get_cache_file, get_cache_table, get_cache_archive
+
+PY2 = sys.version_info[0] == 2
 
 try:
     from odps.distcache import get_cache_archive_filenames
@@ -165,16 +173,25 @@ def read_lib(lib, f):
     if isinstance(f, (list, dict)):
         return f
     if lib.endswith('.zip') or lib.endswith('.egg') or lib.endswith('.whl'):
-        return zipfile.ZipFile(f.name)
+        if PY2 and hasattr(f, "read"):
+            return zipfile.ZipFile(f)
+        else:
+            return zipfile.ZipFile(f.name)
     if lib.endswith('.tar') or lib.endswith('.tar.gz') or lib.endswith('.tar.bz2'):
         from io import BytesIO
         if lib.endswith('.tar'):
             mode = 'r'
         else:
             mode = 'r:gz' if lib.endswith('.tar.gz') else 'r:bz2'
-        return tarfile.open(name=f.name, mode=mode)
+        if PY2 and hasattr(f, "read"):
+            return tarfile.open(name='', fileobj=f, mode=mode)
+        else:
+            return tarfile.open(name=f.name, mode=mode)
     if lib.endswith('.py'):
-        return {f.name: open(f.name, 'rb')}
+        if PY2 and hasattr(f, "read"):
+            return {f.name: f}
+        else:
+            return {f.name: open(f.name, 'rb')}
 
     raise ValueError(
         'Unknown library type which should be one of zip(egg, wheel), tar, or tar.gz')
@@ -200,6 +217,7 @@ def load_np_generic():
 
 
 UDF_TMPL = '''
+
 @annotate('%(from_type)s->%(to_type)s')
 class %(func_cls_name)s(object):
     def __init__(self):
@@ -264,7 +282,7 @@ class %(func_cls_name)s(object):
 
         res = []
         for t, arg in zip(self.from_types, args):
-            if t == 'datetime' and arg is not None and not isinstance(arg, datetime):
+            if PY2 and t == 'datetime' and arg is not None and not isinstance(arg, datetime):
                 res.append(datetime.fromtimestamp(arg / 1000.0))
             elif t == 'decimal' and arg is not None and isinstance(arg, str):
                 res.append(Decimal(arg))
@@ -281,7 +299,7 @@ class %(func_cls_name)s(object):
 
         t = self.to_type
 
-        if t == 'datetime' and isinstance(arg, datetime):
+        if PY2 and t == 'datetime' and isinstance(arg, datetime):
             if isinstance(arg, np_generic):
                 arg = arg.item()
             return self._to_milliseconds(arg)
@@ -308,8 +326,6 @@ class %(func_cls_name)s(object):
 UDTF_TMPL = '''
 import functools
 from odps.udf import BaseUDTF
-
-PY2 = sys.version_info[0] == 2
 
 if PY2:
     string_type = unicode
@@ -392,7 +408,7 @@ class %(func_cls_name)s(BaseUDTF):
 
         res = []
         for t, arg in zip(self.from_types, args):
-            if t == 'datetime' and arg is not None and not isinstance(arg, datetime):
+            if PY2 and t == 'datetime' and arg is not None and not isinstance(arg, datetime):
                 res.append(datetime.fromtimestamp(arg / 1000.0))
             elif t == 'decimal' and arg is not None and not isinstance(arg, Decimal):
                 res.append(Decimal(arg))
@@ -413,7 +429,7 @@ class %(func_cls_name)s(BaseUDTF):
 
         res = []
         for t, arg in zip(self.to_types, args):
-            if t == 'datetime' and isinstance(arg, datetime):
+            if PY2 and t == 'datetime' and isinstance(arg, datetime):
                 if isinstance(arg, np_generic):
                     arg = arg.item()
                 res.append(self._to_milliseconds(arg))
@@ -528,7 +544,7 @@ class %(func_cls_name)s(BaseUDAF):
 
         res = []
         for t, arg in zip(self.from_types, args):
-            if t == 'datetime' and arg is not None and not isinstance(arg, datetime):
+            if PY2 and t == 'datetime' and arg is not None and not isinstance(arg, datetime):
                 res.append(datetime.fromtimestamp(arg / 1000.0))
             elif t == 'decimal' and arg is not None and not isinstance(arg, Decimal):
                 res.append(Decimal(arg))
@@ -545,7 +561,7 @@ class %(func_cls_name)s(BaseUDAF):
 
         t = self.to_type
 
-        if t == 'datetime' and isinstance(arg, datetime):
+        if PY2 and t == 'datetime' and isinstance(arg, datetime):
             if isinstance(arg, np_generic):
                 arg = arg.item()
             return self._to_milliseconds(arg)

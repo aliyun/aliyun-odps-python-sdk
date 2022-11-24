@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2017 Alibaba Group Holding Ltd.
+# Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -519,7 +519,10 @@ class Test(TestBase):
     def testFailure(self):
         from odps.df.backends.errors import DagDependencyError
 
-        expr1 = self.odps_df[self.odps_df.id / 0 < 0].cache()
+        def err_maker(x):
+            raise ValueError(x)
+
+        expr1 = self.odps_df[self.odps_df.id.map(err_maker), ].cache()
         expr2 = expr1.count()
 
         fs = self.engine.execute(expr2, async_=True)

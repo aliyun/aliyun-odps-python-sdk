@@ -133,7 +133,7 @@ class ODPSSQLEngine(Engine):
         libraries = self._ctx.prepare_resources(self._get_libraries(libraries))
         self._ctx.create_udfs(libraries=libraries)
 
-        if sys.version_info[0] > 2:
+        if sys.version_info[:2] >= (3, 6):
             hints = hints or dict()
             hints['odps.sql.python.version'] = 'cp37'
         instance = self._odps.run_sql(sql, hints=hints, priority=priority, name='PyODPSDataFrameTask',
