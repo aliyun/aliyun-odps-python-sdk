@@ -22,6 +22,7 @@ import warnings
 from .rest import RestClient
 from .config import options
 from .errors import NoSuchObject
+from .errors import ODPSError
 from .tempobj import clean_stored_objects
 from .utils import split_quoted
 from .compat import six, Iterable
@@ -1873,7 +1874,7 @@ class ODPS(object):
     def run_sql_interactive(self, sql, hints=None, **kwargs):
         """
         Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration).
-
+        Won't fallback to offline mode automatically if query not supported or fails
         :param sql: the sql query.
         :param hints: settings for sql query.
         :return: instance.
@@ -1893,6 +1894,27 @@ class ODPS(object):
             self._default_session.wait_for_startup(0.1, service_startup_timeout)
             self._default_session_name = service_name
         return self._default_session.run_sql(sql, hints, **kwargs)
+
+    def run_sql_interactive_with_fallback(self, sql, hints=None, **kwargs):
+        """
+        Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration).
+        If query is not supported or fails, will fallback to offline mode automatically
+        :param sql: the sql query.
+        :param hints: settings for sql query.
+        :return: instance.
+        """
+        inst = None
+        try:
+            if inst is None:
+                inst = self.run_sql_interactive(self, sql, hints=hints, **kwargs)
+            else:
+                inst.wait_for_success(interval=0.2)
+            rd = inst.open_reader(tunnel=True, limit=False)
+            if not rd:
+                raise ODPSError('Get sql result fail')
+            return inst
+        except:
+            return self.execute_sql(sql, hints=hints)
 
     @classmethod
     def _build_account(cls, access_id, secret_access_key):

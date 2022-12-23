@@ -48,6 +48,12 @@ class Test(TestBase):
         sys.path = self.sys_path
         sys.meta_path = self.meta_path
 
+    @staticmethod
+    def _add_tar_directory(tar_file, path):
+        info = tarfile.TarInfo(name=path)
+        info.type = tarfile.DIRTYPE
+        tar_file.addfile(info, fileobj=BytesIO())
+
     def testImport(self):
         zip_io = BytesIO()
         zip_f = zipfile.ZipFile(zip_io, 'w')
@@ -92,6 +98,32 @@ class Test(TestBase):
         self.assertRaises(ImportError, __import__, 'sub', fromlist=[])
         from d import d
         self.assertEqual(d, 4)
+
+    def testRootedArchiveImport(self):
+        tar_io = BytesIO()
+        tar_f = tarfile.TarFile(fileobj=tar_io, mode='w')
+        self._add_tar_directory(tar_f, 'root')
+        self._add_tar_directory(tar_f, 'root/testb.1.0')
+        self._add_tar_directory(tar_f, 'root/testb.1.0/testb.info')
+        tar_f.addfile(tarfile.TarInfo(name='root/testb.1.0/testb.info/INFO.txt'), fileobj=BytesIO())
+        self._add_tar_directory(tar_f, 'root/testb.1.0/testb')
+        tar_f.addfile(tarfile.TarInfo(name='root/testb.1.0/testb/__init__.py'), fileobj=BytesIO())
+        info = tarfile.TarInfo(name='root/testb.1.0/testb/b.py')
+        c = b'b = 2'
+        s = BytesIO(c)
+        info.size = len(c)
+        tar_f.addfile(info, fileobj=s)
+        tar_f.close()
+
+        tar_io.seek(0)
+
+        tar_f = tarfile.TarFile(fileobj=tar_io)
+        importer.ALLOW_BINARY = False
+        imp = CompressImporter(tar_f)
+        sys.meta_path.append(imp)
+
+        from testb.b import b
+        self.assertEqual(b, 2)
 
     def testRealImport(self):
         six_path = os.path.join(os.path.dirname(os.path.abspath(six.__file__)), 'six.py')
@@ -226,6 +258,19 @@ class Test(TestBase):
         finally:
             [f.close() for f in six.itervalues(lib_dict)]
             shutil.rmtree(temp_path)
+
+    def testRepeatImport(self):
+        dict_io_init = dict()
+        dict_io_init['/opt/test_pyodps_dev/testc/__init__.py'] = BytesIO()
+        dict_io_init['/opt/test_pyodps_dev/testc/c.py'] = BytesIO(b'from a import a; c = a + 2')
+        dict_io_init['/opt/test_pyodps_dev/testc/sub/__init__.py'] = BytesIO(b'from . import mod')
+        dict_io_init['/opt/test_pyodps_dev/testc/sub/mod.py'] = BytesIO(b'from ..c import c')
+
+        sys.meta_path.append(CompressImporter(dict_io_init))
+        sys.meta_path.append(CompressImporter(dict_io_init))
+        self.assertIn('/opt/test_pyodps_dev', sys.path)
+        self.assertNotIn('/opt/test_pyodps_dev/testc', sys.path)
+        self.assertNotIn('/opt/test_pyodps_dev/testc/sub', sys.path)
 
 
 if __name__ == '__main__':

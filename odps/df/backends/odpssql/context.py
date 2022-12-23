@@ -155,7 +155,8 @@ class ODPSContext(object):
             tar.close()
 
             res_name = self._gen_resource_name() + '.tar.gz'
-            res = self._odps.create_resource(res_name, 'archive', file_obj=tarbinary.getvalue())
+            res = self._odps.create_resource(res_name, 'archive', file_obj=tarbinary.getvalue(), temp=True)
+            tempobj.register_temp_resource(self._odps, res_name)
             self._path_to_resources[lib] = res
             self._to_drops.append(res)
             ret_libs.append(res)
@@ -166,7 +167,7 @@ class ODPSContext(object):
 
         for func, udf in six.iteritems(self._func_to_udfs):
             udf_name = self._registered_funcs[func]
-            py_resource = self._odps.create_resource(udf_name + '.py', 'py', file_obj=udf)
+            py_resource = self._odps.create_resource(udf_name + '.py', 'py', file_obj=udf, temp=True)
             tempobj.register_temp_resource(self._odps, udf_name + '.py')
             self._to_drops.append(py_resource)
 
@@ -176,8 +177,7 @@ class ODPSContext(object):
                     if not create:
                         resources.append(name)
                     else:
-                        res = self._odps.create_resource(name, 'table',
-                                                         table_name=table_name)
+                        res = self._odps.create_resource(name, 'table', table_name=table_name, temp=True)
                         tempobj.register_temp_resource(self._odps, name)
                         resources.append(res)
                         self._to_drops.append(res)

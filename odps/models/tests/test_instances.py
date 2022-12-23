@@ -78,6 +78,13 @@ class TunnelLimitedInstance(Instance):
 
 
 class Test(TestBase):
+    def setUp(self):
+        super(Test, self).setUp()
+        options.connect_timeout = 10
+
+    def tearDown(self):
+        super(Test, self).tearDown()
+        options.connect_timeout = 120
 
     def testInstances(self):
         self.assertIs(self.odps.get_project().instances, self.odps.get_project().instances)
@@ -238,6 +245,9 @@ class Test(TestBase):
         instance.wait_for_completion()
         self.assertTrue(instance.is_successful())
         self.assertTrue(self.odps.exist_table(test_table))
+
+        instance = self.odps.execute_sql('select id `中文标题` from %s' % test_table)
+        self.assertTrue(instance.is_successful())
 
         instance = self.odps.execute_sql('drop table %s' % test_table)
         self.assertTrue(instance.is_successful())

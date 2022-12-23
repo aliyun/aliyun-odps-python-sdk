@@ -39,6 +39,7 @@ class Test(TestBase):
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
             print("Task results: " + str(sess_instance.get_task_results()))
+            sess_instance.stop()
             raise ex
         # the status should keep consistent
         self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
@@ -54,6 +55,7 @@ class Test(TestBase):
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
             print("Task results: " + str(sess_instance.get_task_results()))
+            sess_instance.stop()
             raise ex
         # the status should keep consistent
         self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
@@ -65,6 +67,7 @@ class Test(TestBase):
         except ODPSError as ex:
             print("LOGVIEW: " + att_instance.get_logview_address())
             print("Task results: " + str(att_instance.get_task_results()))
+            sess_instance.stop()
             raise ex
         # the status should keep consistent
         self.assertTrue(att_instance.status == Instance.Status.RUNNING)
@@ -82,6 +85,7 @@ class Test(TestBase):
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
             print("Task results: " + str(sess_instance.get_task_results()))
+            sess_instance.stop()
             raise ex
         # the status should keep consistent
         self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
@@ -96,6 +100,7 @@ class Test(TestBase):
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
             print("Task results: " + str(sess_instance.get_task_results()))
+            sess_instance.stop()
             raise ex
         # the status should keep consistent
         self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
@@ -131,7 +136,8 @@ class Test(TestBase):
             self.assertTrue(False)
         except ODPSError:
             pass  # good
-        sess_instance.stop()
+        finally:
+            sess_instance.stop()
 
     def testSessionSQL(self):
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
@@ -145,6 +151,7 @@ class Test(TestBase):
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
             print("Task results: " + str(sess_instance.get_task_results()))
+            sess_instance.stop()
             raise ex
         # the status should keep consistent
         self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
@@ -160,6 +167,7 @@ class Test(TestBase):
         except BaseException as ex:
             print("LOGVIEW: " + select_inst.get_logview_address())
             print("Task Result:" + str(select_inst.get_task_results()))
+            sess_instance.stop()
             raise ex
         self.assertTrue(len(rows) == len(TEST_DATA))
         self.assertTrue(len(rows[0]) == len(TEST_DATA[0]))
@@ -167,6 +175,7 @@ class Test(TestBase):
             self.assertTrue(int(rows[index][0]) == int(TEST_DATA[index][0]))
         # OK, clear up
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+        sess_instance.stop()
 
     def testDirectExecuteSQL(self):
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
@@ -181,6 +190,7 @@ class Test(TestBase):
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
             print("Task results: " + str(sess_instance.get_task_results()))
+            sess_instance.stop()
             raise ex
         # the status should keep consistent
         self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
@@ -196,6 +206,7 @@ class Test(TestBase):
         except BaseException as ex:
             print("LOGVIEW: " + select_inst.get_logview_address())
             print("Task Result:" + str(select_inst.get_task_results()))
+            sess_instance.stop()
             raise ex
         self.assertTrue(len(rows) == len(TEST_DATA))
         self.assertTrue(len(rows[0]) == len(TEST_DATA[0]))
@@ -203,6 +214,47 @@ class Test(TestBase):
             self.assertTrue(int(rows[index][0]) == int(TEST_DATA[index][0]))
         # OK, clear up
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+        sess_instance.stop()
+
+    def testDirectExecuteSQLFallback(self):
+        self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+        table = self.odps.create_table(TEST_TABLE_NAME, TEST_CREATE_SCHEMA)
+        self.assertTrue(table)
+        # the default public session may not exist, so we create one beforehand
+        sess_instance = self.odps.create_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
+        self.assertTrue(sess_instance)
+        # wait to running
+        try:
+            sess_instance.wait_for_startup()
+        except ODPSError as ex:
+            print("LOGVIEW: " + sess_instance.get_logview_address())
+            print("Task results: " + str(sess_instance.get_task_results()))
+            sess_instance.stop()
+            raise ex
+        # the status should keep consistent
+        self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
+        records = [Record(schema=TEST_CREATE_SCHEMA, values=values) for values in TEST_DATA]
+        self.odps.write_table(table, 0, records)
+        hints = {"odps.mcqa.disable":"true"}
+        select_inst = self.odps.run_sql_interactive_with_fallback(TEST_SELECT_STRING, service_name=sess_instance.name, hints=hints)
+        select_inst.wait_for_success()
+        rows = []
+        try:
+            with select_inst.open_reader() as rd:
+                for each_row in rd:
+                    rows.append(each_row.values)
+        except BaseException as ex:
+            print("LOGVIEW: " + select_inst.get_logview_address())
+            print("Task Result:" + str(select_inst.get_task_results()))
+            sess_instance.stop()
+            raise ex
+        self.assertTrue(len(rows) == len(TEST_DATA))
+        self.assertTrue(len(rows[0]) == len(TEST_DATA[0]))
+        for index in range(5):
+            self.assertTrue(int(rows[index][0]) == int(TEST_DATA[index][0]))
+        # OK, clear up
+        self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+        sess_instance.stop()
 
     def testSessionSQLWithInstanceTunnel(self):
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
@@ -216,6 +268,7 @@ class Test(TestBase):
         except ODPSError as ex:
             print("LOGVIEW: " + sess_instance.get_logview_address())
             print("Task results: " + str(sess_instance.get_task_results()))
+            sess_instance.stop()
             raise ex
         # the status should keep consistent
         self.assertTrue(sess_instance.status == Instance.Status.RUNNING)
@@ -231,6 +284,7 @@ class Test(TestBase):
         except BaseException as ex:
             print("LOGVIEW: " + select_inst.get_logview_address())
             print("Task Result:" + str(select_inst.get_task_results()))
+            sess_instance.stop()
             raise ex
         self.assertTrue(len(rows) == len(TEST_DATA))
         self.assertTrue(len(rows[0]) == len(TEST_DATA[0]))
@@ -238,6 +292,7 @@ class Test(TestBase):
             self.assertTrue(int(rows[index][0]) == int(TEST_DATA[index][0]))
         # OK, clear up
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
+        sess_instance.stop()
 
 if __name__ == '__main__':
     unittest.main()

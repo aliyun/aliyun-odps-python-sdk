@@ -22,7 +22,7 @@ import inspect
 import requests
 
 from . import compat, utils
-from .compat import ElementTree, six
+from .compat import BytesIO, ElementTree, PY26, six
 from .utils import to_text
 
 
@@ -367,7 +367,13 @@ class XMLSerializableModel(SerializableModel):
 
     def serialize(self):
         root = self.serial()
-        xml_content = ElementTree.tostring(root, 'utf-8')
+
+        sio = BytesIO()
+        if PY26:
+            ElementTree.ElementTree(root).write(sio, encoding="utf-8")
+        else:
+            ElementTree.ElementTree(root).write(sio, encoding="utf-8", xml_declaration=True)
+        xml_content = sio.getvalue()
 
         prettified_xml = minidom.parseString(xml_content).toprettyxml(indent=' '*2, encoding='utf-8')
         prettified_xml = to_text(prettified_xml, encoding='utf-8')

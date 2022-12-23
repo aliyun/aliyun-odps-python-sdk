@@ -468,6 +468,30 @@ class Test(TestBase):
             pd_data = reader.to_pandas(n_process=2)
             assert len(pd_data) == 1000
 
+    @unittest.skipIf(pd is None, "Need pandas to run this test")
+    def testColumnSelectToPandas(self):
+        test_table_name = tn('pyodps_t_tmp_col_select_table')
+        schema = Schema.from_lists(['num1', 'num2'], ['bigint', 'bigint'])
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self.odps.create_table(test_table_name, schema)
+        with table.open_writer(arrow=True) as writer:
+            writer.write(pd.DataFrame({
+                "num1": np.random.randint(0, 1000, 1000),
+                "num2": np.random.randint(0, 1000, 1000),
+            }))
+
+        with table.open_reader(columns=["num1"]) as reader:
+            pd_data = reader.to_pandas()
+            assert len(pd_data) == 1000
+            assert len(pd_data.columns) == 1
+
+        with table.open_reader(columns=["num1"], arrow=True) as reader:
+            pd_data = reader.to_pandas()
+            assert len(pd_data) == 1000
+            assert len(pd_data.columns) == 1
+
     @unittest.skipIf(pa is None, "Need pyarrow to run this test")
     def testSimpleArrowReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_simple_arrow_read_write_table')
