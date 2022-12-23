@@ -21,6 +21,10 @@ try:
 except (AttributeError, ImportError):
     pa = None
 try:
+    import numpy as np
+except ImportError:
+    np = None
+try:
     import pandas as pd
 except ImportError:
     pd = None
@@ -525,7 +529,17 @@ class ArrowWriter(object):
             self._cur_chunk_size = 0
 
     def write(self, data):
+        from ...lib import tzlocal
+
         if isinstance(data, pd.DataFrame):
+            copied = False
+            for col_name, dtype in data.dtypes.items():
+                # cast timezone as local to make sure timezone of arrow is correct
+                if isinstance(dtype, np.dtype) and np.issubdtype(dtype, np.datetime64):
+                    if not copied:
+                        data = data.copy()
+                        copied = True
+                    data[col_name] = data[col_name].dt.tz_localize(tzlocal.get_localzone())
             arrow_batch = pa.RecordBatch.from_pandas(data)
         else:
             arrow_batch = data
@@ -542,7 +556,7 @@ class ArrowWriter(object):
                     arrays.append(column_dict[name])
                 else:
                     try:
-                        arrays.append(column_dict[name].cast(tp))
+                        arrays.append(column_dict[name].cast(tp, safe=False))
                     except pa.ArrowInvalid:
                         raise ValueError("Failed to cast column %s to type %s" % (name, tp))
             arrow_batch = pa.RecordBatch.from_arrays(arrays, names=self._arrow_schema.names)

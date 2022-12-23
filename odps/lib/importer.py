@@ -127,25 +127,26 @@ class CompressImporter(BASE):
                 # when it is forced to extract even if it is a text package, also extract
                 f = self._extract_archive(f)
 
-            dir_prefixes = set()
+            prefixes = set([''])
+            dir_prefixes = set()  # only for lists or dicts
             if isinstance(f, zipfile.ZipFile):
                 for name in f.namelist():
                     name = name if name.endswith('/') else (name.rsplit('/', 1)[0] + '/')
-                    if name in dir_prefixes:
+                    if name in prefixes:
                         continue
                     try:
                         f.getinfo(name + '__init__.py')
                     except KeyError:
-                        dir_prefixes.add(name)
+                        prefixes.add(name)
             elif isinstance(f, tarfile.TarFile):
                 for member in f.getmembers():
                     name = member.name if member.isdir() else member.name.rsplit('/', 1)[0]
-                    if name in dir_prefixes:
+                    if name in prefixes:
                         continue
                     try:
                         f.getmember(name + '/__init__.py')
                     except KeyError:
-                        dir_prefixes.add(name + '/')
+                        prefixes.add(name + '/')
             elif isinstance(f, (list, dict)):
                 # Force ArchiveResource to run under binary mode to resolve manually
                 # opening __file__ paths in pure-python code.
@@ -159,19 +160,22 @@ class CompressImporter(BASE):
 
                 for name in rendered_names:
                     name = name if name.endswith('/') else (name.rsplit('/', 1)[0] + '/')
-                    if name in dir_prefixes or '/tests/' in name or '/__pycache__/' in name:
+                    if name in prefixes or '/tests/' in name or '/__pycache__/' in name:
                         continue
                     if name + '__init__.py' not in rendered_names:
+                        prefixes.add(name)
                         dir_prefixes.add(name)
                     else:
                         if '/' in name.rstrip('/'):
                             ppath = name.rstrip('/').rsplit('/', 1)[0]
                         else:
                             ppath = ''
+                        prefixes.add(ppath)
                         dir_prefixes.add(ppath)
 
-            # make sure only root packages are included,
-            # otherwise relative imports might be broken
+            # make sure only root packages are included, otherwise relative imports might be broken
+            # NOTE that it is needed to check sys.path duplication after all pruning done,
+            #  otherwise path might be error once CompressImporter is called twice.
             path_patch = []
             for p in sorted(dir_prefixes):
                 parent_exist = False
@@ -191,7 +195,11 @@ class CompressImporter(BASE):
                     sys.path = sys.path + path_patch
             else:
                 self._files.append(f)
-                self._prefixes[id(f)] = sorted([''] + path_patch)
+                if path_patch:
+                    path_patch = [p for p in path_patch if p not in sys.path]
+                    self._prefixes[id(f)] = sorted([''] + path_patch)
+                elif prefixes:
+                    self._prefixes[id(f)] = sorted(prefixes)
 
     def _extract_archive(self, archive):
         if not self._extract_binary and not self._extract_all:

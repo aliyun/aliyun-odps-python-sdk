@@ -46,12 +46,12 @@ from odps.models import Schema
 @unittest.skipIf(pa is None, "need to install pyarrow")
 class Test(TestBase):
     def setUp(self):
-        super().setUp()
+        super(Test, self).setUp()
         options.sql.use_odps2_extension = True
 
     def tearDown(self):
         options.sql.use_odps2_extension = None
-        super().tearDown()
+        super(Test, self).tearDown()
 
     def _upload_data(self, test_table, data, compress=False, **kw):
         upload_ss = self.tunnel.create_upload_session(test_table, **kw)
@@ -62,12 +62,20 @@ class Test(TestBase):
         upload_ss.commit([0, ])
 
     def _download_data(self, test_table, columns=None, compress=False, **kw):
+        from odps.lib import tzlocal
+
         count = kw.pop('count', 4)
         download_ss = self.tunnel.create_download_session(test_table, **kw)
         with download_ss.open_arrow_reader(0, count, compress=compress, columns=columns) as reader:
-            return reader.to_pandas()
+            pd_data = reader.to_pandas()
+        for col_name, dtype in pd_data.dtypes.items():
+            if isinstance(dtype, np.dtype) and np.issubdtype(dtype, np.datetime64):
+                pd_data[col_name] = pd_data[col_name].dt.tz_localize(tzlocal.get_localzone())
+        return pd_data
 
     def _gen_data(self, repeat=1):
+        from odps.lib import tzlocal
+
         data = dict()
         data['id'] = ['hello \x00\x00 world', 'goodbye', 'c' * 2, 'c' * 20] * repeat
         data['int_num'] = [2**63-1, 222222, -2 ** 63 + 1, -2 ** 11 + 1] * repeat
@@ -80,8 +88,13 @@ class Test(TestBase):
             datetime.datetime.now() + datetime.timedelta(days=idx)
             for idx in range(4)
         ] * repeat
+        data['dt'] = [
+            dt.replace(microsecond=dt.microsecond // 1000 * 1000) for dt in data['dt']
+        ]
+        pd_data = pd.DataFrame(data)
+        pd_data["dt"] = pd_data["dt"].dt.tz_localize(tzlocal.get_localzone())
 
-        return pa.RecordBatch.from_pandas(pd.DataFrame(data))
+        return pa.RecordBatch.from_pandas(pd_data)
 
     def _create_table(self, table_name):
         fields = ['id', 'int_num', 'float_num', 'bool', 'date', 'dt']

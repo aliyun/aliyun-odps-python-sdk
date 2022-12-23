@@ -854,6 +854,8 @@ DataFrame 中相应字段的值决定该行将被写入的分区。例如，当 
 
     >>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', partition='ds=test', drop_partition=True, create_partition=True)
 
+persist 时，默认会覆盖原有数据。例如，当 persist 到一张分区表，对应分区的数据将会被重写。如果写入一张非分区表，整张表的数据都将被重写。如果你想要追加数据，可以使用参数 ``overwrite=False`` 。
+
 写入表时，还可以指定表的生命周期，如下列语句将表的生命周期指定为10天：
 
 .. code:: python

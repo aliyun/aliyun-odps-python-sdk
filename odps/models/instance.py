@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import base64
 import json
+import sys
 import threading
 import time
 import warnings
@@ -33,6 +33,15 @@ from .job import Job
 from .readers import TunnelRecordReader, TunnelArrowReader
 from .worker import WorkerDetail2, LOG_TYPES_MAPPING
 
+try:
+    from functools import wraps
+except ImportError:
+    def wraps(_f):
+        def wrapper(fun):
+            return fun
+
+        return wrapper
+
 
 _RESULT_LIMIT_HELPER_MSG = (
     'See https://pyodps.readthedocs.io/zh_CN/latest/base-sql.html#read-sql-exec-result '
@@ -41,6 +50,7 @@ _RESULT_LIMIT_HELPER_MSG = (
 
 
 def _with_status_api_lock(func):
+    @wraps(func)
     def wrapped(self, *args, **kw):
         with self._status_api_lock:
             return func(self, *args, **kw)

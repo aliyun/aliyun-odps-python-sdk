@@ -270,6 +270,9 @@ cdef class BaseRecord:
         if values is not None:
             self._sets(values)
 
+    def __reduce__(self):
+        return type(self), (self._c_columns, None, self._c_values)
+
     @property
     def _columns(self):
         return self._c_columns

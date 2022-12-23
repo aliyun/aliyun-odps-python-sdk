@@ -3515,7 +3515,7 @@ class Test(TestBase):
             expr = expr_in[expr_in.name, expr_in.detail.values().explode()]
             res = self.engine.execute(expr)
             result = self._get_result(res)
-            self.assertEqual(result, expected)
+            self.assertEqual(sorted(result), sorted(expected))
 
             expected = [
                 ['name1', 4.0, 2.0, False, False, ['HKG', 'PEK', 'SHA', 'YTY'],

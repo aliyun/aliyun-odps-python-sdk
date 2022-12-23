@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import decimal as _decimal
 
 from odps.types import *
@@ -226,6 +227,15 @@ class Test(TestBase):
         self.assertEqual(1, r['bigint'])
         r['datetime'] = '2016-01-01 0:0:0'
         self.assertEqual(datetime(2016, 1, 1), r['datetime'])
+
+    @bothPyAndC
+    def testRecordCopy(self):
+        s = Schema.from_lists(['col1'], ['string'])
+        r = Record(schema=s)
+        r.col1 = 'a'
+
+        cr = copy.copy(r)
+        assert cr.col1 == r.col1
 
     @bothPyAndC
     def testRecordSetField(self):

@@ -137,9 +137,9 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
 
 
 class TableRecordReader(TunnelRecordReader):
-    def __init__(self, table, download_session, partition_spec=None):
+    def __init__(self, table, download_session, partition_spec=None, columns=None):
         super(TableRecordReader, self).__init__(
-            table, download_session
+            table, download_session, columns=columns
         )
         self._partition_spec = partition_spec
 
@@ -607,6 +607,7 @@ class Table(LazyLoad):
         download_id=None,
         timeout=None,
         arrow=False,
+        columns=None,
         **kw
     ):
         """
@@ -650,9 +651,9 @@ class Table(LazyLoad):
         download_ids[partition] = download_session.id
 
         if arrow:
-            return TableArrowReader(self, download_session)
+            return TableArrowReader(self, download_session, columns=columns)
         else:
-            return TableRecordReader(self, download_session, partition)
+            return TableRecordReader(self, download_session, partition, columns=columns)
 
     def open_writer(
         self,

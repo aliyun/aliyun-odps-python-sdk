@@ -105,7 +105,10 @@ class AbstractRecordReader(object):
         elif getattr(self, '_schema', None) is not None:
             # do not remove as there might be coverage missing
             kw['schema'] = odps_schema_to_df_schema(self._schema)
-        elif getattr(self, '_columns', None) is not None:
+
+        if getattr(self, '_column_names', None) is not None:
+            self._columns = [self.schema[c] for c in self._column_names]
+        if getattr(self, '_columns', None) is not None:
             cols = []
             for col in self._columns:
                 col = copy.copy(col)

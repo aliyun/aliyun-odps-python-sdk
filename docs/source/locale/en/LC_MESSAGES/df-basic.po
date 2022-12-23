@@ -1508,16 +1508,28 @@ msgid ""
 msgstr ""
 
 #: ../../source/df-basic.rst:857
+msgid ""
+"persist 时，默认会覆盖原有数据。例如，当 persist "
+"到一张分区表，对应分区的数据将会被重写。如果写入一张非分区表，整张表的数据都将被重写。如果你想要追加数据，可以使用参数 "
+"``overwrite=False`` 。"
+msgstr ""
+"Persisting a DataFrame will overwrite existing data by default. For "
+"instance, when persisting into a partitioned table, data in corresponding "
+"partitions will be overwritten, while persisting into an unpartitioned "
+"table will overwrite all data in it. If you want to append data into "
+"existing tables or partitions, you may add ``overwrite=False`` ."
+
+#: ../../source/df-basic.rst:859
 msgid "写入表时，还可以指定表的生命周期，如下列语句将表的生命周期指定为10天："
 msgstr ""
 "You can also specify the lifecycle of a table when writing to it. The "
 "following example sets the lifecycle of a table to 10 days."
 
-#: ../../source/df-basic.rst:859
+#: ../../source/df-basic.rst:861
 msgid ">>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris5', lifecycle=10)"
 msgstr ""
 
-#: ../../source/df-basic.rst:863
+#: ../../source/df-basic.rst:865
 msgid ""
 "如果数据源中没有 ODPS 对象，例如数据源仅为 Pandas，在 persist 时需要手动指定 ODPS 入口对象， "
 "或者将需要的入口对象标明为全局对象，如："
@@ -1526,7 +1538,7 @@ msgstr ""
 "data, you need to manually specify the ODPS object or mark the object as "
 "global when calling persist. For example:"
 
-#: ../../source/df-basic.rst:866
+#: ../../source/df-basic.rst:868
 msgid ""
 ">>> # 假设入口对象为 o\n"
 ">>> # 指定入口对象\n"
@@ -1542,17 +1554,17 @@ msgstr ""
 ">>> o.to_global()\n"
 ">>> df.persist('table_name')"
 
-#: ../../source/df-basic.rst:876
+#: ../../source/df-basic.rst:878
 msgid "保存执行结果为 Pandas DataFrame"
 msgstr "Save results to pandas DataFrame"
 
-#: ../../source/df-basic.rst:878
+#: ../../source/df-basic.rst:880
 msgid "我们可以使用 ``to_pandas``\\ 方法，如果wrap参数为True，将返回PyODPS DataFrame对象。"
 msgstr ""
 "You can use the ``to_pandas``\\ method. If wrap is set to True, a PyODPS "
 "DataFrame object is returned."
 
-#: ../../source/df-basic.rst:880
+#: ../../source/df-basic.rst:882
 msgid ""
 ">>> type(iris[iris.sepalwidth < 2.5].to_pandas())\n"
 "pandas.core.frame.DataFrame\n"
@@ -1560,7 +1572,7 @@ msgid ""
 "odps.df.core.DataFrame"
 msgstr ""
 
-#: ../../source/df-basic.rst:889
+#: ../../source/df-basic.rst:891
 msgid ""
 "``to_pandas`` 返回的 pandas DataFrame 与直接通过 pandas 创建的 DataFrame 没有任何区别， "
 "数据的存储和计算均在本地。如果 ``wrap=True``，生成的即便是 PyODPS DataFrame，数据依然在本地。 "
@@ -1574,11 +1586,11 @@ msgstr ""
 " of data, or your running enviromnent is quite restrictive, please be "
 "cautious when using ``to_pandas``."
 
-#: ../../source/df-basic.rst:894
+#: ../../source/df-basic.rst:896
 msgid "立即运行设置运行参数"
 msgstr "Set runtime parameters"
 
-#: ../../source/df-basic.rst:896
+#: ../../source/df-basic.rst:898
 msgid ""
 "对于立即执行的方法，比如 ``execute``、``persist``、``to_pandas`` 等，可以设置运行时参数（仅对ODPS "
 "SQL后端有效 ）。"
@@ -1586,35 +1598,35 @@ msgstr ""
 "For actions such as `execute``, ``persist``, and ``to_pandas``, you can "
 "set runtime parameters. This is only valid for MaxCompute SQL."
 
-#: ../../source/df-basic.rst:898
+#: ../../source/df-basic.rst:900
 msgid "一种方法是设置全局参数。详细参考 :ref:`SQL设置运行参数 <sql_hints>` 。"
 msgstr ""
 "You can also set global parameters. For details, see :ref:`SQL - runtime "
 "parameters <sql_hints>`."
 
-#: ../../source/df-basic.rst:900
+#: ../../source/df-basic.rst:902
 msgid "也可以在这些立即执行的方法上，使用 ``hints`` 参数。这样，这些参数只会作用于当前的计算过程。"
 msgstr ""
 "Additionally, you can use the `hints`` parameter. These parameters are "
 "only valid for the current calculation."
 
-#: ../../source/df-basic.rst:903
+#: ../../source/df-basic.rst:905
 msgid ""
 ">>> iris[iris.sepallength < "
 "5].to_pandas(hints={'odps.sql.mapper.split.size': 16})"
 msgstr ""
 
-#: ../../source/df-basic.rst:909
+#: ../../source/df-basic.rst:911
 msgid "运行时显示详细信息"
 msgstr "Display details at runtime"
 
-#: ../../source/df-basic.rst:911
+#: ../../source/df-basic.rst:913
 msgid "有时，用户需要查看运行时instance的logview时，需要修改全局配置："
 msgstr ""
 "You sometimes need to modify the global configuration to view the logview"
 " of an instance."
 
-#: ../../source/df-basic.rst:913
+#: ../../source/df-basic.rst:915
 msgid ""
 ">>> from odps import options\n"
 ">>> options.verbose = True\n"
@@ -1636,11 +1648,11 @@ msgid ""
 "4         2.9          1.4         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:934
+#: ../../source/df-basic.rst:936
 msgid "用户可以指定自己的日志记录函数，比如像这样："
 msgstr "You can specify a logging function as follows:"
 
-#: ../../source/df-basic.rst:936
+#: ../../source/df-basic.rst:938
 msgid ""
 ">>> my_logs = []\n"
 ">>> def my_logger(x):\n"
@@ -1663,11 +1675,11 @@ msgid ""
 "\\nLIMIT 5', 'logview:', u'http://logview']"
 msgstr ""
 
-#: ../../source/df-basic.rst:956
+#: ../../source/df-basic.rst:958
 msgid "缓存中间Collection计算结果"
 msgstr "Cache intermediate results"
 
-#: ../../source/df-basic.rst:958
+#: ../../source/df-basic.rst:960
 msgid ""
 "DataFrame的计算过程中，一些Collection被多处使用，或者用户需要查看中间过程的执行结果， 这时用户可以使用 ``cache``\\"
 " 标记某个collection需要被优先计算。"
@@ -1677,13 +1689,13 @@ msgstr ""
 "intermediate process, you can use the cache method to mark a collection "
 "object so that it is calculated first."
 
-#: ../../source/df-basic.rst:963
+#: ../../source/df-basic.rst:965
 msgid "值得注意的是，``cache``\\ 延迟执行，调用cache不会触发立即计算。"
 msgstr ""
 "Note that ``cache``\\ delays execution. Calling this method does not "
 "trigger automatic calculation."
 
-#: ../../source/df-basic.rst:965
+#: ../../source/df-basic.rst:967
 msgid ""
 ">>> cached = iris[iris.sepalwidth < 3.5].cache()\n"
 ">>> df = cached['sepallength', 'name'].head(3)\n"
@@ -1712,11 +1724,11 @@ msgstr ""
 "1          4.7  Iris-setosa\n"
 "2          4.6  Iris-setosa"
 
-#: ../../source/df-basic.rst:984
+#: ../../source/df-basic.rst:986
 msgid "异步和并行执行"
 msgstr "Asynchronous and parallel executions"
 
-#: ../../source/df-basic.rst:986
+#: ../../source/df-basic.rst:988
 msgid ""
 "DataFrame 支持异步操作，对于立即执行的方法，包括 "
 "``execute``、``persist``、``head``、``tail``、``to_pandas`` （其他方法不支持）， 传入 "
@@ -1732,7 +1744,7 @@ msgstr ""
 "<https://docs.python.org/3/library/concurrent.futures.html#future-"
 "objects>`_ objects."
 
-#: ../../source/df-basic.rst:990
+#: ../../source/df-basic.rst:992
 msgid ""
 ">>> future = iris[iris.sepal_width < 10].head(10, async=True)\n"
 ">>> future.done()\n"
@@ -1751,7 +1763,7 @@ msgid ""
 "9           4.9          3.1           1.5          0.1  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:1009
+#: ../../source/df-basic.rst:1011
 msgid ""
 "DataFrame 的并行执行可以使用多线程来并行，单个 expr 的执行可以通过 ``n_parallel`` 参数来指定并发度。 比如，当一个"
 " DataFrame 的执行依赖的多个 cache 的 DataFrame 能够并行执行时，该参数就会生效。"
@@ -1762,7 +1774,7 @@ msgstr ""
 "the multiple cached DataFrame objects that a single DataFrame execution "
 "depends on can be executed in parallel."
 
-#: ../../source/df-basic.rst:1012
+#: ../../source/df-basic.rst:1014
 msgid ""
 ">>> expr1 = "
 "iris.groupby('category').agg(value=iris.sepal_width.sum()).cache()\n"
@@ -1807,14 +1819,14 @@ msgstr ""
 "7  Iris-versicolor    3.000\n"
 "8   Iris-virginica    4.500"
 
-#: ../../source/df-basic.rst:1032
+#: ../../source/df-basic.rst:1034
 msgid "当同时执行多个 expr 时，我们可以用多线程执行，但会面临一个问题， 比如两个 DataFrame 有共同的依赖，这个依赖将会被执行两遍。"
 msgstr ""
 "You can use multiple threads to execute multiple expr objects in "
 "parallel, but you may encounter a problem when two DataFrame objects "
 "share the same dependency, and this dependency will be executed twice."
 
-#: ../../source/df-basic.rst:1035
+#: ../../source/df-basic.rst:1037
 msgid ""
 "现在我们提供了新的 ``Delay API``， 来将立即执行的操作（包括 "
 "``execute``、``persist``、``head``、``tail``、``to_pandas``，其他方法不支持）变成延迟操作， "
@@ -1829,7 +1841,7 @@ msgstr ""
 "dependency is executed based on the degree of parallelism you have "
 "specified. Asynchronous execution is supported."
 
-#: ../../source/df-basic.rst:1040
+#: ../../source/df-basic.rst:1042
 msgid ""
 ">>> from odps.df import Delay\n"
 ">>> delay = Delay()  # 创建Delay对象\n"
@@ -1865,7 +1877,7 @@ msgstr ""
 ">>> future2.result()\n"
 "3.0540000000000007"
 
-#: ../../source/df-basic.rst:1057
+#: ../../source/df-basic.rst:1059
 msgid ""
 "可以看到上面的例子里，共同依赖的对象会先执行，然后再以并发度为3分别执行future1到future3。 当 ``n_parallel`` "
 "为1时，执行时间会达到37s。"
@@ -1875,7 +1887,7 @@ msgstr ""
 "parallelism set to 3. When ``n_parallel`` is set to 1, the execution time"
 " reaches 37s."
 
-#: ../../source/df-basic.rst:1060
+#: ../../source/df-basic.rst:1062
 msgid ""
 "``delay.execute`` 也接受 ``async`` 操作来指定是否异步执行，当异步的时候，也可以指定 ``timeout`` "
 "参数来指定超时时间。"

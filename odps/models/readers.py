@@ -16,10 +16,11 @@ from ..readers import AbstractRecordReader
 
 
 class TunnelRecordReader(AbstractRecordReader):
-    def __init__(self, parent, download_session):
+    def __init__(self, parent, download_session, columns=None):
         self._it = iter(self)
         self._parent = parent
         self._download_session = download_session
+        self._column_names = columns
 
     @property
     def download_id(self):
@@ -51,6 +52,7 @@ class TunnelRecordReader(AbstractRecordReader):
         start = start or 0
         step = step or 1
         count = count * step if count is not None else self.count - start
+        columns = columns or self._column_names
 
         if count == 0:
             return
@@ -104,10 +106,11 @@ class TunnelRecordReader(AbstractRecordReader):
 
 
 class TunnelArrowReader(object):
-    def __init__(self, parent, download_session):
+    def __init__(self, parent, download_session, columns=None):
         self._it = iter(self)
         self._parent = parent
         self._download_session = download_session
+        self._column_names = columns
 
     @property
     def download_id(self):
@@ -133,6 +136,7 @@ class TunnelArrowReader(object):
     def read(self, start=None, count=None, columns=None):
         start = start or 0
         count = count if count is not None else self.count - start
+        columns = columns or self._column_names
 
         if count == 0:
             return
@@ -150,6 +154,7 @@ class TunnelArrowReader(object):
     def read_all(self, start=None, count=None, columns=None):
         start = start or 0
         count = count if count is not None else self.count - start
+        columns = columns or self._column_names
 
         if count == 0:
             return
@@ -160,6 +165,7 @@ class TunnelArrowReader(object):
             return reader.read()
 
     def to_pandas(self, start=None, count=None, columns=None):
+        columns = columns or self._column_names
         return self.read_all(start=start, count=count, columns=columns).to_pandas()
 
     def __enter__(self):
