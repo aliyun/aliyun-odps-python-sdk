@@ -23,7 +23,7 @@ from ..expr.reduction import GroupedSequenceReduction
 from ..expr.element import Switch
 from .. import output
 from ... import compat
-from ...models import Schema
+from ...models import TableSchema
 from .utils import refresh_dynamic
 from ..types import DynamicSchema
 from ...compat import six
@@ -201,7 +201,7 @@ class BaseAnalyzer(Backend):
             else:
                 names = group_names + columns
                 types = group_types + [expr._values[0].dtype] * len(columns)
-            new_expr._schema = Schema.from_lists(names, types)
+            new_expr._schema = TableSchema.from_lists(names, types)
 
             column_name = expr._columns[0].name  # column's size can only be 1
             values_names = [v.name for v in expr._values]
@@ -307,7 +307,7 @@ class BaseAnalyzer(Backend):
                         agg = agg.rename(name)
                         aggs.append(agg)
 
-            new_expr._schema = Schema.from_lists(names, tps)
+            new_expr._schema = TableSchema.from_lists(names, tps)
 
             pivoted = expr.input.groupby(expr._group).aggregate(aggs, sort_by_name=False)
             self._sub(new_expr, pivoted)

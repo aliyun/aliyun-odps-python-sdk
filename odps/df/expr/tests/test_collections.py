@@ -16,7 +16,7 @@
 
 from odps.tests.core import TestBase
 from odps.compat import unittest, OrderedDict
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df.expr.expressions import CollectionExpr, ExpressionError
 from odps.df.expr.collections import SampledCollectionExpr, AppendIDCollectionExpr, SplitCollectionExpr
 from odps.df import DataFrame, output, types
@@ -25,7 +25,7 @@ from odps.df import DataFrame, output, types
 class Test(TestBase):
     def setup(self):
         from odps.df.expr.tests.core import MockTable
-        schema = Schema.from_lists(types._data_types.keys(), types._data_types.values())
+        schema = TableSchema.from_lists(types._data_types.keys(), types._data_types.values())
         self.expr = CollectionExpr(_source_data=None, _schema=schema)
         self.sourced_expr = CollectionExpr(_source_data=MockTable(client=self.odps.rest), _schema=schema)
 
@@ -250,7 +250,7 @@ class Test(TestBase):
         from odps.df.expr.collections import ProjectCollectionExpr, Column
         from odps.df.expr.element import MappedExpr
 
-        schema = Schema.from_lists(['idx', 'f1', 'f2', 'f3'], [types.int64] + [types.float64] * 3)
+        schema = TableSchema.from_lists(['idx', 'f1', 'f2', 'f3'], [types.int64] + [types.float64] * 3)
         expr = CollectionExpr(_source_data=None, _schema=schema)
 
         self.assertRaises(ValueError, lambda: expr.applymap(lambda v: v + 1, columns='idx', excludes='f1'))
@@ -286,7 +286,7 @@ class Test(TestBase):
         from odps.df.expr.expressions import CallableColumn
         from odps.df.expr.collections import ProjectCollectionExpr
 
-        schema = Schema.from_lists(['name', 'f1', 'append_id'], [types.string, types.float64, types.int64])
+        schema = TableSchema.from_lists(['name', 'f1', 'append_id'], [types.string, types.float64, types.int64])
         expr = CollectionExpr(_source_data=None, _schema=schema)
         self.assertIsInstance(expr.append_id, CallableColumn)
         self.assertNotIsInstance(expr.f1, CallableColumn)

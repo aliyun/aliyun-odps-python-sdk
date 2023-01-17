@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import itertools
+import warnings
 from datetime import datetime
 from types import GeneratorType
 
@@ -42,11 +44,11 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
 
     >>> columns = [Column(name='num', type='bigint', comment='the column')]
     >>> partitions = [Partition(name='pt', type='string', comment='the partition')]
-    >>> schema = Schema(columns=columns, partitions=partitions)
+    >>> schema = TableSchema(columns=columns, partitions=partitions)
     >>> schema.columns
     [<column num, type bigint>, <partition pt, type string>]
     >>>
-    >>> schema = Schema.from_lists(['num'], ['bigint'], ['pt'], ['string'])
+    >>> schema = TableSchema.from_lists(['num'], ['bigint'], ['pt'], ['string'])
     >>> schema.columns
     [<column num, type bigint>, <partition pt, type string>]
     """
@@ -145,7 +147,24 @@ class TableRecordReader(TunnelRecordReader):
 
     @property
     def schema(self):
-        return self._parent.schema
+        return self._parent.table_schema
+
+    @staticmethod
+    def _read_table_split(
+        conn, download_id, start, count, idx,
+        rest_client=None, project=None, table_name=None, partition_spec=None, tunnel_endpoint=None,
+    ):
+        # read part data
+        from ..tunnel import TableTunnel
+
+        tunnel = TableTunnel(
+            client=rest_client, project=project, endpoint=tunnel_endpoint
+        )
+        session = tunnel.create_download_session(
+            table_name, download_id=download_id, partition_spec=partition_spec
+        )
+        data = session.open_record_reader(start, count).to_pandas()
+        conn.send((idx, data))
 
     def _get_process_split_reader(self):
         rest_client = self._parent._client
@@ -154,26 +173,20 @@ class TableRecordReader(TunnelRecordReader):
         tunnel_endpoint = self._download_session._client.endpoint
         partition_spec = self._partition_spec
 
-        def read_table_split(conn, download_id, start, count, idx):
-            # read part data
-            from ..tunnel import TableTunnel
-
-            tunnel = TableTunnel(
-                client=rest_client, project=project, endpoint=tunnel_endpoint
-            )
-            session = tunnel.create_download_session(
-                table_name, download_id=download_id, partition_spec=partition_spec
-            )
-            data = session.open_record_reader(start, count).to_pandas()
-            conn.send((idx, data))
-
-        return read_table_split
+        return functools.partial(
+            self._read_table_split,
+            rest_client=rest_client,
+            project=project,
+            table_name=table_name,
+            partition_spec=partition_spec,
+            tunnel_endpoint=tunnel_endpoint,
+        )
 
 
 class TableArrowReader(TunnelArrowReader):
     @property
     def schema(self):
-        return self._parent.schema
+        return self._parent.table_schema
 
 
 class AbstractTableWriter(object):
@@ -199,6 +212,10 @@ class AbstractTableWriter(object):
     @property
     def upload_id(self):
         return self._upload_session.id
+
+    @property
+    def schema(self):
+        return self._table.table_schema
 
     @property
     def status(self):
@@ -353,7 +370,7 @@ class Table(LazyLoad):
     name = serializers.XMLNodeField('Name')
     table_id = serializers.XMLNodeField('TableId')
     format = serializers.XMLNodeAttributeField(attr='format')
-    schema = serializers.XMLNodeReferenceField(TableSchema, 'Schema')
+    table_schema = serializers.XMLNodeReferenceField(TableSchema, 'Schema')
     comment = serializers.XMLNodeField('Comment')
     owner = serializers.XMLNodeField('Owner')
     table_label = serializers.XMLNodeField('TableLabel')
@@ -367,9 +384,13 @@ class Table(LazyLoad):
 
     def __init__(self, **kwargs):
         self._is_extend_info_loaded = False
-        if "table_schema" in kwargs:
-            kwargs["schema"] = kwargs.pop("table_schema")
-
+        if 'schema' in kwargs:
+            warnings.warn(
+                'Argument schema is deprecated and will be replaced by table_schema.',
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            kwargs['table_schema'] = kwargs.pop('schema')
         super(Table, self).__init__(**kwargs)
 
         try:
@@ -377,23 +398,63 @@ class Table(LazyLoad):
         except AttributeError:
             pass
 
+    def table_resource(self, client=None):
+        schema_name = self._get_schema_name()
+        if schema_name is None:
+            return self.resource(client=client)
+        return "/".join(
+            [
+                self.project.resource(client),
+                "schemas",
+                schema_name,
+                "tables",
+                self.name,
+            ]
+        )
+
+    @property
+    def full_table_name(self):
+        schema_name = self._get_schema_name()
+        if schema_name is None:
+            return '{0}.`{1}`'.format(self.project.name, self.name)
+        else:
+            return '{0}.{1}.`{2}`'.format(self.project.name, schema_name, self.name)
+
     def reload(self):
         url = self.resource()
-        resp = self._client.get(url)
+        resp = self._client.get(url, curr_schema=self._get_schema_name())
 
         self.parse(self._client, resp, obj=self)
-        self.schema.load()
+        self.table_schema.load()
         self._loaded = True
+
+    def reset(self):
+        super(Table, self).reset()
+        self._is_extend_info_loaded = False
+        self.table_schema = None
+
+    @property
+    def schema(self):
+        warnings.warn(
+            'Table.schema is deprecated and will be replaced by Table.table_schema.',
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        utils.add_survey_call(".".join([type(self).__module__, type(self).__name__, "schema"]))
+        return self.table_schema
 
     def reload_extend_info(self):
         params = {'extended': ''}
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            params['curr_schema'] = schema_name
         resp = self._client.get(self.resource(), params=params)
 
         self.parse(self._client, resp, obj=self)
         self._is_extend_info_loaded = True
 
         if not self._loaded:
-            self.schema = None
+            self.table_schema = None
 
     def __getattribute__(self, attr):
         if attr in type(self)._extend_args:
@@ -413,16 +474,16 @@ class Table(LazyLoad):
         buf = six.StringIO()
 
         buf.write('odps.Table\n')
-        buf.write('  name: {0}.`{1}`\n'.format(self.project.name, self.name))
+        buf.write('  name: {0}\n'.format(self.full_table_name))
 
-        name_space = 2 * max(len(col.name) for col in self.schema.columns)
-        type_space = 2 * max(len(repr(col.type)) for col in self.schema.columns)
+        name_space = 2 * max(len(col.name) for col in self.table_schema.columns)
+        type_space = 2 * max(len(repr(col.type)) for col in self.table_schema.columns)
 
         not_empty = lambda field: field is not None and len(field.strip()) > 0
 
         buf.write('  schema:\n')
         cols_strs = []
-        for col in self.schema._columns:
+        for col in self.table_schema._columns:
             cols_strs.append('{0}: {1}{2}'.format(
                 col.name.ljust(name_space),
                 repr(col.type).ljust(type_space),
@@ -431,11 +492,11 @@ class Table(LazyLoad):
         buf.write(utils.indent('\n'.join(cols_strs), 4))
         buf.write('\n')
 
-        if self.schema.partitions:
+        if self.table_schema.partitions:
             buf.write('  partitions:\n')
 
             partition_strs = []
-            for partition in self.schema.partitions:
+            for partition in self.table_schema.partitions:
                 partition_strs.append('{0}: {1}{2}'.format(
                     partition.name.ljust(name_space),
                     repr(partition.type).ljust(type_space),
@@ -449,19 +510,16 @@ class Table(LazyLoad):
     def stored_as(self):
         return (self.reserved or dict()).get('StoredAs')
 
-    @property
-    def table_schema(self):
-        return self.schema
-
     @staticmethod
     def gen_create_table_sql(table_name, table_schema, comment=None, if_not_exists=False,
                              lifecycle=None, shard_num=None, hub_lifecycle=None,
-                             with_column_comments=True, project=None, **kw):
+                             with_column_comments=True, project=None, schema=None, **kw):
         from ..utils import escape_odps_string
 
         buf = six.StringIO()
         table_name = utils.to_text(table_name)
         project = utils.to_text(project)
+        schema = utils.to_text(schema)
         comment = utils.to_text(comment)
 
         stored_as = kw.get('stored_as')
@@ -472,9 +530,10 @@ class Table(LazyLoad):
         if if_not_exists:
             buf.write(u'IF NOT EXISTS ')
         if project is not None:
-            buf.write(u'%s.`%s` ' % (project, table_name))
-        else:
-            buf.write(u'`%s` ' % table_name)
+            buf.write(u'%s.' % project)
+        if schema is not None:
+            buf.write(u'%s.' % schema)
+        buf.write(u'`%s` ' % table_name)
 
         if isinstance(table_schema, six.string_types):
             buf.write(u'(\n')
@@ -551,7 +610,7 @@ class Table(LazyLoad):
         """
         shard_num = self.shard.shard_num if self.shard is not None else None
         return self.gen_create_table_sql(
-            self.name, self.schema, self.comment if with_comments else None,
+            self.name, self.table_schema, self.comment if with_comments else None,
             if_not_exists=if_not_exists, with_column_comments=with_comments,
             lifecycle=self.lifecycle, shard_num=shard_num, project=self.project.name,
             storage_handler=self.storage_handler, serde_properties=self.serde_properties,
@@ -584,19 +643,27 @@ class Table(LazyLoad):
             col_name = lambda col: col.name if isinstance(col, odps_types.Column) else col
             params['cols'] = ','.join(col_name(col) for col in columns)
 
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            params['schema_name'] = schema_name
+
         resp = self._client.get(self.resource(), params=params, stream=True)
-        with readers.RecordReader(self.schema, resp) as reader:
+        with readers.RecordReader(self.table_schema, resp) as reader:
             for record in reader:
                 yield record
 
-    def _create_table_tunnel(self, endpoint=None):
+    def _create_table_tunnel(self, endpoint=None, quota_name=None):
         if self._table_tunnel is not None:
             return self._table_tunnel
 
         from ..tunnel import TableTunnel
 
-        self._table_tunnel = TableTunnel(client=self._client, project=self.project,
-                                         endpoint=endpoint or self.project._tunnel_endpoint)
+        self._table_tunnel = TableTunnel(
+            client=self._client,
+            project=self.project,
+            endpoint=endpoint or self.project._tunnel_endpoint,
+            quota_name=quota_name,
+        )
         return self._table_tunnel
 
     def open_reader(
@@ -608,6 +675,8 @@ class Table(LazyLoad):
         timeout=None,
         arrow=False,
         columns=None,
+        quota_name=None,
+        async_mode=False,
         **kw
     ):
         """
@@ -619,6 +688,9 @@ class Table(LazyLoad):
         :param endpoint: the tunnel service URL
         :param download_id: use existing download_id to download table contents
         :param arrow: use arrow tunnel to read data
+        :param quota_name: name of tunnel quota
+        :param async_mode: enable async mode to create tunnels, can set True if session creation
+            takes a long time.
         :param compress_option: compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :param compress_algo: compression algorithm, work when ``compress_option`` is not provided,
@@ -637,17 +709,19 @@ class Table(LazyLoad):
 
         from ..tunnel.tabletunnel import TableDownloadSession
 
-        tunnel = self._create_table_tunnel(endpoint=endpoint)
+        tunnel = self._create_table_tunnel(endpoint=endpoint, quota_name=quota_name)
         download_ids = dict()
         if download_id is None:
             download_ids = self._download_ids
             download_id = download_ids.get(partition) if not reopen else None
         download_session = tunnel.create_download_session(
-            table=self, partition_spec=partition, download_id=download_id, timeout=timeout, **kw)
+            table=self, partition_spec=partition, download_id=download_id,
+            timeout=timeout, async_mode=async_mode, **kw)
 
         if download_id and download_session.status != TableDownloadSession.Status.Normal:
             download_session = tunnel.create_download_session(
-                table=self, partition_spec=partition, timeout=timeout, **kw)
+                table=self, partition_spec=partition, timeout=timeout,
+                async_mode=async_mode, **kw)
         download_ids[partition] = download_session.id
 
         if arrow:
@@ -665,6 +739,7 @@ class Table(LazyLoad):
         endpoint=None,
         upload_id=None,
         arrow=False,
+        quota_name=None,
         **kw
     ):
         """
@@ -679,6 +754,8 @@ class Table(LazyLoad):
         :param endpoint: the tunnel service URL
         :param upload_id: use existing upload_id to upload data
         :param arrow: use arrow tunnel to write data
+        :param quota_name: name of tunnel quota
+        :param bool overwrite: if True, will overwrite existing data
         :param compress_option: compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :param compress_algo: compression algorithm, work when ``compress_option`` is not provided,
@@ -703,7 +780,7 @@ class Table(LazyLoad):
         if create_partition and not self.exist_partition(create_partition):
             self.create_partition(partition, if_not_exists=True)
 
-        tunnel = self._create_table_tunnel(endpoint=endpoint)
+        tunnel = self._create_table_tunnel(endpoint=endpoint, quota_name=quota_name)
         if upload_id is None:
             upload_ids = self._upload_ids
             upload_id = upload_ids.get(partition) if not reopen else None
@@ -718,6 +795,8 @@ class Table(LazyLoad):
             upload_session = tunnel.create_upload_session(table=self, partition_spec=partition, **kw)
             upload_id = None
         upload_ids[partition] = upload_session.id
+        # as data of partition changed, remove existing download id to avoid TableModified error
+        self._download_ids.pop(partition, None)
 
         writer_cls = TableArrowWriter if arrow else TableRecordWriter
 
@@ -728,10 +807,6 @@ class Table(LazyLoad):
                     upload_ids[partition] = None
 
         return _RecordWriter(self, upload_session, blocks, commit)
-
-    @property
-    def project(self):
-        return self.parent.parent
 
     @property
     def partitions(self):
@@ -800,16 +875,53 @@ class Table(LazyLoad):
         """
         return self.partitions[partition_spec]
 
-    def truncate(self, async_=False, **kw):
+    def get_max_partition(self, spec=None, skip_empty=True, reverse=False):
+        """
+        Get partition with maximal values within certain spec.
+
+        :param spec: parent partitions. if specified, will return partition with
+            maximal value within specified parent partition
+        :param skip_empty: if True, will skip partitions without data
+        :param reverse: if True, will return minimal value
+        :return: Partition
+        """
+        if not self.table_schema.partitions:
+            raise ValueError("Table %r not partitioned" % self.name)
+        return self.partitions.get_max_partition(
+            spec, skip_empty=skip_empty, reverse=reverse
+        )
+
+    def truncate(self, partition_spec=None, async_=False, **kw):
         """
         truncate this table.
 
+        :param partition_spec: partition specs
         :param async_: run asynchronously if True
         :return: None
         """
         from .tasks import SQLTask
+
+        partition_expr = ""
+        if partition_spec is not None:
+            if not isinstance(partition_spec, (list, tuple)):
+                partition_spec = [partition_spec]
+            partition_expr = " " + ", ".join(
+                "PARTITION (%s)" % spec for spec in partition_spec
+            )
+
         async_ = kw.get('async', async_)
-        task = SQLTask(name='SQLTruncateTableTask', query='truncate table %s.%s' % (self.project.name, self.name))
+        task = SQLTask(
+            name='SQLTruncateTableTask',
+            query='TRUNCATE TABLE %s%s;' % (self.full_table_name, partition_expr)
+        )
+
+        settings = {'odps.sql.submit.mode': ''}
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            settings["odps.sql.allow.namespace.schema"] = "true"
+            settings["odps.namespace.schema"] = "true"
+        task.update_sql_settings(settings)
+
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
         if not async_:
@@ -838,7 +950,7 @@ class Table(LazyLoad):
 
         :Example:
 
-        >>> table = odps.create_table('test_table', schema=Schema.from_lists(['name', 'id'], ['sring', 'string']))
+        >>> table = odps.create_table('test_table', schema=TableSchema.from_lists(['name', 'id'], ['sring', 'string']))
         >>> record = table.new_record()
         >>> record[0] = 'my_name'
         >>> record[1] = 'my_id'
@@ -846,7 +958,7 @@ class Table(LazyLoad):
 
         .. seealso:: :class:`odps.models.Record`
         """
-        return Record(schema=self.schema, values=values)
+        return Record(schema=self.table_schema, values=values)
 
     def to_df(self):
         """

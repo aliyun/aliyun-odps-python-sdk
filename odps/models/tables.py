@@ -48,22 +48,22 @@ class Tables(Iterable):
 
     def iterate(self, name=None, owner=None):
         """
-
         :param name: the prefix of table name
         :param owner:
         :return:
         """
-
         params = {'expectmarker': 'true'}
         if name is not None:
             params['name'] = name
         if owner is not None:
             params['owner'] = owner
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            params['curr_schema'] = schema_name
 
         def _it():
             last_marker = params.get('marker')
-            if 'marker' in params and \
-                (last_marker is None or len(last_marker) == 0):
+            if 'marker' in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource()
@@ -84,15 +84,21 @@ class Tables(Iterable):
     def create(self, table_name, table_schema, comment=None, if_not_exists=False,
                lifecycle=None, shard_num=None, hub_lifecycle=None, async_=False, **kw):
         async_ = kw.pop('async', async_)
-        sql = Table.gen_create_table_sql(table_name, table_schema, comment=comment,
-                                         if_not_exists=if_not_exists, lifecycle=lifecycle,
-                                         shard_num=shard_num, hub_lifecycle=hub_lifecycle,
-                                         project=self._parent.name, **kw)
+        project_name = self._parent.project.name
+        schema_name = self._get_schema_name()
+        sql = Table.gen_create_table_sql(
+            table_name, table_schema, comment=comment, if_not_exists=if_not_exists,
+            lifecycle=lifecycle, shard_num=shard_num, hub_lifecycle=hub_lifecycle,
+            project=project_name, schema=schema_name, **kw)
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLCreateTableTask', query=sql)
-        task.update_sql_settings()
-        instance = self._parent.instances.create(task=task)
+        settings = {}
+        if schema_name is not None:
+            settings["odps.sql.allow.namespace.schema"] = "true"
+            settings["odps.namespace.schema"] = "true"
+        task.update_sql_settings(settings)
+        instance = self._parent.project.instances.create(task=task)
 
         if not async_:
             instance.wait_for_success()
@@ -102,14 +108,18 @@ class Tables(Iterable):
             return instance
 
     def _gen_delete_table_sql(self, table_name, if_exists=False):
-        project_name = self._parent.name
+        project_name = self._parent.project.name
+        schema_name = self._get_schema_name()
 
         buf = six.StringIO()
 
         buf.write('DROP TABLE ')
         if if_exists:
             buf.write('IF EXISTS ')
-        buf.write('%s.`%s`' % (project_name, table_name))
+        if schema_name is not None:
+            buf.write('%s.%s.`%s`' % (project_name, schema_name, table_name))
+        else:
+            buf.write('%s.`%s`' % (project_name, table_name))
 
         return buf.getvalue()
 
@@ -124,8 +134,13 @@ class Tables(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLDropTableTask', query=sql)
-        task.update_sql_settings({'odps.sql.submit.mode': ''})
-        instance = self._parent.instances.create(task=task)
+        settings = {'odps.sql.submit.mode': ''}
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            settings["odps.sql.allow.namespace.schema"] = "true"
+            settings["odps.namespace.schema"] = "true"
+        task.update_sql_settings(settings)
+        instance = self._parent.project.instances.create(task=task)
 
         if not async_:
             instance.wait_for_success()

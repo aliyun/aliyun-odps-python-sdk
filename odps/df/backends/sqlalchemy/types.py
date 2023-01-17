@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 
 try:
     import sqlalchemy
@@ -23,25 +24,32 @@ except ImportError:
 
 from ... import types
 from ....compat import OrderedDict, six
-from ....models import Schema
+from ....models import TableSchema
 
 
 _sqlalchemy_to_df_types = OrderedDict()
 _df_to_sqlalchemy_types = OrderedDict()
 
 if has_sqlalchemy:
-    _sqlalchemy_to_df_types[sqlalchemy.CHAR] = types.int8
-    _sqlalchemy_to_df_types[sqlalchemy.SmallInteger] = types.int16
-    _sqlalchemy_to_df_types[sqlalchemy.BigInteger] = types.int64
-    _sqlalchemy_to_df_types[sqlalchemy.Integer] = types.int32
-    _sqlalchemy_to_df_types[sqlalchemy.Float] = types.float64
-    _sqlalchemy_to_df_types[sqlalchemy.String] = types.string
-    _sqlalchemy_to_df_types[sqlalchemy.Boolean] = types.boolean
-    _sqlalchemy_to_df_types[sqlalchemy.DECIMAL] = types.decimal
-    _sqlalchemy_to_df_types[sqlalchemy.DateTime] = types.datetime
+    try:
+        _sqlalchemy_to_df_types[sqlalchemy.CHAR] = types.int8
+        _sqlalchemy_to_df_types[sqlalchemy.SmallInteger] = types.int16
+        _sqlalchemy_to_df_types[sqlalchemy.BigInteger] = types.int64
+        _sqlalchemy_to_df_types[sqlalchemy.Integer] = types.int32
+        _sqlalchemy_to_df_types[sqlalchemy.Float] = types.float64
+        _sqlalchemy_to_df_types[sqlalchemy.String] = types.string
+        _sqlalchemy_to_df_types[sqlalchemy.Boolean] = types.boolean
+        _sqlalchemy_to_df_types[sqlalchemy.DECIMAL] = types.decimal
+        _sqlalchemy_to_df_types[sqlalchemy.DateTime] = types.datetime
 
-    _df_to_sqlalchemy_types = dict((v, k) for k, v in six.iteritems(_sqlalchemy_to_df_types))
-    _df_to_sqlalchemy_types[types.string] = sqlalchemy.Text  # we store text
+        _df_to_sqlalchemy_types = dict((v, k) for k, v in six.iteritems(_sqlalchemy_to_df_types))
+        _df_to_sqlalchemy_types[types.string] = sqlalchemy.Text  # we store text
+    except AttributeError as ex:
+        warnings.warn(
+            "Your sqlalchemy does not have attribute %s. If you need to use it "
+            "with PyODPS, please install a newer release." % str(ex),
+            ImportWarning,
+        )
 
 
 def sqlalchemy_to_df_type(sqlalchemy_type):
@@ -59,7 +67,7 @@ def sqlalchemy_to_df_schema(sqlalchemy_columns):
         names.append(c.name)
         types.append(sqlalchemy_to_df_type(c.type))
 
-    return Schema.from_lists(names, types)
+    return TableSchema.from_lists(names, types)
 
 
 def df_type_to_sqlalchemy_type(df_type, engine=None):

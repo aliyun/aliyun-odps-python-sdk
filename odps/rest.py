@@ -87,13 +87,16 @@ def default_user_agent():
 class RestClient(object):
     _session_local = threading.local()
 
-    def __init__(self, account, endpoint, project=None, user_agent=None, **kwargs):
+    def __init__(
+        self, account, endpoint, project=None, schema=None, user_agent=None, **kwargs
+    ):
         if endpoint.endswith('/'):
             endpoint = endpoint[:-1]
         self._account = account
         self._endpoint = endpoint
         self._user_agent = user_agent or default_user_agent()
         self.project = project
+        self.schema = schema
         self._proxy = kwargs.get('proxy')
         self._app_account = kwargs.get('app_account')
         if isinstance(self._proxy, six.string_types):
@@ -144,8 +147,15 @@ class RestClient(object):
         headers['User-Agent'] = self._user_agent
         kwargs['headers'] = headers
         params = kwargs.setdefault('params', {})
-        if 'curr_project' not in params and self.project is not None:
-            params['curr_project'] = self.project
+
+        curr_project = kwargs.pop("curr_project", None) or self.project
+        if 'curr_project' not in params and curr_project is not None:
+            params['curr_project'] = curr_project
+
+        curr_schema = kwargs.pop("curr_schema", None) or self.schema
+        if 'curr_schema' not in params and curr_schema is not None:
+            params['curr_schema'] = curr_schema
+
         timeout = kwargs.pop('timeout', None)
         req = requests.Request(method, url, **kwargs)
         prepared_req = req.prepare()
@@ -157,7 +167,7 @@ class RestClient(object):
         try:
             res = self.session.send(prepared_req, stream=stream,
                                     timeout=timeout or (options.connect_timeout, options.read_timeout),
-                                    verify=False,
+                                    verify=options.verify_ssl,
                                     proxies=self._proxy)
         except ConnectTimeout:
             raise errors.ConnectTimeout('Connecting to endpoint %s timeout.' % self._endpoint)

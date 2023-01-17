@@ -18,7 +18,7 @@ from datetime import datetime
 
 from odps.tests.core import TestBase
 from odps.compat import unittest
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.datetimes import *
@@ -27,9 +27,11 @@ from odps.df.expr.datetimes import *
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                                   datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        schema = TableSchema.from_lists(
+            ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+            datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
+        )
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 

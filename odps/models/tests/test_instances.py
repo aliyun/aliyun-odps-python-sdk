@@ -30,7 +30,7 @@ except ImportError:
 
 from odps.tests.core import TestBase, to_str, tn, pandas_case, odps2_typed_case
 from odps.compat import unittest, six
-from odps.models import Instance, SQLTask, Schema
+from odps.models import Instance, SQLTask, TableSchema
 from odps.errors import ODPSError
 from odps import errors, compat, types as odps_types, utils, options
 
@@ -89,11 +89,11 @@ class Test(TestBase):
     def testInstances(self):
         self.assertIs(self.odps.get_project().instances, self.odps.get_project().instances)
 
-        size = len(list(itertools.islice(self.odps.list_instances(), 0, 200)))
+        size = len(list(itertools.islice(self.odps.list_instances(), 0, 5)))
         self.assertGreaterEqual(size, 0)
 
         instances = list(itertools.islice(
-            self.odps.list_instances(status='running', only_owner=True), 0, 10))
+            self.odps.list_instances(status='running', only_owner=True), 0, 5))
         self.assertGreaterEqual(len(instances), 0)
         if len(instances) > 0:
             # fix: use _status instead of status to prevent from fetching the instance which is just terminated
@@ -102,7 +102,9 @@ class Test(TestBase):
 
         start_time = time.time() - 10 * 24 * 3600
         end_time = time.time() - 24 * 3600
-        instances = list(self.odps.list_instances(start_time=start_time, end_time=end_time))
+        instances = list(
+            itertools.islice(self.odps.list_instances(start_time=start_time, end_time=end_time), 0, 5)
+        )
         self.assertGreaterEqual(len(instances), 0)
 
     def testListInstancesInPage(self):
@@ -136,7 +138,7 @@ class Test(TestBase):
 
         data = [[random.randint(0, 1000)] for _ in compat.irange(100)]
         self.odps.delete_table(test_table, if_exists=True)
-        t = self.odps.create_table(test_table, Schema.from_lists(['num'], ['bigint']))
+        t = self.odps.create_table(test_table, TableSchema.from_lists(['num'], ['bigint']))
         self.odps.write_table(t, data)
 
         instance = self.odps.run_sql("select sum({0}(num)), 1 + '1' as warn_col from {1} group by num"
@@ -239,6 +241,8 @@ class Test(TestBase):
         instance.wait_for_completion()
         self.assertTrue(instance.is_successful())
         self.assertFalse(self.odps.exist_table(test_table))
+        self.assertLess(instance.start_time, datetime.now())
+        self.assertGreater(instance.start_time, datetime.now() - timedelta(hours=1))
 
         task = SQLTask(query='create table %s(id string);' % test_table)
         instance = self.odps._project.instances.create(task=task)
@@ -267,15 +271,15 @@ class Test(TestBase):
         test_table = tn('pyodps_t_tmp_read_sql_instance')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
-            test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
+            test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True)
         self.odps.write_table(
             table, 0, [table.new_record([1]), table.new_record([2])])
         self.odps.write_table(table, [table.new_record([3]), ])
 
         instance = self.odps.execute_sql('select * from %s' % test_table)
-        with instance.open_reader(table.schema) as reader:
+        with instance.open_reader(table.table_schema) as reader:
             self.assertEqual(len(list(reader[::2])), 2)
-        with instance.open_reader(table.schema) as reader:
+        with instance.open_reader(table.table_schema) as reader:
             self.assertEqual(len(list(reader[1::2])), 1)
 
         hints = {'odps.sql.mapper.split.size': '16'}
@@ -293,10 +297,15 @@ class Test(TestBase):
             break
 
         instance.wait_for_success()
-        self.assertEqual(json.loads(instance.tasks[0].properties['settings']), hints)
+        self.assertEqual(
+            json.loads(instance.tasks[0].properties['settings'])['odps.sql.mapper.split.size'],
+            hints['odps.sql.mapper.split.size'],
+        )
         self.assertIsNotNone(instance.tasks[0].summary)
 
-        with instance.open_reader(Schema.from_lists(['count'], ['bigint']), tunnel=False) as reader:
+        with instance.open_reader(
+            TableSchema.from_lists(['count'], ['bigint']), tunnel=False
+        ) as reader:
             records = list(reader)
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]['count'], 6)
@@ -326,7 +335,7 @@ class Test(TestBase):
         test_table = tn('pyodps_t_tmp_limit_instance_tunnel')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
-            test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
+            test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True)
         self.odps.write_table(
             table, 0, [table.new_record([1]), table.new_record([2])])
         self.odps.write_table(table, [table.new_record([3]), ])
@@ -359,14 +368,14 @@ class Test(TestBase):
         test_table = tn('pyodps_t_tmp_read_sql_instance_write')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
-            test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
+            test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True)
         self.odps.write_table(
             table, 0, [table.new_record([1]), table.new_record([2])])
         self.odps.write_table(table, [table.new_record([3]), ])
 
         test_table2 = tn('pyodps_t_tmp_read_sql_instance_write2')
         self.odps.delete_table(test_table2, if_exists=True)
-        table2 = self.odps.create_table(test_table2, table.schema)
+        table2 = self.odps.create_table(test_table2, table.table_schema)
 
         try:
             with self.odps.execute_sql('select * from %s' % test_table).open_reader() as reader:
@@ -384,7 +393,7 @@ class Test(TestBase):
             self.odps.delete_table(test_table, if_exists=True)
             table = self.odps.create_table(
                 test_table,
-                schema=Schema.from_lists(['size', 'name'], ['bigint', 'string']), if_not_exists=True)
+                TableSchema.from_lists(['size', 'name'], ['bigint', 'string']), if_not_exists=True)
 
             data = [[1, u'中'.encode('utf-8') + b'\\\\n\\\n' + u'文'.encode('utf-8') + b' ,\r\xe9'],
                     [2, u'测试'.encode('utf-8') + b'\x00\x01\x02' + u'数据'.encode('utf-8') + b'\xe9']]
@@ -406,7 +415,9 @@ class Test(TestBase):
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table,
-            schema=Schema.from_lists(['size', 'name'], ['bigint', 'string']), if_not_exists=True)
+            TableSchema.from_lists(['size', 'name'], ['bigint', 'string']),
+            if_not_exists=True,
+        )
 
         data = [[1, '中\\\\n\\\n文 ,\r '], [2, '测试\x00\x01\x02数据']]
         self.odps.write_table(
@@ -425,7 +436,7 @@ class Test(TestBase):
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table,
-            schema=Schema.from_lists(
+            TableSchema.from_lists(
                 ['idx', 'map_col', 'array_col'],
                 ['bigint', odps_types.Map(odps_types.string, odps_types.string), odps_types.Array(odps_types.string)],
             )
@@ -439,14 +450,14 @@ class Test(TestBase):
 
         inst = self.odps.execute_sql('select * from %s' % test_table)
 
-        with inst.open_reader(table.schema, tunnel=False) as reader:
+        with inst.open_reader(table.table_schema, tunnel=False) as reader:
             read_data = [list(r.values) for r in reader]
             read_data = sorted(read_data, key=lambda r: r[0])
             expected_data = sorted(data, key=lambda r: r[0])
 
             self.assertSequenceEqual(read_data, expected_data)
 
-        with inst.open_reader(table.schema, tunnel=True) as reader:
+        with inst.open_reader(table.table_schema, tunnel=True) as reader:
             read_data = [list(r.values) for r in reader]
             read_data = sorted(read_data, key=lambda r: r[0])
             expected_data = sorted(data, key=lambda r: r[0])
@@ -460,7 +471,7 @@ class Test(TestBase):
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table,
-            schema=Schema.from_lists(['size'], ['bigint']),
+            TableSchema.from_lists(['size'], ['bigint']),
             if_not_exists=True
         )
 
@@ -531,7 +542,9 @@ class Test(TestBase):
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
             test_table,
-            schema=Schema.from_lists(['size'], ['bigint'], ['pt'], ['string']), if_not_exists=True)
+            TableSchema.from_lists(['size'], ['bigint'], ['pt'], ['string']),
+            if_not_exists=True,
+        )
         pt_spec = 'pt=20170410'
         table.create_partition(pt_spec)
 
@@ -552,7 +565,8 @@ class Test(TestBase):
         test_table = tn('pyodps_t_tmp_instance_result_to_pd')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
-            test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
+            test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True
+        )
         self.odps.write_table(table, [[1], [2], [3]])
 
         inst = self.odps.execute_sql('select * from %s' % test_table)
@@ -599,7 +613,8 @@ class Test(TestBase):
         test_table = tn('pyodps_t_tmp_sql_cost_instance')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
-            test_table, schema=Schema.from_lists(['size'], ['bigint']), if_not_exists=True)
+            test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True
+        )
         self.odps.write_table(table, [[1], [2], [3]])
 
         sql_cost = self.odps.execute_sql_cost('select * from %s' % test_table)
@@ -611,7 +626,8 @@ class Test(TestBase):
         test_table = tn('pyodps_t_tmp_sql_cost_odps2_instance')
         self.odps.delete_table(test_table, if_exists=True)
         table = self.odps.create_table(
-            test_table, schema=Schema.from_lists(['size'], ['tinyint']), if_not_exists=True)
+            test_table, TableSchema.from_lists(['size'], ['tinyint']), if_not_exists=True
+        )
         self.odps.write_table(table, [[1], [2], [3]])
 
         sql_cost = self.odps.execute_sql_cost('select * from %s' % test_table)

@@ -67,6 +67,11 @@ import inspect
 import time
 import os
 import sys
+try:
+    import faulthandler
+    faulthandler.enable(all_threads=True)
+except ImportError:
+    pass
 
 from odps.udf import annotate
 from odps.distcache import get_cache_file, get_cache_table, get_cache_archive
@@ -758,7 +763,7 @@ def gen_udf(expr, func_cls_name=None, libraries=None):
                 elif isinstance(res, TableResource):
                     tp = 'table'
                     name = res.name
-                    fields = tuple(col.name for col in res.get_source_table().schema.simple_columns)
+                    fields = tuple(col.name for col in res.get_source_table().table_schema.simple_columns)
                     create = False
                     table_name = None
                 else:

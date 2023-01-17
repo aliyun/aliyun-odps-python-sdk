@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ....models import Schema
+from ....models import TableSchema
 from .... import types as odps_types
 from ... import types as df_types
 from ....compat import six
@@ -67,6 +67,10 @@ _df_to_odps_types2 = {
 }
 
 
+def is_odps_type(typ):
+    return typ in _odps_to_df_types
+
+
 def odps_type_to_df_type(odps_type):
     if isinstance(odps_type, six.string_types):
         odps_type = odps_types.validate_data_type(odps_type)
@@ -90,7 +94,7 @@ def odps_schema_to_df_schema(odps_schema):
     names = [col.name for col in odps_schema.columns]
     types = [odps_type_to_df_type(col.type) for col in odps_schema.columns]
 
-    return Schema.from_lists(names, types)
+    return TableSchema.from_lists(names, types)
 
 
 def df_type_to_odps_type(df_type, use_odps2_types=None, project=None):
@@ -144,6 +148,6 @@ def df_schema_to_odps_schema(df_schema, ignorecase=False, project=None):
             for col in df_schema.partitions
         ]
 
-    return Schema.from_lists(
+    return TableSchema.from_lists(
         names, types, partition_names=partition_names, partition_types=partition_types
     )

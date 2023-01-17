@@ -186,10 +186,10 @@ class XFlows(Iterable):
         for x_result in filter(lambda xr: xr.node_type != 'Local',
                                six.itervalues(self.get_xflow_results(instance))):
             if x_result.node_type == 'Instance':
-                inst_dict[x_result.name] = self.parent.odps.get_instance(x_result.instance_id)
+                inst_dict[x_result.name] = self.parent.instances[x_result.instance_id]
             elif x_result.node_type == 'SubWorkflow':
-                sub_instance = self.parent.odps.get_instance(x_result.instance_id)
-                sub_inst_dict = self.parent.odps.get_xflow_sub_instances(sub_instance)
+                sub_instance = self.parent.instances[x_result.instance_id]
+                sub_inst_dict = self.get_xflow_sub_instances(sub_instance)
                 inst_dict.update(**sub_inst_dict)
         return inst_dict
 

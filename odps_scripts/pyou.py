@@ -15,14 +15,14 @@ def _chr_if_necessary(s):
 
 
 def main():
-    sys.path.insert(0, os.getcwd())    
+    sys.path.insert(0, os.getcwd())
 
     from odps import udf
     # Arguments parsing
     import argparse
     parser = argparse.ArgumentParser(description='ODPS Python UDF tools')
     parser.add_argument('-D', metavar='delim', type=str, default=',',
-                        help='Line delimiter that seperate line into columns, '
+                        help='Line delimiter that separates lines into columns, '
                         'default is ","')
     parser.add_argument('-N', metavar='null', type=str, default='NULL',
                         help='NULL indicator')
@@ -32,15 +32,15 @@ def main():
     args = parser.parse_args()
     delim = _chr_if_necessary(args.D)
     null_indicator = _chr_if_necessary(args.N)
-    
+
     # Import user class
     pkg, name = args.clz.rsplit('.', 1)
-    usermod = __import__(pkg, globals(), locals(), [name,])
+    usermod = __import__(pkg, globals(), locals(), [name])
     clz = getattr(usermod, name)
 
     # get stdin
     pkg, name = args.I.rsplit('.', 1)
-    usermod = __import__(pkg, globals(), locals(), [name,])
+    usermod = __import__(pkg, globals(), locals(), [name])
     stdin = getattr(usermod, name)
 
     udf_runner = runners.get_default_runner(clz, delim, null_indicator, stdin)

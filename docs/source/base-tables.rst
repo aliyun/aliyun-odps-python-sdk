@@ -3,7 +3,7 @@
 表
 ======
 
-`表 <https://docs.aliyun.com/#/pub/odps/basic/definition&table>`_ 是ODPS的数据存储单元。
+`表 <https://help.aliyun.com/document_detail/27819.html>`_ 是ODPS的数据存储单元。
 
 基本操作
 --------
@@ -22,7 +22,7 @@
 .. code-block:: python
 
    >>> t = o.get_table('dual')
-   >>> t.schema
+   >>> t.table_schema
    odps.Schema {
      c_int_a                 bigint
      c_int_b                 bigint
@@ -45,7 +45,7 @@
    1408
    >>> t.comment
    'Dual Table Comment'
-   >>> t.schema.columns
+   >>> t.table_schema.columns
    [<column c_int_a, type bigint>,
     <column c_int_b, type bigint>,
     <column c_double_a, type double>,
@@ -56,9 +56,9 @@
     <column c_bool_b, type boolean>,
     <column c_datetime_a, type datetime>,
     <column c_datetime_b, type datetime>]
-   >>> t.schema['c_int_a']
+   >>> t.table_schema['c_int_a']
    <column c_int_a, type bigint>
-   >>> t.schema['c_int_a'].comment
+   >>> t.table_schema['c_int_a'].comment
    'Comment of column c_int_a'
 
 
@@ -78,11 +78,11 @@
 
 .. code-block:: python
 
-   >>> from odps.models import Schema, Column, Partition
+   >>> from odps.models import TableSchema, Column, Partition
    >>> columns = [Column(name='num', type='bigint', comment='the column'),
    >>>            Column(name='num2', type='double', comment='the column2')]
    >>> partitions = [Partition(name='pt', type='string', comment='the partition')]
-   >>> schema = Schema(columns=columns, partitions=partitions)
+   >>> schema = TableSchema(columns=columns, partitions=partitions)
    >>> schema.columns
    [<column num, type bigint>,
     <column num2, type double>,
@@ -99,7 +99,7 @@
 
 .. code-block:: python
 
-   >>> schema = Schema.from_lists(['num', 'num2'], ['bigint', 'double'], ['pt'], ['string'])
+   >>> schema = TableSchema.from_lists(['num', 'num2'], ['bigint', 'double'], ['pt'], ['string'])
    >>> schema.columns
    [<column num, type bigint>,
     <column num2, type double>,
@@ -205,6 +205,13 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> for record in reader[5:10]:  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
    >>>     # 处理一条记录
 
+更简单的调用方法是使用 ODPS 对象的 ``read_table`` 方法，例如
+
+.. code-block:: python
+
+   >>> for record in o.read_table('test_table', partition='pt=test'):
+   >>>     # 处理一条记录
+
 直接读取成 Pandas DataFrame:
 
 .. code-block:: python
@@ -216,11 +223,6 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 利用多进程加速读取:
 
-.. note::
-
-    目前多进程加速在 Windows 下无法使用。
-
-
 .. code-block:: python
 
    >>> import multiprocessing
@@ -228,17 +230,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> with t.open_reader(partition='pt=test') as reader:
    >>>     pd_df = reader.to_pandas(n_process=n_process)
 
-
-更简单的调用方法是使用 ODPS 对象的 ``read_table`` 方法，例如
-
-.. code-block:: python
-
-   >>> for record in o.read_table('test_table', partition='pt=test'):
-   >>>     # 处理一条记录
-
-
 .. _table_write:
-
 
 向表写数据
 ----------
@@ -291,8 +283,8 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
     同时过多的文件会降低后续的查询效率。因此，我们建议在使用 write_table 方法时，一次性写入多组数据，
     或者传入一个 generator 对象。
 
-    write_table 写表时会追加到原有数据。PyODPS 不提供覆盖数据的选项，如果需要覆盖数据，需要手动清除
-    原有数据。对于非分区表，需要调用 table.truncate()，对于分区表，需要删除分区后再建立。
+    write_table 写表时会追加到原有数据。如果需要覆盖数据，可以为 write_table 增加一个参数 ``overwrite=True``
+    （仅在 0.11.1以后支持），或者调用 table.truncate() / 删除分区后再建立分区。
 
 使用多进程并行写数据：
 
@@ -402,14 +394,14 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 
 判断是否为分区表：
 
-.. code-block:: python
+.. code:: python
 
-   >>> if table.schema.partitions:
+   >>> if table.table_schema.partitions:
    >>>     print('Table %s is partitioned.' % table.name)
 
 遍历表全部分区：
 
-.. code-block:: python
+.. code:: python
 
    >>> for partition in table.partitions:
    >>>     print(partition.name)
@@ -418,20 +410,20 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 
 判断分区是否存在（该方法需要填写所有分区字段值）：
 
-.. code-block:: python
+.. code:: python
 
    >>> table.exist_partition('pt=test,sub=2015')
 
 判断给定前缀的分区是否存在：
 
-.. code-block:: python
+.. code:: python
 
    >>> # 表 table 的分区字段依次为 pt, sub
    >>> table.exist_partitions('pt=test')
 
 获取分区：
 
-.. code-block:: python
+.. code:: python
 
    >>> partition = table.get_partition('pt=test')
    >>> print(partition.creation_time)
@@ -439,20 +431,65 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
    >>> partition.size
    0
 
+.. note::
+
+    这里的"分区"指的不是分区字段而是所有分区字段均确定的分区定义对应的子表。如果某些分区未指定，那么这个分区定义可能对应多个子表，
+    ``get_partition`` 时则不被 PyODPS 支持。此时，需要使用 ``iterate_partitions`` 分别处理每个分区。
+
 创建分区
 ~~~~~~~~
 
-.. code-block:: python
+下面的操作将创建一个分区：
+
+.. code:: python
 
    >>> t.create_partition('pt=test', if_not_exists=True)  # 不存在的时候才创建
 
 删除分区
 ~~~~~~~~~
 
-.. code-block:: python
+下面的操作将删除一个分区：
+
+.. code:: python
 
    >>> t.delete_partition('pt=test', if_exists=True)  # 存在的时候才删除
    >>> partition.drop()  # Partition对象存在的时候直接drop
+
+获取值最大分区
+~~~~~~~~~~~
+很多时候你可能希望获取值最大的分区。例如，当以日期为分区值时，你可能希望获得日期最近的有数据的分区。
+
+创建分区表并写入一些数据：
+
+.. code-block:: python
+
+    t = o.create_table("test_multi_pt_table", ("col string", "pt1 string, pt2 string"))
+    for pt1, pt2 in (("a", "a"), ("a", "b"), ("b", "c"), ("b", "d")):
+        o.write_table("test_multi_pt_table", [["value"]], partition="pt1=%s,pt2=%s" % (pt1, pt2))
+
+如果想要获得值最大的分区，可以使用下面的代码：
+
+.. code:: python
+
+    >>> part = t.get_max_partition()
+    >>> part
+    <Partition cupid_test_release.`test_multi_pt_table`(pt1='b',pt2='d')>
+    >>> part.partition_spec["pt1"]  # 获取某个分区字段的值
+    b
+
+如果只希望获得最新的分区而忽略分区内是否有数据，可以用
+
+.. code:: python
+
+    >>> t.get_max_partition(skip_empty=False)
+    <Partition cupid_test_release.`test_multi_pt_table`(pt1='b',pt2='d')>
+
+对于多级分区表，可以通过限定上级分区值来获得值最大的子分区，例如
+
+.. code:: python
+
+    >>> t.get_max_partition("pt1=a")
+    <Partition cupid_test_release.`test_multi_pt_table`(pt1='a',pt2='b')>
 
 .. _tunnel:
 

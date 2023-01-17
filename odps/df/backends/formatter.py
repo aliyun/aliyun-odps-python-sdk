@@ -14,8 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from distutils.version import LooseVersion
 import itertools
+from textwrap import dedent
+from distutils.version import LooseVersion
 
 from ... import compat
 from ...config import options
@@ -833,6 +834,13 @@ class HTMLFormatter(TableFormatter):
 
             self.write('<div{0}>'.format(div_style))
 
+            try:
+                import pandas
+                if pandas.__version__ >= LooseVersion('0.20'):
+                    self._write_style()
+            except ImportError:
+                pass
+
         self.write('<table border="1" class="%s">' % ' '.join(_classes),
                    indent)
 
@@ -894,6 +902,27 @@ class HTMLFormatter(TableFormatter):
         self.write('</thead>', indent)
 
         return indent
+
+    def _write_style(self):
+        # We use the "scoped" attribute here so that the desired
+        # style properties for the data frame are not then applied
+        # throughout the entire notebook.
+        template_first = """\
+            <style scoped>"""
+        template_last = """\
+            </style>"""
+        template_select = """\
+                .dataframe %s {
+                    %s: %s;
+                }"""
+        element_props = [
+            ("tbody tr th:only-of-type", "vertical-align", "middle"),
+            ("tbody tr th", "vertical-align", "top"),
+        ]
+        element_props.append(("thead th", "text-align", "right"))
+        template_mid = "\n\n".join(map(lambda t: template_select % t, element_props))
+        template = dedent("\n".join((template_first, template_mid, template_last)))
+        self.write(template)
 
     def _write_body(self, indent):
         self.write('<tbody>', indent)

@@ -14,13 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import functools
 import sys
 import threading
 
 from ..compat import izip, six, futures
 from .backends.core import Engine
+
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 
 
 class Delay(object):
@@ -54,7 +58,7 @@ class Delay(object):
                         close_and_notify=close_and_notify)
         fs = engine.batch(*_calls, **batch_kw)
 
-        if not isinstance(fs, collections.Iterable):
+        if not isinstance(fs, Iterable):
             fs = [fs]
         if len(fs) == 0:
             return

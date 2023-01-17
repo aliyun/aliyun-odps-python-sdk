@@ -19,7 +19,8 @@ from odps.compat import unittest, ConfigParser
 from odps.models import Resource
 from odps import errors
 
-FILE_CONTENT = '''from odps.udf import annotate
+FUNCTION_CONTENT = """\
+from odps.udf import annotate
 
 @annotate("bigint,bigint->bigint")
 class MyPlus(object):
@@ -28,7 +29,7 @@ class MyPlus(object):
        if None in (arg0, arg1):
            return None
        return arg0 + arg1
-'''
+"""
 
 
 class Test(TestBase):
@@ -105,7 +106,8 @@ class Test(TestBase):
                 pass
 
         test_resource = self.odps.create_resource(
-            test_resource_name, 'py', file_obj=FILE_CONTENT)
+            test_resource_name, 'py', file_obj=FUNCTION_CONTENT
+        )
 
         test_function = self.odps.create_function(
             test_function_name,
@@ -119,7 +121,7 @@ class Test(TestBase):
         self.assertEqual(len(test_function.resources), 1)
 
         with self.odps.open_resource(name=test_resource_name, mode='r') as fp:
-            self.assertEqual(to_str(fp.read()), to_str(FILE_CONTENT))
+            self.assertEqual(to_str(fp.read()), to_str(FUNCTION_CONTENT))
 
         self.assertNotEqual(test_function.owner, secondary_user)
 
@@ -143,7 +145,7 @@ class Test(TestBase):
         test_function3 = None
         if secondary_project:
             test_resource3 = self.odps.create_resource(
-                test_resource_name3, 'py', file_obj=FILE_CONTENT, project=secondary_project)
+                test_resource_name3, 'py', file_obj=FUNCTION_CONTENT, project=secondary_project)
 
             test_function3 = self.odps.create_function(
                 test_function_name3,
@@ -156,7 +158,7 @@ class Test(TestBase):
             self.assertIsNotNone(test_function3.class_type)
             self.assertEqual(len(test_function3.resources), 1)
             self.assertEqual(test_function3.resources[0].name, test_resource_name3)
-            self.assertEqual(test_function3.resources[0].project, secondary_project)
+            self.assertEqual(test_function3.resources[0].project.name, secondary_project)
 
         test_resource.drop()
         test_resource2.drop()

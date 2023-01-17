@@ -34,6 +34,26 @@ from .tasks import *
 from .record import Record
 from .worker import Worker
 
-Schema = TableSchema  # Schema is to keep compatible
-Column = Schema.TableColumn
-Partition = Schema.TablePartition
+import sys
+import warnings
+
+if sys.version_info[:2] < (3, 7):
+    Schema = TableSchema  # Schema is to keep compatible
+else:
+    def __getattr__(name):
+        if name != "Schema":
+            raise AttributeError(name)
+
+        from .. import utils
+
+        warnings.warn(
+            "Importing Schema from odps.models is deprecated, "
+            "please use odps.models.TableSchema instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        utils.add_survey_call("odps.models.Schema")
+        return TableSchema
+
+Column = TableSchema.TableColumn
+Partition = TableSchema.TablePartition

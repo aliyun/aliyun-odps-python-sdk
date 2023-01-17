@@ -53,6 +53,11 @@ class VolumePartitionMeta(XMLRemoteModel):
     def load(self):
         url = self._parent.resource()
         params = {'meta': ''}
+
+        schema_name = self._parent._get_schema_name()
+        if schema_name is not None:
+            params["curr_schema"] = schema_name
+
         resp = self._client.get(url, params=params)
         self.parse(self._client, resp, obj=self)
 
@@ -93,13 +98,9 @@ class VolumePartition(LazyLoad):
             pass
 
     def reload(self):
-        resp = self._client.get(self.resource())
+        resp = self._client.get(self.resource(), curr_schema=self._get_schema_name())
         self.parse(self._client, resp, obj=self)
         self.meta.load()
-
-    @property
-    def project(self):
-        return self.parent.parent.parent
 
     @property
     def volume(self):
@@ -147,6 +148,10 @@ class VolumePartition(LazyLoad):
             if max_items is not None:
                 params['maxitems'] = max_items
 
+            schema_name = self.parent._get_schema_name()
+            if schema_name is not None:
+                params["curr_schema"] = schema_name
+
             def _it():
                 last_marker = params.get('marker')
                 if 'marker' in params and \
@@ -187,8 +192,11 @@ class VolumePartition(LazyLoad):
 
         from ..tunnel import VolumeTunnel
 
-        self._volume_tunnel = VolumeTunnel(client=self._client, project=self.project,
-                                           endpoint=endpoint or self.project._tunnel_endpoint)
+        self._volume_tunnel = VolumeTunnel(
+            client=self._client,
+            project=self.project,
+            endpoint=endpoint or self.project._tunnel_endpoint,
+        )
         return self._volume_tunnel
 
     def open_reader(self, file_name, reopen=False, endpoint=None, start=None, length=None, **kwargs):
@@ -319,6 +327,10 @@ class PartedVolume(Volume):
             if owner is not None:
                 params['owner'] = owner
 
+            schema_name = self.parent._get_schema_name()
+            if schema_name is not None:
+                params["curr_schema"] = schema_name
+
             def _it():
                 last_marker = params.get('marker')
                 if 'marker' in params and \
@@ -348,7 +360,7 @@ class PartedVolume(Volume):
 
             url = partition.resource()
             del self[name]
-            self._client.delete(url)
+            self._client.delete(url, curr_schema=partition._get_schema_name())
 
     @property
     def partitions(self):

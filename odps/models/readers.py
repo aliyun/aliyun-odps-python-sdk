@@ -75,7 +75,7 @@ class TunnelRecordReader(AbstractRecordReader):
         try:
             _mp_context = multiprocessing.get_context('fork')
         except ValueError:
-            raise ValueError('`n_process > 1` is not supported on Windows.')
+            _mp_context = multiprocessing.get_context('spawn')
 
         split_count = count // n_process + (count % n_process != 0)
         start = 0

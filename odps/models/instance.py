@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import base64
+import functools
 import json
 import sys
 import threading
@@ -33,15 +34,6 @@ from .job import Job
 from .readers import TunnelRecordReader, TunnelArrowReader
 from .worker import WorkerDetail2, LOG_TYPES_MAPPING
 
-try:
-    from functools import wraps
-except ImportError:
-    def wraps(_f):
-        def wrapper(fun):
-            return fun
-
-        return wrapper
-
 
 _RESULT_LIMIT_HELPER_MSG = (
     'See https://pyodps.readthedocs.io/zh_CN/latest/base-sql.html#read-sql-exec-result '
@@ -50,13 +42,11 @@ _RESULT_LIMIT_HELPER_MSG = (
 
 
 def _with_status_api_lock(func):
-    @wraps(func)
+    @six.wraps(func)
     def wrapped(self, *args, **kw):
         with self._status_api_lock:
             return func(self, *args, **kw)
 
-    wrapped.__name__ = func.__name__
-    wrapped.__doc__ = func.__doc__
     return wrapped
 
 
@@ -71,26 +61,36 @@ class InstanceRecordReader(TunnelRecordReader):
     def schema(self):
         return self._schema
 
+    @staticmethod
+    def _read_instance_split(
+        conn, download_id, start, count, idx,
+        rest_client=None, project=None, instance_id=None, tunnel_endpoint=None,
+    ):
+        # read part data
+        from ..tunnel import InstanceTunnel
+
+        instance_tunnel = InstanceTunnel(
+            client=rest_client, project=project, endpoint=tunnel_endpoint
+        )
+        session = instance_tunnel.create_download_session(
+            instance=instance_id, download_id=download_id
+        )
+        with session.open_record_reader(start, count) as reader:
+            conn.send((idx, reader.to_pandas()))
+
     def _get_process_split_reader(self):
         rest_client = self._parent._client
         project = self._parent.project.name
         tunnel_endpoint = self._parent.project._tunnel_endpoint
         instance_id = self._parent.id
 
-        def read_instance_split(conn, download_id, start, count, idx):
-            # read part data
-            from ..tunnel import InstanceTunnel
-
-            instance_tunnel = InstanceTunnel(
-                client=rest_client, project=project, endpoint=tunnel_endpoint
-            )
-            session = instance_tunnel.create_download_session(
-                instance=instance_id, download_id=download_id
-            )
-            with session.open_record_reader(start, count) as reader:
-                conn.send((idx, reader.to_pandas()))
-
-        return read_instance_split
+        return functools.partial(
+            self._read_instance_split,
+            rest_client=rest_client,
+            project=project,
+            instance_id=instance_id,
+            tunnel_endpoint=tunnel_endpoint,
+        )
 
 
 class InstanceArrowReader(TunnelArrowReader):
@@ -385,10 +385,6 @@ class Instance(LazyLoad):
         headers = {'Content-Type': 'application/xml'}
         self._client.put(self.resource(), xml_content, headers=headers)
 
-    @property
-    def project(self):
-        return self.parent.parent
-
     @_with_status_api_lock
     def get_task_results_without_format(self):
         if self._is_sync:
@@ -553,8 +549,11 @@ class Instance(LazyLoad):
     @_with_status_api_lock
     def get_sql_task_cost(self):
         """
-        Get cost information of the sql task.
-        Including input data size, number of UDF, Complexity of the sql task
+        Get cost information of the sql cost task, including input data size,
+        number of UDF, Complexity of the sql task.
+
+        NOTE that DO NOT use this function directly as it cannot be applied to
+        instances returned from SQL. Use ``o.execute_sql_cost`` instead.
 
         :return: cost info in dict format
         """
@@ -797,29 +796,15 @@ class Instance(LazyLoad):
             token = to_str(project.odps.account.token)
         else:
             hours = hours or options.logview_hours
-
-            url = '%s/authorization' % project.resource()
-
             policy = {
-                'expires_in_hours': hours,
-                'policy': {
-                    'Statement': [{
-                        'Action': ['odps:Read'],
-                        'Effect': 'Allow',
-                        'Resource': 'acs:odps:*:projects/%s/instances/%s' % \
-                                    (project.name, self.id)
-                    }],
-                    'Version': '1',
-                }
+                'Statement': [{
+                    'Action': ['odps:Read'],
+                    'Effect': 'Allow',
+                    'Resource': 'acs:odps:*:projects/%s/instances/%s' % (project.name, self.id)
+                }],
+                'Version': '1',
             }
-            headers = {'Content-Type': 'application/json'}
-            params = {'sign_bearer_token': ''}
-            data = json.dumps(policy)
-            res = self._client.post(url, data, headers=headers, params=params)
-
-            content = res.content.decode() if six.PY3 else res.content
-            root = ElementTree.fromstring(content)
-            token = root.find('Result').text
+            token = self.project.generate_auth_token(policy, "bearer", hours)
 
         link = (
             self.project.odps.logview_host

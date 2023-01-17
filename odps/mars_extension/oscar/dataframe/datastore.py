@@ -55,6 +55,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
     overwrite = BoolField("overwrite", default=None)
     write_batch_size = Int64Field("write_batch_size", default=None)
     unknown_as_string = BoolField("unknown_as_string", default=None)
+    tunnel_quota_name = StringField("tunnel_quota_name", default=None)
 
     def __init__(self, **kw):
         kw.update(_output_type_kw)
@@ -169,7 +170,22 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
 
     @classmethod
     def _tile_tunnel(cls, op):
+        from odps import ODPS
+
         out_df = op.outputs[0]
+
+        if op.overwrite:
+            o = ODPS(
+                op.odps_params["access_id"],
+                op.odps_params["secret_access_key"],
+                project=op.odps_params["project"],
+                endpoint=op.odps_params["endpoint"],
+            )
+            data_target = o.get_table(op.table_name)
+            if op.partition_spec:
+                data_target = data_target.get_partition(op.partition_spec)
+            data_target.truncate()
+
         in_df = build_concatenated_rows_frame(op.inputs[0])
         logger.info("Tile table %s[%s]", op.table_name, op.partition_spec)
         recorder_name = str(uuid.uuid4())
@@ -181,6 +197,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
                 odps_params=op.odps_params,
                 partition_spec=op.partition_spec,
                 commit_recorder_name=recorder_name,
+                tunnel_quota_name=op.tunnel_quota_name,
             )
             index_value = parse_index(chunk.index_value.to_pandas()[:0], chunk)
             out_chunk = chunk_op.new_chunk(
@@ -214,15 +231,16 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
 
     dtypes = SeriesField("dtypes")
     table_name = StringField("table_name")
-    partition_spec = StringField("partition_spec")
-    cupid_handle = StringField("cupid_handle")
-    block_id = StringField("block_id")
-    write_batch_size = Int64Field("write_batch_size")
-    unknown_as_string = BoolField("unknown_as_string")
-    commit_recorder_name = StringField("commit_recorder_name")
+    partition_spec = StringField("partition_spec", default=None)
+    cupid_handle = StringField("cupid_handle", default=None)
+    block_id = StringField("block_id", default=None)
+    write_batch_size = Int64Field("write_batch_size", default=None)
+    unknown_as_string = BoolField("unknown_as_string", default=None)
+    commit_recorder_name = StringField("commit_recorder_name", default=None)
 
     # for tunnel
-    odps_params = DictField("odps_params")
+    odps_params = DictField("odps_params", default=None)
+    tunnel_quota_name = StringField("tunnel_quota_name", default=None)
 
     def __init__(self, **kw):
         kw.update(_output_type_kw)
@@ -257,12 +275,16 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
             project=odps_params["project"],
             endpoint=endpoint,
         )
-        odps_schema = o.get_table(op.table_name).schema
-        project_name, table_name = op.table_name.split(".")
+        table_obj = o.get_table(op.table_name)
+        odps_schema = table_obj.table_schema
+        project_name = table_obj.project.name
+        schema_name = table_obj.get_schema().name if table_obj.get_schema() is not None else None
+        table_name = table_obj.name
 
         writer_config = dict(
             _table_name=table_name,
             _project_name=project_name,
+            _schema_name=schema_name,
             _table_schema=odps_schema,
             _partition_spec=op.partition_spec,
             _block_id=op.block_id,
@@ -291,7 +313,7 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
         )
 
         t = o.get_table(op.table_name)
-        tunnel = TableTunnel(o, project=t.project)
+        tunnel = TableTunnel(o, project=t.project, quota_name=op.tunnel_quota_name)
         retry_times = options.retry_times
         init_sleep_secs = 1
         split_index = op.inputs[0].index
@@ -323,7 +345,10 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
                 )
                 time.sleep(sleep_secs)
         logger.info(
-            "Start writing table %s split index: %s", op.table_name, split_index
+            "Start writing table %s. split_index: %s tunnel_session: %s",
+            op.table_name,
+            split_index,
+            upload_session.id,
         )
         retries = 0
         while True:
@@ -350,7 +375,7 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
         except ActorNotExist:
             while True:
                 logger.info(
-                    "Writing table %s has been finished, waitting to be canceled by speculaitive scheduler",
+                    "Writing table %s has been finished, waiting to be canceled by speculative scheduler",
                     op.table_name,
                 )
                 time.sleep(3)
@@ -358,13 +383,19 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
         if can_commit:
             # FIXME If this commit failed or the process crashed, the whole write will still raise error.
             # But this situation is very rare so we skip the error handling.
+            logger.info(
+                "Committing to table %s with upload session %s", op.table_name, upload_session.id
+            )
             upload_session.commit([0])
             logger.info(
-                "Finish writing table %s split index: %s", op.table_name, split_index
+                "Finish writing table %s. split_index: %s tunnel_session: %s",
+                op.table_name,
+                split_index,
+                upload_session.id,
             )
         else:
             logger.info(
-                "Skip writing table %s split index: %s", op.table_name, split_index
+                "Skip writing table %s. split_index: %s", op.table_name, split_index
             )
         if can_destroy:
             try:
@@ -372,9 +403,15 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
                 logger.info("Delete remote object %s", recorder_name)
             except ActorNotExist:
                 pass
+        logger.info(
+            "Committing to table %s with upload session %s", op.table_name, upload_session.id
+        )
         upload_session.commit([0])
-        logger.debug(
-            "Finish writing table %s split index: %s", op.table_name, op.inputs[0].index
+        logger.info(
+            "Finish writing table %s. split_index: %s tunnel_session: %s",
+            op.table_name,
+            split_index,
+            upload_session.id,
         )
         ctx[op.outputs[0].key] = pd.DataFrame()
 
@@ -408,10 +445,10 @@ class DataFrameWriteTableCommit(DataFrameOperand, DataFrameOperandMixin):
 
     odps_params = DictField("odps_params")
     table_name = StringField("table_name")
-    overwrite = BoolField("overwrite")
-    blocks = DictField("blocks")
-    cupid_handle = StringField("cupid_handle")
-    is_terminal = BoolField("is_terminal")
+    overwrite = BoolField("overwrite", default=False)
+    blocks = DictField("blocks", default=None)
+    cupid_handle = StringField("cupid_handle", default=None)
+    is_terminal = BoolField("is_terminal", default=None)
 
     def __init__(self, **kw):
         kw.update(_output_type_kw)
@@ -444,15 +481,16 @@ def write_odps_table(
     unknown_as_string=None,
     odps_params=None,
     write_batch_size=None,
+    tunnel_quota_name=None,
 ):
-    table_name = "%s.%s" % (table.project.name, table.name)
     op = DataFrameWriteTable(
         dtypes=df.dtypes,
         odps_params=odps_params,
-        table_name=table_name,
+        table_name=table.full_table_name,
         unknown_as_string=unknown_as_string,
         partition_spec=partition,
-        over_write=overwrite,
+        overwrite=overwrite,
         write_batch_size=write_batch_size,
+        tunnel_quota_name=tunnel_quota_name,
     )
     return op(df)

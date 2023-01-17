@@ -23,7 +23,7 @@ from odps.tests.core import tn, pandas_case, odps2_typed_case
 from odps.df.backends.tests.core import TestBase
 from odps.config import options
 from odps.compat import unittest, OrderedDict
-from odps.models import Schema, Instance
+from odps.models import TableSchema, Instance
 from odps.df.backends.engine import MixedEngine
 from odps.df.backends.odpssql.engine import ODPSSQLEngine
 from odps.df.backends.pd.engine import PandasEngine
@@ -56,7 +56,7 @@ class Test(TestBase):
         if self.odps.exist_table(table):
             self.t = self.odps.get_table(table)
         else:
-            self.t = self.odps.create_table(table, Schema.from_lists(names, types), lifecycle=1)
+            self.t = self.odps.create_table(table, TableSchema.from_lists(names, types), lifecycle=1)
             with self.t.open_writer() as w:
                 w.write([self.t.new_record(r) for r in odps_data])
 
@@ -113,9 +113,12 @@ class Test(TestBase):
         expected = self.pd_engine.execute(df.union(self.pd_df).sort(['id', 'name'])).values
         self.assertTrue(result.equals(expected))
 
-        schema = Schema.from_lists([c.name for c in self.t.schema.columns if c.name != 'name'],
-                                   [c.type for c in self.t.schema.columns if c.name != 'name'],
-                                   ['name'], ['string'])
+        schema = TableSchema.from_lists(
+            [c.name for c in self.t.table_schema.columns if c.name != 'name'],
+            [c.type for c in self.t.table_schema.columns if c.name != 'name'],
+            ['name'],
+            ['string'],
+        )
         t = self.odps.create_table('tmp_pyodps_%s' % str(uuid.uuid4()).replace('-', '_'), schema)
         try:
             expr = self.odps_df.union(self.pd_df)
@@ -219,7 +222,7 @@ class Test(TestBase):
         t = self.odps.get_table(tmp_table_name)
         expected_types = [odps_types.tinyint, odps_types.smallint, odps_types.int_,
                           odps_types.bigint, odps_types.float_, odps_types.double]
-        self.assertEqual(expected_types, t.schema.types)
+        self.assertEqual(expected_types, t.table_schema.types)
 
     def testExecuteCacheTable(self):
         df = self.odps_df[self.odps_df.name == 'name1']
@@ -345,7 +348,7 @@ class Test(TestBase):
         table_name = tn('pyodps_df_mixed2')
         self.odps.delete_table(table_name, if_exists=True)
         table = next(self.odps_df.data_source())
-        table2 = self.odps.create_table(table_name, table.schema)
+        table2 = self.odps.create_table(table_name, table.table_schema)
         try:
             res = DataFrame(table2).head(10)
             self.assertEqual(len(res), 0)
@@ -407,8 +410,9 @@ class Test(TestBase):
 
         table_name = tn('pyodps_test_mixed_engine_bf_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name,
-                                        schema=Schema.from_lists(['name'], ['string']))
+        table2 = self.odps.create_table(
+            name=table_name, table_schema=TableSchema.from_lists(['name'], ['string'])
+        )
         expr2 = DataFrame(table2)
 
         self.odps.write_table(table2, 0, data2)
@@ -432,8 +436,10 @@ class Test(TestBase):
 
         table_name = tn('pyodps_test_mixed_engine_cp_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name,
-                                        schema=Schema.from_lists(['name', 'fid'], ['string', 'double']))
+        table2 = self.odps.create_table(
+            name=table_name,
+            table_schema=TableSchema.from_lists(['name', 'fid'], ['string', 'double']),
+        )
         expr2 = DataFrame(table2)
         self.odps.write_table(table2, 0, data2)
 
@@ -447,7 +453,7 @@ class Test(TestBase):
 
         output_table = tn('pyodps_test_mixed_engine_cp_output_table')
         self.odps.delete_table(output_table, if_exists=True)
-        schema = Schema.from_lists(['id', 'fid'], ['bigint', 'double'], ['ds'], ['string'])
+        schema = TableSchema.from_lists(['id', 'fid'], ['bigint', 'double'], ['ds'], ['string'])
         output_t = self.odps.create_table(output_table, schema, if_not_exists=True)
 
         t = joined.persist(output_table, partition='ds=today', create_partition=True)

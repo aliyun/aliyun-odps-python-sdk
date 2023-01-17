@@ -97,6 +97,8 @@ if sys.version < '3':
     except ImportError:
         from StringIO import StringIO
 
+    from collections import Mapping, Sequence
+
     string_types = basestring  # noqa: F821 basestring is removed in Python 3
     iteritems = lambda d: d.iteritems()
     irange = __builtin__.xrange
@@ -107,8 +109,13 @@ if sys.version < '3':
 else:
     types.ClassType = type
     import builtins as __builtin__
-    from pickle import _Pickler as Pickler, _Unpickler as Unpickler
     from io import BytesIO as StringIO
+    from pickle import _Pickler as Pickler, _Unpickler as Unpickler
+
+    try:
+        from collections.abc import Mapping, Sequence
+    except ImportError:
+        from collections import Mapping, Sequence
 
     string_types = (str, bytes)
     iteritems = lambda d: d.items()
@@ -1043,6 +1050,7 @@ def dumps(obj, protocol=None, dump_code=False):
 class CloudUnpickler(Unpickler):
 
     dispatch = Unpickler.dispatch.copy()
+    _cloud_dispatch = {}
 
     def __init__(self, *args, **kwargs):
         self._src_major, self._src_minor, self._src_impl = kwargs.pop('impl', None) or (None, None, None)
@@ -1077,13 +1085,13 @@ class CloudUnpickler(Unpickler):
         # Replace the internal implementation of pickle
         # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
         self.append(struct.unpack('<i', self.read(4))[0])
-    dispatch[pickle.BININT] = load_binint
+    _cloud_dispatch[pickle.BININT] = load_binint
 
     def load_binint2(self):
         # Replace the internal implementation of pickle
         # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
-        self.append(struct.unpack('<i', self.read(2) + '\000\000')[0])
-    dispatch[pickle.BININT2] = load_binint2
+        self.append(struct.unpack('<i', self.read(2) + b'\000\000')[0])
+    _cloud_dispatch[pickle.BININT2] = load_binint2
 
     def load_long4(self):
         # Replace the internal implementation of pickle
@@ -1091,49 +1099,49 @@ class CloudUnpickler(Unpickler):
         n = struct.unpack('<i', self.read(4))[0]
         bytes = self.read(n)
         self.append(pickle.decode_long(bytes))
-    dispatch[pickle.LONG4] = load_long4
+    _cloud_dispatch[pickle.LONG4] = load_long4
 
     def load_binstring(self):
         # Replace the internal implementation of pickle
         # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
         len = struct.unpack('<i', self.read(4))[0]
         self.append(self.read(len))
-    dispatch[pickle.BINSTRING] = load_binstring
+    _cloud_dispatch[pickle.BINSTRING] = load_binstring
 
     def load_binunicode(self):
         # Replace the internal implementation of pickle
         # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
         len = struct.unpack('<i', self.read(4))[0]
         self.append(unicode(self.read(len), 'utf-8'))
-    dispatch[pickle.BINUNICODE] = load_binunicode
+    _cloud_dispatch[pickle.BINUNICODE] = load_binunicode
 
     def load_ext2(self):
         # Replace the internal implementation of pickle
         # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
-        code = struct.unpack('<i', self.read(2) + '\000\000')[0]
+        code = struct.unpack('<i', self.read(2) + b'\000\000')[0]
         self.get_extension(code)
-    dispatch[pickle.EXT2] = load_ext2
+    _cloud_dispatch[pickle.EXT2] = load_ext2
 
     def load_ext4(self):
         # Replace the internal implementation of pickle
         # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
         code = struct.unpack('<i', self.read(4))[0]
         self.get_extension(code)
-    dispatch[pickle.EXT4] = load_ext4
+    _cloud_dispatch[pickle.EXT4] = load_ext4
 
     def load_long_binget(self):
         # Replace the internal implementation of pickle
         # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
         i = struct.unpack('<i', self.read(4))[0]
         self.append(self.memo[repr(i)])
-    dispatch[pickle.LONG_BINGET] = load_long_binget
+    _cloud_dispatch[pickle.LONG_BINGET] = load_long_binget
 
     def load_long_binput(self):
         # Replace the internal implementation of pickle
         # cause `marshal.loads` has been blocked by MaxCompute python sandbox.
         i = struct.unpack('<i', self.read(4))[0]
         self.memo[repr(i)] = self.stack[-1]
-    dispatch[pickle.LONG_BINPUT] = load_long_binput
+    _cloud_dispatch[pickle.LONG_BINPUT] = load_long_binput
 
     def load_reduce(self):
         # Replace the internal implementation of pickle
@@ -1153,6 +1161,20 @@ class CloudUnpickler(Unpickler):
                         args = Cp26_Cp27(args).translate_code()
                     elif not hasattr(sys, "pypy_version_info") and self._src_impl == 'pypy':
                         args = Pypy2_Cp27(args).translate_code()
+                elif sys.version_info[:2] == (3, 7):
+                    if self._src_version == (3, 10):
+                        args = Cp310_Cp39(args).translate_code()
+                        args = Cp39_Cp37(args).translate_code()
+                    elif self._src_version == (3, 9):
+                        args = Cp39_Cp37(args).translate_code()
+                    elif self._src_version == (3, 8):
+                        args = Cp38_Cp37(args).translate_code()
+                    elif self._src_version == (3, 6):
+                        args = Cp36_Cp37(args).translate_code()
+                    elif self._src_version != (3, 7):
+                        raise SystemError(
+                            "Client Python version not acceptable, please use Python 3.7 to run your code"
+                        )
                 elif sys.version_info[:2] != self._src_version:
                     raise NotImplementedError('Code conversion from Python %r to %r is not supported yet.'
                                               % (self._src_version, sys.version_info[:2]))
@@ -1173,7 +1195,14 @@ class CloudUnpickler(Unpickler):
             raise Exception('Failed to unpickle reduce. func=%s mod=%s args=%s msg="%s"' % (
             func.__name__, func.__module__, repr(args), str(exc)))
         stack[-1] = value
-    dispatch[pickle.REDUCE] = load_reduce
+    _cloud_dispatch[pickle.REDUCE] = load_reduce
+
+    if PY3:
+        for k, v in _cloud_dispatch.items():
+            dispatch[k[0]] = v
+    else:
+        dispatch.update(_cloud_dispatch)
+    del _cloud_dispatch
 
 
 def load(file, impl=None, dump_code=False):
@@ -1450,6 +1479,7 @@ if sys.version_info < (3, 4):
 Code blow resolves bytecode translation between py26 / py3 and py27
 """
 # relevant opcodes
+BEGIN_FINALLY_PY38 = 53
 BINARY_MATRIX_MULTIPLY_PY3 = 16
 BUILD_CLASS = opcode.opmap.get('BUILD_CLASS')
 BUILD_LIST_FROM_ARG_PYPY = 203
@@ -1464,33 +1494,46 @@ BUILD_SET_UNPACK_PY3 = 153
 BUILD_STRING_PY36 = 157
 BUILD_TUPLE_UNPACK_PY3 = 152
 BUILD_TUPLE_UNPACK_WITH_CALL_PY36 = 158
+CALL_FINALLY_PY38 = 162
 CALL_FUNCTION = opcode.opmap['CALL_FUNCTION']
 CALL_FUNCTION_EX_PY36 = 142
 CALL_FUNCTION_KW = opcode.opmap.get('CALL_FUNCTION_KW')
 CALL_METHOD_PYPY = 202
 CALL_METHOD_PY37 = 161
 COMPARE_OP = opcode.opmap.get('COMPARE_OP')
+CONTAINS_OP_PY39 = 118
+COPY_DICT_WITHOUT_KEYS_PY310 = 34
 DELETE_DEREF_PY3 = 138
+DICT_MERGE_PY39 = 164
+DICT_UPDATE_PY39 = 165
 DUP_TOP = dis.opmap.get('DUP_TOP')
 DUP_TOP_TWO_PY3 = 5
 DUP_TOPX = dis.opmap.get('DUP_TOPX')
+END_FINALLY = dis.opmap.get("END_FINALLY")
 EXTENDED_ARG = dis.EXTENDED_ARG
 EXTENDED_ARG_PY26 = 143
 EXTENDED_ARG_PY3 = 144
 FORMAT_VALUE_PY36 = 155
 FOR_ITER = opcode.opmap['FOR_ITER']
+GEN_START_PY310 = 129
+GET_LEN_PY310 = 30
 HAVE_ARGUMENT = dis.HAVE_ARGUMENT
 IMPORT_FROM = opcode.opmap.get('IMPORT_FROM')
 IMPORT_NAME = opcode.opmap.get('IMPORT_NAME')
 INPLACE_MATRIX_MULTIPLY_PY3 = 17
+IS_OP_PY39 = 117
 JUMP_ABSOLUTE = opcode.opmap['JUMP_ABSOLUTE']
 JUMP_FORWARD = opcode.opmap['JUMP_FORWARD']
 JUMP_IF_FALSE_OR_POP = opcode.opmap.get('JUMP_IF_FALSE_OR_POP')
 JUMP_IF_NOT_DEBUG_PYPY = 204
+JUMP_IF_NOT_EXC_MATCH_PY39 = 121
 JUMP_IF_TRUE_OR_POP = opcode.opmap.get('JUMP_IF_TRUE_OR_POP')
 LIST_APPEND = opcode.opmap['LIST_APPEND']
 LIST_APPEND_PY26 = 18
 LIST_APPEND_PY3 = 145
+LIST_EXTEND_PY39 = 162
+LIST_TO_TUPLE_PY39 = 82
+LOAD_ASSERTION_ERROR_PY39 = 74
 LOAD_ATTR = opcode.opmap['LOAD_ATTR']
 LOAD_BUILD_CLASS_PY3 = 71
 LOAD_CLASSDEREF_PY3 = 148
@@ -1502,15 +1545,28 @@ LOAD_METHOD_PY37 = 160
 LOOKUP_METHOD_PYPY = 201
 MAKE_CLOSURE = opcode.opmap.get('MAKE_CLOSURE')
 MAKE_FUNCTION = opcode.opmap['MAKE_FUNCTION']
+MAP_ADD = opcode.opmap.get("MAP_ADD")
+MATCH_CLASS_PY310 = 152
+MATCH_KEYS_PY310 = 33
+MATCH_MAPPING_PY310 = 31
+MATCH_SEQUENCE_PY310 = 32
 NOP = opcode.opmap['NOP']
+POP_BLOCK = opcode.opmap.get('POP_BLOCK')
 POP_EXCEPT_PY3 = 89
+POP_FINALLY_PY38 = 163
 POP_JUMP_IF_TRUE = opcode.opmap.get('POP_JUMP_IF_TRUE')
 POP_JUMP_IF_FALSE = opcode.opmap.get('POP_JUMP_IF_FALSE')
 POP_TOP = opcode.opmap.get('POP_TOP')
+RERAISE_PY39 = 48
 RETURN_VALUE = opcode.opmap['RETURN_VALUE']
+ROT_N_PY310 = 99
 ROT_TWO = opcode.opmap['ROT_TWO']
 ROT_THREE = opcode.opmap.get('ROT_THREE')
-ROT_FOUR = opcode.opmap.get('ROT_FOUR')
+ROT_FOUR_PY38 = 6
+SET_UPDATE_PY39 = 163
+SETUP_EXCEPT = 121
+SETUP_FINALLY_PY38 = 122
+STORE_ANNOTATION_PY36 = 127
 STORE_ATTR = opcode.opmap.get('STORE_ATTR')
 STORE_DEREF = opcode.opmap.get('STORE_DEREF')
 STORE_NAME = opcode.opmap.get('STORE_NAME')
@@ -1525,11 +1581,11 @@ def op_translator(op):
         ops = list(op)
 
     def _decorator(fun):
-        func_args = inspect.getargs(fun.__code__).args
+        func_args = set(inspect.getargs(fun.__code__).args)
 
-        def _wrapper(self, **kwargs):
-            args = [kwargs[v] for v in func_args[1:]]
-            return fun(self, *args)
+        def _wrapper(self, *args, **kwargs):
+            new_kwargs = dict((k, v) for k, v in kwargs.items() if k in func_args)
+            return fun(self, *args, **new_kwargs)
 
         _wrapper._bind_ops = ops
         _wrapper.__name__ = fun.__name__
@@ -1544,6 +1600,10 @@ class CodeRewriterMeta(type):
         type.__init__(cls, what, bases, d)
 
         translator_dict = dict()
+        for base in bases[::-1]:
+            if hasattr(base, "_translator"):
+                translator_dict.update(base._translator)
+
         d = d or dict()
         for k, v in iteritems(d):
             if hasattr(v, '_bind_ops'):
@@ -1552,8 +1612,14 @@ class CodeRewriterMeta(type):
         cls._translator = translator_dict
 
 
+_ord_code = ord if not PY3 else (lambda x: x)
+
+
 class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
     _translator = dict()
+    _hasjabs = None
+    _hasjrel = None
+    _always_reassign = False
 
     CO_NLOCALS_POS = None
     CO_CODE_POS = None
@@ -1588,9 +1654,10 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
             self.code_args[offset] += tuple(patches)
         return tuple(poses) if len(poses) != 1 else poses[0]
 
-    @staticmethod
-    def _reassign_targets(code, new_to_old, old_to_new):
+    def reassign_targets(self, code, new_to_old, old_to_new):
         code_len = len(code)
+        hasjabs = set(self._hasjabs or opcode.hasjabs)
+        hasjrel = set(self._hasjrel or opcode.hasjrel)
 
         def get_group_end(start):
             end = start + 1
@@ -1603,32 +1670,28 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
         gend = get_group_end(0)
         sio = StringIO()
         while i < code_len:
-            op = ord(code[i])
+            op = _ord_code(code[i])
             if new_to_old[i]:
                 gstart = i
                 gend = get_group_end(i)
             if op >= HAVE_ARGUMENT:
-                op_data = ord(code[i + 1]) + (ord(code[i + 2]) << 8)
-                if op in opcode.hasjrel:
+                op_data = _ord_code(code[i + 1]) + (_ord_code(code[i + 2]) << 8)
+                if op in hasjrel:
                     # relocate to new relative address
                     if gstart <= i + 3 + op_data < gend:
                         new_rel = op_data
                     else:
                         old_abs = new_to_old[gend] + op_data - (gend - i - 3)
                         new_rel = old_to_new[old_abs] - i - 3
-                    sio.write(code[i])
-                    sio.write(chr(new_rel & 0xff))
-                    sio.write(chr(new_rel >> 8))
-                elif op in opcode.hasjabs:
+                    self.write_instruction(code[i], new_rel, sio)
+                elif op in hasjabs:
                     # relocate to new absolute address
                     old_rel = op_data - new_to_old[gstart]
                     if gstart <= old_rel + gstart < gend:
                         new_abs = old_rel + gstart
                     else:
                         new_abs = old_to_new[op_data - (i - gstart)]
-                    sio.write(code[i])
-                    sio.write(chr(new_abs & 0xff))
-                    sio.write(chr(new_abs >> 8))
+                    self.write_instruction(code[i], new_abs, sio)
                 else:
                     sio.write(code[i:i + 3])
                 i += 3
@@ -1644,9 +1707,9 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
         cur_line, last_line = 0, 0
         cur_new_pc, last_new_pc = 0, 0
         for old_pc_delta, line_delta in zip(lnotab[::2], lnotab[1::2]):
-            old_pc_delta = ord(old_pc_delta)
+            old_pc_delta = _ord_code(old_pc_delta)
 
-            line_delta = ord(line_delta)
+            line_delta = _ord_code(line_delta)
             if line_delta >= 0x80:
                 line_delta -= 0x100
             cur_line += line_delta
@@ -1689,24 +1752,23 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
     def write_replacement_call(self, func, stack_len=None, with_arg=None):
         func_cid = self.patch_consts(func)
         stack_len = stack_len if stack_len is not None else with_arg
-        instructions = []
+        instruction_size = 0
 
         if with_arg is not None:
             flag_cid = self.patch_consts(with_arg)
-            instructions.extend([LOAD_CONST, flag_cid & 0xff, flag_cid >> 8])
+            instruction_size += self.write_instruction(LOAD_CONST, flag_cid)
 
-        instructions.extend([
-            BUILD_TUPLE, stack_len & 0xff, stack_len >> 8,
-            LOAD_CONST, func_cid & 0xff, func_cid >> 8,
-            ROT_TWO,
-            CALL_FUNCTION, 1, 0
+        instruction_size += sum([
+            self.write_instruction(BUILD_TUPLE, stack_len),
+            self.write_instruction(LOAD_CONST, func_cid),
+            self.write_instruction(ROT_TWO),
+            self.write_instruction(CALL_FUNCTION, 1),
         ])
+        return instruction_size
 
-        self.code_writer.write(bytes(bytearray(instructions)))
-        return len(instructions)
-
-    def write_instruction(self, opcode, arg=None):
+    def write_instruction(self, opcode, arg=None, stream=None):
         inst_size = 0
+        stream = stream or self.code_writer
         if arg is not None:
             arg_list = []
             if arg == 0:
@@ -1717,33 +1779,41 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
                     arg >>= 16
             arg_list = list(reversed(arg_list))
             for ap in arg_list[:-1]:
-                inst_size += self.translate_instruction(self.OP_EXTENDED_ARG, ap, None)
+                inst_size += self.translate_instruction(
+                    self.OP_EXTENDED_ARG, ap, None, stream=stream
+                )
             arg = arg_list[-1]
-            self.code_writer.write(bytes(bytearray([opcode, arg & 0xff, arg >> 8])))
+            stream.write(bytes(bytearray([opcode, arg & 0xff, arg >> 8])))
             return inst_size + 3
         else:
-            self.code_writer.write(chr(opcode))
+            stream.write(chr(opcode))
             return inst_size + 1
 
-    def translate_instruction(self, opcode, arg, pc):
+    def translate_instruction(self, opcode, arg, pc, stream=None):
         cls = type(self)
+        stream = stream or self.code_writer
         if not hasattr(cls, '_translator') or opcode not in cls._translator:
-            return self.write_instruction(opcode, arg)
+            return self.write_instruction(opcode, arg, stream=stream)
         else:
-            return cls._translator[opcode](self, op=opcode, arg=arg, pc=pc)
+            old_writer = self.code_writer
+            try:
+                self.code_writer = stream
+                return cls._translator[opcode](self, op=opcode, arg=arg, pc=pc)
+            finally:
+                self.code_writer = old_writer
 
-    def iter_code(self):
+    def iter_code(self, bytecode=None):
         idx = 0
         extended_arg = 0
-        bytecode = self.code_args[self.CO_CODE_POS]
+        bytecode = bytecode or self.code_args[self.CO_CODE_POS]
         while idx < len(bytecode):
-            opcode = ord(bytecode[idx])
+            opcode = _ord_code(bytecode[idx])
             if opcode < HAVE_ARGUMENT:
                 idx += 1
                 extended_arg = 0
                 yield idx, opcode, None
             else:
-                arg = (extended_arg << 16) + ord(bytecode[idx + 1]) + (ord(bytecode[idx + 2]) << 8)
+                arg = (extended_arg << 16) + _ord_code(bytecode[idx + 1]) + (_ord_code(bytecode[idx + 2]) << 8)
                 idx += 3
                 if opcode == self.OP_EXTENDED_ARG:
                     extended_arg = arg
@@ -1773,10 +1843,10 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
                 remapped = True
 
         byte_code = self.code_writer.getvalue()
-        if not remapped:
+        if not remapped and not self._always_reassign:
             self.code_args[self.CO_CODE_POS] = self.code_writer.getvalue()
         else:
-            self.code_args[self.CO_CODE_POS] = self._reassign_targets(byte_code, new_to_old, old_to_new)
+            self.code_args[self.CO_CODE_POS] = self.reassign_targets(byte_code, new_to_old, old_to_new)
             lnotab = self.code_args[self.CO_LNOTAB_POS]
             self.code_args[self.CO_LNOTAB_POS] = self._reassign_lnotab(lnotab, old_to_new)
 
@@ -1812,21 +1882,112 @@ class Py3CodeRewriter(CodeRewriter):
 
 
 class Py36CodeRewriter(Py3CodeRewriter):
-    def iter_code(self):
+    _write_py35_instruction = False
+    _double_jump_index = False
+
+    instruction_aligned = True
+
+    def reassign_targets(self, code, new_to_old, old_to_new):
+        if self._write_py35_instruction:
+            return super(Py36CodeRewriter, self).reassign_targets(
+                code, new_to_old, old_to_new
+            )
+
+        code_len = len(code)
+        hasjabs = set(self._hasjabs or opcode.hasjabs)
+        hasjrel = set(self._hasjrel or opcode.hasjrel)
+
+        def get_group_end(start):
+            end = start + 1
+            while end < code_len and new_to_old[end] == 0:
+                end += 1
+            return end
+
+        gstart = 0
+        gend = get_group_end(0)
+        sio = StringIO()
+        for i, op, op_data in self.iter_code(code):
+            if new_to_old[i]:
+                gstart = i
+                gend = get_group_end(i)
+            if op >= HAVE_ARGUMENT:
+                if op in hasjrel:
+                    if self._double_jump_index:
+                        op_data *= 2
+                    # relocate to new relative address
+                    if gstart <= i + 2 + op_data < gend:
+                        new_rel = op_data
+                    else:
+                        old_abs = new_to_old[gend] + op_data - (gend - i - 2)
+                        new_rel = old_to_new[old_abs] - i - 2
+                    self.write_instruction(op, new_rel, stream=sio)
+                elif op in hasjabs:
+                    if self._double_jump_index:
+                        op_data *= 2
+                    # relocate to new absolute address
+                    old_rel = op_data - new_to_old[gstart]
+                    if gstart <= old_rel + gstart < gend:
+                        new_abs = old_rel + gstart
+                    else:
+                        new_abs = old_to_new[op_data - (i - gstart)]
+                    self.write_instruction(op, new_abs, stream=sio)
+                else:
+                    self.write_instruction(op, op_data, stream=sio)
+            else:
+                self.write_instruction(op, stream=sio)
+        return sio.getvalue()
+
+    def write_instruction(self, opcode, arg=None, stream=None):
+        if self._write_py35_instruction:
+            return super(Py36CodeRewriter, self).write_instruction(
+                opcode, arg, stream=stream
+            )
+
+        stream = stream or self.code_writer
+        inst_size = 0
+        if opcode < HAVE_ARGUMENT:
+            stream.write(bytes(bytearray([opcode, 0])))
+            return 2
+        else:
+            arg_bytes = list(arg.to_bytes(16, "big"))
+            for arg_byte in arg_bytes[:-1]:
+                if arg_byte == 0:
+                    continue
+                inst_size += self.translate_instruction(
+                    self.OP_EXTENDED_ARG, arg_byte, None, stream=stream
+                )
+            stream.write(bytes(bytearray([opcode, arg_bytes[-1]])))
+            return inst_size + 2
+
+    def iter_code(self, bytecode=None):
         extended_arg = 0
-        bytecode = self.code_args[self.CO_CODE_POS]
+        bytecode = bytecode or self.code_args[self.CO_CODE_POS]
         for idx in irange(0, len(bytecode), 2):
-            opcode = ord(bytecode[idx])
+            opcode = _ord_code(bytecode[idx])
             if opcode < HAVE_ARGUMENT:
                 extended_arg = 0
                 yield idx + 2, opcode, None
             else:
-                arg = (extended_arg << 8) + ord(bytecode[idx + 1])
+                arg = (extended_arg << 8) + _ord_code(bytecode[idx + 1])
                 if opcode == self.OP_EXTENDED_ARG:
                     extended_arg = arg
                 else:
                     extended_arg = 0
                     yield idx + 2, opcode, arg
+
+
+class Py38CodeRewriter(Py36CodeRewriter):
+    CO_NLOCALS_POS = 3
+    CO_CODE_POS = 6
+    CO_CONSTS_POS = 7
+    CO_NAMES_POS = 8
+    CO_VARNAMES_POS = 9
+    CO_FILENAME_POS = 10
+    CO_NAME_POS = 11
+    CO_LNOTAB_POS = 13
+    CO_FREEVARS_POS = 14
+    CO_CELLVARS_POS = 15
+    OP_EXTENDED_ARG = EXTENDED_ARG_PY3
 
 
 class Cp26_Cp27(Py2CodeRewriter):
@@ -2108,6 +2269,8 @@ class Cp35_Cp27(Py3CodeRewriter):
 
 
 class Cp36_Cp35(Py36CodeRewriter):
+    _write_py35_instruction = True
+
     @staticmethod
     def _call_function_kw(args):
         names = args[-1]
@@ -2240,4 +2403,235 @@ class Cp36_Cp35(Py36CodeRewriter):
             self.write_instruction(CALL_FUNCTION, arg),
             self.write_instruction(ROT_TWO),
             self.write_instruction(POP_TOP),
+        ])
+
+
+class Cp36_Cp37(Py36CodeRewriter):
+    @op_translator(STORE_ANNOTATION_PY36)
+    def handle_store_annotation(self):
+        return self.write_instruction(POP_TOP)
+
+
+class Cp38_Cp37(Py38CodeRewriter):
+    @op_translator(BEGIN_FINALLY_PY38)
+    def handle_begin_finally(self):
+        none_cid = self.patch_consts(None)
+        return self.write_instruction(LOAD_CONST, none_cid)
+
+    @op_translator(CALL_FINALLY_PY38)
+    def handle_call_finally(self):
+        return 0
+
+    @op_translator(POP_FINALLY_PY38)
+    def handle_pop_finally(self):
+        return self.write_instruction(END_FINALLY)
+
+    @op_translator(MAP_ADD)
+    def handle_map_add(self, arg):
+        return sum([
+            self.write_instruction(ROT_TWO),
+            self.write_instruction(MAP_ADD, arg),
+        ])
+
+    @op_translator(ROT_FOUR_PY38)
+    def handle_rot_four(self, op, pc):
+        # ROT_FOUR and POP_EXCEPT are coupled in Py38 to facilitate returning
+        # in except block, which can be removed in Py37
+        if self.code_args[self.CO_CODE_POS][pc] == POP_EXCEPT_PY3:
+            return 0
+
+        head_var_id1 = self.patch_varnames("_rot_four_head_1_%s" % id(op))
+        head_var_id2 = self.patch_varnames("_rot_four_head_2_%s" % id(op))
+        return sum([
+            self.write_instruction(STORE_FAST, head_var_id1),
+            self.write_instruction(STORE_FAST, head_var_id2),
+            self.write_instruction(LOAD_FAST, head_var_id1),
+            self.write_instruction(ROT_THREE),
+            self.write_instruction(LOAD_FAST, head_var_id2),
+        ])
+
+    @op_translator(POP_EXCEPT_PY3)
+    def handle_pop_except(self, pc):
+        # ROT_FOUR and POP_EXCEPT are coupled in Py38 to facilitate returning
+        # in except block, which can be removed in Py37
+        if (
+            (pc >= 4 and self.code_args[self.CO_CODE_POS][pc - 4] == ROT_FOUR_PY38)
+            or (pc >= 8 and self.code_args[self.CO_CODE_POS][pc - 8:pc - 2:2] == [POP_TOP] * 3)
+        ):
+            return 0
+        return self.write_instruction(POP_EXCEPT_PY3)
+
+    @op_translator(SETUP_FINALLY_PY38)
+    def handle_setup_finally(self, arg, pc):
+        # is an except block, rewrite to SETUP_EXCEPT
+        if self.code_args[self.CO_CODE_POS][arg + pc] == DUP_TOP:
+            return self.write_instruction(SETUP_EXCEPT, arg)
+        else:
+            return self.write_instruction(SETUP_FINALLY_PY38, arg)
+
+    @op_translator(POP_BLOCK)
+    def handle_pop_block(self, pc):
+        if self.code_args[self.CO_CODE_POS][pc] == RETURN_VALUE:
+            return 0
+        return self.write_instruction(POP_BLOCK)
+
+    @op_translator(JUMP_FORWARD)
+    def handle_jump_forward(self, arg, pc):
+        # skip END_FINALLY for Python < 3.8
+        if self.code_args[self.CO_CODE_POS][arg + pc] == END_FINALLY:
+            return self.write_instruction(JUMP_FORWARD, arg + 2)
+        return self.write_instruction(JUMP_FORWARD, arg)
+
+    def translate_code(self):
+        code_args = super(Cp38_Cp37, self).translate_code()
+        return [code_args[0], ] + code_args[2:]
+
+
+class Cp39_Cp37(Cp38_Cp37):
+    _hasjabs = [111, 112, 113, 114, 115, 121]
+    _hasjrel = [93, 110, 122, 143, 154]
+
+    _legacy_cmp_ops = (
+        '<', '<=', '==', '!=', '>', '>=', 'in', 'not in', 'is', 'is not', 'exception match', 'BAD'
+    )
+    _in_code = _legacy_cmp_ops.index("in")
+    _not_in_code = _legacy_cmp_ops.index("not in")
+    _is_code = _legacy_cmp_ops.index("is")
+    _is_not_code = _legacy_cmp_ops.index("is not")
+    _exc_match_code = _legacy_cmp_ops.index("exception match")
+    _no_next = object()
+
+    @op_translator(CONTAINS_OP_PY39)
+    def handle_contains_op(self, arg):
+        cmp_code = self._not_in_code if arg else self._in_code
+        return self.write_instruction(COMPARE_OP, cmp_code)
+
+    @op_translator(IS_OP_PY39)
+    def handle_is_op(self, arg):
+        cmp_code = self._is_not_code if arg else self._is_code
+        return self.write_instruction(COMPARE_OP, cmp_code)
+
+    @op_translator(JUMP_IF_NOT_EXC_MATCH_PY39)
+    def handle_jump_if_not_exc_match(self, arg):
+        return sum([
+            self.write_instruction(COMPARE_OP, self._exc_match_code),
+            self.write_instruction(POP_JUMP_IF_FALSE, arg),
+        ])
+
+    @op_translator(LOAD_ASSERTION_ERROR_PY39)
+    def handle_load_assertion_error(self):
+        error_id = self.patch_consts(AssertionError)
+        return self.write_instruction(LOAD_CONST, error_id)
+
+    @op_translator(RERAISE_PY39)
+    def handle_reraise(self):
+        return self.write_instruction(END_FINALLY)
+
+    @op_translator(LIST_TO_TUPLE_PY39)
+    def handle_list_to_tuple(self):
+        return self.write_replacement_call(lambda tl: tuple(tl[0]), 1)
+
+    def _handle_stack_update(self, arg, func):
+        return sum([
+            self.write_instruction(BUILD_LIST, arg + 1),
+            self.write_replacement_call(func, 1),
+            self.write_instruction(UNPACK_SEQUENCE, arg),
+        ])
+
+    @staticmethod
+    def _list_extend(args):
+        stack_list = args[0]
+        stack_list[0].extend(stack_list[-1])
+        return stack_list[-2::-1]
+
+    @staticmethod
+    def _set_dict_update(args):
+        stack_list = args[0]
+        stack_list[0].update(stack_list[-1])
+        return stack_list[-2::-1]
+
+    @classmethod
+    def _dict_merge(cls, args):
+        stack_list = args[0]
+        source = stack_list[-1]
+        target = stack_list[0]
+        dup = next((x for x in source if x in target), cls._no_next)
+        if dup is not cls._no_next:
+            raise KeyError(dup)
+        target.update(source)
+        return stack_list[-2::-1]
+
+    @op_translator(LIST_EXTEND_PY39)
+    def handle_list_extend(self, arg):
+        return self._handle_stack_update(arg, self._list_extend)
+
+    @op_translator(SET_UPDATE_PY39)
+    def handle_set_update(self, arg):
+        return self._handle_stack_update(arg, self._set_dict_update)
+
+    @op_translator(DICT_UPDATE_PY39)
+    def handle_dict_update(self, arg):
+        return self._handle_stack_update(arg, self._set_dict_update)
+
+    @op_translator(DICT_MERGE_PY39)
+    def handle_dict_update(self, arg):
+        return self._handle_stack_update(arg, self._dict_merge)
+
+
+class Cp310_Cp39(Py38CodeRewriter):
+    _double_jump_index = True
+    _always_reassign = True
+    _hasjabs = [111, 112, 113, 114, 115, 121]
+    _hasjrel = [93, 110, 122, 143, 154]
+
+    @op_translator(GEN_START_PY310)
+    def handle_gen_start(self):
+        return 0
+
+    @staticmethod
+    def _rot_n(tp):
+        return tp[-2::-1] + tp[-1:]
+
+    @op_translator(ROT_N_PY310)
+    def handle_rot_n(self, arg):
+        return sum([
+            self.write_replacement_call(self._rot_n, arg + 1),
+            self.write_instruction(UNPACK_SEQUENCE, arg + 1),
+        ])
+
+    @staticmethod
+    def _copy_dict_without_keys(tp):
+        rest = dict(tp[0])
+        for k in tp[1]:
+            del rest[k]
+        return rest, tp[0]
+
+    @op_translator(COPY_DICT_WITHOUT_KEYS_PY310)
+    def handle_copy_dict_without_keys(self):
+        return sum([
+            self.write_replacement_call(self._copy_dict_without_keys, 2),
+            self.write_instruction(UNPACK_SEQUENCE, 2),
+        ])
+
+    @op_translator(GET_LEN_PY310)
+    def handle_get_len(self):
+        return sum([
+            self.write_instruction(DUP_TOP),
+            self.write_replacement_call(lambda tp: len(tp[0]), 1),
+        ])
+
+    @op_translator(MATCH_MAPPING_PY310)
+    def handle_match_mapping(self):
+        return sum([
+            self.write_instruction(DUP_TOP),
+            self.write_replacement_call(lambda tp: isinstance(tp[0], Mapping), 1),
+        ])
+
+    @op_translator(MATCH_SEQUENCE_PY310)
+    def handle_match_sequence(self):
+        return sum([
+            self.write_instruction(DUP_TOP),
+            self.write_replacement_call(
+                lambda tp: isinstance(tp[0], Sequence) and not isinstance(tp[0], (str, bytes, bytearray)), 1
+            ),
         ])

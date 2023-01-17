@@ -38,7 +38,7 @@ from ..errors import CompileError
 from ..utils import refresh_dynamic
 from . import types
 from ... import types as df_types
-from ....models import FileResource, TableResource, Schema
+from ....models import FileResource, TableResource, TableSchema
 from .... import compat
 from ....lib.xnamedtuple import xnamedtuple
 from ....compat import lzip
@@ -665,7 +665,7 @@ class PandasCompiler(Backend):
                     for name in columns[1]:
                         names.append('{0}_{1}'.format(name, value_name))
                         tps.append(value_col.dtype)
-            expr._schema = Schema.from_lists(names, tps)
+            expr._schema = TableSchema.from_lists(names, tps)
 
             res = pd.DataFrame(pivoted.values, columns=names)
             to_sub = CollectionExpr(_source_data=res, _schema=expr._schema)
@@ -765,7 +765,7 @@ class PandasCompiler(Backend):
                         names.append(name)
                         tps.append(value_col.dtype)
             if expr._columns:
-                expr._schema = Schema.from_lists(names, tps)
+                expr._schema = TableSchema.from_lists(names, tps)
 
             res = pd.DataFrame(pivoted.values, columns=names)
             to_sub = CollectionExpr(_source_data=res, _schema=expr._schema)
@@ -967,7 +967,7 @@ class PandasCompiler(Backend):
             elif isinstance(resource, TableResource):
                 def gen():
                     table = resource.get_source_table()
-                    named_args = xnamedtuple('NamedArgs', table.schema.names)
+                    named_args = xnamedtuple('NamedArgs', table.table_schema.names)
                     partition = resource.get_source_table_partition()
                     with table.open_reader(partition=partition) as reader:
                         for r in reader:
@@ -1565,7 +1565,7 @@ class PandasCompiler(Backend):
             intact_types = [c.dtype for c in expr._intact]
             intact_df = _input[intact_names]
             append_df = pd.DataFrame(append_grid, columns=app_col_names)
-            expr._schema = Schema.from_lists(
+            expr._schema = TableSchema.from_lists(
                 intact_names + app_col_names,
                 intact_types + [expr._column_type] * len(app_col_names),
             )

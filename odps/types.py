@@ -45,6 +45,12 @@ class Partition(Column):
         return '<partition {0}, type {1}>'.format(utils.to_str(self.name), self.type.name.lower())
 
 
+class _CallableList(list):
+    """Make sure keys and values properties also callable"""
+    def __call__(self):
+        return self
+
+
 class PartitionSpec(object):
     def __init__(self, spec=None):
         self.kv = compat.OrderedDict()
@@ -79,7 +85,11 @@ class PartitionSpec(object):
 
     @property
     def keys(self):
-        return compat.lkeys(self.kv)
+        return _CallableList(self.kv.keys())
+
+    @property
+    def values(self):
+        return _CallableList(self.kv.values())
 
     def items(self):
         for k, v in self.kv.items():
@@ -524,7 +534,7 @@ class Record(six.with_metaclass(RecordMeta, RecordReprMixin, BaseRecord)):
 
     :Example:
 
-    >>> schema = Schema.from_lists(['name', 'id'], ['string', 'string'])
+    >>> schema = TableSchema.from_lists(['name', 'id'], ['string', 'string'])
     >>> record = Record(schema=schema, values=['test', 'test2'])
     >>> record[0] = 'test'
     >>> record[0]

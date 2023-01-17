@@ -18,7 +18,7 @@ import uuid
 
 from odps.df.backends.tests.core import TestBase, tn
 from odps.tests.core import sqlalchemy_case
-from odps.models import Schema
+from odps.models import TableSchema
 from odps import types, options
 from odps.df.types import validate_data_type
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema
@@ -31,13 +31,12 @@ from odps.df.backends.core import EngineTypes as Engines
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
         self.schema = df_schema_to_odps_schema(schema)
         table_name = tn('pyodps_test_selecter_table_%s' % str(uuid.uuid4()).replace('-', '_'))
         self.odps.delete_table(table_name, if_exists=True)
-        self.table = self.odps.create_table(
-                name=table_name, schema=self.schema)
+        self.table = self.odps.create_table(name=table_name, table_schema=self.schema)
         self.expr = CollectionExpr(_source_data=self.table, _schema=schema)
 
         class FakeBar(object):
@@ -59,12 +58,12 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.bigint, types.bigint])
 
         table_name = tn('pyodps_test_selecter_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
         self.expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
         self._gen_data(data=data)

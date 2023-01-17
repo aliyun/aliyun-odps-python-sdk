@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import sys
+
 from odps.tests.core import TestBase, to_str
 from odps.errors import ODPSError
 from odps.compat import unittest
@@ -44,7 +47,7 @@ sql_tz_template = '''<?xml version="1.0" encoding="utf-8"?>
   <Config>
     <Property>
       <Name>settings</Name>
-      <Value>{"odps.sql.timezone": "%(tz)s"}</Value>
+      <Value>{"PYODPS_VERSION": "%(pyodps_version)s", "PYODPS_PYTHON_VERSION": %(python_version)s, "odps.sql.timezone": "%(tz)s"}</Value>
     </Property>
   </Config>
   <Query><![CDATA[%(sql)s;]]></Query>
@@ -116,8 +119,15 @@ class Test(TestBase):
 
     @unittest.skipIf(pytz is None, 'pytz not installed')
     def testSQLTaskToXMLTimezone(self):
+        from odps import __version__
         from odps.lib import tzlocal
+
         query = 'select * from dual'
+        versions = {"pyodps_version": __version__, "python_version": json.dumps(sys.version)}
+
+        def _format_template(**kwargs):
+            kwargs.update(versions)
+            return sql_tz_template % kwargs
 
         try:
             options.local_timezone = True
@@ -125,7 +135,7 @@ class Test(TestBase):
             task = SQLTask(query=query)
             task.update_sql_settings()
             to_xml = task.serialize()
-            right_xml = sql_tz_template % {'sql': query, 'tz': local_zone_name}
+            right_xml = _format_template(sql=query, tz=local_zone_name)
 
             self.assertEqual(to_str(to_xml), to_str(right_xml))
 
@@ -133,7 +143,7 @@ class Test(TestBase):
             task = SQLTask(query=query)
             task.update_sql_settings()
             to_xml = task.serialize()
-            right_xml = sql_tz_template % {'sql': query, 'tz': 'Etc/GMT'}
+            right_xml = _format_template(sql=query, tz='Etc/GMT')
 
             self.assertEqual(to_str(to_xml), to_str(right_xml))
 
@@ -141,7 +151,7 @@ class Test(TestBase):
             task = SQLTask(query=query)
             task.update_sql_settings()
             to_xml = task.serialize()
-            right_xml = sql_tz_template % {'sql': query, 'tz': options.local_timezone.zone}
+            right_xml = _format_template(sql=query, tz=options.local_timezone.zone)
 
             self.assertEqual(to_str(to_xml), to_str(right_xml))
         finally:

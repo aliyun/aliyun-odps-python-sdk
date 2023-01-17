@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import tempfile
 import zipfile
 
-from odps.tests.core import TestBase, to_str, tn
-from odps.compat import unittest, six, ConfigParser
-from odps import compat
+from odps import compat, errors, options, types
+from odps.compat import futures, six, unittest, ConfigParser, UnsupportedOperation
 from odps.models import Resource, FileResource, TableResource, VolumeArchiveResource, \
-    VolumeFileResource, Schema
-from odps import errors, types
+    VolumeFileResource, TableSchema
+from odps.tests.core import TestBase, to_str, tn
 
 FILE_CONTENT = to_str("""
 Proudly swept the rain by the cliffs
@@ -42,17 +43,25 @@ From you, true love shall never depart
 
 
 class Test(TestBase):
+    def tearDown(self):
+        options.resource_chunk_size = 64 << 20
+        options.upload_resource_in_chunks = True
+
     def testResources(self):
         self.assertIs(self.odps.get_project().resources, self.odps.get_project().resources)
 
-        size = len(list(self.odps.list_resources()))
-        self.assertGreaterEqual(size, 0)
+        next(self.odps.list_resources())
 
-        for resource in self.odps.list_resources():
+        for idx, resource in enumerate(self.odps.list_resources()):
+            if idx >= 20:
+                break
             self.assertIsInstance(resource, Resource._get_cls(resource.type))
 
-        self.assertRaises(TypeError, lambda: self.odps.create_resource(
-            'test_error', 'py', resource=['uvw']))
+        self.assertRaises(
+            TypeError, lambda: self.odps.create_resource(
+                'test_error', 'py', resource=['uvw']
+            )
+        )
 
     def testResourceExists(self):
         non_exists_resource = 'a_non_exists_resource'
@@ -65,7 +74,7 @@ class Test(TestBase):
             secondary_project = None
 
         test_table_name = tn('pyodps_t_tmp_resource_table')
-        schema = Schema.from_lists(['id', 'name'], ['string', 'string'])
+        schema = TableSchema.from_lists(['id', 'name'], ['string', 'string'])
         self.odps.delete_table(test_table_name, if_exists=True)
         self.odps.create_table(test_table_name, schema)
         if secondary_project:
@@ -99,7 +108,7 @@ class Test(TestBase):
         self.assertIsNone(res.get_source_table_partition())
 
         test_table_partition = 'pt=test,sec=1'
-        schema = Schema.from_lists(['id', 'name'], ['string', 'string'], ['pt', 'sec'], ['string', 'bigint'])
+        schema = TableSchema.from_lists(['id', 'name'], ['string', 'string'], ['pt', 'sec'], ['string', 'bigint'])
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(test_table_name, schema)
         table.create_partition(test_table_partition)
@@ -196,6 +205,59 @@ class Test(TestBase):
 
         self.odps.delete_resource(resource_name)
 
+    def testStreamFileResource(self):
+        options.resource_chunk_size = 1024
+        content = OVERWRITE_FILE_CONTENT * 32
+        resource_name = tn('pyodps_t_tmp_file_resource')
+
+        del_pool = futures.ThreadPoolExecutor(10)
+        res_to_del = [resource_name]
+        for idx in range(10):
+            res_to_del.append("%s.part.tmp.%06d" % (resource_name, idx))
+        for res_name in res_to_del:
+            del_pool.submit(self.odps.delete_resource, res_name)
+        del_pool.shutdown(wait=True)
+
+        try:
+            temp_dir = tempfile.mkdtemp(prefix="pyodps-test-")
+            temp_file = os.path.join(temp_dir, "res_source")
+            with open(temp_file, "w") as out_file:
+                out_file.write(content)
+            with open(temp_file, "r") as in_file:
+                self.odps.create_resource(resource_name, "file", fileobj=in_file)
+            with self.odps.open_resource(resource_name, mode="r", stream=True) as res:
+                assert res.read() == content
+        finally:
+            self.odps.delete_resource(resource_name)
+
+        with self.odps.open_resource(resource_name, mode="w", stream=True) as res:
+            self.assertRaises(UnsupportedOperation, lambda: res.seek(0, os.SEEK_END))
+            for offset in range(0, len(content), 1023):
+                res.write(content[offset:offset + 1023])
+                assert res.tell() == min(offset + 1023, len(content))
+            self.assertRaises(UnsupportedOperation, lambda: res.truncate(1024))
+
+        with self.odps.open_resource(resource_name, mode="r", stream=True) as res:
+            sio = compat.StringIO()
+            for offset in range(0, len(content), 1025):
+                sio.write(res.read(1025))
+        assert sio.getvalue() == content
+
+        with self.odps.open_resource(resource_name, mode="r", stream=True) as res:
+            sio = compat.StringIO()
+            for line in res:
+                sio.write(line)
+        assert sio.getvalue() == content
+
+        with self.odps.open_resource(resource_name, mode="w", stream=True) as res:
+            lines = content.splitlines(True)
+            for offset in range(0, len(lines), 50):
+                res.writelines(lines[offset:offset + 50])
+
+        with self.odps.open_resource(resource_name, mode="r", stream=True) as res:
+            lines = res.readlines()
+        assert "".join(lines) == content
+
     def testFileResource(self):
         resource_name = tn('pyodps_t_tmp_file_resource')
 
@@ -230,10 +292,10 @@ class Test(TestBase):
             self.assertEqual([to_str(add_newline(l)) for l in fp],
                              [to_str(add_newline(l)) for l in FILE_CONTENT.splitlines()])
 
-            self.assertFalse(fp._need_commit)
-            self.assertTrue(fp._opened)
+            self.assertFalse(fp._fp._need_commit)
+            self.assertTrue(fp.opened)
 
-        self.assertFalse(fp._opened)
+        self.assertFalse(fp.opened)
         self.assertIsNone(fp._fp)
 
         with resource.open(mode='w') as fp:
@@ -241,9 +303,9 @@ class Test(TestBase):
             self.assertRaises(IOError, fp.readline)
             self.assertRaises(IOError, fp.readlines)
 
-            fp.writelines([OVERWRITE_FILE_CONTENT]*2)
+            fp.writelines([OVERWRITE_FILE_CONTENT] * 2)
 
-            self.assertTrue(fp._need_commit)
+            self.assertTrue(fp._fp._need_commit)
 
             size = fp._size
 
@@ -256,7 +318,7 @@ class Test(TestBase):
             fp.write(FILE_CONTENT)
             fp.truncate()
 
-            self.assertTrue(fp._need_commit)
+            self.assertTrue(fp._fp._need_commit)
 
         with resource.open(mode='a') as fp:
             self.assertRaises(IOError, fp.read)
@@ -265,13 +327,13 @@ class Test(TestBase):
 
             fp.write(OVERWRITE_FILE_CONTENT)
 
-            self.assertTrue(fp._need_commit)
+            self.assertTrue(fp._fp._need_commit)
 
         with resource.open(mode='a+') as fp:
             self.assertEqual(to_str(fp.read()), to_str(FILE_CONTENT+OVERWRITE_FILE_CONTENT))
             fp.seek(1)
             fp.truncate()
-            self.assertTrue(fp._need_commit)
+            self.assertTrue(fp._fp._need_commit)
 
         fp = resource.open(mode='r')
         self.assertEqual(to_str(fp.read()), FILE_CONTENT[0])

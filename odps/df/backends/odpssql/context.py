@@ -58,6 +58,8 @@ class ODPSContext(object):
         self._mapjoin_hints = []
         self._skewjoin_hints = []
 
+        self._default_schema = odps.schema
+
         self._path_to_resources = dict()
 
         self._to_drops = []
@@ -155,8 +157,12 @@ class ODPSContext(object):
             tar.close()
 
             res_name = self._gen_resource_name() + '.tar.gz'
-            res = self._odps.create_resource(res_name, 'archive', file_obj=tarbinary.getvalue(), temp=True)
-            tempobj.register_temp_resource(self._odps, res_name)
+            res = self._odps.create_resource(
+                res_name, 'archive', fileobj=tarbinary.getvalue(), schema=self._default_schema, temp=True
+            )
+            tempobj.register_temp_resource(
+                self._odps, res_name, schema=self._default_schema
+            )
             self._path_to_resources[lib] = res
             self._to_drops.append(res)
             ret_libs.append(res)
@@ -167,8 +173,12 @@ class ODPSContext(object):
 
         for func, udf in six.iteritems(self._func_to_udfs):
             udf_name = self._registered_funcs[func]
-            py_resource = self._odps.create_resource(udf_name + '.py', 'py', file_obj=udf, temp=True)
-            tempobj.register_temp_resource(self._odps, udf_name + '.py')
+            py_resource = self._odps.create_resource(
+                udf_name + '.py', 'py', file_obj=udf, schema=self._default_schema, temp=True
+            )
+            tempobj.register_temp_resource(
+                self._odps, udf_name + '.py', schema=self._default_schema
+            )
             self._to_drops.append(py_resource)
 
             resources = [py_resource, ]
@@ -177,17 +187,20 @@ class ODPSContext(object):
                     if not create:
                         resources.append(name)
                     else:
-                        res = self._odps.create_resource(name, 'table', table_name=table_name, temp=True)
-                        tempobj.register_temp_resource(self._odps, name)
+                        res = self._odps.create_resource(
+                            name, 'table', table_name=table_name, schema=self._default_schema, temp=True
+                        )
+                        tempobj.register_temp_resource(self._odps, name, schema=self._default_schema)
                         resources.append(res)
                         self._to_drops.append(res)
             if libraries is not None:
                 resources.extend(libraries)
 
+            function_name = '{0}.{1}'.format(udf_name, UDF_CLASS_NAME)
             function = self._odps.create_function(
-                    udf_name, class_type='{0}.{1}'.format(udf_name, UDF_CLASS_NAME),
-                    resources=resources)
-            tempobj.register_temp_function(self._odps, udf_name)
+                udf_name, class_type=function_name, resources=resources, schema=self._default_schema
+            )
+            tempobj.register_temp_function(self._odps, udf_name, schema=self._default_schema)
 
             self._func_to_functions[func] = function
             self._to_drops.append(function)
@@ -259,6 +272,14 @@ class ODPSContext(object):
             obj.drop()
         except ODPSError:
             pass
+
+    @property
+    def default_schema(self):
+        return self._default_schema
+
+    @default_schema.setter
+    def default_schema(self, value):
+        self._default_schema = value
 
     def close(self):
         [self._drop_silent(it) for it in self._to_drops]

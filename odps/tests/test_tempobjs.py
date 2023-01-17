@@ -182,7 +182,7 @@ class TestTempObjs(TestBase):
         self.odps.execute_sql('drop table if exists {0}'.format(TEMP_TABLE_NAME))
         self.odps.execute_sql('create table {0} (col1 string) lifecycle 1'.format(TEMP_TABLE_NAME))
         tempobj.register_temp_table(self.odps, TEMP_TABLE_NAME)
-        tempobj.clean_objects(self.odps)
+        tempobj.clean_objects(self.odps, use_threads=True)
         sleep(10)
         assert not self.odps.exist_table(TEMP_TABLE_NAME)
 

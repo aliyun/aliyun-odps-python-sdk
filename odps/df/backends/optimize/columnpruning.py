@@ -20,7 +20,7 @@ from ...expr.expressions import Column, CollectionExpr, FilterCollectionExpr
 from ...expr.collections import SortedCollectionExpr, SliceCollectionExpr, \
     RowAppliedCollectionExpr, LateralViewCollectionExpr
 from ...expr.merge import JoinCollectionExpr, UnionCollectionExpr
-from ....models import Schema
+from ....models import TableSchema
 from ...utils import is_project_expr, traverse_until_source
 
 
@@ -171,7 +171,7 @@ class ColumnPruning(Backend):
 
         if not prune:
             return
-        expr._schema = Schema(columns=[expr._schema[col] for col in columns])
+        expr._schema = TableSchema(columns=[expr._schema[col] for col in columns])
 
     def _visit_all_columns_project_collection(self, expr):
         prune, columns = self._need_prune(expr)
@@ -179,7 +179,7 @@ class ColumnPruning(Backend):
         if not prune:
             return
 
-        expr._schema = Schema(columns=[expr._schema[c] for c in columns])
+        expr._schema = TableSchema(columns=[expr._schema[c] for c in columns])
 
     def visit_filter_collection(self, expr):
         self._visit_all_columns_project_collection(expr)
@@ -190,7 +190,7 @@ class ColumnPruning(Backend):
             return
 
         expr._fields = [f for f in expr._fields if f.name in columns]
-        expr._schema = Schema.from_lists([f.name for f in expr._fields],
+        expr._schema = TableSchema.from_lists([f.name for f in expr._fields],
                                          [f.dtype for f in expr._fields])
 
     def visit_slice_collection(self, expr):
@@ -204,7 +204,7 @@ class ColumnPruning(Backend):
         if expr._fields is None:
             expr._fields = expr._by + expr._aggregations
         expr._fields = [f for f in expr._fields if f.name in columns]
-        expr._schema = Schema(columns=[expr._schema[c] for c in columns])
+        expr._schema = TableSchema(columns=[expr._schema[c] for c in columns])
 
     def visit_groupby(self, expr):
         self._visit_grouped(expr)
@@ -242,7 +242,7 @@ class ColumnPruning(Backend):
 
         if not prune:
             return
-        expr._schema = Schema(columns=[expr._schema[col] for col in columns])
+        expr._schema = TableSchema(columns=[expr._schema[col] for col in columns])
 
     def visit_union(self, expr):
         prune, columns = self._need_prune(expr)
@@ -250,4 +250,4 @@ class ColumnPruning(Backend):
         if not prune:
             return
 
-        expr._schema = Schema(columns=[expr._schema[c] for c in columns])
+        expr._schema = TableSchema(columns=[expr._schema[c] for c in columns])

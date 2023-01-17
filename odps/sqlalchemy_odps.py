@@ -171,6 +171,7 @@ class ODPSDialect(default.DefaultDialect):
     supports_multivalues_insert = True
     type_compiler = ODPSTypeCompiler
     supports_sane_rowcount = False
+    supports_statement_cache = False
     _reused_odps = None
 
     @classmethod
@@ -195,6 +196,7 @@ class ODPSDialect(default.DefaultDialect):
         use_sqa = False
         reuse_odps = False
         fallback_policy = ''
+        hints = {}
         if url.query:
             query = dict(url.query)
             if endpoint is None:
@@ -211,6 +213,7 @@ class ODPSDialect(default.DefaultDialect):
                 reuse_odps = (query.pop('reuse_odps', 'false') != 'false')
             if fallback_policy == "":
                 fallback_policy = query.pop('fallback_policy', 'default')
+            hints = query
 
         if endpoint is None:
             endpoint = options.endpoint or DEFAULT_ENDPOINT
@@ -224,7 +227,8 @@ class ODPSDialect(default.DefaultDialect):
             'endpoint': endpoint,
             'session_name': session_name,
             'use_sqa': use_sqa,
-            'fallback_policy': fallback_policy
+            'fallback_policy': fallback_policy,
+            'hints': hints,
         }
         for k, v in six.iteritems(kwargs):
             if v is None:
@@ -287,7 +291,7 @@ class ODPSDialect(default.DefaultDialect):
         table = conn.odps.get_table(full_table)
         result = []
         try:
-            for col in table.schema.columns:
+            for col in table.table_schema.columns:
                 col_type = _odps_type_to_sqlalchemy_type[type(col.type)]
                 result.append({
                     'name': col.name,

@@ -30,7 +30,7 @@ from ...compat import reduce, isvalidattr, dir2, OrderedDict, lkeys, six, future
 from ...config import options
 from ...errors import NoSuchObject, DependencyNotInstalledError
 from ...utils import TEMP_TABLE_PREFIX, to_binary, deprecated, survey
-from ...models import Schema
+from ...models import TableSchema
 
 
 class ReprWrapper(object):
@@ -738,11 +738,11 @@ class CollectionExpr(Expr):
             if '=' not in p:
                 raise ExpressionError('Illegal partition predicate.')
             field_name, field_value = [s.strip() for s in p.split('=', 1)]
-            if not hasattr(source, 'schema'):
+            if not hasattr(source, 'table_schema'):
                 raise ExpressionError('filter_partition can only be applied on ODPS DataFrames')
-            if field_name not in source.schema:
+            if field_name not in source.table_schema:
                 raise ExpressionError('Column `%s` not exists in input collection' % field_name)
-            if field_name not in source.schema._partition_schema:
+            if field_name not in source.table_schema._partition_schema:
                 raise ExpressionError('`%s` is not a partition column' % field_name)
             part_col = self[field_name]
             if field_value.startswith('\'') or field_value.startswith('\"'):
@@ -774,11 +774,13 @@ class CollectionExpr(Expr):
             part_formatter = lambda p: reduce(operator.and_, map(_parse_partition_predicate, p.split(',')))
             predicate_obj = reduce(operator.or_, map(part_formatter, predicate.split('/')))
 
-        if not source.schema.partitions:
+        if not source.table_schema.partitions:
             raise ExpressionError('No partition columns in the collection.')
         if exclude:
-            columns = [c for c in self.schema if c.name not in source.schema._partition_schema]
-            new_schema = types.Schema.from_lists([c.name for c in columns], [c.type for c in columns])
+            columns = [
+                c for c in self.schema if c.name not in source.table_schema._partition_schema
+            ]
+            new_schema = types.TableSchema.from_lists([c.name for c in columns], [c.type for c in columns])
             return FilterPartitionCollectionExpr(self, predicate_obj, _schema=new_schema, _predicate_string=predicate)
         else:
             return self.filter(predicate_obj)
@@ -942,10 +944,10 @@ class CollectionExpr(Expr):
 
         if lateral_views:
             return LateralViewCollectionExpr(self, _fields=selects, _lateral_views=lateral_views,
-                                             _schema=types.Schema.from_lists(names, typos))
+                                             _schema=types.TableSchema.from_lists(names, typos))
         else:
             return ProjectCollectionExpr(self, _fields=selects,
-                                         _schema=types.Schema.from_lists(names, typos))
+                                         _schema=types.TableSchema.from_lists(names, typos))
 
     def select(self, *fields, **kw):
         """
@@ -1003,7 +1005,7 @@ class CollectionExpr(Expr):
             raise ExpressionError('Column does not have a name, '
                                   'please specify one by `rename`')
         return Summary(_input=self, _fields=fields,
-                       _schema=types.Schema.from_lists(names, typos))
+                       _schema=types.TableSchema.from_lists(names, typos))
 
     def _slice(self, slices):
         return SliceCollectionExpr(self, _indexes=slices, _schema=self._schema)
@@ -2024,8 +2026,9 @@ class ProjectCollectionExpr(CollectionExpr):
         if value.name not in self._schema:
             fields.append(value)
 
-        self._schema = Schema.from_lists([f.name for f in fields],
-                                         [f.dtype for f in fields])
+        self._schema = TableSchema.from_lists(
+            [f.name for f in fields], [f.dtype for f in fields]
+        )
         self._fields = fields
 
     def _delitem(self, key):
@@ -2035,8 +2038,9 @@ class ProjectCollectionExpr(CollectionExpr):
             return super(ProjectCollectionExpr, self).__delitem__(key)
 
         fields = [f for f in self._fields if f.name != key]
-        self._schema = Schema.from_lists([f.name for f in fields],
-                                         [f.dtype for f in fields])
+        self._schema = TableSchema.from_lists(
+            [f.name for f in fields], [f.dtype for f in fields]
+        )
         self._fields = fields
 
     def __delitem__(self, key):
@@ -2065,9 +2069,8 @@ class ProjectCollectionExpr(CollectionExpr):
         if self._raw_fields:
             return self._input.select(*self._raw_fields)
         rebuilt = super(ProjectCollectionExpr, self).rebuild()
-        rebuilt._schema = Schema.from_lists(
-            [f.name for f in rebuilt._fields],
-            [f.dtype for f in rebuilt._fields]
+        rebuilt._schema = TableSchema.from_lists(
+            [f.name for f in rebuilt._fields], [f.dtype for f in rebuilt._fields]
         )
         return rebuilt
 

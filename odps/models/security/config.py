@@ -43,14 +43,14 @@ class SecurityConfiguration(LazyLoad):
     create_package = serializers.XMLNodeField('CreatePackage', type='bool')
     create_package_v2 = serializers.XMLNodeField('CreatePackageV2', type='bool')
 
-    @property
-    def project(self):
-        return self.parent
-
     def reload(self):
-        resp = self._client.get(self.project.resource(), params=dict(security_configuration=''))
+        resp = self._client.get(
+            self.project.resource(), params=dict(security_configuration='')
+        )
         self.parse(self._client, resp, obj=self)
 
     def update(self):
         content = self.serialize()
-        self._client.put(self.project.resource(), params=dict(security_configuration=''), data=content)
+        self._client.put(
+            self.project.resource(), params=dict(security_configuration=''), data=content
+        )

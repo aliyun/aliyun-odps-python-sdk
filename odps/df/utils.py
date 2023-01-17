@@ -69,6 +69,13 @@ def output_types(*types):
     return inner
 
 
+def _convert_odps_type(typ):
+    from .backends.odpssql.types import is_odps_type, odps_type_to_df_type
+    if is_odps_type(typ):
+        return odps_type_to_df_type(typ)
+    return typ
+
+
 def output(names, types):
     if isinstance(names, tuple):
         names = list(names)
@@ -79,6 +86,8 @@ def output(names, types):
         types = list(types)
     if not isinstance(types, list):
         types = [types, ]
+    # allow using odps types
+    types = [str(_convert_odps_type(t)) for t in types]
 
     def inner(func):
         if isinstance(func, FunctionWrapper):
@@ -127,7 +136,7 @@ def is_source_partition(expr, table):
     if not isinstance(expr, Column):
         return False
 
-    odps_schema = table.schema
+    odps_schema = table.table_schema
     if not odps_schema.is_partition(expr.source_name):
         return False
 

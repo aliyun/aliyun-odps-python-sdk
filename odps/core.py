@@ -12,27 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json  # noqa: F401
+import os
+import random
 import re
 import time
-import random
 import warnings
+import weakref
 
-from .rest import RestClient
+from . import models, accounts, errors, utils
+from .compat import six, Iterable
 from .config import options
-from .errors import NoSuchObject
-from .errors import ODPSError
+from .errors import NoSuchObject, ODPSError
+from .rest import RestClient
 from .tempobj import clean_stored_objects
 from .utils import split_quoted
-from .compat import six, Iterable
-from . import models, accounts, errors, utils
 
 
 DEFAULT_ENDPOINT = 'http://service.odps.aliyun.com/api'
 LOGVIEW_HOST_DEFAULT = 'http://logview.odps.aliyun.com'
 
-DROP_TABLE_REGEX = re.compile(r'^\s*drop\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
+_ALTER_TABLE_REGEX = re.compile(r'^\s*(drop|alter)\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
 
 
 @utils.attach_internal
@@ -41,8 +41,8 @@ class ODPS(object):
     Main entrance to ODPS.
 
     Convenient operations on ODPS objects are provided.
-    Please refer to `ODPS docs <https://docs.aliyun.com/#/pub/odps/basic/definition&project>`_
-    to see the details.
+    Please refer to `ODPS docs <https://help.aliyun.com/document_detail/27818.html>`_
+    for more details.
 
     Generally, basic operations such as ``list``, ``get``, ``exist``, ``create``, ``delete``
     are provided for each ODPS object.
@@ -75,14 +75,23 @@ class ODPS(object):
     >>>
     >>> odps.delete_table('test_table')
     """
-    def __init__(self, access_id=None, secret_access_key=None, project=None,
-                 endpoint=None, app_account=None, logview_host=None, **kw):
-        self._init(access_id=access_id, secret_access_key=secret_access_key, project=project,
-                   endpoint=endpoint, app_account=app_account, logview_host=logview_host, **kw)
+    def __init__(
+        self, access_id=None, secret_access_key=None, project=None,
+        endpoint=None, schema=None, app_account=None, logview_host=None, **kw
+    ):
+        self._init(
+            access_id=access_id, secret_access_key=secret_access_key,
+            project=project, endpoint=endpoint, schema=schema,
+            app_account=app_account, logview_host=logview_host, **kw
+        )
         clean_stored_objects(self)
 
-    def _init(self, access_id=None, secret_access_key=None, project=None,
-              endpoint=None, **kw):
+    def _init(
+        self, access_id=None, secret_access_key=None, project=None,
+        endpoint=None, schema=None, **kw
+    ):
+        self._property_update_callbacks = set()
+
         account = kw.pop('account', None)
         self.app_account = kw.pop('app_account', None)
 
@@ -97,8 +106,9 @@ class ODPS(object):
             self.account = account
         self.endpoint = endpoint or options.endpoint or DEFAULT_ENDPOINT
         self.project = project or options.project
-        self.rest = RestClient(self.account, self.endpoint, project, app_account=self.app_account,
-                               proxy=options.api_proxy)
+        self._schema = schema
+        self.rest = RestClient(self.account, self.endpoint, project, schema,
+                               app_account=self.app_account, proxy=options.api_proxy)
 
         self._tunnel_endpoint = kw.pop('tunnel_endpoint', options.tunnel.endpoint)
 
@@ -119,14 +129,16 @@ class ODPS(object):
         self._default_session = None
         self._default_session_name = ""
 
+        # Make instance to global
+        overwrite_global = kw.pop("overwrite_global", True)
+        if overwrite_global and options.is_global_account_overwritable:
+            self.to_global(overwritable=True)
+
         if kw:
             raise TypeError(
                 "Argument %s not acceptable, please check your spellings"
                 % ", ".join(kw.keys()),
             )
-        # Make instance to global
-        if options.is_global_account_overwritable:
-            self.to_global(overwritable=True)
 
     def __getstate__(self):
         params = dict(
@@ -134,6 +146,7 @@ class ODPS(object):
             endpoint=self.endpoint,
             tunnel_endpoint=self._tunnel_endpoint,
             logview_host=self._logview_host,
+            schema=self.schema,
             seahawks_url=self._seahawks_url
         )
         if isinstance(self.account, accounts.AliyunAccount):
@@ -172,6 +185,16 @@ class ODPS(object):
     def projects(self):
         return self._projects
 
+    @property
+    def schema(self):
+        return self._schema
+
+    @schema.setter
+    def schema(self, value):
+        self._schema = value
+        for cb in self._property_update_callbacks:
+            cb(self)
+
     def list_projects(self, owner=None, user=None, group=None, prefix=None, max_items=None):
         """
         List projects.
@@ -190,11 +213,13 @@ class ODPS(object):
     def logview_host(self):
         return self._logview_host
 
-    def get_project(self, name=None):
+    def get_project(self, name=None, default_schema=None):
         """
         Get project by given name.
 
         :param name: project name, if not provided, will be the default project
+        :param default_schema: default schema name, if not provided, will be
+            the schema specified in ODPS object
         :return: the right project
         :rtype: :class:`odps.models.Project`
         :raise: :class:`odps.errors.NoSuchObject` if not exists
@@ -209,43 +234,136 @@ class ODPS(object):
         proj = self._projects[name]
         proj._tunnel_endpoint = self._tunnel_endpoint
         proj._logview_host = self._logview_host
+        proj._default_schema = default_schema or self.schema
+
+        proj_ref = weakref.ref(proj)
+
+        def schema_update_callback(odps):
+            proj_obj = proj_ref()
+            if proj_obj:
+                proj_obj._default_schema = odps.schema
+            else:
+                self._property_update_callbacks.difference_update([schema_update_callback])
+
+        if default_schema is None:
+            # we need to update default schema value on the project
+            self._property_update_callbacks.add(schema_update_callback)
         return proj
 
     def exist_project(self, name):
         """
         If project name which provided exists or not.
 
-        :param name: project name, if not provided, will be the default project
+        :param name: project name
         :return: True if exists or False
         :rtype: bool
         """
 
         return name in self._projects
 
-    def list_tables(self, project=None, prefix=None, owner=None):
+    def list_schemas(self, project=None):
+        """
+        List all schemas of a project.
+
+        :param project: project name, if not provided, will be the default project
+        :return: schemas
+        """
+        project = self.get_project(name=project)
+        return project.schemas.iterate()
+
+    def get_schema(self, name=None, project=None):
+        """
+        Get the schema by given name.
+
+        :param name: schema name, if not provided, will be the default schema
+        :param project: project name, if not provided, will be the default project
+        :return: the Schema object
+        """
+        project = self.get_project(name=project)
+        return project.schemas[name or self.schema]
+
+    def exist_schema(self, name, project=None):
+        """
+        If schema name which provided exists or not.
+
+        :param name: schema name
+        :param project: project name, if not provided, will be the default project
+        :return: True if exists or False
+        :rtype: bool
+        """
+        project = self.get_project(name=project)
+        return name in project.schemas
+
+    def create_schema(self, name, project=None, async_=False):
+        """
+        Create a schema with given name
+
+        :param name: schema name
+        :param project: project name, if not provided, will be the default project
+        :param async_: if True, will run asynchronously
+        :return: if async_ is True, return instance, otherwise return Schema object.
+        """
+        project = self.get_project(name=project)
+        return project.schemas.create(name, async_=async_)
+
+    def delete_schema(self, name, project=None, async_=False):
+        """
+        Delete the schema with given name
+
+        :param name: schema name
+        :param project: project name, if not provided, will be the default project
+        :param async_: if True, will run asynchronously
+        :type async_: bool
+        """
+        project = self.get_project(name=project)
+        return project.schemas.delete(name, async_=async_)
+
+    def _get_project_or_schema(self, project=None, schema=None):
+        if schema is not None:
+            return self.get_schema(schema, project=project)
+        else:
+            return self.get_project(project)
+
+    @staticmethod
+    def _split_object_dots(name):
+        parts = [x.strip() for x in name.split('.')]
+        if len(parts) == 2:
+            project, name = parts
+            schema = None
+        else:
+            project, schema, name = parts
+        if name.startswith("`") and name.endswith("`"):
+            name = name.strip("`")
+        return project, schema, name
+
+    def list_tables(self, project=None, prefix=None, owner=None, schema=None):
         """
         List all tables of a project.
         If prefix is provided, the listed tables will all start with this prefix.
-        If owner is provided, the listed tables will be belong to such owner.
+        If owner is provided, the listed tables will belong to such owner.
 
         :param project: project name, if not provided, will be the default project
         :param prefix: the listed tables start with this **prefix**
         :type prefix: str
         :param owner: Aliyun account, the owner which listed tables belong to
         :type owner: str
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: tables in this project, filtered by the optional prefix and owner.
         :rtype: generator
         """
 
-        project = self.get_project(name=project)
-        return project.tables.iterate(name=prefix, owner=owner)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.tables.iterate(name=prefix, owner=owner)
 
-    def get_table(self, name, project=None):
+    def get_table(self, name, project=None, schema=None):
         """
         Get table by given name.
 
         :param name: table name
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: the right table
         :rtype: :class:`odps.models.Table`
         :raise: :class:`odps.errors.NoSuchObject` if not exists
@@ -253,41 +371,45 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Table`
         """
 
-        if isinstance(name, six.string_types):
-            name = name.strip()
-            if '.' in name:
-                project, name = name.split('.', 1)
+        if isinstance(name, six.string_types) and '.' in name:
+            project, schema, name = self._split_object_dots(name)
 
-        project = self.get_project(name=project)
-        return project.tables[name]
+        parent = self._get_project_or_schema(project, schema)
+        return parent.tables[name]
 
-    def exist_table(self, name, project=None):
+    def exist_table(self, name, project=None, schema=None):
         """
         If the table with given name exists or not.
 
         :param name: table name
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: True if table exists or False
         :rtype: bool
         """
 
-        if isinstance(name, six.string_types):
-            name = name.strip()
-            if '.' in name:
-                project, name = name.split('.', 1)
+        if isinstance(name, six.string_types) and '.' in name:
+            project, schema, name = self._split_object_dots(name)
 
-        project = self.get_project(name=project)
-        return name in project.tables
+        parent = self._get_project_or_schema(project, schema)
+        return name in parent.tables
 
-    def create_table(self, name, schema=None, project=None, comment=None, if_not_exists=False,
-                     lifecycle=None, shard_num=None, hub_lifecycle=None, async_=False, **kw):
+    def create_table(
+        self, name, table_schema=None, project=None, schema=None, comment=None,
+        if_not_exists=False, lifecycle=None, shard_num=None, hub_lifecycle=None,
+        async_=False, **kw
+    ):
         """
         Create a table by given schema and other optional parameters.
 
         :param name: table name
-        :param schema: table schema. Can be an instance of :class:`odps.models.TableSchema` or a string like 'col1 string, col2 bigint'
+        :param table_schema: table schema. Can be an instance
+            of :class:`odps.models.TableSchema` or a string like 'col1 string, col2 bigint'
         :param project: project name, if not provided, will be the default project
         :param comment:  table comment
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :param if_not_exists:  will not create if this table already exists, default False
         :type if_not_exists: bool
         :param lifecycle:  table's lifecycle. If absent, `options.lifecycle` will be used.
@@ -303,24 +425,42 @@ class ODPS(object):
 
         .. seealso:: :class:`odps.models.Table`, :class:`odps.models.TableSchema`
         """
+        from .types import OdpsSchema
 
-        if "table_schema" in kw:
-            schema = kw["table_schema"]
+        if table_schema is None and schema:
+            if (
+                isinstance(schema, OdpsSchema)
+                or isinstance(schema, tuple)
+                or (isinstance(schema, six.string_types) and ' ' in schema)
+            ):
+                table_schema, schema = schema, None
+                warnings.warn(
+                    "`schema` is renamed as `table_schema` in `create_table`, "
+                    "the original parameter now represents schema name. Please "
+                    "change your code.",
+                    DeprecationWarning,
+                    stacklevel=2
+                )
+                utils.add_survey_call("ODPS.create_table(schema='schema_name')")
 
-        if isinstance(name, six.string_types):
-            name = name.strip()
-            if '.' in name:
-                project, name = name.split('.', 1)
+        if table_schema is None:
+            raise TypeError("`table_schema` argument not filled")
+
+        if isinstance(name, six.string_types) and '.' in name:
+            project, schema, name = self._split_object_dots(name)
 
         if lifecycle is None and options.lifecycle is not None:
             lifecycle = options.lifecycle
-        project = self.get_project(name=project)
-        async_ = kw.pop('async', async_)
-        return project.tables.create(name, schema, comment=comment, if_not_exists=if_not_exists,
-                                     lifecycle=lifecycle, shard_num=shard_num,
-                                     hub_lifecycle=hub_lifecycle, async_=async_, **kw)
 
-    def delete_table(self, name, project=None, if_exists=False, async_=False, **kw):
+        async_ = kw.pop('async', async_)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.tables.create(
+            name, table_schema, comment=comment, if_not_exists=if_not_exists,
+            lifecycle=lifecycle, shard_num=shard_num,
+            hub_lifecycle=hub_lifecycle, async_=async_, **kw
+        )
+
+    def delete_table(self, name, project=None, if_exists=False, schema=None, async_=False, **kw):
         """
         Delete the table with given name
 
@@ -329,19 +469,19 @@ class ODPS(object):
         :param if_exists:  will not raise errors when the table does not exist, default False
         :param async_: if True, will run asynchronously
         :type async_: bool
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: None if not async else odps instance
         """
 
-        if isinstance(name, six.string_types):
-            name = name.strip()
-            if '.' in name:
-                project, name = name.split('.', 1)
+        if isinstance(name, six.string_types) and '.' in name:
+            project, schema, name = self._split_object_dots(name)
 
-        project = self.get_project(name=project)
-        return project.tables.delete(name, if_exists=if_exists, async_=kw.get('async', async_))
+        parent = self._get_project_or_schema(project, schema)
+        return parent.tables.delete(name, if_exists=if_exists, async_=kw.get('async', async_))
 
     def read_table(self, name, limit=None, start=0, step=None,
-                   project=None, partition=None, **kw):
+                   project=None, schema=None, partition=None, **kw):
         """
         Read table's records.
 
@@ -351,6 +491,8 @@ class ODPS(object):
         :param start:  the record where read starts with
         :param step:  default as 1
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :param partition: the partition of this table to read
         :param columns: the columns' names which are the parts of table's columns
         :type columns: list
@@ -374,15 +516,16 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Record`
         """
 
-        if isinstance(name, six.string_types):
-            name = name.strip()
-            if '.' in name:
-                project, name = name.split('.', 1)
+        if isinstance(name, six.string_types) and '.' in name:
+            project, schema, name = self._split_object_dots(name)
+
         if not isinstance(name, six.string_types):
+            if name.get_schema():
+                schema = name.get_schema().name
             project, name = name.project.name, name.name
 
-        project = self.get_project(name=project)
-        table = project.tables[name]
+        parent = self._get_project_or_schema(project, schema)
+        table = parent.tables[name]
 
         compress = kw.pop('compress', False)
         columns = kw.pop('columns', None)
@@ -400,7 +543,10 @@ class ODPS(object):
         :type name: :class:`.models.table.Table` or str
         :param block_records: if given records only, the block id will be 0 as default.
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :param partition: the partition of this table to write
+        :param bool overwrite: if True, will overwrite existing data
         :param compress: if True, the data will be compressed during uploading
         :type compress: bool
         :param compress_option: the compression algorithm, level and strategy
@@ -423,16 +569,19 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Record`
         """
 
-        project = None
-        if isinstance(name, six.string_types):
-            name = name.strip()
-            if '.' in name:
-                project, name = name.split('.', 1)
+        project = kw.pop('project', None)
+        schema = kw.pop('schema', None)
+
+        if isinstance(name, six.string_types) and '.' in name:
+            project, schema, name = self._split_object_dots(name)
+
         if not isinstance(name, six.string_types):
+            if name.get_schema():
+                schema = name.get_schema().name
             project, name = name.project.name, name.name
 
-        project = self.get_project(name=kw.pop('project', project))
-        table = project.tables[name]
+        parent = self._get_project_or_schema(project, schema)
+        table = parent.tables[name]
         partition = kw.pop('partition', None)
 
         if len(block_records) == 1 and isinstance(block_records[0], Iterable):
@@ -450,25 +599,28 @@ class ODPS(object):
             for block, records in zip(blocks, records_iterators):
                 writer.write(block, records)
 
-    def list_resources(self, project=None, prefix=None, owner=None):
+    def list_resources(self, project=None, prefix=None, owner=None, schema=None):
         """
         List all resources of a project.
 
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: resources
         :rtype: generator
         """
 
-        project = self.get_project(name=project)
-        for resource in project.resources.iterate(name=prefix, owner=owner):
+        parent = self._get_project_or_schema(project, schema)
+        for resource in parent.resources.iterate(name=prefix, owner=owner):
             yield resource
 
-    def get_resource(self, name, project=None):
+    def get_resource(self, name, project=None, schema=None):
         """
         Get a resource by given name
 
         :param name: resource name
         :param project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: the right resource
         :rtype: :class:`odps.models.Resource`
         :raise: :class:`odps.errors.NoSuchObject` if not exists
@@ -476,23 +628,27 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Resource`
         """
 
-        project = self.get_project(name=project)
-        return project.resources[name]
+        parent = self._get_project_or_schema(project, schema)
+        return parent.resources[name]
 
-    def exist_resource(self, name, project=None):
+    def exist_resource(self, name, project=None, schema=None):
         """
         If the resource with given name exists or not.
 
         :param name: resource name
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :param project: project name, if not provided, will be the default project
         :return: True if exists or False
         :rtype: bool
         """
 
-        project = self.get_project(name=project)
-        return name in project.resources
+        parent = self._get_project_or_schema(project, schema)
+        return name in parent.resources
 
-    def open_resource(self, name, project=None, mode='r+', encoding='utf-8'):
+    def open_resource(
+        self, name, project=None, mode='r+', encoding='utf-8', schema=None, type="file", stream=False
+    ):
         """
         Open a file resource as file-like object.
         This is an elegant and pythonic way to handle file resource.
@@ -517,17 +673,20 @@ class ODPS(object):
         :param name: file resource or file resource name
         :type name: :class:`odps.models.FileResource` or str
         :param project: project name, if not provided, will be the default project
-        :param mode: the mode of opening file, described as above
-        :param encoding: utf-8 as default
+        :param str schema: schema name, if not provided, will be the default schema
+        :param str mode: the mode of opening file, described as above
+        :param str encoding: utf-8 as default
+        :param str type: resource type, can be "file", "archive", "jar" or "py"
+        :param bool stream: if True, use stream to upload, False by default
         :return: file-like object
 
         :Example:
 
-        >>> with odps.open_resource('test_resource', 'r') as fp:
+        >>> with odps.open_resource('test_resource', mode='r') as fp:
         >>>     fp.read(1)  # read one unicode character
         >>>     fp.write('test')  # wrong, cannot write under read mode
         >>>
-        >>> with odps.open_resource('test_resource', 'wb') as fp:
+        >>> with odps.open_resource('test_resource', mode='wb') as fp:
         >>>     fp.readlines() # wrong, cannot read under write mode
         >>>     fp.write('hello world') # write bytes
         >>>
@@ -541,9 +700,13 @@ class ODPS(object):
 
         if isinstance(name, FileResource):
             return name.open(mode=mode)
-        return self.get_resource(name, project=project).open(mode=mode, encoding=encoding)
 
-    def create_resource(self, name, type=None, project=None, **kwargs):
+        parent = self._get_project_or_schema(project, schema)
+        return parent.resources.get_typed(name, type=type).open(
+            mode=mode, encoding=encoding, stream=stream
+        )
+
+    def create_resource(self, name, type=None, project=None, schema=None, **kwargs):
         """
         Create a resource by given name and given type.
 
@@ -558,6 +721,8 @@ class ODPS(object):
         :param name: resource name
         :param type: resource type, now support ``file``, ``jar``, ``py``, ``archive``, ``table``
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :param kwargs: optional arguments, I will illustrate this in the example below.
         :return: resource depends on the type, if ``file`` will be :class:`odps.models.FileResource` and so on
         :rtype: :class:`odps.models.Resource`'s subclasses
@@ -585,68 +750,78 @@ class ODPS(object):
         """
 
         type_ = kwargs.get('typo') or type
-        project = self.get_project(name=project)
-        return project.resources.create(name=name, type=type_, **kwargs)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.resources.create(name=name, type=type_, **kwargs)
 
-    def delete_resource(self, name, project=None):
+    def delete_resource(self, name, project=None, schema=None):
         """
         Delete resource by given name.
 
         :param name: resource name
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: None
         """
 
-        project = self.get_project(name=project)
-        return project.resources.delete(name)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.resources.delete(name)
 
-    def list_functions(self, project=None, prefix=None, owner=None):
+    def list_functions(self, project=None, prefix=None, owner=None, schema=None):
         """
         List all functions of a project.
 
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: functions
         :rtype: generator
         """
 
-        project = self.get_project(name=project)
-        for function in project.functions.iterate(name=prefix, owner=owner):
+        parent = self._get_project_or_schema(project, schema)
+        for function in parent.functions.iterate(name=prefix, owner=owner):
             yield function
 
-    def get_function(self, name, project=None):
+    def get_function(self, name, project=None, schema=None):
         """
         Get the function by given name
 
         :param name: function name
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: the right function
         :raise: :class:`odps.errors.NoSuchObject` if not exists
 
         .. seealso:: :class:`odps.models.Function`
         """
 
-        project = self.get_project(name=project)
-        return project.functions[name]
+        parent = self._get_project_or_schema(project, schema)
+        return parent.functions[name]
 
-    def exist_function(self, name, project=None):
+    def exist_function(self, name, project=None, schema=None):
         """
         If the function with given name exists or not.
 
         :param name: function name
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: True if the function exists or False
         :rtype: bool
         """
 
-        project = self.get_project(name=project)
-        return name in project.functions
+        parent = self._get_project_or_schema(project, schema)
+        return name in parent.functions
 
-    def create_function(self, name, project=None, **kwargs):
+    def create_function(self, name, project=None, schema=None, **kwargs):
         """
         Create a function by given name.
 
         :param name: function name
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :param class_type: main class
         :type class_type: str
         :param resources: the resources that function needs to use
@@ -662,20 +837,22 @@ class ODPS(object):
         .. seealso:: :class:`odps.models.Function`
         """
 
-        project = self.get_project(name=project)
-        return project.functions.create(name=name, **kwargs)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.functions.create(name=name, **kwargs)
 
-    def delete_function(self, name, project=None):
+    def delete_function(self, name, project=None, schema=None):
         """
         Delete a function by given name.
 
         :param name: function name
         :param project: project name, if not provided, will be the default project
+        :param schema: schema name, if not provided, will be the default schema
+        :type schema: str
         :return: None
         """
 
-        project = self.get_project(name=project)
-        return project.functions.delete(name)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.functions.delete(name)
 
     def list_instances(self, project=None, start_time=None, end_time=None,
                        status=None, only_owner=None, quota_index=None, **kw):
@@ -698,7 +875,10 @@ class ODPS(object):
         """
         if 'from_time' in kw:
             start_time = kw['from_time']
-            warnings.warn('The keyword argument `from_time` has been replaced by `start_time`.')
+            warnings.warn(
+                'The keyword argument `from_time` has been replaced by `start_time`.',
+                DeprecationWarning,
+            )
 
         project = self.get_project(name=project)
         return project.instances.iterate(
@@ -808,7 +988,7 @@ class ODPS(object):
         return inst
 
     def run_sql(self, sql, project=None, priority=None, running_cluster=None,
-                hints=None, aliases=None, **kwargs):
+                hints=None, aliases=None, default_schema=None, **kwargs):
         """
         Run a given SQL statement asynchronously
 
@@ -833,13 +1013,22 @@ class ODPS(object):
             priority = options.get_priority(self)
         on_instance_create = kwargs.pop('on_instance_create', None)
 
-        drop_table_match = DROP_TABLE_REGEX.match(sql)
-        if drop_table_match:
-            drop_table_name = drop_table_match.group('table_name').strip('`')
+        alter_table_match = _ALTER_TABLE_REGEX.match(sql)
+        if alter_table_match:
+            drop_table_name = alter_table_match.group('table_name').strip('`')
             del self.get_project(project).tables[drop_table_name]
 
         task = models.SQLTask(query=utils.to_text(sql), **kwargs)
         task.update_sql_settings(hints)
+
+        default_schema = default_schema or self.schema
+        if default_schema is not None:
+            task.update_sql_settings({
+                "odps.sql.allow.namespace.schema": "true",
+                "odps.namespace.schema": "true",
+                "odps.default.schema": default_schema,
+            })
+
         if aliases:
             task.update_aliases(aliases)
 
@@ -888,8 +1077,8 @@ class ODPS(object):
             parts.append('%s=%s' % tuple(kv))
         return ','.join(parts)
 
-    def execute_merge_files(self, table, partition=None, project=None, hints=None,
-                            priority=None):
+    def execute_merge_files(self, table, partition=None, project=None, schema=None,
+                            hints=None, priority=None):
         """
         Execute a task to merge multiple files in tables and wait for termination.
 
@@ -906,7 +1095,7 @@ class ODPS(object):
         inst.wait_for_success()
         return inst
 
-    def run_merge_files(self, table, partition=None, project=None, hints=None,
+    def run_merge_files(self, table, partition=None, project=None, schema=None, hints=None,
                         priority=None):
         """
         Start running a task to merge multiple files in tables.
@@ -934,8 +1123,8 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.instances.create(task=task, priority=priority)
 
-    def execute_archive_table(self, table, partition=None, project=None, hints=None,
-                              priority=None):
+    def execute_archive_table(self, table, partition=None, project=None, schema=None,
+                              hints=None, priority=None):
         """
         Execute a task to archive tables and wait for termination.
 
@@ -952,7 +1141,8 @@ class ODPS(object):
         inst.wait_for_success()
         return inst
 
-    def run_archive_table(self, table, partition=None, project=None, hints=None, priority=None):
+    def run_archive_table(self, table, partition=None, project=None, schema=None,
+                          hints=None, priority=None):
         """
         Start running a task to archive tables.
 
@@ -981,105 +1171,131 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.instances.create(task=task, priority=priority)
 
-    def list_volumes(self, project=None, owner=None):
+    def list_volumes(self, project=None, schema=None, owner=None):
         """
         List volumes of a project.
 
-        :param project: project name, if not provided, will be the default project
-        :param owner: Aliyun account
-        :type owner: str
+        :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
+        :param str owner: Aliyun account
         :return: volumes
         :rtype: list
         """
-        project = self.get_project(name=project)
-        return project.volumes.iterate(owner=owner)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.volumes.iterate(owner=owner)
 
     @utils.deprecated('`create_volume` is deprecated. Use `created_parted_volume` instead.')
     def create_volume(self, name, project=None, **kwargs):
         self.create_parted_volume(name, project=project, **kwargs)
 
-    def create_parted_volume(self, name, project=None, **kwargs):
+    def create_parted_volume(self, name, project=None, schema=None, **kwargs):
         """
         Create an old-fashioned partitioned volume in a project.
 
-        :param str name: volume name name
+        :param str name: volume name
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: volume
         :rtype: :class:`odps.models.PartedVolume`
 
         .. seealso:: :class:`odps.models.PartedVolume`
         """
-        project = self.get_project(name=project)
-        return project.volumes.create_parted(name=name, **kwargs)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.volumes.create_parted(name=name, **kwargs)
 
-    def create_fs_volume(self, name, project=None, **kwargs):
+    def create_fs_volume(self, name, project=None, schema=None, **kwargs):
         """
         Create a new-fashioned file system volume in a project.
 
-        :param str name: volume name name
+        :param str name: volume name
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: volume
         :rtype: :class:`odps.models.FSVolume`
 
         .. seealso:: :class:`odps.models.FSVolume`
         """
-        project = self.get_project(name=project)
-        return project.volumes.create_fs(name=name, **kwargs)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.volumes.create_fs(name=name, **kwargs)
 
-    def exist_volume(self, name, project=None):
+    def create_external_volume(
+        self, name, project=None, schema=None, location=None, rolearn=None, **kwargs
+    ):
+        """
+        Create a file system volume based on external storage (for instance, OSS) in a project.
+
+        :param str name: volume name
+        :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
+        :return: volume
+        :rtype: :class:`odps.models.FSVolume`
+
+        .. seealso:: :class:`odps.models.FSVolume`
+        """
+        parent = self._get_project_or_schema(project, schema)
+        return parent.volumes.create_external(
+            name=name, location=location, rolearn=rolearn, **kwargs
+        )
+
+    def exist_volume(self, name, schema=None, project=None):
         """
         If the volume with given name exists or not.
 
         :param str name: volume name
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: True if exists or False
         :rtype: bool
         """
-        project = self.get_project(name=project)
-        return name in project.volumes
+        parent = self._get_project_or_schema(project, schema)
+        return name in parent.volumes
 
-    def get_volume(self, name, project=None):
+    def get_volume(self, name, project=None, schema=None):
         """
         Get volume by given name.
 
         :param str name: volume name
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: volume object. Return type depends on the type of the volume.
         :rtype: :class:`odps.models.Volume`
         """
-        project = self.get_project(name=project)
-        return project.volumes[name]
+        parent = self._get_project_or_schema(project, schema)
+        return parent.volumes[name]
 
-    def delete_volume(self, name, project=None):
+    def delete_volume(self, name, project=None, schema=None):
         """
         Delete volume by given name.
 
         :param name: volume name
         :param project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: None
         """
-        project = self.get_project(name=project)
-        return project.volumes.delete(name)
+        parent = self._get_project_or_schema(project, schema)
+        return parent.volumes.delete(name)
 
-    def list_volume_partitions(self, volume, project=None):
+    def list_volume_partitions(self, volume, project=None, schema=None):
         """
         List partitions of a volume.
 
         :param str volume: volume name
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: partitions
         :rtype: list
         """
-        volume = self.get_volume(volume, project)
+        volume = self.get_volume(volume, project, schema=schema)
         return volume.partitions.iterate()
 
-    def get_volume_partition(self, volume, partition=None, project=None):
+    def get_volume_partition(self, volume, partition=None, project=None, schema=None):
         """
         Get partition in a parted volume by given name.
 
         :param str volume: volume name
         :param str partition: partition name
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: partitions
         :rtype: :class:`odps.models.VolumePartition`
         """
@@ -1087,43 +1303,45 @@ class ODPS(object):
             if not volume.startswith('/') or '/' not in volume.lstrip('/'):
                 raise ValueError('You should provide a partition name or use partition path instead.')
             volume, partition = volume.lstrip('/').split('/', 1)
-        volume = self.get_volume(volume, project)
+        volume = self.get_volume(volume, project, schema=schema)
         return volume.partitions[partition]
 
-    def exist_volume_partition(self, volume, partition=None, project=None):
+    def exist_volume_partition(self, volume, partition=None, project=None, schema=None):
         """
         If the volume with given name exists in a partition or not.
 
         :param str volume: volume name
         :param str partition: partition name
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         """
         if partition is None:
             if not volume.startswith('/') or '/' not in volume.lstrip('/'):
                 raise ValueError('You should provide a partition name or use partition path instead.')
             volume, partition = volume.lstrip('/').split('/', 1)
         try:
-            volume = self.get_volume(volume, project)
+            volume = self.get_volume(volume, project, schema=schema)
         except errors.NoSuchObject:
             return False
         return partition in volume.partitions
 
-    def delete_volume_partition(self, volume, partition=None, project=None):
+    def delete_volume_partition(self, volume, partition=None, project=None, schema=None):
         """
         Delete partition in a volume by given name
 
         :param str volume: volume name
         :param str partition: partition name
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         """
         if partition is None:
             if not volume.startswith('/') or '/' not in volume.lstrip('/'):
                 raise ValueError('You should provide a partition name or use partition path instead.')
             volume, partition = volume.lstrip('/').split('/', 1)
-        volume = self.get_volume(volume, project)
+        volume = self.get_volume(volume, project, schema=schema)
         return volume.delete_partition(partition)
 
-    def list_volume_files(self, volume, partition=None, project=None):
+    def list_volume_files(self, volume, partition=None, project=None, schema=None):
         """
         List files in a volume. In partitioned volumes, the function returns files under specified partition.
         In file system volumes, the function returns files under specified path.
@@ -1131,6 +1349,7 @@ class ODPS(object):
         :param str volume: volume name
         :param str partition: partition name for partitioned volumes, and path for file system volumes.
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: files
         :rtype: list
 
@@ -1149,7 +1368,7 @@ class ODPS(object):
             volume = volume.lstrip('/')
             if '/' in volume:
                 volume, partition = volume.split('/', 1)
-        volume = self.get_volume(volume, project)
+        volume = self.get_volume(volume, project, schema=schema)
         if isinstance(volume, PartedVolume):
             if not partition:
                 raise ValueError('Malformed partition url.')
@@ -1157,13 +1376,14 @@ class ODPS(object):
         else:
             return volume[partition].objects.iterate()
 
-    def create_volume_directory(self, volume, path=None, project=None):
+    def create_volume_directory(self, volume, path=None, project=None, schema=None):
         """
         Create a directory under a file system volume.
 
         :param str volume: name of the volume.
         :param str path: path of the directory to be created.
         :param str project: project name, if not provided, will be the default project.
+        :param str schema: schema name, if not provided, will be the default schema
         :return: directory object.
         """
         from .models import PartedVolume
@@ -1173,19 +1393,20 @@ class ODPS(object):
             volume = volume.lstrip('/')
             if '/' in volume:
                 volume, path = volume.split('/', 1)
-        volume = self.get_volume(volume, project)
+        volume = self.get_volume(volume, project, schema=schema)
         if isinstance(volume, PartedVolume):
             raise ValueError('Only supported under file system volumes.')
         else:
             return volume.create_dir(path)
 
-    def get_volume_file(self, volume, path=None, project=None):
+    def get_volume_file(self, volume, path=None, project=None, schema=None):
         """
         Get a file under a partition of a parted volume, or a file / directory object under a file system volume.
 
         :param str volume: name of the volume.
         :param str path: path of the directory to be created.
         :param str project: project name, if not provided, will be the default project.
+        :param str schema: schema name, if not provided, will be the default schema
         :return: directory object.
         """
         from .models import PartedVolume
@@ -1195,7 +1416,7 @@ class ODPS(object):
             volume = volume.lstrip('/')
             if '/' in volume:
                 volume, path = volume.split('/', 1)
-        volume = self.get_volume(volume, project)
+        volume = self.get_volume(volume, project, schema=schema)
         if isinstance(volume, PartedVolume):
             if '/' not in path:
                 raise ValueError('Partition/File format malformed.')
@@ -1204,7 +1425,7 @@ class ODPS(object):
         else:
             return volume[path]
 
-    def move_volume_file(self, old_path, new_path, replication=None, project=None):
+    def move_volume_file(self, old_path, new_path, replication=None, project=None, schema=None):
         """
         Move a file / directory object under a file system volume to another location in the same volume.
 
@@ -1212,6 +1433,7 @@ class ODPS(object):
         :param str new_path: target path of the moved file.
         :param int replication: file replication.
         :param str project: project name, if not provided, will be the default project.
+        :param str schema: schema name, if not provided, will be the default schema
         :return: directory object.
         """
         from .models import PartedVolume
@@ -1230,13 +1452,13 @@ class ODPS(object):
         if old_volume != new_volume:
             raise ValueError('Moving between different volumes is not supported.')
 
-        volume = self.get_volume(old_volume, project)
+        volume = self.get_volume(old_volume, project, schema=schema)
         if isinstance(volume, PartedVolume):
             raise ValueError('Only supported under file system volumes.')
         else:
             volume[old_path].move(new_path, replication=replication)
 
-    def delete_volume_file(self, volume, path=None, recursive=False, project=None):
+    def delete_volume_file(self, volume, path=None, recursive=False, project=None, schema=None):
         """
         Delete a file / directory object under a file system volume.
 
@@ -1244,6 +1466,7 @@ class ODPS(object):
         :param str path: path of the directory to be created.
         :param bool recursive: if True, recursively delete files
         :param str project: project name, if not provided, will be the default project.
+        :param str schema: schema name, if not provided, will be the default schema
         :return: directory object.
         """
         from .models import PartedVolume
@@ -1253,14 +1476,14 @@ class ODPS(object):
             volume = volume.lstrip('/')
             if '/' in volume:
                 volume, path = volume.split('/', 1)
-        volume = self.get_volume(volume, project)
+        volume = self.get_volume(volume, project, schema=schema)
         if isinstance(volume, PartedVolume):
             raise ValueError('Only supported under file system volumes.')
         else:
             volume[path].delete(recursive=recursive)
 
     def open_volume_reader(self, volume, partition=None, file_name=None, project=None,
-                           start=None, length=None, **kwargs):
+                           schema=None, start=None, length=None, **kwargs):
         """
         Open a volume file for read. A file-like object will be returned which can be used to read contents from
         volume files.
@@ -1269,6 +1492,7 @@ class ODPS(object):
         :param str partition: name of the partition
         :param str file_name: name of the file
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :param start: start position
         :param length: length limit
         :param compress_option: the compression algorithm, level and strategy
@@ -1288,7 +1512,7 @@ class ODPS(object):
                 partition, file_name = partition.rsplit('/', 1)
             else:
                 partition, file_name = None, partition
-        volume = self.get_volume(volume, project)
+        volume = self.get_volume(volume, project, schema=schema)
         if isinstance(volume, PartedVolume):
             if not partition:
                 raise ValueError('Malformed partition url.')
@@ -1296,7 +1520,7 @@ class ODPS(object):
         else:
             return volume[partition].open_reader(file_name, start=start, length=length, **kwargs)
 
-    def open_volume_writer(self, volume, partition=None, project=None, **kwargs):
+    def open_volume_writer(self, volume, partition=None, project=None, schema=None, **kwargs):
         """
         Write data into a volume. This function behaves differently under different types of volumes.
 
@@ -1309,6 +1533,7 @@ class ODPS(object):
         :param str volume: name of the volume
         :param str partition: partition name for partitioned volumes, and path for file system volumes.
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :param compress_option: the compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
 
@@ -1328,7 +1553,7 @@ class ODPS(object):
                 raise ValueError('You should provide a partition name or use partition / path instead.')
             volume = volume.lstrip('/')
             volume, partition = volume.split('/', 1)
-        volume = self.get_volume(volume, project)
+        volume = self.get_volume(volume, project, schema=schema)
         if isinstance(volume, PartedVolume):
             return volume.partitions[partition].open_writer(**kwargs)
         else:
@@ -1342,9 +1567,8 @@ class ODPS(object):
         """
         List xflows of a project which can be filtered by the xflow owner.
 
-        :param project: project name, if not provided, will be the default project
-        :param owner: Aliyun account
-        :type owner: str
+        :param str project: project name, if not provided, will be the default project
+        :param str owner: Aliyun account
         :return: xflows
         :rtype: list
         """
@@ -1777,7 +2001,9 @@ class ODPS(object):
         setattr(sec_options, option_name, value)
         sec_options.update()
 
-    def run_security_query(self, query, project=None, token=None, output_json=True):
+    def run_security_query(
+        self, query, project=None, schema=None, token=None, hints=None, output_json=True
+    ):
         """
         Run a security query to grant / revoke / query privileges. If the query is `install package`
         or `uninstall package`, return a waitable AuthQueryInstance object, otherwise returns
@@ -1785,52 +2011,67 @@ class ODPS(object):
 
         :param str query: query text
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :param bool output_json: parse json for the output
         :return: result string / json object
         """
         project = self.get_project(name=project)
-        return project.run_security_query(query, token=token, output_json=output_json)
+        schema = schema or self.schema
+        return project.run_security_query(
+            query, schema=schema, token=token, hints=hints, output_json=output_json
+        )
 
-    def execute_security_query(self, query, project=None, token=None, output_json=True):
+    def execute_security_query(
+        self, query, project=None, schema=None, token=None, hints=None, output_json=True
+    ):
         """
         Execute a security query to grant / revoke / query privileges and returns
         the result string or json value.
 
         :param str query: query text
         :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :param bool output_json: parse json for the output
         :return: result string / json object
         """
         from .models import Project
 
         instance_or_result = self.run_security_query(
-            query, project=project, token=token, output_json=output_json
+            query, project=project, schema=schema, token=token, hints=hints, output_json=output_json
         )
         if not isinstance(instance_or_result, Project.AuthQueryInstance):
             return instance_or_result
         return instance_or_result.wait_for_success()
 
-    @utils.deprecated('You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. Try `run_sql_interactive`.')
+    @utils.deprecated(
+        'You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. '
+        'Try `run_sql_interactive`.'
+    )
     def attach_session(self, session_name, taskname=None, hints=None):
         """
         Attach to an existing session.
 
         :param session_name: The session name.
-        :param taskname: The created sqlrt task name. If not provided, the default value is used. Mostly doesn't matter, default works.
+        :param taskname: The created sqlrt task name. If not provided, the default value is used.
+            Mostly doesn't matter, default works.
         :return: A SessionInstance you may execute select tasks within.
         """
         if not taskname:
             taskname = models.session.DEFAULT_TASK_NAME
         task = models.tasks.SQLRTTask(name=taskname)
         task.update_settings(hints)
-        task.update_settings({"odps.sql.session.share.id": session_name,
-                 "odps.sql.submit.mode": "script"})
+        task.update_settings(
+            {"odps.sql.session.share.id": session_name, "odps.sql.submit.mode": "script"}
+        )
         project = self.get_project()
         return project.instances.create(task=task,
                                         session_project=project,
                                         session_name=session_name)
 
-    @utils.deprecated('You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. Try `run_sql_interactive`.')
+    @utils.deprecated(
+        'You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. '
+        'Try `run_sql_interactive`.'
+    )
     def default_session(self):
         """
         Attach to the default session of your project.
@@ -1839,26 +2080,36 @@ class ODPS(object):
         """
         return self.attach_session(models.session.PUBLIC_SESSION_NAME)
 
-    @utils.deprecated('You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. Try `run_sql_interactive`.')
-    def create_session(self, session_worker_count, session_worker_memory,
-            session_name=None, worker_spare_span=None, taskname=None, hints=None):
+    @utils.deprecated(
+        'You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. '
+        'Try `run_sql_interactive`.'
+    )
+    def create_session(
+        self, session_worker_count, session_worker_memory, session_name=None,
+        worker_spare_span=None, taskname=None, hints=None
+    ):
         """
         Create session.
 
         :param session_worker_count: How much workers assigned to the session.
         :param session_worker_memory: How much memory each worker consumes.
         :param session_name: The session name. Not specifying to use its ID as name.
-        :param worker_spare_span: format "00-24", allocated workers will be reduced during this time. Not specifying to disable this.
-        :param taskname: The created sqlrt task name. If not provided, the default value is used. Mostly doesn't matter, default works.
-        :param hints: Extra hints provided to the session. Parameters of this method will override certain hints.
+        :param worker_spare_span: format "00-24", allocated workers will be reduced during this time.
+            Not specifying to disable this.
+        :param taskname: The created sqlrt task name. If not provided, the default value is used.
+            Mostly doesn't matter, default works.
+        :param hints: Extra hints provided to the session. Parameters of this method will override
+            certain hints.
         :return: A SessionInstance you may execute select tasks within.
         """
         if not taskname:
             taskname = models.session.DEFAULT_TASK_NAME
-        session_hints = {}
-        session_hints["odps.sql.session.worker.count"] = str(session_worker_count)
-        session_hints["odps.sql.session.worker.memory"] = str(session_worker_memory)
-        session_hints["odps.sql.submit.mode"] = "script"
+
+        session_hints = {
+            "odps.sql.session.worker.count": str(session_worker_count),
+            "odps.sql.session.worker.memory": str(session_worker_memory),
+            "odps.sql.submit.mode": "script",
+        }
         if session_name:
             session_hints["odps.sql.session.name"] = session_name
         if worker_spare_span:
@@ -1889,7 +2140,8 @@ class ODPS(object):
             except BaseException:
                 pass
         if force_reattach or not cached_is_running or self._default_session_name != service_name:
-            # should reattach, for whatever reason(timed out, terminated, never created, forced using another session)
+            # should reattach, for whatever reason (timed out, terminated, never created,
+            # forced using another session)
             self._default_session = self.attach_session(service_name)
             self._default_session.wait_for_startup(0.1, service_startup_timeout)
             self._default_session_name = service_name
@@ -1924,6 +2176,7 @@ class ODPS(object):
         options.is_global_account_overwritable = overwritable
         options.account = self.account
         options.default_project = self.project
+        options.default_schema = self.schema
         options.endpoint = self.endpoint
         options.logview_host = self.logview_host
         options.tunnel.endpoint = self._tunnel_endpoint
@@ -1936,6 +2189,7 @@ class ODPS(object):
                 options.account,
                 options.default_project,
                 endpoint=options.endpoint,
+                schema=options.default_schema,
                 tunnel_endpoint=options.tunnel.endpoint,
                 logview_host=options.logview_host,
                 app_account=options.app_account,

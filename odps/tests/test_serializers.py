@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime
+import email.header
+import textwrap
 import time
+from datetime import datetime
 
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest
@@ -158,6 +160,21 @@ class Test(TestBase):
         self.assertEqual(example.jsn.tags, parsed_example.jsn.tags)
         self.assertEqual(example.jsn.nest, parsed_example.jsn.nest)
         self.assertSequenceEqual(example.jsn.nests, parsed_example.jsn.nests)
+
+    def testCodedJson(self):
+        parsed_example = Example.parse(expected_xml_template % utils.gen_rfc822(datetime.now(), localtime=True))
+        json_bytes = parsed_example.jsn.serialize().encode("iso-8859-1")
+        coded_json = email.header.Header(json_bytes, "iso-8859-1").encode()
+
+        coded = textwrap.dedent('''
+        <?xml version="1.0" encoding="utf-8"?>
+        <Example type="ex">
+          <json>{JSON_CODED}</json>
+        </Example>
+        ''').strip().replace("{JSON_CODED}", coded_json)
+
+        parsed = Example.parse(coded)
+        self.assertSequenceEqual(parsed.jsn.nests, parsed_example.jsn.nests)
 
     def testPropertyOverride(self):
         def gen_objs(marker):

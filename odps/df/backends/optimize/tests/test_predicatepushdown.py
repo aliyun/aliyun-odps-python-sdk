@@ -16,7 +16,7 @@
 
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.expressions import CollectionExpr, Scalar
@@ -27,26 +27,26 @@ from odps.df.backends.odpssql.tests.test_compiler import ODPSEngine
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
                                    ['ds'], datatypes('string'))
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
-        table1 = MockTable(name='pyodps_test_expr_table1', schema=schema)
+        table1 = MockTable(name='pyodps_test_expr_table1', table_schema=schema)
         self.expr1 = CollectionExpr(_source_data=table1, _schema=schema)
 
-        table2 = MockTable(name='pyodps_test_expr_table2', schema=schema)
+        table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema)
         self.expr2 = CollectionExpr(_source_data=table2, _schema=schema)
 
-        schema2 = Schema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'),
+        schema2 = TableSchema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'),
                                     ['part1', 'part2'], datatypes('string', 'int64'))
-        table3 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
+        table3 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
         self.expr3 = CollectionExpr(_source_data=table3, _schema=schema2)
 
-        schema3 = Schema.from_lists(['id', 'name', 'relatives', 'hobbies'],
+        schema3 = TableSchema.from_lists(['id', 'name', 'relatives', 'hobbies'],
                                     datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
-        table4 = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table4 = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         self.expr4 = CollectionExpr(_source_data=table4, _schema=schema3)
 
         self.maxDiff = None
@@ -306,8 +306,8 @@ class Test(TestBase):
         self.assertEqual(expected, ODPSEngine(self.odps).compile(expr3, prettify=False))
 
     def testFilterPushdownThroughMultipleProjection(self):
-        schema = Schema.from_lists(list('abcde'), ['string']*5)
-        table = MockTable(name='pyodps_test_expr_table3', schema=schema)
+        schema = TableSchema.from_lists(list('abcde'), ['string']*5)
+        table = MockTable(name='pyodps_test_expr_table3', table_schema=schema)
         tab = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
 
         labels2 = []

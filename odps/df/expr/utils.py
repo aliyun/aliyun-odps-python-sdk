@@ -19,16 +19,19 @@ from __future__ import absolute_import
 import itertools
 import inspect
 import traceback
-import collections
 import threading
 from datetime import datetime
 from decimal import Decimal
 
-from .. import types
-from ..utils import is_source_collection
 from ... import compat
-from ...models import FileResource, TableResource
 from ...compat import six
+from ...models import FileResource, TableResource
+from .. import types
+
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 
 
 def add_method(expr, methods):
@@ -121,7 +124,7 @@ def is_called_by_inspector():
 def to_list(field):
     if isinstance(field, six.string_types):
         return [field, ]
-    if isinstance(field, collections.Iterable):
+    if isinstance(field, Iterable):
         return list(field)
     return [field, ]
 

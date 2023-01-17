@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import calendar
+import sys
 import time
 cimport cython
 from cpython.datetime cimport (
@@ -26,6 +26,7 @@ from cpython.datetime cimport (
     datetime_second,
     datetime_microsecond,
     datetime_new,
+    timedelta_new,
     import_datetime,
 )
 from libc.stdint cimport int64_t
@@ -43,16 +44,21 @@ from ..config import options
 cdef extern from "timegm.c":
     time_t timegm(tm* t) nogil
 
+cdef bint _is_windows = sys.platform.lower().startswith("win")
+
 import_datetime()
 
-cdef long _antique_mills
+cdef int64_t _antique_mills
+cdef object _py_local_epoch = datetime.fromtimestamp(0)
 
 try:
     _antique_mills = time.mktime(
         datetime(1928, 1, 1).timetuple()
     ) * 1000
 except OverflowError:
-    _antique_mills = 0
+    _antique_mills = int(
+        (datetime(1928, 1, 1) - datetime.utcfromtimestamp(0)).total_seconds()
+    ) * 1000
 _antique_errmsg = 'Date older than 1928/01/01 and may contain errors. ' \
                   'Ignore this error by configuring `options.allow_antique_date` to True.'
 
@@ -81,13 +87,6 @@ cdef class CMillisecondsConverter:
 
         self._allow_antique = options.allow_antique_date or _antique_mills is None
         self._is_dst = is_dst
-
-        if self._local_tz:
-            self._mktime = time.mktime
-            self._fromtimestamp = datetime.fromtimestamp
-        else:
-            self._mktime = calendar.timegm
-            self._fromtimestamp = datetime.utcfromtimestamp
 
         self._tz = self._get_tz(self._local_tz) if not self._use_default_tz else None
         self._tz_has_localize = hasattr(self._tz, 'localize')
@@ -123,7 +122,20 @@ cdef class CMillisecondsConverter:
 
         self._build_tm_struct(dt, &tm_result)
         if assume_local_tz:
-            unix_ts = mktime(&tm_result)
+            if not _is_windows or tm_result.tm_year > 1970:
+                unix_ts = mktime(&tm_result)
+            else:
+                py_datetime = datetime_new(
+                    tm_result.tm_year + 1900,
+                    tm_result.tm_mon + 1,
+                    tm_result.tm_mday,
+                    tm_result.tm_hour,
+                    tm_result.tm_min,
+                    tm_result.tm_sec,
+                    0,
+                    None,
+                )
+                unix_ts = int((py_datetime - _py_local_epoch).total_seconds())
         else:
             unix_ts = timegm(&tm_result)
 
@@ -135,16 +147,39 @@ cdef class CMillisecondsConverter:
 
     @cython.cdivision(True)
     cpdef datetime from_milliseconds(self, int64_t milliseconds):
-        cdef time_t seconds
+        cdef time_t seconds, zero
         cdef int64_t microseconds
         cdef tm* p_tm
 
         if not self._allow_antique and milliseconds < _antique_mills:
             raise OverflowError(_antique_errmsg)
 
-        seconds = milliseconds / 1000
-        microseconds = milliseconds % 1000 * 1000
+        if milliseconds >= 0:
+            seconds = milliseconds / 1000
+            microseconds = milliseconds % 1000 * 1000
+        else:
+            seconds = milliseconds / 1000
+            microseconds = milliseconds % 1000 * 1000
+            if microseconds < 0:
+                microseconds += 1000000
+                seconds -= 1
+
         if self._use_default_tz:
+            if self._default_tz_local and _is_windows and milliseconds < 0:
+                # special logic for negative timestamp under Windows
+                zero = 0
+                p_tm = localtime(&zero)
+                return datetime_new(
+                    p_tm.tm_year + 1900,
+                    p_tm.tm_mon + 1,
+                    p_tm.tm_mday,
+                    p_tm.tm_hour,
+                    p_tm.tm_min,
+                    p_tm.tm_sec,
+                    microseconds,
+                    None,
+                ) + timedelta_new(0, seconds, 0)
+
             if self._default_tz_local:
                 p_tm = localtime(&seconds)
             else:
@@ -158,7 +193,7 @@ cdef class CMillisecondsConverter:
                 p_tm.tm_min,
                 p_tm.tm_sec,
                 microseconds,
-                None
+                None,
             )
         else:
             return datetime.utcfromtimestamp(seconds) \

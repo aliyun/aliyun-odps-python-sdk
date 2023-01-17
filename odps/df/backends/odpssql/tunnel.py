@@ -51,7 +51,7 @@ class TunnelEngine(object):
         if not isinstance(expr, Column):
             return False
 
-        odps_schema = table.schema
+        odps_schema = table.table_schema
         if odps_schema.is_partition(expr.source_name):
             return False
 
@@ -195,13 +195,13 @@ class TunnelEngine(object):
 
         table = next(expr.data_source())
         partition, filter_all_partitions = None, True
-        if table.schema.partitions:
+        if table.table_schema.partitions:
             if partitions is not None:
                 partition = self._partition_prefix(
-                    [p.name for p in table.schema.partitions], partitions)
+                    [p.name for p in table.table_schema.partitions], partitions)
                 if partition is None:
                     return
-                if len(table.schema.partitions) != len(partitions):
+                if len(table.table_schema.partitions) != len(partitions):
                     filter_all_partitions = False
             else:
                 filter_all_partitions = False
@@ -300,4 +300,6 @@ class TunnelEngine(object):
             for k, v in six.iteritems(pkv):
                 if k in record and record[k] is None:
                     # fill back the partition data which is lost in the tunnel
-                    record[k] = types.odps_types.validate_value(v, table.schema.get_type(k))
+                    record[k] = types.odps_types.validate_value(
+                        v, table.table_schema.get_type(k)
+                    )

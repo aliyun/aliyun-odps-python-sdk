@@ -137,8 +137,9 @@ class BaseInstances(Iterable):
                headers=None, create_callback=None, encoding=None, session_project=None,
                session_name=None):
         if xml is None:
-            job = self._create_job(job=job, task=task, priority=priority,
-                                   running_cluster=running_cluster)
+            job = self._create_job(
+                job=job, task=task, priority=priority, running_cluster=running_cluster
+            )
 
             xml = self._get_submit_instance_content(job)
 

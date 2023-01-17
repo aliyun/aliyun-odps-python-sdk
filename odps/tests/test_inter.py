@@ -22,7 +22,7 @@ from odps.config import options
 from odps.errors import InteractiveError
 from odps.inter import enter, setup, teardown, Room, list_rooms
 from odps.lib import cloudpickle
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.tests.core import TestBase, tn
 
 
@@ -71,7 +71,7 @@ class Test(TestBase):
         room._room_dir = tempfile.mkdtemp()
 
         try:
-            s = Schema.from_lists(['name', 'id'], ['string', 'bigint'])
+            s = TableSchema.from_lists(['name', 'id'], ['string', 'bigint'])
             table_name = tn('pyodps_test_room_stores')
             self.odps.delete_table(table_name, if_exists=True)
             t = self.odps.create_table(table_name, s)
@@ -82,7 +82,7 @@ class Test(TestBase):
             del t
 
             t = self.odps.get_table(table_name)
-            self.assertEqual(t.schema.names, ['name', 'id'])
+            self.assertEqual(t.table_schema.names, ['name', 'id'])
 
             try:
                 room.store('table', t)

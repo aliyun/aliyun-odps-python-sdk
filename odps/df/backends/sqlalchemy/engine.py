@@ -36,9 +36,8 @@ from ...expr.dynamic import DynamicMixin
 from ...types import DynamicSchema, Unknown
 from ...backends.odpssql.types import df_schema_to_odps_schema, df_type_to_odps_type
 from ....types import PartitionSpec
-from ....models.table import TableSchema
 from ....utils import write_log as log, gen_temp_table
-from ....models import Schema, Partition
+from ....models import TableSchema, Partition
 
 
 class SQLExecuteNode(ExecuteNode):
@@ -324,7 +323,7 @@ class SQLAlchemyEngine(Engine):
 
         df = self._do_execute(expr_dag, src_expr, ui=ui,
                               progress_proportion=progress_proportion * execute_percent, **kwargs)
-        schema = Schema(columns=df.columns)
+        schema = TableSchema(columns=df.columns)
 
         if partitions is not None:
             if drop_partition:
@@ -345,7 +344,7 @@ class SQLAlchemyEngine(Engine):
             schema = df_schema_to_odps_schema(schema)
             columns = [c for c in schema.columns if c.name not in partitions]
             ps = [Partition(name=t, type=schema.get_type(t)) for t in partitions]
-            schema = Schema(columns=columns, partitions=ps)
+            schema = TableSchema(columns=columns, partitions=ps)
 
             if odps.exist_table(name, project=project) or not create_table:
                 t = odps.get_table(name, project=project)
@@ -386,7 +385,7 @@ class SQLAlchemyEngine(Engine):
 
             if odps.exist_table(name, project=project) or not create_table:
                 t = odps.get_table(name, project=project)
-                if t.schema.partitions:
+                if t.table_schema.partitions:
                     raise CompileError('Cannot insert into partition table %s without specifying '
                                        '`partition` or `partitions`.')
             else:

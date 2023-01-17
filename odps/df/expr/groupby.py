@@ -17,7 +17,7 @@
 import operator
 import random
 
-from ...models import Schema
+from ...models import TableSchema
 from .expressions import Expr, CollectionExpr, BooleanSequenceExpr, \
     Column, SequenceExpr, Scalar, BooleanScalar, repr_obj
 from .collections import SortedExpr, ReshuffledCollectionExpr
@@ -134,8 +134,11 @@ class BaseGroupBy(Expr):
         types = [by._data_type for by in self._by if isinstance(by, Column)] + \
                 [win._data_type for win in windows]
 
-        return MutateCollectionExpr(_input=self, _window_fields=windows,
-                                    _schema=Schema.from_lists(names, types))
+        return MutateCollectionExpr(
+            _input=self,
+            _window_fields=windows,
+            _schema=TableSchema.from_lists(names, types)
+        )
 
     def apply(self, func, names=None, types=None, resources=None, args=(), **kwargs):
         reshuffled = ReshuffledCollectionExpr(_input=self, _schema=self._input._schema)
@@ -261,8 +264,11 @@ class GroupBy(BaseGroupBy):
                  if isinstance(by, (Scalar, SequenceExpr)) and by.name is not None] + \
                 [agg._data_type for agg in aggregations]
 
-        return GroupByCollectionExpr(_input=self, _aggregations=aggregations,
-                                     _schema=Schema.from_lists(names, types))
+        return GroupByCollectionExpr(
+            _input=self,
+            _aggregations=aggregations,
+            _schema=TableSchema.from_lists(names, types)
+        )
 
     def agg(self, *args, **kwargs):
         return self.aggregate(*args, **kwargs)
@@ -325,7 +331,7 @@ class SequenceGroupBy(Expr):
         if self.is_astyped():
             input = input.astype(self._data_type)
         return input
-    
+
 
 class BooleanSequenceGroupBy(SequenceGroupBy):
     def _init(self, *args, **kwargs):
@@ -549,7 +555,7 @@ def value_counts(expr, sort=True, ascending=False, dropna=False):
 
     names = [expr.name, 'count']
     typos = [expr.dtype, types.int64]
-    return ValueCounts(_input=expr, _schema=Schema.from_lists(names, typos),
+    return ValueCounts(_input=expr, _schema=TableSchema.from_lists(names, typos),
                        _sort=sort, _ascending=ascending, _dropna=dropna)
 
 

@@ -28,7 +28,7 @@ from ...compat import six, OrderedDict
 from ...df.backends.engine import get_default_engine
 from ...df.backends.odpssql.types import df_type_to_odps_type
 from ...df.backends.pd.types import df_type_to_np_type
-from ...models import Schema, Table
+from ...models import TableSchema, Table
 from ...df import Scalar
 from ...utils import to_str
 from ...errors import ODPSError
@@ -82,12 +82,12 @@ def _copy_to_ext_table(
             else partitions
         )
         partition_types = ["string"] * len(partitions)
-        target_schema = Schema.from_lists(
+        target_schema = TableSchema.from_lists(
             column_names, column_types, partitions, partition_types
         )
         column_names.extend(list(partitions))
     else:
-        target_schema = Schema.from_lists(column_names, column_types)
+        target_schema = TableSchema.from_lists(column_names, column_types)
 
     _clean_oss_object(oss_path + "/data", **oss_opts)
 
@@ -201,7 +201,7 @@ def _get_df_partitions(df, partitions):
     if (
         df._source_data is not None
         and isinstance(df._source_data, Table)
-        and set([p.name for p in df._source_data.schema.partitions]) == set(partitions)
+        and set([p.name for p in df._source_data.table_schema.partitions]) == set(partitions)
     ):
         return list(p.partition_spec for p in df._source_data.partitions)
     else:
@@ -456,15 +456,15 @@ def persist_tensor_via_oss(odps, *args, **kwargs):
     if partitions:
         if isinstance(partitions, six.string_types):
             partitions = [partitions]
-        target_schema = Schema.from_lists(
+        target_schema = TableSchema.from_lists(
             column_names, column_types, partitions, ["string"] * len(partitions)
         )
-        ext_schema = Schema.from_lists(
+        ext_schema = TableSchema.from_lists(
             ext_column_names, ext_column_types, partitions, ["string"] * len(partitions)
         )
     else:
-        target_schema = Schema.from_lists(column_names, column_types)
-        ext_schema = Schema.from_lists(ext_column_names, ext_column_types)
+        target_schema = TableSchema.from_lists(column_names, column_types)
+        ext_schema = TableSchema.from_lists(ext_column_names, ext_column_types)
 
     ext_table = odps.create_table(
         ext_table_name,

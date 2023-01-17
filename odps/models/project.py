@@ -17,20 +17,20 @@
 import json
 import time
 
-from ..compat import Enum
+from .. import serializers, utils
+from ..compat import six, Enum
 from ..errors import SecurityQueryError
 from .core import LazyLoad, XMLRemoteModel
 from .functions import Functions
 from .instances import Instances, CachedInstances
 from .ml import OfflineModels
 from .resources import Resources
+from .schemas import Schemas
 from .tables import Tables
 from .volumes import Volumes
 from .xflows import XFlows
 from .security.users import Users, User
 from .security.roles import Roles
-from .. import serializers, utils
-from ..compat import six
 
 
 _notset = object()
@@ -61,6 +61,7 @@ class Project(LazyLoad):
     __slots__ = (
         "_policy_cache",
         "_logview_host",
+        "_default_schema",
         "_tunnel_endpoint",
         "_all_props_loaded",
         "_extended_props_loaded",
@@ -79,14 +80,15 @@ class Project(LazyLoad):
             return ret
 
     class ExtendedProperties(XMLRemoteModel):
-        _extended_properties = serializers.XMLNodePropertiesField('ExtendedProperties', 'Property',
-                                                                 key_tag='Name', value_tag='Value',
-                                                                 set_to_parent=True)
+        _extended_properties = serializers.XMLNodePropertiesField(
+            'ExtendedProperties', 'Property', key_tag='Name', value_tag='Value', set_to_parent=True
+        )
 
     class AuthQueryRequest(serializers.XMLSerializableModel):
         _root = 'Authorization'
         query = serializers.XMLNodeField('Query')
         use_json = serializers.XMLNodeField('ResponseInJsonFormat', type='bool')
+        settings = serializers.XMLNodeField('Settings')
 
     class AuthQueryResponse(serializers.XMLSerializableModel):
         _root = 'Authorization'
@@ -123,7 +125,7 @@ class Project(LazyLoad):
                 raise SecurityQueryError("Authorization query failed: " + status.result)
 
         def query_status(self):
-            resource = self.project.resource() + "/authorization/" + self.instance_id
+            resource = self.project.auth_resource() + "/" + self.instance_id
             resp = self.project._client.get(resource)
             return Project.AuthQueryStatusResponse.parse(resp)
 
@@ -140,15 +142,19 @@ class Project(LazyLoad):
     name = serializers.XMLNodeField('Name')
     owner = serializers.XMLNodeField('Owner')
     comment = serializers.XMLNodeField('Comment')
-    creation_time = serializers.XMLNodeField('CreationTime',
-                                             parse_callback=utils.parse_rfc822)
-    last_modified_time = serializers.XMLNodeField('LastModifiedTime',
-                                                  parse_callback=utils.parse_rfc822)
+    creation_time = serializers.XMLNodeField(
+        'CreationTime', parse_callback=utils.parse_rfc822
+    )
+    last_modified_time = serializers.XMLNodeField(
+        'LastModifiedTime', parse_callback=utils.parse_rfc822
+    )
     project_group_name = serializers.XMLNodeField('ProjectGroupName')
-    properties = serializers.XMLNodePropertiesField('Properties', 'Property',
-                                                    key_tag='Name', value_tag='Value')
-    _extended_properties = serializers.XMLNodePropertiesField('ExtendedProperties', 'Property',
-                                                             key_tag='Name', value_tag='Value')
+    properties = serializers.XMLNodePropertiesField(
+        'Properties', 'Property', key_tag='Name', value_tag='Value'
+    )
+    _extended_properties = serializers.XMLNodePropertiesField(
+        'ExtendedProperties', 'Property', key_tag='Name', value_tag='Value'
+    )
     state = serializers.XMLNodeField('State')
     clusters = serializers.XMLNodesReferencesField(Cluster, 'Clusters', 'Cluster')
 
@@ -192,8 +198,19 @@ class Project(LazyLoad):
         return self._getattr("_extended_properties")
 
     @property
+    def schemas(self):
+        return Schemas(client=self._client, parent=self)
+
+    def _get_collection_with_schema(self, iter_cls):
+        if self._default_schema is not None:
+            parent = self.schemas[self._default_schema]
+        else:
+            parent = self
+        return iter_cls(client=self._client, parent=parent)
+
+    @property
     def tables(self):
-        return Tables(client=self._client, parent=self)
+        return self._get_collection_with_schema(Tables)
 
     @property
     def instances(self):
@@ -205,15 +222,15 @@ class Project(LazyLoad):
 
     @property
     def functions(self):
-        return Functions(client=self._client, parent=self)
+        return self._get_collection_with_schema(Functions)
 
     @property
     def resources(self):
-        return Resources(client=self._client, parent=self)
+        return self._get_collection_with_schema(Resources)
 
     @property
     def volumes(self):
-        return Volumes(client=self._client, parent=self)
+        return self._get_collection_with_schema(Volumes)
 
     @property
     def xflows(self):
@@ -251,6 +268,7 @@ class Project(LazyLoad):
             client.account,
             client.project,
             endpoint=client.endpoint,
+            schema=client.schema,
             tunnel_endpoint=self._tunnel_endpoint,
             logview_host=self._logview_host,
             app_account=getattr(client, 'app_account', None),
@@ -287,19 +305,47 @@ class Project(LazyLoad):
                                         id=user['ID'], display_name=user['DisplayName'])
         return user_cache[user_key]
 
-    def run_security_query(self, query, token=None, output_json=True):
-        url = self.resource() + '/authorization'
-        req_obj = self.AuthQueryRequest(query=query, use_json=output_json).serialize()
+    def auth_resource(self, client=None):
+        return self.resource(client) + "/authorization"
+
+    def run_security_query(self, query, schema=None, token=None, hints=None, output_json=True):
+        url = self.auth_resource()
         headers = {'Content-Type': 'application/xml'}
         if token:
             headers['odps-x-supervision-token'] = token
 
-        query_resp = self._client.post(url, headers=headers, data=req_obj)
+        if schema is not None:
+            hints = hints or {}
+            hints["odps.default.schema"] = hints.get("odps.default.schema") or schema
+
+        req_obj = self.AuthQueryRequest(
+            query=query, use_json=True, settings=json.dumps(hints) if hints else None
+        )
+
+        query_resp = self._client.post(url, headers=headers, data=req_obj.serialize())
         resp = self.AuthQueryResponse.parse(query_resp)
 
         if query_resp.status_code == 200:
             return json.loads(resp.result) if output_json else resp.result
         return Project.AuthQueryInstance(self, resp.result, output_json=output_json)
+
+    def generate_auth_token(self, policy, type, expire_hours):
+        if type.lower() != "bearer":
+            raise SecurityQueryError("Unsupported token type " + type)
+
+        url = self.auth_resource()
+        headers = {'Content-Type': 'application/json'}
+        params = {'sign_bearer_token': ''}
+
+        policy_dict = {
+            'expires_in_hours': expire_hours,
+            'policy': policy
+        }
+        data = json.dumps(policy_dict)
+
+        query_resp = self._client.post(url, data, headers=headers, params=params)
+        resp = self.AuthQueryResponse.parse(query_resp)
+        return resp.result
 
     def get_property(self, item, default=_notset):
         if not self._all_props_loaded:

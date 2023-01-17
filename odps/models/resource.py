@@ -14,13 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .core import LazyLoad
-from .cache import cache, cache_parent
+import os
+import sys
+from collections import namedtuple
+
 from .. import serializers, utils, types, errors, compat
 from ..compat import Enum, six
+from ..config import options
+from .core import LazyLoad
+from .cache import cache, cache_parent
 
-
-RESOURCE_SIZE_MAX = 512 * 1024 * 1024  # a single resource's size must be at most 512M
+if sys.version_info[0] < 3:
+    _StringIOType = type(compat.StringIO())
+else:
+    _StringIOType = (compat.StringIO, compat.BytesIO)
 
 
 class Resource(LazyLoad):
@@ -35,7 +42,9 @@ class Resource(LazyLoad):
                  :class:`odps.models.TableResource`
     """
 
-    __slots__ = 'content_md5', 'is_temp_resource', 'volume_path', '_type_indicator'
+    __slots__ = (
+        'content_md5', 'is_temp_resource', 'volume_path', '_type_indicator'
+    )
 
     class Type(Enum):
         FILE = 'FILE'
@@ -109,17 +118,15 @@ class Resource(LazyLoad):
             kwargs['type'] = Resource.Type(typo.upper())
         super(Resource, self).__init__(**kwargs)
 
-    @property
-    def _project(self):
-        return self._parent._parent.name
-
-    @property
-    def project(self):
-        return self._project
-
     def reload(self):
+        params = {'meta': ''}
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            params['curr_schema'] = schema_name
+
         url = self.resource()
-        resp = self._client.get(url, params={'meta': ''})
+        resp = self._client.get(url, params=params)
+
         self.owner = resp.headers.get('x-odps-owner')
         resource_type = resp.headers.get('x-odps-resource-type')
         self.type = Resource.Type(resource_type.upper())
@@ -141,8 +148,13 @@ class Resource(LazyLoad):
         self._loaded = True
 
     def _reload_size(self):
+        params = {'meta': ''}
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            params['curr_schema'] = schema_name
+
         url = self.resource()
-        resp = self._client.get(url, params={'meta': ''})
+        resp = self._client.get(url, params=params)
 
         size = resp.headers.get('x-odps-resource-size')
         self.size = None if size is None else int(size)
@@ -159,11 +171,10 @@ class FileResource(Resource):
     """
     File resource represents for a file.
 
-    Use ``open`` method to open this resource as an file-like object.
+    Use ``open`` method to open this resource as a file-like object.
     """
 
-    __slots__ = '_fp', '_mode', '_opened', '_size', '_need_commit', \
-                '_open_binary', '_encoding'
+    __slots__ = ('_fp', 'is_part_resource', 'merge_total_bytes')
 
     class Mode(Enum):
         READ = 'r'
@@ -175,13 +186,22 @@ class FileResource(Resource):
 
     def create(self, overwrite=False, **kw):
         file_obj = kw.pop('file_obj', kw.pop('fileobj', None))
+        is_part_resource = self._getattr("is_part_resource")
+        is_merge_resource = self._getattr('merge_total_bytes') is not None
 
         if file_obj is None:
             raise ValueError('parameter `file_obj` cannot be None, either string or file-like object')
         if isinstance(file_obj, six.text_type):
             file_obj = file_obj.encode('utf-8')
-        if isinstance(file_obj, six.binary_type):
-            file_obj = six.BytesIO(file_obj)
+
+        if (
+            options.upload_resource_in_chunks
+            and not is_merge_resource
+            and not is_part_resource
+            and self._get_file_size(file_obj) > options.resource_chunk_size
+        ):
+            self._upload_with_stream(file_obj, overwrite)
+            return self
 
         if self.name is None or len(self.name.strip()) == 0:
             raise errors.ODPSError('File Resource Name should not empty.')
@@ -189,21 +209,34 @@ class FileResource(Resource):
         method = self._client.post if not overwrite else self._client.put
         url = self.parent.resource() if not overwrite else self.resource()
 
-        headers = {'Content-Type': 'application/octet-stream',
-                   'Content-Disposition': 'attachment;filename=%s' % self.name,
-                   'x-odps-resource-type': self.type.value.lower(),
-                   'x-odps-resource-name': self.name}
+        headers = {
+            'Content-Type': 'application/octet-stream',
+            'Content-Disposition': 'attachment;filename=%s' % self.name,
+            'x-odps-resource-type': self.type.value.lower(),
+            'x-odps-resource-name': self.name,
+        }
+        params = {}
+
         if self._getattr('comment') is not None:
             headers['x-odps-comment'] = self.comment
         if self._getattr('is_temp_resource'):
             headers['x-odps-resource-istemp'] = 'true' if self.is_temp_resource else 'false'
+        if is_merge_resource:
+            headers['x-odps-resource-merge-total-bytes'] = str(self.merge_total_bytes)
+            params["rOpMerge"] = "true"
+        if is_part_resource:
+            params["rIsPart"] = "true"
 
-        if not isinstance(file_obj, six.string_types):
+        if not isinstance(file_obj, (six.string_types, six.binary_type)):
             file_obj.seek(0)
             content = file_obj.read()
         else:
             content = file_obj
-        method(url, content, headers=headers)
+
+        self.size = len(content)
+        method(
+            url, content, headers=headers, params=params, curr_schema=self._get_schema_name()
+        )
 
         if overwrite:
             self.reload()
@@ -214,12 +247,31 @@ class FileResource(Resource):
         self.type = Resource.Type.FILE
 
         self._fp = None
-        self._mode = FileResource.Mode.READ
-        self._open_binary = False
-        self._encoding = None
-        self._size = 0
-        self._opened = False
-        self._need_commit = False
+
+    @staticmethod
+    def _get_file_size(file_obj):
+        if isinstance(file_obj, six.binary_type):
+            return len(file_obj)
+        elif isinstance(file_obj, _StringIOType):
+            pos = file_obj.tell()
+            file_obj.seek(0, os.SEEK_END)
+            size = file_obj.tell()
+            file_obj.seek(pos, os.SEEK_SET)
+            return size
+        elif hasattr(file_obj, "name"):
+            fn = file_obj.name
+            if fn and os.path.exists(fn):
+                return os.path.getsize(fn)
+        return None
+
+    def _upload_with_stream(self, file_obj, overwrite=True):
+        chunk_size = options.resource_chunk_size
+        with self.open("w", stream=True, overwrite=overwrite) as res_file:
+            while True:
+                buf = file_obj.read(chunk_size)
+                if not buf:
+                    break
+                res_file.write(buf)
 
     def _is_create(self):
         if self._loaded:
@@ -230,7 +282,19 @@ class FileResource(Resource):
         except errors.NoSuchObject:
             return True
 
-    def open(self, mode='r', encoding='utf-8'):
+    @property
+    def _size(self):
+        return self._fp.size if self._fp else self.size
+
+    @property
+    def opened(self):
+        return self._fp is not None
+
+    @property
+    def mode(self):
+        return self._fp.mode
+
+    def open(self, mode='r', encoding='utf-8', stream=False, overwrite=None):
         """
         The argument ``mode`` stands for the open mode for this file resource.
         It can be binary mode if the 'b' is inside. For instance,
@@ -251,6 +315,8 @@ class FileResource(Resource):
 
         :param mode: the mode of opening file, described as above
         :param encoding: utf-8 as default
+        :param stream: open in stream mode
+        :param overwrite: if True, will overwrite existing resource. True by default.
         :return: file-like object
 
         :Example:
@@ -260,48 +326,30 @@ class FileResource(Resource):
         >>>     fp.write('test')  # wrong, cannot write under read mode
         >>>
         >>> with resource.open('wb') as fp:
-        >>>     fp.readlines() # wrong, cannot read under write mode
-        >>>     fp.write('hello world') # write bytes
+        >>>     fp.readlines()  # wrong, cannot read under write mode
+        >>>     fp.write('hello world')  # write bytes
         >>>
-        >>> with resource.open('test_resource', 'r+') as fp: # open as read-write mode
+        >>> with resource.open('test_resource', 'r+') as fp:  # open as read-write mode
         >>>     fp.seek(5)
         >>>     fp.truncate()
         >>>     fp.flush()
         """
 
-        # TODO: when reading, do not read all the data at once
+        from .resourcefile import LocalResourceFile, StreamResourceFile
 
-        if 'b' in mode:
-            self._open_binary = True
-        mode = mode.replace('b', '')
-        self._mode = FileResource.Mode(mode)
-        self._encoding = encoding
-
-        if self._mode in (FileResource.Mode.WRITE, FileResource.Mode.TRUNCEREADWRITE):
-            io_clz = six.BytesIO if self._open_binary else six.StringIO
-            self._fp = io_clz()
-            self._size = 0
+        if stream:
+            res_file_type = StreamResourceFile
         else:
-            self._fp = self.parent.read_resource(
-                self, text_mode=not self._open_binary, encoding=self._encoding)
-            self._reload_size()
-            self._sync_size()
+            res_file_type = LocalResourceFile
 
-        self._opened = True
-
+        self._fp = res_file_type(self, mode, encoding, overwrite=overwrite)
         return self
 
     def _check_read(self):
-        if not self._opened:
+        if not self.opened:
             raise IOError('I/O operation on non-open resource')
-        if self._mode in (FileResource.Mode.WRITE, FileResource.Mode.APPEND):
+        if self.mode in (FileResource.Mode.WRITE, FileResource.Mode.APPEND):
             raise IOError('Resource not open for reading')
-
-    def _sync_size(self):
-        curr_pos = self.tell()
-        self.seek(0, compat.SEEK_END)
-        self._size = self.tell()
-        self.seek(curr_pos)
 
     def read(self, size=-1):
         """
@@ -346,22 +394,10 @@ class FileResource(Resource):
         return self._fp.readlines(sizehint)
 
     def _check_write(self):
-        if not self._opened:
+        if not self.opened:
             raise IOError('I/O operation on non-open resource')
-        if self._mode == FileResource.Mode.READ:
+        if self.mode == FileResource.Mode.READ:
             raise IOError('Resource not open for writing')
-
-    def _check_size(self):
-        if self._size > RESOURCE_SIZE_MAX:
-            raise IOError('Single resource\'s max size is %sM' %
-                          (RESOURCE_SIZE_MAX / (1024 ** 2)))
-
-    def _convert(self, content):
-        if self._open_binary and isinstance(content, six.text_type):
-            return content.encode(self._encoding)
-        elif not self._open_binary and isinstance(content, six.binary_type):
-            return content.decode(self._encoding)
-        return content
 
     def write(self, content):
         """
@@ -370,21 +406,8 @@ class FileResource(Resource):
         :param content: content to write
         :return: None
         """
-
-        content = self._convert(content)
-
-        length = len(content)
         self._check_write()
-        if self._mode in (FileResource.Mode.APPEND, FileResource.Mode.APPENDREADWRITE):
-            self.seek(0, compat.SEEK_END)
-
-        if length > 0:
-            self._need_commit = True
-
-        res = self._fp.write(content)
-        self._sync_size()
-        self._check_size()
-        return res
+        return self._fp.write(content)
 
     def writelines(self, seq):
         """
@@ -393,21 +416,8 @@ class FileResource(Resource):
         :param seq: lines
         :return: None
         """
-
-        seq = [self._convert(s) for s in seq]
-
-        length = sum(len(s) for s in seq)
         self._check_write()
-        if self._mode in (FileResource.Mode.APPEND, FileResource.Mode.APPENDREADWRITE):
-            self.seek(0, compat.SEEK_END)
-
-        if length > 0:
-            self._need_commit = True
-
-        res = self._fp.writelines(seq)
-        self._sync_size()
-        self._check_size()
-        return res
+        return self._fp.writelines(seq)
 
     def seek(self, pos, whence=compat.SEEK_SET):  # io.SEEK_SET
         """
@@ -417,12 +427,10 @@ class FileResource(Resource):
         :param whence: if set to 2, will seek to the end
         :return: None
         """
-
         return self._fp.seek(pos, whence)
 
-    @staticmethod
-    def seekable():
-        return True
+    def seekable(self):
+        return self._fp.seekable()
 
     def tell(self):
         """
@@ -430,7 +438,6 @@ class FileResource(Resource):
 
         :return: current position
         """
-
         return self._fp.tell()
 
     def truncate(self, size=None):
@@ -442,18 +449,8 @@ class FileResource(Resource):
                      The size defaults to the current position.
         :return: None
         """
-
         self._check_write()
-
-        curr_pos = self.tell()
-        self._fp.truncate(size)
-
-        self.seek(0, compat.SEEK_END)
-        self._size = self.tell()
-
-        self.seek(curr_pos)
-
-        self._need_commit = True
+        return self._fp.truncate(size)
 
     def flush(self):
         """
@@ -462,18 +459,7 @@ class FileResource(Resource):
 
         :return: None
         """
-
-        if self._need_commit:
-            is_create = self._is_create()
-
-            resources = self.parent
-
-            if is_create:
-                resources.create(self=self, file_obj=self._fp)
-            else:
-                resources.update(obj=self, file_obj=self._fp)
-
-            self._need_commit = False
+        return self._fp.flush()
 
     def close(self):
         """
@@ -481,13 +467,8 @@ class FileResource(Resource):
 
         :return: None
         """
-
-        self.flush()
-
+        self._fp.close()
         self._fp = None
-        self._size = 0
-        self._need_commit = False
-        self._opened = False
 
     def __iter__(self):
         self._check_read()
@@ -548,15 +529,23 @@ class TableResource(Resource):
     Take a table as a resource.
     """
 
+    _TableSource = namedtuple("_TableSource", "project schema table partition")
+
     def __init__(self, **kw):
         project_name = kw.pop('project_name', None)
+        schema_name = kw.pop('schema_name', None)
         table_name = kw.pop('table_name', None)
         partition_spec = kw.pop('partition', None)
 
         super(TableResource, self).__init__(**kw)
 
-        self._init(project_name=project_name, table_name=table_name,
-                   partition=partition_spec, create=True)
+        self._init(
+            table_project_name=project_name,
+            table_schema_name=schema_name,
+            table_name=table_name,
+            partition=partition_spec,
+            create=True,
+        )
 
     def create(self, overwrite=False, **kw):
         if self.name is None or len(self.name.strip()) == 0:
@@ -565,49 +554,75 @@ class TableResource(Resource):
         method = self._client.post if not overwrite else self._client.put
         url = self.parent.resource() if not overwrite else self.resource()
 
-        headers = {'Content-Type': 'text/plain',
-                   'x-odps-resource-type': self.type.value.lower(),
-                   'x-odps-resource-name': self.name,
-                   'x-odps-copy-table-source': self.source_table_name}
+        headers = {
+            'Content-Type': 'text/plain',
+            'x-odps-resource-type': self.type.value.lower(),
+            'x-odps-resource-name': self.name,
+            'x-odps-copy-table-source': self.source_table_name,
+        }
         if self._getattr('comment') is not None:
             headers['x-odps-comment'] = self._getattr('comment')
 
-        method(url, '', headers=headers)
+        method(url, '', headers=headers, curr_schema=self._get_schema_name())
 
         if overwrite:
             del self.parent[self.name]
             return self.parent[self.name]
         return self
 
-    def _init(self, create=False, project_name=None, table_name=None, **kw):
+    def _init(self, create=False, table_project_name=None, table_schema_name=None, table_name=None, **kw):
+        table_project_name = table_project_name or kw.get("project_name")
         if table_name is not None and '.' in table_name:
-            project_name, table_name = table_name.split('.', 1)
+            parts = table_name.split('.')
+            if len(parts) == 2:
+                assert table_schema_name is None
+                table_project_name, table_name = parts
+            else:
+                table_project_name, table_schema_name, table_name = parts
+
+            table_project_name = table_project_name.strip()
+            if table_schema_name is not None:
+                table_schema_name = table_schema_name.strip()
+            table_name = table_name.strip()
+
+            if table_name.startswith("`") and table_name.endswith("`"):
+                table_name = table_name[1:-1]
 
         try:
             if not create:
-                old_project_name, old_table_name, old_partition = self.get_project_table_partition()
+                table_source = self._get_table_source()
+                old_table_project_name = table_source.project
+                old_schema_name = table_source.schema
+                old_table_name = table_source.table
+                old_partition = table_source.partition
             else:
-                old_project_name, old_table_name, old_partition = None, None, None
+                old_table_project_name, old_schema_name, old_table_name, old_partition = [None] * 4
         except AttributeError:
-            old_project_name, old_table_name, old_partition = None, None, None
+            old_table_project_name, old_schema_name, old_table_name, old_partition = [None] * 4
 
-        project_name = project_name or old_project_name or self._project
+        table_project_name = table_project_name or old_table_project_name or self.project.name
+        table_schema_name = table_schema_name or old_schema_name or self._get_schema_name()
         table_name = table_name or old_table_name
         partition = kw.get('partition', old_partition)
 
         if table_name is not None:
-            self.source_table_name = '%s.%s' % (project_name, table_name)
+            if table_schema_name:
+                self.source_table_name = '.'.join((table_project_name, table_schema_name, table_name))
+            else:
+                self.source_table_name = '.'.join((table_project_name, table_name))
 
         if partition is not None:
             if not isinstance(partition, types.PartitionSpec):
                 partition_spec = types.PartitionSpec(partition)
             else:
                 partition_spec = partition
-            self.source_table_name = '%s partition(%s)' \
-                                     % (self.source_table_name.split(' partition(')[0],
-                                        partition_spec)
+            self.source_table_name = (
+                '%s partition(%s)' % (
+                    self.source_table_name.split(' partition(')[0], partition_spec
+                )
+            )
 
-    def get_project_table_partition(self):
+    def _get_table_source(self):
         if self.source_table_name is None:
             raise AttributeError('source_table_name not defined.')
 
@@ -620,16 +635,29 @@ class TableResource(Resource):
         src = splits[0]
         if '.' not in src:
             raise ValueError('Malformed source table name: %s' % src)
+        table_parts = src.split('.')
+        if len(table_parts) == 2:
+            schema_name = None
+            project_name, table_name = table_parts
+        else:
+            project_name, schema_name, table_name = table_parts
 
-        return tuple(src.split('.', 1)) + (partition, )
+        return TableResource._TableSource(
+            project_name, schema_name, table_name, partition
+        )
 
     def get_source_table(self):
         try:
-            project_name, table_name, _ = self.get_project_table_partition()
+            table_source = self._get_table_source()
         except AttributeError:
             return
+
         from .projects import Projects
-        return Projects(client=self._client)[project_name].tables[table_name]
+
+        tables_parent = Projects(client=self._client)[table_source.project]
+        if table_source.schema:
+            tables_parent = tables_parent.schemas[table_source.schema]
+        return tables_parent.tables[table_source.table]
 
     def get_source_table_partition(self):
         if self.source_table_name is None:
@@ -672,26 +700,37 @@ class TableResource(Resource):
         """
         Open reader on the table resource
         """
-        return self.get_source_table().open_reader(partition=self.get_source_table_partition(), **kwargs)
+        return self.get_source_table().open_reader(
+            partition=self.get_source_table_partition(), **kwargs
+        )
 
     def open_writer(self, **kwargs):
         """
         Open writer on the table resource
         """
-        return self.get_source_table().open_writer(partition=self.get_source_table_partition(), **kwargs)
+        return self.get_source_table().open_writer(
+            partition=self.get_source_table_partition(), **kwargs
+        )
 
-    def update(self, project_name=None, table_name=None, *args, **kw):
+    def update(
+        self,
+            table_project_name=None, table_schema_name=None, table_name=None, *args, **kw):
         """
         Update this resource.
 
-        :param project_name: the source table's project
+        :param table_project_name: the source table's project
         :param table_name: the source table's name
         :param partition: the source table's partition
         :return: self
         """
         if len(args) > 0:
             kw['partition'] = args[0]
-        self._init(project_name=project_name, table_name=table_name, **kw)
+        self._init(
+            table_project_name=table_project_name,
+            table_schema_name=table_schema_name,
+            table_name=table_name,
+            **kw
+        )
         resources = self.parent
         return resources.update(self)
 
@@ -705,14 +744,16 @@ class VolumeResource(Resource):
         method = self._client.post if not overwrite else self._client.put
         url = self.parent.resource() if not overwrite else self.resource()
 
-        headers = {'Content-Type': 'text/plain',
-                   'x-odps-resource-type': self.type.value.lower(),
-                   'x-odps-resource-name': self.name,
-                   'x-odps-copy-file-source': self.volume_path}
+        headers = {
+            'Content-Type': 'text/plain',
+            'x-odps-resource-type': self.type.value.lower(),
+            'x-odps-resource-name': self.name,
+            'x-odps-copy-file-source': self.volume_path,
+        }
         if self._getattr('comment') is not None:
             headers['x-odps-comment'] = self._getattr('comment')
 
-        method(url, '', headers=headers)
+        method(url, '', headers=headers, curr_schema=self._get_schema_name())
 
         if overwrite:
             del self.parent[self.name]

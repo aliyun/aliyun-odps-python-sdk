@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-06-29 16:57+0800\n"
+"POT-Creation-Date: 2022-11-16 17:33+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1269,7 +1269,7 @@ msgstr ""
 "project must support Python UDF or you cannot use these functions (Note: "
 "You need to apply for Python UDF support)**\\."
 
-#: ../../source/df-element.rst:534
+#: ../../source/df-element.rst:534 ../../source/df-element.rst:597
 msgid ""
 "由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS"
 " Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常 "
@@ -1371,179 +1371,32 @@ msgstr ""
 msgid "使用第三方Python库"
 msgstr "Use third-party Python libraries"
 
-#: ../../source/df-element.rst:591
+#: ../../source/df-element.rst:590
 msgid ""
-"现在用户可以把第三方 Python 包作为资源上传到 MaxCompute，支持的格式有 whl、egg、zip 以及 tar.gz。 "
-"在全局或者在立即执行的方法时，指定需要使用的包文件。即可以在自定义函数中使用第三方库。"
+"现在用户可以把第三方 Wheel 包作为资源上传到 MaxCompute。在全局或者在立即执行的方法时，指定需要使用的包文件， "
+"即可以在自定义函数中使用第三方库。值得注意的是，第三方库的依赖库也必须指定，否则依然会有导入错误。"
 msgstr ""
-"You can upload third-party Python packages as resources to MaxCompute. "
-"Supported formats include: .whl, .egg., .zip, and .tar.gz. You need to "
-"specify the package files when using them globally or in actions. Custom "
-"functions can also use third-party libraries."
+"You can upload third-party wheel packages as resources to MaxCompute. You"
+" need to specify the package files globally or in methods that execute "
+"DataFrames immediately. Note that you also need to add dependencies of "
+"your third-party libraries, or import could fail."
 
-#: ../../source/df-element.rst:594
-msgid "值得注意的是，第三方库的依赖库，也必须指定，否则依然会有导入错误。"
-msgstr ""
-"Note that the dependencies of the third-party libraries also need to be "
-"specified. Otherwise errors may occur when importing the files."
-
-#: ../../source/df-element.rst:598
-msgid "下面我们会以 python-dateutil 这个包作为例子。"
-msgstr "Take the following python-dateutil package as an example."
-
-#: ../../source/df-element.rst:600
+#: ../../source/df-element.rst:593
 msgid ""
-"首先，我们可以使用pip download命令，下载包以及其依赖到某个路径。 这里下载后会出现两个包：six-1.10.0-py2.py3"
-"-none-any.whl和python_dateutil-2.5.3-py2.py3-none-any.whl "
-"（这里注意需要下载支持linux环境的包）"
+"PyODPS 提供了 ``pyodps-pack`` 工具，可在安装完 PyODPS 后打包三方包及其依赖。同时，execute / "
+"persist / to_pandas 方法支持增加 ``libraries`` 参数以使用这些资源。如何制作及使用三方包的说明请参考 "
+":ref:`这里 <pyodps_pack>`。"
 msgstr ""
-"First, you can use the pip download command to download the package and "
-"its dependencies to a specific path. Two packages are downloaded: "
-"six-1.10.0-py2.py3-none-any.whl and python_dateutil-2.5.3-py2.py3-none-"
-"any.whl. Note that the packages must support Linux environment."
+"PyODPS installation provides ``pyodps-pack`` tool for packing third-party libraries. "
+"Meanwhile methods like execute, persist or to_pandas support ``libraries`` argument to"
+" use these resources. You may take a look at :ref:`documents here <pyodps_pack>` to see"
+" how to build and use these third-party libraries."
 
-#: ../../source/df-element.rst:604
-msgid "$ pip download python-dateutil -d /to/path/"
-msgstr ""
-
-#: ../../source/df-element.rst:608
-msgid "然后我们分别把两个文件上传到ODPS资源"
-msgstr "Then upload the files to MaxCompute as resources."
-
-#: ../../source/df-element.rst:610
-msgid ""
-">>> # 这里要确保资源名的后缀是正确的文件类型\n"
-">>> odps.create_resource('six.whl', 'file', "
-"file_obj=open('six-1.10.0-py2.py3-none-any.whl', 'rb'))\n"
-">>> odps.create_resource('python_dateutil.whl', 'file', "
-"file_obj=open('python_dateutil-2.5.3-py2.py3-none-any.whl', 'rb'))"
-msgstr ""
-">>> # make sure that file extensions are correct\n"
-">>> odps.create_resource('six.whl', 'file', "
-"file_obj=open('six-1.10.0-py2.py3-none-any.whl', 'rb'))\n"
-">>> odps.create_resource('python_dateutil.whl', 'file', "
-"file_obj=open('python_dateutil-2.5.3-py2.py3-none-any.whl', 'rb'))"
-
-#: ../../source/df-element.rst:616
-msgid "现在我们有个DataFrame，只有一个string类型字段。"
-msgstr "Now you have a DataFrame object that only contains a string field."
-
-#: ../../source/df-element.rst:618
-msgid ""
-">>> df\n"
-"               datestr\n"
-"0  2016-08-26 14:03:29\n"
-"1  2015-08-26 14:03:29"
-msgstr ""
-
-#: ../../source/df-element.rst:625
-msgid "全局配置使用到的三方库："
-msgstr "Set the third-party library as global:"
-
-#: ../../source/df-element.rst:627
-msgid ""
-">>> from odps import options\n"
-">>>\n"
-">>> def get_year(t):\n"
-">>>     from dateutil.parser import parse\n"
-">>>     return parse(t).strftime('%Y')\n"
-">>>\n"
-">>> options.df.libraries = ['six.whl', 'python_dateutil.whl']\n"
-">>> df.datestr.map(get_year)\n"
-"   datestr\n"
-"0     2016\n"
-"1     2015"
-msgstr ""
-
-#: ../../source/df-element.rst:641
-msgid "或者，通过立即运行方法的 ``libraries`` 参数指定："
-msgstr "Or use the ``libraries`` attribute of an action to specify the package:"
-
-#: ../../source/df-element.rst:644
-msgid ""
-">>> def get_year(t):\n"
-">>>     from dateutil.parser import parse\n"
-">>>     return parse(t).strftime('%Y')\n"
-">>>\n"
-">>> df.datestr.map(get_year).execute(libraries=['six.whl', "
-"'python_dateutil.whl'])\n"
-"   datestr\n"
-"0     2016\n"
-"1     2015"
-msgstr ""
-
-#: ../../source/df-element.rst:655
-msgid ""
-"PyODPS 默认支持执行纯 Python 且不含文件操作的第三方库。在较新版本的 MaxCompute 服务下，PyODPS "
-"也支持执行带有二进制代码或带有文件操作的 Python 库。这些库的后缀必须是 cp27-cp27m-manylinux1_x86_64， 以 "
-"archive 格式上传，whl 后缀的包需要重命名为 zip。同时，作业需要开启 "
-"``odps.isolation.session.enable`` 选项，或者在 Project 级别开启 "
-"Isolation。下面的例子展示了如何上传并使用 scipy 中的特殊函数："
-msgstr ""
-"By default, PyODPS supports third-party libraries that contain pure "
-"Python code but no file operations. In newer versions of MaxCompute, "
-"PyODPS also supports Python libraries that contain binary code or file "
-"operations. These libraries must be suffixed with cp27-cp27m-"
-"manylinux1_x86_64 and uploaded in the archive format .whl packages must "
-"be renamed to .zip files. You also need to enable the "
-"``odps.isolation.session.enable`` option or enable Isolation in your "
-"project. The following example demonstrates how to upload and use the "
-"special functions in scipy:"
-
-#: ../../source/df-element.rst:660
-msgid ""
-">>> # 对于含有二进制代码的包，必须使用 Archive 方式上传资源，whl 后缀需要改为 zip\n"
-">>> odps.create_resource('scipy.zip', 'archive', "
-"file_obj=open('scipy-0.19.0-cp27-cp27m-manylinux1_x86_64.whl', 'rb'))\n"
-">>>\n"
-">>> # 如果 Project 开启了 Isolation，下面的选项不是必需的\n"
-">>> options.sql.settings = { 'odps.isolation.session.enable': True }\n"
-">>>\n"
-">>> def psi(value):\n"
-">>>     # 建议在函数内部 import 第三方库，以防止不同操作系统下二进制包结构差异造成执行错误\n"
-">>>     from scipy.special import psi\n"
-">>>     return float(psi(value))\n"
-">>>\n"
-">>> df.float_col.map(psi).execute(libraries=['scipy.zip'])"
-msgstr ""
-">>> # packages containing binaries should be uploaded with archive "
-"method,\n"
-">>> # replacing extension .whl with .zip.\n"
-">>> odps.create_resource('scipy.zip', 'archive', "
-"file_obj=open('scipy-0.19.0-cp27-cp27m-manylinux1_x86_64.whl', 'rb'))\n"
-">>>\n"
-">>> # if your project has already been configured with isolation, the "
-"line below can be omitted\n"
-">>> options.sql.settings = { 'odps.isolation.session.enable': True }\n"
-">>>\n"
-">>> def psi(value):\n"
-">>>     # it is recommended to import third-party libraries inside your "
-"function\n"
-">>>     # in case that structures of the same package differ between "
-"different systems.\n"
-">>>     from scipy.special import psi\n"
-">>>     return float(psi(value))\n"
-">>>\n"
-">>> df.float_col.map(psi).execute(libraries=['scipy.zip'])"
-
-#: ../../source/df-element.rst:676
-msgid ""
-"对于只提供源码的二进制包，可以在 Linux Shell 中打包成 Wheel 再上传，Mac 和 Windows 中生成的 Wheel 包无法在"
-" MaxCompute 中使用："
-msgstr ""
-"For binary packages that only contain source code, they can be packaged "
-"into .whl files and uploaded through Linux shell. .whl files generated in"
-" Mac and Windows are not usable in MaxCompute:"
-
-#: ../../source/df-element.rst:679
-msgid "python setup.py bdist_wheel"
-msgstr ""
-
-#: ../../source/df-element.rst:685
+#: ../../source/df-element.rst:602
 msgid "使用计数器"
 msgstr "Use the counter"
 
-#: ../../source/df-element.rst:687
+#: ../../source/df-element.rst:604
 msgid ""
 "from odps.udf import get_execution_context\n"
 "\n"
@@ -1556,15 +1409,15 @@ msgid ""
 "df.field.map(h)"
 msgstr ""
 
-#: ../../source/df-element.rst:699
+#: ../../source/df-element.rst:616
 msgid "logview 的 JSONSummary 中即可找到计数器值。"
 msgstr "You can find the value of the counter in the JSONSummary of LogView."
 
-#: ../../source/df-element.rst:703
+#: ../../source/df-element.rst:620
 msgid "调用ODPS内建或者已定义函数"
 msgstr "Call MaxCompute built-in functions or UDFs"
 
-#: ../../source/df-element.rst:705
+#: ../../source/df-element.rst:622
 msgid ""
 "要想调用 ODPS 上的内建或者已定义函数，来生成列，我们可以使用 ``func`` 接口，该接口默认函数返回值为 String， 可以用 "
 "rtype 参数指定返回值。"
@@ -1573,7 +1426,7 @@ msgstr ""
 "or UDFs to generate columns. This interface returns a string type by "
 "default. You can use the rtype parameter to specify the return type."
 
-#: ../../source/df-element.rst:708
+#: ../../source/df-element.rst:625
 msgid ""
 ">>> from odps.df import func\n"
 ">>>\n"
@@ -1601,24 +1454,9 @@ msgstr ""
 "rtype='float', project='udf_project',\n"
 ">>>                               name='new_col')]"
 
-#: ../../source/df-element.rst:721
+#: ../../source/df-element.rst:638
 msgid "注意：在使用 Pandas 后端时，不支持执行带有 ``func`` 的表达式。"
 msgstr ""
 "Note: when executing under pandas backend, executing expressions "
 "containing ``func`` is not supported."
-
-#~ msgid ""
-#~ ">>> iris.sepallength.map(lambda x: 't'+str(x), 'string').head(5)\n"
-#~ "   sepallength\n"
-#~ "0         t5.1\n"
-#~ "1         t4.9\n"
-#~ "2         t4.7\n"
-#~ "3         t4.6\n"
-#~ "4         t5.0"
-#~ msgstr ""
-
-#~ msgid ""
-#~ "推荐参考「`打包 Python 依赖上 ODPS 跑的小技巧 "
-#~ "<https://www.atatech.org/articles/163152>`_」。"
-#~ msgstr ""
 

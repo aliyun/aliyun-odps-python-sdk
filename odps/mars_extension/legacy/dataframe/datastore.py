@@ -58,7 +58,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
         table_name=None,
         partition_spec=None,
         unknown_as_string=None,
-        over_write=None,
+        overwrite=None,
         write_batch_size=None,
         **kw
     ):
@@ -69,7 +69,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
             _table_name=table_name,
             _partition_spec=partition_spec,
             _unknown_as_string=unknown_as_string,
-            _overwrite=over_write,
+            _overwrite=overwrite,
             _write_batch_size=write_batch_size,
             **kw
         )
@@ -234,8 +234,22 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
 
     @classmethod
     def _tile_tunnel(cls, op):
+        from odps import ODPS
+
         out_df = op.outputs[0]
         in_df = build_concatenated_rows_frame(op.inputs[0])
+
+        if op.overwrite:
+            o = ODPS(
+                op.odps_params["access_id"],
+                op.odps_params["secret_access_key"],
+                project=op.odps_params["project"],
+                endpoint=op.odps_params["endpoint"],
+            )
+            data_target = o.get_table(op.table_name)
+            if op.partition_spec:
+                data_target = data_target.get_partition(op.partition_spec)
+            data_target.truncate()
 
         out_chunks = []
         for chunk in in_df.chunks:
@@ -362,6 +376,8 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
             to_store_data, unknown_as_string=op.unknown_as_string
         )
         project_name, table_name = op.table_name.split(".")
+        if table_name.startswith('`') and table_name.endswith('`'):
+            table_name = table_name[1:-1]
         block_writer = BlockWriter(
             _table_name=table_name,
             _project_name=project_name,
@@ -419,6 +435,7 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
         )
 
         t = o.get_table(op.table_name)
+        schema_name = t.get_schema().name if t.get_schema() is not None else None
         tunnel = TableTunnel(o, project=t.project)
 
         if op.partition_spec is not None:
@@ -426,7 +443,7 @@ class DataFrameWriteTableSplit(DataFrameOperand, DataFrameOperandMixin):
                 t.name, partition_spec=op.partition_spec
             )
         else:
-            upload_session = tunnel.create_upload_session(t.name)
+            upload_session = tunnel.create_upload_session(t.name, schema=schema_name)
 
         logger.debug(
             "Start writing table %s split index: %s", op.table_name, op.inputs[0].index
@@ -540,6 +557,8 @@ class DataFrameWriteTableCommit(DataFrameOperand, DataFrameOperandMixin):
             cupid_session = CupidSession(o)
 
             project_name, table_name = op.table_name.split(".")
+            if table_name.startswith('`') and table_name.endswith('`'):
+                table_name = table_name[1:-1]
             upload_session = CupidTableUploadSession(
                 session=cupid_session,
                 table_name=table_name,
@@ -561,14 +580,13 @@ def write_odps_table(
     odps_params=None,
     write_batch_size=None,
 ):
-    table_name = "%s.%s" % (table.project.name, table.name)
     op = DataFrameWriteTable(
         dtypes=df.dtypes,
         odps_params=odps_params,
-        table_name=table_name,
+        table_name=table.full_table_name,
         unknown_as_string=unknown_as_string,
         partition_spec=partition,
-        over_write=overwrite,
+        overwrite=overwrite,
         write_batch_size=write_batch_size,
     )
     return op(df)

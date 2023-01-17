@@ -16,6 +16,7 @@
 
 import json  # don't remove
 import random
+import sys
 import time
 import warnings
 
@@ -160,10 +161,15 @@ def format_cdata(query, semicolon=False):
     return '<![CDATA[%s]]>' % stripped_query
 
 
-def collect_settings(value, glob):
+def collect_sql_settings(value, glob):
+    from .. import __version__
+
     settings = dict()
     if options.default_task_settings:
         settings = options.default_task_settings
+
+    settings["PYODPS_VERSION"] = __version__
+    settings["PYODPS_PYTHON_VERSION"] = sys.version
 
     if glob:
         if options.sql.use_odps2_extension:
@@ -215,7 +221,7 @@ class SQLTask(Task):
         return super(SQLTask, self).serial()
 
     def update_sql_settings(self, value=None, glob=True):
-        settings = collect_settings(value, glob)
+        settings = collect_sql_settings(value, glob)
         self.update_settings(settings)
 
     def update_aliases(self, value):
@@ -268,7 +274,7 @@ class SQLCostTask(Task):
         super(SQLCostTask, self).__init__(**kwargs)
 
     def update_sql_cost_settings(self, value=None, glob=True):
-        settings = collect_settings(value, glob)
+        settings = collect_sql_settings(value, glob)
         self.update_settings(settings)
 
 

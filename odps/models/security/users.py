@@ -27,10 +27,6 @@ class User(LazyLoad):
     def _name(self):
         return self.id
 
-    @property
-    def project(self):
-        return self.parent.parent
-
     def reload(self):
         if self._getattr('id') is None:
             resp = self._client.get(self.parent.resource() + '/' + self._encode(self.display_name),

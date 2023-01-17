@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import functools
-import platform
 import sys
 import tokenize
 
@@ -143,35 +142,12 @@ def calc_max_partition(
 ):
     result_cache = result_cache or dict()
     table_name = table_name or query_table_name
-    if table_name in result_cache:
-        return result_cache[table_name]
 
     table = odps.get_table(table_name)
-    if not table.schema.partitions:
-        raise ValueError("Table %r not partitioned" % table_name)
-    first_part_name = table.schema.partitions[0].name
+    if table_name in result_cache:
+        return result_cache[table.full_table_name]
 
-    reversed_table_parts = sorted(
-        list(table.partitions),
-        key=lambda part: str(part.partition_spec.kv[first_part_name]),
-        reverse=True,  # make larger partition come first
-    )
-    result = next(
-        (
-            part.partition_spec.kv[first_part_name]
-            for part in reversed_table_parts
-            if part.physical_size > 0
-        ),
-        None,
-    )
-
-    if result is None:
-        raise ValueError(
-            "Table %r has no partitions or none of "
-            "the partitions have any data" % table_name
-        )
-    result_cache[table_name] = result
-    return result
+    return list(table.get_max_partition(skip_empty=True).partition_spec.kv.values())[0]
 
 
 def filter_partitions(odps, partitions, predicate):

@@ -20,7 +20,7 @@ import uuid
 from datetime import datetime, date
 
 from odps import DataFrame
-from odps.models import Schema, Instance
+from odps.models import TableSchema, Instance
 from odps.compat import unittest
 from odps.config import options
 from odps.tests.core import TestBase, tn, odps2_typed_case
@@ -57,7 +57,7 @@ class Test(TestBase):
         self.odps.delete_table(table_name, if_exists=True)
         return self.odps.create_table(
             table_name,
-            schema=Schema.from_lists(fields, types),
+            schema=TableSchema.from_lists(fields, types),
             stored_as="aliorc",
             lifecycle=1,
         )

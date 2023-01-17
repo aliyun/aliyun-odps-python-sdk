@@ -19,7 +19,7 @@ from decimal import Decimal
 from odps.tests.core import TestBase, tn, pandas_case, global_locked
 from odps.df.backends.context import context
 from odps.compat import unittest
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df import DataFrame, Delay
 from odps.utils import to_text
 from odps.errors import ODPSError, DependencyNotInstalledError
@@ -29,7 +29,7 @@ class Test(TestBase):
 
     def setup(self):
         test_table_name = tn('pyodps_test_dataframe')
-        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'])
+        schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
         self.table = self.odps.create_table(test_table_name, schema)
@@ -120,10 +120,13 @@ class Test(TestBase):
     def testToPandas(self):
         table_name = tn('pyodps_test_mixed_engine_to_pandas')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name,
-                                        schema=Schema.from_lists(['col%s' % i for i in range(7)],
-                                                                 ['bigint', 'double', 'string', 'datetime',
-                                                                  'boolean', 'decimal', 'datetime']))
+        table2 = self.odps.create_table(
+            name=table_name,
+            table_schema=TableSchema.from_lists(
+                ['col%s' % i for i in range(7)],
+                ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal', 'datetime']
+            )
+        )
         expr2 = DataFrame(table2)
 
         data2 = [
@@ -206,7 +209,7 @@ class Test(TestBase):
     def testCreateDataFrameFromPartition(self):
         from odps.types import PartitionSpec
         test_table_name = tn('pyodps_test_dataframe_partition')
-        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds'], ['string'])
+        schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds'], ['string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(test_table_name, schema)
@@ -321,7 +324,7 @@ class Test(TestBase):
 
     def testDataFrameWithColHead(self):
         test_table_name2 = tn('pyodps_test_dataframe_with_head')
-        schema = Schema.from_lists(['id', 'head'], ['bigint', 'string'])
+        schema = TableSchema.from_lists(['id', 'head'], ['bigint', 'string'])
 
         self.odps.delete_table(test_table_name2, if_exists=True)
         table = self.odps.create_table(test_table_name2, schema)
@@ -338,8 +341,11 @@ class Test(TestBase):
         test_table_name = tn('pyodps_test_dataframe_fillna')
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(
-            test_table_name, Schema.from_lists(['val1', 'val2', 'val3', 'val4'], ['bigint'] * 4,
-                                               ['name'], ['string']))
+            test_table_name,
+            TableSchema.from_lists(
+                ['val1', 'val2', 'val3', 'val4'], ['bigint'] * 4, ['name'], ['string']
+            ),
+        )
         table.create_partition('name=a')
 
         df = DataFrame(table.get_partition('name=a'))
@@ -356,7 +362,7 @@ class Test(TestBase):
 
     def testJoinPartitionDataFrame(self):
         test_table_name = tn('pyodps_test_join_partition_dataframe')
-        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds'], ['string'])
+        schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds'], ['string'])
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(test_table_name, schema)
         table.create_partition('ds=today')

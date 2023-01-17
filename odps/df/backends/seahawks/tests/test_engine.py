@@ -22,7 +22,7 @@ from functools import partial
 import uuid
 
 from odps.df.backends.tests.core import TestBase, to_str, tn
-from odps.models import Schema
+from odps.models import TableSchema
 from odps import types
 from odps.compat import six, OrderedDict
 from odps.errors import ODPSError
@@ -42,13 +42,14 @@ from odps.tests.core import sqlalchemy_case
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'birth', 'scale'][:5],
+        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'birth', 'scale'][:5],
                                    datatypes('string', 'int64', 'float64', 'boolean', 'datetime', 'decimal')[:5])
         self.schema = df_schema_to_odps_schema(schema)
         table_name = tn('pyodps_test_%s' % str(uuid.uuid4()).replace('-', '_'))
         self.odps.delete_table(table_name, if_exists=True)
         self.table = self.odps.create_table(
-                name=table_name, schema=self.schema)
+            name=table_name, table_schema=self.schema
+        )
         self.expr = CollectionExpr(_source_data=self.table, _schema=schema)
 
         self.engine = SeahawksEngine(self.odps)
@@ -707,12 +708,12 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.bigint, types.bigint])
 
         table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
         self._gen_data(data=data)
@@ -969,11 +970,11 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.bigint, types.bigint])
         table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
         self._gen_data(data=data)
@@ -1078,11 +1079,11 @@ class Test(TestBase):
             ['name1', 3, 2.2, None, None],
             ['name1', 3, 4.1, None, None],
         ]
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.bigint, types.bigint])
         table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
         self._gen_data(data=data)
@@ -1127,11 +1128,11 @@ class Test(TestBase):
             ['name1', 3, 2.2],
             ['name1', 3, 4.1],
         ]
-        schema = Schema.from_lists(['name', 'id', 'fid'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid'],
                                    [types.string, types.bigint, types.double])
         table_name = tn('pyodps_test_engine_scale_table')
         self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(name=table_name, schema=schema)
+        table = self.odps.create_table(name=table_name, table_schema=schema)
         self.odps.write_table(table_name, 0, data)
         expr_input = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
 
@@ -1238,7 +1239,7 @@ class Test(TestBase):
             self.odps.delete_table(table_name, if_exists=True)
 
         try:
-            schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds'], ['string'])
+            schema = TableSchema.from_lists(self.schema.names, self.schema.types, ['ds'], ['string'])
             self.odps.create_table(table_name, schema)
             df = self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
 
@@ -1258,7 +1259,7 @@ class Test(TestBase):
             self.odps.delete_table(table_name, if_exists=True)
 
         try:
-            schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds', 'hh'], ['string', 'string'])
+            schema = TableSchema.from_lists(self.schema.names, self.schema.types, ['ds', 'hh'], ['string', 'string'])
             self.odps.create_table(table_name, schema)
 
             with self.assertRaises(ValueError):
@@ -1291,11 +1292,11 @@ class Test(TestBase):
             ['name2', None, 1.0, None, None, None, 1.1],
         ]
         kv_cols = ['k1', 'k2', 'k3', 'k5', 'k7', 'k9']
-        schema = Schema.from_lists(['name'] + kv_cols,
+        schema = TableSchema.from_lists(['name'] + kv_cols,
                                    [odps_types.string] + [odps_types.double] * 6)
         table_name = tn('pyodps_test_engine_make_kv')
         self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(name=table_name, schema=schema)
+        table = self.odps.create_table(name=table_name, table_schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
         try:
             self.odps.write_table(table, 0, data)
@@ -1323,7 +1324,7 @@ class Test(TestBase):
 
         try:
             self.odps.write_table(table_name, [[2, 0], [1, 1], [1, 2], [5, 1], [5, 0]])
-            df = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(table.schema))
+            df = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(table.table_schema))
             fdf = df[df.divisor > 0]
             ddf = fdf[(fdf.divided / fdf.divisor).rename('result'),]
             expr = ddf[ddf.result > 1]
@@ -1349,7 +1350,7 @@ class Test(TestBase):
         table_name = tn('pyodps_test_engine_axf_seahawks_table')
 
         try:
-            schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds'], ['string'])
+            schema = TableSchema.from_lists(self.schema.names, self.schema.types, ['ds'], ['string'])
             self.odps.create_table(table_name, schema)
             df = self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
 

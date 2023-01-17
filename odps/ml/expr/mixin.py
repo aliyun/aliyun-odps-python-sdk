@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import itertools
 import uuid
+from collections import namedtuple
 
 from . import op
 from .core import AlgoExprMixin
@@ -28,6 +28,11 @@ from ...df.backends.odpssql.types import odps_schema_to_df_schema, df_schema_to_
 from ...df.expr.collections import Node, CollectionExpr, SequenceExpr, Column
 from ...df.expr.dynamic import DynamicMixin, DynamicCollectionExpr, DynamicSchema
 from ...models.table import TableSchema
+
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 
 
 class DynamicDataFrame(DynamicMixin, DataFrame):
@@ -56,7 +61,7 @@ def _get_field_name(field):
 
 
 def _render_field_set(fields):
-    if isinstance(fields, six.string_types) or not isinstance(fields, collections.Iterable):
+    if isinstance(fields, six.string_types) or not isinstance(fields, Iterable):
         fields = [fields, ]
     fields = [f.name if isinstance(f, SequenceExpr) else f for f in fields]
     field_arrays = map(lambda v: v.replace(',', ' ').split(' ') if isinstance(v, six.string_types) else v, fields)
@@ -557,7 +562,7 @@ def merge_data(*data_frames, **kwargs):
         raise ValueError('Count of DataFrames should be at least 2.')
 
     norm_data_pairs = []
-    df_tuple = collections.namedtuple('MergeTuple', 'df cols exclude')
+    df_tuple = namedtuple('MergeTuple', 'df cols exclude')
     for pair in data_frames:
         if isinstance(pair, tuple):
             if len(pair) == 2:

@@ -20,7 +20,7 @@ import warnings
 from types import GeneratorType
 
 from odps import options
-from odps.models import Table, Schema
+from odps.models import Table, TableSchema
 from odps.models.partition import Partition as TablePartition
 
 from cupid.rpc import CupidRpcController, CupidTaskServiceRpcChannel, SandboxRpcChannel
@@ -134,7 +134,7 @@ class TableSplit(object):
         schema_types = [d['type'] for d in schema_json]
         pt_schema_names = [d['name'] for d in partition_schema_json]
         pt_schema_types = [d['type'] for d in partition_schema_json]
-        schema = Schema.from_lists(schema_names, schema_types, pt_schema_names, pt_schema_types)
+        schema = TableSchema.from_lists(schema_names, schema_types, pt_schema_names, pt_schema_types)
 
         return resp.readIterator, schema
 
@@ -389,7 +389,7 @@ def create_download_session(session, table_or_parts, split_size=None, split_coun
     for t in table_or_parts:
         if isinstance(t, Table):
             if not columns:
-                columns = t.schema.names
+                columns = t.table_schema.names
             table_kw = dict(
                 projectName=t.project.name,
                 tableName=t.name,
@@ -397,7 +397,7 @@ def create_download_session(session, table_or_parts, split_size=None, split_coun
             )
         elif isinstance(t, TablePartition):
             if not columns:
-                columns = t.table.schema.names
+                columns = t.table.table_schema.names
             table_kw = dict(
                 projectName=t.table.project.name,
                 tableName=t.table.name,

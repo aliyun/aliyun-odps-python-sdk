@@ -21,12 +21,12 @@ import requests
 
 from .. import errors, serializers, types, options
 from ..compat import Enum, six
-from ..models import Projects, Record, Schema
+from ..models import Projects, Record, TableSchema
 from .base import BaseTunnel, TUNNEL_VERSION
 from .io.writer import RecordWriter, BufferredRecordWriter, StreamRecordWriter, ArrowWriter
 from .io.reader import TunnelRecordReader, TunnelArrowReader
-from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputStream
-from .errors import TunnelError, TunnelWriteTimeout
+from .io.stream import CompressOption, get_decompress_stream
+from .errors import MetaTransactionFailed, TunnelError, TunnelWriteTimeout
 
 try:
     import numpy as np
@@ -68,10 +68,10 @@ class TableDownloadSession(serializers.JSONSerializableModel):
     status = serializers.JSONNodeField(
         'Status', parse_callback=lambda s: TableDownloadSession.Status(s.upper()))
     count = serializers.JSONNodeField('RecordCount')
-    schema = serializers.JSONNodeReferenceField(Schema, 'Schema')
+    schema = serializers.JSONNodeReferenceField(TableSchema, 'Schema')
 
     def __init__(self, client, table, partition_spec, download_id=None,
-                 compress_option=None, async_=False, timeout=None):
+                 compress_option=None, async_mode=False, timeout=None, **kw):
         super(TableDownloadSession, self).__init__()
 
         self._client = client
@@ -83,8 +83,12 @@ class TableDownloadSession(serializers.JSONSerializableModel):
             partition_spec = str(partition_spec).replace("'", '')
         self._partition_spec = partition_spec
 
+        if "async_" in kw:
+            async_mode = kw.pop("async_")
+        if kw:
+            raise TypeError("Cannot accept arguments %s" % ", ".join(kw.keys()))
         if download_id is None:
-            self._init(async_=async_, timeout=timeout)
+            self._init(async_mode=async_mode, timeout=timeout)
         else:
             self.id = download_id
             self.reload()
@@ -100,16 +104,16 @@ class TableDownloadSession(serializers.JSONSerializableModel):
             self._partition_spec,
         )
 
-    def _init(self, async_, timeout):
+    def _init(self, async_mode, timeout):
         params = {'downloads': ''}
-        headers = {'Content-Length': 0}
+        headers = {'Content-Length': 0, 'x-odps-tunnel-version': TUNNEL_VERSION}
         if self._partition_spec is not None and \
                 len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
-        if async_:
+        if async_mode:
             params['asyncmode'] = 'true'
 
-        url = self._table.resource()
+        url = self._table.table_resource()
         resp = self._client.post(url, {}, params=params, headers=headers, timeout=timeout)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
@@ -124,12 +128,12 @@ class TableDownloadSession(serializers.JSONSerializableModel):
 
     def reload(self):
         params = {'downloadid': self.id}
-        headers = {'Content-Length': 0}
+        headers = {'Content-Length': 0, 'x-odps-tunnel-version': TUNNEL_VERSION}
         if self._partition_spec is not None and \
                         len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
 
-        url = self._table.resource()
+        url = self._table.table_resource()
         resp = self._client.get(url, params=params, headers=headers)
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
@@ -145,14 +149,12 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         compress_option = self._compress_option or CompressOption()
 
         params = {}
-        headers = {'Content-Length': 0, 'x-odps-tunnel-version': 4}
+        headers = {'Content-Length': 0, 'x-odps-tunnel-version': TUNNEL_VERSION}
         if compress:
-            if compress_option.algorithm == CompressOption.CompressAlgorithm.ODPS_ZLIB:
-                headers['Accept-Encoding'] = 'deflate'
-            elif compress_option.algorithm == CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-                headers['Accept-Encoding'] = 'x-snappy-framed'
-            elif compress_option.algorithm != CompressOption.CompressAlgorithm.ODPS_RAW:
-                raise TunnelError('invalid compression option')
+            encoding = compress_option.algorithm.get_encoding()
+            if encoding:
+                headers['Accept-Encoding'] = encoding
+
         params['downloadid'] = self.id
         params['data'] = ''
         params['rowrange'] = '(%s,%s)' % (start, count)
@@ -165,7 +167,7 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         if arrow:
             params['arrow'] = ''
 
-        url = self._table.resource()
+        url = self._table.table_resource()
         resp = self._client.get(url, stream=True, params=params, headers=headers)
         if not self._client.is_ok(resp):
             e = TunnelError.parse(resp)
@@ -173,33 +175,15 @@ class TableDownloadSession(serializers.JSONSerializableModel):
 
         content_encoding = resp.headers.get('Content-Encoding')
         if content_encoding is not None:
-            if content_encoding == 'deflate':
-                self._compress_option = CompressOption(
-                    CompressOption.CompressAlgorithm.ODPS_ZLIB, -1, 0)
-            elif content_encoding == 'x-snappy-framed':
-                self._compress_option = CompressOption(
-                    CompressOption.CompressAlgorithm.ODPS_SNAPPY, -1, 0)
-            else:
-                raise TunnelError('invalid content encoding')
+            compress_algo = CompressOption.CompressAlgorithm.from_encoding(content_encoding)
+            if compress_algo != compress_option.algorithm:
+                compress_option = self._compress_option = CompressOption(compress_algo, -1, 0)
             compress = True
         else:
             compress = False
 
         option = compress_option if compress else None
-        if option is None:
-            input_stream = RequestsInputStream(resp)  # create a file-like object from body
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_RAW:
-            input_stream = RequestsInputStream(resp)  # create a file-like object from body
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_ZLIB:
-            input_stream = RequestsInputStream(resp)  # Requests automatically decompress gzip data!
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-            input_stream = SnappyRequestsInputStream(resp)
-        else:
-            raise errors.InvalidArgument('Invalid compression algorithm.')
-
+        input_stream = get_decompress_stream(resp, option)
         return reader_cls(self.schema, input_stream, columns=columns)
 
     def open_record_reader(self, start, count, compress=False, columns=None):
@@ -235,7 +219,7 @@ class TableUploadSession(serializers.JSONSerializableModel):
     status = serializers.JSONNodeField(
         'Status', parse_callback=lambda s: TableUploadSession.Status(s.upper()))
     blocks = serializers.JSONNodesField('UploadedBlockList', 'BlockID')
-    schema = serializers.JSONNodeReferenceField(Schema, 'Schema')
+    schema = serializers.JSONNodeReferenceField(TableSchema, 'Schema')
 
     def __init__(self, client, table, partition_spec,
                  upload_id=None, compress_option=None, overwrite=False):
@@ -269,41 +253,48 @@ class TableUploadSession(serializers.JSONSerializableModel):
             self._partition_spec,
         )
 
-    def _init(self):
-        params = {'uploads': 1}
-        headers = {'Content-Length': 0}
-        if self._partition_spec is not None and \
-                len(self._partition_spec) > 0:
+    def _create_or_reload_session(self, reload=False):
+        headers = {'Content-Length': 0, 'x-odps-tunnel-version': TUNNEL_VERSION}
+        params = {}
+        if self._partition_spec is not None and len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
-        if self._overwrite:
+        if not reload and self._overwrite:
             params["overwrite"] = "true"
 
-        url = self._table.resource()
-        resp = self._client.post(url, {}, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            if self.schema is not None:
-                self.schema.build_snapshot()
+        if reload:
+            params['uploadid'] = self.id
         else:
-            e = TunnelError.parse(resp)
-            raise e
+            params['uploads'] = 1
+
+        retry_counter = 0
+        while True:
+            try:
+                url = self._table.table_resource()
+                if reload:
+                    resp = self._client.get(url, params=params, headers=headers)
+                else:
+                    resp = self._client.post(url, {}, params=params, headers=headers)
+
+                if self._client.is_ok(resp):
+                    self.parse(resp, obj=self)
+                    if self.schema is not None:
+                        self.schema.build_snapshot()
+                else:
+                    e = TunnelError.parse(resp)
+                    raise e
+                break
+            except MetaTransactionFailed:
+                time.sleep(0.1)
+                retry_counter += 1
+                if retry_counter > 5:
+                    raise
+                continue
+
+    def _init(self):
+        self._create_or_reload_session(reload=False)
 
     def reload(self):
-        params = {'uploadid': self.id}
-        headers = {'Content-Length': 0}
-        if self._partition_spec is not None and \
-                        len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
-
-        url = self._table.resource()
-        resp = self._client.get(url, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            if self.schema is not None:
-                self.schema.build_snapshot()
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        self._create_or_reload_session(reload=True)
 
     def new_record(self, values=None):
         return Record(schema=self.schema, values=values)
@@ -312,23 +303,27 @@ class TableUploadSession(serializers.JSONSerializableModel):
         compress_option = self._compress_option or CompressOption()
 
         params = {}
-        headers = {'Transfer-Encoding': 'chunked',
-                   'Content-Type': 'application/octet-stream',
-                   'x-odps-tunnel-version': 4}
+        headers = {
+            'Transfer-Encoding': 'chunked',
+            'Content-Type': 'application/octet-stream',
+            'x-odps-tunnel-version': TUNNEL_VERSION,
+        }
         if compress:
-            if compress_option.algorithm == \
-                    CompressOption.CompressAlgorithm.ODPS_ZLIB:
-                headers['Content-Encoding'] = 'deflate'
-            elif compress_option.algorithm == \
-                    CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-                headers['Content-Encoding'] = 'x-snappy-framed'
-            elif compress_option.algorithm != \
-                    CompressOption.CompressAlgorithm.ODPS_RAW:
-                raise TunnelError('invalid compression option')
+            # special: rewrite LZ4 to ARROW_LZ4 for arrow tunnels
+            if (
+                writer_cls is not None
+                and issubclass(writer_cls, ArrowWriter)
+                and compress_option.algorithm == CompressOption.CompressAlgorithm.ODPS_LZ4
+            ):
+                compress_option.algorithm = CompressOption.CompressAlgorithm.ODPS_ARROW_LZ4
+            encoding = compress_option.algorithm.get_encoding()
+            if encoding:
+                headers['Content-Encoding'] = encoding
+
         params['uploadid'] = self.id
         if self._partition_spec is not None and len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
-        url = self._table.resource()
+        url = self._table.table_resource()
         option = compress_option if compress else None
 
         if block_id is None:
@@ -393,15 +388,16 @@ class TableUploadSession(serializers.JSONSerializableModel):
         self._complete_upload()
 
     def _complete_upload(self):
+        headers = {'x-odps-tunnel-version': TUNNEL_VERSION}
         params = {'uploadid': self.id}
         if self._partition_spec is not None and len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
-        url = self._table.resource()
+        url = self._table.table_resource()
 
         retries = options.retry_times
         while True:
             try:
-                resp = self._client.post(url, '', params=params)
+                resp = self._client.post(url, '', params=params, headers=headers)
                 break
             except (requests.Timeout, requests.ConnectionError, errors.InternalServerError):
                 if retries > 0:
@@ -414,7 +410,7 @@ class TableUploadSession(serializers.JSONSerializableModel):
 class TableStreamUploadSession(serializers.JSONSerializableModel):
     __slots__ = '_client', '_table', '_partition_spec', '_compress_option',
 
-    schema = serializers.JSONNodeReferenceField(Schema, 'schema')
+    schema = serializers.JSONNodeReferenceField(TableSchema, 'schema')
     id = serializers.JSONNodeField('session_name')
     status = serializers.JSONNodeField('status')
     slots = serializers.JSONNodeField(
@@ -519,7 +515,7 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
         headers = {
             "Content-Length": 0,
             "odps-tunnel-date-transform": TUNNEL_DATA_TRANSFORM_VERSION,
-            "x-odps-tunnel-version": str(TUNNEL_VERSION),
+            "x-odps-tunnel-version": TUNNEL_VERSION,
         }
         if self._partition_spec is not None and \
                 len(self._partition_spec) > 0:
@@ -536,7 +532,7 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
             raise e
 
     def _get_resource(self):
-        return self._table.resource() + '/' + 'streams'
+        return self._table.table_resource() + '/streams'
 
     def reload(self):
         params = {'uploadid': self.id}
@@ -597,21 +593,15 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
         headers = {
             'Transfer-Encoding': 'chunked',
             "Content-Type": "application/octet-stream",
-            "x-odps-tunnel-version": str(TUNNEL_VERSION),
+            "x-odps-tunnel-version": TUNNEL_VERSION,
             "odps-tunnel-slot-num": str(len(self.slots)),
             "odps-tunnel-routed-server": slot.server,
         }
 
         if compress:
-            if compress_option.algorithm == \
-                    CompressOption.CompressAlgorithm.ODPS_ZLIB:
-                headers['Content-Encoding'] = 'deflate'
-            elif compress_option.algorithm == \
-                    CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-                headers['Content-Encoding'] = 'x-snappy-framed'
-            elif compress_option.algorithm != \
-                    CompressOption.CompressAlgorithm.ODPS_RAW:
-                raise TunnelError('invalid compression option')
+            encoding = compress_option.algorithm.get_encoding()
+            if encoding:
+                headers['Content-Encoding'] = encoding
 
         params = dict(uploadid=self.id, slotid=slot.slot)
         if self._partition_spec is not None and len(self._partition_spec) > 0:
@@ -634,26 +624,37 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
 
 
 class TableTunnel(BaseTunnel):
-    def create_download_session(self, table, async_=False, partition_spec=None,
+    def _get_tunnel_table(self, table, schema=None):
+        if not isinstance(table, six.string_types):
+            schema = schema or getattr(table.get_schema(), "name", None)
+            table = table.name
+        parent = Projects(client=self.tunnel_rest)[self._project.name]
+        if schema is not None:
+            parent = parent.schemas[schema]
+        return parent.tables[table]
+
+    def create_download_session(self, table, async_mode=False, partition_spec=None,
                                 download_id=None, compress_option=None,
                                 compress_algo=None, compress_level=None,
-                                compress_strategy=None, timeout=None):
-        if not isinstance(table, six.string_types):
-            table = table.name
-        table = Projects(client=self.tunnel_rest)[self._project.name].tables[table]
+                                compress_strategy=None, schema=None, timeout=None, **kw):
+        table = self._get_tunnel_table(table, schema)
         compress_option = compress_option
         if compress_option is None and compress_algo is not None:
             compress_option = CompressOption(
                 compress_algo=compress_algo, level=compress_level, strategy=compress_strategy
             )
 
+        if "async_" in kw:
+            async_mode = kw.pop("async_")
+        if kw:
+            raise TypeError("Cannot accept arguments %s" % ", ".join(kw.keys()))
         return TableDownloadSession(
             self.tunnel_rest,
             table,
             partition_spec,
             download_id=download_id,
             compress_option=compress_option,
-            async_=async_,
+            async_mode=async_mode,
             timeout=timeout,
         )
 
@@ -666,11 +667,10 @@ class TableTunnel(BaseTunnel):
         compress_algo=None,
         compress_level=None,
         compress_strategy=None,
+        schema=None,
         overwrite=False,
     ):
-        if not isinstance(table, six.string_types):
-            table = table.name
-        table = Projects(client=self.tunnel_rest)[self._project.name].tables[table]
+        table = self._get_tunnel_table(table, schema)
         compress_option = compress_option
         if compress_option is None and compress_algo is not None:
             compress_option = CompressOption(
@@ -685,11 +685,17 @@ class TableTunnel(BaseTunnel):
             overwrite=overwrite,
         )
 
-    def create_stream_upload_session(self, table, partition_spec=None, compress_option=None,
-                                     compress_algo=None, compress_level=None, compress_strategy=None):
-        if not isinstance(table, six.string_types):
-            table = table.name
-        table = Projects(client=self.tunnel_rest)[self._project.name].tables[table]
+    def create_stream_upload_session(
+        self,
+        table,
+        partition_spec=None,
+        compress_option=None,
+        compress_algo=None,
+        compress_level=None,
+        compress_strategy=None,
+        schema=None,
+    ):
+        table = self._get_tunnel_table(table, schema)
         compress_option = compress_option
         if compress_option is None and compress_algo is not None:
             compress_option = CompressOption(

@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-05-11 09:42+0800\n"
+"POT-Creation-Date: 2023-01-09 19:53+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.9.1\n"
 
 #: ../../source/base-projects.rst:4
 msgid "项目空间"
@@ -23,12 +23,12 @@ msgstr "Projects"
 
 #: ../../source/base-projects.rst:6
 msgid ""
-"`项目空间 <https://docs.aliyun.com/#/pub/odps/basic/definition&project>`_ "
+"`项目空间 <https://help.aliyun.com/document_detail/27818.html>`_ "
 "是ODPS的基本组织单元， 有点类似于Database的概念。"
 msgstr ""
-"A `project "
-"<https://www.alibabacloud.com/help/en/doc-detail/27818.htm>`_ is a "
-"basic organizational unit of MaxCompute, which is similar to a database."
+"A `project <https://www.alibabacloud.com/help/en/doc-detail/27818.htm>`_ "
+"is a basic organizational unit of MaxCompute, which is similar to a "
+"database."
 
 #: ../../source/base-projects.rst:9
 msgid "我们通过 ODPS 入口对象的 ``get_project`` 来取到某个项目空间。"

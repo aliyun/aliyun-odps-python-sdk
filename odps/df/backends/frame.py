@@ -27,7 +27,7 @@ from ...config import options
 from ...console import get_console_size, in_interactive_session, \
     in_ipython_frontend, in_qtconsole
 from ...utils import to_str, to_text, deprecated
-from ...models import Schema
+from ...models import TableSchema
 from ...types import Partition
 from . import formatter as fmt
 
@@ -106,8 +106,10 @@ class ResultFrame(six.Iterator):
 
     @property
     def schema(self):
-        return Schema(columns=[col for col in self._columns if not isinstance(col, Partition)],
-                      partitions=[col for col in self._columns if isinstance(col, Partition)])
+        return TableSchema(
+            columns=[col for col in self._columns if not isinstance(col, Partition)],
+            partitions=[col for col in self._columns if isinstance(col, Partition)],
+        )
 
     @property
     def index(self):
@@ -191,9 +193,12 @@ class ResultFrame(six.Iterator):
 
     def concat(self, frame, axis=0):
         if self._pandas:
-            from pandas.tools.merge import concat
+            try:
+                from pandas import concat
+            except ImportError:
+                from pandas.tools.merge import concat
 
-            return concat((self, frame), axis=axis)
+            return ResultFrame(concat((self._values, frame._values), axis=axis), pandas=True)
         else:
             if axis == 0:
                 if self._columns != frame._columns:

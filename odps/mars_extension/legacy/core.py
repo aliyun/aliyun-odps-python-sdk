@@ -28,7 +28,7 @@ from cupid.config import options as cupid_options
 
 from ...accounts import AliyunAccount
 from ...config import options as odps_options
-from ...models import Schema
+from ...models import TableSchema
 from ...types import PartitionSpec
 from ...utils import to_binary, write_log
 from ..utils import (
@@ -242,7 +242,7 @@ def _get_table_record_count(odps, table_name, partition=None):
         if check_partition_exist(data_src, partition):
             data_src = data_src.get_partition(partition)
         else:
-            part_cols = [pt.name for pt in data_src.schema.partitions]
+            part_cols = [pt.name for pt in data_src.table_schema.partitions]
             predicate = rewrite_partition_predicate(partition, part_cols)
             odps_df = data_src.to_df().query(predicate)
             return odps_df.count().execute(
@@ -323,7 +323,8 @@ def to_mars_dataframe(
     data_src = odps.get_table(table_name)
 
     cols = (
-        data_src.schema.columns if append_partitions else data_src.schema.simple_columns
+        data_src.table_schema.columns
+        if append_partitions else data_src.table_schema.simple_columns
     )
     col_names = set(c.name for c in cols)
 
@@ -354,7 +355,7 @@ def to_mars_dataframe(
         if append_partitions:
             shape = (nrows, len(data_src.schema))
         else:
-            shape = (nrows, len(data_src.schema.simple_columns))
+            shape = (nrows, len(data_src.table_schema.simple_columns))
 
     memory_scale = memory_scale or odps_options.mars.to_dataframe_memory_scale
     return read_odps_table(
@@ -429,9 +430,9 @@ def persist_mars_dataframe(
             )
     if partition:
         p = PartitionSpec(partition)
-        schema = Schema.from_lists(names, odps_types, p.keys, ["string"] * len(p))
+        schema = TableSchema.from_lists(names, odps_types, p.keys, ["string"] * len(p))
     else:
-        schema = Schema.from_lists(names, odps_types)
+        schema = TableSchema.from_lists(names, odps_types)
 
     if drop_table:
         odps.delete_table(table_name, if_exists=True)
@@ -467,13 +468,13 @@ def persist_mars_dataframe(
 
     table = odps.get_table(table_name)
 
-    if len(table.schema.simple_columns) != len(schema.simple_columns):
+    if len(table.table_schema.simple_columns) != len(schema.simple_columns):
         raise TypeError(
             "Table column number is %s while input DataFrame has %s columns"
-            % (len(table.schema.simple_columns), len(schema.simple_columns))
+            % (len(table.table_schema.simple_columns), len(schema.simple_columns))
         )
 
-    for c_left, c_right in zip(table.schema.simple_columns, schema.simple_columns):
+    for c_left, c_right in zip(table.table_schema.simple_columns, schema.simple_columns):
         if c_left.name.lower() != c_right.name.lower() or c_left.type != c_right.type:
             raise TypeError(
                 "Column type between provided DataFrame and target table"
@@ -655,7 +656,7 @@ def _write_table_in_cupid(
     block_writer = BlockWriter(
         _table_name=table.name,
         _project_name=table.project.name,
-        _table_schema=table.schema,
+        _table_schema=table.table_schema,
         _partition_spec=partition,
         _block_id="0",
         _handle=to_str(upload_session.handle),

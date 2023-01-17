@@ -125,7 +125,7 @@ class ExecutionEnv(object):
 
 
 class TempObject(object):
-    __slots__ = []
+    __slots__ = ()
     _type = ''
     _priority = 0
 
@@ -139,7 +139,7 @@ class TempObject(object):
 
     def __hash__(self):
         if self.__slots__:
-            return hash(tuple(getattr(self, k) for k in self.__slots__))
+            return hash(tuple(getattr(self, k, None) for k in self.__slots__))
         return super(TempObject, self).__hash__()
 
     def __eq__(self, other):
@@ -161,54 +161,56 @@ class TempObject(object):
 
 
 class TempTable(TempObject):
-    __slots__ = 'table', 'project'
+    __slots__ = 'table', 'project', 'schema'
     _type = 'Table'
 
     def drop(self, odps):
-        odps.run_sql('drop table if exists %s' % self.table, project=self.project)
+        odps.delete_table(self.table, project=self.project, schema=self.schema, async_=True)
 
 
 class TempModel(TempObject):
-    __slots__ = 'model', 'project'
+    __slots__ = 'model', 'project', 'schema'
     _type = 'OfflineModel'
 
     def drop(self, odps):
         try:
-            odps.delete_offline_model(self.model, self.project)
+            odps.delete_offline_model(self.model, project=self.project, schema=self.schema)
         except NoSuchObject:
             pass
 
 
 class TempFunction(TempObject):
-    __slots__ = 'function', 'project'
+    __slots__ = 'function', 'project', 'schema'
     _type = 'Function'
     _priority = 1
 
     def drop(self, odps):
         try:
-            odps.delete_function(self.function, self.project)
+            odps.delete_function(self.function, project=self.project, schema=self.schema)
         except NoSuchObject:
             pass
 
 
 class TempResource(TempObject):
-    __slots__ = 'resource', 'project'
+    __slots__ = 'resource', 'project', 'schema'
     _type = 'Resource'
 
     def drop(self, odps):
         try:
-            odps.delete_resource(self.resource, self.project)
+            odps.delete_resource(self.resource, project=self.project, schema=self.schema)
         except NoSuchObject:
             pass
 
 
 class TempVolumePartition(TempObject):
-    __slots__ = 'volume', 'partition', 'project'
+    __slots__ = 'volume', 'partition', 'project', 'schema'
     _type = 'VolumePartition'
 
     def drop(self, odps):
         try:
-            odps.delete_volume_partition(self.volume, self.partition, self.project)
+            odps.delete_volume_partition(
+                self.volume, self.partition, project=self.project, schema=self.schema
+            )
         except NoSuchObject:
             pass
 
@@ -354,7 +356,7 @@ def _is_pid_running(pid):
             return False
 
 
-def clean_objects(odps, biz_ids=None):
+def clean_objects(odps, biz_ids=None, use_threads=False):
     odps_key = _gen_repository_key(odps)
     files = []
     biz_ids = biz_ids or _obj_repos.biz_ids
@@ -363,7 +365,7 @@ def clean_objects(odps, biz_ids=None):
 
     for fn in files:
         repo = ObjectRepository(fn)
-        repo.cleanup(odps, use_threads=False)
+        repo.cleanup(odps, use_threads=use_threads)
 
 
 def clean_stored_objects(odps):
@@ -430,35 +432,45 @@ def _put_objects(odps, objs):
     _obj_repos[odps_key].dump()
 
 
-def register_temp_table(odps, table, project=None):
+def register_temp_table(odps, table, project=None, schema=None):
     if isinstance(table, six.string_types):
         table = [table, ]
-    _put_objects(odps, [TempTable(t, project if project else odps.project) for t in table])
+    _put_objects(odps, [
+        TempTable(t, project or odps.project, schema=schema or odps.schema) for t in table
+    ])
 
 
-def register_temp_model(odps, model, project=None):
+def register_temp_model(odps, model, project=None, schema=None):
     if isinstance(model, six.string_types):
         model = [model, ]
-    _put_objects(odps, [TempModel(m, project if project else odps.project) for m in model])
+    _put_objects(odps, [
+        TempModel(m, project or odps.project, schema=schema or odps.schema) for m in model
+    ])
 
 
-def register_temp_resource(odps, resource, project=None):
+def register_temp_resource(odps, resource, project=None, schema=None):
     if isinstance(resource, six.string_types):
         resource = [resource, ]
-    _put_objects(odps, [TempResource(r, project if project else odps.project) for r in resource])
+    _put_objects(odps, [
+        TempResource(r, project if project else odps.project, schema=schema or odps.schema) for r in resource
+    ])
 
 
-def register_temp_function(odps, func, project=None):
+def register_temp_function(odps, func, project=None, schema=None):
     if isinstance(func, six.string_types):
         func = [func, ]
-    _put_objects(odps, [TempFunction(f, project if project else odps.project) for f in func])
+    _put_objects(odps, [
+        TempFunction(f, project if project else odps.project, schema=schema or odps.schema) for f in func
+    ])
 
 
-def register_temp_volume_partition(odps, volume_partition_tuple, project=None):
+def register_temp_volume_partition(odps, volume_partition_tuple, project=None, schema=None):
     if isinstance(volume_partition_tuple, tuple):
         volume_partition_tuple = [volume_partition_tuple, ]
-    _put_objects(odps, [TempVolumePartition(v, p, project if project else odps.project)
-                        for v, p in volume_partition_tuple])
+    _put_objects(odps, [
+        TempVolumePartition(v, p, project if project else odps.project, schema=schema or odps.schema)
+        for v, p in volume_partition_tuple
+    ])
 
 
 def compat_kwargs(kwargs):

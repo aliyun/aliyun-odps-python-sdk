@@ -56,11 +56,13 @@ class Functions(Iterable):
             params['name'] = name
         if owner is not None:
             params['owner'] = owner
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            params['curr_schema'] = schema_name
 
         def _it():
             last_marker = params.get('marker')
-            if 'marker' in params and \
-                (last_marker is None or len(last_marker) == 0):
+            if 'marker' in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource()
@@ -88,7 +90,9 @@ class Functions(Iterable):
         headers = {'Content-Type': 'application/xml'}
         data = function.serialize()
 
-        self._client.post(self.resource(), data, headers=headers)
+        self._client.post(
+            self.resource(), data, headers=headers, curr_schema=self._get_schema_name()
+        )
 
         function.reload()
         return function
@@ -102,16 +106,17 @@ class Functions(Iterable):
         }
         data = new_func.serialize()
 
-        self._client.put(func.resource(), data, headers=headers)
+        self._client.put(
+            func.resource(), data, headers=headers, curr_schema=self._get_schema_name()
+        )
 
     def delete(self, name):
         if not isinstance(name, Function):
             function = Function(name=name, parent=self)
         else:
-            function = name
-            name =name.name
+            function, name = name, name.name
         del self[name]  # release cache
 
         url = function.resource()
 
-        self._client.delete(url)
+        self._client.delete(url, curr_schema=self._get_schema_name())

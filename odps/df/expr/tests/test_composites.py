@@ -24,9 +24,9 @@ from odps.df.expr.composites import *
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['id', 'name', 'relatives', 'hobbies'],
+        schema = TableSchema.from_lists(['id', 'name', 'relatives', 'hobbies'],
                                    datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 

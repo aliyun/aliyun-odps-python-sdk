@@ -20,7 +20,6 @@ from libc.time cimport tm
 cdef class CMillisecondsConverter:
     cdef:
         object _local_tz, _tz
-        object _mktime, _fromtimestamp
         bint _use_default_tz
         bint _default_tz_local
         bint _allow_antique

@@ -276,6 +276,10 @@ class OverwriteModeNotAllowed(ServerDefinedException):
     pass
 
 
+class TableModified(ServerDefinedException):
+    pass
+
+
 class RequestTimeTooSkewed(ServerDefinedException):
     def __init__(self, msg, *args, **kwargs):
         super(RequestTimeTooSkewed, self).__init__(msg, *args, **kwargs)

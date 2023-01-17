@@ -16,7 +16,7 @@
 
 from odps.tests.core import TestBase, numpy_case
 from odps.compat import unittest, six, PY26
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.udf.tools import runners
 from odps.df.types import validate_data_type
 from odps.df.backends.odpssql.engine import ODPSSQLEngine, UDF_CLASS_NAME
@@ -43,10 +43,11 @@ def get_function(source, fun_name):
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid'],
-                                    datatypes('string', 'int64', 'float64'))
+        schema = TableSchema.from_lists(
+            ['name', 'id', 'fid'], datatypes('string', 'int64', 'float64')
+        )
 
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
@@ -244,10 +245,10 @@ class Test(TestBase):
             return getattr(row, '012') * 2.0
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', '012'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid', '012'],
                                    datatypes('string', 'int64', 'float64', 'float64'))
 
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=schema)
 
         self.engine.compile(expr.apply(my_func, axis=1, names=['out_col'], types=['float64']))

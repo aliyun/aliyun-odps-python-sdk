@@ -16,9 +16,6 @@
 
 import math
 import itertools
-from datetime import datetime, timedelta
-from functools import partial
-from random import randint
 import uuid
 import os
 import zipfile
@@ -26,10 +23,13 @@ import tarfile
 import re
 import functools
 import time
+from datetime import datetime, timedelta
+from functools import partial
+from random import randint
 
 from odps.df.backends.tests.core import TestBase, to_str, tn
 from odps.compat import PY27, unittest, irange as xrange, six, OrderedDict, futures, BytesIO
-from odps.models import Schema
+from odps.models import TableSchema
 from odps import types
 from odps.errors import ODPSError
 from odps.df.types import validate_data_type, DynamicSchema
@@ -53,29 +53,31 @@ class ODPSEngine(ODPSSQLEngine):
         return self._analyze(expr.to_dag(), src_expr)
 
 
+class FakeBar(object):
+    def update(self, *args, **kwargs):
+        pass
+
+    def inc(self, *args, **kwargs):
+        pass
+
+    def status(self, *args, **kwargs):
+        pass
+
+
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                                   datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
+        schema = TableSchema.from_lists(
+            ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+            datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
+        )
         self.schema = df_schema_to_odps_schema(schema)
         table_name = tn('pyodps_test_engine_table_%s' % str(uuid.uuid4()).replace('-', '_'))
         self.odps.delete_table(table_name, if_exists=True)
-        self.table = self.odps.create_table(
-                name=table_name, schema=self.schema)
+        self.table = self.odps.create_table(table_name, self.schema, lifecycle=1)
         self.expr = CollectionExpr(_source_data=self.table, _schema=schema)
 
         self.engine = ODPSEngine(self.odps)
-
-        class FakeBar(object):
-            def update(self, *args, **kwargs):
-                pass
-
-            def inc(self, *args, **kwargs):
-                pass
-
-            def status(self, *args, **kwargs):
-                pass
         self.faked_bar = FakeBar()
 
     def _gen_data(self, rows=None, data=None, nullable_field=None, value_range=None):
@@ -210,7 +212,7 @@ class Test(TestBase):
             self.odps.delete_table(table_name, if_exists=True)
 
         table = self.odps.create_table(
-            table_name, Schema.from_lists(['val'], ['bigint'], ['name', 'id'], ['string', 'bigint']))
+            table_name, TableSchema.from_lists(['val'], ['bigint'], ['name', 'id'], ['string', 'bigint']))
         table.create_partition('name=a,id=1')
         with table.open_writer('name=a,id=1') as writer:
             writer.write([[0], [1], [2]])
@@ -221,7 +223,7 @@ class Test(TestBase):
         with table.open_writer('name=b,id=1') as writer:
             writer.write([[6], [7], [8]])
 
-        df = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(table.schema))
+        df = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(table.table_schema))
 
         try:
             expr = df.count()
@@ -911,11 +913,11 @@ class Test(TestBase):
         file_resource = self.odps.create_resource(file_resource_name, 'file',
                                                   file_obj='\n'.join(str(r[1]) for r in data[:3]))
         self.odps.delete_table(table_name, if_exists=True)
-        t = self.odps.create_table(table_name, Schema.from_lists(['id'], ['bigint']))
+        t = self.odps.create_table(table_name, TableSchema.from_lists(['id'], ['bigint']))
         with t.open_writer() as writer:
             writer.write([r[1:2] for r in data[3:4]])
         self.odps.delete_table(table_name2, if_exists=True)
-        t2 = self.odps.create_table(table_name2, Schema.from_lists(['name', 'id'], ['string', 'bigint']))
+        t2 = self.odps.create_table(table_name2, TableSchema.from_lists(['name', 'id'], ['string', 'bigint']))
         with t2.open_writer() as writer:
             writer.write([r[:2] for r in data[3:4]])
         try:
@@ -986,8 +988,9 @@ class Test(TestBase):
 
         table_name = tn('pyodps_tmp_function_resource_part_table')
         self.odps.delete_table(table_name, if_exists=True)
-        t = self.odps.create_table(table_name, Schema.from_lists(['id', 'id2'], ['bigint', 'bigint'],
-                                                                 ['ds'], ['string']))
+        t = self.odps.create_table(table_name, TableSchema.from_lists(
+            ['id', 'id2'], ['bigint', 'bigint'], ['ds'], ['string']
+        ))
         with t.open_writer(partition='ds=ds1', create_partition=True) as w:
             w.write([1, 2])
         with t.open_writer(partition='ds=ds2', create_partition=True) as w:
@@ -1045,7 +1048,7 @@ class Test(TestBase):
             'python-dateutil-2.5.3.tar.gz#md5=05ffc6d2cc85a7fd93bb245807f715ef',
             'http://mirrors.aliyun.com/pypi/packages/b7/9f/'
             'ba2b6aaf27e74df59f31b77d1927d5b037cc79a89cda604071f93d289eaf/'
-            'python-dateutil-2.5.3.zip#md5=52b3f339f41986c25c3a2247e722db17'
+            'python-dateutil-2.5.3.zip#md5=52b3f339f41986c25c3a2247e722db17',
         ]
         dateutil_resources = []
         for dateutil_url, name in zip(dateutil_urls, ['dateutil.whl', 'dateutil.tar.gz', 'dateutil.zip']):
@@ -1083,65 +1086,75 @@ class Test(TestBase):
         resource = self.odps.create_resource(rn, 'file', file_obj=tar_io)
         resources.append(resource)
 
+        def subtest1(resource, dateutil_resource):
+            def f(x):
+                from dateutil.parser import parse
+                return int(parse(x).strftime('%Y'))
+
+            expr = self.expr.name.map(f, rtype='int')
+
+            res = self.engine.execute(expr, libraries=[resource.name, dateutil_resource])
+            result = self._get_result(res)
+
+            self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
+
+        def subtest2(resource, dateutil_resource):
+            def f(row):
+                from dateutil.parser import parse
+                return int(parse(row.name).strftime('%Y')),
+
+            expr = self.expr.apply(f, axis=1, names=['name', ], types=['int', ])
+
+            res = self.engine.execute(expr, libraries=[resource, dateutil_resource])
+            result = self._get_result(res)
+
+            self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
+
+        def subtest3(resource, dateutil_resource):
+            def f(row):
+                from dateutil.parser import parse
+                return int(parse(row.name).strftime('%Y')),
+
+            expr = self.expr.apply(f, axis=1, names=['name', ], types=['int', ])
+            table_name = 'test_pyodps_table_' + str(uuid.uuid4()).replace('-', '_')
+            try:
+                new_expr = self.engine.persist(expr, table_name, libraries=[resource, dateutil_resource])
+                res = self.engine.execute(new_expr)
+                result = self._get_result(res)
+
+                self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
+
+        def subtest4(resource, dateutil_resource):
+            class Agg(object):
+                def buffer(self):
+                    return [0]
+
+                def __call__(self, buffer, val):
+                    from dateutil.parser import parse
+                    buffer[0] += int(parse(val).strftime('%Y'))
+
+                def merge(self, buffer, pbuffer):
+                    buffer[0] += pbuffer[0]
+
+                def getvalue(self, buffer):
+                    return buffer[0]
+
+            expr = self.expr.name.agg(Agg, rtype='int')
+            res = self.engine.execute(expr, libraries=[resource, dateutil_resource])
+
+            self.assertEqual(res, sum([int(r[0].split('-')[0]) for r in data]))
+
         try:
-            for resource in resources:
-                for dateutil_resource in dateutil_resources:
-                    def f(x):
-                        from dateutil.parser import parse
-                        return int(parse(x).strftime('%Y'))
-
-                    expr = self.expr.name.map(f, rtype='int')
-
-                    res = self.engine.execute(expr, libraries=[resource.name, dateutil_resource])
-                    result = self._get_result(res)
-
-                    self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
-
-                    def f(row):
-                        from dateutil.parser import parse
-                        return int(parse(row.name).strftime('%Y')),
-
-                    expr = self.expr.apply(f, axis=1, names=['name', ], types=['int', ])
-
-                    res = self.engine.execute(expr, libraries=[resource, dateutil_resource])
-                    result = self._get_result(res)
-
-                    self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
-
-                    expr = self.expr.apply(f, axis=1, names=['name', ], types=['int', ])
-                    table_name = 'test_pyodps_table_' + str(uuid.uuid4()).replace('-', '_')
-                    try:
-                        new_expr = self.engine.persist(expr, table_name, libraries=[resource, dateutil_resource])
-                        res = self.engine.execute(new_expr)
-                        result = self._get_result(res)
-
-                        self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
-                    finally:
-                        self.odps.delete_table(table_name, if_exists=True)
-
-                    class Agg(object):
-                        def buffer(self):
-                            return [0]
-
-                        def __call__(self, buffer, val):
-                            from dateutil.parser import parse
-                            buffer[0] += int(parse(val).strftime('%Y'))
-
-                        def merge(self, buffer, pbuffer):
-                            buffer[0] += pbuffer[0]
-
-                        def getvalue(self, buffer):
-                            return buffer[0]
-
-                    expr = self.expr.name.agg(Agg, rtype='int')
-
-                    options.df.libraries = [resource.name, dateutil_resource]
-                    try:
-                        res = self.engine.execute(expr)
-                    finally:
-                        options.df.libraries = None
-
-                    self.assertEqual(res, sum([int(r[0].split('-')[0]) for r in data]))
+            self.run_sub_tests_in_parallel(
+                30,
+                [
+                    functools.partial(st, res, dateutil_res)
+                    for res, dateutil_res in itertools.product(resources, dateutil_resources)
+                    for st in [subtest1, subtest2, subtest3, subtest4]
+                ]
+            )
         finally:
             [res.drop() for res in resources + dateutil_resources]
 
@@ -1173,7 +1186,11 @@ class Test(TestBase):
 
             expr = self.expr.name.map(f, rtype='int')
 
-            res = self.engine.execute(expr, libraries=[wheel_res, six_path])
+            try:
+                options.df.libraries = [wheel_res, six_path]
+                res = self.engine.execute(expr)
+            finally:
+                options.df.libraries = None
             result = self._get_result(res)
 
             self.assertEqual(result, [[int(r[0].split('-')[0])] for r in data])
@@ -1307,6 +1324,8 @@ class Test(TestBase):
             shutil.rmtree(temp_dir)
 
     def testApply(self):
+        from odps import types as odps_types
+
         data = self._gen_data(5)
 
         def my_func(row):
@@ -1325,10 +1344,10 @@ class Test(TestBase):
         self.assertEqual([[r[0], r[1]] for r in result], [[r[0], r[4] + 1] for r in data])
 
         def my_func2(row):
-            yield len(row.name)
+            yield len(row["name"])
             yield row.id
 
-        expr = self.expr['name', 'id'].apply(my_func2, axis=1, names='cnt', types='int')
+        expr = self.expr['name', 'id'].apply(my_func2, axis=1, names='cnt', rtype='int')
         expr = expr.filter(expr.cnt > 1)
 
         res = self.engine.execute(expr)
@@ -1342,7 +1361,7 @@ class Test(TestBase):
         self.assertEqual([r[0] for r in result], [r for r in gen_expected(data) if r > 1])
 
         # test custom apply with wrapper
-        @output(['name', 'scale', 'birth'], ['string', 'decimal', 'datetime'])
+        @output(['name', 'scale', 'birth'], [odps_types.string, 'decimal', 'datetime'])
         def my_func3(row):
             return row.name, row.scale + 1, row.birth
 
@@ -1452,88 +1471,98 @@ class Test(TestBase):
 
         expr = self.expr
 
-        expr1 = expr.pivot(rows='id', columns='name', values='fid').distinct()
-        res = self.engine.execute(expr1)
-        result = self._get_result(res)
-
-        expected = [
-            [1, 1.0, 3.0],
-            [2, 2.0, None],
-            [3, None, 4.0]
-        ]
-        self.assertEqual(sorted(result), sorted(expected))
-
-        expr2 = expr.pivot(rows='id', columns='name', values=['fid', 'isMale'])
-        res = self.engine.execute(expr2)
-        result = self._get_result(res)
-
-        expected = [
-            [1, 1.0, 3.0, True, False],
-            [2, 2.0, None, True, None],
-            [3, None, 4.0, None, False]
-        ]
-        self.assertEqual(sorted(result), sorted(expected))
-
-        expr3 = expr.pivot(rows='id', columns='name', values='fid')['name3']
-        with self.assertRaises(ValueError) as cm:
-            self.engine.execute(expr3)
-        self.assertIn('name3', str(cm.exception))
-
-        expr4 = expr.pivot(rows='id', columns='name', values='fid')['id', 'name1']
-        res = self.engine.execute(expr4)
-        result = self._get_result(res)
-
-        expected = [
-            [1, 1.0],
-            [2, 2.0],
-            [3, None]
-        ]
-        self.assertEqual(sorted(result), sorted(expected))
-
-        expr5 = expr.pivot(rows='id', columns='name', values='fid')
-        expr5 = expr5[expr5, (expr5['name1'].astype('int') + 1).rename('new_name')]
-        res = self.engine.execute(expr5)
-        result = self._get_result(res)
-
-        expected = [
-            [1, 1.0, 3.0, 2.0],
-            [2, 2.0, None, 3.0],
-            [3, None, 4.0, None]
-        ]
-        self.assertEqual(sorted(result), sorted(expected))
-
-        odps_data = [
-            ['name1', 1],
-            ['name2', 2],
-            ['name1', 3],
-        ]
-
-        names = ['name', 'id']
-        types = ['string', 'bigint']
-
-        table = tn('pyodps_df_pivot_to_join')
-        self.odps.delete_table(table, if_exists=True)
-        t = self.odps.create_table(table, Schema.from_lists(names, types))
-        with t.open_writer() as w:
-            w.write([t.new_record(r) for r in odps_data])
-
-        from odps.df import DataFrame
-        self.odps_df = DataFrame(t)
-
-        try:
-            expr6 = expr.pivot(rows='id', columns='name', values='fid')
-            expr6 = expr6.join(self.odps_df, on='id')[expr6, 'name']
-            res = self.engine.execute(expr6)
+        def subtest1():
+            expr1 = expr.pivot(rows='id', columns='name', values='fid').distinct()
+            res = self.engine.execute(expr1)
             result = self._get_result(res)
 
             expected = [
-                [1, 1.0, 3.0, 'name1'],
-                [2, 2.0, None, 'name2'],
-                [3, None, 4.0, 'name1']
+                [1, 1.0, 3.0],
+                [2, 2.0, None],
+                [3, None, 4.0]
             ]
             self.assertEqual(sorted(result), sorted(expected))
-        finally:
-            t.drop()
+
+        def subtest2():
+            expr2 = expr.pivot(rows='id', columns='name', values=['fid', 'isMale'])
+            res = self.engine.execute(expr2)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 1.0, 3.0, True, False],
+                [2, 2.0, None, True, None],
+                [3, None, 4.0, None, False]
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+
+        def subtest3():
+            expr3 = expr.pivot(rows='id', columns='name', values='fid')['name3']
+            with self.assertRaises(ValueError) as cm:
+                self.engine.execute(expr3)
+            self.assertIn('name3', str(cm.exception))
+
+        def subtest4():
+            expr4 = expr.pivot(rows='id', columns='name', values='fid')['id', 'name1']
+            res = self.engine.execute(expr4)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 1.0],
+                [2, 2.0],
+                [3, None]
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+
+        def subtest5():
+            expr5 = expr.pivot(rows='id', columns='name', values='fid')
+            expr5 = expr5[expr5, (expr5['name1'].astype('int') + 1).rename('new_name')]
+            res = self.engine.execute(expr5)
+            result = self._get_result(res)
+
+            expected = [
+                [1, 1.0, 3.0, 2.0],
+                [2, 2.0, None, 3.0],
+                [3, None, 4.0, None]
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
+
+        def subtest6():
+            odps_data = [
+                ['name1', 1],
+                ['name2', 2],
+                ['name1', 3],
+            ]
+
+            names = ['name', 'id']
+            types = ['string', 'bigint']
+
+            table = tn('pyodps_df_pivot_to_join')
+            self.odps.delete_table(table, if_exists=True)
+            t = self.odps.create_table(table, TableSchema.from_lists(names, types))
+            with t.open_writer() as w:
+                w.write([t.new_record(r) for r in odps_data])
+
+            from odps.df import DataFrame
+            self.odps_df = DataFrame(t)
+
+            try:
+                expr6 = expr.pivot(rows='id', columns='name', values='fid')
+                expr6 = expr6.join(self.odps_df, on='id')[expr6, 'name']
+                res = self.engine.execute(expr6)
+                result = self._get_result(res)
+
+                expected = [
+                    [1, 1.0, 3.0, 'name1'],
+                    [2, 2.0, None, 'name2'],
+                    [3, None, 4.0, 'name1']
+                ]
+                self.assertEqual(sorted(result), sorted(expected))
+            finally:
+                t.drop()
+
+        self.run_sub_tests_in_parallel(10, [
+            subtest1, subtest2, subtest3, subtest4, subtest5, subtest6
+        ])
 
     def testPivotTable(self):
         data = [
@@ -1548,106 +1577,119 @@ class Test(TestBase):
 
         expr = self.expr
 
-        expr1 = expr.pivot_table(rows='name', values='fid')
-        res = self.engine.execute(expr1)
-        result = self._get_result(res)
+        def subtest1():
+            expr1 = expr.pivot_table(rows='name', values='fid')
+            res = self.engine.execute(expr1)
+            result = self._get_result(res)
 
-        expected = [
-            ['name1', 8.0 / 3],
-            ['name2', 3.5],
-        ]
-        self.assertEqual(sorted(result), sorted(expected))
+            expected = [
+                ['name1', 8.0 / 3],
+                ['name2', 3.5],
+            ]
+            self.assertEqual(sorted(result), sorted(expected))
 
-        expr2 = expr.pivot_table(rows='name', values='fid', aggfunc=['mean', 'sum', 'quantile(0.2)'])
-        res = self.engine.execute(expr2)
-        result = self._get_result(res)
+        def subtest2():
+            expr2 = expr.pivot_table(rows='name', values='fid', aggfunc=['mean', 'sum', 'quantile(0.2)'])
+            res = self.engine.execute(expr2)
+            result = self._get_result(res)
 
-        expected = [
-            ['name1', 8.0 / 3, 8.0, 1.4],
-            ['name2', 3.5, 7.0, 3.2],
-        ]
-        self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum', 'fid_quantile_0_2'])
-        self.assertEqual(sorted(result), sorted(expected))
+            expected = [
+                ['name1', 8.0 / 3, 8.0, 1.4],
+                ['name2', 3.5, 7.0, 3.2],
+            ]
+            self.assertEqual(res.schema.names, ['name', 'fid_mean', 'fid_sum', 'fid_quantile_0_2'])
+            self.assertEqual(sorted(result), sorted(expected))
 
-        expr5 = expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum'])
-        expr6 = expr5['name1_fid_mean',
-                      expr5.groupby(Scalar(1)).sort('name1_fid_mean').name1_fid_mean.astype('float').cumsum()]
+        def subtest3():
+            expr5 = expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum'])
+            expr6 = expr5['name1_fid_mean',
+                          expr5.groupby(Scalar(1)).sort('name1_fid_mean').name1_fid_mean.astype('float').cumsum()]
 
-        k = lambda x: list(0 if it is None else it for it in x)
+            k = lambda x: list(0 if it is None else it for it in x)
 
-        # TODO: fix this situation, act different compared to pandas
-        expected = [
-            [2, 2], [3, 5], [None, None]
-        ]
-        res = self.engine.execute(expr6)
-        result = self._get_result(res)
-        self.assertEqual(sorted(result, key=k), sorted(expected, key=k))
+            # TODO: fix this situation, act different compared to pandas
+            expected = [
+                [2, 2], [3, 5], [None, None]
+            ]
+            res = self.engine.execute(expr6)
+            result = self._get_result(res)
+            self.assertEqual(sorted(result, key=k), sorted(expected, key=k))
 
-        expr3 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0).distinct()
-        res = self.engine.execute(expr3)
-        result = self._get_result(res)
+        def subtest4():
+            expr3 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0).distinct()
+            res = self.engine.execute(expr3)
+            result = self._get_result(res)
 
-        expected = [
-            [1, 3.0, 3.0],
-            [2, 2.0, 0],
-            [3, 0, 4.0]
-        ]
+            expected = [
+                [1, 3.0, 3.0],
+                [2, 2.0, 0],
+                [3, 0, 4.0]
+            ]
 
-        self.assertEqual(res.schema.names, ['id', 'name1_fid_mean', 'name2_fid_mean'])
-        self.assertEqual(result, expected)
+            self.assertEqual(res.schema.names, ['id', 'name1_fid_mean', 'name2_fid_mean'])
+            self.assertEqual(result, expected)
 
-        class Agg(object):
-            def buffer(self):
-                return [0]
+        def subtest5():
+            class Agg(object):
+                def buffer(self):
+                    return [0]
 
-            def __call__(self, buffer, val):
-                buffer[0] += val
+                def __call__(self, buffer, val):
+                    buffer[0] += val
 
-            def merge(self, buffer, pbuffer):
-                buffer[0] += pbuffer[0]
+                def merge(self, buffer, pbuffer):
+                    buffer[0] += pbuffer[0]
 
-            def getvalue(self, buffer):
-                return buffer[0]
+                def getvalue(self, buffer):
+                    return buffer[0]
 
-        aggfuncs = OrderedDict([('my_sum', Agg), ('mean', 'mean')])
-        expr4 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0,
-                                 aggfunc=aggfuncs)
-        res = self.engine.execute(expr4)
-        result = self._get_result(res)
+            aggfuncs = OrderedDict([('my_sum', Agg), ('mean', 'mean')])
+            expr4 = expr.pivot_table(rows='id', values='fid', columns='name', fill_value=0,
+                                     aggfunc=aggfuncs)
+            res = self.engine.execute(expr4)
+            result = self._get_result(res)
 
-        expected = [
-            [1, 6.0, 3.0, 3.0, 3.0],
-            [2, 2.0, 0, 2.0, 0],
-            [3, 0, 4.0, 0, 4.0]
-        ]
+            expected = [
+                [1, 6.0, 3.0, 3.0, 3.0],
+                [2, 2.0, 0, 2.0, 0],
+                [3, 0, 4.0, 0, 4.0]
+            ]
 
-        self.assertEqual(res.schema.names, ['id', 'name1_fid_my_sum', 'name2_fid_my_sum',
-                                            'name1_fid_mean', 'name2_fid_mean'])
-        self.assertEqual(result, expected)
+            self.assertEqual(res.schema.names, ['id', 'name1_fid_my_sum', 'name2_fid_my_sum',
+                                                'name1_fid_mean', 'name2_fid_mean'])
+            self.assertEqual(result, expected)
 
-        expr7 = expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum']).cache()
-        self.assertEqual(len(self.engine.execute(expr7)), 3)
+        def subtest6():
+            expr7 = expr.pivot_table(rows='id', values='fid', columns='name', aggfunc=['mean', 'sum']).cache()
+            self.assertEqual(len(self.engine.execute(expr7)), 3)
 
-        expr5 = self.expr.pivot_table(rows='id', values='fid', columns='name').cache()
-        expr6 = expr5[expr5['name1_fid_mean'].rename('tname1'), expr5['name2_fid_mean'].rename('tname2')]
+        def subtest7():
+            expr5 = self.expr.pivot_table(rows='id', values='fid', columns='name').cache()
+            expr6 = expr5[expr5['name1_fid_mean'].rename('tname1'), expr5['name2_fid_mean'].rename('tname2')]
 
-        @output(['tname1', 'tname2'], ['float', 'float'])
-        def h(row):
-            yield row.tname1, row.tname2
+            @output(['tname1', 'tname2'], ['float', 'float'])
+            def h(row):
+                yield row.tname1, row.tname2
 
-        expr6 = expr6.map_reduce(mapper=h)
-        self.assertEqual(len(self.engine.execute(expr6)), 3)
+            expr6 = expr6.map_reduce(mapper=h)
+            self.assertEqual(len(self.engine.execute(expr6)), 3)
 
-        expr8 = self.expr.pivot_table(rows='id', values='fid', columns='name')
-        self.assertEqual(len(self.engine.execute(expr8)), 3)
-        self.assertNotIsInstance(expr8.schema, DynamicSchema)
-        expr9 =(expr8['name1_fid_mean'] - expr8['name2_fid_mean']).rename('substract')
-        self.assertEqual(len(self.engine.execute(expr9)), 3)
-        expr10 = expr8.distinct()
-        self.assertEqual(len(self.engine.execute(expr10)), 3)
+        def subtest8():
+            expr8 = self.expr.pivot_table(rows='id', values='fid', columns='name')
+            self.assertEqual(len(self.engine.execute(expr8)), 3)
+            self.assertNotIsInstance(expr8.schema, DynamicSchema)
+            expr9 = (expr8['name1_fid_mean'] - expr8['name2_fid_mean']).rename('subtract')
+            self.assertEqual(len(self.engine.execute(expr9)), 3)
+            expr10 = expr8.distinct()
+            self.assertEqual(len(self.engine.execute(expr10)), 3)
 
-        expr11 = expr.pivot_table(rows='name', columns='id', values='fid', aggfunc='nunique')
-        self.assertEqual(len(self.engine.execute(expr11)), 2)
+        def subtest9():
+            expr11 = expr.pivot_table(rows='name', columns='id', values='fid', aggfunc='nunique')
+            self.assertEqual(len(self.engine.execute(expr11)), 2)
+
+        self.run_sub_tests_in_parallel(10, [
+            subtest1, subtest2, subtest3, subtest4, subtest5, subtest6, subtest7, subtest8, subtest9
+        ])
 
     def testExtractKV(self):
         from odps.df import DataFrame
@@ -1664,8 +1706,11 @@ class Test(TestBase):
         self.odps.delete_table(table_name, if_exists=True)
         table = self.odps.create_table(
             name=table_name,
-            schema=Schema.from_lists(['name', 'kv', 'kv2'],
-                                     ['string', 'string', 'string']))
+            table_schema=TableSchema.from_lists(
+                ['name', 'kv', 'kv2'],
+                ['string', 'string', 'string']
+            )
+        )
         expr = DataFrame(table)
         try:
             self.odps.write_table(table, 0, data)
@@ -1715,120 +1760,143 @@ class Test(TestBase):
             def getvalue(self, buffer):
                 return buffer[0]
 
-        expr = self.expr.groupby(['name', 'id'])[lambda x: x.fid.min() * 2 < 8] \
-            .agg(self.expr.fid.max() + 1, new_id=self.expr.id.sum(),
-                 new_id2=self.expr.id.agg(Agg))
+        def subtest1():
+            expr = self.expr.groupby(['name', 'id'])[lambda x: x.fid.min() * 2 < 8] \
+                .agg(self.expr.fid.max() + 1, new_id=self.expr.id.sum(),
+                     new_id2=self.expr.id.agg(Agg))
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
 
-        expected = [
-            ['name1', 3, 5.1, 6, 6],
-            ['name2', 2, 4.5, 2, 2]
-        ]
+            expected = [
+                ['name1', 3, 5.1, 6, 6],
+                ['name2', 2, 4.5, 2, 2]
+            ]
 
-        result = sorted(result, key=lambda k: k[0])
+            result = sorted(result, key=lambda k: k[0])
 
-        self.assertEqual(expected, result)
+            self.assertEqual(expected, result)
 
-        field = self.expr.groupby('name').sort(['id', -self.expr.fid]).row_number()
-        expr = self.expr['name', 'id', 'fid', field]
+        def subtest2():
+            field = self.expr.groupby('name').sort(['id', -self.expr.fid]).row_number()
+            expr = self.expr['name', 'id', 'fid', field]
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
 
-        expected = [
-            ['name1', 3, 4.1, 1],
-            ['name1', 3, 2.2, 2],
-            ['name1', 4, 5.3, 3],
-            ['name1', 4, 4.2, 4],
-            ['name2', 2, 3.5, 1],
-        ]
+            expected = [
+                ['name1', 3, 4.1, 1],
+                ['name1', 3, 2.2, 2],
+                ['name1', 4, 5.3, 3],
+                ['name1', 4, 4.2, 4],
+                ['name2', 2, 3.5, 1],
+            ]
 
-        result = sorted(result, key=lambda k: (k[0], k[1], -k[2]))
+            result = sorted(result, key=lambda k: (k[0], k[1], -k[2]))
 
-        self.assertEqual(expected, result)
+            self.assertEqual(expected, result)
 
-        expr = self.expr.name.value_counts(dropna=True)[:25]
+        def subtest3():
+            expr = self.expr.name.value_counts(dropna=True)[:25]
 
-        expected = [
-            ['name1', 4],
-            ['name2', 1]
-        ]
+            expected = [
+                ['name1', 4],
+                ['name2', 1]
+            ]
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
 
-        self.assertEqual(expected, result)
+            self.assertEqual(expected, result)
 
-        expr = self.expr.name.topk(25)
+        def subtest4():
+            expected = [
+                ['name1', 4],
+                ['name2', 1]
+            ]
+            expr = self.expr.name.topk(25)
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
 
-        self.assertEqual(expected, result)
+            self.assertEqual(expected, result)
 
-        expr = self.expr.groupby('name').count()
+        def subtest5():
+            expected = [
+                ['name1', 4],
+                ['name2', 1]
+            ]
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+            expr = self.expr.groupby('name').count()
 
-        self.assertEqual([it[1:] for it in expected], result)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
 
-        expected = [
-            ['name1', 2],
-            ['name2', 1]
-        ]
+            self.assertEqual([it[1:] for it in expected], result)
 
-        expr = self.expr.groupby('name').id.nunique()
+        def subtest6():
+            expected = [
+                ['name1', 2],
+                ['name2', 1]
+            ]
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+            expr = self.expr.groupby('name').id.nunique()
 
-        self.assertEqual([it[1:] for it in expected], result)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
 
-        expr = self.expr[self.expr['id'] > 2].name.value_counts()[:25]
+            self.assertEqual([it[1:] for it in expected], result)
 
-        expected = [
-            ['name1', 4]
-        ]
+        def subtest7():
+            expr = self.expr[self.expr['id'] > 2].name.value_counts()[:25]
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+            expected = [
+                ['name1', 4]
+            ]
 
-        self.assertEqual(expected, result)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
 
-        expr = self.expr.groupby('name', Scalar(1).rename('constant')) \
-            .agg(id=self.expr.id.sum())
+            self.assertEqual(expected, result)
 
-        expected = [
-            ['name1', 1, 14],
-            ['name2', 1, 2]
-        ]
+        def subtest8():
+            expr = self.expr.groupby('name', Scalar(1).rename('constant')) \
+                .agg(id=self.expr.id.sum())
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+            expected = [
+                ['name1', 1, 14],
+                ['name2', 1, 2]
+            ]
 
-        self.assertEqual(expected, result)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
 
-        expr = self.expr[:1]
-        expr = expr.groupby('name').agg(expr.id.sum())
+            self.assertEqual(expected, result)
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+        def subtest9():
+            expr = self.expr[:1]
+            expr = expr.groupby('name').agg(expr.id.sum())
 
-        expected = [
-            ['name1', 4]
-        ]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
 
-        self.assertEqual(expected, result)
+            expected = [
+                ['name1', 4]
+            ]
 
-        expr = self.expr.groupby('id').name.cat(sep=',')
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+            self.assertEqual(expected, result)
 
-        expected = [['name2'], ['name1,name1'], ['name1,name1']]
-        self.assertEqual(sorted(result), sorted(expected))
+        def subtest10():
+            expr = self.expr.groupby('id').name.cat(sep=',')
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            expected = [['name2'], ['name1,name1'], ['name1,name1']]
+            self.assertEqual(sorted(result), sorted(expected))
+
+        self.run_sub_tests_in_parallel(
+            10, [subtest1, subtest2, subtest3, subtest4, subtest5, subtest6, subtest7, subtest8, subtest9, subtest10]
+        )
 
     def testMultiNunique(self):
         data = [
@@ -1885,12 +1953,13 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
-                                    [types.string, types.bigint, types.bigint])
+        schema2 = TableSchema.from_lists(
+            ['name', 'id2', 'id3'], [types.string, types.bigint, types.bigint]
+        )
 
         table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
         self._gen_data(data=data)
@@ -2238,74 +2307,8 @@ class Test(TestBase):
                     return 0.0
                 return buffer[0] / buffer[1]
 
-        expr = self.expr.id.agg(Aggregator)
-        expected = float(16) / 5
-
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
-
-        self.assertAlmostEqual(expected, result)
-
-        expr = self.expr.id.unique().agg(Aggregator)
-        expected = float(9) / 3
-
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
-
-        self.assertAlmostEqual(expected, result)
-
-        expr = self.expr.groupby(Scalar('const').rename('s')).id.agg(Aggregator)
-        expected = float(16) / 5
-
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
-
-        self.assertAlmostEqual(expected, result[0][0])
-
-        expr = self.expr.groupby('name').agg(self.expr.id.agg(Aggregator))
-
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
-
-        expected = [
-            ['name1', float(14) / 4],
-            ['name2', 2]
-        ]
-        for expect_r, actual_r in zip(expected, result):
-            self.assertEqual(expect_r[0], actual_r[0])
-            self.assertAlmostEqual(expect_r[1], actual_r[1])
-
-        expr = self.expr[
-            (self.expr['name'] + ',' + self.expr['id'].astype('string')).rename('name'),
-            self.expr.id
-        ]
-        expr = expr.groupby('name').agg(expr.id.agg(Aggregator).rename('id'))
-
-        expected = [
-            ['name1,4', 4],
-            ['name1,3', 3],
-            ['name2,2', 2],
-        ]
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
-
-        self.assertEqual(sorted(result), sorted(expected))
-
-        expr = self.expr[self.expr.name, Scalar(1).rename('id')]
-        expr = expr.groupby('name').agg(expr.id.sum())
-
-        expected = [
-            ['name1', 4],
-            ['name2', 1]
-        ]
-
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
-
-        self.assertEqual(expected, result)
-
         @output_types('float')
-        class Aggregator(object):
+        class Aggregator2(object):
             def buffer(self):
                 return [0.0, 0]
 
@@ -2322,12 +2325,89 @@ class Test(TestBase):
                     return 0.0
                 return buffer[0] / buffer[1]
 
-        expr = agg([self.expr['fid'], self.expr['id']], Aggregator).rename('agg')
+        def subtest1():
+            expr = self.expr.id.agg(Aggregator)
+            expected = float(16) / 5
 
-        expected = sum(r[2] for r in data) / sum(r[1] for r in data)
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
-        self.assertAlmostEqual(expected, result)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertAlmostEqual(expected, result)
+
+        def subtest2():
+            expr = self.expr.id.unique().agg(Aggregator)
+            expected = float(9) / 3
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertAlmostEqual(expected, result)
+
+        def subtest3():
+            expr = self.expr.groupby(Scalar('const').rename('s')).id.agg(Aggregator)
+            expected = float(16) / 5
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertAlmostEqual(expected, result[0][0])
+
+        def subtest4():
+            expr = self.expr.groupby('name').agg(self.expr.id.agg(Aggregator))
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            expected = [
+                ['name1', float(14) / 4],
+                ['name2', 2]
+            ]
+            for expect_r, actual_r in zip(expected, result):
+                self.assertEqual(expect_r[0], actual_r[0])
+                self.assertAlmostEqual(expect_r[1], actual_r[1])
+
+        def subtest5():
+            expr = self.expr[
+                (self.expr['name'] + ',' + self.expr['id'].astype('string')).rename('name'),
+                self.expr.id
+            ]
+            expr = expr.groupby('name').agg(expr.id.agg(Aggregator).rename('id'))
+
+            expected = [
+                ['name1,4', 4],
+                ['name1,3', 3],
+                ['name2,2', 2],
+            ]
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertEqual(sorted(result), sorted(expected))
+
+        def subtest6():
+            expr = self.expr[self.expr.name, Scalar(1).rename('id')]
+            expr = expr.groupby('name').agg(expr.id.sum())
+
+            expected = [
+                ['name1', 4],
+                ['name2', 1]
+            ]
+
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+
+            self.assertEqual(expected, result)
+
+        def subtest7():
+            expr = agg([self.expr['fid'], self.expr['id']], Aggregator2).rename('agg')
+
+            expected = sum(r[2] for r in data) / sum(r[1] for r in data)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            self.assertAlmostEqual(expected, result)
+
+        self.run_sub_tests_in_parallel(
+            10, [subtest1, subtest2, subtest3, subtest4, subtest5, subtest6, subtest7]
+        )
 
     def testMapReduceByApplyDistributeSort(self):
         data = [
@@ -2466,12 +2546,13 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name2', 'id2', 'id3'],
-                                    [types.string, types.bigint, types.bigint])
+        schema2 = TableSchema.from_lists(
+            ['name2', 'id2', 'id3'], [types.string, types.bigint, types.bigint]
+        )
 
         table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
         self._gen_data(data=data)
@@ -2569,11 +2650,12 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
-                                    [types.string, types.bigint, types.bigint])
+        schema2 = TableSchema.from_lists(
+            ['name', 'id2', 'id3'], [types.string, types.bigint, types.bigint]
+        )
         table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
         self._gen_data(data=data)
@@ -2585,7 +2667,7 @@ class Test(TestBase):
 
         self.odps.write_table(table2, 0, data2)
 
-        try:
+        def subtest1():
             expr = self.expr.join(expr2).join(expr2)['name', 'id2']
 
             res = self.engine.execute(expr)
@@ -2598,6 +2680,7 @@ class Test(TestBase):
             ]
             self.assertTrue(all(it in expected for it in result))
 
+        def subtest2():
             expr = self.expr.join(expr2, on=['name', ('id', 'id2')])[self.expr.name, expr2.id2]
             res = self.engine.execute(expr)
             result = self._get_result(res)
@@ -2605,6 +2688,7 @@ class Test(TestBase):
             expected = [to_str('name1'), 4]
             self.assertTrue(all(it == expected for it in result))
 
+        def subtest3():
             expr = self.expr.join(expr2, on=['name', expr2.id2 == self.expr.id])[self.expr.name, expr2.id2]
             res = self.engine.execute(expr)
             result = self._get_result(res)
@@ -2612,6 +2696,7 @@ class Test(TestBase):
             expected = [to_str('name1'), 4]
             self.assertTrue(all(it == expected for it in result))
 
+        def subtest4():
             expr = self.expr.left_join(expr2, on=['name', ('id', 'id2')])[self.expr.name, expr2.id2]
             res = self.engine.execute(expr)
             result = self._get_result(res)
@@ -2625,6 +2710,7 @@ class Test(TestBase):
             self.assertEqual(len(result), 5)
             self.assertTrue(all(it in expected for it in result))
 
+        def subtest5():
             expr = self.expr.right_join(expr2, on=['name', ('id', 'id2')])[self.expr.name, expr2.id2]
             res = self.engine.execute(expr)
             result = self._get_result(res)
@@ -2636,6 +2722,7 @@ class Test(TestBase):
             self.assertEqual(len(result), 3)
             self.assertTrue(all(it in expected for it in result))
 
+        def subtest6():
             expr = self.expr.outer_join(expr2, on=['name', ('id', 'id2')])[self.expr.name, expr2.id2]
             res = self.engine.execute(expr)
             result = self._get_result(res)
@@ -2650,12 +2737,26 @@ class Test(TestBase):
             self.assertEqual(len(result), 6)
             self.assertTrue(all(it in expected for it in result))
 
+        def subtest7():
             grouped = self.expr.groupby('name').agg(new_id=self.expr.id.sum()).cache()
             self.engine.execute(self.expr.join(grouped, on='name'))
 
             expr = self.expr.join(expr2, on=['name', ('id', 'id2')])[
                 lambda x: x.groupby(Scalar(1)).sort('name').row_number(), ]
             self.engine.execute(expr)
+
+        def subtest8():
+            expr = self.expr.id.join(expr2.id2)
+            res = self.engine.execute(expr)
+            result = self._get_result(res)
+            expected = [[4, 4], [4, 4]]
+            self.assertEqual(len(result), 2)
+            self.assertTrue(all(it in expected for it in result))
+
+        try:
+            self.run_sub_tests_in_parallel(
+                10, [subtest1, subtest2, subtest3, subtest4, subtest5, subtest6, subtest7, subtest8]
+            )
         finally:
             table2.drop()
 
@@ -2686,11 +2787,12 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
-                                    [types.string, types.bigint, types.bigint])
+        schema2 = TableSchema.from_lists(
+            ['name', 'id2', 'id3'], [types.string, types.bigint, types.bigint]
+        )
         table_name = tn('pyodps_test_engine_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
         self._gen_data(data=data)
@@ -2736,11 +2838,12 @@ class Test(TestBase):
             ['name1', 3, 2.2],
             ['name1', 3, 4.1],
         ]
-        schema = Schema.from_lists(['name', 'id', 'fid'],
-                                   [types.string, types.bigint, types.double])
+        schema = TableSchema.from_lists(
+            ['name', 'id', 'fid'], [types.string, types.bigint, types.double]
+        )
         table_name = tn('pyodps_test_engine_scale_table')
         self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(name=table_name, schema=schema)
+        table = self.odps.create_table(name=table_name, table_schema=schema)
         self.odps.write_table(table_name, 0, data)
         expr_input = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
 
@@ -2867,11 +2970,11 @@ class Test(TestBase):
 
         self._gen_data(data=data)
 
-        schema2 = Schema.from_lists(['name', ], [types.string])
+        schema2 = TableSchema.from_lists(['name', ], [types.string])
 
         table_name = tn('pyodps_test_engine_bf_table2')
         self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, schema=schema2)
+        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
 
         self.odps.write_table(table2, 0, data2)
@@ -2896,121 +2999,153 @@ class Test(TestBase):
         ]
         self._gen_data(data=data)
 
-        table_name = tn('pyodps_test_engine_persist_table')
-        self.odps.delete_table(table_name, if_exists=True)
+        base_table_name = tn('pyodps_test_engine_persist_table')
 
-        # simple persist
-        try:
-            with self.assertRaises(ODPSError):
-                self.engine.persist(self.expr, table_name, create_table=False)
-
-            df = self.engine.persist(self.expr, table_name)
-
-            res = self.engine.execute(df)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual(data, result)
-
-            with self.assertRaises(ValueError):
-                self.engine.persist(self.expr, table_name, create_partition=True)
-            with self.assertRaises(ValueError):
-                self.engine.persist(self.expr, table_name, drop_partition=True)
-        finally:
+        def simple_persist_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                with self.assertRaises(ODPSError):
+                    self.engine.persist(self.expr, table_name, create_table=False)
+
+                df = self.engine.persist(self.expr, table_name)
+
+                res = self.engine.execute(df)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual(data, result)
+
+                with self.assertRaises(ValueError):
+                    self.engine.persist(self.expr, table_name, create_partition=True)
+                with self.assertRaises(ValueError):
+                    self.engine.persist(self.expr, table_name, drop_partition=True)
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
 
         # persist over existing table
-        try:
-            self.odps.create_table(table_name,
-                                   'name string, fid double, id bigint, isMale boolean, scale decimal, birth datetime',
-                                   lifecycle=1)
-
-            expr = self.expr[self.expr, Scalar(1).rename('name2')]
-            with self.assertRaises(CompileError):
-                self.engine.persist(expr, table_name)
-
-            expr = self.expr['name', 'fid', self.expr.id.astype('int32'), 'isMale', 'scale', 'birth']
-            df = self.engine.persist(expr, table_name)
-
-            res = self.engine.execute(df)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual(data, [[r[0], r[2], r[1], None, None, None] for r in result])
-        finally:
+        def persist_existing_table_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                self.odps.create_table(
+                    table_name,
+                    'name string, fid double, id bigint, isMale boolean, scale decimal, birth datetime',
+                    lifecycle=1,
+                )
 
-        try:
-            df = self.engine.persist(self.expr, table_name, partition={'ds': 'today'})
+                expr = self.expr[self.expr, Scalar(1).rename('name2')]
+                with self.assertRaises(CompileError):
+                    self.engine.persist(expr, table_name)
 
-            res = self.engine.execute(df)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-        finally:
+                expr = self.expr['name', 'fid', self.expr.id.astype('int32'), 'isMale', 'scale', 'birth']
+                df = self.engine.persist(expr, table_name)
+
+                res = self.engine.execute(df)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual(data, [[r[0], r[2], r[1], None, None, None] for r in result])
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
+
+        def persist_with_part_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                df = self.engine.persist(self.expr, table_name, partition={'ds': 'today'})
 
-        try:
-            schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds'], ['string'])
-            self.odps.create_table(table_name, schema)
-            df = self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
+                res = self.engine.execute(df)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
 
-            res = self.engine.execute(df)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual(data, [d[:-1] for d in result])
-
-            df2 = self.engine.persist(self.expr[self.expr.id.astype('float'), 'name'], table_name,
-                                      partition='ds=today2', create_partition=True, cast=True)
-
-            res = self.engine.execute(df2)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual([d[:2] + [None] * (len(d) - 2) for d in data], [d[:-1] for d in result])
-        finally:
+        def persist_with_create_part_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                schema = TableSchema.from_lists(self.schema.names, self.schema.types, ['ds'], ['string'])
+                self.odps.create_table(table_name, schema)
+                df = self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
 
-        try:
-            schema = Schema.from_lists(self.schema.names, self.schema.types, ['dsi'], ['bigint'])
-            table = self.odps.create_table(table_name, schema)
-            table.create_partition("dsi='00'")
-            df = self.engine.persist(self.expr, table_name, partition="dsi='00'", create_partition=True)
+                res = self.engine.execute(df)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual(data, [d[:-1] for d in result])
 
-            res = self.engine.execute(df)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual(data, [d[:-1] for d in result])
+                df2 = self.engine.persist(self.expr[self.expr.id.astype('float'), 'name'], table_name,
+                                          partition='ds=today2', create_partition=True, cast=True)
 
-            df2 = self.engine.persist(self.expr[self.expr.id.astype('float'), 'name'], table_name,
-                                      partition="dsi='01'", create_partition=True, cast=True)
+                res = self.engine.execute(df2)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual([d[:2] + [None] * (len(d) - 2) for d in data], [d[:-1] for d in result])
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
 
-            res = self.engine.execute(df2)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual([d[:2] + [None] * (len(d) - 2) for d in data], [d[:-1] for d in result])
-        finally:
+        def persist_with_create_part_test2(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                schema = TableSchema.from_lists(self.schema.names, self.schema.types, ['dsi'], ['bigint'])
+                table = self.odps.create_table(table_name, schema)
+                table.create_partition("dsi='00'")
+                df = self.engine.persist(self.expr, table_name, partition="dsi='00'", create_partition=True)
 
-        try:
-            schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds', 'hh'], ['string', 'string'])
-            self.odps.create_table(table_name, schema)
+                res = self.engine.execute(df)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual(data, [d[:-1] for d in result])
 
-            with self.assertRaises(ValueError):
-                self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
+                df2 = self.engine.persist(self.expr[self.expr.id.astype('float'), 'name'], table_name,
+                                          partition="dsi='01'", create_partition=True, cast=True)
 
-            self.engine.persist(self.expr, table_name, partition=OrderedDict([('hh', 'now'), ('ds', 'today')]))
-            self.assertTrue(self.odps.get_table(table_name).exist_partition('ds=today,hh=now'))
-        finally:
+                res = self.engine.execute(df2)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual([d[:2] + [None] * (len(d) - 2) for d in data], [d[:-1] for d in result])
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
+
+        def persist_with_create_multi_part_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                schema = TableSchema.from_lists(self.schema.names, self.schema.types, ['ds', 'hh'], ['string', 'string'])
+                table = self.odps.create_table(table_name, schema)
 
-        try:
-            self.engine.persist(self.expr, table_name, partitions=['name'])
+                with self.assertRaises(ValueError):
+                    self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
 
-            t = self.odps.get_table(table_name)
-            self.assertEqual(2, len(list(t.partitions)))
-            with t.open_reader(partition='name=name1', reopen=True) as r:
-                self.assertEqual(4, r.count)
-            with t.open_reader(partition='name=name2', reopen=True) as r:
-                self.assertEqual(1, r.count)
-        finally:
+                self.engine.persist(self.expr, table, partition=OrderedDict([('hh', 'now'), ('ds', 'today')]))
+                self.assertTrue(table.exist_partition('ds=today,hh=now'))
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
+
+        def persist_with_dynamic_parts_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                self.engine.persist(self.expr, table_name, partitions=['name'])
+
+                t = self.odps.get_table(table_name)
+                self.assertEqual(2, len(list(t.partitions)))
+                with t.open_reader(partition='name=name1', reopen=True) as r:
+                    self.assertEqual(4, r.count)
+                with t.open_reader(partition='name=name2', reopen=True) as r:
+                    self.assertEqual(1, r.count)
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
+
+        sub_tests = [
+            simple_persist_test,
+            persist_existing_table_test,
+            persist_with_part_test,
+            persist_with_create_part_test,
+            persist_with_create_part_test2,
+            persist_with_create_multi_part_test,
+            persist_with_dynamic_parts_test,
+        ]
+        base_table_name = tn('pyodps_test_pd_schema_persist_table')
+        self.run_sub_tests_in_parallel(
+            10,
+            [
+                functools.partial(sub_test, base_table_name + "_%d" % idx)
+                for idx, sub_test in enumerate(sub_tests)
+            ]
+        )
 
     def testMakeKV(self):
         from odps import types as odps_types
@@ -3022,11 +3157,12 @@ class Test(TestBase):
             ['name2', None, 1.0, None, None, None, 1.1],
         ]
         kv_cols = ['k1', 'k2', 'k3', 'k5', 'k7', 'k9']
-        schema = Schema.from_lists(['name'] + kv_cols,
-                                   [odps_types.string] + [odps_types.double] * 6)
+        schema = TableSchema.from_lists(
+            ['name'] + kv_cols, [odps_types.string] + [odps_types.double] * 6
+        )
         table_name = tn('pyodps_test_engine_make_kv')
         self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(name=table_name, schema=schema)
+        table = self.odps.create_table(name=table_name, table_schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
         try:
             self.odps.write_table(table, 0, data)
@@ -3055,11 +3191,13 @@ class Test(TestBase):
             ['name2', None, 1.2, 1.5],
             ['name2', None, 1.0, 1.1],
         ]
-        schema = Schema.from_lists(['name', 'k1', 'k2', 'k3'],
-                                   [types.string, types.double, types.double, types.double])
+        schema = TableSchema.from_lists(
+            ['name', 'k1', 'k2', 'k3'],
+            [types.string, types.double, types.double, types.double],
+        )
         table_name = tn('pyodps_test_engine_melt')
         self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(name=table_name, schema=schema)
+        table = self.odps.create_table(name=table_name, table_schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
         try:
             self.odps.write_table(table, 0, data)
@@ -3093,12 +3231,14 @@ class Test(TestBase):
             [6, 'name1', None, None, None, None],
         ]
 
-        schema = Schema.from_lists(['rid', 'name', 'f1', 'f2', 'f3', 'f4'],
-                                   [types.bigint, types.string] + [types.double] * 4)
+        schema = TableSchema.from_lists(
+            ['rid', 'name', 'f1', 'f2', 'f3', 'f4'],
+            [types.bigint, types.string] + [types.double] * 4,
+        )
 
         table_name = tn('pyodps_test_engine_collection_na')
         self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(name=table_name, schema=schema)
+        table = self.odps.create_table(name=table_name, table_schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(schema))
 
         try:
@@ -3177,22 +3317,22 @@ class Test(TestBase):
             ['name2', 1, 1.2], ['name2', 3, 1.0],
             ['name3', 1, 1.2], ['name3', 3, 1.2],
         ]
-        schema1 = Schema.from_lists(['name', 'id', 'fid'],
-                                    [types.string, types.bigint, types.double])
+        schema1 = TableSchema.from_lists(
+            ['name', 'id', 'fid'], [types.string, types.bigint, types.double]
+        )
         table_name1 = tn('pyodps_test_engine_drop1')
         self.odps.delete_table(table_name1, if_exists=True)
-        table1 = self.odps.create_table(name=table_name1, schema=schema1)
+        table1 = self.odps.create_table(name=table_name1, table_schema=schema1)
         expr1 = CollectionExpr(_source_data=table1, _schema=odps_schema_to_df_schema(schema1))
 
         data2 = [
             ['name1', 1], ['name1', 2],
             ['name2', 1], ['name2', 2],
         ]
-        schema2 = Schema.from_lists(['name', 'id'],
-                                    [types.string, types.bigint])
+        schema2 = TableSchema.from_lists(['name', 'id'], [types.string, types.bigint])
         table_name2 = tn('pyodps_test_engine_drop2')
         self.odps.delete_table(table_name2, if_exists=True)
-        table2 = self.odps.create_table(name=table_name2, schema=schema2)
+        table2 = self.odps.create_table(name=table_name2, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
         try:
             self.odps.write_table(table1, 0, data1)
@@ -3243,20 +3383,20 @@ class Test(TestBase):
             ['name2', 1], ['name2', 3],
             ['name3', 1], ['name3', 3],
         ]
-        schema1 = Schema.from_lists(['name', 'id'], [types.string, types.bigint])
+        schema1 = TableSchema.from_lists(['name', 'id'], [types.string, types.bigint])
         table_name1 = tn('pyodps_test_engine_drop1')
         self.odps.delete_table(table_name1, if_exists=True)
-        table1 = self.odps.create_table(name=table_name1, schema=schema1)
+        table1 = self.odps.create_table(name=table_name1, table_schema=schema1)
         expr1 = CollectionExpr(_source_data=table1, _schema=odps_schema_to_df_schema(schema1))
 
         data2 = [
             ['name1', 1], ['name1', 2], ['name1', 2],
             ['name2', 1], ['name2', 2],
         ]
-        schema2 = Schema.from_lists(['name', 'id'], [types.string, types.bigint])
+        schema2 = TableSchema.from_lists(['name', 'id'], [types.string, types.bigint])
         table_name2 = tn('pyodps_test_engine_drop2')
         self.odps.delete_table(table_name2, if_exists=True)
-        table2 = self.odps.create_table(name=table_name2, schema=schema2)
+        table2 = self.odps.create_table(name=table_name2, table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
         try:
             self.odps.write_table(table1, 0, data1)
@@ -3300,7 +3440,7 @@ class Test(TestBase):
 
         try:
             self.odps.write_table(table_name, [[2, 0], [1, 1], [1, 2], [5, 1], [5, 0]])
-            df = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(table.schema))
+            df = CollectionExpr(_source_data=table, _schema=odps_schema_to_df_schema(table.table_schema))
             fdf = df[df.divisor > 0]
             ddf = fdf[(fdf.divided / fdf.divisor).rename('result'),]
             expr = ddf[ddf.result > 1]
@@ -3321,22 +3461,48 @@ class Test(TestBase):
         ]
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                                   datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
+        schema = TableSchema.from_lists(
+            ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+            datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
+        )
         odps_schema = df_schema_to_odps_schema(schema)
         table_name = tn('pyodps_test_engine_lateral_view1')
         self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(name=table_name, schema=odps_schema)
+        table = self.odps.create_table(name=table_name, table_schema=odps_schema)
         expr_in = CollectionExpr(_source_data=table, _schema=schema)
 
-        try:
-            self.odps.write_table(table_name, data)
+        @output(['name', 'id'], ['string', 'int64'])
+        def mapper(row):
+            for idx in range(row.id):
+                yield '%s_%d' % (row.name, idx), row.id * idx
 
-            @output(['name', 'id'], ['string', 'int64'])
-            def mapper(row):
-                for idx in range(row.id):
-                    yield '%s_%d' % (row.name, idx), row.id * idx
+        @output(['bin_id'], ['string'])
+        def mapper2(row):
+            for idx in range(row.id % 2 + 1):
+                yield str(idx)
 
+        @output(['bin_id'], ['string'])
+        def mapper3(row):
+            for idx in range(row.ren_id % 2 + 1):
+                yield str(idx)
+
+        @output(['bin_id'], ['string'])
+        def mapper4(row):
+            for idx in range(row.id % 2):
+                yield str(idx)
+
+        @output(['name', 'id'], ['string', 'float'])
+        def reducer(keys):
+            sums = [0.0]
+
+            def h(row, done):
+                sums[0] += row.fid
+                if done:
+                    yield tuple(keys) + (sums[0], )
+
+            return h
+
+        def subtest1():
             expected = [
                 [5.3, 'name1_0', 0], [5.3, 'name1_1', 4], [5.3, 'name1_2', 8], [5.3, 'name1_3', 12],
                 [3.5, 'name2_0', 0], [3.5, 'name2_1', 2],
@@ -3350,6 +3516,7 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest2():
             expected = [
                 [5.3, 'name1_0', 0],
                 [3.5, 'name2_0', 0],
@@ -3363,6 +3530,7 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest3():
             expected = [
                 [5, 3.5, 'name2_0', 0, '0'], [5, 3.5, 'name2_1', 2, '0'],
                 [5, 2.2, 'name1_0', 0, '0'], [5, 2.2, 'name1_0', 0, '1'], [5, 2.2, 'name1_1', 3, '0'],
@@ -3371,11 +3539,6 @@ class Test(TestBase):
                 [5, 4.1, 'name1_1', 3, '1'], [5, 4.1, 'name1_2', 6, '0'], [5, 4.1, 'name1_2', 6, '1'],
             ]
 
-            @output(['bin_id'], ['string'])
-            def mapper2(row):
-                for idx in range(row.id % 2 + 1):
-                    yield str(idx)
-
             expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
                                            expr_in['name', 'id'].apply(mapper, axis=1),
                                            expr_in['id', ].apply(mapper2, axis=1)]
@@ -3383,10 +3546,14 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
-            @output(['bin_id'], ['string'])
-            def mapper3(row):
-                for idx in range(row.ren_id % 2 + 1):
-                    yield str(idx)
+        def subtest4():
+            expected = [
+                [5, 3.5, 'name2_0', 0, '0'], [5, 3.5, 'name2_1', 2, '0'],
+                [5, 2.2, 'name1_0', 0, '0'], [5, 2.2, 'name1_0', 0, '1'], [5, 2.2, 'name1_1', 3, '0'],
+                [5, 2.2, 'name1_1', 3, '1'], [5, 2.2, 'name1_2', 6, '0'], [5, 2.2, 'name1_2', 6, '1'],
+                [5, 4.1, 'name1_0', 0, '0'], [5, 4.1, 'name1_0', 0, '1'], [5, 4.1, 'name1_1', 3, '0'],
+                [5, 4.1, 'name1_1', 3, '1'], [5, 4.1, 'name1_2', 6, '0'], [5, 4.1, 'name1_2', 6, '1'],
+            ]
 
             expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
                                            expr_in['name', 'id'].apply(mapper, axis=1),
@@ -3395,21 +3562,11 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest5():
             expected = [
                 ['name1_0', 12.6], ['name1_1', 12.6], ['name1_2', 12.6],
                 ['name2_0', 3.5], ['name2_1', 3.5]
             ]
-
-            @output(['name', 'id'], ['string', 'float'])
-            def reducer(keys):
-                sums = [0.0]
-
-                def h(row, done):
-                    sums[0] += row.fid
-                    if done:
-                        yield tuple(keys) + (sums[0], )
-
-                return h
 
             expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
                                            expr_in['name', 'id'].apply(mapper, axis=1),
@@ -3419,24 +3576,21 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertListAlmostEqual(sorted(result), sorted(expected), only_float=False)
 
+        def subtest6():
             expected = [
                 [5, 2.2, 'name1_0', 0, '0'], [5, 2.2, 'name1_1', 3, '0'],
                 [5, 2.2, 'name1_2', 6, '0'], [5, 4.1, 'name1_0', 0, '0'],
                 [5, 4.1, 'name1_1', 3, '0'], [5, 4.1, 'name1_2', 6, '0'],
             ]
 
-            @output(['bin_id'], ['string'])
-            def mapper3(row):
-                for idx in range(row.id % 2):
-                    yield str(idx)
-
             expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
                                            expr_in['name', 'id'].apply(mapper, axis=1),
-                                           expr_in['id', ].apply(mapper3, axis=1)]
+                                           expr_in['id', ].apply(mapper4, axis=1)]
             res = self.engine.execute(expr)
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest7():
             expected = [
                 [5, 3.5, 'name2_0', 0, None], [5, 3.5, 'name2_1', 2, None],
                 [5, 2.2, 'name1_0', 0, '0'], [5, 2.2, 'name1_1', 3, '0'],
@@ -3446,10 +3600,16 @@ class Test(TestBase):
 
             expr = expr_in[expr_in.id < 4][Scalar(5).rename('five'), expr_in.fid,
                                            expr_in['name', 'id'].apply(mapper, axis=1),
-                                           expr_in['id', ].apply(mapper3, axis=1, keep_nulls=True)]
+                                           expr_in['id', ].apply(mapper4, axis=1, keep_nulls=True)]
             res = self.engine.execute(expr)
             result = self._get_result(res)
             self.assertEqual(result, expected)
+
+        try:
+            self.odps.write_table(table_name, data)
+            self.run_sub_tests_in_parallel(
+                10, [subtest1, subtest2, subtest3, subtest4, subtest5, subtest6, subtest7]
+            )
         finally:
             table.drop()
 
@@ -3463,18 +3623,17 @@ class Test(TestBase):
         ]
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'grade', 'score', 'detail', 'locations'],
-                                   datatypes('string', 'int64', 'float64',
-                                             'dict<string, float64>', 'list<string>'))
+        schema = TableSchema.from_lists(
+            ['name', 'grade', 'score', 'detail', 'locations'],
+            datatypes('string', 'int64', 'float64', 'dict<string, float64>', 'list<string>')
+        )
         odps_schema = df_schema_to_odps_schema(schema)
         table_name = tn('pyodps_test_engine_composites1')
         self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(name=table_name, schema=odps_schema)
+        table = self.odps.create_table(name=table_name, table_schema=odps_schema)
         expr_in = CollectionExpr(_source_data=table, _schema=schema)
 
-        try:
-            self.odps.write_table(table_name, data)
-
+        def subtest1():
             expected = [
                 ['name1', 3, 'Washington', 'u', 115.4], ['name1', 3, 'Washington', 'v', 312.1],
                 ['name1', 3, 'London', 'u', 115.4], ['name1', 3, 'London', 'v', 312.1],
@@ -3488,6 +3647,7 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest2():
             expected = [
                 ['name1', 3, 0, 'Washington', 'u', 115.4],
                 ['name1', 3, 0, 'Washington', 'v', 312.1],
@@ -3505,6 +3665,7 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest3():
             expected = [
                 ['name1', 123.2], ['name1', 567.1],
                 ['name2', 711.2], ['name2', 512.1],
@@ -3517,6 +3678,7 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(sorted(result), sorted(expected))
 
+        def subtest4():
             expected = [
                 ['name1', 4.0, 2.0, False, False, ['HKG', 'PEK', 'SHA', 'YTY'],
                  ['a', 'b'], [123.2, 567.1], None, 'YTY', 'PEK', 'PEK'],
@@ -3545,6 +3707,7 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest5():
             expected = [
                 ['name1', [4, 4, 3, 3]],
                 ['name2', [2]]
@@ -3555,6 +3718,7 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest6():
             expected = [
                 ['name1', [3, 4]],
                 ['name2', [2]]
@@ -3565,6 +3729,7 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest7():
             expected = [[['name1', 'name2', 'name1', 'name1', 'name1'], [4, 2, 4, 3, 3]]]
 
             expr = expr_in['name', 'grade'].tolist()
@@ -3572,6 +3737,7 @@ class Test(TestBase):
             result = self._get_result(res)
             self.assertEqual(result, expected)
 
+        def subtest8():
             expected = [[['name1', 'name2'], [2, 3, 4]]]
 
             expr = expr_in['name', 'grade'].tolist(unique=True)
@@ -3579,6 +3745,12 @@ class Test(TestBase):
             res = self.engine.execute(expr)
             result = self._get_result(res)
             self.assertEqual(result, expected)
+
+        try:
+            self.odps.write_table(table_name, data)
+            self.run_sub_tests_in_parallel(
+                10, [subtest1, subtest2, subtest3, subtest4, subtest5, subtest6, subtest7, subtest8]
+            )
         finally:
             table.drop()
 
@@ -3592,12 +3764,11 @@ class Test(TestBase):
         ]
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id'],
-                                   datatypes('string', 'int64'))
+        schema = TableSchema.from_lists(['name', 'id'], datatypes('string', 'int64'))
         odps_schema = df_schema_to_odps_schema(schema)
         table_name = tn('pyodps_test_engine_composites1')
         self.odps.delete_table(table_name, if_exists=True)
-        table = self.odps.create_table(name=table_name, schema=odps_schema)
+        table = self.odps.create_table(name=table_name, table_schema=odps_schema)
         expr_in = CollectionExpr(_source_data=table, _schema=schema)
 
         try:

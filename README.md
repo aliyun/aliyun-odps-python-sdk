@@ -61,7 +61,7 @@ $ python setup.py install
 >>> dual = o.get_table('dual')
 >>> dual.name
 'dual'
->>> dual.schema
+>>> dual.table_schema
 odps.Schema {
   c_int_a                 bigint
   c_int_b                 bigint
@@ -80,7 +80,7 @@ datetime.datetime(2014, 6, 6, 13, 28, 24)
 False
 >>> dual.size
 448
->>> dual.schema.columns
+>>> dual.table_schema.columns
 [<column c_int_a, type bigint>,
  <column c_int_b, type bigint>,
  <column c_double_a, type double>,

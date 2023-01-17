@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..io.stream import CompressOption, SnappyOutputStream, DeflateOutputStream, RequestsIO
-from ... import errors, options
+from ..io.stream import RequestsIO, get_compress_stream
+from ... import options
 from ...compat import six
 
 try:
@@ -27,20 +27,7 @@ if BasePandasWriter:
     class TunnelPandasWriter(BasePandasWriter):
         def __init__(self, schema, request_callback, compress_option=None):
             self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
-
-            if compress_option is None:
-                out = self._req_io
-            elif compress_option.algorithm == \
-                    CompressOption.CompressAlgorithm.ODPS_RAW:
-                out = self._req_io
-            elif compress_option.algorithm == \
-                    CompressOption.CompressAlgorithm.ODPS_ZLIB:
-                out = DeflateOutputStream(self._req_io)
-            elif compress_option.algorithm == \
-                    CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-                out = SnappyOutputStream(self._req_io)
-            else:
-                raise errors.InvalidArgument('Invalid compression algorithm.')
+            out = get_compress_stream(self._req_io, compress_option)
             super(TunnelPandasWriter, self).__init__(schema, out)
             self._req_io.start()
 

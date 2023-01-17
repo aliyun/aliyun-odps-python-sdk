@@ -19,7 +19,7 @@ from odps.df import DataFrame
 from odps.df.backends.odpssql.types import df_schema_to_odps_schema
 from odps.tests.core import tn
 from odps.ml.tests.base import MLTestBase
-from odps.models import Partition, Schema
+from odps.models import Partition, TableSchema
 from odps import types as odps_types
 
 IRIS_TABLE = tn('pyodps_test_ml_iris_persist')
@@ -42,7 +42,7 @@ class Test(MLTestBase):
 
         odps_schema = df_schema_to_odps_schema(df.schema)
         cols = list(reversed(odps_schema.columns))
-        odps_schema = Schema.from_lists([c.name for c in cols], [c.type for c in cols])
+        odps_schema = TableSchema.from_lists([c.name for c in cols], [c.type for c in cols])
 
         self.odps.delete_table(EXISTING_PERSIST_TABLE, if_exists=True)
         self.odps.create_table(EXISTING_PERSIST_TABLE, odps_schema)
@@ -54,8 +54,9 @@ class Test(MLTestBase):
         id_df = df.append_id()
 
         src_schema = df_schema_to_odps_schema(id_df.schema)
-        schema = Schema(columns=src_schema.simple_columns,
-                        partitions=[Partition(name='ds', type=odps_types.string)])
+        schema = TableSchema(
+            columns=src_schema.simple_columns, partitions=[Partition(name='ds', type=odps_types.string)]
+        )
         self.odps.delete_table(STATIC_PART_TABLE, if_exists=True)
         dest_table = self.odps.create_table(STATIC_PART_TABLE, schema, lifecycle=1)
 
@@ -71,4 +72,4 @@ class Test(MLTestBase):
 
         self.assertTrue(self.odps.exist_table(DYNAMIC_PART_TABLE))
         t = self.odps.get_table(DYNAMIC_PART_TABLE)
-        self.assertIn('category', [pt.name for pt in t.schema.partitions])
+        self.assertIn('category', [pt.name for pt in t.table_schema.partitions])

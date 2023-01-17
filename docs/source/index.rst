@@ -56,6 +56,7 @@ PyODPS 的相关依赖会自动安装。
    df
    interactive
    options
+   pyodps-pack
    faq
    mars
    api

@@ -18,7 +18,7 @@ import copy
 import decimal as _decimal
 
 from odps.types import *
-from odps.models import Schema, Record
+from odps.models import TableSchema, Record
 from odps.tests.core import TestBase
 from odps.compat import unittest, OrderedDict, reload_module
 from datetime import datetime
@@ -26,7 +26,7 @@ from datetime import datetime
 
 def bothPyAndC(func):
     def inner(self, *args, **kwargs):
-        global Schema, Record
+        global TableSchema, Record
 
         try:
             import cython  # noqa: F401
@@ -46,7 +46,7 @@ def bothPyAndC(func):
                 from odps import models
                 reload_module(models)
 
-                Schema, Record = models.TableSchema, models.Record
+                TableSchema, Record = models.TableSchema, models.Record
 
                 func(self, *args, **kwargs)
             finally:
@@ -59,7 +59,7 @@ class Test(TestBase):
 
     @bothPyAndC
     def testNullableRecord(self):
-        s = Schema.from_lists(
+        s = TableSchema.from_lists(
             ['col%s'%i for i in range(8)],
             ['tinyint', 'smallint', 'int', 'bigint', 'float', 'double',
              'string', 'datetime', 'boolean', 'decimal', 'binary', 'decimal(10, 2)',
@@ -70,7 +70,7 @@ class Test(TestBase):
 
     @bothPyAndC
     def testRecordSetAndGetByIndex(self):
-        s = Schema.from_lists(
+        s = TableSchema.from_lists(
             ['col%s'%i for i in range(8)],
             ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal',
              'array<string>', 'map<string,bigint>'])
@@ -103,7 +103,7 @@ class Test(TestBase):
 
     @bothPyAndC
     def testRecordSetAndGetByName(self):
-        s = Schema.from_lists(
+        s = TableSchema.from_lists(
             ['col%s'%i for i in range(8)],
             ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal',
              'array<string>', 'map<string,bigint>'])
@@ -215,7 +215,7 @@ class Test(TestBase):
 
     @bothPyAndC
     def testSetWithCast(self):
-        s = Schema.from_lists(
+        s = TableSchema.from_lists(
             ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal'],
             ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal'])
         r = Record(schema=s)
@@ -230,7 +230,7 @@ class Test(TestBase):
 
     @bothPyAndC
     def testRecordCopy(self):
-        s = Schema.from_lists(['col1'], ['string'])
+        s = TableSchema.from_lists(['col1'], ['string'])
         r = Record(schema=s)
         r.col1 = 'a'
 
@@ -239,7 +239,7 @@ class Test(TestBase):
 
     @bothPyAndC
     def testRecordSetField(self):
-        s = Schema.from_lists(['col1'], ['string',])
+        s = TableSchema.from_lists(['col1'], ['string'])
         r = Record(schema=s)
         r.col1 = 'a'
         self.assertEqual(r.col1, 'a')
@@ -253,27 +253,27 @@ class Test(TestBase):
 
     @bothPyAndC
     def testDuplicateNames(self):
-        self.assertRaises(ValueError, lambda: Schema.from_lists(['col1', 'col1'], ['string', 'string']))
+        self.assertRaises(ValueError, lambda: TableSchema.from_lists(['col1', 'col1'], ['string', 'string']))
         try:
-            Schema.from_lists(['col1', 'col1'], ['string', 'string'])
+            TableSchema.from_lists(['col1', 'col1'], ['string', 'string'])
         except ValueError as e:
             self.assertTrue('col1' in str(e))
 
     @bothPyAndC
     def testChineseSchema(self):
-        s = Schema.from_lists([u'用户'], ['string'], ['分区'], ['bigint'])
+        s = TableSchema.from_lists([u'用户'], ['string'], ['分区'], ['bigint'])
         self.assertIn('用户', s)
         self.assertEqual(s.get_column('用户').type.name, 'string')
         self.assertEqual(s.get_partition(u'分区').type.name, 'bigint')
         self.assertEqual(s['用户'].type.name, 'string')
         self.assertEqual(s[u'分区'].type.name, 'bigint')
 
-        s2 = Schema.from_lists(['用户'], ['string'], [u'分区'], ['bigint'])
+        s2 = TableSchema.from_lists(['用户'], ['string'], [u'分区'], ['bigint'])
         self.assertEqual(s, s2)
 
     @bothPyAndC
     def testRecordMultiFields(self):
-        s = Schema.from_lists(['col1', 'col2'], ['string', 'bigint'])
+        s = TableSchema.from_lists(['col1', 'col2'], ['string', 'bigint'])
         r = Record(values=[1, 2], schema=s)
 
         self.assertEqual(r['col1', 'col2'], ['1', 2])
@@ -283,7 +283,7 @@ class Test(TestBase):
 
     @bothPyAndC
     def testBizarreRepr(self):
-        s = Schema.from_lists(['逗比 " \t'], ['string'], ['正常'], ['bigint'])
+        s = TableSchema.from_lists(['逗比 " \t'], ['string'], ['正常'], ['bigint'])
         s_repr = repr(s)
         self.assertIn('"逗比 \\" \\t"', s_repr)
         self.assertNotIn('"正常"', s_repr)
@@ -292,7 +292,7 @@ class Test(TestBase):
     def testStringAsBinary(self):
         try:
             options.tunnel.string_as_binary = True
-            s = Schema.from_lists(['col1', 'col2'], ['string', 'bigint'])
+            s = TableSchema.from_lists(['col1', 'col2'], ['string', 'bigint'])
             r = Record(values=[1, 2], schema=s)
             self.assertEqual(r['col1', 'col2'], [b'1', 2])
             self.assertIsInstance(r[0], bytes)

@@ -24,7 +24,7 @@ except ImportError:
     has_np = False
 
 from ... import types
-from ....models import Schema
+from ....models import TableSchema
 from ....compat import six, OrderedDict
 
 _np_to_df_types = dict()
@@ -93,7 +93,7 @@ def pd_to_df_schema(pd_df, unknown_as_string=False, as_type=None):
                                            unknown_as_string=unknown_as_string,
                                            name=names[i]))
 
-    return Schema.from_lists(names, df_types)
+    return TableSchema.from_lists(names, df_types)
 
 
 def df_type_to_np_type(df_type):

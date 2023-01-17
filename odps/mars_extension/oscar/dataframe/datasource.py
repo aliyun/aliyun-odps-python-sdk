@@ -90,6 +90,7 @@ class DataFrameReadTable(*_BASE):
     last_modified_time = Int64Field("last_modified_time", default=None)
     with_split_meta_on_tile = BoolField("with_split_meta_on_tile", default=None)
     retry_times = Int64Field("retry_times", default=None)
+    tunnel_quota_name = StringField("tunnel_quota_name", default=None)
 
     def __init__(self, sparse=None, memory_scale=None, **kw):
         super(DataFrameReadTable, self).__init__(
@@ -289,7 +290,7 @@ class DataFrameReadTable(*_BASE):
         )
 
         table_obj = o.get_table(op.table_name)
-        if not table_obj.schema.partitions:
+        if not table_obj.table_schema.partitions:
             data_srcs = [table_obj]
         elif op.partition is not None and check_partition_exist(
             table_obj, op.partition
@@ -399,6 +400,7 @@ class DataFrameReadTable(*_BASE):
                         append_partitions=op.append_partitions,
                         memory_scale=op.memory_scale,
                         retry_times=op.retry_times,
+                        tunnel_quota_name=op.tunnel_quota_name,
                         extra_params=op.extra_params,
                     )
                     index_value = parse_index(pd.RangeIndex(start_index, end_index))
@@ -462,6 +464,7 @@ class DataFrameReadTableSplit(*_BASE):
     end_index = Int64Field("end_index", default=None)
     odps_params = DictField("odps_params", default=None)
     columns = AnyField("columns", default=None)
+    tunnel_quota_name = StringField("tunnel_quota_name", default=None)
 
     split_size = Int64Field("split_size", default=None)
     append_partitions = BoolField("append_partitions", default=None)
@@ -658,7 +661,8 @@ class DataFrameReadTableSplit(*_BASE):
         )
 
         t = o.get_table(op.table_name)
-        tunnel = TableTunnel(o, project=t.project)
+        schema_name = t.get_schema().name if t.get_schema() else None
+        tunnel = TableTunnel(o, project=t.project, quota_name=op.tunnel_quota_name)
         retry_times = op.retry_times or options.retry_times
         init_sleep_secs = 1
         logger.info(
@@ -674,10 +678,15 @@ class DataFrameReadTableSplit(*_BASE):
             try:
                 if op.partition_spec is not None:
                     download_session = tunnel.create_download_session(
-                        t.name, partition_spec=op.partition_spec
+                        t.name,
+                        partition_spec=op.partition_spec,
+                        schema=schema_name,
+                        async_mode=True,
                     )
                 else:
-                    download_session = tunnel.create_download_session(t.name)
+                    download_session = tunnel.create_download_session(
+                        t.name, async_mode=True
+                    )
                 break
             except:
                 if retries >= retry_times:
@@ -780,6 +789,7 @@ def read_odps_table(
     append_partitions=False,
     with_split_meta_on_tile=False,
     index_type="incremental",
+    tunnel_quota_name=None,
     extra_params=None,
 ):
     import pandas as pd
@@ -800,8 +810,7 @@ def read_odps_table(
 
     if chunk_bytes is not None:
         chunk_bytes = int(parse_readable_size(chunk_bytes)[0])
-    table_name = "%s.%s" % (table.project.name, table.name)
-    cols = table.schema.columns if append_partitions else table.schema.simple_columns
+    cols = table.table_schema.columns if append_partitions else table.table_schema.simple_columns
     table_columns = [c.name for c in cols]
     table_types = [c.type for c in cols]
     df_types = [
@@ -820,7 +829,7 @@ def read_odps_table(
     retry_times = options.retry_times
     op = DataFrameReadTable(
         odps_params=odps_params,
-        table_name=table_name,
+        table_name=table.full_table_name,
         partition_spec=partition,
         dtypes=dtypes,
         sparse=sparse,
@@ -833,6 +842,7 @@ def read_odps_table(
         last_modified_time=to_timestamp(table.last_modified_time),
         with_split_meta_on_tile=with_split_meta_on_tile,
         retry_times=retry_times,
+        tunnel_quota_name=tunnel_quota_name,
         extra_params=extra_params or dict(),
     )
     return op(shape, chunk_bytes=chunk_bytes, chunk_size=chunk_size)
