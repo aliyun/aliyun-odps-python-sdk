@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-06-29 16:26+0800\n"
+"POT-Creation-Date: 2023-01-09 19:53+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,7 +23,7 @@ msgstr "Resources"
 
 #: ../../source/base-resources.rst:6
 msgid ""
-"`资源 <https://docs.aliyun.com/#/pub/odps/basic/definition&resource>`_ "
+"`资源 <https://help.aliyun.com/document_detail/27822.html>`_ "
 "在ODPS上常用在UDF和MapReduce中。"
 msgstr ""
 "`Resources <https://www.alibabacloud.com/help/en/doc-detail/27822.htm>`_ "
@@ -69,14 +69,13 @@ msgstr ""
 #: ../../source/base-resources.rst:23
 msgid ""
 "resource = o.create_resource('test_file_resource', 'file', "
-"file_obj=open('/to/path/file'))  # 使用file-like的对象\n"
-"resource = o.create_resource('test_py_resource', 'py', file_obj='import "
+"fileobj=open('/to/path/file'))  # 使用file-like的对象\n"
+"resource = o.create_resource('test_py_resource', 'py', fileobj='import "
 "this')  # 使用字符串"
 msgstr ""
 "resource = o.create_resource('test_file_resource', 'file', "
-"file_obj=open('/to/path/file'))  # use file-like objects as file content"
-"\n"
-"resource = o.create_resource('test_py_resource', 'py', file_obj='import "
+"fileobj=open('/to/path/file'))  # use file-like objects as file content\n"
+"resource = o.create_resource('test_py_resource', 'py', fileobj='import "
 "this')  # use strings as file content"
 
 #: ../../source/base-resources.rst:29
@@ -86,24 +85,40 @@ msgstr "You can use argument ``temp=True`` to create a temporarily resource."
 #: ../../source/base-resources.rst:31
 msgid ""
 "resource = o.create_resource('test_file_resource', 'file', "
-"file_obj=open('/to/path/file'), temp=True)"
+"fileobj=open('/to/path/file'), temp=True)"
 msgstr ""
 
 #: ../../source/base-resources.rst:37
-msgid "读取和修改文件资源"
-msgstr "Read and modify a file resource"
+msgid "在 fileobj 参数中传入字符串，创建的资源内容为 **字符串本身** 而非字符串代表的路径指向的文件。"
+msgstr ""
+"When ``fileobj`` is a string, the content of the created resource is the "
+"string itself, not the content of the file the string point to."
 
 #: ../../source/base-resources.rst:39
 msgid ""
-"对文件资源调用 ``open`` 方法，或者在odps入口调用 ``open_resource`` 都能打开一个资源， 打开后的对象会是file-"
-"like的对象。 类似于Python内置的 ``open`` 方法，文件资源也支持打开的模式。我们看例子："
+"如果文件过大（例如大小超过 64MB），PyODPS 可能会使用分块上传模式，而这不被旧版 MaxCompute 部署所支持。 如需在旧版 "
+"MaxCompute 中上传大文件，请配置 ``options.upload_resource_in_chunks = False`` 。"
+msgstr ""
+"If the size of file to upload is over certain size (for instance, 64MB), "
+"PyODPS might upload the file in parts, which is not supported in old "
+"releases of PyODPS. In this case you may specify "
+"``options.upload_resource_in_chunks = False``."
+
+#: ../../source/base-resources.rst:43
+msgid "读取和修改文件资源"
+msgstr "Read and modify a file resource"
+
+#: ../../source/base-resources.rst:44
+msgid ""
+"对文件资源调用 ``open`` 方法，或者在 MaxCompute 入口调用 ``open_resource`` 都能打开一个资源， "
+"打开后的对象会是 file-like 的对象。 类似于Python内置的 ``open`` 方法，文件资源也支持打开的模式。我们看例子："
 msgstr ""
 "You can call the ``open`` method for a file resource or call "
 "``open_resource`` at the MaxCompute entry to open a file resource. The "
 "opened object is a file-like object. Similar to the open method built in "
 "Python, file resources also support the ``open`` mode. For example:"
 
-#: ../../source/base-resources.rst:43
+#: ../../source/base-resources.rst:48
 msgid ""
 ">>> with resource.open('r') as fp:  # 以读模式打开\n"
 ">>>     content = fp.read()  # 读取全部的内容\n"
@@ -138,39 +153,39 @@ msgstr ""
 ">>>     fp.write('Hello World')\n"
 ">>>     fp.flush()  # manual call submits the update to MaxCompute"
 
-#: ../../source/base-resources.rst:60
+#: ../../source/base-resources.rst:65
 msgid "所有支持的打开类型包括："
 msgstr "The following open modes are supported:"
 
-#: ../../source/base-resources.rst:62
+#: ../../source/base-resources.rst:67
 msgid "``r``，读模式，只能打开不能写"
 msgstr "``r``: Read mode. The file can be opened but cannot be written."
 
-#: ../../source/base-resources.rst:63
+#: ../../source/base-resources.rst:68
 msgid "``w``，写模式，只能写入而不能读文件，注意用写模式打开，文件内容会被先清空"
 msgstr ""
 "``w``: Write mode. The file can be written but cannot be read. Note that "
 "file content is cleared first if the file is opened in write mode."
 
-#: ../../source/base-resources.rst:64
+#: ../../source/base-resources.rst:69
 msgid "``a``，追加模式，只能写入内容到文件末尾"
 msgstr "``a``: Append mode. Content can be added to the end of the file."
 
-#: ../../source/base-resources.rst:65
+#: ../../source/base-resources.rst:70
 msgid "``r+``，读写模式，能任意读写内容"
 msgstr "``r+``: Read/write mode. You can read and write any content."
 
-#: ../../source/base-resources.rst:66
+#: ../../source/base-resources.rst:71
 msgid "``w+``，类似于 ``r+``，但会先清空文件内容"
 msgstr "``w+``: Similar to ``r+``, but file content is cleared first."
 
-#: ../../source/base-resources.rst:67
+#: ../../source/base-resources.rst:72
 msgid "``a+``，类似于 ``r+``，但写入时只能写入文件末尾"
 msgstr ""
 "``a+``: Similar to ``r+``, but content can be added to the end of the "
 "file only during writing."
 
-#: ../../source/base-resources.rst:69
+#: ../../source/base-resources.rst:74
 msgid ""
 "同时，PyODPS中，文件资源支持以二进制模式打开，打开如说一些压缩文件等等就需要以这种模式， 因此 ``rb`` "
 "就是指以二进制读模式打开文件，``r+b`` 是指以二进制读写模式打开。"
@@ -180,36 +195,75 @@ msgstr ""
 " a file in binary read mode, and ``r+b`` indicates opening a file in "
 "binary read/write mode."
 
-#: ../../source/base-resources.rst:73
+#: ../../source/base-resources.rst:77
+msgid ""
+"对于较大的文件资源，可以使用流式方式读写文件，使用方法为在调用 ``open_resource`` 时增加一个 ``stream=True`` "
+"选项："
+msgstr ""
+"For large file resources, you may read or write them in streams by adding"
+" a ``stream=True`` argument in ``open_resource`` calls."
+
+#: ../../source/base-resources.rst:80
+msgid ""
+">>> with o.open_resource('test_file_resource', mode='w') as fp:  # 写模式打开\n"
+">>>     fp.writelines(['Hello\\n', 'World\\n'])  # 写入多行\n"
+">>>     fp.write('Hello World')\n"
+">>>     fp.flush()  # 手动调用会将更新提交到 MaxCompute\n"
+">>>\n"
+">>> with resource.open('r', stream=True) as fp:  # 以读模式打开\n"
+">>>     content = fp.read()  # 读取全部的内容\n"
+">>>     line = fp.readline()  # 回到资源开头\n"
+">>>     lines = fp.readlines()  # 读成多行"
+msgstr ""
+">>> with o.open_resource('test_file_resource', mode='w') as fp:  # open "
+"resource in write mode\n"
+">>>     fp.writelines(['Hello\\n', 'World\\n'])  # write multiple lines\n"
+">>>     fp.write('Hello World')\n"
+">>>     fp.flush()  # if called manually, will submit contents into "
+"MaxCompute immediately\n"
+">>>\n"
+">>> with resource.open('r', stream=True) as fp:  # open resource in read "
+"mode\n"
+">>>     content = fp.read()  # read all contents\n"
+">>>     line = fp.readline()  # read one single line\n"
+">>>     lines = fp.readlines()  # read multiple lines"
+
+#: ../../source/base-resources.rst:92
+msgid "当 ``stream=True`` 时，只支持 ``r`` ， ``rb`` ， ``w`` ， ``wb`` 四种模式。"
+msgstr ""
+"When ``stream=True`` is specified, only ``r``, ``rb``, ``w`` and ``wb`` "
+"are supported in ``mode``."
+
+#: ../../source/base-resources.rst:95
 msgid "表资源"
 msgstr "Table resources"
 
-#: ../../source/base-resources.rst:76
+#: ../../source/base-resources.rst:98
 msgid "创建表资源"
 msgstr "Create a table resource"
 
-#: ../../source/base-resources.rst:78
+#: ../../source/base-resources.rst:100
 msgid ""
 ">>> o.create_resource('test_table_resource', 'table', "
 "table_name='my_table', partition='pt=test')"
 msgstr ""
 
-#: ../../source/base-resources.rst:83
+#: ../../source/base-resources.rst:105
 msgid "更新表资源"
 msgstr "Update a table resource"
 
-#: ../../source/base-resources.rst:85
+#: ../../source/base-resources.rst:107
 msgid ""
 ">>> table_resource = o.get_resource('test_table_resource')\n"
 ">>> table_resource.update(partition='pt=test2', "
 "project_name='my_project2')"
 msgstr ""
 
-#: ../../source/base-resources.rst:91
+#: ../../source/base-resources.rst:113
 msgid "获取表及分区"
 msgstr "Obtain associated table and partition"
 
-#: ../../source/base-resources.rst:93
+#: ../../source/base-resources.rst:115
 msgid ""
 ">>> table_resource = o.get_resource('test_table_resource')\n"
 ">>> table = table_resource.table\n"
@@ -218,11 +272,11 @@ msgid ""
 ">>> print(partition.spec)"
 msgstr ""
 
-#: ../../source/base-resources.rst:102
+#: ../../source/base-resources.rst:124
 msgid "读写内容"
 msgstr "Read and write table"
 
-#: ../../source/base-resources.rst:104
+#: ../../source/base-resources.rst:126
 msgid ""
 ">>> table_resource = o.get_resource('test_table_resource')\n"
 ">>> with table_resource.open_writer() as writer:\n"

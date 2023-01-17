@@ -548,10 +548,17 @@ class OdpsSQLCompiler(Backend):
             self._ctx.add_expr_compiled(expr, from_clause)
             self._mem_ref_caches.add(source_data.expr_id)
         else:
+            table_parts = [source_data.project.name]
+            schema = source_data.get_schema()
+            if schema is not None:
+                table_parts.append(schema.name)
+
             if options.df.quote:
-                name = '%s.`%s`' % (source_data.project.name, source_data.name)
+                table_parts.append("`%s`" % source_data.name)
             else:
-                name = '.'.join((source_data.project.name, source_data.name))
+                table_parts.append(source_data.name)
+
+            name = '.'.join(table_parts)
 
             from_clause = '{0} {1}'.format(name, alias)
             self.add_from_clause(expr, from_clause)

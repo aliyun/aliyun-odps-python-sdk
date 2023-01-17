@@ -23,25 +23,28 @@ import threading
 import warnings
 import types as tps
 
+from ....compat import six
+from ....config import options
 from ....errors import ODPSError, NoPermission, ConnectTimeout
-from ....utils import write_log as log
-from ....models.table import TableSchema
+from ....utils import write_log as log, TEMP_TABLE_PREFIX
+from ....models import Table, TableSchema
+from ....models.partition import Partition
 from ....tempobj import register_temp_table
 from ....ui import reload_instance_status, fetch_instance_group
 from ...core import DataFrame
-from ...expr.reduction import *
 from ...expr.core import ExprDAG
 from ...expr.dynamic import DynamicMixin
+from ...expr.expressions import CollectionExpr, Scalar, Summary, SequenceExpr
 from ...utils import is_source_collection, is_constant_scalar
 from ...types import DynamicSchema, Unknown
 from ..utils import refresh_dynamic, process_persist_kwargs
 from ..core import Engine, ExecuteNode
+from ..errors import CompileError
 from ..frame import ResultFrame
 from ..context import context
 from . import types
 from . import analyzer as ana
 from . import rewriter as rwr
-from ..errors import CompileError
 from .context import ODPSContext, UDF_CLASS_NAME
 from .compiler import OdpsSQLCompiler
 from .codegen import gen_udf
@@ -129,16 +132,16 @@ class ODPSSQLEngine(Engine):
             return fetch_instance_group(group).instances.get(instance.id)
 
     def _run(self, sql, ui, progress_proportion=1, hints=None, priority=None,
-             running_cluster=None, group=None, libraries=None):
+             running_cluster=None, group=None, libraries=None, schema=None):
         libraries = self._ctx.prepare_resources(self._get_libraries(libraries))
         self._ctx.create_udfs(libraries=libraries)
 
-        if self._ctx.get_udf_count() > 0 and sys.version_info[0] > 2:
+        if self._ctx.get_udf_count() > 0 and sys.version_info[:2] >= (3, 6):
             hints = hints or dict()
             hints['odps.sql.jobconf.odps2'] = True
             hints['odps.sql.python.version'] = 'cp37'
         instance = self._odps.run_sql(sql, hints=hints, priority=priority, name='PyODPSDataFrameTask',
-                                      running_cluster=running_cluster)
+                                      running_cluster=running_cluster, default_schema=schema)
 
         self._instances.append(instance.id)
         log('Instance ID: ' + instance.id)
@@ -177,7 +180,7 @@ class ODPSSQLEngine(Engine):
     def _gen_table_name(self):
         table_name = '%s%s_%s' % (TEMP_TABLE_PREFIX, int(time.time()),
                                   str(uuid.uuid4()).replace('-', '_'))
-        register_temp_table(self._odps, table_name)
+        register_temp_table(self._odps, table_name, schema=self._ctx.default_schema)
         return table_name
 
     def _new_analyzer(self, expr_dag, on_sub=None):
@@ -250,7 +253,7 @@ class ODPSSQLEngine(Engine):
 
         if isinstance(expr, CollectionExpr):
             table_name = self._gen_table_name()
-            table = self._odps.get_table(table_name)
+            table = self._odps.get_table(table_name, schema=self._ctx.default_schema)
             root = expr_dag.root
             sub = CollectionExpr(_source_data=table, _schema=expr.schema)
             sub.add_deps(root)
@@ -263,7 +266,7 @@ class ODPSSQLEngine(Engine):
 
             def callback(_):
                 if isinstance(expr, DynamicMixin):
-                    sub._schema = types.odps_schema_to_df_schema(table.schema)
+                    sub._schema = types.odps_schema_to_df_schema(table.table_schema)
                     refresh_dynamic(sub, expr_dag)
 
             execute_node.callback = callback
@@ -292,12 +295,14 @@ class ODPSSQLEngine(Engine):
         return sql
 
     def _do_execute(self, expr_dag, expr, ui=None, progress_proportion=1,
-                    lifecycle=None, head=None, tail=None,
-                    hints=None, priority=None, running_cluster=None, **kw):
+                    lifecycle=None, head=None, tail=None, hints=None,
+                    priority=None, running_cluster=None, schema=None, **kw):
         lifecycle = lifecycle or options.temp_lifecycle
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
         use_tunnel = kw.get('use_tunnel', True)
+
+        self._ctx.default_schema = schema or self._ctx.default_schema
 
         expr_dag = self._convert_table(expr_dag)
         self._rewrite(expr_dag)
@@ -342,8 +347,8 @@ class ODPSSQLEngine(Engine):
         if not no_permission and isinstance(expr, CollectionExpr) and not isinstance(expr, Summary):
             # When tunnel cannot handle, we will try to create a table
             tmp_table_name = '%s%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))
-            register_temp_table(self._odps, tmp_table_name)
-            cache_data = self._odps.get_table(tmp_table_name)
+            register_temp_table(self._odps, tmp_table_name, schema=self._ctx.default_schema)
+            cache_data = self._odps.get_table(tmp_table_name, schema=self._ctx.default_schema)
 
             lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
             format_sql = lambda s: 'CREATE TABLE {0} {1}AS \n{2}'.format(tmp_table_name, lifecycle_str, s)
@@ -357,15 +362,17 @@ class ODPSSQLEngine(Engine):
         log('Sql compiled:')
         log(sql)
 
-        instance = self._run(sql, ui, progress_proportion=progress_proportion*0.9,
-                             hints=hints, priority=priority, running_cluster=running_cluster,
-                             group=group, libraries=libraries)
+        try:
+            instance = self._run(sql, ui, progress_proportion=progress_proportion * 0.9,
+                                 hints=hints, priority=priority, running_cluster=running_cluster,
+                                 group=group, libraries=libraries, schema=self._ctx.default_schema)
+        finally:
+            self._ctx.close()  # clear udfs and resources generated
 
-        self._ctx.close()  # clear udfs and resources generated
         res = self._fetch(expr, src_expr, instance, ui,
                           cache_data=cache_data, head=head, tail=tail,
                           use_tunnel=use_tunnel, group=group,
-                          progress_proportion=progress_proportion*.1,
+                          progress_proportion=progress_proportion * 0.1,
                           finish=kw.get('finish', True))
         if kw.get('ret_instance', False) is True:
             return instance, res
@@ -378,7 +385,7 @@ class ODPSSQLEngine(Engine):
             df_schema = expr._schema
             schema = types.df_schema_to_odps_schema(expr._schema, ignorecase=True)
         elif isinstance(expr, SequenceExpr):
-            df_schema = Schema.from_lists([expr.name], [expr._data_type])
+            df_schema = TableSchema.from_lists([expr.name], [expr._data_type])
             schema = types.df_schema_to_odps_schema(df_schema, ignorecase=True)
         else:
             df_schema = None
@@ -448,9 +455,21 @@ class ODPSSQLEngine(Engine):
     def _do_persist(self, expr_dag, expr, name, partitions=None, partition=None, project=None, ui=None,
                     progress_proportion=1, lifecycle=None, hints=None, priority=None,
                     running_cluster=None, overwrite=True, drop_table=False, create_table=True,
-                    drop_partition=False, create_partition=None, cast=False, **kw):
+                    drop_partition=False, create_partition=None, cast=False, schema=None, **kw):
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
+
+        if isinstance(name, Partition):
+            partition = name.partition_spec
+            name = name.table
+        if isinstance(name, Table):
+            table = name
+            project = table.project.name
+            if table.get_schema():
+                schema = table.get_schema().name
+            name = table.name
+
+        self._ctx.default_schema = schema or self._ctx.default_schema
 
         expr_dag = self._convert_table(expr_dag)
         self._rewrite(expr_dag)
@@ -461,9 +480,18 @@ class ODPSSQLEngine(Engine):
         should_cache = False
 
         if drop_table:
-            self._odps.delete_table(name, project=project, if_exists=True)
+            self._odps.delete_table(name, project=project, schema=schema, if_exists=True)
 
-        table_name = name if project is None else '%s.`%s`' % (project, name)
+        if project is not None or schema is not None:
+            project = project or self._ctx._odps.project
+            schema = schema or self._ctx.default_schema
+        if project is None:
+            table_name = name
+        elif schema is None:
+            table_name = '%s.`%s`' % (project, name)
+        else:
+            table_name = '%s.%s.`%s`' % (project, schema, name)
+
         project_obj = self._odps.get_project(project)
         if partitions is None and partition is None:
             # the non-partitioned table
@@ -472,9 +500,9 @@ class ODPSSQLEngine(Engine):
             if create_partition:
                 raise ValueError('Cannot create partition for non-partition table')
 
-            if self._odps.exist_table(name, project=project) or not create_table:
-                t = self._odps.get_table(name, project=project)
-                if t.schema.partitions:
+            if self._odps.exist_table(name, project=project, schema=schema) or not create_table:
+                t = self._odps.get_table(name, project=project, schema=schema)
+                if t.table_schema.partitions:
                     raise CompileError('Cannot insert into partition table %s without specifying '
                                        '`partition` or `partitions`.')
                 expr = self._reorder(expr, t, cast=cast)
@@ -482,13 +510,13 @@ class ODPSSQLEngine(Engine):
                 # We don't use `CREATE TABLE ... AS` because it will report `table already exists`
                 # when service retries.
                 if isinstance(expr, CollectionExpr):
-                    schema = types.df_schema_to_odps_schema(expr.schema, ignorecase=True)
+                    t_schema = types.df_schema_to_odps_schema(expr.schema, ignorecase=True)
                 else:
                     col_name = expr.name
                     tp = types.df_type_to_odps_type(expr.dtype, project=project_obj)
-                    schema = Schema.from_lists([col_name, ], [tp, ])
-                self._odps.create_table(name, Schema(columns=schema.columns),
-                                        project=project, lifecycle=lifecycle)
+                    t_schema = TableSchema.from_lists([col_name, ], [tp, ])
+                self._odps.create_table(name, TableSchema(columns=t_schema.columns),
+                                        project=project, schema=schema, lifecycle=lifecycle)
 
             sql = self._compile(expr, prettify=False, libraries=libraries)
             action_str = 'OVERWRITE' if overwrite else 'INTO'
@@ -500,8 +528,8 @@ class ODPSSQLEngine(Engine):
 
             should_cache = True
         elif partition is not None:
-            if self._odps.exist_table(name, project=project) or not create_table:
-                t = self._odps.get_table(name, project=project)
+            if self._odps.exist_table(name, project=project, schema=schema) or not create_table:
+                t = self._odps.get_table(name, project=project, schema=schema)
                 partition = self._get_partition(partition, t)
 
                 if drop_partition:
@@ -518,9 +546,10 @@ class ODPSSQLEngine(Engine):
                 partition_names = [n for n in partition.keys]
                 partition_types = ['string'] * len(partition_names)
                 t = self._odps.create_table(
-                    name, TableSchema.from_lists(column_names, column_types,
-                                                 partition_names, partition_types),
-                    project=project, lifecycle=lifecycle)
+                    name, TableSchema.from_lists(
+                        column_names, column_types, partition_names, partition_types
+                    ),
+                    project=project, lifecycle=lifecycle, schema=schema)
                 if create_partition is None or create_partition is True:
                     t.create_partition(partition)
 
@@ -542,24 +571,24 @@ class ODPSSQLEngine(Engine):
                 partitions = [partitions, ]
 
             if isinstance(expr, CollectionExpr):
-                schema = types.df_schema_to_odps_schema(expr.schema, ignorecase=True)
+                t_schema = types.df_schema_to_odps_schema(expr.schema, ignorecase=True)
             else:
                 col_name = expr.name
                 tp = types.df_type_to_odps_type(expr.dtype, project=project_obj)
-                schema = Schema.from_lists([col_name, ], [tp, ])
+                t_schema = TableSchema.from_lists([col_name, ], [tp, ])
 
             for p in partitions:
-                if p not in schema:
+                if p not in t_schema:
                     raise ValueError(
                         'Partition field(%s) does not exist in DataFrame schema' % p)
 
-            columns = [c for c in schema.columns if c.name not in partitions]
-            ps = [TableSchema.TablePartition(name=pt, type=schema.get_type(pt)) for pt in partitions]
-            if self._odps.exist_table(name, project=project) or not create_table:
-                t = self._odps.get_table(name, project=project)
+            columns = [c for c in t_schema.columns if c.name not in partitions]
+            ps = [TableSchema.TablePartition(name=pt, type=t_schema.get_type(pt)) for pt in partitions]
+            if self._odps.exist_table(name, project=project, schema=schema) or not create_table:
+                t = self._odps.get_table(name, project=project, schema=schema)
             else:
-                t = self._odps.create_table(name, Schema(columns=columns, partitions=ps),
-                                            project=project, lifecycle=lifecycle)
+                t = self._odps.create_table(name, TableSchema(columns=columns, partitions=ps),
+                                            project=project, lifecycle=lifecycle, schema=schema)
             if drop_partition:
                 raise ValueError('Cannot drop partitions when specify `partitions`')
             if create_partition:
@@ -583,11 +612,14 @@ class ODPSSQLEngine(Engine):
         log('Sql compiled:')
         log(sql)
 
-        instance = self._run(sql, ui, progress_proportion=progress_proportion,
-                             hints=hints, priority=priority, running_cluster=running_cluster,
-                             group=group, libraries=libraries)
-        self._ctx.close()  # clear udfs and resources generated
-        t = self._odps.get_table(name, project=project)
+        try:
+            instance = self._run(sql, ui, progress_proportion=progress_proportion,
+                                 hints=hints, priority=priority, running_cluster=running_cluster,
+                                 group=group, libraries=libraries, schema=schema)
+        finally:
+            self._ctx.close()  # clear udfs and resources generated
+
+        t = self._odps.get_table(name, project=project, schema=schema)
         if should_cache and not is_source_collection(src_expr):
             # TODO: support cache partition
             context.cache(src_expr, t)

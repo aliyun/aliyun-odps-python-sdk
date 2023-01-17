@@ -14,18 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .errors import TunnelError
-from ..rest import RestClient
-from ..models import Projects
-from ..compat import urlparse, six
 from .. import options
-
+from ..compat import six, urlparse
+from ..models import Projects
+from ..rest import RestClient
+from .errors import TunnelError
 
 TUNNEL_VERSION = 5
 
+_endpoint_cache = dict()
+
 
 class BaseTunnel(object):
-    def __init__(self, odps=None, client=None, project=None, endpoint=None):
+    def __init__(self, odps=None, client=None, project=None, endpoint=None, quota_name=None):
         self._client = odps.rest if odps is not None else client
         self._account = self._client.account
         if project is None and odps is None:
@@ -37,24 +38,42 @@ class BaseTunnel(object):
         else:
             self._project = project
 
-        self._endpoint = endpoint or self._project._tunnel_endpoint or options.tunnel.endpoint
+        self._quota_name = quota_name
+        if quota_name is not None:
+            self._endpoint = endpoint
+        else:
+            self._endpoint = endpoint or self._project._tunnel_endpoint or options.tunnel.endpoint
         self._tunnel_rest = None
 
     @property
     def endpoint(self):
         return self._endpoint
 
-    def _get_tunnel_server(self, project, protocol):
+    @property
+    def quota_name(self):
+        return self._quota_name
+
+    def _get_tunnel_server(self, project):
+        protocol = urlparse(self._client.endpoint).scheme
         if protocol is None or protocol not in ('http', 'https'):
-            raise TunnelError("Invalid protocol: " + protocol)
+            raise TunnelError("Invalid protocol: %s" % protocol)
+
+        ep_cache_key = (self._client.endpoint, project.name, self._quota_name)
+        if ep_cache_key in _endpoint_cache:
+            return _endpoint_cache[ep_cache_key]
 
         url = '/'.join([project.resource().rstrip('/'), 'tunnel'])
         params = {'service': ''}
+        if self._quota_name:
+            params["quotaName"] = self._quota_name
         resp = self._client.get(url, params=params)
 
         if self._client.is_ok(resp):
             addr = resp.text
-            return urlparse('%s://%s' % (protocol, addr)).geturl()
+            server_ep = _endpoint_cache[ep_cache_key] = urlparse(
+                '%s://%s' % (protocol, addr)
+            ).geturl()
+            return server_ep
         else:
             raise TunnelError("Can't get tunnel server address")
 
@@ -71,7 +90,6 @@ class BaseTunnel(object):
 
         endpoint = self._endpoint
         if endpoint is None:
-            scheme = urlparse(self._client.endpoint).scheme
-            endpoint = self._get_tunnel_server(self._project, scheme)
+            endpoint = self._get_tunnel_server(self._project)
         self._tunnel_rest = RestClient(self._account, endpoint, self._client.project, **kw)
         return self._tunnel_rest

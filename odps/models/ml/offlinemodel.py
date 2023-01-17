@@ -47,10 +47,6 @@ class OfflineModel(LazyLoad):
     last_modified_time = serializers.XMLNodeField(
         'LastModifiedTime', parse_callback=utils.parse_rfc822)
 
-    @property
-    def project(self):
-        return self.parent.parent
-
     def reload(self):
         resp = self._client.get(self.resource())
         self.parse(self._client, resp, obj=self)

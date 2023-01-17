@@ -42,6 +42,34 @@ class NamedTupleMixin(object):
                 "'%s' object has no attribute '%s'" % (type(self).__name__, str(item))
             )
 
+    def __getitem__(self, item):
+        try:
+            return self._base.__getitem__(self, item)
+        except TypeError:
+            pass
+
+        try:
+            return getattr(self, item)
+        except AttributeError as ex:
+            raise KeyError(str(ex))
+
+    def get(self, item, default=None):
+        try:
+            return self[item]
+        except KeyError:
+            return default
+
+    def items(self):
+        for k in self._names:
+            yield k, getattr(self, k)
+
+    def keys(self):
+        return self._names
+
+    def values(self):
+        for k in self._names:
+            yield getattr(self, k)
+
     def asdict(self):
         return OrderedDict(zip(self._names, self))
 
@@ -54,7 +82,8 @@ def xnamedtuple(typename, field_names):
     if isinstance(field_names, string_types):
         field_names = field_names.replace(",", " ").split()
     base_nt = namedtuple(typename + "_base", field_names, rename=True)
-    nt = type(typename, (base_nt, NamedTupleMixin), {})
+    nt = type(typename, (NamedTupleMixin, base_nt), {})
+    nt._base = base_nt
     nt._name_map = dict((v, k) for k, v in enumerate(field_names))
     nt._names = field_names
     return nt

@@ -53,7 +53,7 @@ def refresh_dynamic(executed, dag, func=None):
 
 
 def _fetch_partition_size(part, table):
-    if len(part.split(',')) < len(table.schema.partitions):
+    if len(part.split(',')) < len(table.table_schema.partitions):
         try:
             return sum(p.size for p in table.iterate_partitions(spec=part))
         except ODPSError:
@@ -69,7 +69,7 @@ def _fetch_partition_size(part, table):
 
 
 def fetch_data_source_size(expr_dag, node, table):
-    schema = table.schema
+    schema = table.table_schema
 
     if not schema.partitions:
         # not partitioned table
@@ -129,7 +129,7 @@ def _convert_pd_type(values, table):
     import pandas as pd
 
     retvals = []
-    for val, t in compat.izip(values, table.schema.types):
+    for val, t in compat.izip(values, table.table_schema.types):
         isnull = pd.isnull(val)
         if isinstance(isnull, bool) and isnull:
             retvals.append(None)
@@ -148,10 +148,10 @@ def _reorder_pd(frame, table, cast=False):
 
     expr_table_schema = df_schema_to_odps_schema(frame.schema).to_ignorecase_schema()
     for col in expr_table_schema.columns:
-        if col.name.lower() not in table.schema:
+        if col.name.lower() not in table.table_schema:
             raise CompileError('Column(%s) does not exist in target table %s, '
                                'writing cannot be performed.' % (col.name, table.name))
-        t_col = table.schema[col.name.lower()]
+        t_col = table.table_schema[col.name.lower()]
         if not cast and not t_col.type.can_implicit_cast(col.type):
             raise CompileError('Cannot implicitly cast column %s from %s to %s.' % (
                 col.name, col.type, t_col.type))
@@ -162,7 +162,7 @@ def _reorder_pd(frame, table, cast=False):
     case_dict = dict((c.name.lower(), c.name) for c in frame.columns)
 
     data_dict = dict()
-    for dest_col in table.schema.columns:
+    for dest_col in table.table_schema.columns:
         if dest_col.name not in df_col_dict:
             data_dict[dest_col.name] = [None] * size
         else:
@@ -177,7 +177,7 @@ def _reorder_pd(frame, table, cast=False):
             else:
                 raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
                     dest_col.name, src_type, dest_col.type))
-    return pd.DataFrame(data_dict, columns=[c.name for c in table.schema.columns])
+    return pd.DataFrame(data_dict, columns=[c.name for c in table.table_schema.columns])
 
 
 def _write_table_no_partitions(frame, table, ui, cast=False, overwrite=True, partition=None,

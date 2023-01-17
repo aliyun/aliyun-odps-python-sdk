@@ -28,7 +28,7 @@ from .arithmetic import Negate
 from . import utils
 from ..types import validate_data_type, string, DynamicSchema
 from ..utils import FunctionWrapper, output
-from ...models import Schema
+from ...models import TableSchema
 from ...compat import OrderedDict, six, lkeys, lvalues, reduce
 from ...utils import str_to_kv
 
@@ -157,7 +157,7 @@ class DistinctCollectionExpr(CollectionExpr):
             if not hasattr(self, '_schema'):
                 names = [field.name for field in self._unique_fields]
                 types = [field._data_type for field in self._unique_fields]
-                self._schema = Schema.from_lists(names, types)
+                self._schema = TableSchema.from_lists(names, types)
         else:
             self._unique_fields = list(self._input._get_field(field)
                                        for field in self._input._schema.names)
@@ -426,7 +426,7 @@ def _apply_horizontal(expr, func, names=None, types=None, resources=None,
             'for more information.'
         )
     tps = (string,) * len(names) if types is None else tuple(validate_data_type(t) for t in types)
-    schema = Schema.from_lists(names, tps)
+    schema = TableSchema.from_lists(names, tps)
 
     collection_resources = collection_resources or \
                            utils.get_collection_resources(resources)
@@ -491,6 +491,9 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
     >>> iris.exclude('name').apply(Agg)
     """
 
+    if types is None and "rtype" in kwargs:
+        types = kwargs.pop("rtype")
+
     if not isinstance(expr, CollectionExpr):
         return
 
@@ -509,7 +512,7 @@ def apply(expr, func, axis=0, names=None, types=None, reduce=False,
             fields = [f.rename(n) for f, n in zip(fields, names)]
         else:
             names = [f.name for f in fields]
-        return Summary(_input=expr, _fields=fields, _schema=Schema.from_lists(names, types))
+        return Summary(_input=expr, _fields=fields, _schema=TableSchema.from_lists(names, types))
     else:
         collection_resources = utils.get_collection_resources(resources)
 
@@ -1129,7 +1132,7 @@ def pivot_table(expr, values=None, rows=None, columns=None, aggfunc='mean',
                 seq = seq.rename('{0}_{1}'.format(value.name, func_name))
                 names.append(seq.name)
                 types.append(seq.dtype)
-        schema = Schema.from_lists(names, types)
+        schema = TableSchema.from_lists(names, types)
 
         return PivotTableCollectionExpr(_input=expr, _group=rows, _values=values,
                                         _fill_value=fill_value, _schema=schema,
@@ -1519,8 +1522,10 @@ class AppendIDCollectionExpr(CollectionExpr):
         super(AppendIDCollectionExpr, self)._init(*args, **kwargs)
         self._validate()
         self._id_col = _scalar(self._id_col)
-        self._schema = Schema.from_lists(self._input.schema.names + [self._id_col.value],
-                                         self._input.schema.types + [types.int64])
+        self._schema = TableSchema.from_lists(
+            self._input.schema.names + [self._id_col.value],
+            self._input.schema.types + [types.int64],
+        )
 
     def _validate(self):
         if self._id_col in self._input.schema:

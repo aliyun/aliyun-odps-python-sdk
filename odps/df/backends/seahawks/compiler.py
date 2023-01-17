@@ -68,7 +68,7 @@ class SeahawksCompiler(SQLAlchemyCompiler):
         table = next(expr.data_source())
 
         if isinstance(table, Table):
-            if any(isinstance(col.type, Decimal) for col in table.schema.columns):
+            if any(isinstance(col.type, Decimal) for col in table.table_schema.columns):
                 # FIXME: decimal and datetime are not supported by seahawks by now
                 raise NotImplementedError
             table = self._mapping_odps_table(table, expr.schema)

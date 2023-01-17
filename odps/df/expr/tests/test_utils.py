@@ -17,7 +17,7 @@
 from odps.tests.core import TestBase
 from odps.compat import unittest
 from odps.df.expr.utils import *
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df.expr.expressions import *
 from odps.df import types
 from odps.df.expr.tests.core import MockTable
@@ -26,8 +26,8 @@ from odps.df.expr.tests.core import MockTable
 class Test(TestBase):
 
     def testGetAttrs(self):
-        schema = Schema.from_lists(['name', 'id'], [types.string, types.int64])
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        schema = TableSchema.from_lists(['name', 'id'], [types.string, types.int64])
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=schema)
 
         expected = ('_lhs', '_rhs', '_data_type', '_source_data_type',
@@ -37,8 +37,8 @@ class Test(TestBase):
         self.assertSequenceEqual(expected, get_attrs(expr.id + 1))
 
     def testIsChanged(self):
-        schema = Schema.from_lists(['name', 'id'], [types.string, types.int64])
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        schema = TableSchema.from_lists(['name', 'id'], [types.string, types.int64])
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=schema)
         expr2 = CollectionExpr(_source_data=table, _schema=schema)
 

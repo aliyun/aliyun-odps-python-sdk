@@ -126,6 +126,8 @@ if six.PY3:
     total_seconds = timedelta.total_seconds
 
     from .lib import cgi_compat as cgi
+
+    UnsupportedOperation = io.UnsupportedOperation
 else:
     lrange = range
     lzip = zip
@@ -203,6 +205,8 @@ else:
     import __builtin__ as builtins  # don't remove
     from .lib import futures  # don't remove
     import cgi
+
+    UnsupportedOperation = type("UnsupportedOperation", (OSError, ValueError), {})
 
 if PY26:
     try:
@@ -288,8 +292,23 @@ except ImportError:
     utc = FixedOffset(0, 'UTC')
 
 
+try:
+    from email.utils import parsedate_to_datetime
+except ImportError:
+    import datetime
+    from email.utils import parsedate_tz
+
+    def parsedate_to_datetime(data):
+        dt_tuple_with_tz = parsedate_tz(data)
+        dtuple = dt_tuple_with_tz[:-1]
+        tz = dt_tuple_with_tz[-1]
+        if tz is None:
+            return datetime.datetime(*dtuple[:6])
+        return datetime.datetime(*dtuple[:6], tzinfo=FixedOffset(tz / 60.0))
+
+
 __all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress',
            'reduce', 'reload_module', 'Queue', 'Empty', 'ElementTree', 'ElementTreeParseError',
            'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
            'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc', 'Monthdelta',
-           'Iterable', 'TimeoutError', 'cgi']
+           'Iterable', 'TimeoutError', 'cgi', 'parsedate_to_datetime']

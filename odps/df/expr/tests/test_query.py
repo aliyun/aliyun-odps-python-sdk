@@ -22,8 +22,8 @@ from odps.df.expr.tests.core import MockTable
 
 class Test(TestBase):
     def setup(self):
-        schema = Schema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
-        table = MockTable(name='pyodps_test_query_table', schema=schema)
+        schema = TableSchema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
+        table = MockTable(name='pyodps_test_query_table', table_schema=schema)
         table._client = self.config.odps.rest
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 

@@ -40,6 +40,24 @@ PyODPS 支持集成 SQLAlchemy，可以使用 SQLAlchemy 查询 MaxCompute 数�
 
    conn = engine.connect()
 
+如果需要为 SQL 作业配置执行选项，可以使用 PyODPS 提供的 ``options`` 对象：
+
+.. code-block:: python
+
+    from odps import options
+    from sqlalchemy import create_engine
+
+    options.sql.settings = {'odps.sql.hive.compatible': 'true'}
+    engine = create_engine('odps://<access_id>:<access_key>@<project>/?endpoint=<endpoint>')
+
+也可以直接配置在连接字符串中：
+
+.. code-block:: python
+
+    from sqlalchemy import create_engine
+    engine = create_engine('odps://<access_id>:<access_key>@<project>/?endpoint=<endpoint>&odps.sql.hive.compatible=true')
+
+使用上述方式时，每个 engine 对象都会拥有不同的选项。
 
 调用 SQLAlchemy 接口
 ----------------------

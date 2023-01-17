@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from odps.tests.core import TestBase, tn
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df import DataFrame
 from odps.df.backends.utils import fetch_data_source_size
 
@@ -25,8 +24,9 @@ class Test(TestBase):
 
     def setup(self):
         test_table_name = tn('pyodps_test_dataframe')
-        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'],
-                                   ['ds', 'mm', 'hh'], ['string'] * 3)
+        schema = TableSchema.from_lists(
+            ['id', 'name'], ['bigint', 'string'], ['ds', 'mm', 'hh'], ['string'] * 3
+        )
 
         self.odps.delete_table(test_table_name, if_exists=True)
         self.table = self.odps.create_table(test_table_name, schema)

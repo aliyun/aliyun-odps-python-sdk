@@ -182,8 +182,8 @@ setup_options = dict(
     long_description=long_description,
     author='Wu Wei',
     author_email='weiwu@cacheme.net',
-    maintainer='Qin Xuye',
-    maintainer_email='qin@qinxuye.me',
+    maintainer='Wenjun Si',
+    maintainer_email='wenjun.swj@alibaba-inc.com',
     url='http://github.com/aliyun/aliyun-odps-python-sdk',
     license='Apache License 2.0',
     classifiers=[
@@ -204,12 +204,18 @@ setup_options = dict(
     cmdclass={'install': CustomInstall},
     packages=find_packages(exclude=('*.tests.*', '*.tests')),
     include_package_data=True,
-    scripts=['scripts/pyou', ],
     install_requires=requirements,
     include_dirs=[],
     extras_require={'full': full_requirements, 'mars': mars_requirements},
     entry_points={
-        'sqlalchemy.dialects': ['odps = odps.sqlalchemy_odps:ODPSDialect']
+        'sqlalchemy.dialects': [
+            'odps = odps.sqlalchemy_odps:ODPSDialect',
+            'maxcompute = odps.sqlalchemy_odps:ODPSDialect',
+        ],
+        'console_scripts': [
+            'pyou = odps_scripts.pyou:main',
+            'pyodps-pack = odps_scripts.pyodps_pack:main',
+        ]
     },
 )
 

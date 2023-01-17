@@ -26,7 +26,7 @@ from .compat import six
 from .config import options
 from .core import ODPS
 from .errors import InteractiveError
-from .models import Schema
+from .models import TableSchema
 from .utils import to_binary, build_pyodps_dir
 from .df.backends.frame import ResultFrame
 from .df.backends.odpssql.types import odps_schema_to_df_schema
@@ -63,12 +63,13 @@ class Room(object):
                     'Failed to enter a room: %s' % self._room_name)
 
             def _config_rooms(access_id, access_key, default_project, endpoint, tunnel_endpoint=None,
-                              seahawks_url=None, logview_host=None, **kwargs):
+                              seahawks_url=None, logview_host=None, default_schema=None, **kwargs):
                 options.loads(kwargs.get('options', {}))
 
                 options.account = ODPS._build_account(access_id, access_key)
                 options.endpoint = endpoint
                 options.default_project = default_project
+                options.default_schema = default_schema
                 options.tunnel.endpoint = tunnel_endpoint
                 options.logview_host = logview_host
                 options.seahawks_url = seahawks_url
@@ -87,6 +88,7 @@ class Room(object):
         return ODPS._from_account(
             options.account,
             options.default_project,
+            schema=options.default_schema,
             endpoint=options.endpoint,
             tunnel_endpoint=options.tunnel.endpoint,
             logview_host=options.logview_host,
@@ -148,7 +150,7 @@ class Room(object):
         return results
 
     def display(self):
-        schema = Schema.from_lists(['name', 'desc'], ['string'] * 2)
+        schema = TableSchema.from_lists(['name', 'desc'], ['string'] * 2)
         schema = odps_schema_to_df_schema(schema)
         frame = ResultFrame(self.list_stores(), schema=schema, pandas=False)
         try:
@@ -183,7 +185,7 @@ def _get_room_dir(room_name, mkdir=False):
 
 
 def setup(access_id, access_key, default_project, endpoint=None, tunnel_endpoint=None,
-          seahawks_url=None, logview_host=None, room=DEFAULT_ROOM_NAME,
+          default_schema=None, seahawks_url=None, logview_host=None, room=DEFAULT_ROOM_NAME,
           with_options=False, **kwargs):
     room_dir = _get_room_dir(room, mkdir=True)
     odps_file = os.path.join(room_dir, ODPS_FILE_NAME)
@@ -200,7 +202,7 @@ def setup(access_id, access_key, default_project, endpoint=None, tunnel_endpoint
             'you can teardown it first' % room)
 
     obj = (access_id, access_key, default_project, endpoint, tunnel_endpoint,
-           seahawks_url, logview_host, kwargs)
+           seahawks_url, logview_host, default_schema, kwargs)
 
     with open(odps_file, 'wb') as f:
         pickle.dump(obj, f, protocol=0)

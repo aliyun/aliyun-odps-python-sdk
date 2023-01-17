@@ -21,7 +21,7 @@ from odps.df.types import validate_data_type
 from odps.ml.expr.op import *
 from odps.ml.tests.base import MLTestBase, tn
 from odps.ml.utils import KVConfig
-from odps.models.table import TableSchema as Schema
+from odps.models.table import TableSchema
 
 TEMP_TABLE_1_NAME = tn('pyodps_test_ops_test_table1')
 TEMP_TABLE_2_NAME = tn('pyodps_test_ops_test_table2')
@@ -83,13 +83,13 @@ class TestOp(MLTestBase):
         return self.assertEqual(repr_fields(df1), repr_fields(df2))
 
     def get_table1_df(self):
-        schema = Schema.from_lists(['col11', 'col12'], datatypes('string', 'string'))
-        table = MockTable(name=TEMP_TABLE_1_NAME, schema=schema)
+        schema = TableSchema.from_lists(['col11', 'col12'], datatypes('string', 'string'))
+        table = MockTable(name=TEMP_TABLE_1_NAME, table_schema=schema)
         return CollectionExpr(_source_data=table, _schema=schema)
 
     def get_table2_df(self):
-        schema = Schema.from_lists(['col21', 'col22'], datatypes('string', 'string'))
-        table = MockTable(name=TEMP_TABLE_2_NAME, schema=schema)
+        schema = TableSchema.from_lists(['col21', 'col22'], datatypes('string', 'string'))
+        table = MockTable(name=TEMP_TABLE_2_NAME, table_schema=schema)
         return CollectionExpr(_source_data=table, _schema=schema)
 
     @staticmethod

@@ -80,6 +80,9 @@ class Partitions(Iterable):
             params['reverse'] = ''
         if spec is not None and not spec.is_empty:
             params['partition'] = str(spec)
+        schema_name = self._get_schema_name()
+        if schema_name:
+            params['curr_schema'] = schema_name
 
         def _it():
             last_marker = params.get('marker')
@@ -102,6 +105,53 @@ class Partitions(Iterable):
             for partition in partitions:
                 yield partition
 
+    def get_max_partition(self, spec=None, skip_empty=True, reverse=False):
+        table_parts = self.parent.table_schema.partitions
+
+        if spec is not None:
+            spec = self._get_partition_spec(spec)
+            if len(spec) >= len(table_parts):
+                raise ValueError(
+                    "Size of prefix should not exceed number of partitions of the table"
+                )
+
+            for exist_pt, user_pt_name in zip(table_parts, spec.kv):
+                if exist_pt.name != user_pt_name:
+                    table_pt_str = ",".join(pt.name for pt in table_parts[:len(spec)])
+                    prefix_pt_str = ",".join(spec.kv.keys())
+                    raise ValueError(
+                        "Partition prefix %s not agree with table partitions %s",
+                        prefix_pt_str,
+                        table_pt_str,
+                    )
+
+        part_values = [
+            (part, tuple(part.partition_spec.values()))
+            for part in self.iterate_partitions(spec)
+        ]
+        if not part_values:
+            return None
+        elif not skip_empty:
+            return max(part_values, key=lambda tp: tp[1])[0]
+        else:
+            reversed_table_parts = sorted(part_values, key=lambda tp: tp[1], reverse=not reverse)
+            return next(
+                (
+                    part
+                    for part, _ in reversed_table_parts
+                    if not skip_empty or part.physical_size > 0
+                ),
+                None,
+            )
+
+    def _get_full_table_name(self):
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            parts = (self.project.name, schema_name, self.parent.name)
+        else:
+            parts = (self.project.name, self.parent.name)
+        return ".".join(parts)
+
     def create(self, partition_spec, if_not_exists=False, async_=False, **kw):
         async_ = kw.get('async', async_)
         if isinstance(partition_spec, Partition):
@@ -110,7 +160,7 @@ class Partitions(Iterable):
             partition_spec = self._get_partition_spec(partition_spec)
 
         buf = six.StringIO()
-        buf.write('ALTER TABLE %s.%s ADD ' % (self.project.name, self.parent.name))
+        buf.write('ALTER TABLE %s ADD ' % self._get_full_table_name())
 
         if if_not_exists:
             buf.write('IF NOT EXISTS ')
@@ -119,6 +169,12 @@ class Partitions(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLAddPartitionTask', query=buf.getvalue())
+        settings = {}
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            settings["odps.sql.allow.namespace.schema"] = "true"
+            settings["odps.namespace.schema"] = "true"
+        task.update_sql_settings(settings)
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
         if not async_:
@@ -135,7 +191,7 @@ class Partitions(Iterable):
             partition_spec = self._get_partition_spec(partition_spec)
 
         buf = six.StringIO()
-        buf.write('ALTER TABLE %s.%s DROP ' % (self.project.name, self.parent.name))
+        buf.write('ALTER TABLE %s DROP ' % self._get_full_table_name())
 
         if if_exists:
             buf.write('IF EXISTS ')
@@ -144,7 +200,12 @@ class Partitions(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLDropPartitionTask', query=buf.getvalue())
-        task.update_sql_settings({'odps.sql.submit.mode': ''})
+        settings = {'odps.sql.submit.mode': ''}
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            settings["odps.sql.allow.namespace.schema"] = "true"
+            settings["odps.namespace.schema"] = "true"
+        task.update_sql_settings(settings)
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
         if not async_:

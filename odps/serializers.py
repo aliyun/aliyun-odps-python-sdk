@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-import json
-from xml.dom import minidom
+import email.header
 import inspect
+import json
+import re
+from xml.dom import minidom
 
 import requests
 
@@ -46,11 +47,18 @@ def _route_xml_path(root, *keys, **kw):
     return root
 
 
+def _extract_encoded_json(content):
+    if not content.startswith("=?"):
+        return json.loads(content)
+    content, encoding = email.header.decode_header(content)[0]
+    return json.loads(content.decode(encoding))
+
+
 def _route_json_path(root, *keys, **kw):
     create_if_not_exists = kw.get('create_if_not_exists', False)
 
     if isinstance(root, six.string_types):
-        root = json.loads(root)
+        root = _extract_encoded_json(root)
 
     for key in keys:
         prev = root
@@ -78,15 +86,23 @@ def serialize_ndarray(array):
         return array
 
 
+def _wrap_with_none(func):
+    def new_func(x):
+        if x is None:
+            return x
+        return func(x)
+
+    return new_func
+
+
 _serialize_types = dict()
-_serialize_types['bool'] = (utils.str_to_bool, utils.bool_to_str)
-_serialize_types['json'] = (
-    lambda s: json.loads(s) if s is not None else None,
-    lambda s: json.dumps(s) if s is not None else None,
+_serialize_types['bool'] = (_wrap_with_none(utils.str_to_bool), _wrap_with_none(utils.bool_to_str))
+_serialize_types['json'] = (_wrap_with_none(json.loads), _wrap_with_none(json.dumps))
+_serialize_types['rfc822'] = (_wrap_with_none(utils.parse_rfc822), _wrap_with_none(utils.gen_rfc822))
+_serialize_types['rfc822l'] = (
+    _wrap_with_none(utils.parse_rfc822), _wrap_with_none(lambda s: utils.gen_rfc822(s, localtime=True))
 )
-_serialize_types['rfc822'] = (utils.parse_rfc822, utils.gen_rfc822)
-_serialize_types['rfc822l'] = (utils.parse_rfc822, lambda s: utils.gen_rfc822(s, localtime=True))
-_serialize_types['ndarray'] = (parse_ndarray, serialize_ndarray)
+_serialize_types['ndarray'] = (_wrap_with_none(parse_ndarray), _wrap_with_none(serialize_ndarray))
 
 
 class SerializeField(object):
@@ -297,7 +313,7 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
             if issubclass(obj_type, XMLSerializableModel):
                 content = ElementTree.fromstring(content)
             else:
-                content = json.loads(content)
+                content = _extract_encoded_json(content)
 
         parent_kw = dict()
         self_kw = dict()

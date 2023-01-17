@@ -30,7 +30,7 @@ class Test(TestBase):
 
         df = pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc'))
 
-        schema = Schema.from_lists(list('abc'), [types.int8] * 3)
+        schema = TableSchema.from_lists(list('abc'), [types.int8] * 3)
         expr = CollectionExpr(_source_data=df, _schema=schema)
 
         expr = expr['a', 'b']

@@ -29,6 +29,7 @@ except ImportError:
     has_ipython = False
 
 
+@unittest.skipIf(not has_ipython, 'Skipped when no IPython is detected.')
 class Test(TestBase):
     def setUp(self):
         super(Test, self).setUp()
@@ -38,7 +39,20 @@ class Test(TestBase):
         super(Test, self).tearDown()
         options.tunnel.use_instance_tunnel = self.old_use_instance_tunnel
 
-    @unittest.skipIf(not has_ipython, 'Skipped when no IPython is detected.')
+    def testLoadExtension(self):
+        from odps.ipython.magics import load_ipython_extension, Magics
+
+        def register_func(magics):
+            magics_store.append(magics)
+
+        magics_store = []
+        FakeShell = namedtuple('FakeShell', 'user_ns register_magics')
+        fake_shell = FakeShell(user_ns={}, register_magics=register_func)
+        load_ipython_extension(fake_shell)
+
+        assert issubclass(magics_store[0], Magics)
+        assert fake_shell.user_ns["options"] is options
+
     def testExecuteSql(self):
         FakeShell = namedtuple('FakeShell', 'user_ns')
 

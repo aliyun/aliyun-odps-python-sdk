@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import warnings
 
 from .compat import enum, six
@@ -63,7 +64,7 @@ FALLBACK_POLICY_ALIASES = {
 
 class Connection(object):
     def __init__(self, access_id=None, secret_access_key=None, project=None,
-                 endpoint=None, session_name=None, odps=None, **kw):
+                 endpoint=None, session_name=None, odps=None, hints=None, **kw):
         if isinstance(access_id, ODPS):
             access_id, odps = None, access_id
 
@@ -82,6 +83,7 @@ class Connection(object):
             self._session_name = session_name
         self._use_sqa = (kw.pop('use_sqa', False) != False)
         self._fallback_policy = kw.pop('fallback_policy', '')
+        self._hints = hints
 
     @property
     def odps(self):
@@ -95,7 +97,11 @@ class Connection(object):
 
     def cursor(self, *args, **kwargs):
         """Return a new :py:class:`Cursor` object using the connection."""
-        return Cursor(self, *args, use_sqa=self._use_sqa, fallback_policy=self._fallback_policy, **kwargs)
+        return Cursor(
+            self, *args, use_sqa=self._use_sqa,
+            fallback_policy=self._fallback_policy,
+            hints=self._hints, **kwargs
+        )
 
     def close(self):
         # there is no long polling for ODPS
@@ -116,13 +122,14 @@ default_arraysize = 1000
 
 class Cursor(object):
     def __init__(self, connection, arraysize=default_arraysize,
-            use_sqa=False, fallback_policy='', **kwargs):
+            use_sqa=False, fallback_policy='', hints=None, **kwargs):
         self._connection = connection
         self._arraysize = arraysize
         self._reset_state()
         self.lastrowid = None
         self._use_sqa = use_sqa
         self._fallback_policy = []
+        self._hints = hints
         fallback_policies = map(lambda x: x.strip(), fallback_policy.split(','))
         for policy in fallback_policies:
             if policy in FALLBACK_POLICY_ALIASES:
@@ -224,7 +231,10 @@ class Cursor(object):
             for origin, replacement in parameters.items():
                 if isinstance(replacement, six.string_types):
                     replacement = self.escape_string(replacement)
-                sql = to_str(sql).replace(':' + to_str(origin), to_str(replacement))
+
+                pattern_str = ":%s([,)])?" % re.escape(to_str(origin))
+                replacement_str = "%s\\1" % to_str(replacement)
+                sql = re.sub(pattern_str, replacement_str, to_str(sql))
 
         self._reset_state()
 
@@ -234,7 +244,7 @@ class Cursor(object):
             run_sql = self._run_sqa_with_fallback
         if async_:
             run_sql = odps.run_sql
-        self._instance = run_sql(sql)
+        self._instance = run_sql(sql, hints=self._hints)
 
     def executemany(self, operation, seq_of_parameters):
         for parameter in seq_of_parameters:

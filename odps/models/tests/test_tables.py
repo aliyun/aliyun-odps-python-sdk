@@ -26,10 +26,12 @@ try:
 except (AttributeError, ImportError):
     np = pd = pa = None
 
+import pytest
+
 from odps.tests.core import TestBase, to_str, tn
 from odps.compat import unittest, six
 from odps.errors import NoSuchObject
-from odps.models import Schema, Record, Column, Partition
+from odps.models import TableSchema, Record, Column, Partition
 
 
 class Test(TestBase):
@@ -53,7 +55,7 @@ class Test(TestBase):
                 self.assertEqual(t.owner, table.owner)
 
     def testSchemaPickle(self):
-        schema = Schema.from_lists(['name'], ['string'])
+        schema = TableSchema.from_lists(['name'], ['string'])
         self.assertEqual(schema, pickle.loads(pickle.dumps(schema)))
 
     def testTableExists(self):
@@ -67,10 +69,12 @@ class Test(TestBase):
         except StopIteration:
             return
 
+        self.assertRaises(ValueError, lambda: self.odps.get_table(""))
+
         self.assertIs(table, self.odps.get_table(table.name))
 
         self.assertIsNone(table._getattr('format'))
-        self.assertIsNone(table._getattr('schema'))
+        self.assertIsNone(table._getattr('table_schema'))
         self.assertIsNone(table._getattr('comment'))
         self.assertIsNotNone(table._getattr('owner'))
         self.assertIsNone(table._getattr('table_label'))
@@ -89,7 +93,7 @@ class Test(TestBase):
         self.assertFalse(table._is_extend_info_loaded)
 
         test_table_name = tn('pyodps_t_tmp_test_table_attrs')
-        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
+        schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(test_table_name, schema, lifecycle=1)
 
@@ -97,7 +101,7 @@ class Test(TestBase):
             self.assertIs(table, self.odps.get_table(table.name))
 
             self.assertIsNone(table._getattr('format'))
-            self.assertIsNone(table._getattr('schema'))
+            self.assertIsNone(table._getattr('table_schema'))
             self.assertIsNone(table._getattr('comment'))
             self.assertIsNone(table._getattr('owner'))
             self.assertIsNone(table._getattr('table_label'))
@@ -119,9 +123,9 @@ class Test(TestBase):
             self.assertGreaterEqual(table.physical_size, 0)
             self.assertGreaterEqual(table.file_num, 0)
             self.assertIsInstance(table.creation_time, datetime)
-            self.assertIsInstance(table.schema, Schema)
-            self.assertGreater(len(table.schema.simple_columns), 0)
-            self.assertGreaterEqual(len(table.schema.partitions), 0)
+            self.assertIsInstance(table.table_schema, TableSchema)
+            self.assertGreater(len(table.table_schema.simple_columns), 0)
+            self.assertGreaterEqual(len(table.table_schema.partitions), 0)
             self.assertIsInstance(table.owner, six.string_types)
             self.assertIsInstance(table.table_label, six.string_types)
             self.assertIsInstance(table.last_modified_time, datetime)
@@ -131,6 +135,8 @@ class Test(TestBase):
             self.assertGreaterEqual(table.size, 0)
 
             self.assertTrue(table.is_loaded)
+
+            self.assertIs(table, self.odps.get_table(table.full_table_name))
         finally:
             self.odps.delete_table(test_table_name, if_exists=True)
 
@@ -139,14 +145,14 @@ class Test(TestBase):
         from odps.models import Table
 
         test_table_name = tn('pyodps_t_tmp_table_ddl')
-        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
+        schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
         self.odps.delete_table(test_table_name, if_exists=True)
         table = self.odps.create_table(test_table_name, schema, lifecycle=10)
 
         ddl = table.get_ddl()
         self.assertNotIn('EXTERNAL', ddl)
         self.assertNotIn('NOT EXISTS', ddl)
-        for col in table.schema.names:
+        for col in table.table_schema.names:
             self.assertIn(col, ddl)
 
         ddl = table.get_ddl(if_not_exists=True)
@@ -177,7 +183,7 @@ class Test(TestBase):
 
     def testCreateDeleteTable(self):
         test_table_name = tn('pyodps_t_tmp_create_table')
-        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
+        schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
 
         tables = self.odps._project.tables
 
@@ -190,7 +196,7 @@ class Test(TestBase):
         self.assertIsNotNone(table.owner)
 
         self.assertEqual(table.name, test_table_name)
-        self.assertEqual(table.schema, schema)
+        self.assertEqual(table.table_schema, schema)
         self.assertEqual(table.lifecycle, 10)
 
         tables.delete(test_table_name, if_exists=True)
@@ -200,7 +206,7 @@ class Test(TestBase):
         table = tables.create(test_table_name, str_schema, lifecycle=10)
 
         self.assertEqual(table.name, test_table_name)
-        self.assertEqual(table.schema, schema)
+        self.assertEqual(table.table_schema, schema)
         self.assertEqual(table.lifecycle, 10)
 
         tables.delete(test_table_name, if_exists=True)
@@ -208,7 +214,7 @@ class Test(TestBase):
 
         table = self.odps.create_table(test_table_name, schema, shard_num=10, hub_lifecycle=5)
         self.assertEqual(table.name, test_table_name)
-        self.assertEqual(table.schema, schema)
+        self.assertEqual(table.table_schema, schema)
         self.assertNotEqual(table.lifecycle, 10)
         self.assertEqual(table.shard.shard_num, 10)
 
@@ -225,7 +231,7 @@ class Test(TestBase):
             Partition(name='ds', type='string', comment='分区注释'),
             Partition(name=u'ds2', type=u'string', comment=u'分区注释2'),
         ]
-        schema = Schema(columns=columns, partitions=partitions)
+        schema = TableSchema(columns=columns, partitions=partitions)
 
         columns_repr = "[<column 序列, type bigint>, <column 值, type string>]"
         partitions_repr = "[<partition ds, type string>, <partition ds2, type string>]"
@@ -267,14 +273,14 @@ class Test(TestBase):
         self.odps.delete_table(test_table_name, if_exists=True)
 
         table = self.odps.create_table(test_table_name, schema)
-        self.assertSequenceEqual([to_str(col.name) for col in table.schema.columns],
+        self.assertSequenceEqual([to_str(col.name) for col in table.table_schema.columns],
                                  [to_str(col.name) for col in schema.columns])
-        self.assertSequenceEqual([to_str(col.comment) for col in table.schema.columns],
+        self.assertSequenceEqual([to_str(col.comment) for col in table.table_schema.columns],
                                  [to_str(col.comment) for col in schema.columns])
 
     def testRecordReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_read_write_table')
-        schema = Schema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
+        schema = TableSchema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
         self.assertFalse(self.odps.exist_table(test_table_name))
@@ -304,7 +310,7 @@ class Test(TestBase):
 
     def testArrayReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_read_write_table')
-        schema = Schema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
+        schema = TableSchema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
         self.assertFalse(self.odps.exist_table(test_table_name))
@@ -330,7 +336,7 @@ class Test(TestBase):
 
     def testReadWritePartitionTable(self):
         test_table_name = tn('pyodps_t_tmp_read_write_partition_table')
-        schema = Schema.from_lists(['id', 'name'], ['bigint', 'string'], ['pt'], ['string'])
+        schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['pt'], ['string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
         self.assertFalse(self.odps.exist_table(test_table_name))
@@ -378,7 +384,7 @@ class Test(TestBase):
 
     def testSimpleRecordReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_simpe_read_write_table')
-        schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])
+        schema = TableSchema.from_lists(['num'], ['string'], ['pt'], ['string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
 
@@ -420,7 +426,7 @@ class Test(TestBase):
 
     def testSimpleArrayReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_simpe_read_write_table')
-        schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])
+        schema = TableSchema.from_lists(['num'], ['string'], ['pt'], ['string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
 
@@ -437,11 +443,17 @@ class Test(TestBase):
             self.assertEqual(record[0], '1')
             self.assertEqual(record.num, '1')
 
+        with table.open_reader(partition, async_mode=True, reopen=True) as reader:
+            self.assertEqual(reader.count, 1)
+            record = next(reader)
+            self.assertEqual(record[0], '1')
+            self.assertEqual(record.num, '1')
+
         table.drop()
 
     def testTableWriteError(self):
         test_table_name = tn('pyodps_t_tmp_test_table_write')
-        schema = Schema.from_lists(['name'], ['string'])
+        schema = TableSchema.from_lists(['name'], ['string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
 
@@ -456,7 +468,7 @@ class Test(TestBase):
     @unittest.skipIf(pd is None, "Need pandas to run this test")
     def testMultiProcessToPandas(self):
         test_table_name = tn('pyodps_t_tmp_mproc_read_table')
-        schema = Schema.from_lists(['num'], ['bigint'])
+        schema = TableSchema.from_lists(['num'], ['bigint'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
 
@@ -471,7 +483,7 @@ class Test(TestBase):
     @unittest.skipIf(pd is None, "Need pandas to run this test")
     def testColumnSelectToPandas(self):
         test_table_name = tn('pyodps_t_tmp_col_select_table')
-        schema = Schema.from_lists(['num1', 'num2'], ['bigint', 'bigint'])
+        schema = TableSchema.from_lists(['num1', 'num2'], ['bigint', 'bigint'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
 
@@ -495,7 +507,7 @@ class Test(TestBase):
     @unittest.skipIf(pa is None, "Need pyarrow to run this test")
     def testSimpleArrowReadWriteTable(self):
         test_table_name = tn('pyodps_t_tmp_simple_arrow_read_write_table')
-        schema = Schema.from_lists(['num'], ['string'], ['pt'], ['string'])
+        schema = TableSchema.from_lists(['num'], ['string'], ['pt'], ['string'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
 
@@ -515,6 +527,57 @@ class Test(TestBase):
         with table.open_reader(partition, reopen=True, arrow=True) as reader:
             pd_data = reader.to_pandas()
             self.assertEqual(len(pd_data), 5)
+
+        table.drop()
+
+    def testMaxPartition(self):
+        test_table_name = tn('pyodps_t_tmp_max_partition')
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self.odps.create_table(test_table_name, ("col string", "pt1 string, pt2 string"))
+        for pt1, pt2 in (("a", "a"), ("a", "b"), ("b", "c")):
+            part_spec = "pt1=%s,pt2=%s" % (pt1, pt2)
+            self.odps.write_table(
+                test_table_name, [["value"]], partition=part_spec, create_partition=True
+            )
+        table.create_partition("pt1=b,pt2=d")
+        table.create_partition("pt1=c,pt2=e")
+
+        assert tuple(table.get_max_partition().partition_spec.values()) == ("b", "c")
+        assert tuple(
+            table.get_max_partition(skip_empty=False).partition_spec.values()
+        ) == ("c", "e")
+        assert tuple(
+            table.get_max_partition("pt1=a").partition_spec.values()
+        ) == ("a", "b")
+        assert table.get_max_partition("pt1=c") is None
+        assert table.get_max_partition("pt1=d") is None
+
+        with pytest.raises(ValueError):
+            table.get_max_partition("pt2=a")
+        with pytest.raises(ValueError):
+            table.get_max_partition("pt1=c,pt2=e")
+
+        table.drop()
+
+    def testSchemaArgBackwardCompat(self):
+        if six.PY2:
+            from odps.models import Schema
+        else:
+            with pytest.deprecated_call():
+                from odps.models import Schema
+
+        columns = [Column(name='num', type='bigint', comment='the column'),
+                   Column(name='num2', type='double', comment='the column2')]
+        schema = Schema(columns=columns)
+
+        table_name = tn('test_backward_compat')
+
+        with pytest.deprecated_call():
+            table = self.odps.create_table(table_name, schema=schema, lifecycle=1)
+        assert self.odps.exist_table(table_name)
+        with pytest.deprecated_call():
+            assert isinstance(table.schema, Schema)
 
         table.drop()
 

@@ -34,6 +34,8 @@ What then is risk to me?
 """)
 TEST_PARTED_VOLUME_NAME = tn('pyodps_test_parted_volume')
 TEST_FS_VOLUME_NAME = tn('pyodps_test_fs_volume')
+TEST_EXT_VOLUME_NAME = tn('pyodps_test_external_volume')
+TEST_EXT_VOLUME_LOCATION = "oss://id:key@oss-cn-hangzhou-zmf.aliyuncs.com/12345/test_dir"
 
 TEST_PARTITION_NAME = 'pyodps_test_partition'
 TEST_FILE_NAME = 'test_output_file'
@@ -166,3 +168,15 @@ class Test(TestBase):
 
         dir_obj.delete()
         self.assertNotIn(TEST_DIR_NAME, vol)
+
+    def testExternalVolume(self):
+        try:
+            self.odps_daily.delete_volume(TEST_EXT_VOLUME_NAME)
+        except:
+            pass
+
+        vol = self.odps_daily.create_external_volume(
+            TEST_EXT_VOLUME_NAME, location=TEST_EXT_VOLUME_LOCATION
+        )
+        assert isinstance(vol, FSVolume)
+        vol.drop()

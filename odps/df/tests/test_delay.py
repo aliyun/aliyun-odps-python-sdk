@@ -17,7 +17,7 @@ import functools
 import unittest
 
 from odps.tests.core import TestBase, tn
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df import DataFrame, Delay
 
 
@@ -25,7 +25,7 @@ class Test(TestBase):
 
     def setup(self):
         test_table_name = tn('pyodps_test_delay')
-        schema = Schema.from_lists(['id', 'name', 'value'], ['bigint', 'string', 'bigint'])
+        schema = TableSchema.from_lists(['id', 'name', 'value'], ['bigint', 'string', 'bigint'])
 
         self.odps.delete_table(test_table_name, if_exists=True)
         self.table = self.odps.create_table(test_table_name, schema)
@@ -83,8 +83,10 @@ class Test(TestBase):
         filtered = self.df[self.df.id > 0].cache()
 
         persist_table_name = tn('pyodps_test_delay_persist')
-        schema = Schema.from_lists(['id', 'name', 'value'], ['bigint', 'string', 'bigint'],
-                                   ['pt', 'ds'], ['string', 'string'])
+        schema = TableSchema.from_lists(
+            ['id', 'name', 'value'], ['bigint', 'string', 'bigint'],
+            ['pt', 'ds'], ['string', 'string']
+        )
         self.odps.delete_table(persist_table_name, if_exists=True)
         self.odps.create_table(persist_table_name, schema)
 

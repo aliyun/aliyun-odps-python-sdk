@@ -22,7 +22,7 @@ import time
 
 from odps.tests.core import ci_skip_case
 from odps.compat import unittest, six, futures
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df.backends.tests.core import TestBase, to_str, tn
 from odps.df.backends.context import context
 from odps.df.types import validate_data_type
@@ -38,7 +38,7 @@ from odps.df import Scalar, output_names, output_types, output, day, millisecond
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
         self.df_schema = schema
         self.schema = df_schema_to_odps_schema(schema)
@@ -592,7 +592,7 @@ class Test(TestBase):
         ]
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     datatypes('string', 'int64', 'int64'))
         table_name = tn('pyodps_test_engine_table2')
         table2 = self._create_table_and_insert_data(table_name, schema2, data2)
@@ -771,7 +771,7 @@ class Test(TestBase):
         ]
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     datatypes('string', 'int64', 'int64'))
         table_name = tn('pyodps_test_engine_table2')
         table2 = self._create_table_and_insert_data(table_name, schema2, data2)
@@ -864,7 +864,7 @@ class Test(TestBase):
         ]
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     datatypes('string', 'int64', 'int64'))
         table_name = tn('pyodps_test_engine_table2')
         table2 = self._create_table_and_insert_data(table_name, schema2, data2)

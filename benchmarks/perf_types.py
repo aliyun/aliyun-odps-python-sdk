@@ -21,7 +21,7 @@ from pstats import Stats
 
 from odps.compat import unittest
 from odps.tests.core import TestBase
-from odps.models import Schema, Record
+from odps.models import TableSchema, Record
 
 
 class Test(TestBase):
@@ -36,7 +36,7 @@ class Test(TestBase):
         self.pr.enable()
         fields = ['bigint', 'double', 'datetime', 'boolean', 'string', 'decimal']
         types = ['bigint', 'double', 'datetime', 'boolean', 'string', 'decimal']
-        self.SCHEMA = Schema.from_lists(fields, types)
+        self.SCHEMA = TableSchema.from_lists(fields, types)
 
     def tearDown(self):
         p = Stats(self.pr)

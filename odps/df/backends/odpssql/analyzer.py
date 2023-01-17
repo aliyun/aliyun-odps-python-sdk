@@ -185,7 +185,7 @@ class Analyzer(BaseAnalyzer):
                         ret[kv_slot_map[col][k]] = v
                 return tuple(ret)
 
-            new_expr._schema = Schema.from_lists(names, tps)
+            new_expr._schema = TableSchema.from_lists(names, tps)
 
             extracted = expr.input.map_reduce(mapper)
             self._sub(new_expr, extracted)

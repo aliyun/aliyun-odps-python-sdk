@@ -30,10 +30,6 @@ class Role(LazyLoad):
         super(Role, self).__init__(**kw)
         self._policy_cache = None
 
-    @property
-    def project(self):
-        return self.parent.parent
-
     def reload(self):
         self._policy_cache = None
         resp = self._client.get(self.resource())

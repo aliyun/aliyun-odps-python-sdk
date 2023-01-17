@@ -19,6 +19,7 @@ import base64
 import hmac
 import hashlib
 import logging
+import os
 import threading
 import time
 from datetime import datetime, timedelta
@@ -313,6 +314,10 @@ class BearerTokenAccount(BaseAccount):
 
     @staticmethod
     def get_bearer_token():
+        if "PYODPS_BEARER_TOKEN_FILE" in os.environ:
+            with open(os.environ["PYODPS_BEARER_TOKEN_FILE"], "r") as token_file:
+                return token_file.read().strip()
+
         from cupid.runtime import context, RuntimeContext
 
         if not RuntimeContext.is_context_ready():

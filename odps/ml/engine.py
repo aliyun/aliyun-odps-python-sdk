@@ -37,7 +37,7 @@ from ..df.utils import is_source_collection, is_constant_scalar
 from .. import options, tempobj, utils
 from ..compat import six, futures
 from ..errors import ODPSError
-from ..models import Partition, Schema
+from ..models import Partition, TableSchema
 from ..ui import fetch_instance_group, reload_instance_status
 
 
@@ -172,7 +172,7 @@ class OdpsAlgoEngine(Engine):
                 if getattr(expr, 'is_extra_expr', False):
                     sub._source_data = result._source_data
                 if isinstance(expr, DynamicMixin):
-                    sub._schema = types.odps_schema_to_df_schema(table.schema)
+                    sub._schema = types.odps_schema_to_df_schema(table.table_schema)
                     refresh_dynamic(sub, expr_dag)
 
             execute_node.callback = callback
@@ -393,7 +393,7 @@ class OdpsAlgoEngine(Engine):
 
                     def callback():
                         t = self._odps.get_table(expr_table)
-                        if t.schema.partitions:
+                        if t.table_schema.partitions:
                             raise CompileError('Cannot insert into partition table %s without specifying '
                                                '`partition` or `partitions`.')
                         expr = self._odps.get_table(temp_table_name).to_df()
@@ -416,7 +416,7 @@ class OdpsAlgoEngine(Engine):
                     t = self._odps.get_table(temp_table_name)
 
                     for col in out_expr.schema.columns:
-                        if col.name.lower() not in t.schema:
+                        if col.name.lower() not in t.table_schema:
                             raise CompileError('Column(%s) does not exist in target table %s, '
                                                'writing cannot be performed.' % (col.name, t.name))
 
@@ -447,14 +447,14 @@ class OdpsAlgoEngine(Engine):
 
                 def callback():
                     t = self._odps.get_table(temp_table_name)
-                    schema = t.schema
+                    schema = t.table_schema
 
                     columns = [c for c in schema.columns if c.name not in partitions]
                     ps = [Partition(name=pt, type=schema.get_type(pt)) for pt in partitions]
                     if drop_table:
                         self._odps.delete_table(expr_table, project=expr_project, if_exists=True)
                     if create_table:
-                        self._odps.create_table(expr_table, Schema(columns=columns, partitions=ps),
+                        self._odps.create_table(expr_table, TableSchema(columns=columns, partitions=ps),
                                                 project=expr_project)
 
                     expr = t.to_df()

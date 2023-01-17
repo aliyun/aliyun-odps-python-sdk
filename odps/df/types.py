@@ -18,7 +18,7 @@ from datetime import datetime as _datetime, date as _date
 from decimal import Decimal as _Decimal
 
 from ..types import DataType, Array, Map, parse_composite_types
-from ..models import Schema, Column
+from ..models import TableSchema, Column
 from ..compat import OrderedDict, six
 
 
@@ -39,6 +39,9 @@ class Integer(Primitive):
     __slots__ = ()
 
     def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
         if isinstance(other, Integer) and other._n_bytes <= self._n_bytes:
             return True
         return False
@@ -53,6 +56,9 @@ class Float(Primitive):
     __slots__ = ()
 
     def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
         if isinstance(other, (Integer, Float)):
             return True
         return False
@@ -107,7 +113,10 @@ class Datetime(Primitive):
     __slots__ = ()
 
     def can_implicit_cast(self, other):
-        if isinstance(other, (Datetime, Integer)):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        if isinstance(other, (Datetime, String, Integer)):
             return True
         return False
 
@@ -115,9 +124,25 @@ class Datetime(Primitive):
 class Date(Primitive):
     __slots__ = ()
 
+    def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        if isinstance(other, (Timestamp, Datetime, String)):
+            return True
+        return False
+
 
 class Timestamp(Primitive):
     __slots__ = ()
+
+    def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        if isinstance(other, (Timestamp, Datetime, String)):
+            return True
+        return False
 
 
 class Boolean(Primitive):
@@ -321,7 +346,7 @@ class Unknown(DataType):
         return True
 
 
-class DynamicSchema(Schema):
+class DynamicSchema(TableSchema):
     def __init__(self, *args, **kwargs):
         self.default_type = kwargs.pop('default_type', None)
         super(DynamicSchema, self).__init__(*args, **kwargs)

@@ -29,7 +29,7 @@ from ..pipeline.core import PipelineStep
 from ..utils import import_class_member, get_function_args, ML_ARG_PREFIX
 from ...compat import six, OrderedDict, irange, Iterable
 from ...df.core import DataFrame
-from ...models import Schema as TableSchema
+from ...models import TableSchema
 from ..enums import PortType, PortDirection
 from ...utils import underline_to_capitalized, camel_to_underline, survey
 

@@ -3,7 +3,7 @@
 资源
 =======
 
-`资源 <https://docs.aliyun.com/#/pub/odps/basic/definition&resource>`_ 在ODPS上常用在UDF和MapReduce中。
+`资源 <https://help.aliyun.com/document_detail/27822.html>`_ 在ODPS上常用在UDF和MapReduce中。
 
 列出所有资源还是可以使用 ``list_resources``，判断资源是否存在使用 ``exist_resource``。
 删除资源时，可以调用 ``delete_resource``，或者直接对于Resource对象调用 ``drop`` 方法。
@@ -22,22 +22,27 @@
 
 .. code-block:: python
 
-   resource = o.create_resource('test_file_resource', 'file', file_obj=open('/to/path/file'))  # 使用file-like的对象
-   resource = o.create_resource('test_py_resource', 'py', file_obj='import this')  # 使用字符串
+   resource = o.create_resource('test_file_resource', 'file', fileobj=open('/to/path/file'))  # 使用file-like的对象
+   resource = o.create_resource('test_py_resource', 'py', fileobj='import this')  # 使用字符串
 
 
 可以通过 ``temp=True`` 创建一个临时资源。
 
 .. code-block:: python
 
-   resource = o.create_resource('test_file_resource', 'file', file_obj=open('/to/path/file'), temp=True)
+   resource = o.create_resource('test_file_resource', 'file', fileobj=open('/to/path/file'), temp=True)
 
+.. note::
+
+    在 fileobj 参数中传入字符串，创建的资源内容为 **字符串本身** 而非字符串代表的路径指向的文件。
+
+    如果文件过大（例如大小超过 64MB），PyODPS 可能会使用分块上传模式，而这不被旧版 MaxCompute 部署所支持。
+    如需在旧版 MaxCompute 中上传大文件，请配置 ``options.upload_resource_in_chunks = False`` 。
 
 读取和修改文件资源
-~~~~~~~~~~~~~~~~~~
-
-对文件资源调用 ``open`` 方法，或者在odps入口调用 ``open_resource`` 都能打开一个资源，
-打开后的对象会是file-like的对象。
+~~~~~~~~~~~~~~
+对文件资源调用 ``open`` 方法，或者在 MaxCompute 入口调用 ``open_resource`` 都能打开一个资源，
+打开后的对象会是 file-like 的对象。
 类似于Python内置的 ``open`` 方法，文件资源也支持打开的模式。我们看例子：
 
 .. code-block:: python
@@ -68,6 +73,23 @@
 
 同时，PyODPS中，文件资源支持以二进制模式打开，打开如说一些压缩文件等等就需要以这种模式，
 因此 ``rb`` 就是指以二进制读模式打开文件，``r+b`` 是指以二进制读写模式打开。
+
+对于较大的文件资源，可以使用流式方式读写文件，使用方法为在调用 ``open_resource`` 时增加一个
+``stream=True`` 选项：
+
+.. code-block:: python
+
+   >>> with o.open_resource('test_file_resource', mode='w') as fp:  # 写模式打开
+   >>>     fp.writelines(['Hello\n', 'World\n'])  # 写入多行
+   >>>     fp.write('Hello World')
+   >>>     fp.flush()  # 手动调用会将更新提交到 MaxCompute
+   >>>
+   >>> with resource.open('r', stream=True) as fp:  # 以读模式打开
+   >>>     content = fp.read()  # 读取全部的内容
+   >>>     line = fp.readline()  # 回到资源开头
+   >>>     lines = fp.readlines()  # 读成多行
+
+当 ``stream=True`` 时，只支持 ``r`` ， ``rb`` ， ``w`` ， ``wb`` 四种模式。
 
 表资源
 -------

@@ -64,7 +64,7 @@ Usage
    >>> dual = o.get_table('dual')
    >>> dual.name
    'dual'
-   >>> dual.schema
+   >>> dual.table_schema
    odps.Schema {
      c_int_a                 bigint
      c_int_b                 bigint
@@ -83,7 +83,7 @@ Usage
    False
    >>> dual.size
    448
-   >>> dual.schema.columns
+   >>> dual.table_schema.columns
    [<column c_int_a, type bigint>,
     <column c_int_b, type bigint>,
     <column c_double_a, type double>,
@@ -139,7 +139,7 @@ Command-line and IPython enhancement
 
    In [3]: %sql select * from pyodps_iris limit 5
    |==========================================|   1 /  1  (100.00%)         2s
-   Out[3]:
+   Out[3]: 
       sepallength  sepalwidth  petallength  petalwidth         name
    0          5.1         3.5          1.4         0.2  Iris-setosa
    1          4.9         3.0          1.4         0.2  Iris-setosa

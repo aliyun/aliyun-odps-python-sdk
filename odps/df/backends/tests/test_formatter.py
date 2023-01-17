@@ -37,13 +37,13 @@ from odps.df.expr.tests.core import MockTable
 from odps.df.expr.groupby import GroupByCollectionExpr
 from odps.df.backends.engine import MixedEngine
 from odps.df.backends.formatter import ExprExecutionGraphFormatter
-from odps.models import Schema, Record
+from odps.models import TableSchema, Record
 
 
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        self.schema = Schema.from_lists(['name', 'id', 'fid', 'dt'],
+        self.schema = TableSchema.from_lists(['name', 'id', 'fid', 'dt'],
                                         datatypes('string', 'int64', 'float64', 'datetime'))
 
     def _random_values(self):
@@ -54,8 +54,7 @@ class Test(TestBase):
         schema = df_schema_to_odps_schema(self.schema)
         return Record(schema=schema, values=values)
 
-    @unittest.skipIf(not pandas or LooseVersion(pandas.__version__) >= '0.20',
-                     'Pandas not installed or version too new')
+    @unittest.skipIf(not pandas, 'Pandas not installed')
     def testSmallRowsFormatter(self):
         data = [self._random_values() for _ in range(10)]
         data[-1][0] = None
@@ -81,7 +80,7 @@ class Test(TestBase):
         names = list(itertools.chain(*[[name + str(i) for name in self.schema.names] for i in range(10)]))
         types = self.schema.types * 10
 
-        schema = Schema.from_lists(names, types)
+        schema = TableSchema.from_lists(names, types)
         gen_row = lambda: list(itertools.chain(*(self._random_values().values for _ in range(10))))
         data = [Record(schema=df_schema_to_odps_schema(schema), values=gen_row()) for _ in range(10)]
 
@@ -92,7 +91,9 @@ class Test(TestBase):
         self.assertEqual(to_str(pd._repr_html_()), to_str(result._repr_html_()))
 
     def testSVGFormatter(self):
-        t = MockTable(name='pyodps_test_svg', schema=self.schema, _client=self.odps.rest)
+        t = MockTable(
+            name='pyodps_test_svg', table_schema=self.schema, _client=self.odps.rest
+        )
         expr = CollectionExpr(_source_data=t, _schema=self.schema)
 
         expr1 = expr.groupby('name').agg(id=expr['id'].sum())

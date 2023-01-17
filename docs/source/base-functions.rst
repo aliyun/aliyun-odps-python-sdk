@@ -3,7 +3,7 @@
 函数
 ========
 
-ODPS用户可以编写自定义 `函数 <https://docs.aliyun.com/#/pub/odps/basic/definition&function>`_ 用在ODPS SQL中。
+ODPS用户可以编写自定义 `函数 <https://help.aliyun.com/document_detail/27823.html>`_ 用在ODPS SQL中。
 
 基本操作
 ---------

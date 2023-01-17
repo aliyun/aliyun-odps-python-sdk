@@ -14,16 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps.compat import unittest
-from odps.models import Instance, Schema, Record
+from odps.tests.core import TestBase, tn
+from odps.models import Instance, TableSchema, Record
 from odps.errors import ODPSError
 
 TEST_SESSION_WORKERS = 4
 TEST_SESSION_WORKER_MEMORY = 512
 
-TEST_TABLE_NAME = "_pyodps__session_test_table"
-TEST_CREATE_SCHEMA = Schema.from_lists(['id'], ['string'])
+TEST_TABLE_NAME = tn("_pyodps__session_test_table")
+TEST_CREATE_SCHEMA = TableSchema.from_lists(['id'], ['string'])
 TEST_DATA = [['1'], ['2'], ['3'], ['4'], ['5']]
 TEST_SELECT_STRING = "select * from %s" % TEST_TABLE_NAME
 
@@ -293,6 +292,3 @@ class Test(TestBase):
         # OK, clear up
         self.odps.delete_table(TEST_TABLE_NAME, if_exists=True)
         sess_instance.stop()
-
-if __name__ == '__main__':
-    unittest.main()

@@ -14,10 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df import Scalar, NullScalar, BuiltinFunction, output
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
@@ -30,31 +29,31 @@ from odps.df.backends.odpssql.tests.test_compiler import ODPSEngine
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
                                    ['ds'], datatypes('string'))
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
-        self.expr = CollectionExpr(_source_data=table, _schema=Schema(columns=schema.columns))
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+        self.expr = CollectionExpr(_source_data=table, _schema=TableSchema(columns=schema.columns))
 
-        table1 = MockTable(name='pyodps_test_expr_table1', schema=schema)
-        self.expr1 = CollectionExpr(_source_data=table1, _schema=Schema(columns=schema.columns))
+        table1 = MockTable(name='pyodps_test_expr_table1', table_schema=schema)
+        self.expr1 = CollectionExpr(_source_data=table1, _schema=TableSchema(columns=schema.columns))
 
-        table2 = MockTable(name='pyodps_test_expr_table2', schema=schema)
-        self.expr2 = CollectionExpr(_source_data=table2, _schema=Schema(columns=schema.columns))
+        table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema)
+        self.expr2 = CollectionExpr(_source_data=table2, _schema=TableSchema(columns=schema.columns))
 
-        schema2 = Schema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'),
+        schema2 = TableSchema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'),
                                     ['part1', 'part2'], datatypes('string', 'int64'))
-        table3 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
-        self.expr3 = CollectionExpr(_source_data=table3, _schema=Schema(columns=schema2.columns))
+        table3 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
+        self.expr3 = CollectionExpr(_source_data=table3, _schema=TableSchema(columns=schema2.columns))
 
-        schema3 = Schema.from_lists(['id', 'name', 'relatives', 'hobbies'],
+        schema3 = TableSchema.from_lists(['id', 'name', 'relatives', 'hobbies'],
                                     datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
-        table4 = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table4 = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         self.expr4 = CollectionExpr(_source_data=table4, _schema=schema3)
 
-        schema4 = Schema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'))
-        table5 = MockTable(name='pyodps_test_expr_table2', schema=schema4)
-        self.expr5 = CollectionExpr(_source_data=table5, _schema=Schema(columns=schema4.columns))
+        schema4 = TableSchema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'))
+        table5 = MockTable(name='pyodps_test_expr_table2', table_schema=schema4)
+        self.expr5 = CollectionExpr(_source_data=table5, _schema=TableSchema(columns=schema4.columns))
 
     def testProjectPrune(self):
         expr = self.expr.select('name', 'id')

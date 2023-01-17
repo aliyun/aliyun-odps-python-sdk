@@ -25,28 +25,28 @@ from odps.df import types, Scalar, DataFrame
 
 class Test(TestBase):
     def setup(self):
-        schema = Schema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        schema = TableSchema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         table._client = self.config.odps.rest
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
-        table1 = MockTable(name='pyodps_test_expr_table1', schema=schema)
+        table1 = MockTable(name='pyodps_test_expr_table1', table_schema=schema)
         table1._client = self.config.odps.rest
         self.expr1 = CollectionExpr(_source_data=table1, _schema=schema)
-        table2 = MockTable(name='pyodps_test_expr_table2', schema=schema)
+        table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema)
         table2._client = self.config.odps.rest
         self.expr2 = CollectionExpr(_source_data=table2, _schema=schema)
 
     def testSimpleJoin(self):
-        schema = Schema.from_lists(['name', 'id'], [types.string, types.int64])
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        schema = TableSchema.from_lists(['name', 'id'], [types.string, types.int64])
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         expr = CollectionExpr(_source_data=table, _schema=schema)
 
-        schema1 = Schema.from_lists(['id', 'value'], [types.int64, types.string])
-        table1 = MockTable(name='pyodps_test_expr_table1', schema=schema1)
+        schema1 = TableSchema.from_lists(['id', 'value'], [types.int64, types.string])
+        table1 = MockTable(name='pyodps_test_expr_table1', table_schema=schema1)
         expr1 = CollectionExpr(_source_data=table1, _schema=schema1)
 
-        schema2 = Schema.from_lists(['value', 'num'], [types.string, types.float64])
-        table2 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
+        schema2 = TableSchema.from_lists(['value', 'num'], [types.string, types.float64])
+        table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
         expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
 
         df = expr.join(expr1).join(expr2)
@@ -277,16 +277,16 @@ class Test(TestBase):
     def testConcat(self):
         from odps.ml.expr import AlgoCollectionExpr
 
-        schema = Schema.from_lists(['name', 'id'], [types.string, types.int64])
+        schema = TableSchema.from_lists(['name', 'id'], [types.string, types.int64])
         df = CollectionExpr(_source_data=None, _schema=schema)
         df1 = CollectionExpr(_source_data=None, _schema=schema)
         df2 = CollectionExpr(_source_data=None, _schema=schema)
 
-        schema = Schema.from_lists(['fid', 'fid2'], [types.int64, types.float64])
+        schema = TableSchema.from_lists(['fid', 'fid2'], [types.int64, types.float64])
         df3 = CollectionExpr(_source_data=None, _schema=schema)
 
-        schema = Schema.from_lists(['fid', 'fid2'], [types.int64, types.float64])
-        table = MockTable(name='pyodps_test_expr_table2', schema=schema)
+        schema = TableSchema.from_lists(['fid', 'fid2'], [types.int64, types.float64])
+        table = MockTable(name='pyodps_test_expr_table2', table_schema=schema)
         table._client = self.config.odps.rest
         df4 = CollectionExpr(_source_data=table, _schema=schema)
 

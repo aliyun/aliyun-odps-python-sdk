@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 from .cache import cache
 from .core import Iterable, LazyLoad
 from .. import serializers, errors, utils
@@ -25,9 +27,13 @@ class Volume(LazyLoad):
     Volume is the file-accessing object provided by ODPS.
     """
 
+    EXTERNAL_VOLUME_LOCATION_KEY = "external.location"
+    EXTERNAL_VOLUME_ROLEARN_KEY = "odps.properties.rolearn"
+
     class Type(Enum):
         NEW = 'NEW'
         OLD = 'OLD'
+        EXTERNAL = 'EXTERNAL'
         UNKNOWN = 'UNKNOWN'
 
     _root = 'Meta'
@@ -36,13 +42,16 @@ class Volume(LazyLoad):
     name = serializers.XMLNodeField('Name')
     owner = serializers.XMLNodeField('Owner')
     comment = serializers.XMLNodeField('Comment')
-    type = serializers.XMLNodeField('Type',
-                                    parse_callback=lambda t: Volume.Type(t.upper()),
-                                    serialize_callback=lambda t: t.value)
+    type = serializers.XMLNodeField(
+        'Type', parse_callback=lambda t: Volume.Type(t.upper()), serialize_callback=lambda t: t.value
+    )
     length = serializers.XMLNodeField('Length', parse_callback=int)
     file_number = serializers.XMLNodeField('FileNumber', parse_callback=int)
     creation_time = serializers.XMLNodeField('CreationTime', parse_callback=utils.parse_rfc822)
     last_modified_time = serializers.XMLNodeField('LastModifiedTime', parse_callback=utils.parse_rfc822)
+    properties = serializers.XMLNodeField(
+        'Properties', parse_callback=json.loads, serialize_callback=json.dumps
+    )
 
     @classmethod
     def _get_cls(cls, typo):
@@ -54,7 +63,7 @@ class Volume(LazyLoad):
         if typo == Volume.Type.OLD:
             from . import PartedVolume
             return PartedVolume
-        elif typo == Volume.Type.NEW:
+        elif typo in (Volume.Type.NEW, Volume.Type.EXTERNAL):
             from . import FSVolume
             return FSVolume
         elif typo == Volume.Type.UNKNOWN:
@@ -77,17 +86,31 @@ class Volume(LazyLoad):
 
     def __init__(self, **kwargs):
         typo = kwargs.get('type')
+
+        properties = kwargs.get("properties") or {}
+        location = kwargs.pop("location", None)
+        rolearn = kwargs.pop("rolearn", None)
+        if location:
+            properties[self.EXTERNAL_VOLUME_LOCATION_KEY] = location
+        if rolearn:
+            properties[self.EXTERNAL_VOLUME_ROLEARN_KEY] = rolearn
+        if properties:
+            kwargs["properties"] = properties
+
         if isinstance(typo, six.string_types):
             kwargs['type'] = Volume.Type(typo.upper())
         super(Volume, self).__init__(**kwargs)
 
-    @property
-    def project(self):
-        return self.parent.parent
-
     def reload(self):
-        resp = self._client.get(self.resource(), params={'meta': ''})
+        params = {'meta': ''}
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            params['curr_schema'] = schema_name
+        resp = self._client.get(self.resource(), params=params)
         self.parse(self._client, resp, obj=self)
+
+    def drop(self):
+        return self.parent.delete(self)
 
 
 class Volumes(Iterable):
@@ -125,11 +148,14 @@ class Volumes(Iterable):
         :param owner:
         :return:
         """
+        schema_name = self._get_schema_name()
         params = {'expectmarker': 'true'}
         if name is not None:
             params['name'] = name
         if owner is not None:
             params['owner'] = owner
+        if schema_name is not None:
+            params['curr_schema'] = schema_name
 
         def _it():
             last_marker = params.get('marker')
@@ -162,7 +188,9 @@ class Volumes(Iterable):
         headers = {'Content-Type': 'application/xml'}
         data = volume.serialize()
 
-        self._client.post(self.resource(), data, headers=headers)
+        self._client.post(
+            self.resource(), data, headers=headers, curr_schema=self._get_schema_name()
+        )
         return self[volume.name]
 
     def create_parted(self, obj=None, **kwargs):
@@ -170,6 +198,9 @@ class Volumes(Iterable):
 
     def create_fs(self, obj=None, **kwargs):
         return self._create(obj=obj, type='new', **kwargs)
+
+    def create_external(self, obj=None, **kwargs):
+        return self._create(obj=obj, type='external', **kwargs)
 
     def delete(self, name):
         if not isinstance(name, Volume):
@@ -181,4 +212,4 @@ class Volumes(Iterable):
 
         url = volume.resource()
 
-        self._client.delete(url)
+        self._client.delete(url, curr_schema=self._get_schema_name())

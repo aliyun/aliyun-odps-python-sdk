@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .expressions import Scalar, Expr, Schema, SequenceExpr, ListSequenceExpr, DictSequenceExpr, \
+from .expressions import Scalar, Expr, TableSchema, SequenceExpr, ListSequenceExpr, DictSequenceExpr, \
     ListScalar, DictScalar, Column
 from .element import AnyOp, ElementWise
 from .collections import RowAppliedCollectionExpr
@@ -81,7 +81,7 @@ def explode(expr, *args, **kwargs):
             raise ValueError("The length of parameter 'names' should be exactly 2.")
     else:
         raise ValueError('Cannot explode expression with type %s' % type(expr).__name__)
-    schema = Schema.from_lists(names, typos)
+    schema = TableSchema.from_lists(names, typos)
     return RowAppliedCollectionExpr(_input=expr.input, _func=func_name, _schema=schema,
                                     _fields=[expr], _keep_nulls=kwargs.get('keep_nulls', False))
 

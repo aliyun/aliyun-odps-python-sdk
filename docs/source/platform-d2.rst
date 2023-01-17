@@ -128,6 +128,54 @@ DataFrame
     SQL 节点中可用的 ${param_name} 写法不能在 PyODPS 节点中使用，
     即便在某些情况下它似乎输出了正确的结果。
 
+.. _dw_3rdparty_lib:
+
+使用三方包
+========
+DataWorks 节点预装了下面的三方包，版本列表如下：
+
+==================== ================== ==================
+包名                  Python 2 节点版本    Python 3 节点版本
+==================== ================== ==================
+requests             2.11.1             2.26.0
+numpy                1.16.6             1.18.1
+pandas               0.24.2             1.0.5
+scipy                0.19.0             1.3.0
+scikit_learn         0.18.1             0.22.1
+pyarrow              0.16.0             2.0.0
+lz4                  2.1.4              3.1.10
+zstandard            0.14.1             0.17.0
+==================== ================== ==================
+
+如果你需要使用上面列表中不存在的包，DataWorks 节点提供了 ``load_resource_package`` 方法，支持从
+MaxCompute 资源下载三方包。使用 ``pyodps-pack`` 打包后，可以直接使用 ``load_resource_package``
+方法加载三方包，此后就可以 import 包中的内容。关于 ``pyodps-pack`` 的文档可见 :ref:`制作和使用三方包 <pyodps_pack>`。
+
+.. note::
+
+    如果为 Python 2 节点打包，请在打包时为 ``pyodps-pack`` 增加 ``--dwpy27`` 参数。
+
+例如，使用下面的命令打包
+
+.. code-block:: bash
+
+    pyodps-pack -o ipaddress-bundle.tar.gz ipaddress
+
+并上传 / 提交 ``ipaddress-bundle.tar.gz`` 为资源后，可以在 PyODPS 3 节点中按照下面的方法使用
+ipaddress 包：
+
+.. code-block:: python
+
+    load_resource_package("ipaddress-bundle.tar.gz")
+    import ipaddress
+
+DataWorks 限制下载的包总大小为 100MB。如果你需要跳过预装包的打包，可以在打包时使用 ``pyodps-pack`` 提供的
+``--exclude`` 参数。例如，下面的打包方法排除了 DataWorks 环境中存在的 numpy 和 pandas 包。
+
+.. code-block:: bash
+
+    pyodps-pack -o bundle.tar.gz --exclude numpy --exclude pandas <your_package>
+
 受限功能
 =========
 

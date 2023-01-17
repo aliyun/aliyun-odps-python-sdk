@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import os
 import re
 import time
@@ -43,7 +44,7 @@ TEMP_TABLE_RESOURCE = tn('pyodps_temp_table_resource')
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
         self.schema = df_schema_to_odps_schema(schema)
 
@@ -621,7 +622,7 @@ class Test(TestBase):
         file_resource = self.odps.create_resource(TEMP_FILE_RESOURCE, 'file',
                                                   file_obj='\n'.join(str(r[1]) for r in data[:3]))
         self.odps.delete_table(TEMP_TABLE, if_exists=True)
-        t = self.odps.create_table(TEMP_TABLE, Schema.from_lists(['id'], ['bigint']))
+        t = self.odps.create_table(TEMP_TABLE, TableSchema.from_lists(['id'], ['bigint']))
         with t.open_writer() as writer:
             writer.write([r[1: 2] for r in data[3: 4]])
         try:
@@ -1136,7 +1137,7 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name2', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name2', 'id2', 'id3'],
                                     [types.string, types.int64, types.int64])
 
         self._gen_data(data=data)
@@ -1382,7 +1383,7 @@ class Test(TestBase):
             ['name2', None, 1.2, 1.5],
             ['name2', None, 1.0, 1.1],
         ]
-        schema = Schema.from_lists(['name', 'k1', 'k2', 'k3'],
+        schema = TableSchema.from_lists(['name', 'k1', 'k2', 'k3'],
                                    [types.string, types.float64, types.float64, types.float64])
         expr_input = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
                                     _schema=schema)
@@ -1620,7 +1621,7 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.int64, types.int64])
 
         self._gen_data(data=data)
@@ -2094,7 +2095,7 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.int64, types.int64])
 
         self._gen_data(data=data)
@@ -2199,7 +2200,7 @@ class Test(TestBase):
             ['name1', 3, 4.1, None, None, None],
         ]
 
-        schema2 = Schema.from_lists(['name', 'id2', 'id3'],
+        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
                                     [types.string, types.int64, types.int64])
 
         self._gen_data(data=data)
@@ -2243,7 +2244,7 @@ class Test(TestBase):
             ['name1', 3, 2.2],
             ['name1', 3, 4.1],
         ]
-        schema = Schema.from_lists(['name', 'id', 'fid'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid'],
                                    [types.string, types.int64, types.float64])
         expr1 = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
                                _schema=schema)
@@ -2254,7 +2255,7 @@ class Test(TestBase):
             [1.9, 2.2],
             [7.1, 6.2],
         ]
-        schema2 = Schema.from_lists(['fid2', 'fid3'],
+        schema2 = TableSchema.from_lists(['fid2', 'fid3'],
                                     [types.float64, types.float64])
         expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
                                _schema=schema2)
@@ -2289,7 +2290,7 @@ class Test(TestBase):
             ['name1', 3, 2.2],
             ['name1', 3, 4.1],
         ]
-        schema = Schema.from_lists(['name', 'id', 'fid'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid'],
                                    [types.string, types.int64, types.float64])
         expr_input = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
                                     _schema=schema)
@@ -2395,7 +2396,7 @@ class Test(TestBase):
             ['name2', 'k2=1.2,k3=1.5'],
             ['name2', 'k9=1.1,k2=1'],
         ]
-        schema = Schema.from_lists(['name', 'kv'],
+        schema = TableSchema.from_lists(['name', 'kv'],
                                    [types.string, types.string])
         expr_input = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
                                     _schema=schema)
@@ -2426,7 +2427,7 @@ class Test(TestBase):
             ['name2', None, 1.0, None, None, None, 1.1],
         ]
         kv_cols = ['k1', 'k2', 'k3', 'k5', 'k7', 'k9']
-        schema = Schema.from_lists(['name'] + kv_cols,
+        schema = TableSchema.from_lists(['name'] + kv_cols,
                                    [types.string] + [types.float64] * 6)
         expr_input = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
                                     _schema=schema)
@@ -2476,7 +2477,7 @@ class Test(TestBase):
 
         self._gen_data(data=data)
 
-        schema2 = Schema.from_lists(['name', ], [types.string])
+        schema2 = TableSchema.from_lists(['name', ], [types.string])
 
         import pandas as pd
         expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
@@ -2499,100 +2500,126 @@ class Test(TestBase):
         ]
         self._gen_data(data=data)
 
-        table_name = tn('pyodps_test_engine_persist_table')
-        self.odps.delete_table(table_name, if_exists=True)
-
-        # simple persist
-        try:
-            with self.assertRaises(ODPSError):
-                self.engine.persist(self.expr, table_name, create_table=False)
-
-            df = self.engine.persist(self.expr, table_name)
-
-            res = df.to_pandas()
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual(data, result)
-
-            with self.assertRaises(ValueError):
-                self.engine.persist(self.expr, table_name, create_partition=True)
-            with self.assertRaises(ValueError):
-                self.engine.persist(self.expr, table_name, drop_partition=True)
-        finally:
+        def simple_persist_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                with self.assertRaises(ODPSError):
+                    self.engine.persist(self.expr, table_name, create_table=False)
 
-        # persist over existing table
-        try:
-            self.odps.create_table(table_name,
-                                   'name string, fid double, id bigint, isMale boolean, scale decimal, birth datetime',
-                                   lifecycle=1)
+                df = self.engine.persist(self.expr, table_name)
 
-            expr = self.expr[self.expr, Scalar(1).rename('name2')]
-            with self.assertRaises(CompileError):
-                self.engine.persist(expr, table_name)
+                res = df.to_pandas()
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual(data, result)
 
-            expr = self.expr['name', 'fid', self.expr.id.astype('int32'), 'isMale', 'scale', 'birth']
-            df = self.engine.persist(expr, table_name)
+                with self.assertRaises(ValueError):
+                    self.engine.persist(self.expr, table_name, create_partition=True)
+                with self.assertRaises(ValueError):
+                    self.engine.persist(self.expr, table_name, drop_partition=True)
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
 
-            res = df.to_pandas()
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual(data, [[r[0], r[2], r[1], r[3], r[4], r[5]] for r in result])
-        finally:
+        def persist_existing_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                self.odps.create_table(
+                    table_name,
+                    'name string, fid double, id bigint, isMale boolean, scale decimal, birth datetime',
+                    lifecycle=1,
+                )
 
-        try:
-            df = self.engine.persist(self.expr, table_name, partition={'ds': 'today'})
+                expr = self.expr[self.expr, Scalar(1).rename('name2')]
+                with self.assertRaises(CompileError):
+                    self.engine.persist(expr, table_name)
 
-            res = self.odps_engine.execute(df)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-        finally:
+                expr = self.expr['name', 'fid', self.expr.id.astype('int32'), 'isMale', 'scale', 'birth']
+                df = self.engine.persist(expr, table_name)
+
+                res = df.to_pandas()
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual(data, [[r[0], r[2], r[1], r[3], r[4], r[5]] for r in result])
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
+
+        def persist_with_partition_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                df = self.engine.persist(self.expr, table_name, partition={'ds': 'today'})
 
-        try:
-            schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds'], ['string'])
-            self.odps.create_table(table_name, schema)
-            df = self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
+                res = self.odps_engine.execute(df)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
 
-            res = self.odps_engine.execute(df)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual(data, [d[:-1] for d in result])
-
-            df2 = self.engine.persist(self.expr[self.expr.id.astype('float'), 'name'], table_name,
-                                      partition='ds=today2', create_partition=True, cast=True)
-
-            res = self.odps_engine.execute(df2)
-            result = self._get_result(res)
-            self.assertEqual(len(result), 5)
-            self.assertEqual([d[:2] + [None] * (len(d) - 2) for d in data], [d[:-1] for d in result])
-        finally:
+        def persist_with_create_partition_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                schema = TableSchema.from_lists(self.schema.names, self.schema.types, ['ds'], ['string'])
+                self.odps.create_table(table_name, schema)
+                df = self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
 
-        try:
-            schema = Schema.from_lists(self.schema.names, self.schema.types, ['ds', 'hh'], ['string', 'string'])
-            self.odps.create_table(table_name, schema)
+                res = self.odps_engine.execute(df)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual(data, [d[:-1] for d in result])
 
-            with self.assertRaises(ValueError):
-                self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
+                df2 = self.engine.persist(self.expr[self.expr.id.astype('float'), 'name'], table_name,
+                                          partition='ds=today2', create_partition=True, cast=True)
 
-            self.engine.persist(self.expr, table_name, partition=OrderedDict([('hh', 'now'), ('ds', 'today')]))
-            self.assertTrue(self.odps.get_table(table_name).exist_partition('ds=today,hh=now'))
-        finally:
+                res = self.odps_engine.execute(df2)
+                result = self._get_result(res)
+                self.assertEqual(len(result), 5)
+                self.assertEqual([d[:2] + [None] * (len(d) - 2) for d in data], [d[:-1] for d in result])
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
+
+        def persist_with_create_multi_part_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                schema = TableSchema.from_lists(self.schema.names, self.schema.types, ['ds', 'hh'], ['string', 'string'])
+                table = self.odps.create_table(table_name, schema)
 
-        try:
-            self.engine.persist(self.expr, table_name, partitions=['name'])
+                with self.assertRaises(ValueError):
+                    self.engine.persist(self.expr, table_name, partition='ds=today', create_partition=True)
 
-            t = self.odps.get_table(table_name)
-            self.assertEqual(2, len(list(t.partitions)))
-            with t.open_reader(partition='name=name1', reopen=True) as r:
-                self.assertEqual(4, r.count)
-            with t.open_reader(partition='name=name2', reopen=True) as r:
-                self.assertEqual(1, r.count)
-        finally:
+                self.engine.persist(self.expr, table, partition=OrderedDict([('hh', 'now'), ('ds', 'today')]))
+                self.assertTrue(table.exist_partition('ds=today,hh=now'))
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
+
+        def persist_with_dyna_part_test(table_name):
             self.odps.delete_table(table_name, if_exists=True)
+            try:
+                self.engine.persist(self.expr, table_name, partitions=['name'])
+
+                t = self.odps.get_table(table_name)
+                self.assertEqual(2, len(list(t.partitions)))
+                with t.open_reader(partition='name=name1', reopen=True) as r:
+                    self.assertEqual(4, r.count)
+                with t.open_reader(partition='name=name2', reopen=True) as r:
+                    self.assertEqual(1, r.count)
+            finally:
+                self.odps.delete_table(table_name, if_exists=True)
+
+        sub_tests = [
+            simple_persist_test,
+            persist_existing_test,
+            persist_with_partition_test,
+            persist_with_create_partition_test,
+            persist_with_create_multi_part_test,
+            persist_with_dyna_part_test,
+        ]
+        base_table_name = tn('pyodps_test_pd_engine_persist_table')
+        self.run_sub_tests_in_parallel(
+            10,
+            [
+                functools.partial(sub_test, base_table_name + "_%d" % idx)
+                for idx, sub_test in enumerate(sub_tests)
+            ]
+        )
 
     def testAppendID(self):
         import pandas as pd
@@ -2603,7 +2630,7 @@ class Test(TestBase):
             ['name1', 3, 2.2],
             ['name1', 3, 4.1],
         ]
-        schema = Schema.from_lists(['name', 'id', 'fid'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid'],
                                    [types.string, types.int64, types.float64])
         expr1 = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
                                _schema=schema)
@@ -2630,7 +2657,7 @@ class Test(TestBase):
             [3, 'name1', 3, 2.2],
             [4, 'name1', 3, 4.1],
         ]
-        schema = Schema.from_lists(['rid', 'name', 'id', 'fid'],
+        schema = TableSchema.from_lists(['rid', 'name', 'id', 'fid'],
                                    [types.int64, types.string, types.int64, types.float64])
         expr1 = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
                                _schema=schema)
@@ -2660,7 +2687,7 @@ class Test(TestBase):
             [6, 'name1', None, None, np.nan, None],
         ]
 
-        schema = Schema.from_lists(['rid', 'name', 'f1', 'f2', 'f3', 'f4'],
+        schema = TableSchema.from_lists(['rid', 'name', 'f1', 'f2', 'f3', 'f4'],
                                    [types.int64, types.string] + [types.float64] * 4)
         expr = CollectionExpr(_source_data=pd.DataFrame(data, columns=schema.names),
                               _schema=schema)
@@ -2738,7 +2765,7 @@ class Test(TestBase):
             ['name2', 1, 1.2], ['name2', 3, 1.0],
             ['name3', 1, 1.2], ['name3', 3, 1.2],
         ]
-        schema1 = Schema.from_lists(['name', 'id', 'fid'],
+        schema1 = TableSchema.from_lists(['name', 'id', 'fid'],
                                     [types.string, types.int64, types.float64])
         expr1 = CollectionExpr(_source_data=pd.DataFrame(data1, columns=schema1.names),
                                _schema=schema1)
@@ -2747,7 +2774,7 @@ class Test(TestBase):
             ['name1', 1], ['name1', 2],
             ['name2', 1], ['name2', 2],
         ]
-        schema2 = Schema.from_lists(['name', 'id'],
+        schema2 = TableSchema.from_lists(['name', 'id'],
                                     [types.string, types.int64])
         expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
                                _schema=schema2)
@@ -2795,7 +2822,7 @@ class Test(TestBase):
             ['name2', 1], ['name2', 3],
             ['name3', 1], ['name3', 3],
         ]
-        schema1 = Schema.from_lists(['name', 'id'], [types.string, types.int64])
+        schema1 = TableSchema.from_lists(['name', 'id'], [types.string, types.int64])
         expr1 = CollectionExpr(_source_data=pd.DataFrame(data1, columns=schema1.names),
                                _schema=schema1)
 
@@ -2803,7 +2830,7 @@ class Test(TestBase):
             ['name1', 1], ['name1', 2], ['name1', 2],
             ['name2', 1], ['name2', 2],
         ]
-        schema2 = Schema.from_lists(['name', 'id'], [types.string, types.int64])
+        schema2 = TableSchema.from_lists(['name', 'id'], [types.string, types.int64])
         expr2 = CollectionExpr(_source_data=pd.DataFrame(data2, columns=schema2.names),
                                _schema=schema2)
 
@@ -2838,7 +2865,7 @@ class Test(TestBase):
     def testFilterOrder(self):
         import pandas as pd
 
-        schema = Schema.from_lists(['divided', 'divisor'], [types.int64, types.int64])
+        schema = TableSchema.from_lists(['divided', 'divisor'], [types.int64, types.int64])
         pd_df = pd.DataFrame([[2, 0], [1, 1], [1, 2], [5, 1], [5, 0]], columns=schema.names)
         df = CollectionExpr(_source_data=pd_df, _schema=schema)
         fdf = df[df.divisor > 0]
@@ -2861,7 +2888,7 @@ class Test(TestBase):
         ]
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
         pd_df = pd.DataFrame(data, columns=schema.names)
         expr_in = CollectionExpr(_source_data=pd_df, _schema=schema)
@@ -2997,7 +3024,7 @@ class Test(TestBase):
         ]
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'grade', 'score', 'detail', 'locations'],
+        schema = TableSchema.from_lists(['name', 'grade', 'score', 'detail', 'locations'],
                                    datatypes('string', 'int64', 'float64',
                                              'dict<string, float64>', 'list<string>'))
         pd_df = pd.DataFrame(data, columns=schema.names)
@@ -3131,7 +3158,7 @@ class Test(TestBase):
         ]
 
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id'],
+        schema = TableSchema.from_lists(['name', 'id'],
                                    datatypes('string', 'int64'))
         pd_df = pd.DataFrame(data, columns=schema.names)
         expr_in = CollectionExpr(_source_data=pd_df, _schema=schema)

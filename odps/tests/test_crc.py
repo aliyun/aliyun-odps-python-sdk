@@ -37,7 +37,7 @@ def bothPyAndC(func):
                 reload_module(_crc)
 
                 if t == 'py':
-                    self.assertEquals(_crc.Crc32c._method, t)
+                    self.assertEqual(_crc.Crc32c._method, t)
                 else:
                     self.assertFalse(hasattr(_crc.Crc32c, '_method'))
                 func(self, *args, **kwargs)

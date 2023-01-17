@@ -40,7 +40,7 @@ except (ImportError, AttributeError):
 from odps.tests.core import TestBase, tn
 from odps.compat import unittest
 from odps.config import options
-from odps.models import Schema
+from odps.models import TableSchema
 
 
 @unittest.skipIf(pa is None, "need to install pyarrow")
@@ -102,7 +102,7 @@ class Test(TestBase):
 
         self.odps.delete_table(table_name, if_exists=True)
         return self.odps.create_table(
-            table_name, schema=Schema.from_lists(fields, types), lifecycle=1
+            table_name, TableSchema.from_lists(fields, types), lifecycle=1
         )
 
     def _create_partitioned_table(self, table_name):
@@ -111,7 +111,7 @@ class Test(TestBase):
 
         self.odps.delete_table(table_name, if_exists=True)
         return self.odps.create_table(
-            table_name, schema=Schema.from_lists(fields, types, ['ds'], ['string'])
+            table_name, TableSchema.from_lists(fields, types, ['ds'], ['string'])
         )
 
     def _delete_table(self, table_name):
@@ -195,17 +195,18 @@ class Test(TestBase):
         options.chunk_size = 16
 
         try:
-            test_table_name = tn('pyodps_test_arrow_zlib_tunnel')
-            self.odps.delete_table(test_table_name, if_exists=True)
+            for compress_algo in ("zlib", "lz4"):
+                test_table_name = tn('pyodps_test_arrow_zlib_tunnel')
+                self.odps.delete_table(test_table_name, if_exists=True)
 
-            self._create_table(test_table_name)
-            data = self._gen_data()
+                self._create_table(test_table_name)
+                data = self._gen_data()
 
-            self._upload_data(test_table_name, data, compress=True)
-            records = self._download_data(test_table_name, compress=True)
-            pd.testing.assert_frame_equal(data.to_pandas(), records)
+                self._upload_data(test_table_name, data, compress=True, compress_algo=compress_algo)
+                records = self._download_data(test_table_name, compress=True)
+                pd.testing.assert_frame_equal(data.to_pandas(), records)
 
-            self._delete_table(test_table_name)
+                self._delete_table(test_table_name)
         finally:
             options.chunk_size = raw_chunk_size
 

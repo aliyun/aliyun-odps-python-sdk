@@ -181,7 +181,7 @@ def _handle_enum_table_partitions(sock):
 
         table = o.get_table(task_config["table_name"])
         partition_desc = task_config.get("partition")
-        if not table.schema.partitions:
+        if not table.table_schema.partitions:
             _write_request_result(sock, result=None)
         elif partition_desc:
             if check_partition_exist(table, partition_desc):
@@ -354,11 +354,11 @@ def _handle_commit_table_upload_session(sock):
         o = ODPS(None, None, account=account, project=project, endpoint=endpoint)
         cupid_session = CupidSession(o)
 
-        project_name, table_name = commit_config["table_name"].split(".")
+        table = o.get_table(commit_config["table_name"])
         upload_session = CupidTableUploadSession(
             session=cupid_session,
-            table_name=table_name,
-            project_name=project_name,
+            table_name=table.name,
+            project_name=table.project.name,
             handle=commit_config["cupid_handle"],
             blocks=commit_config["blocks"],
         )

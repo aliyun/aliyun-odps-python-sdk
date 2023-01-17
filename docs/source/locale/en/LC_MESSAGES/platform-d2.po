@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-07-07 22:01+0800\n"
+"POT-Creation-Date: 2022-11-18 14:10+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -263,21 +263,196 @@ msgstr ""
 " nodes, even if it seems that they produce `correct` results in some "
 "scenario."
 
-#: ../../source/platform-d2.rst:132
+#: ../../source/platform-d2.rst:134
+msgid "使用三方包"
+msgstr "Use third-party libraries"
+
+#: ../../source/platform-d2.rst:135
+msgid "DataWorks 节点预装了下面的三方包，版本列表如下："
+msgstr ""
+"DataWorks node already installs several third-party libraries by default."
+" Installed versions are listed below."
+
+#: ../../source/platform-d2.rst:138
+msgid "包名"
+msgstr "Package Name"
+
+#: ../../source/platform-d2.rst:138
+msgid "Python 2 节点版本"
+msgstr "Version under Python 2 Node"
+
+#: ../../source/platform-d2.rst:138
+msgid "Python 3 节点版本"
+msgstr "Version under Python 3 Node"
+
+#: ../../source/platform-d2.rst:140
+msgid "requests"
+msgstr ""
+
+#: ../../source/platform-d2.rst:140
+msgid "2.11.1"
+msgstr ""
+
+#: ../../source/platform-d2.rst:140
+msgid "2.26.0"
+msgstr ""
+
+#: ../../source/platform-d2.rst:141
+msgid "numpy"
+msgstr ""
+
+#: ../../source/platform-d2.rst:141
+msgid "1.16.6"
+msgstr ""
+
+#: ../../source/platform-d2.rst:141
+msgid "1.18.1"
+msgstr ""
+
+#: ../../source/platform-d2.rst:142
+msgid "pandas"
+msgstr ""
+
+#: ../../source/platform-d2.rst:142
+msgid "0.24.2"
+msgstr ""
+
+#: ../../source/platform-d2.rst:142
+msgid "1.0.5"
+msgstr ""
+
+#: ../../source/platform-d2.rst:143
+msgid "scipy"
+msgstr ""
+
+#: ../../source/platform-d2.rst:143
+msgid "0.19.0"
+msgstr ""
+
+#: ../../source/platform-d2.rst:143
+msgid "1.3.0"
+msgstr ""
+
+#: ../../source/platform-d2.rst:144
+msgid "scikit_learn"
+msgstr ""
+
+#: ../../source/platform-d2.rst:144
+msgid "0.18.1"
+msgstr ""
+
+#: ../../source/platform-d2.rst:144
+msgid "0.22.1"
+msgstr ""
+
+#: ../../source/platform-d2.rst:145
+msgid "pyarrow"
+msgstr ""
+
+#: ../../source/platform-d2.rst:145
+msgid "0.16.0"
+msgstr ""
+
+#: ../../source/platform-d2.rst:145
+msgid "2.0.0"
+msgstr ""
+
+#: ../../source/platform-d2.rst:146
+msgid "lz4"
+msgstr ""
+
+#: ../../source/platform-d2.rst:146
+msgid "2.1.4"
+msgstr ""
+
+#: ../../source/platform-d2.rst:146
+msgid "3.1.10"
+msgstr ""
+
+#: ../../source/platform-d2.rst:147
+msgid "zstandard"
+msgstr ""
+
+#: ../../source/platform-d2.rst:147
+msgid "0.14.1"
+msgstr ""
+
+#: ../../source/platform-d2.rst:147
+msgid "0.17.0"
+msgstr ""
+
+#: ../../source/platform-d2.rst:150
+msgid ""
+"如果你需要使用上面列表中不存在的包，DataWorks 节点提供了 ``load_resource_package`` 方法，支持从 "
+"MaxCompute 资源下载三方包。使用 ``pyodps-pack`` 打包后，可以直接使用 "
+"``load_resource_package`` 方法加载三方包，此后就可以 import 包中的内容。关于 ``pyodps-pack`` "
+"的文档可见 :ref:`制作和使用三方包 <pyodps_pack>`。"
+msgstr ""
+"If you need to use packages not listed above, ``load_resource_package`` "
+"method can be used. After calling ``pyodps-pack`` to pack your "
+"dependencies, you can call ``load_resource_package`` to install third-"
+"party libraries and then use import statement to use them. Details about "
+"``pyodps-pack`` can be found :ref:`here <pyodps_pack>`."
+
+#: ../../source/platform-d2.rst:156
+msgid "如果为 Python 2 节点打包，请在打包时为 ``pyodps-pack`` 增加 ``--dwpy27`` 参数。"
+msgstr ""
+"If you are creating packages for Python2 nodes, please add ``--dwpy27`` argument "
+"when calling ``pyodps-pack``."
+
+#: ../../source/platform-d2.rst:158
+msgid "例如，使用下面的命令打包"
+msgstr "For instance, we use command below to create package."
+
+#: ../../source/platform-d2.rst:160
+msgid "pyodps-pack -o ipaddress-bundle.tar.gz ipaddress"
+msgstr ""
+
+#: ../../source/platform-d2.rst:164
+msgid ""
+"并上传 / 提交 ``ipaddress-bundle.tar.gz`` 为资源后，可以在 PyODPS 3 节点中按照下面的方法使用 "
+"ipaddress 包："
+msgstr ""
+"After uploading and submitting ``ipaddress-bundle.tar.gz`` as a resource,"
+" you can use ``ipaddress`` package with code below."
+
+#: ../../source/platform-d2.rst:167
+msgid ""
+"load_resource_package(\"ipaddress-bundle.tar.gz\")\n"
+"import ipaddress"
+msgstr ""
+
+#: ../../source/platform-d2.rst:172
+msgid ""
+"DataWorks 限制下载的包总大小为 100MB。如果你需要跳过预装包的打包，可以在打包时使用 ``pyodps-pack`` 提供的 "
+"``--exclude`` 参数。例如，下面的打包方法排除了 DataWorks 环境中存在的 numpy 和 pandas 包。"
+msgstr ""
+"DataWorks limits total package size to 100MB. If you want to exclude "
+"these preinstalled packages, you can add ``--exclude`` argument when "
+"calling ``pyodps-pack``. For instance, command below excludes numpy and "
+"scipy which exists in DataWorks environment."
+
+#: ../../source/platform-d2.rst:175
+msgid ""
+"pyodps-pack -o bundle.tar.gz --exclude numpy --exclude pandas "
+"<your_package>"
+msgstr ""
+
+#: ../../source/platform-d2.rst:180
 msgid "受限功能"
 msgstr "Feature restriction"
 
-#: ../../source/platform-d2.rst:134
+#: ../../source/platform-d2.rst:182
 msgid "由于缺少 matplotlib 等包，所以如下功能可能会受限。"
 msgstr ""
 "DataWorks does not have the ``matplotlib`` library. Therefore, the "
 "following features may be restricted:"
 
-#: ../../source/platform-d2.rst:136
+#: ../../source/platform-d2.rst:184
 msgid "DataFrame的plot函数"
 msgstr "DataFrame plot function"
 
-#: ../../source/platform-d2.rst:138
+#: ../../source/platform-d2.rst:186
 msgid ""
 "DataFrame 自定义函数需要提交到 MaxCompute 执行。由于 Python 沙箱的原因，第三方库只支持所有的纯 Python 库以及"
 " Numpy， 因此不能直接使用 Pandas，可参考 :ref:`第三方库支持 <third_party_library>` "
@@ -293,7 +468,7 @@ msgstr ""
 "can use pre-installed Numpy and Pandas in DataWorks. Other third-party "
 "libraries with binary codes are not supported currently."
 
-#: ../../source/platform-d2.rst:142
+#: ../../source/platform-d2.rst:190
 msgid ""
 "由于兼容性的原因，在 DataWorks 中，`options.tunnel.use_instance_tunnel` 默认设置为 "
 "False。如果需要全局开启 Instance Tunnel， 需要手动将该值设置为 True。"
@@ -302,18 +477,18 @@ msgstr ""
 "DataWorks is set to False by default. To enable Instance Tunnel globally,"
 " you need to manually set `options.tunnel.use_instance_tunnel` to True."
 
-#: ../../source/platform-d2.rst:145
+#: ../../source/platform-d2.rst:193
 msgid "由于实现的原因，Python 的 atexit 包不被支持，请使用 try - finally 结构实现相关功能。"
 msgstr ""
 "For implementation reasons, the Python atexit package is not supported. "
 "You need to use the try - finally structure to implement related "
 "features."
 
-#: ../../source/platform-d2.rst:148
+#: ../../source/platform-d2.rst:196
 msgid "使用限制"
 msgstr "Usage restrictions"
 
-#: ../../source/platform-d2.rst:150
+#: ../../source/platform-d2.rst:198
 msgid ""
 "在 DataWorks 上使用 PyODPS，为了防止对 DataWorks 的 gateway 造成压力，对内存和 CPU 都有限制。这个限制由"
 " DataWorks 统一管理。"
@@ -322,14 +497,14 @@ msgstr ""
 "DataWorks, the CPU and memory usage is restricted. DataWorks provides "
 "central management for this restriction."
 
-#: ../../source/platform-d2.rst:152
+#: ../../source/platform-d2.rst:200
 msgid "如果看到 **Got killed** ，即内存使用超限，进程被 kill。因此，尽量避免本地的数据操作。"
 msgstr ""
 "If the system displays **Got killed**, this indicates an out-of-memory "
 "error and that the process has been terminated. Therefore, we do not "
 "recommend starting local data operations."
 
-#: ../../source/platform-d2.rst:154
+#: ../../source/platform-d2.rst:202
 msgid "通过 PyODPS 起的 SQL 和 DataFrame 任务（除 to_pandas) 不受此限制。"
 msgstr ""
 "However, the preceding restriction does not work on SQL and DataFrame "

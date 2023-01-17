@@ -14,19 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .. import serializers
-from .cache import cache, del_cache
+from .. import options, serializers, utils
 from ..compat import six, quote_plus
+from .cache import cache, del_cache
+
+_notset = object()
 
 
 class XMLRemoteModel(serializers.XMLSerializableModel):
-    __slots__ = '_parent', '_client'
+    __slots__ = '_parent', '_client', '_schema_name'
 
     def __init__(self, **kwargs):
         if 'parent' in kwargs:
             kwargs['_parent'] = kwargs.pop('parent')
         if 'client' in kwargs:
             kwargs['_client'] = kwargs.pop('client')
+
+        self._schema_name = _notset
 
         if not frozenset(kwargs).issubset(self.__slots__):
             unexpected = sorted(set(kwargs) - set(self.__slots__))
@@ -97,6 +101,19 @@ class RestModel(XMLRemoteModel):
     def __hash__(self):
         return hash(type(self)) * hash(self._parent) * hash(self._name())
 
+    def _get_schema_name(self):
+        if self._schema_name is not _notset:
+            return self._schema_name
+
+        if isinstance(self._parent, LazyLoad):
+            schema = self._parent.get_schema()
+        elif isinstance(self._parent, Container):
+            schema = self._parent._parent.get_schema()
+        else:
+            schema = None
+        self._schema_name = schema.name if schema is not None else None
+        return self._schema_name
+
 
 class LazyLoad(RestModel):
     __slots__ = '_loaded',
@@ -117,13 +134,16 @@ class LazyLoad(RestModel):
         return object.__getattribute__(self, attr)
 
     def __getattribute__(self, attr):
+        if attr.endswith("_time") and type(self).__name__ != "Table" and options.use_legacy_parsedate:
+            typ = type(self)
+            utils.add_survey_call(".".join([typ.__module__, typ.__name__, attr]))
+
         val = object.__getattribute__(self, attr)
         if val is None and not self._loaded:
             fields = getattr(type(self), '__fields')
             if attr in fields:
                 self.reload()
-                val = self._getattr(attr)
-        return val
+        return object.__getattribute__(self, attr)
 
     def reload(self):
         raise NotImplementedError
@@ -171,6 +191,31 @@ class LazyLoad(RestModel):
     def _set_state(self, name, parent, client):
         self.__init__(name=name, _parent=parent, _client=client)
 
+    @property
+    def project(self):
+        from .project import Project
+
+        cur = self
+        while cur is not None and not isinstance(cur, Project):
+            cur = cur.parent
+        return cur
+
+    def get_schema(self):
+        """
+        As Table.table_schema already occupied by table_schema result, we need
+        an auxiliary method to fix all needs.
+        """
+        from .schema import Schema
+
+        cur = self
+        while cur is not None and not isinstance(cur, Schema):
+            cur = cur.parent
+        return cur
+
+    @property
+    def schema(self):
+        return self.get_schema()
+
 
 class Container(RestModel):
     skip_null = False
@@ -184,6 +229,9 @@ class Container(RestModel):
 
     def __getitem__(self, item):
         if isinstance(item, six.string_types):
+            item = item.strip()
+            if not item:
+                raise ValueError("Empty string not supported")
             return self._get(item)
         raise ValueError('Unsupported getitem value: %s' % item)
 

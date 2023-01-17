@@ -47,14 +47,12 @@ from ..pb.wire_format import (
     WIRETYPE_FIXED64,
     WIRETYPE_LENGTH_DELIMITED,
 )
+from ... import types, compat, utils, options
+from ...compat import six
 from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
-from .stream import CompressOption, SnappyOutputStream, DeflateOutputStream, RequestsIO
+from .stream import RequestsIO, get_compress_stream
 from .types import odps_schema_to_arrow_schema
-from ... import types, compat, utils, errors, options
-from ...compat import six
-
-_CompressAlgorithm = CompressOption.CompressAlgorithm
 
 
 varint_tag_types = types.integer_types + (
@@ -69,19 +67,6 @@ length_delim_tag_types = (
     types.timestamp,
     types.interval_day_time,
 )
-
-
-def _wrap_compress_stream(buffer, compress_option=None):
-    algo = getattr(compress_option, "algorithm", None)
-
-    if algo is None or algo == _CompressAlgorithm.ODPS_RAW:
-        return buffer
-    elif algo == _CompressAlgorithm.ODPS_ZLIB:
-        return DeflateOutputStream(buffer)
-    elif algo == _CompressAlgorithm.ODPS_SNAPPY:
-        return SnappyOutputStream(buffer)
-    else:
-        raise errors.InvalidArgument('Invalid compression algorithm.')
 
 
 if BaseRecordWriter is None:
@@ -355,7 +340,7 @@ class RecordWriter(BaseRecordWriter):
     def __init__(self, schema, request_callback, compress_option=None, encoding="utf-8"):
         self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
 
-        out = _wrap_compress_stream(self._req_io, compress_option)
+        out = get_compress_stream(self._req_io, compress_option)
         super(RecordWriter, self).__init__(schema, out, encoding=encoding)
         self._req_io.start()
 
@@ -397,7 +382,7 @@ class BufferredRecordWriter(BaseRecordWriter):
         self._n_bytes_written = 0
         self._compress_option = compress_option
 
-        out = _wrap_compress_stream(self._buffer, compress_option)
+        out = get_compress_stream(self._buffer, compress_option)
         super(BufferredRecordWriter, self).__init__(schema, out, encoding=encoding)
 
     def write(self, record):
@@ -432,7 +417,7 @@ class BufferredRecordWriter(BaseRecordWriter):
         self._block_id += 1
         self._buffer = compat.BytesIO()
 
-        out = _wrap_compress_stream(self._buffer, self._compress_option)
+        out = get_compress_stream(self._buffer, self._compress_option)
         self._re_init(out)
         self._curr_cursor = 0
         self._crccrc.reset()
@@ -467,7 +452,7 @@ class StreamRecordWriter(BaseRecordWriter):
         self.slot = slot
         self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
 
-        out = _wrap_compress_stream(self._req_io, compress_option)
+        out = get_compress_stream(self._req_io, compress_option)
         super(StreamRecordWriter, self).__init__(schema, out, encoding=encoding)
         self._req_io.start()
 
@@ -507,7 +492,7 @@ class ArrowWriter(object):
         self._crccrc = Checksum()
         self._cur_chunk_size = 0
 
-        self._output = _wrap_compress_stream(self._buffer, compress_option)
+        self._output = get_compress_stream(self._buffer, compress_option)
         self._write_chunk_size()
 
     def _write_chunk_size(self):

@@ -143,6 +143,9 @@ class Test(TestBase):
 
             self.assertEqual(milliseconds, to_milliseconds(base_time, local_tz=GMT8()))
 
+            base_time = datetime.datetime(1969, 12, 30, 21, 42, 23, 211000)
+            self.assertEqual(base_time, to_datetime(to_milliseconds(base_time)))
+
     @module_depend_case('pytz')
     def testTimeConvertPytz(self):
         import pytz

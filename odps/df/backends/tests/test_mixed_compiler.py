@@ -16,7 +16,7 @@
 
 from odps.tests.core import TestBase, pandas_case
 from odps.compat import unittest
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.collections import DistinctCollectionExpr
@@ -28,9 +28,9 @@ from odps.df import DataFrame
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
                                    datatypes('string', 'bigint', 'double', 'boolean', 'decimal', 'datetime'))
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         self.tb = DataFrame(table)
 
         import pandas as pd

@@ -17,7 +17,7 @@ import datetime
 import time
 import unittest
 
-from odps.models import Schema, Record
+from odps.models import TableSchema, Record
 
 CLIENT_READ_PIPE_NUM = 2
 CLIENT_WRITE_PIPE_NUM = 2
@@ -60,7 +60,7 @@ class Test(unittest.TestCase):
         del ro
 
     def testTableIO(self):
-        schema = Schema.from_lists(['key', 'value', 'double', 'datetime', 'boolean'],
+        schema = TableSchema.from_lists(['key', 'value', 'double', 'datetime', 'boolean'],
                                    ['bigint', 'string', 'double', 'datetime', 'boolean'])
         label = self.client.sync_call('test', 'write_label')
         print('Write label: ' + label)

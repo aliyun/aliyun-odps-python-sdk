@@ -240,7 +240,7 @@ class DataFrameReadTable(_Base):
             out_columns_value = parse_index(out_dtypes.index, store_data=True)
 
         table_obj = o.get_table(op.table_name)
-        if not table_obj.schema.partitions:
+        if not table_obj.table_schema.partitions:
             data_srcs = [table_obj]
         elif op.partition is not None and check_partition_exist(
             table_obj, op.partition
@@ -411,7 +411,7 @@ class DataFrameReadTable(_Base):
         )
 
         table_obj = o.get_table(op.table_name)
-        if not table_obj.schema.partitions:
+        if not table_obj.table_schema.partitions:
             data_srcs = [table_obj]
         elif op.partition is not None and check_partition_exist(
             table_obj, op.partition
@@ -847,6 +847,7 @@ class DataFrameReadTableSplit(_Base):
         )
 
         t = o.get_table(op.table_name)
+        schema_name = t.get_schema().name if t.get_schema() is not None else None
         tunnel = TableTunnel(o, project=t.project)
 
         if op.partition_spec is not None:
@@ -854,7 +855,7 @@ class DataFrameReadTableSplit(_Base):
                 t.name, partition_spec=op.partition_spec
             )
         else:
-            download_session = tunnel.create_download_session(t.name)
+            download_session = tunnel.create_download_session(t.name, schema=schema_name)
         logger.debug(
             "Start reading table %s(%s) split from %s to %s",
             op.table_name,
@@ -943,8 +944,7 @@ def read_odps_table(
 
     if chunk_bytes is not None:
         chunk_bytes = int(parse_readable_size(chunk_bytes)[0])
-    table_name = "%s.%s" % (table.project.name, table.name)
-    cols = table.schema.columns if append_partitions else table.schema.simple_columns
+    cols = table.table_schema.columns if append_partitions else table.table_schema.simple_columns
     table_columns = [c.name for c in cols]
     table_types = [c.type for c in cols]
     df_types = [
@@ -963,7 +963,7 @@ def read_odps_table(
 
     op = DataFrameReadTable(
         odps_params=odps_params,
-        table_name=table_name,
+        table_name=table.full_table_name,
         partition_spec=partition,
         dtypes=dtypes,
         sparse=sparse,

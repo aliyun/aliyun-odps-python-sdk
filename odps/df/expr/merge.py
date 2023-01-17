@@ -15,13 +15,15 @@
 # limitations under the License.
 
 import inspect
-from .expressions import CollectionExpr, ProjectCollectionExpr, \
-    Column, BooleanSequenceExpr, SequenceExpr, Expr, Scalar, repr_obj, CallableColumn
-from .core import Node, ExprDictionary
-from .arithmetic import Equal
-from .errors import ExpressionError
+
 from ...compat import six, reduce
-from ...models import Schema
+from ...models import TableSchema
+from ..utils import to_collection
+from .arithmetic import Equal
+from .core import Node, ExprDictionary
+from .expressions import CollectionExpr, TypedExpr, ProjectCollectionExpr, \
+    Column, BooleanSequenceExpr, SequenceExpr, Expr, Scalar, repr_obj, CallableColumn
+from .errors import ExpressionError
 
 
 class JoinCollectionExpr(CollectionExpr):
@@ -268,8 +270,10 @@ class JoinCollectionExpr(CollectionExpr):
 
             self._column_origins[name] = 1, col.name
 
-        schema_type = type(self._lhs.schema) if issubclass(type(self._lhs.schema), Schema) \
-            else type(self._rhs.schema)
+        if issubclass(type(self._lhs.schema), TableSchema):
+            schema_type = type(self._lhs.schema)
+        else:
+            schema_type = type(self._rhs.schema)
         self._schema = schema_type.from_lists(names, typos)
 
     def _validate_equal(self, equal_expr):
@@ -613,8 +617,17 @@ def join(left, right, on=None, how='inner', suffixes=('_x', '_y'), mapjoin=False
     """
     if mapjoin and skewjoin:
         raise TypeError("Cannot specify mapjoin and skewjoin at the same time")
-    if on is None and not mapjoin:
-        on = [name for name in left.schema.names if name in right.schema._name_indexes]
+
+    if isinstance(left, TypedExpr):
+        left = to_collection(left)
+    if isinstance(right, TypedExpr):
+        right = to_collection(right)
+
+    if on is None:
+        if not mapjoin:
+            on = [name for name in left.schema.names if name in right.schema._name_indexes]
+        if not on and len(left.schema) == 1 and len(right.schema) == 1:
+            on = [(left.schema.names[0], right.schema.names[0])]
 
     skewjoin_values = None
     if isinstance(skewjoin, (dict, six.string_types)):
@@ -823,6 +836,12 @@ CollectionExpr.left_join = left_join
 CollectionExpr.right_join = right_join
 CollectionExpr.outer_join = outer_join
 
+TypedExpr.join = join
+TypedExpr.inner_join = inner_join
+TypedExpr.left_join = left_join
+TypedExpr.right_join = right_join
+TypedExpr.outer_join = outer_join
+
 
 def _get_sequence_source_collection(expr):
     return next(it for it in expr.traverse(top_down=True, unique=True) if isinstance(it, CollectionExpr))
@@ -864,7 +883,7 @@ class UnionCollectionExpr(CollectionExpr):
             raise ExpressionError('Both inputs should be collections or sequences.')
 
     def _clean_schema(self):
-        return Schema.from_lists(self._lhs.schema.names, self._lhs.schema.types)
+        return TableSchema.from_lists(self._lhs.schema.names, self._lhs.schema.types)
 
     def accept(self, visitor):
         return visitor.visit_union(self)
@@ -888,7 +907,7 @@ class ConcatCollectionExpr(CollectionExpr):
             yield it
 
     def _clean_schema(self):
-        return Schema.from_lists(
+        return TableSchema.from_lists(
             self._lhs.schema.names + self._rhs.schema.names,
             self._lhs.schema.types + self._rhs.schema.types,
         )

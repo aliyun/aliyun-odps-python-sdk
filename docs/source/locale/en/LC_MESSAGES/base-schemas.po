@@ -1,0 +1,105 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2023.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.11.3\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-01-09 19:53+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../source/base-schemas.rst:4
+msgid "Schema"
+msgstr ""
+
+#: ../../source/base-schemas.rst:8
+msgid ""
+"Schema 属于 MaxCompute 的公测功能，需要通过 `新功能测试申请 "
+"<https://help.aliyun.com/document_detail/128366.htm>`_ 开通。"
+msgstr ""
+"Schema is a beta function of MaxCompute. You need to "
+"`apply for a trial of new features <https://www.alibabacloud.com/help/en/maxcompute/latest/apply-for-a-trial-of-new-features>`_"
+" before accessing it."
+
+#: ../../source/base-schemas.rst:10
+msgid ""
+"`Schema <https://help.aliyun.com/document_detail/437084.html>`_ 是 "
+"MaxCompute 介于项目和表 / 资源 / 函数之间的概念，对表 / 资源 / 函数进行进一步归类。"
+msgstr ""
+"`Schema <https://help.aliyun.com/document_detail/437084.html>`_ is a"
+" concept between projects and objects like tables, resources or functions."
+" It maintains categories for these objects."
+
+#: ../../source/base-schemas.rst:13
+msgid "你可以使用 ``create_schema`` 创建一个 Schema 对象："
+msgstr "You may use ``create_schema`` to create a schema object."
+
+#: ../../source/base-schemas.rst:15
+msgid ""
+"schema = o.create_schema(\"test_schema\")\n"
+"print(schema)"
+msgstr ""
+
+#: ../../source/base-schemas.rst:20
+msgid "使用 ``delete_schema`` 删除一个 Schema 对象："
+msgstr "Use ``delete_schema`` to delete a schema object."
+
+#: ../../source/base-schemas.rst:22
+msgid "schema = o.delete_schema(\"test_schema\")"
+msgstr ""
+
+#: ../../source/base-schemas.rst:26
+msgid "使用 ``list_schema`` 列举所有 Schema 对象："
+msgstr "Use ``list_schema`` to list all schemas in s project."
+
+#: ../../source/base-schemas.rst:28
+msgid ""
+"for schema in o.list_schema():\n"
+"    print(schema)"
+msgstr ""
+
+#: ../../source/base-schemas.rst:33
+msgid ""
+"在开启 Schema 后，MaxCompute 入口对象默认操作的 MaxCompute 对象都位于名为 ``DEFAULT`` 的 Schema"
+" 下。为操作其他 Schema 下的对象，需要在创建入口对象时指定 Schema，例如："
+msgstr ""
+"After schemas are enabled, calls on your MaxCompute entrance only affects objects "
+"in the schema named ``DEFAULT`` by default. To handle objects in other schemas, "
+"you need to provide the name of the schema. For instance,"
+
+#: ../../source/base-schemas.rst:36
+msgid ""
+"o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-"
+"default-project**',\n"
+"         endpoint='**your-end-point**', schema='**your-schema-name**')"
+msgstr ""
+
+#: ../../source/base-schemas.rst:41
+msgid "也可以为不同对象的操作方法指定 ``schema`` 参数。例如，下面的方法列举了 ``test_schema`` 下所有的表："
+msgstr ""
+"You can also specify names of schemas when handling MaxCompute objects. For instance, "
+"the code below lists all tables under the schema ``test_schema``."
+
+#: ../../source/base-schemas.rst:44
+msgid ""
+"for table in o.list_tables(schema='test_schema'):\n"
+"    print(table)"
+msgstr ""
+
+#: ../../source/base-schemas.rst:49
+msgid "在执行 SQL 时，可以指定默认 Schema："
+msgstr "You can also specify name of the default schema when executing SQL statements."
+
+#: ../../source/base-schemas.rst:51
+msgid "o.execute_sql(\"SELECT * FROM dual\", default_schema=\"test_schema\")"
+msgstr ""
+

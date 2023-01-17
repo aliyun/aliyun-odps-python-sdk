@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+
 from odps.tests.core import TestBase, snappy_case
 from odps.compat import unittest, PY26
 from odps.tunnel.io import stream as io_stream
@@ -51,74 +53,70 @@ class Test(TestBase):
         super(Test, self).tearDown()
         io_stream._FORCE_THREAD = False
 
-    def testCompressAndDecompressDeflate(self):
-        tube = io.BytesIO()
+    def testCompressAndDecompress(self):
+        compress_algos = [
+            io_stream.CompressOption.CompressAlgorithm.ODPS_RAW,
+            io_stream.CompressOption.CompressAlgorithm.ODPS_ZLIB,
+        ]
+        untested = []
+        try:
+            import snappy
+            compress_algos.append(io_stream.CompressOption.CompressAlgorithm.ODPS_SNAPPY)
+        except ImportError:
+            untested.append("python-snappy")
+        try:
+            import zstandard
+            compress_algos.append(io_stream.CompressOption.CompressAlgorithm.ODPS_ZSTD)
+        except ImportError:
+            untested.append("zstandard")
+        try:
+            import lz4.frame
+            compress_algos.append(io_stream.CompressOption.CompressAlgorithm.ODPS_LZ4)
+        except ImportError:
+            untested.append("lz4")
 
-        outstream = io_stream.DeflateOutputStream(tube)
-        outstream.write(self.TEXT.encode('utf8'))
-        outstream.flush()
+        if untested:
+            warnings.warn(
+                "%s not installed, related tests not covered" % ", ".join(untested), ImportWarning
+            )
 
-        tube.seek(0)
-        instream = io_stream.DeflateInputStream(tube)
+        for compress_algo in compress_algos:
+            tube = io.BytesIO()
+            option = io_stream.CompressOption(compress_algo)
 
-        b = bytearray()
-        while True:
-            part = instream.read(1)
-            if not part:
-                break
-            b += part
+            data_bytes = self.TEXT.encode('utf-8')
 
-        self.assertEqual(self.TEXT.encode('utf8'), b)
+            outstream = io_stream.get_compress_stream(tube, option)
+            for pos in range(0, len(data_bytes), 128):
+                outstream.write(data_bytes[pos : pos + 128])
+            outstream.flush()
 
-        if not PY26:
             tube.seek(0)
-            instream = io_stream.DeflateInputStream(tube)
+            instream = io_stream.get_decompress_stream(tube, option, requests=False)
 
-            b = bytearray(len(self.TEXT.encode('utf8')))
-            mv = memoryview(b)
-            pos = 0
+            b = bytearray()
             while True:
-                incr = instream.readinto(mv[pos:pos + 1])
-                if not incr:
+                part = instream.read(1)
+                if not part:
                     break
-                pos += incr
+                b += part
 
             self.assertEqual(self.TEXT.encode('utf8'), b)
 
-    @snappy_case
-    def testCompressAndDecompressSnappy(self):
-        tube = io.BytesIO()
+            if not PY26:
+                tube.seek(0)
+                instream = io_stream.get_decompress_stream(tube, option, requests=False)
 
-        outstream = io_stream.SnappyOutputStream(tube)
-        outstream.write(self.TEXT.encode('utf8'))
-        outstream.flush()
+                b = bytearray(len(self.TEXT.encode('utf8')))
+                mv = memoryview(b)
+                pos = 0
+                while True:
+                    incr = instream.readinto(mv[pos:pos + 1])
+                    if not incr:
+                        break
+                    pos += incr
 
-        tube.seek(0)
-        instream = io_stream.SnappyInputStream(tube)
-
-        b = bytearray()
-        while True:
-            part = instream.read(1)
-            if not part:
-                break
-            b += part
-
-        self.assertEqual(self.TEXT.encode('utf8'), b)
-
-        if not PY26:
-            tube.seek(0)
-            instream = io_stream.SnappyInputStream(tube)
-
-            b = bytearray(len(self.TEXT.encode('utf8')))
-            mv = memoryview(b)
-            pos = 0
-            while True:
-                incr = instream.readinto(mv[pos:pos + 1])
-                if not incr:
-                    break
-                pos += incr
-
-            self.assertEqual(self.TEXT.encode('utf8'), b)
+                self.assertEqual(self.TEXT.encode('utf8'), b)
 
     def testClass(self):
         io_stream._FORCE_THREAD = False

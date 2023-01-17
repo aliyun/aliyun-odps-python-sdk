@@ -16,7 +16,7 @@
 
 import math
 
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.compat import unittest
 from odps.config import options
 from odps.tests.core import TestBase, tn
@@ -49,7 +49,7 @@ class Test(TestBase):
         self.odps.delete_table(table_name, if_exists=True)
         return self.odps.create_table(
             table_name,
-            schema=Schema.from_lists(fields, types),
+            schema=TableSchema.from_lists(fields, types),
             stored_as="aliorc",
             lifecycle=1,
         )
@@ -232,3 +232,46 @@ class Test(TestBase):
         result = df.execute().to_pandas()
         self.assertEqual(list(result.columns), ["col1", "col2"])
         self.assertEqual(df.shape[0], 0)
+
+    def testOverwriteTable(self):
+        import pandas as pd
+        import mars.dataframe as md
+
+        mars_source_table_name = tn("mars_overwrite_datasource_tunnel")
+        self.odps.delete_table(mars_source_table_name, if_exists=True)
+        table = self.odps.create_table(mars_source_table_name, "col1 int, col2 string")
+
+        df = md.DataFrame(pd.DataFrame({"col1": [1, 2], "col2": list("ab")}))
+        self.odps.persist_mars_dataframe(
+            df, mars_source_table_name, overwrite=True, unknown_as_string=True
+        )
+        self.odps.persist_mars_dataframe(
+            df, mars_source_table_name, overwrite=True, unknown_as_string=True
+        )
+        with table.open_reader() as reader:
+            assert len(list(reader)) == 2
+
+        mars_source_table_name = tn("mars_overwrite_datasource_tunnel_parted")
+        self.odps.delete_table(mars_source_table_name, if_exists=True)
+        table = self.odps.create_table(
+            mars_source_table_name,
+            ("col1 int, col2 string", "pt string"),
+        )
+
+        df = md.DataFrame(pd.DataFrame({"col1": [1, 2], "col2": list("ab")}))
+        self.odps.persist_mars_dataframe(
+            df,
+            mars_source_table_name,
+            overwrite=True,
+            partition="pt=test",
+            unknown_as_string=True,
+        )
+        self.odps.persist_mars_dataframe(
+            df,
+            mars_source_table_name,
+            overwrite=True,
+            partition="pt=test",
+            unknown_as_string=True,
+        )
+        with table.open_reader("pt=test") as reader:
+            assert len(list(reader)) == 2

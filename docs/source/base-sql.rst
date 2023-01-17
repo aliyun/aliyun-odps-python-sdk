@@ -125,7 +125,7 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护
 
 .. code-block:: python
 
-    from odps.models import Schema
+    from odps.models import TableSchema
 
     myfunc = '''\
     from odps.udf import annotate
@@ -147,7 +147,7 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护
 
     table = o.create_table(
         'test_table',
-        schema=Schema.from_lists(['size'], ['bigint']),
+        TableSchema.from_lists(['size'], ['bigint']),
         if_not_exists=True
     )
 

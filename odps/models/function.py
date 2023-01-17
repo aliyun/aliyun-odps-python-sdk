@@ -44,12 +44,10 @@ class Function(LazyLoad):
         if resources is not None:
             self.resources = resources
 
-    @property
-    def project(self):
-        return self.parent.parent
-
     def reload(self):
-        resp = self._client.get(self.resource())
+        resp = self._client.get(
+            self.resource(), curr_schema=self._get_schema_name()
+        )
         self.parse(self._client, resp, obj=self)
 
     @property
@@ -75,10 +73,13 @@ class Function(LazyLoad):
     def resources(self, value):
         def get_resource_name(res):
             if isinstance(res, Resource):
-                if res.project == self.project.name:
+                schema_name = res._get_schema_name()
+                if res.project.name == self.project.name and schema_name is None:
                     return res.name
+                elif schema_name is not None:
+                    return '%s/schemas/%s/resources/%s' % (res.project.name, schema_name, res.name)
                 else:
-                    return '%s/resources/%s' % (res.project, res.name)
+                    return '%s/resources/%s' % (res.project.name, res.name)
             else:
                 return res
 
@@ -110,10 +111,16 @@ class Function(LazyLoad):
         params = {
             'updateowner': ''
         }
+        schema_name = self._get_schema_name()
+        if schema_name:
+            params['curr_schema'] = schema_name
+
         headers = {
             'x-odps-owner': new_owner
         }
-        self._client.put(self.resource(), None, params=params, headers=headers)
+        self._client.put(
+            self.resource(), None, params=params, headers=headers
+        )
 
     def drop(self):
         """

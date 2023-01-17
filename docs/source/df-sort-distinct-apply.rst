@@ -558,22 +558,12 @@ apply 的自定义函数接收一个参数，为上一步 Collection 的一行�
 
 
 使用第三方Python库
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+现在用户可以把第三方 Wheel 包作为资源上传到 MaxCompute。在全局或者在立即执行的方法时，指定需要使用的包文件，
+即可以在自定义函数中使用第三方库。值得注意的是，第三方库的依赖库也必须指定，否则依然会有导入错误。
 
-使用方法类似 :ref:`map中使用第三方Python库 <third_party_library>` 。
-
-可以在全局指定使用的库：
-
-.. code:: python
-
-    >>> from odps import options
-    >>> options.df.libraries = ['six.whl', 'python_dateutil.whl']
-
-或者在立即执行的方法中，局部指定：
-
-.. code:: python
-
-    >>> df.apply(my_func, axis=1).to_pandas(libraries=['six.whl', 'python_dateutil.whl'])
+PyODPS 提供了 ``pyodps-pack`` 工具，可在安装完 PyODPS 后打包三方包及其依赖。同时，execute / persist / to_pandas
+方法支持增加 ``libraries`` 参数以使用这些资源。如何制作及使用三方包的说明请参考 :ref:`这里 <pyodps_pack>`。
 
 .. warning::
     由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS
@@ -584,8 +574,6 @@ apply 的自定义函数接收一个参数，为上一步 Collection 的一行�
 
 MapReduce API
 --------------
-
-
 PyODPS DataFrame也支持MapReduce API，用户可以分别编写map和reduce函数（map_reduce可以只有mapper或者reducer过程）。
 我们来看个简单的wordcount的例子。
 
@@ -735,24 +723,11 @@ combiner表示在map_reduce API里表示在mapper端，就先对数据进行聚�
 
 使用第三方Python库
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+现在用户可以把第三方 Wheel 包作为资源上传到 MaxCompute。在全局或者在立即执行的方法时，指定需要使用的包文件，
+即可以在自定义函数中使用第三方库。值得注意的是，第三方库的依赖库也必须指定，否则依然会有导入错误。
 
-
-使用方法类似 :ref:`map中使用第三方Python库 <third_party_library>` 。
-
-可以在全局指定使用的库：
-
-.. code:: python
-
-    >>> from odps import options
-    >>> options.df.libraries = ['six.whl', 'python_dateutil.whl']
-
-
-或者在立即执行的方法中，局部指定：
-
-.. code:: python
-
-    >>> df.map_reduce(mapper=my_mapper, reducer=my_reducer, group='key').execute(libraries=['six.whl', 'python_dateutil.whl'])
-
+PyODPS 提供了 ``pyodps-pack`` 工具，可在安装完 PyODPS 后打包三方包及其依赖。同时，execute / persist / to_pandas
+方法支持增加 ``libraries`` 参数以使用这些资源。如何制作及使用三方包的说明请参考 :ref:`这里 <pyodps_pack>`。
 
 .. warning::
     由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS
@@ -952,6 +927,12 @@ kv_delim 和 item_delim 这两个参数指定，默认分别为半角冒号和�
     1  name1    7.0    0.0    0.0    0.0    8.2    0.0
     2  name2    0.0    1.2    1.5    0.0    0.0    0.0
     3  name2    0.0    1.0    0.0    0.0    0.0    1.1
+
+extract_kv 默认输出类型为 ``float``\ 。如果需要输出其他类型，可以指定 ``dtype`` 参数，例如
+
+.. code:: python
+
+    df.extract_kv(columns=['kv'], kv_delim='=', fill_value=0, dtype='string')
 
 DataFrame 也支持将多列数据转换为一个 Key-Value 列。例如，
 

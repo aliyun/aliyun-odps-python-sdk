@@ -16,7 +16,7 @@
 
 from odps.tests.core import TestBase
 from odps.compat import unittest
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
 from odps.df.expr.expressions import StringScalar
@@ -27,17 +27,20 @@ class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
         schema = DynamicSchema.from_schema(
-            Schema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                              datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
+            TableSchema.from_lists(
+                ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+                datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
+            )
         )
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
         schema2 = DynamicSchema.from_schema(
-            Schema.from_lists(['name2', 'id', 'fid2'],
-                              datatypes('string', 'int64', 'float64')),
+            TableSchema.from_lists(
+                ['name2', 'id', 'fid2'], datatypes('string', 'int64', 'float64')
+            ),
             default_type=types.string
         )
-        table2 = MockTable(name='pyodps_test_expr_tabl2', schema=schema2)
+        table2 = MockTable(name='pyodps_test_expr_tabl2', table_schema=schema2)
 
         self.expr = DynamicCollectionExpr(_source_data=table, _schema=schema)
         self.expr2 = DynamicCollectionExpr(_source_data=table2, _schema=schema2)

@@ -16,7 +16,7 @@
 
 from odps.tests.core import TestBase, to_str
 from odps.compat import unittest
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df.expr.expressions import CollectionExpr
 from odps.df.types import validate_data_type
 from odps.df.expr.tests.core import MockTable
@@ -465,13 +465,13 @@ id = TypedSequence[sequence(float64)]
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'id'], datatypes('string', 'int64'))
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        schema = TableSchema.from_lists(['name', 'id'], datatypes('string', 'int64'))
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
-        schema2 = Schema.from_lists(['name2', 'id2'], datatypes('string', 'int64'))
-        table2 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
+        schema2 = TableSchema.from_lists(['name2', 'id2'], datatypes('string', 'int64'))
+        table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
         self.expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
 
     def _lines_eq(self, expected, actual):

@@ -38,7 +38,7 @@ class VolumeFSObject(LazyLoad):
         path = serializers.XMLNodeField('Path')
         replication = serializers.XMLNodeField('Replication')
 
-    project = serializers.XMLNodeField('Project')
+    _project = serializers.XMLNodeField('Project')
     volume = serializers.XMLNodeField('Volume')
     path = serializers.XMLNodeField('Path')
     _isdir = serializers.XMLNodeField('Isdir', type='bool')
@@ -94,10 +94,6 @@ class VolumeFSObject(LazyLoad):
         return dn
 
     @property
-    def project(self):
-        return self.parent.parent.parent
-
-    @property
     def volume(self):
         return self.parent
 
@@ -110,8 +106,16 @@ class VolumeFSObject(LazyLoad):
         if self.is_root:
             return
 
-        resp = self._client.get(self.parent.resource(), params={'meta': ''},
-                                headers={'x-odps-volume-fs-path': self.path})
+        schema_name = self.parent._get_schema_name()
+        params = {'meta': ''}
+        if schema_name is not None:
+            params["curr_schema"] = schema_name
+
+        resp = self._client.get(
+            self.parent.resource(),
+            params=params,
+            headers={'x-odps-volume-fs-path': self.path},
+        )
         self.parse(self._client, resp, obj=self)
 
     @staticmethod
@@ -165,7 +169,16 @@ class VolumeFSObject(LazyLoad):
             'Content-Type': 'application/xml',
             'x-odps-volume-fs-path': self.path,
         }
-        self._client.put(self.parent.resource(), params={'meta': ''}, headers=headers, data=update_def.serialize())
+
+        schema_name = self.parent._get_schema_name()
+        params = {'meta': ''}
+        if schema_name is not None:
+            params["curr_schema"] = schema_name
+
+        self._client.put(
+            self.parent.resource(), params=params, headers=headers, data=update_def.serialize()
+        )
+
         self._del_cache(self.path)
         self.path = new_path
         self.reload()
@@ -176,8 +189,11 @@ class VolumeFSObject(LazyLoad):
 
         from ..tunnel import VolumeFSTunnel
 
-        self._volume_fs_tunnel = VolumeFSTunnel(client=self._client, project=self.project,
-                                                endpoint=endpoint or self.project._tunnel_endpoint)
+        self._volume_fs_tunnel = VolumeFSTunnel(
+            client=self._client,
+            project=self.project,
+            endpoint=endpoint or self.project._tunnel_endpoint,
+        )
         return self._volume_fs_tunnel
 
 
@@ -215,7 +231,12 @@ class VolumeFSDir(VolumeFSObject):
         path = self.path + '/' + path.lstrip('/')
         dir_def = self.CreateRequestXML(type='directory', path=path)
         headers = {'Content-Type': 'application/xml'}
-        self._client.post(self.parent.resource(), headers=headers, data=dir_def.serialize())
+        self._client.post(
+            self.parent.resource(),
+            headers=headers,
+            data=dir_def.serialize(),
+            curr_schema=self.parent._get_schema_name(),
+        )
 
         dir_object = VolumeFSDir(path=path, parent=self.parent, client=self._client)
         dir_object.reload()
@@ -239,7 +260,12 @@ class VolumeFSDir(VolumeFSObject):
         params = {'recursive': recursive}
         headers = {'x-odps-volume-fs-path': self.path}
         self._del_cache(self.path)
-        self._client.delete(self.parent.resource(), params=params, headers=headers)
+        self._client.delete(
+            self.parent.resource(),
+            params=params,
+            headers=headers,
+            curr_schema=self.parent._get_schema_name(),
+        )
 
     def open_reader(self, path, **kw):
         """
@@ -301,7 +327,15 @@ class VolumeFSFile(VolumeFSObject):
             'Content-Type': 'application/xml',
             'x-odps-volume-fs-path': self.path,
         }
-        self._client.put(self.parent.resource(), params={'meta': ''}, headers=headers, data=update_def.serialize())
+
+        schema_name = self.parent._get_schema_name()
+        params = {'meta': ''}
+        if schema_name is not None:
+            params["curr_schema"] = schema_name
+
+        self._client.put(
+            self.parent.resource(), params=params, headers=headers, data=update_def.serialize()
+        )
         self.reload()
 
     def delete(self, **_):
@@ -310,6 +344,11 @@ class VolumeFSFile(VolumeFSObject):
         """
         params = {'recursive': False}
         headers = {'x-odps-volume-fs-path': self.path}
+
+        schema_name = self.parent._get_schema_name()
+        if schema_name is not None:
+            params["curr_schema"] = schema_name
+
         self._del_cache(self.path)
         self._client.delete(self.parent.resource(), params=params, headers=headers)
 
@@ -382,6 +421,10 @@ class VolumeFSObjects(Iterable):
         params = {'expectmarker': 'true'}
         headers = {'x-odps-volume-fs-path': self.parent.path}
 
+        schema_name = self.volume._get_schema_name()
+        if schema_name is not None:
+            params["curr_schema"] = schema_name
+
         def _it():
             last_marker = params.get('marker')
             if 'marker' in params and \
@@ -445,6 +488,18 @@ class FSVolume(Volume):
     @property
     def path(self):
         return '/' + self.name
+
+    @property
+    def location(self):
+        if self.type != Volume.Type.EXTERNAL:
+            raise AttributeError
+        return self.properties.get(Volume.EXTERNAL_VOLUME_LOCATION_KEY)
+
+    @property
+    def rolearn(self):
+        if self.type != Volume.Type.EXTERNAL:
+            raise AttributeError
+        return self.properties.get(Volume.EXTERNAL_VOLUME_ROLEARN_KEY)
 
     def open_reader(self, path, **kw):
         """

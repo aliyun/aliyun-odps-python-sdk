@@ -19,6 +19,11 @@ from .resource import Resource, FileResource
 from .. import serializers, errors
 from ..compat import six
 
+_RESOURCE_SPLITTER = '/resources/'
+_SCHEMA_SPLITTER = '/schemas/'
+
+DEFAULT_RESOURCE_CHUNK_SIZE = 64 << 20
+
 
 class Resources(Iterable):
 
@@ -26,14 +31,26 @@ class Resources(Iterable):
     max_items = serializers.XMLNodeField('MaxItems')
     resources = serializers.XMLNodesReferencesField(Resource, 'Resource')
 
-    def _get(self, name):
-        splitter = '/resources/'
-        if splitter in name:
-            project_name, name = tuple(name.split(splitter, 1))
+    def get_typed(self, name, type):
+        type_cls = Resource._get_cls(type)
+
+        if _RESOURCE_SPLITTER in name:
+            project_schema_name, name = name.split(_RESOURCE_SPLITTER, 1)
+
+            if _SCHEMA_SPLITTER not in project_schema_name:
+                project_name, schema_name = project_schema_name, None
+            else:
+                project_name, schema_name = project_schema_name.split(_SCHEMA_SPLITTER, 1)
 
             from .projects import Projects
-            return Projects(client=self._client)[project_name].resources[name]
-        return Resource(client=self._client, parent=self, name=name)
+            parent = Projects(client=self._client)[project_name]
+            if schema_name is not None:
+                parent = parent.schemas[schema_name]
+            return parent.resources[name]
+        return type_cls(client=self._client, parent=self, name=name)
+
+    def _get(self, name):
+        return self.get_typed(name, None)
 
     def __contains__(self, item):
         if isinstance(item, six.string_types):
@@ -55,12 +72,18 @@ class Resources(Iterable):
     def __iter__(self):
         return self.iterate()
 
+    def get(self, name, type=None):
+        Resource._get_cls(type)
+
     def iterate(self, name=None, owner=None):
         params = {'expectmarker': 'true'}
         if name is not None:
             params['name'] = name
         if owner is not None:
             params['owner'] = owner
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            params['curr_schema'] = schema_name
 
         def _it():
             last_marker = params.get('marker')
@@ -89,6 +112,8 @@ class Resources(Iterable):
 
         if 'temp' in kwargs:
             kwargs['is_temp_resource'] = kwargs.pop('temp')
+        if 'part' in kwargs:
+            kwargs['is_part_resource'] = kwargs.pop('part')
 
         ctor_kw = kwargs.copy()
         ctor_kw.pop('file_obj', None)
@@ -115,9 +140,9 @@ class Resources(Iterable):
         del self[name]  # release cache
 
         url = resource.resource()
-        self._client.delete(url)
+        self._client.delete(url, curr_schema=self._get_schema_name())
 
-    def _request(self, name, stream=False):
+    def _request(self, name, stream=False, offset=None, read_size=None):
         if isinstance(name, FileResource):
             res = name
         else:
@@ -125,8 +150,15 @@ class Resources(Iterable):
         url = res.resource()
 
         headers = {'Content-Type': 'application/octet-stream'}
-        resp = self._client.get(url, headers=headers, stream=stream)
+        params = {}
+        if offset is not None:
+            params["rOffset"] = str(offset)
+        if read_size is not None:
+            params["rSize"] = str(read_size)
 
+        resp = self._client.get(
+            url, headers=headers, params=params, stream=stream, curr_schema=self._get_schema_name()
+        )
         return resp
 
     def iter_resource_content(self, name, text_mode=False):
@@ -134,15 +166,33 @@ class Resources(Iterable):
 
         return resp.iter_content(decode_unicode=text_mode)
 
-    def read_resource(self, name, encoding='utf-8', text_mode=False):
-        resp = self._request(name)
+    def read_resource(
+        self, name, encoding='utf-8', text_mode=False, offset=None, read_size=None
+    ):
+        resp = self._request(name, offset=offset, read_size=read_size)
 
         content = resp.content
         if not text_mode:
             if isinstance(content, six.text_type):
                 content = content.encode(encoding)  # read as bytes
-            return six.BytesIO(content)
+            sio = six.BytesIO(content)
         else:
             if isinstance(content, six.binary_type):
                 content = content.decode(encoding)
-            return six.StringIO(content)
+            sio = six.StringIO(content)
+
+        has_remaining = resp.headers.get("x-odps-resource-has-remaining") or "false"
+        sio.is_eof = has_remaining.lower() != "true"
+        return sio
+
+    def merge_part_files(self, resource, part_resources, md5_hex, overwrite=False):
+        content = md5_hex + "|" + ",".join(res.name for res in part_resources)
+        total_bytes = sum(res.size for res in part_resources)
+        resource_args = resource.extract(
+
+        )
+        resource_args.update(
+            {"parent": self, "client": self._client, "merge_total_bytes": total_bytes}
+        )
+        merge_res = Resource(**resource_args)
+        merge_res.create(overwrite=overwrite, fileobj=content)

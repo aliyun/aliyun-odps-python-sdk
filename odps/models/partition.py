@@ -134,7 +134,7 @@ class Partition(LazyLoad):
     def reload(self):
         url = self.resource()
         params = {'partition': str(self.partition_spec)}
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, params=params, curr_schema=self._get_schema_name())
 
         self.parse(self._client, resp, obj=self)
 
@@ -144,7 +144,7 @@ class Partition(LazyLoad):
         url = self.resource()
         params = {'extended': '',
                   'partition': str(self.partition_spec)}
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, params=params, curr_schema=self._get_schema_name())
 
         self.parse(self._client, resp, obj=self)
         self._is_extend_info_loaded = True
@@ -195,3 +195,6 @@ class Partition(LazyLoad):
 
     def open_writer(self, blocks=None, **kw):
         return self.table.open_writer(str(self), blocks=blocks, **kw)
+
+    def truncate(self, async_=False):
+        return self.table.truncate(str(self), async_=async_)

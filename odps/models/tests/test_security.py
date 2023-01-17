@@ -13,7 +13,11 @@
 # limitations under the License.
 
 import json
+from datetime import datetime
 
+import pytest
+
+from odps.config import options
 from odps.errors import NoSuchObject, ODPSError, SecurityQueryError
 from odps.tests.core import TestBase, tn, global_locked
 from odps.compat import unittest
@@ -219,6 +223,38 @@ class Test(TestBase):
             self.odps.execute_security_query(
                 'INSTALL PACKAGE %s.non_exist_package' % self.project.name
             )
+
+    def testGenerateAuthToken(self):
+        with pytest.raises(SecurityQueryError):
+            self.project.generate_auth_token(None, "not_supported", 1)
+
+        policy = {
+            "Version": "1",
+            "Statement": [
+                {
+                    "Action": ["odps:*"],
+                    "Resource": "acs:odps:*:*",
+                    "Effect": "Allow"
+                }
+            ]
+        }
+        token = self.project.generate_auth_token(policy, "bearer", 5)
+
+        try:
+            from odps import ODPS
+            from odps.accounts import BearerTokenAccount
+
+            account = BearerTokenAccount(token)
+            account._last_modified_time = datetime.now()
+            new_odps = ODPS(
+                project=self.odps.project,
+                endpoint=self.odps.endpoint,
+                account=account,
+            )
+            instance = new_odps.run_sql("select * from dual")
+            assert instance.get_logview_address()
+        finally:
+            options.account = options.default_project = options.endpoint = None
 
 
 if __name__ == '__main__':

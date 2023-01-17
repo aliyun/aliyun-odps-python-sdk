@@ -30,7 +30,7 @@ from odps.df.ui import DFViewMixin, MAX_TABLE_FETCH_SIZE, _rv
 class Test(TestBase):
     def setup(self):
         datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = Schema.from_lists(['name', 'category', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        schema = TableSchema.from_lists(['name', 'category', 'id', 'fid', 'isMale', 'scale', 'birth'],
                                    datatypes('string', 'string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
         self.schema = df_schema_to_odps_schema(schema)
 

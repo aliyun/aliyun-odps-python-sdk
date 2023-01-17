@@ -18,7 +18,7 @@
 from odps.tests.core import TestBase
 from odps.config import option_context
 from odps.compat import unittest
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.df.expr.expressions import *
 from odps.df.expr.core import ExprDictionary
 from odps.df.expr import errors
@@ -28,21 +28,27 @@ from odps.df.expr.arithmetic import Add
 
 class Test(TestBase):
     def setup(self):
-        schema = Schema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        schema = TableSchema.from_lists(
+            ['name', 'id', 'fid'], [types.string, types.int64, types.float64]
+        )
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         table._client = self.config.odps.rest
         self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
-        schema2 = Schema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64],
-                                    ['part1', 'part2'], [types.string, types.int64])
-        table2 = MockTable(name='pyodps_test_expr_table2', schema=schema2)
+        schema2 = TableSchema.from_lists(
+            ['name', 'id', 'fid'], [types.string, types.int64, types.float64],
+            ['part1', 'part2'], [types.string, types.int64],
+        )
+        table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
         table2._client = self.config.odps.rest
         self.expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
 
-        schema3 = Schema.from_lists(['id', 'name', 'relatives', 'hobbies'],
-                                    [types.int64, types.string, types.Dict(types.string, types.string),
-                                     types.List(types.string)])
-        table3 = MockTable(name='pyodps_test_expr_table3', schema=schema3)
+        schema3 = TableSchema.from_lists(
+            ['id', 'name', 'relatives', 'hobbies'],
+            [types.int64, types.string, types.Dict(types.string, types.string),
+             types.List(types.string)],
+        )
+        table3 = MockTable(name='pyodps_test_expr_table3', table_schema=schema3)
         self.expr3 = CollectionExpr(_source_data=table3, _schema=schema3)
 
     def testDir(self):
@@ -59,21 +65,28 @@ class Test(TestBase):
         projected = self.expr['name', self.expr.id.rename('new_id')]
 
         self.assertIsInstance(projected, CollectionExpr)
-        self.assertEqual(projected._schema,
-                         Schema.from_lists(['name', 'new_id'], [types.string, types.int64]))
+        self.assertEqual(
+            projected._schema,
+            TableSchema.from_lists(['name', 'new_id'], [types.string, types.int64]),
+        )
 
         projected = self.expr[[self.expr.name, self.expr.id.astype('string')]]
 
         self.assertIsInstance(projected, ProjectCollectionExpr)
-        self.assertEqual(projected._schema,
-                         Schema.from_lists(['name', 'id'], [types.string, types.string]))
+        self.assertEqual(
+            projected._schema,
+            TableSchema.from_lists(['name', 'id'], [types.string, types.string]),
+        )
 
         projected = self.expr.select(self.expr.name, Scalar('abc').rename('word'), size=5)
 
         self.assertIsInstance(projected, ProjectCollectionExpr)
-        self.assertEqual(projected._schema,
-                         Schema.from_lists(['name', 'word', 'size'],
-                                           [types.string, types.string, types.int8]))
+        self.assertEqual(
+            projected._schema,
+            TableSchema.from_lists(
+                ['name', 'word', 'size'], [types.string, types.string, types.int8]
+            )
+        )
         self.assertIsInstance(projected._fields[1], StringScalar)
         self.assertEqual(projected._fields[1].value, 'abc')
         self.assertIsInstance(projected._fields[2], Int8Scalar)
@@ -317,7 +330,7 @@ class Test(TestBase):
         self.assertIs(expr._fields[-1].rhs.lhs.input, expr.input)
 
         self.assertIsInstance(expr, ProjectCollectionExpr)
-        self.assert_(isinstance(expr, ProjectCollectionExpr))
+        self.assertTrue(isinstance(expr, ProjectCollectionExpr))
 
         expr2 = expr.groupby('name').agg(expr.id.sum())
         expr2['new_id2'] = expr2.id_sum + 1
@@ -325,9 +338,11 @@ class Test(TestBase):
         self.assertNotIsInstance(expr2, GroupByCollectionExpr)
         self.assertNotIsInstance(expr2, FilterCollectionExpr)
 
-        schema = Schema.from_lists(['name', 'id', 'fid2', 'fid3'],
-                                   [types.string, types.int64, types.float64, types.float64])
-        table = MockTable(name='pyodps_test_expr_table', schema=schema)
+        schema = TableSchema.from_lists(
+            ['name', 'id', 'fid2', 'fid3'],
+            [types.string, types.int64, types.float64, types.float64],
+        )
+        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
         table._client = self.config.odps.rest
         expr3 = CollectionExpr(_source_data=table, _schema=schema)
 

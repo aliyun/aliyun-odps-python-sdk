@@ -143,8 +143,8 @@ class MixedEngine(Engine):
         to_execute = root._lhs if not self._selecter.has_odps_data_source(root._lhs) \
             else root._rhs
         table_name = self._gen_table_name()
-        sub = CollectionExpr(_source_data=self._odps.get_table(table_name),
-                             _schema=to_execute.schema)
+        odps_table = self._odps.get_table(table_name, schema=self._odpssql_engine._ctx.default_schema)
+        sub = CollectionExpr(_source_data=odps_table, _schema=to_execute.schema)
         sub.add_deps(to_execute)
         expr_dag.substitute(to_execute, sub)
 
@@ -185,8 +185,8 @@ class MixedEngine(Engine):
 
             if is_root_input_from_odps and not is_source_from_odps:
                 table_name = self._gen_table_name()
-                sub = CollectionExpr(_source_data=self._odps.get_table(table_name),
-                                     _schema=collection.schema)
+                odps_table = self._odps.get_table(table_name, schema=self._odpssql_engine._ctx.default_schema)
+                sub = CollectionExpr(_source_data=odps_table, _schema=collection.schema)
                 sub.add_deps(collection)
                 expr_dag.substitute(collection, sub)
 

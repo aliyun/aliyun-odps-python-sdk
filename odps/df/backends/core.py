@@ -602,22 +602,24 @@ class Engine(object):
         from .odpssql.engine import types as odps_engine_types
         from .. import NullScalar
 
-        df_schema = odps_engine_types.odps_schema_to_df_schema(table.schema)
+        df_schema = odps_engine_types.odps_schema_to_df_schema(table.table_schema)
         expr_schema = expr.schema.to_ignorecase_schema()
         expr_table_schema = odps_engine_types.df_schema_to_odps_schema(expr_schema)
         case_dict = dict((n.lower(), n) for n in expr.schema.names)
 
         for col in expr_table_schema.columns:
-            if col.name.lower() not in table.schema:
+            if col.name.lower() not in table.table_schema:
                 raise CompileError('Column(%s) does not exist in target table %s, '
                                    'writing cannot be performed.' % (col.name, table.name))
-            t_col = table.schema[col.name.lower()]
+            t_col = table.table_schema[col.name.lower()]
             if not cast and not t_col.type.can_implicit_cast(col.type):
                 raise CompileError('Cannot implicitly cast column %s from %s to %s.' % (
                     col.name, col.type, t_col.type))
 
-        if table.schema.names == expr_schema.names and \
-                        df_schema.types[:len(table.schema.names)] == expr_schema.types:
+        if (
+            table.table_schema.names == expr_schema.names
+            and df_schema.types[:len(table.table_schema.names)] == expr_schema.types
+        ):
             return expr
 
         def field(name):
@@ -629,7 +631,7 @@ class Engine(object):
             else:
                 raise CompileError('Column %s\'s type does not match, expect %s, got %s' % (
                     expr_name, expr[expr_name].dtype, df_schema[name].type))
-        names = [c.name for c in table.schema.columns] if with_partitions else table.schema.names
+        names = [c.name for c in table.table_schema.columns] if with_partitions else table.table_schema.names
         return expr[[field(name) if name in expr_schema else NullScalar(df_schema[name].type).rename(name)
                      for name in names]]
 
@@ -648,13 +650,13 @@ class Engine(object):
             p_spec = PartitionSpec(partition)
 
         if table is not None:
-            part_names = [p.name for p in table.schema.partitions]
+            part_names = [p.name for p in table.table_schema.partitions]
             for name in part_names:
                 if name not in p_spec:
                     raise ValueError('Table has partition column {0} '
                                      'which not specified by `partition`'.format(name))
             for name in p_spec.keys:
-                if name not in table.schema._partition_schema:
+                if name not in table.table_schema._partition_schema:
                     raise ValueError('Table does not have partition({0}) '
                                      'which specified in `partition`'.format(name))
             if p_spec.keys != part_names:

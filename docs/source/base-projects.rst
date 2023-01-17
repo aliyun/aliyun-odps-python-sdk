@@ -3,7 +3,7 @@
 项目空间
 =========
 
-`项目空间 <https://docs.aliyun.com/#/pub/odps/basic/definition&project>`_ 是ODPS的基本组织单元，
+`项目空间 <https://help.aliyun.com/document_detail/27818.html>`_ 是ODPS的基本组织单元，
 有点类似于Database的概念。
 
 我们通过 ODPS 入口对象的 ``get_project`` 来取到某个项目空间。

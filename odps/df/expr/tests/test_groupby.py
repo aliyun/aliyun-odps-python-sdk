@@ -21,7 +21,7 @@ from odps.df.expr.reduction import *
 
 class Test(TestBase):
     def setup(self):
-        schema = Schema.from_lists(types._data_types.keys(), types._data_types.values())
+        schema = TableSchema.from_lists(types._data_types.keys(), types._data_types.values())
         self.expr = CollectionExpr(_source_data=True, _schema=schema)
 
     def testGroupby(self):

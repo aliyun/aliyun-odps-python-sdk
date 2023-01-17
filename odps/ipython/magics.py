@@ -24,7 +24,7 @@ from ..utils import replace_sql_parameters, init_progress_ui
 from ..df import DataFrame, Scalar, NullScalar, Delay
 from ..df.backends.frame import ResultFrame
 from ..df.backends.odpssql.types import odps_schema_to_df_schema, odps_type_to_df_type
-from ..models import Schema
+from ..models import TableSchema
 from ..ui.common import html_notify
 from ..ui.progress import create_instance_group, reload_instance_status, fetch_instance_group
 
@@ -220,7 +220,7 @@ else:
                                     else:
                                         cols = res.columns.tolist()
                                         schema = odps_schema_to_df_schema(
-                                            Schema.from_lists(cols, ['string' for _ in cols]))
+                                           TableSchema.from_lists(cols, ['string' for _ in cols]))
                                     res = ResultFrame(res.values, schema=schema)
                                 except (ValueError, CParserError):
                                     res = reader.raw
@@ -257,19 +257,26 @@ else:
             frame_name, table_name = line.split(None, 1)
 
             if '.' in table_name:
-                project_name, table_name = tuple(table_name.split('.', 1))
+                parts = table_name.split('.')
+                if len(parts) == 3:
+                    project_name, schema_name, table_name = parts
+                else:
+                    project_name, table_name = parts
+                    schema_name = None
+                if table_name.startswith('`') and table_name.endswith('`'):
+                    table_name = table_name[1:-1]
             else:
-                project_name = None
+                project_name = schema_name = None
 
             frame = self.shell.user_ns[frame_name]
-            if self._odps.exist_table(table_name, project=project_name):
+            if self._odps.exist_table(table_name, project=project_name, schema=schema_name):
                 raise TypeError('%s already exists' % table_name)
 
             if isinstance(frame, DataFrame):
-                frame.persist(name=table_name, project=project_name, notify=False)
+                frame.persist(name=table_name, project=project_name, schema=schema_name, notify=False)
             elif has_pandas and isinstance(frame, pd.DataFrame):
                 frame = DataFrame(frame)
-                frame.persist(name=table_name, project=project_name, notify=False)
+                frame.persist(name=table_name, project=project_name, schema=schema_name, notify=False)
             html_notify('Persist succeeded')
 
 
@@ -281,5 +288,5 @@ else:
         ipython.user_ns['Scalar'] = Scalar
         ipython.user_ns['NullScalar'] = NullScalar
         ipython.user_ns['options'] = options
-        ipython.user_ns['Schema'] = Schema
+        ipython.user_ns['TableSchema'] = TableSchema
         ipython.user_ns['Delay'] = Delay

@@ -63,6 +63,43 @@ class Config(object):
     admin = None
 
 
+def _load_config_odps(config, section_name, overwrite_global=True):
+    try:
+        config.options(section_name)
+    except ConfigParser.NoSectionError:
+        return
+
+    access_id = config.get(section_name, "access_id")
+    secret_access_key = config.get(section_name, "secret_access_key")
+    project = config.get(section_name, "project")
+    endpoint = config.get(section_name, "endpoint")
+    try:
+        seahawks_url = config.get(section_name, "seahawks_url")
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        seahawks_url = None
+    try:
+        schema = config.get(section_name, "schema")
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        schema = None
+    try:
+        tunnel_endpoint = config.get(section_name, "tunnel_endpoint")
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        tunnel_endpoint = None
+
+    try:
+        attr_name = config.get(section_name, "attr")
+    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+        attr_name = section_name
+
+    odps_entry = ODPS(
+        access_id, secret_access_key, project, endpoint,
+        schema=schema, tunnel_endpoint=tunnel_endpoint,
+        seahawks_url=seahawks_url,
+        overwrite_global=overwrite_global,
+    )
+    setattr(config, attr_name, odps_entry)
+
+
 def get_config():
     global LOGGING_CONFIG
 
@@ -71,21 +108,16 @@ def get_config():
         Config.config = config
         config_path = os.path.join(os.path.dirname(__file__), 'test.conf')
         if not os.path.exists(config_path):
-            raise Exception('Please configure test.conf (you can rename'
-                            ' test.conf.template)')
+            raise OSError(
+                'Please configure test.conf (you can rename test.conf.template)'
+            )
         config.read(config_path)
-        access_id = config.get("odps", "access_id")
-        secret_access_key = config.get("odps", "secret_access_key")
-        project = config.get("odps", "project")
-        endpoint = config.get("odps", "endpoint")
-        try:
-            seahawks_url = config.get("odps", "seahawks_url")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            seahawks_url = None
-        try:
-            tunnel_endpoint = config.get("odps", "tunnel_endpoint")
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-            tunnel_endpoint = None
+
+        _load_config_odps(config, "odps_daily", overwrite_global=False)
+        _load_config_odps(config, "odps_with_schema", overwrite_global=False)
+        # make sure main config overrides other configs
+        _load_config_odps(config, "odps")
+        config.tunnel = TableTunnel(config.odps, endpoint=config.odps._tunnel_endpoint)
 
         try:
             from cupid import options as cupid_options
@@ -93,11 +125,6 @@ def get_config():
             cupid_options.cupid.proxy_endpoint = config.get("cupid", "proxy_endpoint")
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError, ImportError):
             pass
-
-        config.odps = ODPS(access_id, secret_access_key, project, endpoint,
-                           tunnel_endpoint=tunnel_endpoint, seahawks_url=seahawks_url)
-
-        config.tunnel = TableTunnel(config.odps, endpoint=tunnel_endpoint)
 
         try:
             oss_access_id = config.get("oss", "access_id")
@@ -182,6 +209,8 @@ def module_depend_case(mod_names):
 numpy_case = module_depend_case('numpy')
 pandas_case = module_depend_case('pandas')
 snappy_case = module_depend_case('snappy')
+zstd_case = module_depend_case('zstandard')
+lz4_case = module_depend_case('lz4')
 sqlalchemy_case = module_depend_case('sqlalchemy')
 
 
@@ -303,7 +332,15 @@ class TestBase(_TestBase):
         gc.collect()
 
         self.config = get_config()
-        self.odps = self.config.odps
+        self.odps = self.config.odps  # type: ODPS
+        try:
+            self.odps_daily = self.config.odps_daily  # type: ODPS
+        except AttributeError:
+            pass
+        try:
+            self.odps_with_schema = self.config.odps_with_schema  # type: ODPS
+        except AttributeError:
+            pass
         self.tunnel = self.config.tunnel
         self.setup()
 
@@ -387,3 +424,26 @@ class TestBase(_TestBase):
             countdown -= 1
             if countdown <= 0:
                 raise SystemError('Waiting for container content time out.')
+
+    @staticmethod
+    def run_sub_tests_in_parallel(n_parallel, sub_tests):
+        test_pool = compat.futures.ThreadPoolExecutor(n_parallel)
+        futures = [
+            test_pool.submit(sub_test) for idx, sub_test in enumerate(sub_tests)
+        ]
+        for fut in futures:
+            fut.result()
+        test_pool.shutdown(wait=True)
+
+    @staticmethod
+    def force_drop_schema(schema):
+        insts = []
+        for tb in schema.tables:
+            insts.append(tb.drop(async_=True))
+        for res in schema.resources:
+            res.drop()
+        for func in schema.functions:
+            func.drop()
+        for inst in insts:
+            inst.wait_for_completion()
+        schema.drop()

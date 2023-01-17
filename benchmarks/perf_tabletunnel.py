@@ -25,7 +25,7 @@ from odps import options
 
 from odps.compat import unittest, Decimal
 from odps.tests.core import TestBase
-from odps.models import Schema
+from odps.models import TableSchema
 from datetime import datetime
 
 # remember to reset False before committing
@@ -46,7 +46,7 @@ class Test(TestBase):
             self.pr.enable()
         fields = ['a', 'b', 'c', 'd', 'e', 'f']
         types = ['bigint', 'double', 'datetime', 'boolean', 'string', 'decimal']
-        self.SCHEMA = Schema.from_lists(fields, types)
+        self.SCHEMA = TableSchema.from_lists(fields, types)
 
     def tearDown(self):
         if ENABLE_PROFILE:
@@ -63,7 +63,7 @@ class Test(TestBase):
 
     def testWrite(self):
         table_name = 'pyodps_test_tunnel_write_performance'
-        self.odps.create_table(table_name, schema=self.SCHEMA, if_not_exists=True)
+        self.odps.create_table(table_name, self.SCHEMA, if_not_exists=True)
         ss = self.tunnel.create_upload_session(table_name)
         r = ss.new_record()
 
@@ -85,7 +85,7 @@ class Test(TestBase):
     def testRead(self):
         table_name = 'pyodps_test_tunnel_read_performance'
         self.odps.delete_table(table_name, if_exists=True)
-        t = self.odps.create_table(table_name, schema=self.SCHEMA)
+        t = self.odps.create_table(table_name, self.SCHEMA)
 
         def gen_data():
             for i in range(self.DATA_AMOUNT):
@@ -118,7 +118,7 @@ class Test(TestBase):
 
     def testBufferedWrite(self):
         table_name = 'test_tunnel_bufferred_write'
-        self.odps.create_table(table_name, schema=self.SCHEMA, if_not_exists=True)
+        self.odps.create_table(table_name, self.SCHEMA, if_not_exists=True)
         ss = self.tunnel.create_upload_session(table_name)
         r = ss.new_record()
 

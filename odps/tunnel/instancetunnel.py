@@ -16,13 +16,12 @@
 
 from .base import BaseTunnel, TUNNEL_VERSION
 from .io.reader import TunnelRecordReader, TunnelArrowReader
-from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputStream
+from .io.stream import CompressOption, get_decompress_stream
 from .errors import TunnelError
-from .. import errors, serializers, types
+from .. import serializers, types
 from ..compat import Enum, six
 from ..config import options
-from ..models import Projects, Schema
-from ..models.table import TableSchema
+from ..models import Projects, TableSchema
 
 try:
     import numpy as np
@@ -46,7 +45,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     status = serializers.JSONNodeField(
         'Status', parse_callback=lambda s: InstanceDownloadSession.Status(s.upper()))
     count = serializers.JSONNodeField('RecordCount')
-    schema = serializers.JSONNodeReferenceField(Schema, 'Schema')
+    schema = serializers.JSONNodeReferenceField(TableSchema, 'Schema')
 
     def __init__(self, client, instance, download_id=None, limit=None,
                  compress_option=None, **kw):
@@ -138,15 +137,9 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             params['rowrange'] = '(%s,%s)' % (start, count)
             headers['Content-Length'] = 0
         if compress:
-            if compress_option.algorithm == \
-                    CompressOption.CompressAlgorithm.ODPS_ZLIB:
-                headers['Accept-Encoding'] = 'deflate'
-            elif compress_option.algorithm == \
-                    CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-                headers['Accept-Encoding'] = 'x-snappy-framed'
-            elif compress_option.algorithm != \
-                    CompressOption.CompressAlgorithm.ODPS_RAW:
-                raise TunnelError('invalid compression option')
+            encoding = compress_option.algorithm.get_encoding()
+            if encoding is not None:
+                headers['Accept-Encoding'] = encoding
         params['data'] = ''
         if columns is not None and len(columns) > 0:
             col_name = lambda col: col.name if isinstance(col, types.Column) else col
@@ -170,33 +163,15 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
 
         content_encoding = resp.headers.get('Content-Encoding')
         if content_encoding is not None:
-            if content_encoding == 'deflate':
-                self._compress_option = CompressOption(
-                    CompressOption.CompressAlgorithm.ODPS_ZLIB, -1, 0)
-            elif content_encoding == 'x-snappy-framed':
-                self._compress_option = CompressOption(
-                    CompressOption.CompressAlgorithm.ODPS_SNAPPY, -1, 0)
-            else:
-                raise TunnelError('invalid content encoding')
+            compress_algo = CompressOption.CompressAlgorithm.from_encoding(content_encoding)
+            if compress_algo != compress_option.algorithm:
+                compress_option = self._compress_option = CompressOption(compress_algo, -1, 0)
             compress = True
         else:
             compress = False
 
         option = compress_option if compress else None
-        if option is None:
-            input_stream = RequestsInputStream(resp)  # create a file-like object from body
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_RAW:
-            input_stream = RequestsInputStream(resp)  # create a file-like object from body
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_ZLIB:
-            input_stream = RequestsInputStream(resp)  # Requests automatically decompress gzip data!
-        elif compress_option.algorithm == \
-                CompressOption.CompressAlgorithm.ODPS_SNAPPY:
-            input_stream = SnappyRequestsInputStream(resp)
-        else:
-            raise errors.InvalidArgument('Invalid compression algorithm.')
-
+        input_stream = get_decompress_stream(resp, option)
         return reader_cls(self.schema, input_stream, columns=columns)
 
     def open_record_reader(self, start, count, compress=False, columns=None):

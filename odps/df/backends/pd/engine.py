@@ -15,29 +15,31 @@
 # limitations under the License.
 
 import os
+import sys
 import tarfile
 import zipfile
 
-from .compiler import PandasCompiler
-from .types import pd_to_df_schema
-from ..core import Engine, ExecuteNode, ExprDAG
-from ..frame import ResultFrame
+from .... import compat, options
+from ....compat import six
+from ....errors import ODPSError
+from ....lib.importer import CompressImporter
+from ....models import Table, TableSchema, Partition as TableSchemaPartition
+from ....models.partition import Partition
 from ... import DataFrame
 from ...expr.core import ExprDictionary
-from ...expr.expressions import *
+from ...expr.expressions import CollectionExpr, Scalar
 from ...expr.dynamic import DynamicMixin
 from ...backends.odpssql.types import df_schema_to_odps_schema, df_type_to_odps_type
-from ..errors import CompileError
-from ..utils import refresh_dynamic, write_table
 from ...utils import is_source_collection, is_constant_scalar
 from ...types import DynamicSchema, Unknown
-from ....models import Schema, Partition
-from ....errors import ODPSError
-from ....models.table import TableSchema
-from ....lib.importer import CompressImporter
-from .... import compat, options
 from ..context import context
+from ..core import Engine, ExecuteNode, ExprDAG
+from ..errors import CompileError
+from ..frame import ResultFrame
+from ..utils import refresh_dynamic, write_table
 from . import analyzer as ana
+from .compiler import PandasCompiler
+from .types import pd_to_df_schema
 
 
 class PandasExecuteNode(ExecuteNode):
@@ -252,24 +254,35 @@ class PandasEngine(Engine):
     @with_thirdparty_libs
     def _do_persist(self, expr_dag, expr, name, ui=None, project=None,
                     partitions=None, partition=None, odps=None, lifecycle=None,
-                    progress_proportion=1, execute_percent=0.5,
-                    overwrite=True, drop_table=False, create_table=True,
-                    drop_partition=False, create_partition=False, cast=False, **kwargs):
+                    progress_proportion=1, execute_percent=0.5, overwrite=True,
+                    drop_table=False, create_table=True, drop_partition=False,
+                    create_partition=False, cast=False, schema=None, **kwargs):
         expr_dag = self._convert_table(expr_dag)
         self._rewrite(expr_dag)
+
+        if isinstance(name, Partition):
+            partition = name.partition_spec
+            name = name.table
+        if isinstance(name, Table):
+            table = name
+            project = table.project.name
+            if table.get_schema():
+                schema = table.get_schema().name
+            name = table.name
 
         src_expr = expr
         expr = expr_dag.root
         odps = odps or self._odps
         if odps is None:
             raise ODPSError('ODPS entrance should be provided')
+        schema = schema or odps.schema
 
         df = self._do_execute(expr_dag, src_expr, ui=ui,
                               progress_proportion=progress_proportion * execute_percent, **kwargs)
-        schema = Schema(columns=df.columns)
+        t_schema = TableSchema(columns=df.columns)
 
         if drop_table:
-            odps.delete_table(name, project=project, if_exists=True)
+            odps.delete_table(name, project=project, schema=schema, if_exists=True)
 
         if partitions is not None:
             if drop_partition:
@@ -283,22 +296,22 @@ class PandasEngine(Engine):
                 partitions = [partitions, ]
 
             for p in partitions:
-                if p not in schema:
+                if p not in t_schema:
                     raise ValueError(
                             'Partition field(%s) does not exist in DataFrame schema' % p)
 
-            schema = df_schema_to_odps_schema(schema)
-            columns = [c for c in schema.columns if c.name not in partitions]
-            ps = [Partition(name=t, type=schema.get_type(t)) for t in partitions]
-            schema = Schema(columns=columns, partitions=ps)
+            t_schema = df_schema_to_odps_schema(t_schema)
+            columns = [c for c in t_schema.columns if c.name not in partitions]
+            ps = [TableSchemaPartition(name=t, type=t_schema.get_type(t)) for t in partitions]
+            t_schema = TableSchema(columns=columns, partitions=ps)
 
-            if odps.exist_table(name, project=project) or not create_table:
-                t = odps.get_table(name, project=project)
+            if odps.exist_table(name, project=project, schema=schema) or not create_table:
+                t = odps.get_table(name, project=project, schema=schema)
             else:
-                t = odps.create_table(name, schema, project=project, lifecycle=lifecycle)
+                t = odps.create_table(name, t_schema, project=project, schema=schema, lifecycle=lifecycle)
         elif partition is not None:
-            if odps.exist_table(name, project=project) or not create_table:
-                t = odps.get_table(name, project=project)
+            if odps.exist_table(name, project=project, schema=schema) or not create_table:
+                t = odps.get_table(name, project=project, schema=schema)
                 partition = self._get_partition(partition, t)
 
                 if drop_partition:
@@ -319,7 +332,7 @@ class PandasEngine(Engine):
                     name, TableSchema.from_lists(
                         column_names, column_types, partition_names, partition_types
                     ),
-                    project=project, lifecycle=lifecycle
+                    project=project, lifecycle=lifecycle, schema=schema
                 )
                 if create_partition is None or create_partition is True:
                     t.create_partition(partition)
@@ -329,14 +342,19 @@ class PandasEngine(Engine):
             if create_partition:
                 raise ValueError('Cannot create partition for non-partition table')
 
-            if odps.exist_table(name, project=project) or not create_table:
-                t = odps.get_table(name, project=project)
-                if t.schema.partitions:
+            if odps.exist_table(name, project=project, schema=schema) or not create_table:
+                t = odps.get_table(name, project=project, schema=schema)
+                if t.table_schema.partitions:
                     raise CompileError('Cannot insert into partition table %s without specifying '
                                        '`partition` or `partitions`.')
             else:
-                t = odps.create_table(name, df_schema_to_odps_schema(schema),
-                                      project=project, lifecycle=lifecycle)
+                t = odps.create_table(
+                    name,
+                    df_schema_to_odps_schema(t_schema),
+                    project=project,
+                    lifecycle=lifecycle,
+                    schema=schema,
+                )
 
         write_table(df, t, ui=ui, cast=cast, overwrite=overwrite, partitions=partitions, partition=partition,
                     progress_proportion=progress_proportion*(1-execute_percent))

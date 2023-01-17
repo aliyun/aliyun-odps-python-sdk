@@ -133,7 +133,7 @@ class Rewriter(BaseRewriter):
                     new_tps.append(types.string)
                     cast_names.add(name)
                 if len(cast_names) > 0:
-                    attr_values['_schema'] = Schema.from_lists(names, new_tps)
+                    attr_values['_schema'] = TableSchema.from_lists(names, new_tps)
             sub = type(expr)(**attr_values)
 
             if len(cast_names) > 0:
@@ -175,7 +175,7 @@ class Rewriter(BaseRewriter):
     def visit_column(self, expr):
         if is_source_collection(expr.input) and isinstance(expr._input._source_data, Table):
             try:
-                if expr.input._source_data.schema.is_partition(expr.source_name) and \
+                if expr.input._source_data.table_schema.is_partition(expr.source_name) and \
                                 expr.dtype != types.string:
                     expr._source_data_type = types.string
             except NoSuchObject:

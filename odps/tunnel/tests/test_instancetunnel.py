@@ -26,7 +26,7 @@ except ImportError:
 from odps.compat import reload_module
 from odps.tests.core import TestBase, tn, snappy_case
 from odps.compat import OrderedDict
-from odps.models import Schema
+from odps.models import TableSchema
 from odps import options
 from odps.tunnel import TableTunnel, InstanceTunnel
 
@@ -130,7 +130,9 @@ class Test(TestBase):
                  'array<string>', 'map<string,bigint>']
 
         self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(table_name, schema=Schema.from_lists(fields, types), lifecycle=1)
+        return self.odps.create_table(
+            table_name, TableSchema.from_lists(fields, types), lifecycle=1
+        )
 
     def _create_partitioned_table(self, table_name):
         fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
@@ -138,9 +140,9 @@ class Test(TestBase):
                  'array<string>', 'map<string,bigint>']
 
         self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(table_name,
-                                      schema=Schema.from_lists(fields, types, ['ds'], ['string']),
-                                      lifecycle=1)
+        return self.odps.create_table(
+            table_name, TableSchema.from_lists(fields, types, ['ds'], ['string']), lifecycle=1
+        )
 
     def _delete_table(self, table_name):
         self.odps.delete_table(table_name)

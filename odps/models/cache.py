@@ -101,6 +101,8 @@ class ObjectCache(object):
         return obj
 
     def del_item_cache(self, obj, item):
+        from .core import LazyLoad
+
         item = obj[item]
 
         client = getattr(item, '_client')
@@ -111,6 +113,11 @@ class ObjectCache(object):
             clz = self._get_cache_class(type(item))
             cache_key = client, parent, clz, name
             if cache_key in self._caches:
+                # make sure original object will be reloaded
+                obj = self._caches[cache_key]
+                if isinstance(obj, LazyLoad):
+                    obj.reset()
+
                 del self._caches[cache_key]
 
 

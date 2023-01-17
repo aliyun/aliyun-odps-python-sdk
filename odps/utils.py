@@ -22,6 +22,7 @@ import codecs
 import copy
 import glob
 import hmac
+import math
 import multiprocessing
 import os
 import re
@@ -48,7 +49,7 @@ except ImportError:
     from collections import Hashable, Mapping, Iterable
 
 from . import compat, options
-from .compat import six, getargspec, FixedOffset
+from .compat import six, getargspec, FixedOffset, parsedate_to_datetime, utc
 
 try:
     import pytz
@@ -62,6 +63,8 @@ except ImportError:
 TEMP_TABLE_PREFIX = "tmp_pyodps_"
 if six.PY3:  # make flake8 happy
     unicode = str
+
+_IS_WINDOWS = sys.platform.lower().startswith("win")
 
 
 def deprecated(msg, cond=None):
@@ -189,9 +192,6 @@ def double_to_raw_long_bits(value):
     return struct.unpack('Q', struct.pack('d', float(value)))[0]
 
 
-timetuple_to_datetime = lambda t: datetime(*t[:6])
-
-
 def camel_to_underline(name):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
@@ -260,7 +260,16 @@ def indent(text, n_spaces):
 
 
 def parse_rfc822(s):
-    return timetuple_to_datetime(parsedate_tz(s))
+    if options.use_legacy_parsedate:
+        date_tuple = parsedate_tz(s)
+        return datetime(*date_tuple[:6])
+
+    time_obj = parsedate_to_datetime(s)
+    if time_obj.tzinfo is None:
+        return time_obj
+    time_obj = time_obj.astimezone(utc)
+    gmt_ts = calendar.timegm(time_obj.timetuple())
+    return datetime.fromtimestamp(gmt_ts)
 
 
 def gen_rfc822(dt=None, localtime=False, usegmt=False):
@@ -274,7 +283,9 @@ def gen_rfc822(dt=None, localtime=False, usegmt=False):
 try:
     _antique_mills = time.mktime(datetime(1928, 1, 1).timetuple()) * 1000
 except OverflowError:
-    _antique_mills = None
+    _antique_mills = int(
+        (datetime(1928, 1, 1) - datetime.utcfromtimestamp(0)).total_seconds()
+    ) * 1000
 _antique_errmsg = 'Date older than 1928/01/01 and may contain errors. ' \
                   'Ignore this error by configuring `options.allow_antique_date` to True.'
 
@@ -305,6 +316,27 @@ class MillisecondsConverter(object):
         cls._inst_cache[cache_key] = o
         return o
 
+    def _windows_mktime(self, timetuple):
+        if self._local_tz:
+            fromtimestamp = datetime.fromtimestamp
+            mktime = time.mktime
+        else:
+            fromtimestamp = datetime.utcfromtimestamp
+            mktime = calendar.timegm
+
+        if timetuple[0] > 1970:
+            return mktime(timetuple)
+        dt = datetime(*timetuple[:6])
+        epoch = fromtimestamp(0)
+        return int((dt - epoch).total_seconds())
+
+    def _windows_fromtimestamp(self, seconds):
+        fromtimestamp = datetime.fromtimestamp if self._local_tz else datetime.utcfromtimestamp
+        if seconds >= 0:
+            return fromtimestamp(seconds)
+        epoch = fromtimestamp(0)
+        return epoch + timedelta(seconds=seconds)
+
     def __init__(self, local_tz=None, is_dst=False):
         self._local_tz = local_tz if local_tz is not None else options.local_timezone
         if self._local_tz is None:
@@ -320,6 +352,11 @@ class MillisecondsConverter(object):
         else:
             self._mktime = calendar.timegm
             self._fromtimestamp = datetime.utcfromtimestamp
+
+        if _IS_WINDOWS:
+            # special logic for negative timestamp under Windows
+            self._mktime = self._windows_mktime
+            self._fromtimestamp = self._windows_fromtimestamp
 
         self._tz = self._get_tz(self._local_tz) if not self._use_default_tz else None
         if hasattr(self._tz, 'localize'):
@@ -346,7 +383,7 @@ class MillisecondsConverter(object):
         if not self._allow_antique and milliseconds < _antique_mills:
             raise OverflowError(_antique_errmsg)
 
-        seconds = compat.long_type(milliseconds / 1000)
+        seconds = compat.long_type(math.floor(milliseconds / 1000))
         microseconds = compat.long_type(milliseconds) % 1000 * 1000
         if self._use_default_tz:
             return self._fromtimestamp(seconds).replace(microsecond=microseconds)
@@ -687,7 +724,8 @@ survey_calls = dict()
 
 
 def survey(func):
-    def _decorator(*args, **kwargs):
+    @six.wraps(func)
+    def wrapped(*args, **kwargs):
         arg_spec = getargspec(func)
 
         if 'self' in arg_spec.args:
@@ -700,16 +738,17 @@ def survey(func):
         else:
             func_sig = '.'.join([func.__module__, func.__name__])
 
-        if func_sig not in survey_calls:
-            survey_calls[func_sig] = 1
-        else:
-            survey_calls[func_sig] += 1
-
+        add_survey_call(func_sig)
         return func(*args, **kwargs)
 
-    _decorator.__name__ = func.__name__
-    _decorator.__doc__ = func.__doc__
-    return _decorator
+    return wrapped
+
+
+def add_survey_call(group):
+    if group not in survey_calls:
+        survey_calls[group] = 1
+    else:
+        survey_calls[group] += 1
 
 
 def get_survey_calls():

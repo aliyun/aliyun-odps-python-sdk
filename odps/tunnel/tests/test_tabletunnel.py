@@ -34,9 +34,10 @@ import pytest
 import requests
 
 from odps import types, options
-from odps.tests.core import TestBase, to_str, tn, snappy_case, pandas_case, odps2_typed_case
+from odps.tests.core import TestBase, to_str, tn, snappy_case, zstd_case, lz4_case, \
+    pandas_case, odps2_typed_case
 from odps.compat import reload_module, unittest, OrderedDict, Decimal, Monthdelta
-from odps.models import Schema
+from odps.models import TableSchema
 from odps.tunnel import TableTunnel
 from odps.tunnel.errors import TunnelWriteTimeout
 
@@ -171,7 +172,9 @@ class Test(TestBase):
                  'array<string>', 'map<string,bigint>']
 
         self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(table_name, schema=Schema.from_lists(fields, types), lifecycle=1)
+        return self.odps.create_table(
+            table_name, TableSchema.from_lists(fields, types), lifecycle=1
+        )
 
     def _create_partitioned_table(self, table_name):
         fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
@@ -181,7 +184,7 @@ class Test(TestBase):
         self.odps.delete_table(table_name, if_exists=True)
         return self.odps.create_table(
             table_name,
-            schema=Schema.from_lists(fields, types, ['ds'], ['string'])
+            TableSchema.from_lists(fields, types, ['ds'], ['string']),
         )
 
     def _delete_table(self, table_name):
@@ -360,14 +363,31 @@ class Test(TestBase):
 
         self._delete_table(test_table_name)
 
-    @snappy_case
+    @zstd_case
     @bothPyAndC
-    def testBufferredUploadAndDownloadBySnappyTunnel(self):
-        table, data = self._gen_table(size=10)
-        self._buffered_upload_data(table, data, compress=True, compress_algo='snappy')
-        records = self._download_data(table, compress=True, compress_algo='snappy')
-        self._assert_reads_data_equal(records, data)
-        self._delete_table(table)
+    def testUploadAndDownloadByZstdTunnel(self):
+        test_table_name = tn('pyodps_test_zstd_tunnel')
+        self._create_table(test_table_name)
+        data = self._gen_data()
+
+        self._upload_data(test_table_name, data, compress=True, compress_algo='zstd')
+        records = self._download_data(test_table_name, compress=True, compress_algo='zstd')
+        self.assertSequenceEqual(data, records)
+
+        self._delete_table(test_table_name)
+
+    @lz4_case
+    @bothPyAndC
+    def testUploadAndDownloadByLZ4Tunnel(self):
+        test_table_name = tn('pyodps_test_lz4_tunnel')
+        self._create_table(test_table_name)
+        data = self._gen_data()
+
+        self._upload_data(test_table_name, data, compress=True, compress_algo='lz4')
+        records = self._download_data(test_table_name, compress=True, compress_algo='lz4')
+        self.assertSequenceEqual(data, records)
+
+        self._delete_table(test_table_name)
 
     def _gen_random_bigint(self):
         return random.randint(*types.bigint._bounds)
@@ -442,8 +462,10 @@ class Test(TestBase):
         partition_types = [partition_type, ] if partition_type else None
         table = self.odps.create_table(
             test_table_name,
-            Schema.from_lists(names, types, partition_names=partition_names,
-                              partition_types=partition_types))
+            TableSchema.from_lists(
+                names, types, partition_names=partition_names, partition_types=partition_types
+            )
+        )
         if partition_val:
             table.create_partition('%s=%s' % (partition, partition_val))
 
@@ -598,7 +620,7 @@ class Test(TestBase):
 
         table = self.odps.create_table(table_name, 'col1 tinyint, col2 smallint, col3 int, col4 float, col5 binary',
                                        lifecycle=1)
-        self.assertListEqual(table.schema.types,
+        self.assertListEqual(table.table_schema.types,
                              [types.tinyint, types.smallint, types.int_, types.float_, types.binary])
 
         contents = [
@@ -620,7 +642,7 @@ class Test(TestBase):
         self.odps.delete_table(table_name, if_exists=True)
 
         table = self.odps.create_table(table_name, 'col1 int, col2 date', lifecycle=1)
-        self.assertListEqual(table.schema.types, [types.int_, types.date])
+        self.assertListEqual(table.table_schema.types, [types.int_, types.date])
 
         contents = [
             [0, date(2020, 2, 12)],
@@ -643,7 +665,7 @@ class Test(TestBase):
         self.odps.delete_table(table_name, if_exists=True)
 
         table = self.odps.create_table(table_name, 'col1 int, col2 timestamp', lifecycle=1)
-        self.assertListEqual(table.schema.types, [types.int_, types.timestamp])
+        self.assertListEqual(table.table_schema.types, [types.int_, types.timestamp])
 
         contents = [
             [0, pd.Timestamp('2013-09-21 11:23:35.196045321')],
@@ -664,11 +686,11 @@ class Test(TestBase):
         self.odps.delete_table(table_name, if_exists=True)
 
         table = self.odps.create_table(table_name, 'col1 int, col2 varchar(20), col3 char(30)', lifecycle=1)
-        self.assertEqual(table.schema.types[0], types.int_)
-        self.assertIsInstance(table.schema.types[1], types.Varchar)
-        self.assertEqual(table.schema.types[1].size_limit, 20)
-        self.assertIsInstance(table.schema.types[2], types.Char)
-        self.assertEqual(table.schema.types[2].size_limit, 30)
+        self.assertEqual(table.table_schema.types[0], types.int_)
+        self.assertIsInstance(table.table_schema.types[1], types.Varchar)
+        self.assertEqual(table.table_schema.types[1].size_limit, 20)
+        self.assertIsInstance(table.table_schema.types[2], types.Char)
+        self.assertEqual(table.table_schema.types[2].size_limit, 30)
 
         contents = [
             [0, 'agdesfdr', 'sadfklaslkjdvvn'],
@@ -692,16 +714,16 @@ class Test(TestBase):
 
         table = self.odps.create_table(table_name, 'col1 int, col2 decimal(6,2), '
                                                    'col3 decimal(10), col4 decimal(10,3)', lifecycle=1)
-        self.assertEqual(table.schema.types[0], types.int_)
-        self.assertIsInstance(table.schema.types[1], types.Decimal)
+        self.assertEqual(table.table_schema.types[0], types.int_)
+        self.assertIsInstance(table.table_schema.types[1], types.Decimal)
         # comment out due to behavior change of ODPS SQL
-        # self.assertIsNone(table.schema.types[1].precision)
-        # self.assertIsNone(table.schema.types[1].scale)
-        self.assertIsInstance(table.schema.types[2], types.Decimal)
-        self.assertEqual(table.schema.types[2].precision, 10)
-        self.assertIsInstance(table.schema.types[3], types.Decimal)
-        self.assertEqual(table.schema.types[3].precision, 10)
-        self.assertEqual(table.schema.types[3].scale, 3)
+        # self.assertIsNone(table.table_schema.types[1].precision)
+        # self.assertIsNone(table.table_schema.types[1].scale)
+        self.assertIsInstance(table.table_schema.types[2], types.Decimal)
+        self.assertEqual(table.table_schema.types[2].precision, 10)
+        self.assertIsInstance(table.table_schema.types[3], types.Decimal)
+        self.assertEqual(table.table_schema.types[3].precision, 10)
+        self.assertEqual(table.table_schema.types[3].scale, 3)
 
         contents = [
             [0, Decimal('2.34'), Decimal('34567'), Decimal('56.789')],
@@ -732,7 +754,7 @@ class Test(TestBase):
                               "from %s" %
                               (table_name, empty_table_name))
         table = self.odps.get_table(table_name)
-        self.assertListEqual(table.schema.types, [types.interval_day_time, types.interval_year_month])
+        self.assertListEqual(table.table_schema.types, [types.interval_day_time, types.interval_year_month])
 
         contents = [
             [pd.Timedelta(seconds=1048576, nanoseconds=428571428), Monthdelta(13)],
@@ -756,8 +778,8 @@ class Test(TestBase):
         col_def = 'col1 int, col2 struct<name:string,age:int,'\
                   'parents:map<varchar(20),smallint>,hobbies:array<varchar(100)>>'
         table = self.odps.create_table(table_name, col_def, lifecycle=1)
-        self.assertEqual(table.schema.types[0], types.int_)
-        self.assertIsInstance(table.schema.types[1], types.Struct)
+        self.assertEqual(table.table_schema.types[0], types.int_)
+        self.assertIsInstance(table.table_schema.types[1], types.Struct)
 
         contents = [
             [0, {'name': 'user1', 'age': 20, 'parents': {'fa': 5, 'mo': 6},

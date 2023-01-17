@@ -17,6 +17,7 @@
 import contextlib
 import decimal
 import functools
+import json
 import logging
 import unittest
 
@@ -209,16 +210,22 @@ class Test(TestBase):
         options.sql.settings = None
 
     def create_engine(self):
-        return create_engine('odps://{}:{}@{}/?endpoint={}'.format(
+        return create_engine('odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint'.format(
             self.odps.account.access_id, self.odps.account.secret_access_key,
             self.odps.project, self.odps.endpoint))
 
     @with_engine_connection
     def test_basic_query(self, engine, connection):
-        rows = connection.execute('SELECT * FROM one_row').fetchall()
+        result = connection.execute('SELECT * FROM one_row')
+        instance = result.cursor._instance
+
+        rows = result.fetchall()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].number_of_rows, 1)  # number_of_rows is the column name
         self.assertEqual(len(rows[0]), 1)
+
+        settings = json.loads(instance.tasks[0].properties["settings"])
+        assert settings["SKYNET_PYODPS_HINT"] == "hint"
 
     @with_engine_connection
     def test_one_row_complex_null(self, engine, connection):
