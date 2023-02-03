@@ -305,7 +305,7 @@ class ODPS(object):
         """
 
         if "table_schema" in kw:
-            schema = kw["table_schema"]
+            schema = kw.pop("table_schema")
 
         if isinstance(name, six.string_types):
             name = name.strip()

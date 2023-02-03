@@ -54,3 +54,7 @@ class TunnelReadTimeout(TunnelError, TimeoutError, requests.ReadTimeout):
 
 class TunnelWriteTimeout(TunnelError, TimeoutError, requests.ConnectionError):
     pass
+
+
+class MetaTransactionFailed(TunnelError):
+    pass

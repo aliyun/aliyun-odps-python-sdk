@@ -518,6 +518,21 @@ class Test(TestBase):
 
         table.drop()
 
+    def testSchemaArgForwardCompat(self):
+        from odps.models import TableSchema
+
+        columns = [Column(name='num', type='bigint', comment='the column'),
+                   Column(name='num2', type='double', comment='the column2')]
+        schema = TableSchema(columns=columns)
+
+        table_name = tn('test_forward_compat')
+
+        table = self.odps.create_table(table_name, table_schema=schema, lifecycle=1)
+        assert self.odps.exist_table(table_name)
+        assert isinstance(table.table_schema, TableSchema)
+
+        table.drop()
+
 
 if __name__ == '__main__':
     unittest.main()
