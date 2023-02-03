@@ -26,7 +26,7 @@ from .base import BaseTunnel, TUNNEL_VERSION
 from .io.writer import RecordWriter, BufferredRecordWriter, StreamRecordWriter, ArrowWriter
 from .io.reader import TunnelRecordReader, TunnelArrowReader
 from .io.stream import CompressOption, SnappyRequestsInputStream, RequestsInputStream
-from .errors import TunnelError, TunnelWriteTimeout
+from .errors import MetaTransactionFailed, TunnelError, TunnelWriteTimeout
 
 try:
     import numpy as np
@@ -269,41 +269,48 @@ class TableUploadSession(serializers.JSONSerializableModel):
             self._partition_spec,
         )
 
-    def _init(self):
-        params = {'uploads': 1}
+    def _create_or_reload_session(self, reload=False):
         headers = {'Content-Length': 0}
-        if self._partition_spec is not None and \
-                len(self._partition_spec) > 0:
+        params = {}
+        if self._partition_spec is not None and len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
-        if self._overwrite:
+        if not reload and self._overwrite:
             params["overwrite"] = "true"
 
-        url = self._table.resource()
-        resp = self._client.post(url, {}, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            if self.schema is not None:
-                self.schema.build_snapshot()
+        if reload:
+            params['uploadid'] = self.id
         else:
-            e = TunnelError.parse(resp)
-            raise e
+            params['uploads'] = 1
+
+        retry_counter = 0
+        while True:
+            try:
+                url = self._table.resource()
+                if reload:
+                    resp = self._client.get(url, params=params, headers=headers)
+                else:
+                    resp = self._client.post(url, {}, params=params, headers=headers)
+
+                if self._client.is_ok(resp):
+                    self.parse(resp, obj=self)
+                    if self.schema is not None:
+                        self.schema.build_snapshot()
+                else:
+                    e = TunnelError.parse(resp)
+                    raise e
+                break
+            except MetaTransactionFailed:
+                time.sleep(0.1)
+                retry_counter += 1
+                if retry_counter > 5:
+                    raise
+                continue
+
+    def _init(self):
+        self._create_or_reload_session(reload=False)
 
     def reload(self):
-        params = {'uploadid': self.id}
-        headers = {'Content-Length': 0}
-        if self._partition_spec is not None and \
-                        len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
-
-        url = self._table.resource()
-        resp = self._client.get(url, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            if self.schema is not None:
-                self.schema.build_snapshot()
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        self._create_or_reload_session(reload=True)
 
     def new_record(self, values=None):
         return Record(schema=self.schema, values=values)
