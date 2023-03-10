@@ -218,6 +218,10 @@ class LocalResourceFile(ResourceFile):
             self._need_commit = False
 
     def close(self):
+        if not self._opened:
+            # already closed
+            return
+
         self.flush()
 
         self._fp = None
@@ -428,7 +432,7 @@ class StreamResourceFile(ResourceFile):
                 self._md5_digest.update(value.getvalue().encode(self._encoding))
 
     def close(self):
-        if self.mode == FileResource.Mode.READ:
+        if self.mode == FileResource.Mode.READ or not self._opened:
             return
 
         self.flush()
@@ -441,6 +445,7 @@ class StreamResourceFile(ResourceFile):
             self._md5_digest.hexdigest(),
             overwrite=self._overwrite,
         )
+        self._opened = False
 
     def _iter(self):
         return self

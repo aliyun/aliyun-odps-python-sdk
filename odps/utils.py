@@ -72,6 +72,7 @@ def deprecated(msg, cond=None):
         """This is a decorator which can be used to mark functions
         as deprecated. It will result in a warning being emmitted
         when the function is used."""
+        @six.wraps(func)
         def _new_func(*args, **kwargs):
             warn_msg = "Call to deprecated function %s." % func.__name__
             if isinstance(msg, six.string_types):
@@ -79,9 +80,7 @@ def deprecated(msg, cond=None):
             if cond is None or cond():
                 warnings.warn(warn_msg, category=DeprecationWarning, stacklevel=2)
             return func(*args, **kwargs)
-        _new_func.__name__ = func.__name__
-        _new_func.__doc__ = func.__doc__
-        _new_func.__dict__.update(func.__dict__)
+
         return _new_func
 
     if isinstance(msg, (types.FunctionType, types.MethodType)):
@@ -95,6 +94,7 @@ class ExperimentalNotAllowed(Exception):
 
 def experimental(msg, cond=None):
     def _decorator(func):
+        @six.wraps(func)
         def _new_func(*args, **kwargs):
             warn_msg = "Call to experimental function %s." % func.__name__
             if isinstance(msg, six.string_types):
@@ -109,12 +109,9 @@ def experimental(msg, cond=None):
             if cond is None or cond():
                 warnings.warn(warn_msg, category=FutureWarning)
             return func(*args, **kwargs)
-        _new_func.__name__ = func.__name__
 
         # intentionally eliminate __doc__ for Volume 2
         _new_func.__doc__ = None
-
-        _new_func.__dict__.update(func.__dict__)
         return _new_func
 
     if isinstance(msg, (types.FunctionType, types.MethodType)):
@@ -890,3 +887,8 @@ def get_id(n):
 
     return id(n)
 
+
+def strip_if_str(s):
+    if isinstance(s, six.string_types):
+        return s.strip()
+    return s

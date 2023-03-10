@@ -255,12 +255,17 @@ def validate_data_type(data_type):
     if isinstance(data_type, DataType):
         return data_type
 
+    if isinstance(data_type, type):
+        data_type = data_type.__name__
+
     if isinstance(data_type, six.string_types):
         data_type = data_type.lower()
         if data_type == 'int':
             data_type = 'int64'
         elif data_type == 'float':
             data_type = 'float64'
+        elif data_type == 'bool':
+            data_type = 'boolean'
         if data_type in _data_types:
             return _data_types[data_type]
 

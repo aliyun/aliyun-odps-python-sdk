@@ -17,10 +17,10 @@
 import shutil
 import tempfile
 
-from odps.compat import unittest, StringIO
+from odps.compat import StringIO
 from odps.config import options
 from odps.errors import InteractiveError
-from odps.inter import enter, setup, teardown, Room, list_rooms
+from odps.inter import Room, list_rooms
 from odps.lib import cloudpickle
 from odps.models import TableSchema
 from odps.tests.core import TestBase, tn
@@ -33,6 +33,8 @@ class Test(TestBase):
         cloudpickle.CloudUnpickler(StringIO('abcdefg'))
 
     def testRoom(self):
+        from odps.inter import enter, setup, teardown
+
         access_id = 'test_access_id'
         access_key = 'test_access_key'
         project = 'test_default_project'
@@ -99,7 +101,3 @@ class Test(TestBase):
                 t.drop()
         finally:
             shutil.rmtree(room._room_dir)
-
-
-if __name__ == '__main__':
-    unittest.main()

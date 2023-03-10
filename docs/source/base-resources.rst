@@ -5,10 +5,43 @@
 
 `资源 <https://help.aliyun.com/document_detail/27822.html>`_ 在ODPS上常用在UDF和MapReduce中。
 
+在PyODPS中，主要支持两种资源类型，一种是文件，另一种是表。它们的基本操作（列举和删除）相同，但创建和修改方法略有差异，下面分别说明。
+
+基本操作
+-------
+
 列出所有资源还是可以使用 ``list_resources``，判断资源是否存在使用 ``exist_resource``。
 删除资源时，可以调用 ``delete_resource``，或者直接对于Resource对象调用 ``drop`` 方法。
 
-在PyODPS中，主要支持两种资源类型，一种是文件，另一种是表。下面分别说明。
+例如，要列举 Project 下的所有资源，可以使用下面的方法：
+
+.. code-block:: python
+
+    for res in o.list_resources():
+        print(res.name)
+
+要列举资源名包含给定前缀的资源，可以使用下面的方法：
+
+.. code-block:: python
+
+    for res in o.list_resources(prefix="prefix"):
+        print(res.name)
+
+判断给定名字的资源是否存在，可以使用下面的方法：
+
+.. code-block:: python
+
+    o.exist_resource("resource_name.tar.gz")
+
+删除给定资源，可以使用 ODPS 入口对象的 ``delete_resource`` 方法，也可以使用 ``Resource``
+对象自己的 ``drop`` 方法。
+
+.. code-block:: python
+
+    # 使用 ODPS.delete_resource 方法
+    o.delete_resource("resource_name.tar.gz")
+    # 使用 Resource.drop 方法
+    o.get_resource("resource_name.tar.gz").drop()
 
 文件资源
 ---------

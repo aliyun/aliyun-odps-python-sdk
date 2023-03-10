@@ -266,7 +266,7 @@ class TableUploadSession(serializers.JSONSerializableModel):
         else:
             params['uploads'] = 1
 
-        retry_counter = 0
+        retry_num = 0
         while True:
             try:
                 url = self._table.table_resource()
@@ -285,8 +285,8 @@ class TableUploadSession(serializers.JSONSerializableModel):
                 break
             except MetaTransactionFailed:
                 time.sleep(0.1)
-                retry_counter += 1
-                if retry_counter > 5:
+                retry_num += 1
+                if retry_num > options.retry_times:
                     raise
                 continue
 
@@ -378,12 +378,18 @@ class TableUploadSession(serializers.JSONSerializableModel):
         client_block_map = dict([(int(block_id), True) for block_id in blocks])
 
         if len(server_block_map) != len(client_block_map):
-            raise TunnelError('Blocks not match, server: '+str(len(server_block_map))+
-                              ', tunnelServerClient: '+str(len(client_block_map)))
+            raise TunnelError(
+                'Blocks not match, server: %s, tunnelServerClient: %s. '
+                'Make sure all block writers closed or with-blocks exited.' % (
+                    len(server_block_map), len(client_block_map)
+                )
+            )
 
         for block_id in blocks:
             if block_id not in server_block_map:
-                raise TunnelError('Block not exists on server, block id is'+block_id)
+                raise TunnelError(
+                    'Block not exists on server, block id is %s' % (block_id,)
+                )
 
         self._complete_upload()
 

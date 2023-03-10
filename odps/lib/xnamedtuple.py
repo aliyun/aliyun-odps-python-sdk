@@ -17,7 +17,7 @@
 try:
     from collections import OrderedDict
     from collections import namedtuple
-except ImportError:
+except ImportError:  # pragma: no cover
     from ordereddict import OrderedDict
     from collections import namedtuple as _namedtuple
 
@@ -37,6 +37,14 @@ class NamedTupleMixin(object):
     def __getattr__(self, item):
         if item in self._name_map:
             return self[self._name_map[item]]
+        elif item == "get":
+            return self._NamedTupleMixin_get
+        elif item == "items":
+            return self._NamedTupleMixin_items
+        elif item == "keys":
+            return self._NamedTupleMixin_keys
+        elif item == "values":
+            return self._NamedTupleMixin_values
         else:
             raise AttributeError(
                 "'%s' object has no attribute '%s'" % (type(self).__name__, str(item))
@@ -48,25 +56,22 @@ class NamedTupleMixin(object):
         except TypeError:
             pass
 
-        try:
-            return getattr(self, item)
-        except AttributeError as ex:
-            raise KeyError(str(ex))
+        return self[self._name_map[item]]
 
-    def get(self, item, default=None):
+    def _NamedTupleMixin_get(self, item, default=None):
         try:
             return self[item]
         except KeyError:
             return default
 
-    def items(self):
+    def _NamedTupleMixin_items(self):
         for k in self._names:
             yield k, getattr(self, k)
 
-    def keys(self):
+    def _NamedTupleMixin_keys(self):
         return self._names
 
-    def values(self):
+    def _NamedTupleMixin_values(self):
         for k in self._names:
             yield getattr(self, k)
 

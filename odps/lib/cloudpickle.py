@@ -2574,7 +2574,7 @@ class Cp39_Cp37(Cp38_Cp37):
         return self._handle_stack_update(arg, self._set_dict_update)
 
     @op_translator(DICT_MERGE_PY39)
-    def handle_dict_update(self, arg):
+    def handle_dict_merge(self, arg):
         return self._handle_stack_update(arg, self._dict_merge)
 
 

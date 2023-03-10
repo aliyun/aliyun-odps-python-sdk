@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from datetime import datetime
 
+from .. import serializers, types, utils
 from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
-from .. import serializers, types
 
 
 class Partition(LazyLoad):
@@ -30,10 +31,10 @@ class Partition(LazyLoad):
     to provide the ability to read records from a partition. The behavior of these
     methods are the same as those in Table class except that there are no 'partition' params.
     """
-    __slots__ = 'spec', 'creation_time', 'last_meta_modified_time', 'last_modified_time', \
-                'size', '_is_extend_info_loaded', \
-                'is_archived', 'is_exstore', 'lifecycle', \
-                'physical_size', 'file_num', 'reserved'
+    __slots__ = 'spec', 'creation_time', 'last_meta_modified_time', \
+        'last_data_modified_time', 'size', '_is_extend_info_loaded', \
+        'is_archived', 'is_exstore', 'lifecycle', 'physical_size', \
+        'file_num', 'reserved'
 
     class Column(XMLRemoteModel):
 
@@ -46,7 +47,7 @@ class Partition(LazyLoad):
             'createTime', parse_callback=datetime.fromtimestamp, set_to_parent=True)
         last_meta_modified_time = serializers.JSONNodeField(
             'lastDDLTime', parse_callback=datetime.fromtimestamp, set_to_parent=True)
-        last_modified_time = serializers.JSONNodeField(
+        last_data_modified_time = serializers.JSONNodeField(
             'lastModifiedTime', parse_callback=datetime.fromtimestamp, set_to_parent=True)
         size = serializers.JSONNodeField(
             'partitionSize', parse_callback=int, set_to_parent=True)
@@ -114,6 +115,19 @@ class Partition(LazyLoad):
             spec[col.name] = col.value
 
         return spec
+
+    @property
+    def last_modified_time(self):
+        warnings.warn(
+            "Partition.last_modified_time is deprecated and will be replaced by "
+            "Partition.last_data_modified_time.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        utils.add_survey_call(".".join(
+            [type(self).__module__, type(self).__name__, "last_modified_time"]
+        ))
+        return self.last_data_modified_time
 
     @property
     def partition_spec(self):

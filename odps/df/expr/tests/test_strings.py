@@ -68,9 +68,9 @@ class Test(TestBase):
         self.assertIsInstance(self.expr.name.startswith('test'), BooleanSequenceExpr)
         self.assertIsInstance(self.expr.name.sum().startswith('test'), BooleanScalar)
 
-        self.assertIsInstance(self.expr.name.extract('[ab](\d)'), Extract)
-        self.assertIsInstance(self.expr.name.extract('[ab](\d)'), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().extract('[ab](\d)'), StringScalar)
+        self.assertIsInstance(self.expr.name.extract(r'[ab](\d)'), Extract)
+        self.assertIsInstance(self.expr.name.extract(r'[ab](\d)'), StringSequenceExpr)
+        self.assertIsInstance(self.expr.name.sum().extract(r'[ab](\d)'), StringScalar)
 
         self.assertIsInstance(self.expr.name.find('test'), Find)
         self.assertIsInstance(self.expr.name.find('test'), Int64SequenceExpr)

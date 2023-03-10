@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+
 from .. import options, serializers, utils
 from ..compat import six, quote_plus
 from .cache import cache, del_cache
@@ -134,9 +136,19 @@ class LazyLoad(RestModel):
         return object.__getattribute__(self, attr)
 
     def __getattribute__(self, attr):
-        if attr.endswith("_time") and type(self).__name__ != "Table" and options.use_legacy_parsedate:
+        if (
+            attr.endswith("_time")
+            and type(self).__name__ not in ("Table", "Partition")
+            and options.use_legacy_parsedate
+        ):
+            warnings.warn(
+                "We are returning local time instead of UTC time for objects "
+                "while the latter is deprecated since PyODPS 0.11.3. Try setting "
+                "options.use_legacy_parsedate = False and update your logic.",
+                category=DeprecationWarning,
+            )
             typ = type(self)
-            utils.add_survey_call(".".join([typ.__module__, typ.__name__, attr]))
+            utils.add_survey_call(".".join([typ.__module__, typ.__name__, attr]) + ":legacy_parsedate")
 
         val = object.__getattribute__(self, attr)
         if val is None and not self._loaded:

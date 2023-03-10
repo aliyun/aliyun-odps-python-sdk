@@ -8,14 +8,23 @@
 基本操作
 --------
 
+.. note::
+
+    本文档中的代码对 PyODPS 0.11.3 及后续版本有效。对早于 0.11.3 版本的 PyODPS，请使用 ``odps.models.Schema`` 代替
+    ``odps.models.TableSchema``，使用 ``schema`` 属性代替 ``table_schema`` 属性。
+
 我们可以用 ODPS 入口对象的 ``list_tables`` 来列出项目空间下的所有表。
 
 .. code-block:: python
 
    for table in o.list_tables():
-       # 处理每个表
+       print(table.name)
 
 通过调用 ``exist_table`` 来判断表是否存在。
+
+.. code-block:: python
+
+   o.exist_table('dual')
 
 通过调用 ``get_table`` 来获取表。
 
@@ -185,13 +194,14 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. _table_open_reader:
 
-其次，在table上可以执行 ``open_reader`` 操作来打一个reader来读取数据。
+其次，在 table 实例上可以执行 ``open_reader`` 操作来打一个 reader 来读取数据。如果表为分区表，需要引入
+``partition`` 参数指定需要读取的分区。
 
 使用 with 表达式的写法：
 
 .. code-block:: python
 
-   >>> with t.open_reader(partition='pt=test') as reader:
+   >>> with t.open_reader(partition='pt=test,pt2=test2') as reader:
    >>>     count = reader.count
    >>>     for record in reader[5:10]:  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
    >>>         # 处理一条记录
@@ -200,7 +210,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. code-block:: python
 
-   >>> reader = t.open_reader(partition='pt=test')
+   >>> reader = t.open_reader(partition='pt=test,pt2=test2')
    >>> count = reader.count
    >>> for record in reader[5:10]:  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
    >>>     # 处理一条记录
@@ -209,14 +219,14 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. code-block:: python
 
-   >>> for record in o.read_table('test_table', partition='pt=test'):
+   >>> for record in o.read_table('test_table', partition='pt=test,pt2=test2'):
    >>>     # 处理一条记录
 
 直接读取成 Pandas DataFrame:
 
 .. code-block:: python
 
-   >>> with t.open_reader(partition='pt=test') as reader:
+   >>> with t.open_reader(partition='pt=test,pt2=test2') as reader:
    >>>     pd_df = reader.to_pandas()
 
 .. _table_to_pandas_mp:
@@ -227,15 +237,22 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
    >>> import multiprocessing
    >>> n_process = multiprocessing.cpu_count()
-   >>> with t.open_reader(partition='pt=test') as reader:
+   >>> with t.open_reader(partition='pt=test,pt2=test2') as reader:
    >>>     pd_df = reader.to_pandas(n_process=n_process)
+
+.. note::
+
+    ``open_reader`` 或者 ``read_table`` 方法仅支持读取单个分区。如果需要读取多个分区的值，例如
+    读取所有符合 ``dt>20230119`` 这样条件的分区，需要使用 ``iterate_partitions`` 方法，详见
+    :ref:`遍历表分区 <iterate_partitions>` 章节。
 
 .. _table_write:
 
 向表写数据
 ----------
 
-类似于 ``open_reader``，table对象同样能执行 ``open_writer`` 来打开writer，并写数据。
+类似于 ``open_reader``，table对象同样能执行 ``open_writer`` 来打开writer，并写数据。如果表为分区表，需要引入
+``partition`` 参数指定需要写入的分区。
 
 使用 with 表达式的写法：
 
@@ -399,15 +416,6 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
    >>> if table.table_schema.partitions:
    >>>     print('Table %s is partitioned.' % table.name)
 
-遍历表全部分区：
-
-.. code:: python
-
-   >>> for partition in table.partitions:
-   >>>     print(partition.name)
-   >>> for partition in table.iterate_partitions(spec='pt=test'):
-   >>>     # 遍历二级分区
-
 判断分区是否存在（该方法需要填写所有分区字段值）：
 
 .. code:: python
@@ -445,6 +453,38 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 
    >>> t.create_partition('pt=test', if_not_exists=True)  # 不存在的时候才创建
 
+.. _iterate_partitions:
+
+遍历表分区
+~~~~~~~~
+下面的操作将遍历表全部分区：
+
+.. code:: python
+
+   >>> for partition in table.partitions:
+   >>>     print(partition.name)
+
+如果要遍历部分分区值确定的分区，可以使用 ``iterate_partitions`` 方法。
+
+.. code:: python
+
+   >>> for partition in table.iterate_partitions(spec='pt=test'):
+   >>>     print(partition.name)
+
+自 0.11.3 开始，支持为 ``iterate_partitions`` 指定逻辑表达式。
+
+.. code:: python
+
+   >>> for partition in table.iterate_partitions(spec='dt>20230119'):
+   >>>     print(partition.name)
+
+.. note::
+
+    在 0.11.3 之前的版本中，``iterate_partitions`` 仅支持枚举前若干个分区等于相应值的情形。例如，
+    当表的分区字段按顺序分别为 pt1、pt2 和 pt3，那么 ``iterate_partitions`` 中的  ``spec``
+    参数只能指定 ``pt1=xxx`` 或者 ``pt1=xxx,pt2=yyy`` 这样的形式。自 0.11.3 开始，
+    ``iterate_partitions`` 支持更多枚举方式，但仍建议尽可能限定上一级分区以提高枚举的效率。
+
 删除分区
 ~~~~~~~~~
 
@@ -457,7 +497,8 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 
 获取值最大分区
 ~~~~~~~~~~~
-很多时候你可能希望获取值最大的分区。例如，当以日期为分区值时，你可能希望获得日期最近的有数据的分区。
+很多时候你可能希望获取值最大的分区。例如，当以日期为分区值时，你可能希望获得日期最近的有数据的分区。PyODPS 自 0.11.3
+开始支持此功能。
 
 创建分区表并写入一些数据：
 
@@ -516,7 +557,7 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
 
    table = o.get_table('my_table')
 
-   tunnel = TableTunnel(odps)
+   tunnel = TableTunnel(o)
    upload_session = tunnel.create_upload_session(table.name, partition_spec='pt=test')
 
    with upload_session.open_record_writer(0) as writer:
@@ -538,7 +579,7 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
 
    table = o.get_table('my_table')
 
-   tunnel = TableTunnel(odps)
+   tunnel = TableTunnel(o)
    upload_session = tunnel.create_stream_upload_session(table.name, partition_spec='pt=test')
 
    with upload_session.open_record_writer() as writer:
@@ -566,7 +607,7 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
 
    from odps.tunnel import TableTunnel
 
-   tunnel = TableTunnel(odps)
+   tunnel = TableTunnel(o)
    download_session = tunnel.create_download_session('my_table', partition_spec='pt=test')
 
    with download_session.open_record_reader(0, download_session.count) as reader:

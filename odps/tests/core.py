@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import gc
+import math
 import os
 import sys
 import tempfile
@@ -358,26 +359,32 @@ class TestBase(_TestBase):
         if isinstance(res, ResultFrame):
             res = res.values
         try:
-            import pandas
-            import numpy
-
-            def conv(t):
-                try:
-                    if numpy.isnan(t):
-                        return None
-                except (TypeError, ValueError):
-                    pass
-                if isinstance(t, pandas.Timestamp):
-                    t = t.to_pydatetime()
-                elif not isinstance(t, (list, dict, tuple)) and pandas.isnull(t):
-                    t = None
-                return t
-
-            if isinstance(res, pandas.DataFrame):
-                return [list(conv(i) for i in it) for it in res.values]
-            else:
-                return res
+            import pandas as pd
+            import numpy as np
         except ImportError:
+            np = pd = None
+
+        def conv(t):
+            try:
+                if np is not None and np.isnan(t):
+                    return None
+                if math.isnan(t):
+                    return None
+            except (TypeError, ValueError):
+                pass
+
+            if pd is not None:
+                if isinstance(t, pd.Timestamp):
+                    t = t.to_pydatetime()
+                elif not isinstance(t, (list, dict, tuple)) and pd.isnull(t):
+                    t = None
+            return t
+
+        if pd is not None and isinstance(res, pd.DataFrame):
+            return [list(conv(i) for i in it) for it in res.values]
+        elif res and isinstance(res, list) and isinstance(res[0], list):
+            return [list(conv(i) for i in it) for it in res]
+        else:
             return res
 
     def assertWarns(self, func, warn_type=Warning):

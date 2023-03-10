@@ -564,7 +564,11 @@ class ArrowWriter(object):
         self._output.flush()
 
         def gen():  # synchronize chunk upload
-            data = self._buffer.getbuffer()
+            try:
+                data = self._buffer.getbuffer()
+            except AttributeError:
+                data = self._buffer.getvalue()
+
             while data:
                 to_send = data[:options.chunk_size]
                 data = data[options.chunk_size:]

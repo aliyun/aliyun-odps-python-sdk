@@ -334,6 +334,8 @@ class Test(TestBase):
             fp.seek(1)
             fp.truncate()
             self.assertTrue(fp._fp._need_commit)
+            # redundant closing should work as well
+            fp.close()
 
         fp = resource.open(mode='r')
         self.assertEqual(to_str(fp.read()), FILE_CONTENT[0])

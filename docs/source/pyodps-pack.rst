@@ -25,6 +25,15 @@ PyODPS 提供了 ``pyodps-pack`` 命令行工具，用于制作符合 PyODPS 及
 在遇到问题时，请改用 Linux 打包或者设法启用 Server 服务。Rancher Desktop 在 Windows 10 下可能无法使用 ``containerd``
 作为容器引擎，可以尝试改用 ``dockerd`` 。
 
+如果你的 MaxCompute / DataWorks 基于 Arm64 机型部署，你需要额外增加 ``--arch aarch64`` 参数指定打包需要的架构。通常
+Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfmt`` 相关组件，你也可以使用命令
+
+.. code-block:: bash
+
+    docker run --privileged --rm tonistiigi/binfmt --install arm64
+
+安装相关的虚拟环境。该命令要求 Linux Kernel 版本高于 4.8，具体可以参考 `该页面 <https://github.com/tonistiigi/binfmt>`_。
+
 打包所有依赖
 ~~~~~~~~~
 .. note::
@@ -192,110 +201,90 @@ PyODPS 提供了 ``pyodps-pack`` 命令行工具，用于制作符合 PyODPS 及
 ~~~~~~
 下面给出 ``pyodps-pack`` 命令的可用参数，可用于控制打包过程：
 
-.. code-block::
+- ``-r``, ``--requirement <file>``
 
-    -r, --requirement <file>
+  根据给定的依赖文件打包。该选项可被指定多次。
 
-- 根据给定的依赖文件打包。该选项可被指定多次。
+- ``-o``, ``--output <file>``
 
-.. code-block::
+  指定打包生成目标文件名，默认为 ``packages.tar.gz``。
 
-    -o, --output <file>
+- ``--install-requires <item>``
 
-- 指定打包生成目标文件名，默认为 ``packages.tar.gz``。
+  指定打包时所需的 PyPI 依赖，可指定多个。这些依赖 **不一定** 会包含在最终的包中。
 
-.. code-block::
+- ``--install-requires-file <file>``
 
-    --install-requires <item>
+  指定打包时所需的 PyPI 依赖定义文件，可指定多个。这些依赖 **不一定** 会包含在最终的包中。
 
-- 指定打包时所需的 PyPI 依赖，可指定多个。这些依赖 **不一定** 会包含在最终的包中。
+- ``--run-before <script-file>``
 
-.. code-block::
+  指定打包前需要执行的 Bash 脚本，通常可用于安装二进制依赖。
 
-    --install-requires-file <file>
+- ``-X``, ``--exclude <dependency>``
 
-- 指定打包时所需的 PyPI 依赖定义文件，可指定多个。这些依赖 **不一定** 会包含在最终的包中。
+  指定打包时需要从最终包删除的 PyPI 依赖。该选项可被指定多次。
 
-.. code-block::
+- ``--no-deps``
 
-    --run-before <script-file>
+  指定打包时不包含指定项目的依赖项。
 
-- 指定打包前需要执行的 Bash 脚本，通常可用于安装二进制依赖。
+- ``-i``, ``--index-url <index-url>``
 
-.. code-block::
-
-    -X, --exclude <dependency>
-
-- 指定打包时需要从最终包删除的 PyPI 依赖。该选项可被指定多次。
-
-.. code-block::
-
-    --no-deps
-
-- 指定打包时不包含指定项目的依赖项。
-
-.. code-block::
-
-    -i, --index-url <index-url>
-
-- 指定打包时所需的 PyPI URL。如果缺省，会使用 ``pip config list`` 命令返回的 ``global.index-url``
+  指定打包时所需的 PyPI URL。如果缺省，会使用 ``pip config list`` 命令返回的 ``global.index-url``
   值，该值通常配置在 ``pip.conf`` 配置文件中。
 
-.. code-block::
+- ``--trusted-host <host>``
 
-    --trusted-host <host>
+  指定打包时需要忽略证书问题的 HTTPS 域名。
 
-- 指定打包时需要忽略证书问题的 HTTPS 域名。
+- ``-l``, ``--legacy-image``
 
-.. code-block::
+  指定后，将使用 CentOS 5 镜像进行打包，这使得包可以被用在旧版专有云等环境中。
 
-    -l, --legacy-image
+- ``--mcpy27``
 
-- 指定后，将使用 CentOS 5 镜像进行打包，这使得包可以被用在旧版专有云等环境中。
+  指定后，将为 MaxCompute 内的 Python 2.7 制作三方包。如果启用，将默认 ``--legacy-image`` 选项开启。
 
-.. code-block::
+- ``--dwpy27``
 
-    --mcpy27
+  指定后，将为 DataWorks 内的 Python 2.7 制作三方包。如果启用，将默认 ``--legacy-image`` 选项开启。
 
-- 指定后，将为 MaxCompute 内的 Python 2.7 制作三方包。如果启用，将默认 ``--legacy-image`` 选项开启。
+- ``--prefer-binary``
 
-.. code-block::
+  指定后，将倾向于选择 PyPI 中包含二进制编译的旧版而不是仅有源码包的新版。
 
-    --dwpy27
+- ``--arch <architecture>``
 
-- 指定后，将为 DataWorks 内的 Python 2.7 制作三方包。如果启用，将默认 ``--legacy-image`` 选项开启。
+  指定目标包面向的硬件架构，目前仅支持 x86\_64 和 aarch64（或 arm64），默认为 x86\_64。如果你并不在专有云使用
+  MaxCompute 或 DataWorks，**不要指定这个参数**。
 
-.. code-block::
+- ``--python-version <version>``
 
-    --prefer-binary
+  指定目标面向的 Python 版本，可使用 3.6 或者 36 表示 Python 3.6。如果你并不在专有云使用
+  MaxCompute 或 DataWorks，**不要指定这个参数**。
 
-- 指定后，将倾向于选择 PyPI 中包含二进制编译的旧版而不是仅有源码包的新版。
+- ``--docker-args <args>``
 
-.. code-block::
+  指定在执行 Docker 命令时需要额外附加的参数。如有多个参数需用引号包裹，例如 ``--docker-args "--ip 192.168.1.10"``。
 
-    --debug
+- ``--debug``
 
-- 指定后，将输出命令运行的详细信息，用于排查问题。
+  指定后，将输出命令运行的详细信息，用于排查问题。
 
 除此之外，还有若干环境变量可供配置：
 
-.. code-block::
+- ``BEFORE_BUILD="command before build"``
 
-    BEFORE_BUILD="command before build"
+  指定打包前需要执行的命令。
 
-指定打包前需要执行的命令。
+- ``AFTER_BUILD="command after build"``
 
-.. code-block::
+  指定编译后生成 Tar 包前需要执行的命令。
 
-    AFTER_BUILD="command after build"
+- ``DOCKER_IMAGE="quay.io/pypa/manylinux2010_x86_64"``
 
-指定编译后生成 Tar 包前需要执行的命令。
-
-.. code-block::
-
-    DOCKER_IMAGE="quay.io/pypa/manylinux2010_x86_64"
-
-自定义需要使用的 Docker Image。建议基于 ``pypa/manylinux`` 系列镜像定制自定义打包用 Docker Image。
+  自定义需要使用的 Docker Image。建议基于 ``pypa/manylinux`` 系列镜像定制自定义打包用 Docker Image。
 
 使用三方包
 --------
@@ -466,13 +455,13 @@ DataWorks PyODPS 节点预装了若干三方包，同时提供了 ``load_resourc
 部分旧项目可能使用了之前的方式使用三方包，即手动上传所有依赖的 Wheel 包并在代码中引用，或者使用了不支持二进制包的旧版 MaxCompute
 环境，本章节为这部分场景准备。下面以在 map 中使用 python_dateutil 为例说明使用三方包的步骤。
 
-首先，我们可以使用pip download命令，下载包以及其依赖到某个路径。
+首先，我们可以在 Linux bash 中使用 ``pip download`` 命令，下载包以及其依赖到某个路径。
 这里下载后会出现两个包：six-1.10.0-py2.py3-none-any.whl和python_dateutil-2.5.3-py2.py3-none-any.whl
 （这里注意需要下载支持linux环境的包）
 
 .. code-block:: shell
 
-    $ pip download python-dateutil -d /to/path/
+    pip download python-dateutil -d /to/path/
 
 然后我们分别把两个文件上传到ODPS资源
 
@@ -522,9 +511,21 @@ DataWorks PyODPS 节点预装了若干三方包，同时提供了 ``load_resourc
     1     2015
 
 PyODPS 默认支持执行纯 Python 且不含文件操作的第三方库。在较新版本的 MaxCompute 服务下，PyODPS
-也支持执行带有二进制代码或带有文件操作的 Python 库。这些库的后缀必须是 cp27-cp27m-manylinux1_x86_64，
-以 archive 格式上传，whl 后缀的包需要重命名为 zip。同时，作业需要开启 ``odps.isolation.session.enable``
-选项，或者在 Project 级别开启 Isolation。下面的例子展示了如何上传并使用 scipy 中的特殊函数：
+也支持执行带有二进制代码或带有文件操作的 Python 库。这些库名必须拥有一定的后缀，可根据下表判断
+
+============== ================ ====================================================================================================================
+平台            Python 版本       可用的后缀
+-------------- ---------------- --------------------------------------------------------------------------------------------------------------------
+RHEL 5 x86\_64 Python 2.7       cp27-cp27m-manylinux1_x86_64
+RHEL 5 x86\_64 Python 3.7       cp37-cp37m-manylinux1_x86_64
+RHEL 7 x86\_64 Python 2.7       cp27-cp27m-manylinux1_x86_64, cp27-cp27m-manylinux2010_x86_64, cp27-cp27m-manylinux2014_x86_64
+RHEL 7 x86\_64 Python 3.7       cp37-cp37m-manylinux1_x86_64, cp37-cp37m-manylinux2010_x86_64, cp37-cp37m-manylinux2014_x86_64
+RHEL 7 Arm64   Python 3.7       cp37-cp37m-manylinux2014_aarch64
+============== ================ ====================================================================================================================
+
+所有的 whl 包都需要以 archive 格式上传，whl 后缀的包需要重命名为 zip。同时，作业需要开启
+``odps.isolation.session.enable`` 选项，或者在 Project 级别开启 Isolation。下面的例子展示了如何上传并使用
+scipy 中的特殊函数：
 
 .. code-block:: python
 

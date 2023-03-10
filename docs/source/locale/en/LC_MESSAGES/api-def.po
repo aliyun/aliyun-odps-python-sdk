@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-01-09 19:53+0800\n"
+"POT-Creation-Date: 2023-01-20 13:56+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -47,11 +47,12 @@ msgid ""
 "automatically."
 msgstr ""
 
-#: odps.core.ODPS odps.core.ODPS.copy_offline_model
-#: odps.core.ODPS.create_external_volume odps.core.ODPS.create_fs_volume
-#: odps.core.ODPS.create_function odps.core.ODPS.create_parted_volume
-#: odps.core.ODPS.create_resource odps.core.ODPS.create_role
-#: odps.core.ODPS.create_schema odps.core.ODPS.create_table
+#: odps.core.ODPS odps.core.ODPS.as_account odps.core.ODPS.attach_session
+#: odps.core.ODPS.copy_offline_model odps.core.ODPS.create_external_volume
+#: odps.core.ODPS.create_fs_volume odps.core.ODPS.create_function
+#: odps.core.ODPS.create_parted_volume odps.core.ODPS.create_resource
+#: odps.core.ODPS.create_role odps.core.ODPS.create_schema
+#: odps.core.ODPS.create_session odps.core.ODPS.create_table
 #: odps.core.ODPS.create_user odps.core.ODPS.create_volume_directory
 #: odps.core.ODPS.delete_function odps.core.ODPS.delete_offline_model
 #: odps.core.ODPS.delete_resource odps.core.ODPS.delete_role
@@ -139,8 +140,7 @@ msgstr ""
 #: odps.models.table.Table.iterate_partitions
 #: odps.models.table.Table.new_record odps.models.table.Table.open_reader
 #: odps.models.table.Table.open_writer odps.models.table.Table.truncate
-#: odps.models.worker.Worker.get_log
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func of
+#: odps.models.worker.Worker.get_log of
 msgid "Parameters"
 msgstr ""
 
@@ -168,7 +168,7 @@ msgstr ""
 msgid "Logview host URL"
 msgstr ""
 
-#: odps.core.ODPS:21 of
+#: odps.core.ODPS:21 odps.core.ODPS.as_account:6 of
 msgid ""
 "Application account, instance of `odps.accounts.AppAccount` used for dual"
 " authentication"
@@ -191,26 +191,29 @@ msgstr ""
 msgid "Example"
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:1 of
-msgid "Attach to an existing session."
+#: odps.core.ODPS.as_account:1 of
+msgid "Creates a new ODPS entry object with a new account information"
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:3 of
-msgid "The session name."
+#: odps.core.ODPS.as_account:3 of
+msgid "Aliyun Access ID of the new account"
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:4
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:8 of
-msgid ""
-"The created sqlrt task name. If not provided, the default value is used. "
-"Mostly doesn't matter, default works."
+#: odps.core.ODPS.as_account:4 of
+msgid "Aliyun Access Key of the new account"
 msgstr ""
 
+#: odps.core.ODPS.as_account:5 of
+msgid "new account object, if `access_id` and `secret_access_key` not supplied"
+msgstr ""
+
+#: odps.core.ODPS.as_account odps.core.ODPS.attach_session
 #: odps.core.ODPS.create_external_volume odps.core.ODPS.create_fs_volume
 #: odps.core.ODPS.create_function odps.core.ODPS.create_parted_volume
 #: odps.core.ODPS.create_resource odps.core.ODPS.create_role
-#: odps.core.ODPS.create_schema odps.core.ODPS.create_table
-#: odps.core.ODPS.create_user odps.core.ODPS.create_volume_directory
+#: odps.core.ODPS.create_schema odps.core.ODPS.create_session
+#: odps.core.ODPS.create_table odps.core.ODPS.create_user
+#: odps.core.ODPS.create_volume_directory odps.core.ODPS.default_session
 #: odps.core.ODPS.delete_function odps.core.ODPS.delete_offline_model
 #: odps.core.ODPS.delete_resource odps.core.ODPS.delete_table
 #: odps.core.ODPS.delete_volume odps.core.ODPS.delete_volume_file
@@ -299,14 +302,26 @@ msgstr ""
 #: odps.models.table.Table.get_partition odps.models.table.Table.head
 #: odps.models.table.Table.new_record odps.models.table.Table.open_reader
 #: odps.models.table.Table.open_writer odps.models.table.Table.to_df
-#: odps.models.table.Table.truncate odps.models.worker.Worker.get_log
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func of
+#: odps.models.table.Table.truncate odps.models.worker.Worker.get_log of
 msgid "Returns"
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:3
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:6
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:12 of
+#: odps.core.ODPS.attach_session:1 of
+msgid "Attach to an existing session."
+msgstr ""
+
+#: odps.core.ODPS.attach_session:3 of
+msgid "The session name."
+msgstr ""
+
+#: odps.core.ODPS.attach_session:4 odps.core.ODPS.create_session:8 of
+msgid ""
+"The created sqlrt task name. If not provided, the default value is used. "
+"Mostly doesn't matter, default works."
+msgstr ""
+
+#: odps.core.ODPS.attach_session:6 odps.core.ODPS.create_session:12
+#: odps.core.ODPS.default_session:3 of
 msgid "A SessionInstance you may execute select tasks within."
 msgstr ""
 
@@ -678,29 +693,29 @@ msgstr ""
 msgid "if async_ is True, return instance, otherwise return Schema object."
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:1 of
+#: odps.core.ODPS.create_session:1 of
 msgid "Create session."
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:3 of
+#: odps.core.ODPS.create_session:3 of
 msgid "How much workers assigned to the session."
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:4 of
+#: odps.core.ODPS.create_session:4 of
 msgid "How much memory each worker consumes."
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:5 of
+#: odps.core.ODPS.create_session:5 of
 msgid "The session name. Not specifying to use its ID as name."
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:6 of
+#: odps.core.ODPS.create_session:6 of
 msgid ""
 "format \"00-24\", allocated workers will be reduced during this time. Not"
 " specifying to disable this."
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:10 of
+#: odps.core.ODPS.create_session:10 of
 msgid ""
 "Extra hints provided to the session. Parameters of this method will "
 "override certain hints."
@@ -792,7 +807,7 @@ msgstr ""
 msgid "directory object."
 msgstr ""
 
-#: odps.utils.deprecated.<locals>._decorator.<locals>._new_func:1 of
+#: odps.core.ODPS.default_session:1 of
 msgid "Attach to the default session of your project."
 msgstr ""
 
@@ -2013,6 +2028,10 @@ msgstr ""
 msgid "Run xflow by given name, xflow project, paremeters asynchronously."
 msgstr ""
 
+#: odps.ODPS.schema:1 of
+msgid "Get or set default schema name of the ODPS object"
+msgstr ""
+
 #: odps.core.ODPS.set_project_policy:1 of
 msgid "Set policy of a project"
 msgstr ""
@@ -2093,6 +2112,10 @@ msgstr ""
 
 #: odps.mars_extension.oscar.core.to_mars_dataframe:16 of
 msgid "append partition name when reading partitioned tables."
+msgstr ""
+
+#: odps.ODPS.tunnel_endpoint:1 of
+msgid "Get or set tunnel endpoint of the ODPS object"
 msgstr ""
 
 #: odps.core.ODPS.write_table:1 of
@@ -2271,6 +2294,10 @@ msgstr ""
 
 #: odps.models.table.Table.iterate_partitions:1 of
 msgid "Create an iterable object to iterate over partitions."
+msgstr ""
+
+#: odps.models.table.Table.iterate_partitions:4 of
+msgid "output partitions in reversed order"
 msgstr ""
 
 #: odps.models.table.Table.new_record:1 of

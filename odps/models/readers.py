@@ -12,10 +12,57 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ..compat import six
+from ..lib.tblib import pickling_support
 from ..readers import AbstractRecordReader
 
+pickling_support.install()
 
-class TunnelRecordReader(AbstractRecordReader):
+
+class SpawnedTunnelReaderMixin(object):
+    def _to_pandas_with_processes(self, start=None, count=None, columns=None, n_process=1):
+        import pandas as pd
+        import multiprocessing
+        from multiprocessing import Pipe
+
+        session_id = self._download_session.id
+        start = start or 0
+        count = count or self._download_session.count
+        count = min(count, self._download_session.count - start)
+        try:
+            _mp_context = multiprocessing.get_context('fork')
+        except ValueError:
+            _mp_context = multiprocessing.get_context('spawn')
+        except AttributeError:
+            # for py27 compatibility
+            _mp_context = multiprocessing
+
+        n_process = min(count, n_process)
+        split_count = count // n_process + (count % n_process != 0)
+        conns = []
+        for i in range(n_process):
+            parent_conn, child_conn = Pipe()
+
+            p = _mp_context.Process(
+                target=self._get_process_split_reader(columns=columns),
+                args=(child_conn, session_id, start, split_count, i),
+            )
+            p.start()
+            start += split_count
+            conns.append(parent_conn)
+
+        results = [c.recv() for c in conns]
+        splits = sorted(results, key=lambda x: x[0])
+        if any(not d[2] for d in splits):
+            exc_info = next(d[1] for d in splits if not d[2])
+            six.reraise(*exc_info)
+        return pd.concat([d[1] for d in splits]).reset_index(drop=True)
+
+    def _get_process_split_reader(self, columns=None):
+        raise NotImplementedError
+
+
+class TunnelRecordReader(SpawnedTunnelReaderMixin, AbstractRecordReader):
     def __init__(self, parent, download_session, columns=None):
         self._it = iter(self)
         self._parent = parent
@@ -43,9 +90,11 @@ class TunnelRecordReader(AbstractRecordReader):
 
     next = __next__
 
-    def _iter(self, start=None, end=None, step=None):
+    def _iter(self, start=None, end=None, step=None, compress=False, columns=None):
         count = self._calc_count(start, end, step)
-        return self.read(start=start, count=count, step=step)
+        return self.read(
+            start=start, count=count, step=step, compress=compress, columns=columns
+        )
 
     def read(self, start=None, count=None, step=None,
              compress=False, columns=None):
@@ -58,45 +107,21 @@ class TunnelRecordReader(AbstractRecordReader):
             return
 
         with self._download_session.open_record_reader(
-                start, count, compress=compress, columns=columns
+            start, count, compress=compress, columns=columns
         ) as reader:
             for record in reader[::step]:
                 yield record
 
-    def to_pandas(self, n_process=1):
-        import pandas as pd
-        import multiprocessing
-        from multiprocessing import Pipe
-
-        session_id, count = self._download_session.id, self._download_session.count
-        if n_process == 1:
-            return super(TunnelRecordReader, self).to_pandas()
-
-        try:
-            _mp_context = multiprocessing.get_context('fork')
-        except ValueError:
-            _mp_context = multiprocessing.get_context('spawn')
-
-        split_count = count // n_process + (count % n_process != 0)
-        start = 0
-        conns = []
-        for i in range(n_process):
-            parent_conn, child_conn = Pipe()
-
-            p = _mp_context.Process(
-                target=self._get_process_split_reader(),
-                args=(child_conn, session_id, start, split_count, i),
+    def to_pandas(self, start=None, count=None, columns=None, n_process=1):
+        columns = columns or self._column_names
+        if n_process == 1 or self._download_session.count == 0:
+            return super(TunnelRecordReader, self).to_pandas(
+                start=start, count=count, columns=columns
             )
-            p.start()
-            start += split_count
-            conns.append(parent_conn)
-
-        results = [c.recv() for c in conns]
-        splits = sorted(results, key=lambda x: x[0])
-        return pd.concat([d[1] for d in splits]).reset_index(drop=True)
-
-    def _get_process_split_reader(self):
-        raise NotImplementedError
+        else:
+            return self._to_pandas_with_processes(
+                start=start, count=count, columns=columns, n_process=n_process
+            )
 
     def __enter__(self):
         return self
@@ -105,7 +130,7 @@ class TunnelRecordReader(AbstractRecordReader):
         pass
 
 
-class TunnelArrowReader(object):
+class TunnelArrowReader(SpawnedTunnelReaderMixin):
     def __init__(self, parent, download_session, columns=None):
         self._it = iter(self)
         self._parent = parent
@@ -164,9 +189,14 @@ class TunnelArrowReader(object):
         ) as reader:
             return reader.read()
 
-    def to_pandas(self, start=None, count=None, columns=None):
+    def to_pandas(self, start=None, count=None, columns=None, n_process=1):
         columns = columns or self._column_names
-        return self.read_all(start=start, count=count, columns=columns).to_pandas()
+        if n_process == 1:
+            return self.read_all(start=start, count=count, columns=columns).to_pandas()
+        else:
+            return self._to_pandas_with_processes(
+                start=start, count=count, columns=columns, n_process=n_process
+            )
 
     def __enter__(self):
         return self

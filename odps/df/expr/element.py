@@ -148,7 +148,15 @@ class IsNull(ElementOp):
     __slots__ = ()
 
 
+class IsNa(ElementOp):
+    __slots__ = ()
+
+
 class NotNull(ElementOp):
+    __slots__ = ()
+
+
+class NotNa(ElementOp):
     __slots__ = ()
 
 
@@ -464,6 +472,20 @@ def _isnull(expr):
         return IsNull(_input=expr, _value_type=types.boolean)
 
 
+def _isna(expr):
+    """
+    Return a sequence or scalar according to the input indicating if the values are null.
+
+    :param expr: sequence or scalar
+    :return: sequence or scalar
+    """
+
+    if isinstance(expr, SequenceExpr):
+        return IsNa(_input=expr, _data_type=types.boolean)
+    elif isinstance(expr, Scalar):
+        return IsNa(_input=expr, _value_type=types.boolean)
+
+
 def _notnull(expr):
     """
     Return a sequence or scalar according to the input indicating if the values are not null.
@@ -476,6 +498,20 @@ def _notnull(expr):
         return NotNull(_input=expr, _data_type=types.boolean)
     elif isinstance(expr, Scalar):
         return NotNull(_input=expr, _value_type=types.boolean)
+
+
+def _notna(expr):
+    """
+    Return a sequence or scalar according to the input indicating if the values are not null.
+
+    :param expr: sequence or scalar
+    :return: sequence or scalar
+    """
+
+    if isinstance(expr, SequenceExpr):
+        return NotNa(_input=expr, _data_type=types.boolean)
+    elif isinstance(expr, Scalar):
+        return NotNa(_input=expr, _value_type=types.boolean)
 
 
 def _fillna(expr, value):
@@ -706,6 +742,8 @@ _element_methods = dict(
     map=_map,
     isnull=_isnull,
     notnull=_notnull,
+    isna=_isna,
+    notna=_notna,
     fillna=_fillna,
     between=_between,
     switch=_switch,

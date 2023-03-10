@@ -416,8 +416,13 @@ def isatty(file):
     but some user-defined types may not, so this assumes those are not
     ttys.
     """
-    if (multiprocessing.current_process().name != 'MainProcess' or
-        threading.current_thread().getName() != 'MainThread'):
+    proc_name = multiprocessing.current_process().name
+    try:
+        thread_name = threading.current_thread().name
+    except AttributeError:  # pragma: no cover
+        thread_name = threading.current_thread().getName()
+
+    if proc_name != 'MainProcess' or thread_name != 'MainThread':
         return False
 
     if hasattr(file, 'isatty'):

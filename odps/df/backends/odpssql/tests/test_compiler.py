@@ -104,12 +104,17 @@ class Test(TestBase):
         engine._ctx._registered_funcs.clear()
         engine._ctx._func_to_udfs.clear()
 
-    def _testify_udf(self, expected, inputs, engine):
+    def _testify_udf(self, expected, inputs, engine, annotation=None):
+        from odps.udf import runtime as udf_runtime
+
         udf = list(engine._ctx._func_to_udfs.values())[0]
         d = dict()
         six.exec_(udf, d, d)
         udf = d[UDF_CLASS_NAME]
         self.assertSequenceEqual(expected, runners.simple_run(udf, inputs))
+
+        if annotation:
+            assert udf_runtime._annotated_classes[udf] == annotation
 
         self._clear_functions(engine)
 
@@ -244,22 +249,59 @@ class Test(TestBase):
                    "WHERE t2.`count` > 10"
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
 
+        engine = ODPSEngine(self.odps)
+
         expr = self.expr.dropna(thresh=2)
         expected = "SELECT * \n" \
                    "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
-                   "WHERE (((((IF(t1.`name` IS NOT NULL, 1, 0) + IF(t1.`id` IS NOT NULL, 1, 0)) + IF(t1.`fid` IS NOT NULL, 1, 0)) + IF(t1.`isMale` IS NOT NULL, 1, 0)) + IF(t1.`scale` IS NOT NULL, 1, 0)) + IF(t1.`birth` IS NOT NULL, 1, 0)) >= 2"
-        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+                   "WHERE (((((IF(t1.`name` IS NOT NULL, 1, 0) + IF(t1.`id` IS NOT NULL, 1, 0)) " \
+                   "+ IF((t1.`fid` IS NOT NULL) AND NOT {0}(t1.`fid`), 1, 0)) + IF(t1.`isMale` IS NOT NULL, 1, 0)) " \
+                   "+ IF(t1.`scale` IS NOT NULL, 1, 0)) + IF(t1.`birth` IS NOT NULL, 1, 0)) >= 2"
+        res = engine.compile(expr, prettify=False)
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
+
+        engine = ODPSEngine(self.odps)
 
         expr = self.expr.dropna(how='all')
         expected = "SELECT * \n" \
                    "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
-                   "WHERE (((((IF(t1.`name` IS NOT NULL, 1, 0) + IF(t1.`id` IS NOT NULL, 1, 0)) + IF(t1.`fid` IS NOT NULL, 1, 0)) + IF(t1.`isMale` IS NOT NULL, 1, 0)) + IF(t1.`scale` IS NOT NULL, 1, 0)) + IF(t1.`birth` IS NOT NULL, 1, 0)) >= 1"
-        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+                   "WHERE (((((IF(t1.`name` IS NOT NULL, 1, 0) + IF(t1.`id` IS NOT NULL, 1, 0)) " \
+                   "+ IF((t1.`fid` IS NOT NULL) AND NOT {0}(t1.`fid`), 1, 0)) + IF(t1.`isMale` IS NOT NULL, 1, 0)) " \
+                   "+ IF(t1.`scale` IS NOT NULL, 1, 0)) + IF(t1.`birth` IS NOT NULL, 1, 0)) >= 1"
+        res = engine.compile(expr, prettify=False)
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
+
+        engine = ODPSEngine(self.odps)
 
         expr = self.expr.fillna(0, subset=['id', 'fid'])
-        expected = "SELECT t1.`name`, IF(t1.`id` IS NULL, 0, t1.`id`) AS `id`, IF(t1.`fid` IS NULL, 0, t1.`fid`) AS `fid`, t1.`isMale`, t1.`scale`, t1.`birth` \n" \
+        expected = "SELECT t1.`name`, IF(t1.`id` IS NULL, 0, t1.`id`) AS `id`, " \
+                   "IF((t1.`fid` IS NULL) OR {0}(t1.`fid`), 0, t1.`fid`) AS `fid`, " \
+                   "t1.`isMale`, t1.`scale`, t1.`birth` \n" \
                    "FROM mocked_project.`pyodps_test_expr_table` t1"
-        self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+        res = engine.compile(expr, prettify=False)
+        fun_name = list(engine._ctx._registered_funcs.values())[0]
+        self.assertEqual(to_str(expected.format(fun_name)), to_str(res))
+
+        try:
+            options.df.odps.nan_handler = None
+            expr = self.expr.fillna(0, subset=['id', 'fid'])
+            expected = "SELECT t1.`name`, IF(t1.`id` IS NULL, 0, t1.`id`) AS `id`, " \
+                       "IF(t1.`fid` IS NULL, 0, t1.`fid`) AS `fid`, " \
+                       "t1.`isMale`, t1.`scale`, t1.`birth` \n" \
+                       "FROM mocked_project.`pyodps_test_expr_table` t1"
+            self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+
+            options.df.odps.nan_handler = 'bulitin'
+            expr = self.expr.fillna(0, subset=['id', 'fid'])
+            expected = "SELECT t1.`name`, IF(t1.`id` IS NULL, 0, t1.`id`) AS `id`, " \
+                       "IF((t1.`fid` IS NULL) OR ISNAN(t1.`fid`), 0, t1.`fid`) AS `fid`, " \
+                       "t1.`isMale`, t1.`scale`, t1.`birth` \n" \
+                       "FROM mocked_project.`pyodps_test_expr_table` t1"
+            self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+        finally:
+            options.df.odps.nan_handler = 'py'
 
         expr = self.expr[1 + self.expr.id, self.expr.fid]
         expr = expr[expr.id.fillna(0), expr.fid]
@@ -782,11 +824,11 @@ class Test(TestBase):
                           [('test', 'test', 0, 0), ('tes', 'test', 0, 0),
                            ('test32', 'test', 0, 0)], engine)
         engine = ODPSEngine(self.odps)
-        engine.compile(self.expr.name.extract('test\d', flags=re.I))
+        engine.compile(self.expr.name.extract(r'test\d', flags=re.I))
         self._testify_udf(['Test1', None, 'test3'],
-                          [('Test1', 'test\d', re.I, 0),
-                           ('tes', 'test\d', re.I, 0),
-                           ('test32', 'test\d', re.I, 0)], engine)
+                          [('Test1', r'test\d', re.I, 0),
+                           ('tes', r'test\d', re.I, 0),
+                           ('test32', r'test\d', re.I, 0)], engine)
 
         expect = 'SELECT INSTR(t1.`name`, \'test\', 1) - 1 AS `name` \n' \
                  'FROM mocked_project.`pyodps_test_expr_table` t1'
@@ -2479,6 +2521,22 @@ class Test(TestBase):
         self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(new_e, prettify=False)))
 
         self.assertRaises(CompileError, lambda: ODPSEngine(self.odps).compile(self.expr.id.astype('boolean')))
+
+    def testOdps2Scalar(self):
+        try:
+            options.sql.use_odps2_extension = True
+            expr = self.expr[
+                self.expr.id,
+                Scalar(1).rename("int8"),
+                Scalar(1024).rename("int16"),
+                Scalar(2 ** 33).rename("int64"),
+            ]
+
+            expected = 'SELECT t1.`id`, 1Y AS `int8`, 1024S AS `int16`, 8589934592L AS `int64` \n' \
+                       'FROM mocked_project.`pyodps_test_expr_table` t1'
+            self.assertEqual(to_str(expected), to_str(ODPSEngine(self.odps).compile(expr, prettify=False)))
+        finally:
+            options.sql.use_odps2_extension = None
 
     def testUnion(self):
         e = self.expr

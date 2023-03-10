@@ -16,6 +16,9 @@
 
 from datetime import datetime
 
+import mock
+import pytest
+
 from odps.tests.core import TestBase, tn
 from odps.compat import unittest
 from odps.models import TableSchema
@@ -89,7 +92,7 @@ class Test(TestBase):
 
         self.assertIsNone(partition._getattr('creation_time'))
         self.assertIsNone(partition._getattr('last_meta_modified_time'))
-        self.assertIsNone(partition._getattr('last_modified_time'))
+        self.assertIsNone(partition._getattr('last_data_modified_time'))
         self.assertIsNone(partition._getattr('size'))
         self.assertIsNone(partition._getattr('is_archived'))
         self.assertIsNone(partition._getattr('is_exstore'))
@@ -104,7 +107,9 @@ class Test(TestBase):
         self.assertIsInstance(partition.file_num, int)
         self.assertIsInstance(partition.creation_time, datetime)
         self.assertIsInstance(partition.last_meta_modified_time, datetime)
-        self.assertIsInstance(partition.last_modified_time, datetime)
+        self.assertIsInstance(partition.last_data_modified_time, datetime)
+        with pytest.deprecated_call():
+            self.assertIsInstance(partition.last_modified_time, datetime)
         self.assertIsInstance(partition.size, int)
 
         self.assertTrue(partition._is_extend_info_loaded)
@@ -122,6 +127,54 @@ class Test(TestBase):
 
         self.odps.delete_table(test_table_name)
         self.assertFalse(table.exist_partition(partition))
+
+    def testIterPartitionCondition(self):
+        from odps.types import PartitionSpec
+        from odps.models.partitions import PartitionSpecCondition
+
+        test_table_name = tn('pyodps_t_tmp_cond_partition_table')
+        self.odps.delete_table(test_table_name, if_exists=True)
+        tb = self.odps.create_table(test_table_name, ("col string", "pt1 string, pt2 string"))
+
+        tb.create_partition("pt1=1,pt2=1")
+        tb.create_partition("pt1=1,pt2=2")
+        tb.create_partition("pt1=2,pt2=1")
+        tb.create_partition("pt1=2,pt2=2")
+
+        with pytest.raises(ValueError):
+            list(tb.iterate_partitions("pt3=1"))
+        with pytest.raises(ValueError):
+            list(tb.iterate_partitions("pt1"))
+        with pytest.raises(ValueError):
+            list(tb.iterate_partitions("pt1~1"))
+
+        orig_init = PartitionSpecCondition.__init__
+        part_prefix = [None]
+
+        def new_init(self, *args, **kwargs):
+            orig_init(self, *args, **kwargs)
+            part_prefix[0] = self.partition_spec
+
+        with mock.patch("odps.models.partitions.PartitionSpecCondition.__init__", new=new_init):
+            # filter with predicates
+            parts = list(tb.iterate_partitions("pt1=1"))
+            assert part_prefix[0] == PartitionSpec("pt1=1")
+            assert len(parts) == 2
+            assert [str(pt) for pt in parts] == ["pt1='1',pt2='1'", "pt1='1',pt2='2'"]
+
+            # filter with sub partitions
+            parts = list(tb.iterate_partitions("pt2=1"))
+            assert part_prefix[0] is None
+            assert len(parts) == 2
+            assert [str(pt) for pt in parts] == ["pt1='1',pt2='1'", "pt1='2',pt2='1'"]
+
+            # filter with inequalities
+            parts = list(tb.iterate_partitions("pt2!=1"))
+            assert part_prefix[0] is None
+            assert len(parts) == 2
+            assert [str(pt) for pt in parts] == ["pt1='1',pt2='2'", "pt1='2',pt2='2'"]
+
+        tb.drop()
 
 
 if __name__ == '__main__':

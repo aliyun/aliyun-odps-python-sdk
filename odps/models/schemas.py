@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..errors import InternalServerError, NoSuchObject
+from ..errors import InternalServerError, InvalidParameter, NoSuchObject
 from .core import Iterable
 from .schema import Schema
 
@@ -59,6 +59,10 @@ class Schemas(Iterable):
             pass
         except NoSuchObject:
             return False
+        except InvalidParameter as ex:
+            if "NoSuchObjectException" in str(ex):
+                return False
+            raise
         except InternalServerError as ex:
             if "invalid schema name" in str(ex).lower():
                 return False
