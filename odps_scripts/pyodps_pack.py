@@ -2,20 +2,23 @@
 from __future__ import print_function
 import argparse
 import contextlib
+import json
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import sys
-import textwrap
 import time
+import warnings
 from collections import defaultdict
 
 _DEFAULT_PYABI = "cp37-cp37m"
 _MCPY27_PYABI = "cp27-cp27m"
 _DWPY27_PYABI = "cp27-cp27mu"
-_DEFAULT_DOCKER_IMAGE = "quay.io/pypa/manylinux2014_x86_64"
-_LEGACY_DOCKER_IMAGE = "quay.io/pypa/manylinux1_x86_64"
+_DEFAULT_DOCKER_IMAGE_X64 = "quay.io/pypa/manylinux2014_x86_64"
+_DEFAULT_DOCKER_IMAGE_ARM64 = "quay.io/pypa/manylinux2014_aarch64"
+_LEGACY_DOCKER_IMAGE_X64 = "quay.io/pypa/manylinux1_x86_64"
 _DEFAULT_PACKAGE_SITE = "packages"
 _DEFAULT_OUTPUT_FILE = "packages.tar.gz"
 _REQUIREMENT_FILE_NAME = "requirements-extra.txt"
@@ -53,6 +56,7 @@ export PIP_ROOT_USER_ACTION=ignore
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 
 PYBIN="/opt/python/{python_abi}/bin"
+MACHINE_TAG=$($PYBIN/python -c "import platform; print(platform.machine())")
 export PATH="$PYBIN:$PATH"
 
 if [[ -z "{pypi_index}" ]]; then
@@ -82,7 +86,7 @@ fi
 
 if [[ -f "/scripts/{_INSTALL_REQ_FILE_NAME}" ]]; then
   echo "Installing build prerequisites..."
-  "$PYBIN/pip" install --target /install-req -r "/scripts/{_INSTALL_REQ_FILE_NAME}"
+  "$PYBIN/pip" install --target /install-req -r "/scripts/{_INSTALL_REQ_FILE_NAME}" $PYPI_EXTRA_ARG
   export OLDPYTHONPATH="$PYTHONPATH"
   export PYTHONPATH="/install-req:$PYTHONPATH"
   echo ""
@@ -149,7 +153,7 @@ if [[ -f /tmp/scripts/requirements-extra.txt ]]; then
 fi
 
 # make sure newly-built binary wheels fixed by auditwheel utility
-for fn in `ls *-linux_x86_64.whl 2>/dev/null`; do
+for fn in `ls *-linux_$MACHINE_TAG.whl 2>/dev/null`; do
   auditwheel repair "$fn" && rm -f "$fn"
 done
 if [[ -d wheelhouse ]]; then
@@ -215,6 +219,59 @@ class PackException(Exception):
     pass
 
 
+def _indent(text, prefix, predicate=None):
+    """Adds 'prefix' to the beginning of selected lines in 'text'.
+
+    If 'predicate' is provided, 'prefix' will only be added to the lines
+    where 'predicate(line)' is True. If 'predicate' is not provided,
+    it will default to adding 'prefix' to all non-empty lines that do not
+    consist solely of whitespace characters.
+    """
+    """Copied from textwrap.indent method of Python 3"""
+    if predicate is None:
+        def predicate(line):
+            return line.strip()
+
+    def prefixed_lines():
+        for line in text.splitlines(True):
+            yield (prefix + line if predicate(line) else line)
+    return ''.join(prefixed_lines())
+
+
+def _makedirs(name, mode=0o777, exist_ok=False):
+    """makedirs(name [, mode=0o777][, exist_ok=False])
+
+    Super-mkdir; create a leaf directory and all intermediate ones.  Works like
+    mkdir, except that any intermediate path segment (not just the rightmost)
+    will be created if it does not exist. If the target directory already
+    exists, raise an OSError if exist_ok is False. Otherwise no exception is
+    raised.  This is recursive.
+
+    """
+    """Copied from os.makedirs method of Python 3"""
+    head, tail = os.path.split(name)
+    if not tail:
+        head, tail = os.path.split(head)
+    if head and tail and not os.path.exists(head):
+        try:
+            _makedirs(head, exist_ok=exist_ok)
+        except FileExistsError:
+            # Defeats race condition when another thread created the path
+            pass
+        cdir = os.curdir
+        if isinstance(tail, bytes):
+            cdir = bytes(os.curdir, 'ASCII')
+        if tail == cdir:           # xxx/newdir/. exists if xxx/newdir exists
+            return
+    try:
+        os.mkdir(name, mode)
+    except OSError:
+        # Cannot rely on checking for EEXIST, since the operating system
+        # could give priority to other errors like EACCES or EROFS
+        if not exist_ok or not os.path.isdir(name):
+            raise
+
+
 def _to_unix(s):
     return s.replace(b"\r\n", b"\n")
 
@@ -227,14 +284,14 @@ def _create_build_script(**kwargs):
 
 
 def _copy_to_workdir(src_path, work_dir):
-    os.makedirs(os.path.join(work_dir, "build"))
+    _makedirs(os.path.join(work_dir, "build"), exist_ok=True)
     path_base_name = os.path.basename(src_path.rstrip("/").rstrip("\\"))
     dest_dir = os.path.join(work_dir, "build", path_base_name)
 
     shutil.copytree(src_path, dest_dir)
 
 
-def _build_docker_run_command(container_name, docker_image, work_dir, package_paths):
+def _build_docker_run_command(container_name, docker_image, work_dir, package_paths, docker_args):
     docker_executable = "docker" if not docker_path else os.path.join(docker_path, "docker")
     script_path_mapping = work_dir + "/scripts:/scripts"
     wheelhouse_path_mapping = work_dir + "/wheelhouse:/wheelhouse"
@@ -244,10 +301,15 @@ def _build_docker_run_command(container_name, docker_image, work_dir, package_pa
     if sys.stdin.isatty():
         cmdline.append("-it")
 
+    if docker_args:
+        cmdline.extend(shlex.split(docker_args))
+
     cmdline.extend(["--rm", "--name", container_name])
     cmdline.extend(["-v", script_path_mapping, "-v", wheelhouse_path_mapping])
 
     if package_paths:
+        # need to create build path first for mount
+        _makedirs(os.path.join(work_dir, "build"), exist_ok=True)
         cmdline.extend(["-v", build_path_mapping])
 
     package_paths = package_paths or []
@@ -255,8 +317,10 @@ def _build_docker_run_command(container_name, docker_image, work_dir, package_pa
         base_name = os.path.basename(package_path.rstrip("/").rstrip("\\"))
         abs_path = os.path.abspath(package_path)
         if not abs_path.startswith(os.path.expanduser("~")):
+            # not on user path, copy it into build path
             _copy_to_workdir(base_name, work_dir)
         else:
+            # on user path, just mount to the container
             cmdline.extend(["-v", "%s:/build/%s" % (abs_path, base_name)])
     cmdline.extend(
         [docker_image, "/bin/bash", "/scripts/%s" % _PACK_SCRIPT_FILE_NAME]
@@ -271,7 +335,7 @@ def _build_docker_rm_command(container_name):
 
 def _log_indent(title, text, indent=2):
     if logger.getEffectiveLevel() <= logging.DEBUG:
-        logger.debug(title + "\n%s", textwrap.indent(text, " " * indent))
+        logger.debug(title + "\n%s", _indent(text, " " * indent))
 
 
 @contextlib.contextmanager
@@ -286,10 +350,10 @@ def _create_temp_work_dir(
     tmp_path = None
     try:
         tmp_path = os.path.expanduser("~/.tmp-pyodps-pack-%d" % int(time.time()))
-        os.makedirs(tmp_path, exist_ok=True)
+        _makedirs(tmp_path, exist_ok=True)
         script_path = os.path.join(tmp_path, "scripts")
-        os.makedirs(script_path, exist_ok=True)
-        os.makedirs(os.path.join(tmp_path, "wheelhouse"), exist_ok=True)
+        _makedirs(script_path, exist_ok=True)
+        _makedirs(os.path.join(tmp_path, "wheelhouse"), exist_ok=True)
 
         if requirement_list:
             req_text = "\n".join(requirement_list) + "\n"
@@ -334,13 +398,20 @@ def _create_temp_work_dir(
             pack_file.write(_to_unix(build_script.encode()))
         yield tmp_path
     finally:
-        if tmp_path:
+        if tmp_path and os.path.exists(tmp_path):
             shutil.rmtree(tmp_path)
 
 
 def _get_default_pypi_index():
     proc = subprocess.Popen(["pip", "config", "list"], stdout=subprocess.PIPE)
     proc.wait()
+    if proc.returncode != 0:
+        warnings.warn(
+            'Failed to call `pip config list`, return code is %s. '
+            'Will use default index instead. Specify "-i <index-url>" '
+            'if you want to use another package index.' % proc.returncode
+        )
+        return None
     for line in proc.stdout.read().decode().splitlines():
         var, value = line.split("=", 1)
         if var == "global.index-url":
@@ -379,9 +450,93 @@ def _collect_install_requires(parsed_args):
     parsed_args.install_requires = install_requires
 
 
+def _collect_env_packages(exclude_editable=False, exclude=None, index_url=None):
+    print("Extracting packages from local environment...")
+    exclude = set(exclude or [])
+    pip_cmd = ["pip", "list", "--format", "json"]
+    if exclude_editable:
+        pip_cmd += ["--exclude-editable"]
+    if index_url:
+        pip_cmd += ["--index-url", index_url]
+
+    pack_descriptions = []
+    proc = subprocess.Popen(pip_cmd, stdout=subprocess.PIPE)
+    proc.wait()
+    if proc.returncode != 0:
+        raise PackException(
+            "ERROR: Failed to call `pip list`. Return code is %s" % proc.returncode
+        )
+    pack_descriptions.extend(json.loads(proc.stdout.read()))
+
+    specifiers = []
+    missing_packs = []
+    for desc in pack_descriptions:
+        pack_name = desc["name"]
+        if pack_name in exclude:
+            continue
+        if "editable_project_location" in desc:
+            specifiers.append(desc["editable_project_location"])
+        else:
+            specifiers.append("%s==%s" % (desc["name"], desc["version"]))
+    if missing_packs:
+        warnings.warn(
+            "Cannot find packages %s in package index. These packages cannot be included."
+            % ",".join(missing_packs)
+        )
+    return specifiers
+
+
+def _get_default_image(use_legacy_image=False, arch=None):
+    arch = (arch or "x86_64").lower()
+    if arch != "x86_64" and use_legacy_image:
+        raise PackException("Cannot use legacy image when building on other arches")
+    if use_legacy_image:
+        return _LEGACY_DOCKER_IMAGE_X64
+    elif arch == "x86_64":
+        return _DEFAULT_DOCKER_IMAGE_X64
+    elif arch in ("arm64", "aarch64"):
+        return _DEFAULT_DOCKER_IMAGE_ARM64
+    else:
+        raise PackException("Arch %s not supported" % arch)
+
+
+def _get_python_abi(python_version=None, mcpy27=None, dwpy27=None):
+    if python_abi_env and python_version is not None:
+        raise PackException(
+            "You should not specify environment variable 'PYABI' and '--python-version' at the same time."
+        )
+    if python_version is None:
+        python_abi = python_abi_env or _DEFAULT_PYABI
+    else:
+        if "." not in python_version:
+            version_parts = (int(python_version[0]), int(python_version[1:]))
+        else:
+            version_parts = tuple(int(pt) for pt in python_version.split("."))[:2]
+        cp_tag = "cp%d%d" % version_parts
+        python_abi = cp_tag + "-" + cp_tag
+        if version_parts < (3, 8):
+            python_abi += "m"
+    if dwpy27:
+        if mcpy27:
+            raise PackException("You should not specify '--dwpy27' and '--mcpy27' at the same time.")
+        python_abi = _DWPY27_PYABI
+    elif mcpy27:
+        python_abi = _MCPY27_PYABI
+    return python_abi
+
+
 def _main(parsed_args):
     if parsed_args.debug:
         logging.basicConfig(level=logging.DEBUG)
+
+    if parsed_args.pack_env:
+        if parsed_args.specifiers:
+            raise PackException(
+                "ERROR: Cannot supply --pack-env with other package specifiers."
+            )
+        parsed_args.specifiers = _collect_env_packages(
+            parsed_args.exclude_editable, parsed_args.exclude, parsed_args.index_url
+        )
 
     _filter_local_package_paths(parsed_args)
     _collect_install_requires(parsed_args)
@@ -399,14 +554,7 @@ def _main(parsed_args):
     no_deps_str = "true" if parsed_args.no_deps else ""
     debug_str = "true" if parsed_args.debug else ""
 
-    python_abi = python_abi_env or _DEFAULT_PYABI
-    if parsed_args.dwpy27:
-        if parsed_args.mcpy27:
-            raise PackException("You should not specify '--dwpy27' and '--mcpy27' at the same time.")
-        python_abi = _DWPY27_PYABI
-    elif parsed_args.mcpy27:
-        python_abi = _MCPY27_PYABI
-
+    python_abi = _get_python_abi(parsed_args.python_version, parsed_args.mcpy27, parsed_args.dwpy27)
     pypi_trusted_hosts = " ".join(parsed_args.trusted_host or [])
 
     with _create_temp_work_dir(
@@ -425,11 +573,11 @@ def _main(parsed_args):
         container_name = "pack-cnt-%d" % int(time.time())
 
         use_legacy_image = parsed_args.legacy_image or parsed_args.mcpy27 or parsed_args.dwpy27
-        default_image = _DEFAULT_DOCKER_IMAGE if not use_legacy_image else _LEGACY_DOCKER_IMAGE
+        default_image = _get_default_image(use_legacy_image, parsed_args.arch)
         docker_image = docker_image_env or default_image
 
         docker_cmd = _build_docker_run_command(
-            container_name, docker_image, work_dir, parsed_args.package_path
+            container_name, docker_image, work_dir, parsed_args.package_path, parsed_args.docker_args
         )
         logger.debug("Docker command: %r", docker_cmd)
 
@@ -526,6 +674,28 @@ def main():
     )
     parser.add_argument(
         "--output", "-o", default="packages.tar.gz", help="Target archive file name to store"
+    )
+    parser.add_argument(
+        "--pack-env", action="store_true", default=False, help="Pack full environment"
+    )
+    parser.add_argument(
+        "--exclude-editable", action="store_true", default=False,
+        help="Exclude editable packages when packing",
+    )
+    parser.add_argument(
+        "--arch", default="x86_64",
+        help="Architecture of target package, x86_64 by default. Currently only x86_64 "
+             "and aarch64 supported. Do not use this argument if you are not running "
+             "your code in a proprietary cloud."
+    )
+    parser.add_argument(
+        "--python-version",
+        help="Version of Python your environment is on, for instance 3.6. "
+             "You may also use 36 instead. Do not use this argument if you "
+             "are not running your code in a proprietary cloud."
+    )
+    parser.add_argument(
+        "--docker-args", help="Extra arguments for Docker."
     )
     parser.add_argument(
         "--debug", action="store_true", default=False,

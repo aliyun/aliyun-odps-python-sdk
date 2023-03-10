@@ -128,6 +128,11 @@ if six.PY3:
     from .lib import cgi_compat as cgi
 
     UnsupportedOperation = io.UnsupportedOperation
+
+    try:
+        from .lib.version import Version
+    except BaseException:
+        from distutils.version import LooseVersion as Version
 else:
     lrange = range
     lzip = zip
@@ -207,6 +212,8 @@ else:
     import cgi
 
     UnsupportedOperation = type("UnsupportedOperation", (OSError, ValueError), {})
+
+    from distutils.version import LooseVersion as Version
 
 if PY26:
     try:
@@ -311,4 +318,4 @@ __all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dict
            'reduce', 'reload_module', 'Queue', 'Empty', 'ElementTree', 'ElementTreeParseError',
            'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
            'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc', 'Monthdelta',
-           'Iterable', 'TimeoutError', 'cgi', 'parsedate_to_datetime']
+           'Iterable', 'TimeoutError', 'cgi', 'parsedate_to_datetime', 'Version']

@@ -176,6 +176,15 @@ DataWorks 限制下载的包总大小为 100MB。如果你需要跳过预装包�
 
     pyodps-pack -o bundle.tar.gz --exclude numpy --exclude pandas <your_package>
 
+使用其他账号
+==========
+在某些情形下你可能希望使用其他账号（而非平台提供的账号）访问 MaxCompute。此时，可以使用 ODPS 入口对象的 ``as_account``
+方法创建一个使用新账号的入口对象，该对象与系统默认提供的 ``o`` 实例彼此独立。例如：
+
+.. code-block:: python
+
+    new_odps = o.as_account('**new_access_id**', '**new_secret_access_key**')
+
 受限功能
 =========
 

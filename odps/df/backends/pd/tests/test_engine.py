@@ -221,7 +221,9 @@ class Test(TestBase):
         fields = [
             self.expr.name.isnull().rename('name1'),
             self.expr.name.notnull().rename('name2'),
-            self.expr.name.fillna('test').rename('name3'),
+            self.expr.name.isna().rename('name3'),
+            self.expr.name.notna().rename('name4'),
+            self.expr.name.fillna('test').rename('name5'),
             self.expr.id.isin([1, 2, 3]).rename('id1'),
             self.expr.id.isin(self.expr.fid.astype('int')).rename('id2'),
             self.expr.id.notin([1, 2, 3]).rename('id3'),
@@ -229,8 +231,8 @@ class Test(TestBase):
             self.expr.id.between(self.expr.fid, 3).rename('id5'),
             self.expr.name.fillna('test').switch('test', 'test' + self.expr.name.fillna('test'),
                                                  'test2', 'test2' + self.expr.name.fillna('test'),
-                                                 default=self.expr.name).rename('name4'),
-            self.expr.name.fillna('test').switch('test', 1, 'test2', 2).rename('name5'),
+                                                 default=self.expr.name).rename('name6'),
+            self.expr.name.fillna('test').switch('test', 1, 'test2', 2).rename('name7'),
             self.expr.id.cut([100, 200, 300],
                              labels=['xsmall', 'small', 'large', 'xlarge'],
                              include_under=True, include_over=True).rename('id6'),
@@ -252,30 +254,36 @@ class Test(TestBase):
         self.assertEqual(len([it[0] for it in data if it[0] is not None]),
                          len([it[1] for it in result if it[1]]))
 
+        self.assertEqual(len([it for it in data if it[0] is None]),
+                         len([it[2] for it in result if it[0]]))
+
+        self.assertEqual(len([it[0] for it in data if it[0] is not None]),
+                         len([it[3] for it in result if it[1]]))
+
         self.assertEqual([(it[0] if it[0] is not None else 'test') for it in data],
-                         [it[2] for it in result])
+                         [it[4] for it in result])
 
         self.assertEqual([(it[1] in (1, 2, 3)) for it in data],
-                         [it[3] for it in result])
+                         [it[5] for it in result])
 
         fids = [int(it[2]) for it in data]
         self.assertEqual([(it[1] in fids) for it in data],
-                         [it[4] for it in result])
-
-        self.assertEqual([(it[1] not in (1, 2, 3)) for it in data],
-                         [it[5] for it in result])
-
-        self.assertEqual([(it[1] not in fids) for it in data],
                          [it[6] for it in result])
 
-        self.assertEqual([(it[2] <= it[1] <= 3) for it in data],
+        self.assertEqual([(it[1] not in (1, 2, 3)) for it in data],
                          [it[7] for it in result])
 
+        self.assertEqual([(it[1] not in fids) for it in data],
+                         [it[8] for it in result])
+
+        self.assertEqual([(it[2] <= it[1] <= 3) for it in data],
+                         [it[9] for it in result])
+
         self.assertEqual([to_str('testtest' if it[0] is None else it[0]) for it in data],
-                         [to_str(it[8]) for it in result])
+                         [to_str(it[10]) for it in result])
 
         self.assertEqual([to_str(1 if it[0] is None else None) for it in data],
-                         [to_str(it[9]) for it in result])
+                         [to_str(it[11]) for it in result])
 
         def get_val(val):
             if val <= 100:
@@ -287,14 +295,14 @@ class Test(TestBase):
             else:
                 return 'xlarge'
 
-        self.assertEqual([to_str(get_val(it[1])) for it in data], [to_str(it[10]) for it in result])
+        self.assertEqual([to_str(get_val(it[1])) for it in data], [to_str(it[12]) for it in result])
 
-        self.assertListEqual([it[5] for it in data], [it[11] for it in result])
+        self.assertListEqual([it[5] for it in data], [it[13] for it in result])
 
-        self.assertEqual([20] * len(data), [it[12] for it in result])
+        self.assertEqual([20] * len(data), [it[14] for it in result])
 
         for it in result:
-            self.assertTrue(0 <= it[13] <= 10)
+            self.assertTrue(0 <= it[15] <= 10)
 
     def testArithmetic(self):
         data = self._gen_data(5, value_range=(-1000, 1000))
@@ -430,8 +438,8 @@ class Test(TestBase):
             (lambda s: s.count(data[0][0]), self.expr.name.count(data[0][0])),
             (lambda s: s.endswith(data[0][0]), self.expr.name.endswith(data[0][0])),
             (lambda s: s.startswith(data[0][0]), self.expr.name.startswith(data[0][0])),
-            (lambda s: extract('123' + s, '[^a-z]*(\w+)', group=1),
-             ('123' + self.expr.name).extract('[^a-z]*(\w+)', group=1)),
+            (lambda s: extract('123' + s, r'[^a-z]*(\w+)', group=1),
+             ('123' + self.expr.name).extract(r'[^a-z]*(\w+)', group=1)),
             (lambda s: s.find(data[0][0]), self.expr.name.find(data[0][0])),
             (lambda s: s.rfind(data[0][0]), self.expr.name.rfind(data[0][0])),
             (lambda s: s.replace(data[0][0], 'test'), self.expr.name.replace(data[0][0], 'test')),
@@ -2681,7 +2689,7 @@ class Test(TestBase):
             [0, 'name1', 1.0, None, 3.0, 4.0],
             [1, 'name1', 2.0, None, None, 1.0],
             [2, 'name1', 3.0, 4.0, 1.0, None],
-            [3, 'name1', None, 1.0, 2.0, 3.0],
+            [3, 'name1', float('nan'), 1.0, 2.0, 3.0],
             [4, 'name1', 1.0, np.nan, 3.0, 4.0],
             [5, 'name1', 1.0, 2.0, 3.0, 4.0],
             [6, 'name1', None, None, np.nan, None],

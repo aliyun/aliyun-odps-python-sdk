@@ -16,7 +16,6 @@
 
 import itertools
 from textwrap import dedent
-from distutils.version import LooseVersion
 
 from ... import compat
 from ...config import options
@@ -827,7 +826,7 @@ class HTMLFormatter(TableFormatter):
             div_style = ''
             try:
                 import IPython
-                if IPython.__version__ < LooseVersion('3.0.0'):
+                if compat.Version(IPython.__version__) < compat.Version('3.0.0'):
                     div_style = ' style="max-width:1500px;overflow:auto;"'
             except ImportError:
                 pass
@@ -836,7 +835,7 @@ class HTMLFormatter(TableFormatter):
 
             try:
                 import pandas
-                if pandas.__version__ >= LooseVersion('0.20'):
+                if compat.Version(pandas.__version__) >= compat.Version('0.20'):
                     self._write_style()
             except ImportError:
                 pass

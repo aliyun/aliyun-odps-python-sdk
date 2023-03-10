@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-01-09 19:53+0800\n"
+"POT-Creation-Date: 2023-01-19 15:14+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -31,6 +31,21 @@ msgstr ""
 
 #: ../../source/base-resources.rst:8
 msgid ""
+"在PyODPS中，主要支持两种资源类型，一种是文件，另一种是表。它们的基本操作（列举和删除）相同，"
+"但创建和修改方法略有差异，下面分别说明。"
+msgstr ""
+"PyODPS mainly supports two resource types, namely, file resources and "
+"table resources. They share same iteration and deletion operations, while"
+" there are slight differences between creation and modification operations"
+" of these two resource types. The following describes operations of two"
+" resource types."
+
+#: ../../source/base-resources.rst:11
+msgid "基本操作"
+msgstr "Basic operations"
+
+#: ../../source/base-resources.rst:13
+msgid ""
 "列出所有资源还是可以使用 ``list_resources``，判断资源是否存在使用 ``exist_resource``。 删除资源时，可以调用"
 " ``delete_resource``，或者直接对于Resource对象调用 ``drop`` 方法。"
 msgstr ""
@@ -39,34 +54,78 @@ msgstr ""
 "``delete_resource`` to delete resources or directly call the drop method "
 "for a resource object."
 
-#: ../../source/base-resources.rst:11
-msgid "在PyODPS中，主要支持两种资源类型，一种是文件，另一种是表。下面分别说明。"
+#: ../../source/base-resources.rst:16
+msgid "例如，要列举 Project 下的所有资源，可以使用下面的方法："
 msgstr ""
-"PyODPS mainly supports two resource types, namely, file resources and "
-"table resources. The following describes the two resource types."
+"For instance, if you want to iterate through all resources in a project, "
+"you can use code below."
 
-#: ../../source/base-resources.rst:14
+#: ../../source/base-resources.rst:18
+msgid ""
+"for res in o.list_resources():\n"
+"    print(res.name)"
+msgstr ""
+
+#: ../../source/base-resources.rst:23
+msgid "要列举资源名包含给定前缀的资源，可以使用下面的方法："
+msgstr "To iterate through resources with given prefixes, you can use code below."
+
+#: ../../source/base-resources.rst:25
+msgid ""
+"for res in o.list_resources(prefix=\"prefix\"):\n"
+"    print(res.name)"
+msgstr ""
+
+#: ../../source/base-resources.rst:30
+msgid "判断给定名字的资源是否存在，可以使用下面的方法："
+msgstr "To check if resource with given name exists, you can use code below."
+
+#: ../../source/base-resources.rst:32
+msgid "o.exist_resource(\"resource_name.tar.gz\")"
+msgstr ""
+
+#: ../../source/base-resources.rst:36
+msgid ""
+"删除给定资源，可以使用 ODPS 入口对象的 ``delete_resource`` 方法，也可以使用 ``Resource`` 对象自己的 "
+"``drop`` 方法。"
+msgstr ""
+"To delete certain resources, you may use ``delete_resource`` method of ODPS "
+"entrance object, or use ``drop`` method of the ``Resource`` object."
+
+#: ../../source/base-resources.rst:39
+msgid ""
+"# 使用 ODPS.delete_resource 方法\n"
+"o.delete_resource(\"resource_name.tar.gz\")\n"
+"# 使用 Resource.drop 方法\n"
+"o.get_resource(\"resource_name.tar.gz\").drop()"
+msgstr ""
+"# use ODPS.delete_resource method\n"
+"o.delete_resource(\"resource_name.tar.gz\")\n"
+"# use Resource.drop method\n"
+"o.get_resource(\"resource_name.tar.gz\").drop()"
+
+#: ../../source/base-resources.rst:47
 msgid "文件资源"
 msgstr "File resources"
 
-#: ../../source/base-resources.rst:16
+#: ../../source/base-resources.rst:49
 msgid "文件资源包括基础的 ``file`` 类型、以及 ``py``、``jar``、``archive``。"
 msgstr ""
 "File resources include the basic ``file`` type, and ``py``, ``jar``, and "
 "``archive``."
 
-#: ../../source/base-resources.rst:19
+#: ../../source/base-resources.rst:52
 msgid "创建文件资源"
 msgstr "Create a file resource"
 
-#: ../../source/base-resources.rst:21
+#: ../../source/base-resources.rst:54
 msgid "创建文件资源可以通过给定资源名、文件类型、以及一个file-like的对象（或者是字符串对象）来创建，比如"
 msgstr ""
 "You can create a file resource by specifying the resource name, file "
 "type, and a file-like object (or a string object), as shown in the "
 "following example:"
 
-#: ../../source/base-resources.rst:23
+#: ../../source/base-resources.rst:56
 msgid ""
 "resource = o.create_resource('test_file_resource', 'file', "
 "fileobj=open('/to/path/file'))  # 使用file-like的对象\n"
@@ -78,23 +137,23 @@ msgstr ""
 "resource = o.create_resource('test_py_resource', 'py', fileobj='import "
 "this')  # use strings as file content"
 
-#: ../../source/base-resources.rst:29
+#: ../../source/base-resources.rst:62
 msgid "可以通过 ``temp=True`` 创建一个临时资源。"
 msgstr "You can use argument ``temp=True`` to create a temporarily resource."
 
-#: ../../source/base-resources.rst:31
+#: ../../source/base-resources.rst:64
 msgid ""
 "resource = o.create_resource('test_file_resource', 'file', "
 "fileobj=open('/to/path/file'), temp=True)"
 msgstr ""
 
-#: ../../source/base-resources.rst:37
+#: ../../source/base-resources.rst:70
 msgid "在 fileobj 参数中传入字符串，创建的资源内容为 **字符串本身** 而非字符串代表的路径指向的文件。"
 msgstr ""
 "When ``fileobj`` is a string, the content of the created resource is the "
 "string itself, not the content of the file the string point to."
 
-#: ../../source/base-resources.rst:39
+#: ../../source/base-resources.rst:72
 msgid ""
 "如果文件过大（例如大小超过 64MB），PyODPS 可能会使用分块上传模式，而这不被旧版 MaxCompute 部署所支持。 如需在旧版 "
 "MaxCompute 中上传大文件，请配置 ``options.upload_resource_in_chunks = False`` 。"
@@ -104,11 +163,11 @@ msgstr ""
 "releases of PyODPS. In this case you may specify "
 "``options.upload_resource_in_chunks = False``."
 
-#: ../../source/base-resources.rst:43
+#: ../../source/base-resources.rst:76
 msgid "读取和修改文件资源"
 msgstr "Read and modify a file resource"
 
-#: ../../source/base-resources.rst:44
+#: ../../source/base-resources.rst:77
 msgid ""
 "对文件资源调用 ``open`` 方法，或者在 MaxCompute 入口调用 ``open_resource`` 都能打开一个资源， "
 "打开后的对象会是 file-like 的对象。 类似于Python内置的 ``open`` 方法，文件资源也支持打开的模式。我们看例子："
@@ -118,7 +177,7 @@ msgstr ""
 "opened object is a file-like object. Similar to the open method built in "
 "Python, file resources also support the ``open`` mode. For example:"
 
-#: ../../source/base-resources.rst:48
+#: ../../source/base-resources.rst:81
 msgid ""
 ">>> with resource.open('r') as fp:  # 以读模式打开\n"
 ">>>     content = fp.read()  # 读取全部的内容\n"
@@ -153,39 +212,39 @@ msgstr ""
 ">>>     fp.write('Hello World')\n"
 ">>>     fp.flush()  # manual call submits the update to MaxCompute"
 
-#: ../../source/base-resources.rst:65
+#: ../../source/base-resources.rst:98
 msgid "所有支持的打开类型包括："
 msgstr "The following open modes are supported:"
 
-#: ../../source/base-resources.rst:67
+#: ../../source/base-resources.rst:100
 msgid "``r``，读模式，只能打开不能写"
 msgstr "``r``: Read mode. The file can be opened but cannot be written."
 
-#: ../../source/base-resources.rst:68
+#: ../../source/base-resources.rst:101
 msgid "``w``，写模式，只能写入而不能读文件，注意用写模式打开，文件内容会被先清空"
 msgstr ""
 "``w``: Write mode. The file can be written but cannot be read. Note that "
 "file content is cleared first if the file is opened in write mode."
 
-#: ../../source/base-resources.rst:69
+#: ../../source/base-resources.rst:102
 msgid "``a``，追加模式，只能写入内容到文件末尾"
 msgstr "``a``: Append mode. Content can be added to the end of the file."
 
-#: ../../source/base-resources.rst:70
+#: ../../source/base-resources.rst:103
 msgid "``r+``，读写模式，能任意读写内容"
 msgstr "``r+``: Read/write mode. You can read and write any content."
 
-#: ../../source/base-resources.rst:71
+#: ../../source/base-resources.rst:104
 msgid "``w+``，类似于 ``r+``，但会先清空文件内容"
 msgstr "``w+``: Similar to ``r+``, but file content is cleared first."
 
-#: ../../source/base-resources.rst:72
+#: ../../source/base-resources.rst:105
 msgid "``a+``，类似于 ``r+``，但写入时只能写入文件末尾"
 msgstr ""
 "``a+``: Similar to ``r+``, but content can be added to the end of the "
 "file only during writing."
 
-#: ../../source/base-resources.rst:74
+#: ../../source/base-resources.rst:107
 msgid ""
 "同时，PyODPS中，文件资源支持以二进制模式打开，打开如说一些压缩文件等等就需要以这种模式， 因此 ``rb`` "
 "就是指以二进制读模式打开文件，``r+b`` 是指以二进制读写模式打开。"
@@ -195,7 +254,7 @@ msgstr ""
 " a file in binary read mode, and ``r+b`` indicates opening a file in "
 "binary read/write mode."
 
-#: ../../source/base-resources.rst:77
+#: ../../source/base-resources.rst:110
 msgid ""
 "对于较大的文件资源，可以使用流式方式读写文件，使用方法为在调用 ``open_resource`` 时增加一个 ``stream=True`` "
 "选项："
@@ -203,7 +262,7 @@ msgstr ""
 "For large file resources, you may read or write them in streams by adding"
 " a ``stream=True`` argument in ``open_resource`` calls."
 
-#: ../../source/base-resources.rst:80
+#: ../../source/base-resources.rst:113
 msgid ""
 ">>> with o.open_resource('test_file_resource', mode='w') as fp:  # 写模式打开\n"
 ">>>     fp.writelines(['Hello\\n', 'World\\n'])  # 写入多行\n"
@@ -228,42 +287,42 @@ msgstr ""
 ">>>     line = fp.readline()  # read one single line\n"
 ">>>     lines = fp.readlines()  # read multiple lines"
 
-#: ../../source/base-resources.rst:92
+#: ../../source/base-resources.rst:125
 msgid "当 ``stream=True`` 时，只支持 ``r`` ， ``rb`` ， ``w`` ， ``wb`` 四种模式。"
 msgstr ""
 "When ``stream=True`` is specified, only ``r``, ``rb``, ``w`` and ``wb`` "
 "are supported in ``mode``."
 
-#: ../../source/base-resources.rst:95
+#: ../../source/base-resources.rst:128
 msgid "表资源"
 msgstr "Table resources"
 
-#: ../../source/base-resources.rst:98
+#: ../../source/base-resources.rst:131
 msgid "创建表资源"
 msgstr "Create a table resource"
 
-#: ../../source/base-resources.rst:100
+#: ../../source/base-resources.rst:133
 msgid ""
 ">>> o.create_resource('test_table_resource', 'table', "
 "table_name='my_table', partition='pt=test')"
 msgstr ""
 
-#: ../../source/base-resources.rst:105
+#: ../../source/base-resources.rst:138
 msgid "更新表资源"
 msgstr "Update a table resource"
 
-#: ../../source/base-resources.rst:107
+#: ../../source/base-resources.rst:140
 msgid ""
 ">>> table_resource = o.get_resource('test_table_resource')\n"
 ">>> table_resource.update(partition='pt=test2', "
 "project_name='my_project2')"
 msgstr ""
 
-#: ../../source/base-resources.rst:113
+#: ../../source/base-resources.rst:146
 msgid "获取表及分区"
 msgstr "Obtain associated table and partition"
 
-#: ../../source/base-resources.rst:115
+#: ../../source/base-resources.rst:148
 msgid ""
 ">>> table_resource = o.get_resource('test_table_resource')\n"
 ">>> table = table_resource.table\n"
@@ -272,11 +331,11 @@ msgid ""
 ">>> print(partition.spec)"
 msgstr ""
 
-#: ../../source/base-resources.rst:124
+#: ../../source/base-resources.rst:157
 msgid "读写内容"
 msgstr "Read and write table"
 
-#: ../../source/base-resources.rst:126
+#: ../../source/base-resources.rst:159
 msgid ""
 ">>> table_resource = o.get_resource('test_table_resource')\n"
 ">>> with table_resource.open_writer() as writer:\n"

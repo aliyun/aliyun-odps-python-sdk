@@ -38,9 +38,20 @@ PyODPS 的相关依赖会自动安装。
    from odps import ODPS
 
    o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-default-project**',
-               endpoint='**your-end-point**')
+            endpoint='**your-end-point**')
 
 这样就已经初始化，就可以对表、资源、函数等进行操作了。
+
+如果你使用 `STS Token <https://help.aliyun.com/document_detail/112449.html>`_ 访问
+ODPS，可以使用下面的语句初始化 ODPS 入口对象：
+
+.. code-block:: python
+
+   from odps import ODPS
+   from odps.accounts import StsAccount
+
+   account = StsAccount('**your-access-id**', '**your-secret-access-key**', '**your-sts-token**')
+   o = ODPS(account=account, project='**your-default-project**', endpoint='**your-end-point**')
 
 在主入口，我们对于主要的ODPS对象都提供了最基本的几个操作，包括 ``list``、``get``、``exist``、``create``、``delete``。
 

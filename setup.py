@@ -17,17 +17,26 @@
 # (https://github.com/pandas-dev/pandas), which is permitted for use under
 # the BSD 3-Clause License
 
-from setuptools import setup, find_packages, Extension
-from setuptools.command.install import install
-from distutils.cmd import Command
-from distutils.sysconfig import get_config_var
-from distutils.version import LooseVersion
-
-import sys
 import os
 import platform
 import shutil
+import sys
 
+from setuptools import setup, find_packages, Extension
+from setuptools.command.install import install
+
+try:
+    from setuptools import Command
+except ImportError:
+    from distutils.cmd import Command
+try:
+    from sysconfig import get_config_var
+except ImportError:
+    from distutils.sysconfig import get_config_var
+try:
+    from packaging.version import Version
+except ImportError:
+    from distutils.version import LooseVersion as Version
 
 # From https://github.com/pandas-dev/pandas/pull/24274:
 # For mac, ensure extensions are built for macos 10.9 when compiling on a
@@ -36,10 +45,9 @@ import shutil
 # MACOSX_DEPLOYMENT_TARGET before calling setup.py
 if sys.platform == 'darwin':
     if 'MACOSX_DEPLOYMENT_TARGET' not in os.environ:
-        current_system = LooseVersion(platform.mac_ver()[0])
-        python_target = LooseVersion(
-            get_config_var('MACOSX_DEPLOYMENT_TARGET'))
-        if python_target < '10.9' and current_system >= '10.9':
+        current_system = Version(platform.mac_ver()[0])
+        python_target = Version(get_config_var('MACOSX_DEPLOYMENT_TARGET'))
+        if python_target < Version('10.9') and current_system >= Version('10.9'):
             os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.9'
 
 repo_root = os.path.dirname(os.path.abspath(__file__))
@@ -197,6 +205,9 @@ setup_options = dict(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Software Development :: Libraries',

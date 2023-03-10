@@ -125,7 +125,7 @@ class PmmlRegressionTable(PmmlRepr):
         if len(predictors) == 0:
             return ''
 
-        value_part = re.sub(' *\+ *- *', ' - ', ' + '.join(expr_parts))
+        value_part = re.sub(r' *\+ *- *', ' - ', ' + '.join(expr_parts))
         return self._target_field + ' = ' + value_part
 
     def _repr(self):

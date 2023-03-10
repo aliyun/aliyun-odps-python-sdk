@@ -14,16 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from distutils.version import LooseVersion
-
 import mars
+
+from ..compat import Version
 
 try:
     mars_version = mars.__version__
 except AttributeError:
     raise ImportError("Mars package broken")
 
-if LooseVersion(mars_version) >= LooseVersion("0.7"):
+if Version(mars_version) >= Version("0.7"):
     from .oscar import dataframe
     from .oscar.core import (
         create_mars_cluster,
@@ -49,4 +49,4 @@ else:
     from .legacy.deploy.client import MarsCupidClient, CUPID_APP_NAME, NOTEBOOK_NAME
 
 
-INTERNAL_PATTERN = "\/[^\.]+\.[^\.-]+\.[^\.-]+\-[^\.-]+\."
+INTERNAL_PATTERN = r"\/[^\.]+\.[^\.-]+\.[^\.-]+\-[^\.-]+\."

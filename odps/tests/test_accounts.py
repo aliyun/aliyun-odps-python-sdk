@@ -34,7 +34,7 @@ class Test(TestBase):
         try:
             server.start(('127.0.0.1', 0))
             account = SignServerAccount(self.odps.account.access_id, server.server.server_address)
-            odps = ODPS(None, None, self.odps.project, self.odps.endpoint, account=account)
+            odps = self.odps.as_account(account=account)
             odps.delete_table(tn('test_sign_account_table'), if_exists=True)
             t = odps.create_table(tn('test_sign_account_table'), 'col string', lifecycle=1)
             self.assertTrue(odps.exist_table(tn('test_sign_account_table')))

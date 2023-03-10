@@ -467,8 +467,9 @@ class FileResource(Resource):
 
         :return: None
         """
-        self._fp.close()
-        self._fp = None
+        if self._fp is not None:
+            self._fp.close()
+            self._fp = None
 
     def __iter__(self):
         self._check_read()

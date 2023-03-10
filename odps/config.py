@@ -320,6 +320,8 @@ is_bool = lambda x: isinstance(x, bool)
 is_integer = lambda x: isinstance(x, six.integer_types)
 is_string = lambda x: isinstance(x, six.string_types)
 is_dict = lambda x: isinstance(x, dict)
+
+
 def is_in(vals):
     def validate(x):
         return x in vals
@@ -412,6 +414,7 @@ options.register_option('df.dump_udf', False, validator=is_bool)
 options.register_option('df.supersede_libraries', True, validator=is_bool)
 options.register_option('df.libraries', None)
 options.register_option('df.odps.sort.limit', 10000)
+options.register_option('df.odps.nan_handler', 'py')  # None for not handled, builtin for built-in ISNAN function
 options.register_option('df.sqlalchemy.execution_options', None, validator=any_validator(is_null, is_dict))
 options.register_option('df.seahawks.max_size', 10 * 1024 * 1024 * 1024)  # 10G
 

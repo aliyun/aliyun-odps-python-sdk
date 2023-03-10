@@ -64,6 +64,33 @@ class Analyzer(BaseAnalyzer):
         else:
             raise NotImplementedError
 
+    @staticmethod
+    def _make_isna_expr(expr, invert=False):
+        from ... import func
+
+        input_expr = expr.input
+        has_float_col = (
+            isinstance(input_expr, CollectionExpr)
+            and any(isinstance(col.type, types.Float) for col in input_expr.columns)
+        ) or (
+            isinstance(input_expr, (SequenceExpr, Scalar))
+            and isinstance(input_expr.dtype, types.Float)
+        )
+
+        if options.df.odps.nan_handler is None or not has_float_col:
+            return input_expr.isnull() if not invert else input_expr.notnull()
+
+        handler = options.df.odps.nan_handler.lower()
+        if handler == "py":
+            handle_fun = functools.partial(lambda x: x.map(pymath.isnan, rtype=bool))
+        else:
+            handle_fun = functools.partial(func.ISNAN, rtype=bool)
+
+        if not invert:
+            return input_expr.isnull() | handle_fun(input_expr)
+        else:
+            return input_expr.notnull() & ~handle_fun(input_expr)
+
     def visit_element_op(self, expr):
         if isinstance(expr, Between):
             if expr.inclusive:
@@ -73,6 +100,18 @@ class Analyzer(BaseAnalyzer):
             self._sub(expr, sub.rename(expr.name))
         elif isinstance(expr, Cut):
             sub = self._get_cut_sub_expr(expr)
+            self._sub(expr, sub)
+        elif isinstance(expr, IsNa):
+            sub = self._make_isna_expr(expr)
+            self._sub(expr, sub)
+        elif isinstance(expr, NotNa):
+            sub = self._make_isna_expr(expr, invert=True)
+            self._sub(expr, sub)
+        elif isinstance(expr, FillNa):
+            cond = self._make_isna_expr(expr)
+            sub = cond.ifelse(expr._fill_value, expr.input)
+            if isinstance(expr, (SequenceExpr, Scalar)):
+                sub = sub.rename(expr.name)
             self._sub(expr, sub)
         else:
             raise NotImplementedError
@@ -442,6 +481,7 @@ class Analyzer(BaseAnalyzer):
             return
         elif isinstance(expr, Replace):
             use_regex = [expr.regex]
+
             def func(x, pat, repl, n, case, flags):
                 if x is None:
                     return None

@@ -56,7 +56,7 @@ class Test(TestBase):
 
         expr = df.filter_parts('ds=today,hh=curr')
         dag = expr.to_dag(copy=False)
-        self.assertIsNone(fetch_data_source_size(dag, df, self.table))
+        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
 
         expr = df.filter_parts('ds=today,mm=now')
         dag = expr.to_dag(copy=False)
@@ -76,7 +76,7 @@ class Test(TestBase):
 
         expr = df.filter(df.ds == 'today', df.hh == 'curr')
         dag = expr.to_dag(copy=False)
-        self.assertIsNone(fetch_data_source_size(dag, df, self.table))
+        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
 
         expr = df.filter(df.ds == 'today', df.mm == 'now')
         dag = expr.to_dag(copy=False)

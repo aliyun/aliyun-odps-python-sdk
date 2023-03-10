@@ -20,14 +20,13 @@ try:
 except ImportError:
     from string import ascii_letters as letters
 import itertools
-from distutils.version import LooseVersion
 try:
     import pandas
 except ImportError:
     pandas = None
 
 from odps.tests.core import to_str
-from odps.compat import unittest
+from odps.compat import unittest, Version
 from odps.df.backends.tests.core import TestBase
 from odps.df.backends.frame import ResultFrame
 from odps.df.types import validate_data_type, int64
@@ -65,7 +64,7 @@ class Test(TestBase):
 
         self.assertEqual(result._values, [r for r in result])
 
-    @unittest.skipIf(not pandas or LooseVersion(pandas.__version__) >= '0.20',
+    @unittest.skipIf(not pandas or Version(pandas.__version__) >= Version('0.20'),
                      'Pandas not installed or version too new')
     def testLargeRowsFormatter(self):
         data = [self._random_values() for _ in range(1000)]
@@ -74,7 +73,7 @@ class Test(TestBase):
         self.assertEqual(to_str(repr(pd)), to_str(repr(result)))
         self.assertEqual(to_str(pd._repr_html_()), to_str(result._repr_html_()))
 
-    @unittest.skipIf(not pandas or LooseVersion(pandas.__version__) >= '0.20',
+    @unittest.skipIf(not pandas or Version(pandas.__version__) >= Version('0.20'),
                      'Pandas not installed or version too new')
     def testLargeColumnsFormatter(self):
         names = list(itertools.chain(*[[name + str(i) for name in self.schema.names] for i in range(10)]))

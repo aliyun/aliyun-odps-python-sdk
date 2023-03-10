@@ -16,12 +16,13 @@
 
 from __future__ import absolute_import
 
-import time
+import copy
 import sys
-import uuid  # don't remove
 import threading
-import warnings
+import time
 import types as tps
+import uuid  # don't remove
+import warnings
 
 from ....compat import six
 from ....config import options
@@ -333,47 +334,46 @@ class ODPSSQLEngine(Engine):
             if force_tunnel or result is not None:
                 return result
 
-        old_odps2_extension_cfg = options.sql.use_odps2_extension
         try:
-            if old_odps2_extension_cfg is None:
-                project_obj = self._odps.get_project()
-                project_prop = project_obj.properties.get("odps.sql.type.system.odps2")
-                options.sql.use_odps2_extension = ("true" == (project_prop or "false").lower())
             sql = self._compile(expr, libraries=libraries)
+            if types.get_local_use_odps2_types(self._odps.get_project()):
+                hints = copy.copy(hints or {})
+                hints["odps.sql.type.system.odps2"] = "true"
+
+            cache_data = None
+            if not no_permission and isinstance(expr, CollectionExpr) and not isinstance(expr, Summary):
+                # When tunnel cannot handle, we will try to create a table
+                tmp_table_name = '%s%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))
+                register_temp_table(self._odps, tmp_table_name, schema=self._ctx.default_schema)
+                cache_data = self._odps.get_table(tmp_table_name, schema=self._ctx.default_schema)
+
+                lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
+                format_sql = lambda s: 'CREATE TABLE {0} {1}AS \n{2}'.format(tmp_table_name, lifecycle_str, s)
+                if isinstance(sql, list):
+                    sql[-1] = format_sql(sql[-1])
+                else:
+                    sql = format_sql(sql)
+
+            sql = self._join_sql(sql)
+
+            log('Sql compiled:')
+            log(sql)
+
+            try:
+                instance = self._run(sql, ui, progress_proportion=progress_proportion * 0.9,
+                                     hints=hints, priority=priority, running_cluster=running_cluster,
+                                     group=group, libraries=libraries, schema=self._ctx.default_schema)
+            finally:
+                self._ctx.close()  # clear udfs and resources generated
+
+            res = self._fetch(expr, src_expr, instance, ui,
+                              cache_data=cache_data, head=head, tail=tail,
+                              use_tunnel=use_tunnel, group=group,
+                              progress_proportion=progress_proportion * 0.1,
+                              finish=kw.get('finish', True))
         finally:
-            options.sql.use_odps2_extension = old_odps2_extension_cfg
+            types.set_local_use_odps2_types(None)
 
-        cache_data = None
-        if not no_permission and isinstance(expr, CollectionExpr) and not isinstance(expr, Summary):
-            # When tunnel cannot handle, we will try to create a table
-            tmp_table_name = '%s%s' % (TEMP_TABLE_PREFIX, str(uuid.uuid4()).replace('-', '_'))
-            register_temp_table(self._odps, tmp_table_name, schema=self._ctx.default_schema)
-            cache_data = self._odps.get_table(tmp_table_name, schema=self._ctx.default_schema)
-
-            lifecycle_str = 'LIFECYCLE {0} '.format(lifecycle) if lifecycle is not None else ''
-            format_sql = lambda s: 'CREATE TABLE {0} {1}AS \n{2}'.format(tmp_table_name, lifecycle_str, s)
-            if isinstance(sql, list):
-                sql[-1] = format_sql(sql[-1])
-            else:
-                sql = format_sql(sql)
-
-        sql = self._join_sql(sql)
-
-        log('Sql compiled:')
-        log(sql)
-
-        try:
-            instance = self._run(sql, ui, progress_proportion=progress_proportion * 0.9,
-                                 hints=hints, priority=priority, running_cluster=running_cluster,
-                                 group=group, libraries=libraries, schema=self._ctx.default_schema)
-        finally:
-            self._ctx.close()  # clear udfs and resources generated
-
-        res = self._fetch(expr, src_expr, instance, ui,
-                          cache_data=cache_data, head=head, tail=tail,
-                          use_tunnel=use_tunnel, group=group,
-                          progress_proportion=progress_proportion * 0.1,
-                          finish=kw.get('finish', True))
         if kw.get('ret_instance', False) is True:
             return instance, res
         return res

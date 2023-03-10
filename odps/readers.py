@@ -94,12 +94,15 @@ class AbstractRecordReader(object):
                 if end is not None and curr >= end:
                     return
 
-    def to_result_frame(self, unknown_as_string=True, as_type=None):
+    def to_result_frame(
+        self, unknown_as_string=True, as_type=None, start=None, count=None, **iter_kw
+    ):
         from .df.backends.frame import ResultFrame
         from .df.backends.odpssql.types import odps_schema_to_df_schema, odps_type_to_df_type
 
         kw = dict()
-        data = [r for r in self]
+        end = None if count is None else (start or 0) + count
+        data = [r for r in self._iter(start=start, end=end, **iter_kw)]
         if getattr(self, 'schema', None) is not None:
             kw['schema'] = odps_schema_to_df_schema(self.schema)
         elif getattr(self, '_schema', None) is not None:
@@ -132,10 +135,10 @@ class AbstractRecordReader(object):
 
         return ResultFrame(data, **kw)
 
-    def to_pandas(self):
+    def to_pandas(self, start=None, count=None, **kw):
         import pandas  # noqa: F401
 
-        return self.to_result_frame().values
+        return self.to_result_frame(start=start, count=count, **kw).values
 
 
 class RecordReader(AbstractRecordReader):

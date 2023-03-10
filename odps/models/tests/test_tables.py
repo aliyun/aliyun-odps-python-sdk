@@ -26,6 +26,7 @@ try:
 except (AttributeError, ImportError):
     np = pd = pa = None
 
+import mock
 import pytest
 
 from odps.tests.core import TestBase, to_str, tn
@@ -79,7 +80,7 @@ class Test(TestBase):
         self.assertIsNotNone(table._getattr('owner'))
         self.assertIsNone(table._getattr('table_label'))
         self.assertIsNone(table._getattr('creation_time'))
-        self.assertIsNone(table._getattr('last_modified_time'))
+        self.assertIsNone(table._getattr('last_data_modified_time'))
         self.assertIsNone(table._getattr('last_meta_modified_time'))
         self.assertIsNone(table._getattr('is_virtual_view'))
         self.assertIsNone(table._getattr('lifecycle'))
@@ -106,7 +107,7 @@ class Test(TestBase):
             self.assertIsNone(table._getattr('owner'))
             self.assertIsNone(table._getattr('table_label'))
             self.assertIsNone(table._getattr('creation_time'))
-            self.assertIsNone(table._getattr('last_modified_time'))
+            self.assertIsNone(table._getattr('last_data_modified_time'))
             self.assertIsNone(table._getattr('last_meta_modified_time'))
             self.assertIsNone(table._getattr('is_virtual_view'))
             self.assertIsNone(table._getattr('lifecycle'))
@@ -128,7 +129,7 @@ class Test(TestBase):
             self.assertGreaterEqual(len(table.table_schema.partitions), 0)
             self.assertIsInstance(table.owner, six.string_types)
             self.assertIsInstance(table.table_label, six.string_types)
-            self.assertIsInstance(table.last_modified_time, datetime)
+            self.assertIsInstance(table.last_data_modified_time, datetime)
             self.assertIsInstance(table.last_meta_modified_time, datetime)
             self.assertIsInstance(table.is_virtual_view, bool)
             self.assertGreaterEqual(table.lifecycle, -1)
@@ -467,6 +468,8 @@ class Test(TestBase):
 
     @unittest.skipIf(pd is None, "Need pandas to run this test")
     def testMultiProcessToPandas(self):
+        from odps.tunnel.tabletunnel import TableDownloadSession
+
         test_table_name = tn('pyodps_t_tmp_mproc_read_table')
         schema = TableSchema.from_lists(['num'], ['bigint'])
 
@@ -477,6 +480,24 @@ class Test(TestBase):
             writer.write(pd.DataFrame({"num": np.random.randint(0, 1000, 1000)}))
 
         with table.open_reader() as reader:
+            pd_data = reader.to_pandas(n_process=2)
+            assert len(pd_data) == 1000
+
+        orginal_meth = TableDownloadSession.open_record_reader
+
+        def patched(self, start, *args, **kwargs):
+            if start != 0:
+                raise ValueError("Intentional error")
+            return orginal_meth(self, start, *args, **kwargs)
+
+        with pytest.raises(ValueError):
+            with mock.patch(
+                "odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader", new=patched
+            ):
+                with table.open_reader() as reader:
+                    reader.to_pandas(n_process=2)
+
+        with table.open_reader(arrow=True) as reader:
             pd_data = reader.to_pandas(n_process=2)
             assert len(pd_data) == 1000
 
@@ -530,6 +551,23 @@ class Test(TestBase):
 
         table.drop()
 
+    def testRunSQLClearCache(self):
+        test_table_name = tn('pyodps_t_tmp_statement_cache_clear')
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        self.odps.create_table(test_table_name, "col string")
+        self.odps.get_table(test_table_name)
+
+        self.odps.execute_sql("ALTER TABLE %s ADD COLUMN col2 string" % test_table_name)
+        assert "col2" in self.odps.get_table(test_table_name).table_schema
+
+        self.odps.execute_sql(
+            "ALTER TABLE %s.%s ADD COLUMN col3 string" % (self.odps.project, test_table_name)
+        )
+        assert "col3" in self.odps.get_table(test_table_name).table_schema
+
+        self.odps.delete_table(test_table_name)
+
     def testMaxPartition(self):
         test_table_name = tn('pyodps_t_tmp_max_partition')
         self.odps.delete_table(test_table_name, if_exists=True)
@@ -578,6 +616,8 @@ class Test(TestBase):
         assert self.odps.exist_table(table_name)
         with pytest.deprecated_call():
             assert isinstance(table.schema, Schema)
+        with pytest.deprecated_call():
+            getattr(table, "last_modified_time")
 
         table.drop()
 

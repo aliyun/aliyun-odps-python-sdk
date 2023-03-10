@@ -1415,7 +1415,7 @@ def dropna(expr, how='any', thresh=None, subset=None):
     if thresh is None:
         thresh = len(subset) if how == 'any' else 1
 
-    sum_exprs = reduce(operator.add, (s.notnull().ifelse(1, 0) for s in subset))
+    sum_exprs = reduce(operator.add, (s.notna().ifelse(1, 0) for s in subset))
     return expr.filter(sum_exprs >= thresh)
 
 
@@ -1452,7 +1452,7 @@ def fillna(expr, value=None, method=None, subset=None):
     if method is None:
         for n in sel_col_names:
             e = col_dict[n]
-            col_dict[n] = e.isnull().ifelse(value, e).rename(n)
+            col_dict[n] = e.isna().ifelse(value, e).rename(n)
         return expr.select(list(col_dict.values()))
 
     else:
@@ -1464,17 +1464,24 @@ def fillna(expr, value=None, method=None, subset=None):
             last_valid = None
             update_dict = dict()
 
+            import math
             try:
                 import numpy as np
+            except ImportError:
+                np = None
 
-                def isnan(v):
+            def isnan(v):
+                if v is None:
+                    return True
+                if np is not None:
                     try:
                         return np.isnan(v)
                     except TypeError:
-                        return False
-
-            except ImportError:
-                isnan = lambda v: False
+                        pass
+                try:
+                    return math.isnan(v)
+                except TypeError:
+                    return False
 
             for n in sel_cols:
                 old_val = getattr(row, n)

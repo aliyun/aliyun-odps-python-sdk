@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import json  # noqa: F401
 import os
 import random
@@ -77,12 +78,23 @@ class ODPS(object):
     """
     def __init__(
         self, access_id=None, secret_access_key=None, project=None,
-        endpoint=None, schema=None, app_account=None, logview_host=None, **kw
+        endpoint=None, schema=None, app_account=None, logview_host=None,
+        tunnel_endpoint=None, **kw
     ):
+        # avoid polluted copy sources :(
+        access_id = utils.strip_if_str(access_id)
+        secret_access_key = utils.strip_if_str(secret_access_key)
+        project = utils.strip_if_str(project)
+        endpoint = utils.strip_if_str(endpoint)
+        schema = utils.strip_if_str(schema)
+        logview_host = utils.strip_if_str(logview_host)
+        tunnel_endpoint = utils.strip_if_str(tunnel_endpoint)
+
         self._init(
             access_id=access_id, secret_access_key=secret_access_key,
             project=project, endpoint=endpoint, schema=schema,
-            app_account=app_account, logview_host=logview_host, **kw
+            app_account=app_account, logview_host=logview_host,
+            tunnel_endpoint=tunnel_endpoint, **kw
         )
         clean_stored_objects(self)
 
@@ -110,7 +122,7 @@ class ODPS(object):
         self.rest = RestClient(self.account, self.endpoint, project, schema,
                                app_account=self.app_account, proxy=options.api_proxy)
 
-        self._tunnel_endpoint = kw.pop('tunnel_endpoint', options.tunnel.endpoint)
+        self._tunnel_endpoint = kw.pop('tunnel_endpoint', None) or options.tunnel.endpoint
 
         self._logview_host = (
             kw.pop("logview_host", None)
@@ -156,7 +168,6 @@ class ODPS(object):
 
     def __setstate__(self, state):
         if 'secret_access_key' in state:
-            # if `secret_access_key` in state
             if os.environ.get('ODPS_ENDPOINT', None) is not None:
                 state['endpoint'] = os.environ['ODPS_ENDPOINT']
             self._init(**state)
@@ -171,6 +182,34 @@ class ODPS(object):
             self._init(None, None, account=account, **state)
         except KeyError:
             self._init(**state)
+
+    def as_account(self, access_id=None, secret_access_key=None, account=None, app_account=None):
+        """
+        Creates a new ODPS entry object with a new account information
+
+        :param access_id: Aliyun Access ID of the new account
+        :param secret_access_key: Aliyun Access Key of the new account
+        :param account: new account object, if `access_id` and `secret_access_key` not supplied
+        :param app_account: Application account, instance of `odps.accounts.AppAccount`
+            used for dual authentication
+        :return:
+        """
+        if access_id is not None and secret_access_key is not None:
+            assert account is None
+            account = accounts.AliyunAccount(access_id, secret_access_key)
+
+        params = dict(
+            project=self.project,
+            endpoint=self.endpoint,
+            tunnel_endpoint=self._tunnel_endpoint,
+            logview_host=self._logview_host,
+            schema=self.schema,
+            seahawks_url=self._seahawks_url,
+            account=account or self.account,
+            app_account=app_account or self.app_account,
+            overwrite_global=False,
+        )
+        return ODPS(**params)
 
     def __mars_tokenize__(self):
         return self.__getstate__()
@@ -187,11 +226,27 @@ class ODPS(object):
 
     @property
     def schema(self):
+        """
+        Get or set default schema name of the ODPS object
+        """
         return self._schema
 
     @schema.setter
     def schema(self, value):
         self._schema = value
+        for cb in self._property_update_callbacks:
+            cb(self)
+
+    @property
+    def tunnel_endpoint(self):
+        """
+        Get or set tunnel endpoint of the ODPS object
+        """
+        return self._tunnel_endpoint
+
+    @tunnel_endpoint.setter
+    def tunnel_endpoint(self, value):
+        self._tunnel_endpoint = value
         for cb in self._property_update_callbacks:
             cb(self)
 
@@ -238,16 +293,19 @@ class ODPS(object):
 
         proj_ref = weakref.ref(proj)
 
-        def schema_update_callback(odps):
+        def project_update_callback(odps, update_schema=True):
             proj_obj = proj_ref()
             if proj_obj:
-                proj_obj._default_schema = odps.schema
+                if update_schema:
+                    proj_obj._default_schema = odps.schema
+                proj_obj._tunnel_endpoint = odps.tunnel_endpoint
             else:
-                self._property_update_callbacks.difference_update([schema_update_callback])
+                self._property_update_callbacks.difference_update([project_update_callback])
 
-        if default_schema is None:
-            # we need to update default schema value on the project
-            self._property_update_callbacks.add(schema_update_callback)
+        # we need to update default schema value on the project
+        self._property_update_callbacks.add(
+            functools.partial(project_update_callback, update_schema=default_schema is None)
+        )
         return proj
 
     def exist_project(self, name):
@@ -327,7 +385,9 @@ class ODPS(object):
     @staticmethod
     def _split_object_dots(name):
         parts = [x.strip() for x in name.split('.')]
-        if len(parts) == 2:
+        if len(parts) == 1:
+            project, schema, name = None, None, parts[0]
+        elif len(parts) == 2:
             project, name = parts
             schema = None
         else:
@@ -1015,8 +1075,11 @@ class ODPS(object):
 
         alter_table_match = _ALTER_TABLE_REGEX.match(sql)
         if alter_table_match:
-            drop_table_name = alter_table_match.group('table_name').strip('`')
-            del self.get_project(project).tables[drop_table_name]
+            drop_table_name = alter_table_match.group('table_name')
+            sql_project, sql_schema, sql_name = self._split_object_dots(drop_table_name)
+            sql_project = sql_project or project
+            sql_schema = sql_schema or default_schema
+            del self._get_project_or_schema(sql_project, sql_schema).tables[sql_name]
 
         task = models.SQLTask(query=utils.to_text(sql), **kwargs)
         task.update_sql_settings(hints)
@@ -1091,7 +1154,7 @@ class ODPS(object):
         :rtype: :class:`odps.models.Instance`
         """
         inst = self.run_merge_files(table, partition=partition, project=project, hints=hints,
-                                    priority=priority)
+                                    schema=schema, priority=priority)
         inst.wait_for_success()
         return inst
 
@@ -1116,6 +1179,10 @@ class ODPS(object):
         priority = priority or options.priority
         if priority is None and options.get_priority is not None:
             priority = options.get_priority(self)
+
+        hints = hints or dict()
+        if options.default_task_settings:
+            hints.update(options.default_task_settings)
 
         task = MergeTask(table=table)
         task.update_settings(hints)

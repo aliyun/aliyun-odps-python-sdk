@@ -16,6 +16,7 @@
 
 import functools
 import itertools
+import sys
 import warnings
 from datetime import datetime
 from types import GeneratorType
@@ -90,7 +91,7 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
     creation_time = serializers.JSONNodeField(
         'createTime', parse_callback=datetime.fromtimestamp,
         set_to_parent=True)
-    last_modified_time = serializers.JSONNodeField(
+    last_data_modified_time = serializers.JSONNodeField(
         'lastModifiedTime', parse_callback=datetime.fromtimestamp,
         set_to_parent=True)
     last_meta_modified_time = serializers.JSONNodeField(
@@ -138,13 +139,7 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
         return sorted(set(dir2(self)) - set(type(self)._parent_attrs))
 
 
-class TableRecordReader(TunnelRecordReader):
-    def __init__(self, table, download_session, partition_spec=None, columns=None):
-        super(TableRecordReader, self).__init__(
-            table, download_session, columns=columns
-        )
-        self._partition_spec = partition_spec
-
+class SpawnedTableReaderMixin(object):
     @property
     def schema(self):
         return self._parent.table_schema
@@ -152,21 +147,28 @@ class TableRecordReader(TunnelRecordReader):
     @staticmethod
     def _read_table_split(
         conn, download_id, start, count, idx,
-        rest_client=None, project=None, table_name=None, partition_spec=None, tunnel_endpoint=None,
+        rest_client=None, project=None, table_name=None, partition_spec=None,
+        tunnel_endpoint=None, columns=None, arrow=False
     ):
         # read part data
         from ..tunnel import TableTunnel
 
-        tunnel = TableTunnel(
-            client=rest_client, project=project, endpoint=tunnel_endpoint
-        )
-        session = tunnel.create_download_session(
-            table_name, download_id=download_id, partition_spec=partition_spec
-        )
-        data = session.open_record_reader(start, count).to_pandas()
-        conn.send((idx, data))
+        try:
+            tunnel = TableTunnel(
+                client=rest_client, project=project, endpoint=tunnel_endpoint
+            )
+            session = tunnel.create_download_session(
+                table_name, download_id=download_id, partition_spec=partition_spec
+            )
+            if not arrow:
+                data = session.open_record_reader(start, count, columns=columns).to_pandas()
+            else:
+                data = session.open_arrow_reader(start, count, columns=columns).to_pandas()
+            conn.send((idx, data, True))
+        except:
+            conn.send((idx, sys.exc_info(), False))
 
-    def _get_process_split_reader(self):
+    def _get_process_split_reader(self, columns=None):
         rest_client = self._parent._client
         table_name = self._parent.name
         project = self._parent.project.name
@@ -180,13 +182,25 @@ class TableRecordReader(TunnelRecordReader):
             table_name=table_name,
             partition_spec=partition_spec,
             tunnel_endpoint=tunnel_endpoint,
+            arrow=isinstance(self, TunnelArrowReader),
+            columns=columns or self._column_names,
         )
 
 
-class TableArrowReader(TunnelArrowReader):
-    @property
-    def schema(self):
-        return self._parent.table_schema
+class TableRecordReader(SpawnedTableReaderMixin, TunnelRecordReader):
+    def __init__(self, table, download_session, partition_spec=None, columns=None):
+        super(TableRecordReader, self).__init__(
+            table, download_session, columns=columns
+        )
+        self._partition_spec = partition_spec
+
+
+class TableArrowReader(SpawnedTableReaderMixin, TunnelArrowReader):
+    def __init__(self, table, download_session, partition_spec=None, columns=None):
+        super(TableArrowReader, self).__init__(
+            table, download_session, columns=columns
+        )
+        self._partition_spec = partition_spec
 
 
 class AbstractTableWriter(object):
@@ -249,6 +263,9 @@ class AbstractTableWriter(object):
         self._blocks_writes[idx] = True
 
     def close(self):
+        if self._closed:
+            return
+
         for writer in self._blocks_writers:
             if writer is not None:
                 writer.close()
@@ -374,10 +391,12 @@ class Table(LazyLoad):
     comment = serializers.XMLNodeField('Comment')
     owner = serializers.XMLNodeField('Owner')
     table_label = serializers.XMLNodeField('TableLabel')
-    creation_time = serializers.XMLNodeField('CreationTime',
-                                             parse_callback=utils.parse_rfc822)
-    last_modified_time = serializers.XMLNodeField('LastModifiedTime',
-                                                  parse_callback=utils.parse_rfc822)
+    creation_time = serializers.XMLNodeField(
+        'CreationTime', parse_callback=utils.parse_rfc822
+    )
+    last_data_modified_time = serializers.XMLNodeField(
+        'LastModifiedTime', parse_callback=utils.parse_rfc822
+    )
 
     _download_ids = utils.thread_local_attribute('_id_thread_local', dict)
     _upload_ids = utils.thread_local_attribute('_id_thread_local', dict)
@@ -442,6 +461,19 @@ class Table(LazyLoad):
         )
         utils.add_survey_call(".".join([type(self).__module__, type(self).__name__, "schema"]))
         return self.table_schema
+
+    @property
+    def last_modified_time(self):
+        warnings.warn(
+            "Table.last_modified_time is deprecated and will be replaced by "
+            "Table.last_data_modified_time.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        utils.add_survey_call(".".join(
+            [type(self).__module__, type(self).__name__, "last_modified_time"]
+        ))
+        return self.last_data_modified_time
 
     def reload_extend_info(self):
         params = {'extended': ''}
@@ -857,13 +889,14 @@ class Table(LazyLoad):
             return False
         return True
 
-    def iterate_partitions(self, spec=None):
+    def iterate_partitions(self, spec=None, reverse=False):
         """
         Create an iterable object to iterate over partitions.
 
         :param spec: specification of the partition.
+        :param reverse: output partitions in reversed order
         """
-        return self.partitions.iterate_partitions(spec=spec)
+        return self.partitions.iterate_partitions(spec=spec, reverse=reverse)
 
     def get_partition(self, partition_spec):
         """

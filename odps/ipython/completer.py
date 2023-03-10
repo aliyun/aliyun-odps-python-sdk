@@ -126,7 +126,11 @@ class ObjectCompleter(BaseCompleter):
             use_prefix = 'prefix' in arg_tuple[0]
             self._methods[m_name] = method_type(use_prefix=use_prefix, list_method=lister)
 
-        _regex_str = '(^|.*[\(\)\s,=]+)(?P<odps>[^\(\)\s,]+)\.(?P<getfn>' + '|'.join(six.iterkeys(self._methods)) + ')\('
+        _regex_str = (
+            r'(^|.*[\(\)\s,=]+)(?P<odps>[^\(\)\s,]+)\.(?P<getfn>'
+            + '|'.join(six.iterkeys(self._methods))
+            + r')\('
+        )
         self._regex = re.compile(_regex_str + r'(?P<args>[^\(\)]*)$')
         return _regex_str
 

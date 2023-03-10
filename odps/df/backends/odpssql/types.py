@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
+
 from ....models import TableSchema
 from .... import types as odps_types
 from ... import types as df_types
@@ -99,11 +101,7 @@ def odps_schema_to_df_schema(odps_schema):
 
 def df_type_to_odps_type(df_type, use_odps2_types=None, project=None):
     if use_odps2_types is None:
-        if options.sql.use_odps2_extension is None and project is not None:
-            project_prop = project.properties.get("odps.sql.type.system.odps2")
-            use_odps2_types = ("true" == (project_prop or "false").lower())
-        else:
-            use_odps2_types = bool(options.sql.use_odps2_extension)
+        use_odps2_types = get_local_use_odps2_types(project)
 
     if use_odps2_types:
         df_to_odps_types = _df_to_odps_types2
@@ -151,3 +149,23 @@ def df_schema_to_odps_schema(df_schema, ignorecase=False, project=None):
     return TableSchema.from_lists(
         names, types, partition_names=partition_names, partition_types=partition_types
     )
+
+
+
+_use_odps2_types_local = threading.local()
+
+
+def set_local_use_odps2_types(val):
+    _use_odps2_types_local.value = val
+
+
+def get_local_use_odps2_types(project=None):
+    if options.sql.use_odps2_extension is None and project is not None:
+        project_prop = project.properties.get("odps.sql.type.system.odps2")
+        ret = ("true" == (project_prop or "false").lower())
+        set_local_use_odps2_types(ret)
+    elif getattr(_use_odps2_types_local, "value", None) is not None:
+        ret = _use_odps2_types_local.value
+    else:
+        ret = bool(options.sql.use_odps2_extension)
+    return ret

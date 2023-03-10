@@ -325,6 +325,10 @@ class Test(TestBase):
                 pd_data = reader.to_pandas()
                 self.assertEqual(len(pd_data), 1)
 
+            with instance.open_reader(tunnel=True) as reader:
+                pd_data = reader.to_pandas(n_process=2)
+                self.assertEqual(len(pd_data), 1)
+
             with instance.open_reader(tunnel=False) as reader:
                 pd_data = reader.to_pandas()
                 self.assertEqual(len(pd_data), 1)

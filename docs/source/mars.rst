@@ -4,6 +4,10 @@
 Mars
 *****
 
+.. note::
+
+  本章节文档仅为支持已有业务代码而保留。新业务请使用 PySpark 中的 Pandas on Spark。MaxCompute 提供的 Spark
+  与开源版本一致。具体使用信息请参考 `这份文档 <https://help.aliyun.com/document_detail/118328.html>`_。
 
 .. rubric:: 环境准备
     :class: rubric-h2

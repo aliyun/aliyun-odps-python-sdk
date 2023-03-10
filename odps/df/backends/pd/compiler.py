@@ -20,7 +20,6 @@ import re
 import time
 import uuid
 from datetime import datetime
-from distutils.version import LooseVersion
 
 from ..core import Backend
 from ...expr.expressions import *
@@ -41,7 +40,7 @@ from ... import types as df_types
 from ....models import FileResource, TableResource, TableSchema
 from .... import compat
 from ....lib.xnamedtuple import xnamedtuple
-from ....compat import lzip
+from ....compat import lzip, Version
 
 try:
     import numpy as np
@@ -52,7 +51,7 @@ except ImportError:
 
 
 if pd is not None:
-    PD_APPLY_HAS_RESULT_TYPE = LooseVersion(pd.__version__) >= '0.23.0'
+    PD_APPLY_HAS_RESULT_TYPE = Version(pd.__version__) >= Version('0.23.0')
 else:
     PD_APPLY_HAS_RESULT_TYPE = False
 
@@ -320,6 +319,10 @@ class PandasCompiler(Backend):
                     return input.isnull()
                 elif isinstance(expr, element.NotNull):
                     return input.notnull()
+                elif isinstance(expr, element.IsNa):
+                    return input.isna()
+                elif isinstance(expr, element.NotNa):
+                    return input.notna()
                 elif isinstance(expr, element.FillNa):
                     return input.fillna(args[0])
                 elif isinstance(expr, element.IsIn):

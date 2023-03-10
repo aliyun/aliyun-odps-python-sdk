@@ -1385,6 +1385,13 @@ class OdpsSQLCompiler(Backend):
                 val = utils.to_str(expr.value) \
                     if isinstance(expr.value, six.text_type) else expr.value
                 compiled = "'{0}'".format(val.replace("'", "\\'"))
+            elif isinstance(expr.dtype, df_types.Integer) and types.get_local_use_odps2_types():
+                if expr.dtype == df_types.int8:
+                    compiled = "{0!r}Y".format(expr._value)
+                elif expr.dtype == df_types.int16:
+                    compiled = "{0!r}S".format(expr._value)
+                elif expr.dtype == df_types.int64:
+                    compiled = "{0!r}L".format(expr._value)
             elif isinstance(expr._value, bool):
                 compiled = 'true' if expr._value else 'false'
             elif isinstance(expr._value, datetime):

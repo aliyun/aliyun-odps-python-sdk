@@ -14,10 +14,67 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import defaultdict
+
+from .. import serializers, errors, types
+from ..compat import six, OrderedDict
 from .partition import Partition
 from .core import Iterable
-from .. import serializers, errors, types
-from ..compat import six
+
+
+class PartitionSpecCondition(object):
+    _predicates = OrderedDict([
+        ("==", lambda a, b: a == b),
+        (">=", lambda a, b: a >= b),
+        ("<=", lambda a, b: a <= b),
+        ("<>", lambda a, b: a != b),
+        ("!=", lambda a, b: a != b),
+        (">", lambda a, b: a > b),
+        ("<", lambda a, b: a < b),
+        ("=", lambda a, b: a == b),
+    ])
+
+    def __init__(self, part_fields, condition=None):
+        self._part_to_conditions = defaultdict(list)
+        field_set = set(part_fields)
+        condition = str(condition) if condition else None
+        condition_splits = condition.split(",") if condition else []
+        for split in condition_splits:
+            for pred in self._predicates:
+                if pred not in split:
+                    continue
+
+                parts = split.split(pred, 1)
+                if len(parts) != 2:
+                    raise ValueError("Invalid partition condition %r" % split)
+                part = parts[0].strip()
+                val = parts[1].strip().replace('"', '').replace("'", '')
+
+                if part not in field_set:
+                    raise ValueError("Invalid partition field %r" % part)
+
+                self._part_to_conditions[part].append((pred, val))
+                break
+            else:
+                raise ValueError("Invalid partition condition %r" % split)
+        specs = []
+        for field in part_fields:
+            if (
+                field not in self._part_to_conditions
+                or len(self._part_to_conditions[field]) > 1
+                or self._part_to_conditions[field][0][0] not in ("=", "==")
+            ):
+                break
+            specs.append("%s=%s" % (field, self._part_to_conditions.pop(field)[0][1]))
+        self.partition_spec = types.PartitionSpec(",".join(specs)) if specs else None
+
+    def match(self, spec):
+        for field, conditions in self._part_to_conditions.items():
+            real_val = spec[field]
+            for pred, val in conditions:
+                if not self._predicates[pred](real_val, val):
+                    return False
+        return True
 
 
 class Partitions(Iterable):
@@ -56,7 +113,7 @@ class Partitions(Iterable):
             return False
 
     @classmethod
-    def _get_partition_spec(self, partition_spec):
+    def _get_partition_spec(cls, partition_spec):
         if isinstance(partition_spec, types.PartitionSpec):
             return partition_spec
         return types.PartitionSpec(partition_spec)
@@ -69,8 +126,10 @@ class Partitions(Iterable):
         return self.parent.project
 
     def iterate_partitions(self, spec=None, reverse=False):
-        if spec is not None:
-            spec = self._get_partition_spec(spec)
+        condition = PartitionSpecCondition(
+            [pt.name for pt in self.parent.table_schema.partitions], spec
+        )
+        spec = condition.partition_spec
 
         params = {
             'partitions': '',
@@ -103,7 +162,8 @@ class Partitions(Iterable):
             if partitions is None:
                 break
             for partition in partitions:
-                yield partition
+                if condition.match(partition.partition_spec):
+                    yield partition
 
     def get_max_partition(self, spec=None, skip_empty=True, reverse=False):
         table_parts = self.parent.table_schema.partitions

@@ -29,13 +29,20 @@ import textwrap
 import traceback
 import uuid
 
-from odps.compat import six, unittest, PY27
+from odps.compat import six, unittest
 from odps.lib.cloudpickle import loads, dumps
-from odps.utils import to_binary
 from odps.tests.core import TestBase, numpy_case
+from odps.utils import to_binary
+
+PY27 = sys.version_info[:2] == (2, 7)
+PY37 = sys.version_info[:2] == (3, 7)
 
 # if bytecode needed in debug, switch it on
 DUMP_CODE = False
+
+PY26_EXECUTABLE_KEY = 'py26_executable'
+PY37_EXECUTABLE_KEY = 'py37_executable'
+PY310_EXECUTABLE_KEY = 'py310_executable'
 
 CROSS_VAR_PICKLE_CODE = """
 import base64
@@ -362,7 +369,7 @@ class Test(TestBase):
     @unittest.skipIf(not PY27, 'Ignored under Python 3')
     @numpy_case
     def testFromImport(self):
-        executable = self.config.get('test', 'py3_executable')
+        executable = self.config.get('test', PY37_EXECUTABLE_KEY)
         if not executable:
             return
         func = _gen_from_import_func()
@@ -370,17 +377,18 @@ class Test(TestBase):
         self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
     @unittest.skipIf(not PY27, 'Ignored under Python 3')
-    def test3to2FormatString(self):
-        executable = self.config.get('test', 'py3_executable')
+    def testCrossFormatString(self):
+        executable = self.config.get('test', PY37_EXECUTABLE_KEY)
         if not executable:
             return
         func = _gen_format_string_func()
         py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_format_string_func))
         self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
-    @unittest.skipIf(not PY27, 'Ignored under Python 3')
-    def test3to2BuildUnpack(self):
-        executable = self.config.get('test', 'py3_executable')
+    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
+    def testCrossBuildUnpack(self):
+        executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
+        executable = self.config.get('test', executable_key)
         if not executable:
             return
         func = _gen_build_unpack_func()
@@ -389,26 +397,28 @@ class Test(TestBase):
 
     @unittest.skipIf(not PY27, 'Ignored under Python 3')
     @numpy_case
-    def test3to2MatMul(self):
-        executable = self.config.get('test', 'py3_executable')
+    def testCrossMatMul(self):
+        executable = self.config.get('test', PY37_EXECUTABLE_KEY)
         if not executable:
             return
         func = _gen_matmul_func()
         py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_matmul_func))
         self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
-    @unittest.skipIf(not PY27, 'Ignored under Python 3')
-    def test3to2TryExcept(self):
-        executable = self.config.get('test', 'py3_executable')
+    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
+    def testCrossTryExcept(self):
+        executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
+        executable = self.config.get('test', executable_key)
         if not executable:
             return
         func = _gen_try_except_func()
         py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_try_except_func))
         self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
-    @unittest.skipIf(not PY27, 'Ignored under Python 3')
-    def test3to2NestedFunc(self):
-        executable = self.config.get('test', 'py3_executable')
+    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
+    def testCrossNestedFunc(self):
+        executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
+        executable = self.config.get('test', executable_key)
         if not executable:
             return
         func = _gen_nested_fun()
@@ -421,10 +431,11 @@ class Test(TestBase):
         deserial = loads(base64.b64decode(obj_serial))
         self.assertEqual(sum(deserial()(20)), sum(func()(20)))
 
-    @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
-    def test3to27NestedYieldObj(self):
+    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
+    def testCrossNestedYieldObj(self):
         try:
-            executable = self.config.get('test', 'py3_executable')
+            executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
+            executable = self.config.get('test', executable_key)
             if not executable:
                 return
         except:
@@ -437,7 +448,7 @@ class Test(TestBase):
     @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
     def test26to27NestedYieldObj(self):
         try:
-            executable = self.config.get('test', 'py26_executable')
+            executable = self.config.get('test', PY26_EXECUTABLE_KEY)
             if not executable:
                 return
         except:
@@ -447,10 +458,11 @@ class Test(TestBase):
         self.assertEqual(run_pickled(py26_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw))),
                          sum(func()(20)))
 
-    @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
-    def test3to27NestedClassObj(self):
+    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
+    def testCrossNestedClassObj(self):
         try:
-            executable = self.config.get('test', 'py3_executable')
+            executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
+            executable = self.config.get('test', executable_key)
             if not executable:
                 return
         except:

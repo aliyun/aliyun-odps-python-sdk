@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-08-31 16:31+0800\n"
+"POT-Creation-Date: 2023-01-18 17:53+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.9.1\n"
 
 #: ../../source/index.rst:7
 msgid "PyODPS: ODPS Python SDK and data analysis framework"
@@ -30,7 +30,6 @@ msgstr ""
 "Python SDK of MaxCompute. It supports basic actions on MaxCompute objects"
 " and the DataFrame framework for ease of data analysis on MaxCompute."
 
-#: ../../source/index.rst:15
 msgid "安装"
 msgstr "Installation"
 
@@ -64,34 +63,52 @@ msgstr ""
 "<https://wiki.python.org/moin/WindowsCompilers>`_ versions of Visual C++ "
 "and Cython can also enjoy this acceleration."
 
-#: ../../source/index.rst:30
 msgid "快速开始"
 msgstr "Quick start"
 
-#: ../../source/index.rst:32
+#: ../../source/index.rst:34
 msgid "首先，我们需要阿里云帐号来初始化一个 ODPS 的入口（参数值请自行替换，不包含星号）："
 msgstr ""
-"Firstly, use an Alibaba Cloud account to initialize an MaxCompute (ODPS) "
+"Firstly, use an Alibaba Cloud account to initialize a MaxCompute (ODPS) "
 "entrance object, as shown in the following code. Parameters of ```ODPS```"
 " function should be replaced with your account and project information. "
 "Asterisks should be removed."
 
-#: ../../source/index.rst:34
+#: ../../source/index.rst:36
 msgid ""
 "from odps import ODPS\n"
 "\n"
 "o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-"
 "default-project**',\n"
-"            endpoint='**your-end-point**')"
+"         endpoint='**your-end-point**')"
 msgstr ""
 
-#: ../../source/index.rst:41
+#: ../../source/index.rst:43
 msgid "这样就已经初始化，就可以对表、资源、函数等进行操作了。"
 msgstr ""
 "After completing initialization, you can operate tables, resources, and "
 "functions."
 
-#: ../../source/index.rst:43
+#: ../../source/index.rst:45
+msgid ""
+"如果你使用 `STS Token <https://help.aliyun.com/document_detail/112449.html>`_ "
+"访问 ODPS，可以使用下面的语句初始化 ODPS 入口对象："
+msgstr ""
+"If you need to use `STS Token <https://www.alibabacloud.com/help/en/iot-platform/latest/ram-and-sts>`_ "
+"to access MaxCompute, you may use code below to create a MaxCompute (ODPS) entrance object."
+
+#: ../../source/index.rst:48
+msgid ""
+"from odps import ODPS\n"
+"from odps.accounts import StsAccount\n"
+"\n"
+"account = StsAccount('**your-access-id**', '**your-secret-access-key**', "
+"'**your-sts-token**')\n"
+"o = ODPS(account=account, project='**your-default-project**', endpoint"
+"='**your-end-point**')"
+msgstr ""
+
+#: ../../source/index.rst:56
 msgid ""
 "在主入口，我们对于主要的ODPS对象都提供了最基本的几个操作，包括 "
 "``list``、``get``、``exist``、``create``、``delete``。"
@@ -99,7 +116,7 @@ msgstr ""
 "We provide elementary functions for major MaxCompute objects, including "
 "``list``, ``get``, ``exist``, ``create`` and ``delete``."
 
-#: ../../source/index.rst:45
+#: ../../source/index.rst:58
 msgid "我们会对这几部分来分别展开说明。后文中的 o 对象如无说明均指的是 ODPS 入口对象。"
 msgstr ""
 "We will elaborate every object in the next chapters. If not mentioned, "

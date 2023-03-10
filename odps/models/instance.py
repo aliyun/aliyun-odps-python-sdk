@@ -50,13 +50,7 @@ def _with_status_api_lock(func):
     return wrapped
 
 
-class InstanceRecordReader(TunnelRecordReader):
-    def __init__(self, instance, download_session):
-        super(InstanceRecordReader, self).__init__(
-            instance, download_session
-        )
-        self._schema = download_session.schema
-
+class SpawnedInstanceReaderMixin(object):
     @property
     def schema(self):
         return self._schema
@@ -65,20 +59,24 @@ class InstanceRecordReader(TunnelRecordReader):
     def _read_instance_split(
         conn, download_id, start, count, idx,
         rest_client=None, project=None, instance_id=None, tunnel_endpoint=None,
+        columns=None
     ):
         # read part data
         from ..tunnel import InstanceTunnel
 
-        instance_tunnel = InstanceTunnel(
-            client=rest_client, project=project, endpoint=tunnel_endpoint
-        )
-        session = instance_tunnel.create_download_session(
-            instance=instance_id, download_id=download_id
-        )
-        with session.open_record_reader(start, count) as reader:
-            conn.send((idx, reader.to_pandas()))
+        try:
+            instance_tunnel = InstanceTunnel(
+                client=rest_client, project=project, endpoint=tunnel_endpoint
+            )
+            session = instance_tunnel.create_download_session(
+                instance=instance_id, download_id=download_id
+            )
+            with session.open_record_reader(start, count, columns=columns) as reader:
+                conn.send((idx, reader.to_pandas(), True))
+        except:
+            conn.send((idx, sys.exc_info(), False))
 
-    def _get_process_split_reader(self):
+    def _get_process_split_reader(self, columns=None):
         rest_client = self._parent._client
         project = self._parent.project.name
         tunnel_endpoint = self._parent.project._tunnel_endpoint
@@ -90,19 +88,24 @@ class InstanceRecordReader(TunnelRecordReader):
             project=project,
             instance_id=instance_id,
             tunnel_endpoint=tunnel_endpoint,
+            columns=columns or self._column_names,
         )
 
 
-class InstanceArrowReader(TunnelArrowReader):
+class InstanceRecordReader(SpawnedInstanceReaderMixin, TunnelRecordReader):
+    def __init__(self, instance, download_session):
+        super(InstanceRecordReader, self).__init__(
+            instance, download_session
+        )
+        self._schema = download_session.schema
+
+
+class InstanceArrowReader(SpawnedInstanceReaderMixin, TunnelArrowReader):
     def __init__(self, instance, download_session):
         super(InstanceArrowReader, self).__init__(
             instance, download_session
         )
         self._schema = download_session.schema
-
-    @property
-    def schema(self):
-        return self._schema
 
 
 class Instance(LazyLoad):

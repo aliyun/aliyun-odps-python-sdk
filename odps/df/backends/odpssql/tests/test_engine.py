@@ -254,7 +254,7 @@ class Test(TestBase):
 
             expr = df[df.id == 1]
             res = self.engine._handle_cases(expr, self.faked_bar)
-            self.assertIsNone(res)
+            self.assertEqual(len(res), 6)
 
             expr = df[df.name == 'a'][:4]
             res = self.engine._handle_cases(expr, self.faked_bar, head=5)
@@ -560,7 +560,9 @@ class Test(TestBase):
             self.expr.id.rename('_sort_key'),
             self.expr.name.isnull().rename('name1'),
             self.expr.name.notnull().rename('name2'),
-            self.expr.name.fillna('test').rename('name3'),
+            self.expr.name.isna().rename('name3'),
+            self.expr.name.notna().rename('name4'),
+            self.expr.name.fillna('test').rename('name5'),
             self.expr.id.isin([1, 2, 3]).rename('id1'),
             self.expr.id.isin(self.expr.fid.astype('int')).rename('id2'),
             self.expr.id.notin([1, 2, 3]).rename('id3'),
@@ -568,8 +570,8 @@ class Test(TestBase):
             self.expr.id.between(self.expr.fid, 3).rename('id5'),
             self.expr.name.fillna('test').switch('test', 'test' + self.expr.name.fillna('test'),
                                                  'test2', 'test2' + self.expr.name.fillna('test'),
-                                                 default=self.expr.name).rename('name4'),
-            self.expr.name.fillna('test').switch('test', 1, 'test2', 2).rename('name5'),
+                                                 default=self.expr.name).rename('name6'),
+            self.expr.name.fillna('test').switch('test', 1, 'test2', 2).rename('name7'),
             self.expr.id.cut([100, 200, 300],
                              labels=['xsmall', 'small', 'large', 'xlarge'],
                              include_under=True, include_over=True).rename('id6'),
@@ -589,33 +591,39 @@ class Test(TestBase):
         self.assertEqual(len([it[0] for it in data if it[0] is not None]),
                          len([it[1] for it in result if it[1]]))
 
+        self.assertEqual(len([it for it in data if it[0] is None]),
+                         len([it[2] for it in result if it[0]]))
+
+        self.assertEqual(len([it[0] for it in data if it[0] is not None]),
+                         len([it[3] for it in result if it[1]]))
+
         self.assertEqual([(it[0] if it[0] is not None else 'test') for it in data],
-                         [it[2] for it in result])
+                         [it[4] for it in result])
 
         self.assertEqual([(it[1] in (1, 2, 3)) for it in data],
-                         [it[3] for it in result])
+                         [it[5] for it in result])
 
         fids = [int(it[2]) for it in data]
         self.assertEqual([(it[1] in fids) for it in data],
-                         [it[4] for it in result])
-
-        self.assertEqual([(it[1] not in (1, 2, 3)) for it in data],
-                         [it[5] for it in result])
-
-        self.assertEqual([(it[1] not in fids) for it in data],
                          [it[6] for it in result])
 
-        self.assertEqual([(it[2] <= it[1] <= 3) for it in data],
+        self.assertEqual([(it[1] not in (1, 2, 3)) for it in data],
                          [it[7] for it in result])
 
+        self.assertEqual([(it[1] not in fids) for it in data],
+                         [it[8] for it in result])
+
+        self.assertEqual([(it[2] <= it[1] <= 3) for it in data],
+                         [it[9] for it in result])
+
         self.assertEqual([to_str('testtest' if it[0] is None else it[0]) for it in data],
-                         [to_str(it[8]) for it in result])
+                         [to_str(it[10]) for it in result])
 
         self.assertEqual([to_str(1 if it[0] is None else None) for it in data],
-                         [to_str(it[9]) for it in result])
+                         [to_str(it[11]) for it in result])
 
         self.assertListEqual([it[5] for it in data],
-                             [it[11] for it in result])
+                             [it[13] for it in result])
 
         def get_val(val):
             if val <= 100:
@@ -626,7 +634,7 @@ class Test(TestBase):
                 return 'large'
             else:
                 return 'xlarge'
-        self.assertEqual([to_str(get_val(it[1])) for it in data], [to_str(it[10]) for it in result])
+        self.assertEqual([to_str(get_val(it[1])) for it in data], [to_str(it[12]) for it in result])
 
     def testArithmetic(self):
         data = self._gen_data(5, value_range=(-1000, 1000))
@@ -834,21 +842,26 @@ class Test(TestBase):
 
         fields = [it[1].rename('id'+str(i)) for i, it in enumerate(methods_to_fields)]
 
-        expr = self.expr[fields]
+        try:
+            for use_odps2 in [False, True]:
+                options.sql.use_odps2_extension = use_odps2
 
-        res = self.engine.execute(expr)
-        result = self._get_result(res)
+                expr = self.expr[fields]
+                res = self.engine.execute(expr)
+                result = self._get_result(res)
 
-        for i, it in enumerate(methods_to_fields):
-            method = it[0]
+                for i, it in enumerate(methods_to_fields):
+                    method = it[0]
 
-            if i != 2:
-                first = [method(it[0]) for it in data]
-            else:
-                # cat
-                first = [method(it) for it in data]
-            second = [it[i] for it in result]
-            self.assertEqual(first, second)
+                    if i != 2:
+                        first = [method(it[0]) for it in data]
+                    else:
+                        # cat
+                        first = [method(it) for it in data]
+                    second = [it[i] for it in result]
+                    self.assertEqual(first, second)
+        finally:
+            options.sql.use_odps2_extension = None
 
     def testFunctionResources(self):
         data = self._gen_data(5)
@@ -3225,7 +3238,7 @@ class Test(TestBase):
             [0, 'name1', 1.0, None, 3.0, 4.0],
             [1, 'name1', 2.0, None, None, 1.0],
             [2, 'name1', 3.0, 4.0, 1.0, None],
-            [3, 'name1', None, 1.0, 2.0, 3.0],
+            [3, 'name1', float('nan'), 1.0, 2.0, 3.0],
             [4, 'name1', 1.0, None, 3.0, 4.0],
             [5, 'name1', 1.0, 2.0, 3.0, 4.0],
             [6, 'name1', None, None, None, None],
