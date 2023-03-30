@@ -12,8 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version_info = (0, 11, 3, 1)
-_num_index = max(idx if isinstance(v, int) else 0
-                 for idx, v in enumerate(version_info))
-__version__ = '.'.join(map(str, version_info[:_num_index + 1])) + \
-              ''.join(version_info[_num_index + 1:])
+from odps.models.tenant import Tenant
+from odps.tests.core import TestBase
+
+
+class Test(TestBase):
+    def testTenantProps(self):
+        tenant = Tenant(client=self.odps_with_schema.rest)
+        assert not tenant._getattr("_loaded")
+        assert tenant.name is not None
+        assert tenant._getattr("_loaded")
+        assert tenant.get_parameter("prop-key") is None

@@ -22,6 +22,12 @@ from . import compat
 from .compat import six, DECIMAL_TYPES, decimal as _decimal, east_asian_len, OrderedDict, Monthdelta
 from .config import options
 
+try:
+    from pandas import NA as _pd_na
+    pd_na_type = type(_pd_na)
+except ImportError:
+    pd_na_type = None
+
 force_py = options.force_py
 force_c = options.force_c
 
@@ -1376,7 +1382,7 @@ def validate_data_type(data_type):
         return data_type
 
     if isinstance(data_type, six.string_types):
-        data_type = data_type.lower()
+        data_type = data_type.strip().lower()
         if data_type in _odps_primitive_data_types:
             return _odps_primitive_data_types[data_type]
 
@@ -1437,7 +1443,7 @@ def _patch_pd_types(data_type):
 
 
 def _validate_primitive_value(value, data_type):
-    if value is None:
+    if value is None or type(value) is pd_na_type:
         return None
 
     if options.tunnel.string_as_binary:

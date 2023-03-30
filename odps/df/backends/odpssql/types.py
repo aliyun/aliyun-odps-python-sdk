@@ -19,7 +19,7 @@ import threading
 from ....models import TableSchema
 from .... import types as odps_types
 from ... import types as df_types
-from ....compat import six
+from ....compat import six, OrderedDict
 from ....config import options
 
 
@@ -88,6 +88,11 @@ def odps_type_to_df_type(odps_type):
     elif isinstance(odps_type, odps_types.Map):
         return df_types.Dict(odps_type_to_df_type(odps_type.key_type),
                              odps_type_to_df_type(odps_type.value_type))
+    elif isinstance(odps_type, odps_types.Struct):
+        type_dict = OrderedDict(
+            (k, odps_type_to_df_type(v)) for k, v in odps_type.field_types.items()
+        )
+        return df_types.Struct(type_dict)
     else:
         raise KeyError(repr(odps_type))
 
@@ -123,6 +128,12 @@ def df_type_to_odps_type(df_type, use_odps2_types=None, project=None):
             df_type_to_odps_type(df_type.key_type, use_odps2_types=use_odps2_types),
             df_type_to_odps_type(df_type.value_type, use_odps2_types=use_odps2_types),
         )
+    elif isinstance(df_type, df_types.Struct):
+        type_dict = OrderedDict(
+            (k, df_type_to_odps_type(v, use_odps2_types=use_odps2_types))
+            for k, v in df_type.field_types.items()
+        )
+        return odps_types.Struct(type_dict)
     else:
         raise KeyError(repr(df_type))
 

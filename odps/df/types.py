@@ -17,7 +17,7 @@
 from datetime import datetime as _datetime, date as _date
 from decimal import Decimal as _Decimal
 
-from ..types import DataType, Array, Map, parse_composite_types
+from ..types import DataType, Array, Map, Struct as _Struct, parse_composite_types
 from ..models import TableSchema, Column
 from ..compat import OrderedDict, six
 
@@ -220,6 +220,37 @@ class Dict(Map):
         return isinstance(other, Dict) and \
             self.key_type == other.key_type and \
             self.value_type == other.value_type and \
+            self.nullable == other.nullable
+
+
+class Struct(_Struct):
+    __slots__ = ()
+
+    def __init__(self, field_types, nullable=True):
+        DataType.__init__(self, nullable=nullable)
+        self.field_types = OrderedDict()
+        if isinstance(field_types, dict):
+            field_types = six.iteritems(field_types)
+        for k, v in field_types:
+            self.field_types[k] = validate_data_type(v)
+
+    @property
+    def CLASS_NAME(self):
+        return 'Struct'
+
+    def _equals(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        return isinstance(other, Struct) and \
+            len(self.field_types) == len(other.field_types) and \
+            all(self.field_types[k] == other.field_types[k] for k in six.iterkeys(self.field_types))
+
+    def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        return isinstance(other, Struct) and self == other and \
             self.nullable == other.nullable
 
 

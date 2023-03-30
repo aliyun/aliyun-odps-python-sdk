@@ -314,7 +314,7 @@ class Expr(Node):
     def __getattribute__(self, attr):
         try:
             return super(Expr, self).__getattribute__(attr)
-        except AttributeError as e:
+        except AttributeError:
             if not attr.startswith('_'):
                 new_attr = '_%s' % attr
                 if new_attr in object.__getattribute__(self, '_args_indexes'):
@@ -1288,6 +1288,33 @@ class TypedExpr(Expr):
     def __new__(cls, *args, **kwargs):
         clz = cls._new_cls(*args, **kwargs)
         return super(TypedExpr, clz).__new__(clz)
+
+    def __getattribute__(self, item):
+        try:
+            return super(TypedExpr, self).__getattribute__(item)
+        except AttributeError:
+            pass
+
+        # need to show type of expression when certain method missing
+        dtype = None
+        try:
+            dtype = object.__getattribute__(self, "_data_type")
+        except AttributeError:  # pragma: no cover
+            pass
+        try:
+            dtype = object.__getattribute__(self, "_value_type")
+        except AttributeError:  # pragma: no cover
+            pass
+
+        if dtype is not None:
+            raise AttributeError(
+                "'%s' object has no attribute '%s'. Type of the expression "
+                "is %s which may not support this method." % (type(self).__name__, item, dtype)
+            )
+        else:
+            raise AttributeError(
+                "'%s' object has no attribute '%s'" % (type(self).__name__, item)
+            )
 
     @classmethod
     def _new(cls, *args, **kwargs):

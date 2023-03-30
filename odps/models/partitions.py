@@ -18,8 +18,8 @@ from collections import defaultdict
 
 from .. import serializers, errors, types
 from ..compat import six, OrderedDict
-from .partition import Partition
 from .core import Iterable
+from .partition import Partition
 
 
 class PartitionSpecCondition(object):
@@ -204,14 +204,6 @@ class Partitions(Iterable):
                 None,
             )
 
-    def _get_full_table_name(self):
-        schema_name = self._get_schema_name()
-        if schema_name is not None:
-            parts = (self.project.name, schema_name, self.parent.name)
-        else:
-            parts = (self.project.name, self.parent.name)
-        return ".".join(parts)
-
     def create(self, partition_spec, if_not_exists=False, async_=False, **kw):
         async_ = kw.get('async', async_)
         if isinstance(partition_spec, Partition):
@@ -220,7 +212,7 @@ class Partitions(Iterable):
             partition_spec = self._get_partition_spec(partition_spec)
 
         buf = six.StringIO()
-        buf.write('ALTER TABLE %s ADD ' % self._get_full_table_name())
+        buf.write('ALTER TABLE %s ADD ' % self.parent.full_table_name)
 
         if if_not_exists:
             buf.write('IF NOT EXISTS ')
@@ -251,7 +243,7 @@ class Partitions(Iterable):
             partition_spec = self._get_partition_spec(partition_spec)
 
         buf = six.StringIO()
-        buf.write('ALTER TABLE %s DROP ' % self._get_full_table_name())
+        buf.write('ALTER TABLE %s DROP ' % self.parent.full_table_name)
 
         if if_exists:
             buf.write('IF EXISTS ')

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
 
 from odps.tests.core import TestBase
 from odps.config import option_context
@@ -60,6 +61,12 @@ class Test(TestBase):
         self.assertNotIn('if', dir(new_df))
 
         self.assertEqual(self.expr._id, self.expr.copy()._id)
+
+    def testTypedExprMissingAttr(self):
+        with pytest.raises(AttributeError) as ex_pack:
+            getattr(self.expr.name, "mean")
+        # need to show type of expression when certain method
+        assert str(self.expr.name.dtype) in str(ex_pack.value)
 
     def testProjection(self):
         projected = self.expr['name', self.expr.id.rename('new_id')]

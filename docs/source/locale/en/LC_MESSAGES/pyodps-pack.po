@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.11.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-03-08 20:43+0800\n"
+"POT-Creation-Date: 2023-03-22 16:21+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -27,41 +27,46 @@ msgstr "Create third-party libraries"
 
 #: ../../source/pyodps-pack.rst:8
 msgid ""
-"PyODPS 提供了 ``pyodps-pack`` 命令行工具，用于制作符合 PyODPS 及 DataWorks PyODPS "
-"节点标准的三方包，使用方法类似 ``pip`` 命令。你可以使用该工具将所有依赖项目制作成一个 ``.tar.gz`` 压缩包，其中包含所有依照 "
-"MaxCompute / DataWorks 环境编译并打包的项目依赖。如果你的项目有自行创建的 Python 包，也可以使用该工具进行打包。"
+"PyODPS 自 0.11.3 起提供了 ``pyodps-pack`` 命令行工具，用于制作符合 PyODPS 及 DataWorks "
+"PyODPS 节点标准的三方包，使用方法类似 ``pip`` 命令。你可以使用该工具将所有依赖项目制作成一个 ``.tar.gz`` "
+"压缩包，其中包含所有依照 MaxCompute / DataWorks 环境编译并打包的项目依赖。如果你的项目有自行创建的 Python "
+"包，也可以使用该工具进行打包。"
 msgstr ""
 "PyODPS provides a pip-like command line tool, ``pyodps-pack``, to support"
 " creating third-party library bundles that can be used in PyODPS and "
-"DataWorks nodes. You can use this tool to pack all your dependencies into"
-" a ``.tar.gz`` archive containing all dependencies packed according to "
-"Python environments in MaxCompute or DataWorks. It can also help packing "
-"Python packages created by yourself."
+"DataWorks nodes since 0.11.3. You can use this tool to pack all your "
+"dependencies into a ``.tar.gz`` archive containing all dependencies "
+"packed according to Python environments in MaxCompute or DataWorks. "
+"It can also help packing Python packages created by yourself."
 
-#: ../../source/pyodps-pack.rst:13
+#: ../../source/pyodps-pack.rst:14
 msgid "准备工作"
 msgstr "Prerequisites"
 
-#: ../../source/pyodps-pack.rst:14
+#: ../../source/pyodps-pack.rst:16
+msgid "Docker 模式"
+msgstr "Docker mode"
+
+#: ../../source/pyodps-pack.rst:17
 msgid ""
-"你需要安装 Docker 以顺利运行 ``pyodps-pack``。对于 Linux 环境，可以参考 `Docker 官方文档 "
-"<https://docs.docker.com/engine/install/>`_ 安装 Docker。对于 MacOS / "
+"你需要安装 Docker 以顺利在 Docker 下运行 ``pyodps-pack``。对于 Linux 环境，可以参考 `Docker "
+"官方文档 <https://docs.docker.com/engine/install/>`_ 安装 Docker。对于 MacOS / "
 "Windows，个人开发者可以使用 `Docker Desktop <https://www.docker.com/products"
-"/docker-desktop/>`_ 。 对于没有购买过授权的企业用户，推荐使用开源的 `Rancher Desktop "
+"/docker-desktop/>`_ 。对于没有购买过授权的企业用户，推荐使用开源的 `Rancher Desktop "
 "<https://rancherdesktop.io/>`_ 。我们没有在包括 ``minikube`` 在内的其他 Docker 环境中测试 "
 "``pyodps-pack`` ，不保证在这些环境中的可用性。"
 msgstr ""
-"You need to install Docker to run ``pyodps-pack`` correctly. For Linux "
-"users, Docker can be installed given the `Official document "
-"<https://docs.docker.com/engine/install/>`_.For personal MacOS or Windows"
-" users, `Docker Desktop <https://www.docker.com/products/docker-"
-"desktop/>`_ can be used. For enterprise users without commercial licenses"
-" of Docker Desktop, `Rancher Desktop <https://rancherdesktop.io/>`_ might"
-" be used. We does not test on other tools providing Docker environments "
-"such as ``minikube``, and availability of the tool on these environments "
-"is not guaranteed."
+"You need to install Docker to run ``pyodps-pack`` correctly in Docker "
+"mode. For Linux users, Docker can be installed given the `Official "
+"document <https://docs.docker.com/engine/install/>`_.For personal MacOS "
+"or Windows users, `Docker Desktop <https://www.docker.com/products"
+"/docker-desktop/>`_ can be used. For enterprise users without commercial "
+"licenses of Docker Desktop, `Rancher Desktop "
+"<https://rancherdesktop.io/>`_ might be used. We does not test on other "
+"tools providing Docker environments such as ``minikube``, and "
+"availability of the tool on these environments is not guaranteed."
 
-#: ../../source/pyodps-pack.rst:19
+#: ../../source/pyodps-pack.rst:23
 msgid ""
 "对于期望在版本较老的专有云中的 MaxCompute / DataWorks 使用 ``--legacy-image`` 选项打包的用户，在 "
 "Windows / MacOS 或者部分内核的 Linux 系统中可能出现无法打包的错误，请参考 `本文 "
@@ -75,20 +80,23 @@ msgstr ""
 "<https://mail.python.org/pipermail/wheel-"
 "builders/2016-December/000239.html>`_ for solutions."
 
-#: ../../source/pyodps-pack.rst:24
+#: ../../source/pyodps-pack.rst:28
 msgid ""
 "对于 Windows 用户，可能你的 Docker 服务需要依赖 Windows 系统的 Server 服务才能启动，而 Server "
 "服务由于安全问题在很多企业被禁止启动。 在遇到问题时，请改用 Linux 打包或者设法启用 Server 服务。Rancher Desktop 在"
-" Windows 10 下可能无法使用 ``containerd`` 作为容器引擎，可以尝试改用 ``dockerd`` 。"
+" Windows 10 下可能无法使用 ``containerd`` 作为容器引擎，可以尝试改用 ``dockerd`` ，具体参考 `该文档 "
+"<https://docs.rancherdesktop.io/ui/preferences/container-engine>`_ 进行配置。"
 msgstr ""
 "For Windows users, it is possible that your Docker service depends on "
 "Server service of Windows system. However, this service is often "
 "prohibited in many companies. In this case, please create packages under "
 "Linux or try starting the service. It is known that Rancher Desktop may "
 "not perform correctly with ``containerd`` as container engine, you may "
-"switch to ``dockerd`` instead."
+"switch to ``dockerd`` instead. Details about switching container engines "
+"can be found in `this article "
+"<https://docs.rancherdesktop.io/ui/preferences/container-engine>`_."
 
-#: ../../source/pyodps-pack.rst:28
+#: ../../source/pyodps-pack.rst:33
 msgid ""
 "如果你的 MaxCompute / DataWorks 基于 Arm64 机型部署，你需要额外增加 ``--arch aarch64`` "
 "参数指定打包需要的架构。通常 Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfmt`` "
@@ -101,11 +109,11 @@ msgstr ""
 "Rancher Desktop. You can also run command below to install related "
 "virtual environments manually."
 
-#: ../../source/pyodps-pack.rst:31
+#: ../../source/pyodps-pack.rst:36
 msgid "docker run --privileged --rm tonistiigi/binfmt --install arm64"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:35
+#: ../../source/pyodps-pack.rst:40
 msgid ""
 "安装相关的虚拟环境。该命令要求 Linux Kernel 版本高于 4.8，具体可以参考 `该页面 "
 "<https://github.com/tonistiigi/binfmt>`_。"
@@ -114,11 +122,35 @@ msgstr ""
 "command can be found in `this article "
 "<https://github.com/tonistiigi/binfmt>`_."
 
-#: ../../source/pyodps-pack.rst:38
+#: ../../source/pyodps-pack.rst:43
+msgid "无 Docker 模式"
+msgstr "Non-Docker mode"
+
+#: ../../source/pyodps-pack.rst:46
+msgid "我们建议在打包时，尽量使用 Docker 模式。非 Docker 模式仅用于 Docker 不可用的场景，且生成的包有可能不可用。"
+msgstr ""
+"We recommend using Docker mode to create packages if possible. Non-Docker"
+" mode might be used only when Docker is not available. It is also "
+"possible to create malfunctioning packages."
+
+#: ../../source/pyodps-pack.rst:48
+msgid ""
+"如果你安装 Docker 遇到困难，你可以尝试使用非 Docker 模式。使用方式为新增一个 ``--without-docker`` "
+"参数。该模式需要你的 Python 环境中已经安装 pip。如果使用该模式出现错误，请改用 Docker 模式。Windows 用户需要安装 "
+"Git bash 以使用该模式，Git bash 包含在 `Git for Windows "
+"<https://gitforwindows.org>`_ 中。"
+msgstr ""
+"When you have problems installing Docker, you might try non-Docker mode "
+"by adding a ``--without-docker`` argument. When using non-Docker mode, "
+"``pip`` is needed in your Python installation. Windows users need to "
+"install Git bash to use non-Docker mode, which is included in `Git for "
+"Windows <https://gitforwindows.org>`_."
+
+#: ../../source/pyodps-pack.rst:53
 msgid "打包所有依赖"
 msgstr "Pack all dependencies"
 
-#: ../../source/pyodps-pack.rst:41
+#: ../../source/pyodps-pack.rst:56
 msgid ""
 "MaxCompute 建议除非不得已，新项目请尽量使用 Python 3。我们不保证下面的打包步骤对 Python 2 的可用性。 "
 "旧项目在可能的情况下请尽量迁移到 Python 3 以减少后续维护的难度。"
@@ -128,37 +160,45 @@ msgstr ""
 "migrating your legacy projects to Python 3 to reduce difficulties of "
 "maintenance in future."
 
-#: ../../source/pyodps-pack.rst:44
+#: ../../source/pyodps-pack.rst:59
 msgid "在 Linux 中使用下列命令时，请使用 ``sudo`` 调用 ``pyodps-pack`` 以保证 Docker 正常运行。"
 msgstr ""
 "Please add ``sudo`` when calling ``pyodps-pack`` in Linux to make sure "
 "Docker is called correctly."
 
-#: ../../source/pyodps-pack.rst:46
+#: ../../source/pyodps-pack.rst:61
 msgid "安装完 PyODPS 后，你可以使用下面的命令为 Python 3 打包 pandas 及所有 pandas 的依赖项："
 msgstr ""
 "After PyODPS is installed, you can use command below to pack pandas and "
 "all its dependencies."
 
-#: ../../source/pyodps-pack.rst:48
+#: ../../source/pyodps-pack.rst:63
 msgid "pyodps-pack pandas"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:52
+#: ../../source/pyodps-pack.rst:67
+msgid "使用非 Docker 模式打包，可以用"
+msgstr "If you want to use non-Docker mode to pack, you can use"
+
+#: ../../source/pyodps-pack.rst:69
+msgid "pyodps-pack --without-docker pandas"
+msgstr ""
+
+#: ../../source/pyodps-pack.rst:73
 msgid "需要指定版本时，可以使用"
 msgstr "If you need to specify version of pandas, you may use"
 
-#: ../../source/pyodps-pack.rst:54
+#: ../../source/pyodps-pack.rst:75
 msgid "pyodps-pack pandas==1.2.5"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:58
+#: ../../source/pyodps-pack.rst:79
 msgid "经过一系列的打包步骤，工具会显示包中的所有依赖版本"
 msgstr ""
 "After a series of packing processes, the utility will show versions of "
 "packed packages."
 
-#: ../../source/pyodps-pack.rst:60
+#: ../../source/pyodps-pack.rst:81
 msgid ""
 "Package         Version\n"
 "--------------- -------\n"
@@ -169,13 +209,13 @@ msgid ""
 "six             1.16.0"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:70
+#: ../../source/pyodps-pack.rst:91
 msgid "并在当前目录中生成一个 ``packages.tar.gz`` 文件，其中包括上面列出的所有依赖项目。"
 msgstr ""
 "and generates a ``packages.tar.gz`` with all dependency items listed "
 "above."
 
-#: ../../source/pyodps-pack.rst:72
+#: ../../source/pyodps-pack.rst:93
 msgid ""
 "如果你希望为 Python 2.7 打包，请确定你的包要在 MaxCompute 还是 DataWorks "
 "中使用。如果你不确定你的包将在哪个环境中使用， 请参考 `这篇文章 "
@@ -189,25 +229,25 @@ msgstr ""
 "want to use Python 2.7 packages in MaxCompute, you can use the command "
 "below."
 
-#: ../../source/pyodps-pack.rst:76
+#: ../../source/pyodps-pack.rst:97
 msgid "pyodps-pack --mcpy27 pandas"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:80
+#: ../../source/pyodps-pack.rst:101
 msgid "如果生成的 Python 2.7 包要在 DataWorks 中使用，可以使用下面的打包命令："
 msgstr ""
 "If you want to use Python 2.7 packages in DataWorks, you can use the "
 "command below."
 
-#: ../../source/pyodps-pack.rst:82
+#: ../../source/pyodps-pack.rst:103
 msgid "pyodps-pack --dwpy27 pandas"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:87
+#: ../../source/pyodps-pack.rst:108
 msgid "打包自定义代码"
 msgstr "Pack custom source code"
 
-#: ../../source/pyodps-pack.rst:88
+#: ../../source/pyodps-pack.rst:109
 msgid ""
 "``pyodps-pack`` 支持打包使用 ``setup.py`` 或者 ``pyproject.toml`` 组织的用户自定义 Python"
 " project。如果你之前从未 接触过相关知识，可以参考 `这个链接 "
@@ -219,14 +259,14 @@ msgstr ""
 "<https://pip.pypa.io/en/stable/reference/build-system/>`_ for more "
 "information."
 
-#: ../../source/pyodps-pack.rst:91
+#: ../../source/pyodps-pack.rst:112
 msgid "下面用基于 ``pyproject.toml`` 组织的项目举例介绍一下如何使用 ``pyodps-pack`` 打包。假定项目的目录结构如下："
 msgstr ""
 "We show how to pack custom code by creating a custom package with "
 "``pyproject.toml`` and packing with ``pyodps-pack``. Assuming that the "
 "directory structure of the project looks like"
 
-#: ../../source/pyodps-pack.rst:93
+#: ../../source/pyodps-pack.rst:114
 msgid ""
 "test_package_root\n"
 "├── test_package\n"
@@ -238,11 +278,11 @@ msgid ""
 "└── pyproject.toml"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:104
+#: ../../source/pyodps-pack.rst:125
 msgid "其中 ``pyproject.toml`` 内容可能为"
 msgstr "while the content of ``pyproject.toml`` is"
 
-#: ../../source/pyodps-pack.rst:106
+#: ../../source/pyodps-pack.rst:127
 msgid ""
 "[project]\n"
 "name = \"test_package\"\n"
@@ -253,7 +293,7 @@ msgid ""
 "]"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:116
+#: ../../source/pyodps-pack.rst:137
 msgid ""
 "完成包的开发后，使用下面的命令可以将此包和所有依赖打包进 ``packages.tar.gz`` 文件中（ ``path_to_package``"
 " 为 ``test_package_root`` 的上级路径）："
@@ -262,15 +302,15 @@ msgstr ""
 "dependencies into ``packages.tar.gz``. (``path_to_package`` is the parent"
 " directory of ``test_package_root``)"
 
-#: ../../source/pyodps-pack.rst:119
+#: ../../source/pyodps-pack.rst:140
 msgid "pyodps-pack /<path_to_package>/test_package_root"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:124
+#: ../../source/pyodps-pack.rst:145
 msgid "打包 Git Repo 中的代码"
 msgstr "Pack code in a Git repository"
 
-#: ../../source/pyodps-pack.rst:125
+#: ../../source/pyodps-pack.rst:146
 msgid ""
 "``pyodps-pack`` 支持打包远程 Git 代码仓库（例如 Github）中的代码。以 PyODPS "
 "本身为例，可以使用下面的命令执行打包："
@@ -279,21 +319,21 @@ msgstr ""
 "PyODPS repository as an example to show how to pack a remote Git "
 "repository."
 
-#: ../../source/pyodps-pack.rst:127
+#: ../../source/pyodps-pack.rst:148
 msgid "pyodps-pack git+https://github.com/aliyun/aliyun-odps-python-sdk.git"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:131
+#: ../../source/pyodps-pack.rst:152
 msgid "如果想要打包某个分支或者 Tag，可以使用"
 msgstr "If you want to pack a certain branch or tag, you may use"
 
-#: ../../source/pyodps-pack.rst:133
+#: ../../source/pyodps-pack.rst:154
 msgid ""
 "pyodps-pack git+https://github.com/aliyun/aliyun-odps-python-"
 "sdk.git@v0.11.2.2"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:137
+#: ../../source/pyodps-pack.rst:158
 msgid ""
 "如果打包前需要安装一些打包依赖（例如 ``cython``），可以使用 ``--install-requires`` 参数增加安装时依赖。 "
 "也可以编写一个格式与 ``requirements.txt`` 相同的 ``install-requires.txt`` 文件，并使用 "
@@ -306,37 +346,37 @@ msgstr ""
 "requires-file`` to reference it. For instance, if you need to install "
 "``Cython`` before packing PyODPS, you can call"
 
-#: ../../source/pyodps-pack.rst:141
+#: ../../source/pyodps-pack.rst:162
 msgid ""
 "pyodps-pack \\\n"
 "    --install-requires cython \\\n"
 "    git+https://github.com/aliyun/aliyun-odps-python-sdk.git@v0.11.2.2"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:147
+#: ../../source/pyodps-pack.rst:168
 msgid "也可以创建一个 ``install-requires.txt`` 文件并编写："
 msgstr "It is also possible to write a ``install-requires.txt`` with content"
 
-#: ../../source/pyodps-pack.rst:149
+#: ../../source/pyodps-pack.rst:170
 msgid "cython>0.29"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:153
+#: ../../source/pyodps-pack.rst:174
 msgid "打包命令可以写成"
 msgstr "and pack command can be written as"
 
-#: ../../source/pyodps-pack.rst:155
+#: ../../source/pyodps-pack.rst:176
 msgid ""
 "pyodps-pack \\\n"
 "    --install-requires-file install-requires.txt \\\n"
 "    git+https://github.com/aliyun/aliyun-odps-python-sdk.git@v0.11.2.2"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:162
+#: ../../source/pyodps-pack.rst:183
 msgid "更复杂的例子：二进制依赖"
 msgstr "A more complicated case: adding binary dependencies"
 
-#: ../../source/pyodps-pack.rst:163
+#: ../../source/pyodps-pack.rst:184
 msgid ""
 "一部分包包含额外的二进制依赖，例如需要编译 / 安装的外部动态链接库。``pyodps-pack`` 提供了 ``--run-before`` "
 "参数用以指定打包前需要执行的步骤，该步骤中可以安装所需的二进制依赖。 我们用地理信息库 `GDAL <https://gdal.org/>`_ "
@@ -349,7 +389,7 @@ msgstr ""
 "dependencies. We take geospatial library `GDAL <https://gdal.org/>`_ as "
 "an example to show how to pack this kind of packages."
 
-#: ../../source/pyodps-pack.rst:167
+#: ../../source/pyodps-pack.rst:188
 msgid ""
 "首先确定打包时需要安装的二进制依赖。根据 GDAL 3.6.0.1 在 `PyPI 上的文档 "
 "<https://pypi.org/project/GDAL/>`_ ，我们需要安装 3.6.0 以上版本的 libgdal。 `libgdal "
@@ -363,7 +403,7 @@ msgstr ""
 "on PROJ >= 6.0. Both dependencies can be built with CMake. Thus we write "
 "a bash script, ``install-gdal.sh``, to install these dependencies."
 
-#: ../../source/pyodps-pack.rst:171
+#: ../../source/pyodps-pack.rst:192
 msgid ""
 "#!/bin/bash\n"
 "set -e\n"
@@ -389,94 +429,94 @@ msgid ""
 "cmake --build . --target install"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:194
+#: ../../source/pyodps-pack.rst:215
 msgid "此后，使用 ``pyodps-pack`` 进行打包："
 msgstr "Then use ``pyodps-pack`` to pack GDAL python library."
 
-#: ../../source/pyodps-pack.rst:196
+#: ../../source/pyodps-pack.rst:217
 msgid ""
 "pyodps-pack --install-requires oldest-supported-numpy --run-before "
 "install-gdal.sh gdal==3.6.0.1"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:201
+#: ../../source/pyodps-pack.rst:222
 msgid "命令详情"
 msgstr "Command details"
 
-#: ../../source/pyodps-pack.rst:202
+#: ../../source/pyodps-pack.rst:223
 msgid "下面给出 ``pyodps-pack`` 命令的可用参数，可用于控制打包过程："
 msgstr "Arguments of ``pyodps-pack`` is listed below:"
 
-#: ../../source/pyodps-pack.rst:204
+#: ../../source/pyodps-pack.rst:225
 msgid "``-r``, ``--requirement <file>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:206
+#: ../../source/pyodps-pack.rst:227
 msgid "根据给定的依赖文件打包。该选项可被指定多次。"
 msgstr "Pack given specified requirement file. Can be used multiple times."
 
-#: ../../source/pyodps-pack.rst:208
+#: ../../source/pyodps-pack.rst:229
 msgid "``-o``, ``--output <file>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:210
+#: ../../source/pyodps-pack.rst:231
 msgid "指定打包生成目标文件名，默认为 ``packages.tar.gz``。"
 msgstr "Specify file name of the target package, ``packages.tar.gz`` by default."
 
-#: ../../source/pyodps-pack.rst:212
+#: ../../source/pyodps-pack.rst:233
 #, fuzzy
 msgid "``--install-requires <item>``"
 msgstr "It is also possible to write a ``install-requires.txt`` with content"
 
-#: ../../source/pyodps-pack.rst:214
+#: ../../source/pyodps-pack.rst:235
 msgid "指定打包时所需的 PyPI 依赖，可指定多个。这些依赖 **不一定** 会包含在最终的包中。"
 msgstr ""
 "Specify build-time requirements, might not be included in the final "
 "package."
 
-#: ../../source/pyodps-pack.rst:216
+#: ../../source/pyodps-pack.rst:237
 msgid "``--install-requires-file <file>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:218
+#: ../../source/pyodps-pack.rst:239
 msgid "指定打包时所需的 PyPI 依赖定义文件，可指定多个。这些依赖 **不一定** 会包含在最终的包中。"
 msgstr ""
 "Specify build-time requirements in files, might not be included in the "
 "final package."
 
-#: ../../source/pyodps-pack.rst:220
+#: ../../source/pyodps-pack.rst:241
 msgid "``--run-before <script-file>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:222
+#: ../../source/pyodps-pack.rst:243
 msgid "指定打包前需要执行的 Bash 脚本，通常可用于安装二进制依赖。"
 msgstr ""
 "Specify name of bash script to run before packing, can be used to install"
 " binary dependencies."
 
-#: ../../source/pyodps-pack.rst:224
+#: ../../source/pyodps-pack.rst:245
 msgid "``-X``, ``--exclude <dependency>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:226
+#: ../../source/pyodps-pack.rst:247
 msgid "指定打包时需要从最终包删除的 PyPI 依赖。该选项可被指定多次。"
 msgstr ""
 "Specify dependencies to be excluded in the final package, can be "
 "specified multiple times."
 
-#: ../../source/pyodps-pack.rst:228
+#: ../../source/pyodps-pack.rst:249
 msgid "``--no-deps``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:230
+#: ../../source/pyodps-pack.rst:251
 msgid "指定打包时不包含指定项目的依赖项。"
 msgstr "If specified, will not include dependencies of specified requirements."
 
-#: ../../source/pyodps-pack.rst:232
+#: ../../source/pyodps-pack.rst:253
 msgid "``-i``, ``--index-url <index-url>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:234
+#: ../../source/pyodps-pack.rst:255
 msgid ""
 "指定打包时所需的 PyPI URL。如果缺省，会使用 ``pip config list`` 命令返回的 ``global.index-url``"
 " 值，该值通常配置在 ``pip.conf`` 配置文件中。"
@@ -484,61 +524,61 @@ msgstr ""
 "Specify Base URL of PyPI package. If absent, will use ``global.index-"
 "url`` in ``pip config list`` command by default."
 
-#: ../../source/pyodps-pack.rst:237
+#: ../../source/pyodps-pack.rst:258
 msgid "``--trusted-host <host>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:239
+#: ../../source/pyodps-pack.rst:260
 msgid "指定打包时需要忽略证书问题的 HTTPS 域名。"
 msgstr ""
 "Specify domains whose certifications are trusted when PyPI urls are using"
 " HTTPS."
 
-#: ../../source/pyodps-pack.rst:241
+#: ../../source/pyodps-pack.rst:262
 msgid "``-l``, ``--legacy-image``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:243
+#: ../../source/pyodps-pack.rst:264
 msgid "指定后，将使用 CentOS 5 镜像进行打包，这使得包可以被用在旧版专有云等环境中。"
 msgstr ""
 "If specified, will use CentOS 5 to pack, making the final package "
 "available under old environments such as legacy private clouds."
 
-#: ../../source/pyodps-pack.rst:245
+#: ../../source/pyodps-pack.rst:266
 msgid "``--mcpy27``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:247
+#: ../../source/pyodps-pack.rst:268
 msgid "指定后，将为 MaxCompute 内的 Python 2.7 制作三方包。如果启用，将默认 ``--legacy-image`` 选项开启。"
 msgstr ""
 "If specified, will build packages for Python 2.7 on MaxCompute and assume"
 " ``--legacy-image`` is enabled."
 
-#: ../../source/pyodps-pack.rst:249
+#: ../../source/pyodps-pack.rst:270
 msgid "``--dwpy27``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:251
+#: ../../source/pyodps-pack.rst:272
 msgid "指定后，将为 DataWorks 内的 Python 2.7 制作三方包。如果启用，将默认 ``--legacy-image`` 选项开启。"
 msgstr ""
 "If specified, will build packages for Python 2.7 on DataWorks and assume "
 "``--legacy-image`` is enabled."
 
-#: ../../source/pyodps-pack.rst:253
+#: ../../source/pyodps-pack.rst:274
 msgid "``--prefer-binary``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:255
+#: ../../source/pyodps-pack.rst:276
 msgid "指定后，将倾向于选择 PyPI 中包含二进制编译的旧版而不是仅有源码包的新版。"
 msgstr ""
 "If specified, will prefer older binary packages over newer source "
 "packages."
 
-#: ../../source/pyodps-pack.rst:257
+#: ../../source/pyodps-pack.rst:278
 msgid "``--arch <architecture>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:259
+#: ../../source/pyodps-pack.rst:280
 msgid ""
 "指定目标包面向的硬件架构，目前仅支持 x86\\_64 和 aarch64（或 arm64），默认为 x86\\_64。如果你并不在专有云使用 "
 "MaxCompute 或 DataWorks，**不要指定这个参数**。"
@@ -548,11 +588,11 @@ msgstr ""
 "default. If you are not running your code inside a proprietary cloud, "
 "**do not add this argument**."
 
-#: ../../source/pyodps-pack.rst:262
+#: ../../source/pyodps-pack.rst:283
 msgid "``--python-version <version>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:264
+#: ../../source/pyodps-pack.rst:285
 msgid ""
 "指定目标面向的 Python 版本，可使用 3.6 或者 36 表示 Python 3.6。如果你并不在专有云使用 MaxCompute 或 "
 "DataWorks，**不要指定这个参数**。"
@@ -561,67 +601,89 @@ msgstr ""
 "for Python 3.6. If you are not running your code inside a proprietary "
 "cloud, **do not add this argument**."
 
-#: ../../source/pyodps-pack.rst:267
+#: ../../source/pyodps-pack.rst:288
 msgid "``--docker-args <args>``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:269
+#: ../../source/pyodps-pack.rst:290
 msgid ""
 "指定在执行 Docker 命令时需要额外附加的参数。如有多个参数需用引号包裹，例如 ``--docker-args \"--ip "
 "192.168.1.10\"``。"
 msgstr ""
-"Specify extra arguments needed for Docker command. If there are more than one argument,"
-" please put them within quote marks. For instance, ``--docker-args \"--ip 192.168.1.10\"``."
+"Specify extra arguments needed for Docker command. If there are more than"
+" one argument, please put them within quote marks. For instance, "
+"``--docker-args \"--ip 192.168.1.10\"``."
 
-#: ../../source/pyodps-pack.rst:271
+#: ../../source/pyodps-pack.rst:292
+msgid "``--without-docker``"
+msgstr ""
+
+#: ../../source/pyodps-pack.rst:294
+msgid "使用无 Docker 模式运行 ``pyodps-pack``。当依赖中存在二进制依赖，可能报错或导致包不可用。"
+msgstr ""
+"Use non-Docker mode to run ``pyodps-pack``. You might receive errors or "
+"get malfunctioning packages with this mode when there are binary "
+"dependencies."
+
+#: ../../source/pyodps-pack.rst:296
+msgid "``--without-merge``"
+msgstr ""
+
+#: ../../source/pyodps-pack.rst:298
+msgid "下载或生成 Wheel 包后不生成 ``.tar.gz`` 包而是保留 ``.whl`` 文件。"
+msgstr ""
+"Skip building ``.tar.gz`` package and keep ``.whl`` files after "
+"downloading or creating Python wheels."
+
+#: ../../source/pyodps-pack.rst:300
 msgid "``--debug``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:273
+#: ../../source/pyodps-pack.rst:302
 msgid "指定后，将输出命令运行的详细信息，用于排查问题。"
 msgstr ""
 "If specified, will output details when executing the command. This "
 "argument is for debug purpose."
 
-#: ../../source/pyodps-pack.rst:275
+#: ../../source/pyodps-pack.rst:304
 msgid "除此之外，还有若干环境变量可供配置："
 msgstr "You can also specify environment variables to control the build."
 
-#: ../../source/pyodps-pack.rst:277
+#: ../../source/pyodps-pack.rst:306
 msgid "``BEFORE_BUILD=\"command before build\"``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:279
+#: ../../source/pyodps-pack.rst:308
 msgid "指定打包前需要执行的命令。"
 msgstr "Specify commands to run before build."
 
-#: ../../source/pyodps-pack.rst:281
+#: ../../source/pyodps-pack.rst:310
 msgid "``AFTER_BUILD=\"command after build\"``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:283
+#: ../../source/pyodps-pack.rst:312
 msgid "指定编译后生成 Tar 包前需要执行的命令。"
 msgstr "Specify commands to run after tar packages are created."
 
-#: ../../source/pyodps-pack.rst:285
+#: ../../source/pyodps-pack.rst:314
 msgid "``DOCKER_IMAGE=\"quay.io/pypa/manylinux2010_x86_64\"``"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:287
+#: ../../source/pyodps-pack.rst:316
 msgid "自定义需要使用的 Docker Image。建议基于 ``pypa/manylinux`` 系列镜像定制自定义打包用 Docker Image。"
 msgstr ""
 "Customize Docker Image to use. It is recommended to build Docker image "
 "based on ``pypa/manylinux`` images."
 
-#: ../../source/pyodps-pack.rst:290
+#: ../../source/pyodps-pack.rst:319
 msgid "使用三方包"
 msgstr "Use third-party libraries"
 
-#: ../../source/pyodps-pack.rst:293
+#: ../../source/pyodps-pack.rst:322
 msgid "上传三方包"
 msgstr "Upload third-party libraries"
 
-#: ../../source/pyodps-pack.rst:294
+#: ../../source/pyodps-pack.rst:323
 msgid ""
 "使用三方包前，请确保你生成的包被上传到 MaxCompute Archive 资源。可以使用下面的代码上传资源。 需要注意的是，你需要将 "
 "packages.tar.gz 替换成你刚生成的包所在的路径和文件名："
@@ -630,7 +692,7 @@ msgstr ""
 "archive type. To upload resources, you may use code below. Note that you "
 "need to change ``packages.tar.gz`` into the path to your package."
 
-#: ../../source/pyodps-pack.rst:297
+#: ../../source/pyodps-pack.rst:326
 msgid ""
 "from odps import ODPS\n"
 "\n"
@@ -640,73 +702,73 @@ msgid ""
 "fileobj=open(\"packages.tar.gz\", \"rb\"))"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:304
+#: ../../source/pyodps-pack.rst:333
 msgid "也可以使用 DataWorks 上传。具体步骤为："
 msgstr "You can also try uploading packages with DataWorks following steps below."
 
-#: ../../source/pyodps-pack.rst:306
+#: ../../source/pyodps-pack.rst:335
 msgid "进入数据开发页面。"
 msgstr "Go to the DataStudio page."
 
-#: ../../source/pyodps-pack.rst:308
+#: ../../source/pyodps-pack.rst:337
 msgid "登录 DataWorks 控制台。"
 msgstr "Log on to the DataWorks console."
 
-#: ../../source/pyodps-pack.rst:309
+#: ../../source/pyodps-pack.rst:338
 msgid "在左侧导航栏，单击工作空间列表。"
 msgstr "In the top navigation bar, click list of regions."
 
-#: ../../source/pyodps-pack.rst:310
+#: ../../source/pyodps-pack.rst:339
 msgid "选择工作空间所在地域后，单击相应工作空间后的进入数据开发。"
 msgstr ""
 "Select the region where your workspace resides, find the workspace, and "
 "then click Data Analytics in the Actions column."
 
-#: ../../source/pyodps-pack.rst:312
+#: ../../source/pyodps-pack.rst:341
 msgid "鼠标悬停至新建图标，单击MaxCompute \\> 资源 \\> Archive"
 msgstr ""
 "On the Data Analytics tab, move the pointer over the Create icon and "
 "choose MaxCompute \\> Resource \\> Python."
 
-#: ../../source/pyodps-pack.rst:314
+#: ../../source/pyodps-pack.rst:343
 msgid "也可以展开业务流程目录下的目标业务流程，右键单击 MaxCompute，选择新建 \\> 资源 \\> Archive"
 msgstr ""
 "Alternatively, you can click the required workflow in the Business Flow "
 "section, right-click MaxCompute, and then choose Create \\> Resource \\> "
 "Python."
 
-#: ../../source/pyodps-pack.rst:316
+#: ../../source/pyodps-pack.rst:345
 msgid "在新建资源对话框中，输入资源名称，并选择目标文件夹。"
 msgstr ""
 "In the Create Resource dialog box, set the Resource Name and Location "
 "parameters."
 
-#: ../../source/pyodps-pack.rst:317
+#: ../../source/pyodps-pack.rst:346
 msgid "单击点击上传，选择相应的文件进行上传。"
 msgstr "Click Upload and select the file that you want to upload."
 
-#: ../../source/pyodps-pack.rst:318
+#: ../../source/pyodps-pack.rst:347
 msgid "单击确定。"
 msgstr "Click Create."
 
-#: ../../source/pyodps-pack.rst:319
+#: ../../source/pyodps-pack.rst:348
 msgid "单击工具栏中的提交图标，提交资源至调度开发服务器端。"
 msgstr ""
 "Click the Submit icon icon in the top toolbar to commit the resource to "
 "the development environment."
 
-#: ../../source/pyodps-pack.rst:321
+#: ../../source/pyodps-pack.rst:350
 msgid "更详细的细节请参考 `这篇文章 <https://help.aliyun.com/document_detail/136928.html>`_ 。"
 msgstr ""
 "More details can be seen in `this article "
 "<https://www.alibabacloud.com/help/en/dataworks/latest/create-a"
 "-maxcompute-resource>`_."
 
-#: ../../source/pyodps-pack.rst:324
+#: ../../source/pyodps-pack.rst:353
 msgid "在 Python UDF 中使用三方包"
 msgstr "Use third-party libraries in Python UDFs"
 
-#: ../../source/pyodps-pack.rst:325
+#: ../../source/pyodps-pack.rst:354
 msgid ""
 "你需要对你的 UDF 进行修改以使用上传的三方包。具体地，你需要在 UDF 类的 ``__init__`` 方法中添加对三方包的引用， "
 "然后再在UDF代码中（例如 evaluate / process 方法）调用三方包。"
@@ -716,21 +778,21 @@ msgstr ""
 " and use these packages in your UDF code, for instance, evaluate or "
 "process methods."
 
-#: ../../source/pyodps-pack.rst:328
+#: ../../source/pyodps-pack.rst:357
 msgid "我们以实现 scipy 中的 psi 函数为例展示如何在 Python UDF 中使用三方包。首先使用下面的命令打包："
 msgstr ""
 "We take psi function in scipy for example to show how to use third-party "
 "libraries in Python UDF. First, pack dependencies use commands below:"
 
-#: ../../source/pyodps-pack.rst:330 ../../source/pyodps-pack.rst:402
+#: ../../source/pyodps-pack.rst:359 ../../source/pyodps-pack.rst:431
 msgid "pyodps-pack -o scipy-bundle.tar.gz scipy"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:334
+#: ../../source/pyodps-pack.rst:363
 msgid "随后编写下面的代码，并保存为 ``test_psi_udf.py``："
 msgstr "Then write code below and store as ``test_psi_udf.py``."
 
-#: ../../source/pyodps-pack.rst:336
+#: ../../source/pyodps-pack.rst:365
 msgid ""
 "import sys\n"
 "from odps.udf import annotate\n"
@@ -764,7 +826,7 @@ msgstr ""
 "\n"
 "        return float(psi(arg0))"
 
-#: ../../source/pyodps-pack.rst:354
+#: ../../source/pyodps-pack.rst:383
 msgid ""
 "对上面的代码做一些解释。``__init__`` 函数中将 ``work/scipy-bundle.tar.gz/packages`` 添加到 "
 "``sys.path``， 因为 MaxCompute 会将所有 UDF 引用的 Archive 资源以资源名称为目录解压到 ``work`` "
@@ -783,7 +845,7 @@ msgstr ""
 " is no packages for use and import statements of these packages outside "
 "method bodies will cause errors."
 
-#: ../../source/pyodps-pack.rst:359
+#: ../../source/pyodps-pack.rst:388
 msgid ""
 "随后需要将 ``test_psi_udf.py`` 上传为 MaxCompute Python 资源，以及将 ``scipy-"
 "bundle.tar.gz`` 上传为 Archive 资源。此后，创建 UDF 名为 "
@@ -794,11 +856,11 @@ msgstr ""
 " create a Python UDF named as ``test_psi_udf``, reference two resource "
 "files and specify class name as ``test_psi_udf.MyPsi``."
 
-#: ../../source/pyodps-pack.rst:362
+#: ../../source/pyodps-pack.rst:391
 msgid "利用 PyODPS 完成上述步骤的代码为"
 msgstr "Code to accomplish above steps with PyODPS is shown below."
 
-#: ../../source/pyodps-pack.rst:364
+#: ../../source/pyodps-pack.rst:393
 msgid ""
 "from odps import ODPS\n"
 "\n"
@@ -818,13 +880,13 @@ msgid ""
 ")"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:379
+#: ../../source/pyodps-pack.rst:408
 msgid "使用 MaxCompute Console 上传的方法为"
 msgstr ""
 "If you want to use MaxCompute Console to accomplish these steps, you may "
 "type commands below."
 
-#: ../../source/pyodps-pack.rst:381
+#: ../../source/pyodps-pack.rst:410
 msgid ""
 "add archive scipy-bundle.tar.gz;\n"
 "add py test_psi_udf.py;\n"
@@ -832,22 +894,22 @@ msgid ""
 ",scipy-bundle.tar.gz;"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:387
+#: ../../source/pyodps-pack.rst:416
 msgid "完成上述步骤后，即可使用 UDF 执行 SQL："
 msgstr "After that, you can call the UDF you just created with SQL."
 
-#: ../../source/pyodps-pack.rst:389
+#: ../../source/pyodps-pack.rst:418
 msgid ""
 "set odps.pypy.enabled=false;\n"
 "set odps.isolation.session.enable=true;\n"
 "select test_psi_udf(sepal_length) from iris;"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:396
+#: ../../source/pyodps-pack.rst:425
 msgid "在 PyODPS DataFrame 中使用三方包"
 msgstr "Use third-party libraries in PyODPS DataFrame"
 
-#: ../../source/pyodps-pack.rst:397
+#: ../../source/pyodps-pack.rst:426
 msgid ""
 "PyODPS DataFrame 支持在 execute / persist 时使用 libraries 参数使用上面的第三方库。 下面以 map"
 " 方法为例，apply / map_reduce 方法的过程类似。"
@@ -857,28 +919,28 @@ msgstr ""
 "persist. We take map method for example, the same procedure can be used "
 "for apply or map_reduce method."
 
-#: ../../source/pyodps-pack.rst:400
+#: ../../source/pyodps-pack.rst:429
 msgid "首先，用下面的命令打包 scipy："
 msgstr "First, create a package for scipy with command below."
 
-#: ../../source/pyodps-pack.rst:406
+#: ../../source/pyodps-pack.rst:435
 msgid "假定我们的表名为 ``test_float_col`` ，内容只包含一列 float 值："
 msgstr ""
 "Assuming that the table is named as ``test_float_col`` and it only "
 "contains one column with float value."
 
-#: ../../source/pyodps-pack.rst:408
+#: ../../source/pyodps-pack.rst:437
 msgid ""
 "   col1\n"
 "0  3.75\n"
 "1  2.51"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:414
+#: ../../source/pyodps-pack.rst:443
 msgid "计算 psi(col1) 的值，可以编写下面的代码："
 msgstr "Write code below to compute value of psi(col1)."
 
-#: ../../source/pyodps-pack.rst:416
+#: ../../source/pyodps-pack.rst:445
 msgid ""
 "from odps import ODPS, options\n"
 "\n"
@@ -918,29 +980,29 @@ msgstr ""
 "df.col1.map(psi).persist(\"result_table\", libraries=[\"scipy-"
 "bundle.tar.gz\"])"
 
-#: ../../source/pyodps-pack.rst:435
+#: ../../source/pyodps-pack.rst:464
 msgid "如果希望在整个代码执行过程中使用相同的三方包，可以设置全局选项："
 msgstr ""
 "If you want to use the same third-party packages, you can configure these"
 " packages as global:"
 
-#: ../../source/pyodps-pack.rst:437
+#: ../../source/pyodps-pack.rst:466
 msgid ""
 "from odps import options\n"
 "options.df.libraries = [\"scipy-bundle.tar.gz\"]"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:442
+#: ../../source/pyodps-pack.rst:471
 msgid "此后即可在 DataFrame 执行时用到相关的三方包。"
 msgstr ""
 "After that, you can use these third-party libraries when DataFrames are "
 "being executed."
 
-#: ../../source/pyodps-pack.rst:445
+#: ../../source/pyodps-pack.rst:474
 msgid "在 DataWorks 中使用三方包"
 msgstr "Use third-party libraries in DataWorks"
 
-#: ../../source/pyodps-pack.rst:446
+#: ../../source/pyodps-pack.rst:475
 msgid ""
 "DataWorks PyODPS 节点预装了若干三方包，同时提供了 ``load_resource_package`` 方法用以引用其他的包， "
 "具体使用方式可参考 :ref:`这里 <dw_3rdparty_lib>`。"
@@ -950,18 +1012,18 @@ msgstr ""
 "packages not preinstalled. Details of usage can be seen :ref:`here "
 "<dw_3rdparty_lib>`."
 
-#: ../../source/pyodps-pack.rst:450
+#: ../../source/pyodps-pack.rst:479
 msgid "手动上传和使用三方包"
 msgstr "Upload and use third-party libraries manually"
 
-#: ../../source/pyodps-pack.rst:453
+#: ../../source/pyodps-pack.rst:482
 msgid "以下内容仅作为维护旧项目或者旧环境的参考，新项目建议直接使用 ``pyodps-pack`` 打包。"
 msgstr ""
 "Documents below is only a reference for maintenance of legacy projects or"
 " projects in legacy environments. For new projects please use ``pyodps-"
 "pack`` straightforwardly."
 
-#: ../../source/pyodps-pack.rst:455
+#: ../../source/pyodps-pack.rst:484
 msgid ""
 "部分旧项目可能使用了之前的方式使用三方包，即手动上传所有依赖的 Wheel 包并在代码中引用，或者使用了不支持二进制包的旧版 MaxCompute"
 " 环境，本章节为这部分场景准备。下面以在 map 中使用 python_dateutil 为例说明使用三方包的步骤。"
@@ -973,27 +1035,27 @@ msgstr ""
 "chapter is written for these scenarios. Take the following python-"
 "dateutil package as an example."
 
-#: ../../source/pyodps-pack.rst:458
-#, fuzzy
+#: ../../source/pyodps-pack.rst:487
 msgid ""
 "首先，我们可以在 Linux bash 中使用 ``pip download`` 命令，下载包以及其依赖到某个路径。 "
 "这里下载后会出现两个包：six-1.10.0-py2.py3-none-any.whl和python_dateutil-2.5.3-py2.py3"
-"-none-any.whl （这里注意需要下载支持linux环境的包）"
+"-none-any.whl （这里注意需要下载支持 Linux 环境的包，建议直接在 Linux 下调用该命令。）"
 msgstr ""
 "First, you can use the pip download command to download the package and "
 "its dependencies to a specific path. Two packages are downloaded: "
 "six-1.10.0-py2.py3-none-any.whl and python_dateutil-2.5.3-py2.py3-none-"
-"any.whl. Note that the packages must support Linux environment."
+"any.whl. Note that the packages must support Linux environment. It is "
+"recommended to call this command under Linux."
 
-#: ../../source/pyodps-pack.rst:462
+#: ../../source/pyodps-pack.rst:491
 msgid "pip download python-dateutil -d /to/path/"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:466
+#: ../../source/pyodps-pack.rst:495
 msgid "然后我们分别把两个文件上传到ODPS资源"
 msgstr "Then upload the files to MaxCompute as resources."
 
-#: ../../source/pyodps-pack.rst:468
+#: ../../source/pyodps-pack.rst:497
 msgid ""
 "# 这里要确保资源名的后缀是正确的文件类型\n"
 "odps.create_resource('six.whl', 'file', file_obj=open('six-1.10.0-py2.py3"
@@ -1007,11 +1069,11 @@ msgstr ""
 ">>> odps.create_resource('python_dateutil.whl', 'file', "
 "file_obj=open('python_dateutil-2.5.3-py2.py3-none-any.whl', 'rb'))"
 
-#: ../../source/pyodps-pack.rst:474
+#: ../../source/pyodps-pack.rst:503
 msgid "现在我们有个DataFrame，只有一个string类型字段。"
 msgstr "Now you have a DataFrame object that only contains a string field."
 
-#: ../../source/pyodps-pack.rst:476
+#: ../../source/pyodps-pack.rst:505
 msgid ""
 ">>> df\n"
 "               datestr\n"
@@ -1019,11 +1081,11 @@ msgid ""
 "1  2015-08-26 14:03:29"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:483
+#: ../../source/pyodps-pack.rst:512
 msgid "全局配置使用到的三方库："
 msgstr "Set the third-party library as global:"
 
-#: ../../source/pyodps-pack.rst:485
+#: ../../source/pyodps-pack.rst:514
 msgid ""
 ">>> from odps import options\n"
 ">>>\n"
@@ -1038,11 +1100,11 @@ msgid ""
 "1     2015"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:499
+#: ../../source/pyodps-pack.rst:528
 msgid "或者，通过立即运行方法的 ``libraries`` 参数指定："
 msgstr "Or use the ``libraries`` attribute of an action to specify the package:"
 
-#: ../../source/pyodps-pack.rst:502
+#: ../../source/pyodps-pack.rst:531
 msgid ""
 ">>> def get_year(t):\n"
 ">>>     from dateutil.parser import parse\n"
@@ -1055,7 +1117,7 @@ msgid ""
 "1     2015"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:513
+#: ../../source/pyodps-pack.rst:542
 msgid ""
 "PyODPS 默认支持执行纯 Python 且不含文件操作的第三方库。在较新版本的 MaxCompute 服务下，PyODPS "
 "也支持执行带有二进制代码或带有文件操作的 Python 库。这些库名必须拥有一定的后缀，可根据下表判断"
@@ -1066,64 +1128,64 @@ msgstr ""
 "operations. These libraries must be suffixed with certain strings, which "
 "can be looked up in the table below."
 
-#: ../../source/pyodps-pack.rst:517
+#: ../../source/pyodps-pack.rst:546
 msgid "平台"
 msgstr "Platform"
 
-#: ../../source/pyodps-pack.rst:517
+#: ../../source/pyodps-pack.rst:546
 msgid "Python 版本"
 msgstr "Python version"
 
-#: ../../source/pyodps-pack.rst:517
+#: ../../source/pyodps-pack.rst:546
 msgid "可用的后缀"
 msgstr "Suffixes available"
 
-#: ../../source/pyodps-pack.rst:519 ../../source/pyodps-pack.rst:520
+#: ../../source/pyodps-pack.rst:548 ../../source/pyodps-pack.rst:549
 msgid "RHEL 5 x86\\_64"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:519 ../../source/pyodps-pack.rst:521
+#: ../../source/pyodps-pack.rst:548 ../../source/pyodps-pack.rst:550
 msgid "Python 2.7"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:519
+#: ../../source/pyodps-pack.rst:548
 msgid "cp27-cp27m-manylinux1_x86_64"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:520 ../../source/pyodps-pack.rst:522
-#: ../../source/pyodps-pack.rst:523
+#: ../../source/pyodps-pack.rst:549 ../../source/pyodps-pack.rst:551
+#: ../../source/pyodps-pack.rst:552
 msgid "Python 3.7"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:520
+#: ../../source/pyodps-pack.rst:549
 msgid "cp37-cp37m-manylinux1_x86_64"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:521 ../../source/pyodps-pack.rst:522
+#: ../../source/pyodps-pack.rst:550 ../../source/pyodps-pack.rst:551
 msgid "RHEL 7 x86\\_64"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:521
+#: ../../source/pyodps-pack.rst:550
 msgid ""
 "cp27-cp27m-manylinux1_x86_64, cp27-cp27m-manylinux2010_x86_64, cp27"
 "-cp27m-manylinux2014_x86_64"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:522
+#: ../../source/pyodps-pack.rst:551
 msgid ""
 "cp37-cp37m-manylinux1_x86_64, cp37-cp37m-manylinux2010_x86_64, cp37"
 "-cp37m-manylinux2014_x86_64"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:523
+#: ../../source/pyodps-pack.rst:552
 msgid "RHEL 7 Arm64"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:523
+#: ../../source/pyodps-pack.rst:552
 msgid "cp37-cp37m-manylinux2014_aarch64"
 msgstr ""
 
-#: ../../source/pyodps-pack.rst:526
+#: ../../source/pyodps-pack.rst:555
 msgid ""
 "所有的 whl 包都需要以 archive 格式上传，whl 后缀的包需要重命名为 zip。同时，作业需要开启 "
 "``odps.isolation.session.enable`` 选项，或者在 Project 级别开启 "
@@ -1135,7 +1197,7 @@ msgstr ""
 "project. The following example demonstrates how to upload and use the "
 "special functions in scipy:"
 
-#: ../../source/pyodps-pack.rst:530
+#: ../../source/pyodps-pack.rst:559
 msgid ""
 "# 对于含有二进制代码的包，必须使用 Archive 方式上传资源，whl 后缀需要改为 zip\n"
 "odps.create_resource('scipy.zip', 'archive', "
@@ -1171,7 +1233,7 @@ msgstr ""
 ">>>\n"
 ">>> df.float_col.map(psi).execute(libraries=['scipy.zip'])"
 
-#: ../../source/pyodps-pack.rst:546
+#: ../../source/pyodps-pack.rst:575
 msgid ""
 "对于只提供源码的二进制包，可以在 Linux Shell 中打包成 Wheel 再上传，Mac 和 Windows 中生成的 Wheel 包无法在"
 " MaxCompute 中使用："
@@ -1180,7 +1242,7 @@ msgstr ""
 "into .whl files and uploaded through Linux shell. .whl files generated in"
 " Mac and Windows are not usable in MaxCompute:"
 
-#: ../../source/pyodps-pack.rst:549
+#: ../../source/pyodps-pack.rst:578
 msgid "python setup.py bdist_wheel"
 msgstr ""
 

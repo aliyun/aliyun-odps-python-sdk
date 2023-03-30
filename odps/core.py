@@ -130,6 +130,8 @@ class ODPS(object):
             or options.logview_host
         )
 
+        self._default_tenant = models.Tenant(client=self.rest)
+
         self._projects = models.Projects(client=self.rest)
         if project:
             self._project = self.get_project()
@@ -221,6 +223,21 @@ class ODPS(object):
                    account=account, **kwargs)
 
     @property
+    def default_tenant(self):
+        return self._default_tenant
+
+    def is_schema_namespace_enabled(self, settings=None):
+        settings = settings or {}
+        setting = (
+            settings.get("odps.namespace.schema")
+            or (options.sql.settings or {}).get("odps.namespace.schema")
+            or ("true" if options.always_enable_schema else None)
+            or self.default_tenant.get_parameter("odps.namespace.schema")
+            or "false"
+        )
+        return setting.lower() == "true"
+
+    @property
     def projects(self):
         return self._projects
 
@@ -229,7 +246,8 @@ class ODPS(object):
         """
         Get or set default schema name of the ODPS object
         """
-        return self._schema
+        default_schema = "default" if self.is_schema_namespace_enabled() else None
+        return self._schema or default_schema
 
     @schema.setter
     def schema(self, value):
@@ -250,7 +268,10 @@ class ODPS(object):
         for cb in self._property_update_callbacks:
             cb(self)
 
-    def list_projects(self, owner=None, user=None, group=None, prefix=None, max_items=None):
+    def list_projects(
+        self, owner=None, user=None, group=None, prefix=None, max_items=None,
+        region_id=None, tenant_id=None
+    ):
         """
         List projects.
 
@@ -262,7 +283,10 @@ class ODPS(object):
         :return: projects in this endpoint.
         :rtype: generator
         """
-        return self.projects.iterate(owner=owner, user=user, group=group, max_items=max_items, name=prefix)
+        return self.projects.iterate(
+            owner=owner, user=user, group=group, max_items=max_items, name=prefix,
+            region_id=region_id, tenant_id=tenant_id
+        )
 
     @property
     def logview_host(self):
@@ -289,7 +313,8 @@ class ODPS(object):
         proj = self._projects[name]
         proj._tunnel_endpoint = self._tunnel_endpoint
         proj._logview_host = self._logview_host
-        proj._default_schema = default_schema or self.schema
+        # use _schema to avoid requesting for tenant options
+        proj._default_schema = default_schema or self._schema
 
         proj_ref = weakref.ref(proj)
 
@@ -377,19 +402,24 @@ class ODPS(object):
         return project.schemas.delete(name, async_=async_)
 
     def _get_project_or_schema(self, project=None, schema=None):
+        if self.is_schema_namespace_enabled():
+            schema = schema or "default"
         if schema is not None:
             return self.get_schema(schema, project=project)
         else:
             return self.get_project(project)
 
-    @staticmethod
-    def _split_object_dots(name):
+    def _split_object_dots(self, name):
         parts = [x.strip() for x in name.split('.')]
         if len(parts) == 1:
             project, schema, name = None, None, parts[0]
         elif len(parts) == 2:
-            project, name = parts
-            schema = None
+            if self.is_schema_namespace_enabled():
+                schema, name = parts
+                project = None
+            else:
+                project, name = parts
+                schema = None
         else:
             project, schema, name = parts
         if name.startswith("`") and name.endswith("`"):
@@ -863,10 +893,9 @@ class ODPS(object):
         """
         If the function with given name exists or not.
 
-        :param name: function name
-        :param project: project name, if not provided, will be the default project
-        :param schema: schema name, if not provided, will be the default schema
-        :type schema: str
+        :param str name: function name
+        :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: True if the function exists or False
         :rtype: bool
         """
@@ -880,12 +909,9 @@ class ODPS(object):
 
         :param name: function name
         :param project: project name, if not provided, will be the default project
-        :param schema: schema name, if not provided, will be the default schema
-        :type schema: str
-        :param class_type: main class
-        :type class_type: str
-        :param resources: the resources that function needs to use
-        :type resources: list
+        :param str schema: schema name, if not provided, will be the default schema
+        :param str class_type: main class
+        :param list resources: the resources that function needs to use
         :return: the created function
         :rtype: :class:`odps.models.Function`
 
@@ -1148,6 +1174,7 @@ class ODPS(object):
         :param table: name of the table to optimize
         :param partition: partition to optimize
         :param project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :param hints: settings for merge task.
         :param priority: instance priority, 9 as default
         :return: instance
@@ -1166,6 +1193,7 @@ class ODPS(object):
         :param table: name of the table to optimize
         :param partition: partition to optimize
         :param project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :param hints: settings for merge task.
         :param priority: instance priority, 9 as default
         :return: instance
@@ -1173,8 +1201,17 @@ class ODPS(object):
         """
         from .models.tasks import MergeTask
 
+        schema = schema or self.schema
+        if not isinstance(table, six.string_types):
+            if table.get_schema():
+                schema = table.get_schema().name
+            table_name = table.full_table_name
+        else:
+            table_name = table
+            _, schema, _ = self._split_object_dots(table)
+
         if partition:
-            table += " partition(%s)" % (self._parse_partition_string(partition))
+            table_name += " partition(%s)" % (self._parse_partition_string(partition))
 
         priority = priority or options.priority
         if priority is None and options.get_priority is not None:
@@ -1183,8 +1220,14 @@ class ODPS(object):
         hints = hints or dict()
         if options.default_task_settings:
             hints.update(options.default_task_settings)
+        if schema is not None:
+            hints.update({
+                "odps.sql.allow.namespace.schema": "true",
+                "odps.namespace.schema": "true",
+                "odps.default.schema": schema,
+            })
 
-        task = MergeTask(table=table)
+        task = MergeTask(table=table_name.replace("`", ""))
         task.update_settings(hints)
 
         project = self.get_project(name=project)
@@ -2243,7 +2286,8 @@ class ODPS(object):
         options.is_global_account_overwritable = overwritable
         options.account = self.account
         options.default_project = self.project
-        options.default_schema = self.schema
+        # use _schema to avoid requesting for tenant options
+        options.default_schema = self._schema
         options.endpoint = self.endpoint
         options.logview_host = self.logview_host
         options.tunnel.endpoint = self._tunnel_endpoint

@@ -46,18 +46,23 @@ class Projects(Container):
     def __iter__(self):
         return self.iterate()
 
-    def iterate(self, owner=None, user=None, group=None, max_items=None, name=None):
-        params = {'expectmarker': 'true'}
-        if name is not None:
-            params['name'] = name
-        if owner is not None:
-            params['owner'] = owner
-        if user is not None:
-            params['user'] = user
-        if group is not None:
-            params['group'] = group
-        if max_items is not None:
-            params['maxitems'] = max_items
+    def iterate(
+        self, owner=None, user=None, group=None, max_items=None, name=None,
+        region_id=None, tenant_id=None
+    ):
+        params = {
+            'expectmarker': 'true',
+            'name': name,
+            'owner': owner,
+            'user': user,
+            'group': group,
+            'maxitems': max_items,
+            'region': region_id,
+            'tenant': tenant_id,
+        }
+        params = dict(
+            (k, v) for k, v in params.items() if v is not None
+        )
 
         def _it():
             last_marker = params.get('marker')

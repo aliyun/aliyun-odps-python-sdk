@@ -116,6 +116,7 @@ def get_config():
 
         _load_config_odps(config, "odps_daily", overwrite_global=False)
         _load_config_odps(config, "odps_with_schema", overwrite_global=False)
+        _load_config_odps(config, "odps_with_schema_tenant", overwrite_global=False)
         # make sure main config overrides other configs
         _load_config_odps(config, "odps")
         config.tunnel = TableTunnel(config.odps, endpoint=config.odps._tunnel_endpoint)
@@ -133,9 +134,15 @@ def get_config():
             oss_bucket_name = config.get("oss", "bucket_name")
             oss_endpoint = config.get("oss", "endpoint")
 
-            config.oss = (oss_access_id, oss_secret_access_key,
-                          oss_bucket_name, oss_endpoint)
-        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+            config.oss_config = (
+                oss_access_id, oss_secret_access_key, oss_bucket_name, oss_endpoint
+            )
+
+            import oss2
+
+            auth = oss2.Auth(oss_access_id, oss_secret_access_key)
+            config.oss_bucket = oss2.Bucket(auth, oss_endpoint, oss_bucket_name)
+        except (ConfigParser.NoSectionError, ConfigParser.NoOptionError, ImportError):
             pass
 
         logging_level = config.get('test', 'logging_level')
@@ -340,6 +347,10 @@ class TestBase(_TestBase):
             pass
         try:
             self.odps_with_schema = self.config.odps_with_schema  # type: ODPS
+        except AttributeError:
+            pass
+        try:
+            self.odps_with_schema_tenant = self.config.odps_with_schema_tenant  # type: ODPS
         except AttributeError:
             pass
         self.tunnel = self.config.tunnel

@@ -15,11 +15,13 @@
 # limitations under the License.
 
 import json
+import warnings
 
-from .cache import cache
-from .core import Iterable, LazyLoad
 from .. import serializers, errors, utils
 from ..compat import six, Enum
+from ..errors import InternalServerError
+from .cache import cache
+from .core import Iterable, LazyLoad
 
 
 class Volume(LazyLoad):
@@ -63,9 +65,12 @@ class Volume(LazyLoad):
         if typo == Volume.Type.OLD:
             from . import PartedVolume
             return PartedVolume
-        elif typo in (Volume.Type.NEW, Volume.Type.EXTERNAL):
+        elif typo == Volume.Type.NEW:
             from . import FSVolume
             return FSVolume
+        elif typo == Volume.Type.EXTERNAL:
+            from . import ExternalVolume
+            return ExternalVolume
         elif typo == Volume.Type.UNKNOWN:
             return Volume
 
@@ -81,8 +86,14 @@ class Volume(LazyLoad):
 
         kwargs['type'] = Volume.Type.UNKNOWN
         obj = Volume(**kwargs)
-        obj.reload()
-        return Volume(**obj.extract())
+        try:
+            obj.reload()
+            return Volume(**obj.extract())
+        except InternalServerError as ex:
+            warnings.warn(
+                "Cannot reload volume %s due to error %s" % (obj.name, str(ex))
+            )
+            return obj
 
     def __init__(self, **kwargs):
         typo = kwargs.get('type')

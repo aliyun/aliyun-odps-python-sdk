@@ -314,8 +314,8 @@ class BearerTokenAccount(BaseAccount):
 
     @staticmethod
     def get_bearer_token():
-        if "PYODPS_BEARER_TOKEN_FILE" in os.environ:
-            with open(os.environ["PYODPS_BEARER_TOKEN_FILE"], "r") as token_file:
+        if "ODPS_BEARER_TOKEN_FILE" in os.environ:
+            with open(os.environ["ODPS_BEARER_TOKEN_FILE"], "r") as token_file:
                 return token_file.read().strip()
 
         from cupid.runtime import context, RuntimeContext

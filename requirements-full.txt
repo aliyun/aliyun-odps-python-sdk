@@ -4,3 +4,4 @@ numpy>=1.6.0
 pandas>=0.17.0
 matplotlib>=1.4
 pytz>=2017.2
+pyyaml>=3.13

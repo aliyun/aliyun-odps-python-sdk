@@ -29,10 +29,11 @@ except (AttributeError, ImportError):
 import mock
 import pytest
 
-from odps.tests.core import TestBase, to_str, tn
-from odps.compat import unittest, six
+from odps.compat import unittest, six, OrderedDict
+from odps.config import options
 from odps.errors import NoSuchObject
 from odps.models import TableSchema, Record, Column, Partition
+from odps.tests.core import TestBase, to_str, tn, pandas_case
 
 
 class Test(TestBase):
@@ -466,7 +467,7 @@ class Test(TestBase):
         except ValueError as ex:
             self.assertEqual(str(ex), 'Mock error')
 
-    @unittest.skipIf(pd is None, "Need pandas to run this test")
+    @pandas_case
     def testMultiProcessToPandas(self):
         from odps.tunnel.tabletunnel import TableDownloadSession
 
@@ -501,7 +502,7 @@ class Test(TestBase):
             pd_data = reader.to_pandas(n_process=2)
             assert len(pd_data) == 1000
 
-    @unittest.skipIf(pd is None, "Need pandas to run this test")
+    @pandas_case
     def testColumnSelectToPandas(self):
         test_table_name = tn('pyodps_t_tmp_col_select_table')
         schema = TableSchema.from_lists(['num1', 'num2'], ['bigint', 'bigint'])
@@ -524,6 +525,61 @@ class Test(TestBase):
             pd_data = reader.to_pandas()
             assert len(pd_data) == 1000
             assert len(pd_data.columns) == 1
+
+    @pandas_case
+    def testComplexTypeToPandas(self):
+        test_table_name = tn("pyodps_t_tmp_complex_type_to_pd")
+        schema = TableSchema.from_lists(
+            ['cp1', 'cp2', 'cp3'], [
+                'array<string>', 'map<string,bigint>', 'struct<a: string, b: bigint>'
+            ]
+        )
+
+        self.odps.delete_table(test_table_name, if_exists=True)
+
+        table = self.odps.create_table(test_table_name, schema)
+        row = [
+            ["abc", "def"],
+            OrderedDict([("uvw", 1), ("xyz", 2)]),
+            OrderedDict([("a", "data"), ("b", 1)]),
+        ]
+        with table.open_writer() as writer:
+            writer.write([row])
+
+        with table.open_reader() as reader:
+            pd_data = reader.to_pandas()
+            assert pd_data.iloc[0].to_list() == row
+
+        with table.open_reader(arrow=True) as reader:
+            pd_data = reader.to_pandas()
+            assert [
+                pd_data.iloc[0, 0].tolist(),
+                OrderedDict(pd_data.iloc[0, 1]),
+                OrderedDict(pd_data.iloc[0, 2]),
+            ] == row
+
+    @pandas_case
+    def testRecordToPandasBatches(self):
+        test_table_name = tn('pyodps_t_read_in_batches')
+        self.odps.delete_table(test_table_name, if_exists=True)
+        rec_count = 37
+
+        data = [[idx, "str_" + str(idx)] for idx in range(rec_count)]
+
+        table = self.odps.create_table(test_table_name, "col1 bigint, col2 string")
+        with table.open_writer() as writer:
+            writer.write(data)
+
+        try:
+            options.tunnel.read_row_batch_size = 5
+            options.tunnel.batch_merge_threshold = 5
+            with table.open_reader() as reader:
+                pd_result = reader.to_pandas()
+
+            assert len(pd_result) == rec_count
+        finally:
+            options.tunnel.read_row_batch_size = 1024
+            options.tunnel.batch_merge_threshold = 128
 
     @unittest.skipIf(pa is None, "Need pyarrow to run this test")
     def testSimpleArrowReadWriteTable(self):

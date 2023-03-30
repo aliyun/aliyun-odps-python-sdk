@@ -65,6 +65,7 @@ class Project(LazyLoad):
         "_tunnel_endpoint",
         "_all_props_loaded",
         "_extended_props_loaded",
+        "_odps",
     )
 
     class Cluster(XMLRemoteModel):
@@ -157,11 +158,14 @@ class Project(LazyLoad):
     )
     state = serializers.XMLNodeField('State')
     clusters = serializers.XMLNodesReferencesField(Cluster, 'Clusters', 'Cluster')
+    region_id = serializers.XMLNodeField('Region')
+    tenant_id = serializers.XMLNodeField('TenantId')
 
     def __init__(self, *args, **kwargs):
         self._tunnel_endpoint = None
         self._policy_cache = None
         self._all_props_loaded = False
+        self._odps = None
         super(Project, self).__init__(*args, **kwargs)
 
     def reload(self, all_props=False):
@@ -181,11 +185,10 @@ class Project(LazyLoad):
 
         self._loaded = True
         self._all_props_loaded = all_props
-        self._extended_props_loaded = False
 
     @property
     def extended_properties(self):
-        if self._extended_props_loaded:
+        if self._getattr("_extended_props_loaded"):
             return self._getattr("_extended_properties")
 
         url = self.resource()
@@ -202,8 +205,12 @@ class Project(LazyLoad):
         return Schemas(client=self._client, parent=self)
 
     def _get_collection_with_schema(self, iter_cls):
+        schema = self._default_schema
+        if self.odps.is_schema_namespace_enabled():
+            schema = schema or "default"
+
         if self._default_schema is not None:
-            parent = self.schemas[self._default_schema]
+            parent = self.schemas[schema]
         else:
             parent = self
         return iter_cls(client=self._client, parent=parent)
@@ -262,9 +269,12 @@ class Project(LazyLoad):
     def odps(self):
         from ..core import ODPS
 
+        if self._getattr("_odps") is not None:
+            return self._odps
+
         client = self._client
 
-        return ODPS._from_account(
+        self._odps = ODPS._from_account(
             client.account,
             client.project,
             endpoint=client.endpoint,
@@ -273,14 +283,15 @@ class Project(LazyLoad):
             logview_host=self._logview_host,
             app_account=getattr(client, 'app_account', None),
         )
+        return self._odps
 
     @property
     def policy(self):
-        if self._policy_cache is None:
+        if self._getattr("_policy_cache") is None:
             params = dict(policy='')
             resp = self._client.get(self.resource(), params=params)
             self._policy_cache = resp.content.decode() if six.PY3 else resp.content
-        if self._policy_cache:
+        if self._getattr("_policy_cache"):
             return json.loads(self._policy_cache)
         else:
             return None
@@ -314,9 +325,10 @@ class Project(LazyLoad):
         if token:
             headers['odps-x-supervision-token'] = token
 
-        if schema is not None:
+        if schema is not None or self.odps.is_schema_namespace_enabled():
             hints = hints or {}
-            hints["odps.default.schema"] = hints.get("odps.default.schema") or schema
+            hints["odps.namespace.schema"] = "true"
+            hints["odps.default.schema"] = hints.get("odps.default.schema") or schema or "default"
 
         req_obj = self.AuthQueryRequest(
             query=query, use_json=True, settings=json.dumps(hints) if hints else None
@@ -348,7 +360,7 @@ class Project(LazyLoad):
         return resp.result
 
     def get_property(self, item, default=_notset):
-        if not self._all_props_loaded:
+        if not self._getattr("_all_props_loaded"):
             self.reload(all_props=True)
         if item in self.properties:
             return self.properties[item]

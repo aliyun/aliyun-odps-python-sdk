@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import itertools
+import operator
 
 try:
     import pandas as pd
@@ -191,29 +193,63 @@ class ResultFrame(six.Iterator):
             except IndexError:
                 return
 
-    def concat(self, frame, axis=0):
+    def concat(self, *frames, **kwargs):
+        if len(frames) == 2 and isinstance(frames[1], int):
+            frames, axis = frames[:1], frames[1]
+        else:
+            axis = kwargs.pop("axis", 0)
+        if kwargs:
+            raise TypeError("Cannot accept arguments %s" % ",".join(kwargs))
+
+        if len(frames) == 0:
+            return self
+
         if self._pandas:
             try:
                 from pandas import concat
             except ImportError:
                 from pandas.tools.merge import concat
 
-            return ResultFrame(concat((self._values, frame._values), axis=axis), pandas=True)
+            values = (self._values,) + tuple(frame._values for frame in frames)
+            pd_data = concat(values, axis=axis)
+            if axis == 0:
+                columns = self._columns
+            else:
+                columns = functools.reduce(
+                    operator.add,
+                    (self._columns,) + tuple(frame._columns for frame in frames),
+                    )
+            return ResultFrame(pd_data, columns=columns, pandas=True)
         else:
             if axis == 0:
-                if self._columns != frame._columns:
+                if any(self._columns != frame._columns for frame in frames):
                     raise ValueError(
                         'Cannot concat two frame of different columns')
 
-                return ResultFrame(self._values + frame._values, columns=self._columns,
-                                   index=self._index + frame._index, pandas=self._pandas)
+                values = functools.reduce(
+                    operator.add,
+                    (self._values,) + tuple(frame._values for frame in frames),
+                )
+                indices = functools.reduce(
+                    operator.add,
+                    (self._index,) + tuple(frame._index for frame in frames),
+                )
+                return ResultFrame(values, columns=self._columns,
+                                   index=indices, pandas=self._pandas)
             else:
-                if self._index != frame._index:
+                if any(self._index != frame._index for frame in frames):
                     raise ValueError(
                         'Cannot concat two frames of different indexes')
 
-                values = [val+other for val, other in zip(self._values, frame._values)]
-                return ResultFrame(values, self._columns + frame._columns,
+                sub_tuple = (self._values,) + tuple(frame._values for frame in frames)
+                values = [
+                    functools.reduce(operator.add, vals) for vals in zip(*sub_tuple)
+                ]
+                columns = functools.reduce(
+                    operator.add,
+                    (self._columns,) + tuple(frame._columns for frame in frames),
+                )
+                return ResultFrame(values, columns,
                                    index=self._index, pandas=self._pandas)
 
     @property

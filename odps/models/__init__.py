@@ -25,9 +25,11 @@ from .functions import Functions
 from .function import Function
 from .resources import Resources
 from .resource import *
+from .tenant import Tenant
 from .volumes import *
 from .volume_parted import PartedVolume, VolumePartition
-from .volume_fs import FSVolume, VolumeFSDir, VolumeFSFile
+from .volume_fs import FSVolume, FSVolumeDir, FSVolumeFile
+from .volume_ext import ExternalVolume, ExternalVolumeDir, ExternalVolumeFile
 from .xflows import XFlows
 from .xflow import XFlow
 from .tasks import *
@@ -57,3 +59,7 @@ else:
 
 Column = TableSchema.TableColumn
 Partition = TableSchema.TablePartition
+
+# keep renames compatible
+VolumeFSDir = FSVolumeDir
+VolumeFSFile = FSVolumeFile

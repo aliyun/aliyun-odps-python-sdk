@@ -48,6 +48,8 @@ class SchemaDescription(JSONRemoteModel):
 
 
 class Schema(LazyLoad):
+    default_schema_name = "DEFAULT"
+
     name = serializers.XMLNodeField('Name')
     owner = serializers.XMLNodeField('Owner')
     description = serializers.XMLNodeField('Description')

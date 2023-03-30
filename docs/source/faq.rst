@@ -103,3 +103,17 @@ PyODPS DataFrame 不支持遍历每行数据。这样设计的原因是由于 Py
 具体可参见 `这篇文章 <https://yq.aliyun.com/articles/138752>`_ 。如果确认你的场景必须要使用数据遍历，
 而且遍历的代价可以接受，可以使用 ``to_pandas`` 方法将 DataFrame 转换为 Pandas DataFrame，或者将 DataFrame
 存储为表后使用 ``read_table`` 或者 Tunnel 读取数据。
+
+.. rubric:: 为何调用 to_pandas 后内存使用显著大于表的大小？
+    :name: to_pandas_large
+
+有两个原因可能导致这个现象发生。首先，MaxCompute 在存储数据时会对数据进行压缩，你看到的表大小应当是压缩后的大小。
+其次，Python 中的值存在额外的存储开销。例如，对于字符串类型而言，每个 Python 字符串都会额外占用近 40 字节空间，
+即便该字符串为空串，这可以通过调用 ``sys.getsizeof("")`` 发现。
+
+需要注意的是，使用 Pandas 的 ``info`` 或者 ``memory_usage`` 方法获得的 Pandas DataFrame
+内存使用可能是不准确的，因为这些方法默认不计算 string 或者其他 object 类型对象的实际内存占用。使用
+``df.memory_usage(deep=True).sum()`` 获得的大小更接近实际内存使用，具体可参考
+`这篇 Pandas 文档 <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.memory_usage.html>`_ 。
+
+为减小读取数据时的内存开销，可以考虑使用 Arrow 格式，具体可以参考 :ref:`这里 <table_arrow_io>`。

@@ -5,16 +5,20 @@
 
 制作三方包
 --------
-PyODPS 提供了 ``pyodps-pack`` 命令行工具，用于制作符合 PyODPS 及 DataWorks PyODPS 节点标准的三方包，使用方法类似
-``pip`` 命令。你可以使用该工具将所有依赖项目制作成一个 ``.tar.gz`` 压缩包，其中包含所有依照 MaxCompute / DataWorks
-环境编译并打包的项目依赖。如果你的项目有自行创建的 Python 包，也可以使用该工具进行打包。
+PyODPS 自 0.11.3 起提供了 ``pyodps-pack`` 命令行工具，用于制作符合 PyODPS 及 DataWorks PyODPS
+节点标准的三方包，使用方法类似 ``pip`` 命令。你可以使用该工具将所有依赖项目制作成一个 ``.tar.gz``
+压缩包，其中包含所有依照 MaxCompute / DataWorks 环境编译并打包的项目依赖。如果你的项目有自行创建的 Python
+包，也可以使用该工具进行打包。
 
 准备工作
 ~~~~~~
-你需要安装 Docker 以顺利运行 ``pyodps-pack``。对于 Linux 环境，可以参考 `Docker 官方文档 <https://docs.docker.com/engine/install/>`_
-安装 Docker。对于 MacOS / Windows，个人开发者可以使用 `Docker Desktop <https://www.docker.com/products/docker-desktop/>`_ 。
-对于没有购买过授权的企业用户，推荐使用开源的 `Rancher Desktop <https://rancherdesktop.io/>`_ 。我们没有在包括 ``minikube``
-在内的其他 Docker 环境中测试 ``pyodps-pack`` ，不保证在这些环境中的可用性。
+Docker 模式
+^^^^^^^^^^^
+你需要安装 Docker 以顺利在 Docker 下运行 ``pyodps-pack``。对于 Linux 环境，可以参考 `Docker 官方文档
+<https://docs.docker.com/engine/install/>`_ 安装 Docker。对于 MacOS / Windows，个人开发者可以使用
+`Docker Desktop <https://www.docker.com/products/docker-desktop/>`_ 。对于没有购买过授权的企业用户，推荐使用开源的
+`Rancher Desktop <https://rancherdesktop.io/>`_ 。我们没有在包括 ``minikube`` 在内的其他 Docker 环境中测试
+``pyodps-pack`` ，不保证在这些环境中的可用性。
 
 对于期望在版本较老的专有云中的 MaxCompute / DataWorks 使用 ``--legacy-image`` 选项打包的用户，在 Windows / MacOS
 或者部分内核的 Linux 系统中可能出现无法打包的错误，请参考
@@ -23,7 +27,8 @@ PyODPS 提供了 ``pyodps-pack`` 命令行工具，用于制作符合 PyODPS 及
 
 对于 Windows 用户，可能你的 Docker 服务需要依赖 Windows 系统的 Server 服务才能启动，而 Server 服务由于安全问题在很多企业被禁止启动。
 在遇到问题时，请改用 Linux 打包或者设法启用 Server 服务。Rancher Desktop 在 Windows 10 下可能无法使用 ``containerd``
-作为容器引擎，可以尝试改用 ``dockerd`` 。
+作为容器引擎，可以尝试改用 ``dockerd`` ，具体参考 `该文档 <https://docs.rancherdesktop.io/ui/preferences/container-engine>`_
+进行配置。
 
 如果你的 MaxCompute / DataWorks 基于 Arm64 机型部署，你需要额外增加 ``--arch aarch64`` 参数指定打包需要的架构。通常
 Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfmt`` 相关组件，你也可以使用命令
@@ -33,6 +38,16 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
     docker run --privileged --rm tonistiigi/binfmt --install arm64
 
 安装相关的虚拟环境。该命令要求 Linux Kernel 版本高于 4.8，具体可以参考 `该页面 <https://github.com/tonistiigi/binfmt>`_。
+
+无 Docker 模式
+^^^^^^^^^^^^^
+.. note::
+
+    我们建议在打包时，尽量使用 Docker 模式。非 Docker 模式仅用于 Docker 不可用的场景，且生成的包有可能不可用。
+
+如果你安装 Docker 遇到困难，你可以尝试使用非 Docker 模式。使用方式为新增一个 ``--without-docker`` 参数。该模式需要你的 Python
+环境中已经安装 pip。如果使用该模式出现错误，请改用 Docker 模式。Windows 用户需要安装 Git bash 以使用该模式，Git bash
+包含在 `Git for Windows <https://gitforwindows.org>`_ 中。
 
 打包所有依赖
 ~~~~~~~~~
@@ -48,6 +63,12 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 .. code-block:: bash
 
     pyodps-pack pandas
+
+使用非 Docker 模式打包，可以用
+
+.. code-block:: bash
+
+    pyodps-pack --without-docker pandas
 
 需要指定版本时，可以使用
 
@@ -268,6 +289,14 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
   指定在执行 Docker 命令时需要额外附加的参数。如有多个参数需用引号包裹，例如 ``--docker-args "--ip 192.168.1.10"``。
 
+- ``--without-docker``
+
+  使用无 Docker 模式运行 ``pyodps-pack``。当依赖中存在二进制依赖，可能报错或导致包不可用。
+
+- ``--without-merge``
+
+  下载或生成 Wheel 包后不生成 ``.tar.gz`` 包而是保留 ``.whl`` 文件。
+
 - ``--debug``
 
   指定后，将输出命令运行的详细信息，用于排查问题。
@@ -457,7 +486,7 @@ DataWorks PyODPS 节点预装了若干三方包，同时提供了 ``load_resourc
 
 首先，我们可以在 Linux bash 中使用 ``pip download`` 命令，下载包以及其依赖到某个路径。
 这里下载后会出现两个包：six-1.10.0-py2.py3-none-any.whl和python_dateutil-2.5.3-py2.py3-none-any.whl
-（这里注意需要下载支持linux环境的包）
+（这里注意需要下载支持 Linux 环境的包，建议直接在 Linux 下调用该命令。）
 
 .. code-block:: shell
 

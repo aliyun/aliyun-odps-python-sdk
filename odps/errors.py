@@ -316,6 +316,16 @@ class SecurityQueryError(ODPSError):
     pass
 
 
+class OSSSignUrlError(ODPSError):
+    def __init__(self, err):
+        if isinstance(err, six.string_types):
+            super(OSSSignUrlError, self).__init__(err)
+            self.oss_exception = None
+        else:
+            super(OSSSignUrlError, self).__init__(str(err))
+            self.oss_exception = err
+
+
 class SQAError(ODPSError):
     pass
 
