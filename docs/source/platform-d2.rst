@@ -122,7 +122,7 @@ DataFrame
 
 关于如何使用调度参数的详细例子可以参考 `DataWorks 文档 <https://help.aliyun.com/document_detail/417492.htm>`_ 。
 
-.. Note::
+.. note::
     args 变量在 PyODPS 节点执行前已经提前赋值，请不要手动设置该变量，这将导致调度参数被改写。
 
     SQL 节点中可用的 ${param_name} 写法不能在 PyODPS 节点中使用，
@@ -131,7 +131,7 @@ DataFrame
 .. _dw_3rdparty_lib:
 
 使用三方包
-========
+==========
 DataWorks 节点预装了下面的三方包，版本列表如下：
 
 ==================== ================== ==================
@@ -177,7 +177,13 @@ DataWorks 限制下载的包总大小为 100MB。如果你需要跳过预装包�
     pyodps-pack -o bundle.tar.gz --exclude numpy --exclude pandas <your_package>
 
 使用其他账号
-==========
+============
+
+.. note::
+
+    ``as_account`` 方法从 PyODPS 0.11.3 开始支持。如果你的 DataWorks 未部署该版本，则无法使用该方法。
+    如果你使用的是独享资源组，可以考虑升级资源组中的 PyODPS 版本，具体可见 `该文档 <https://help.aliyun.com/document_detail/144824.htm>`_ 。
+
 在某些情形下你可能希望使用其他账号（而非平台提供的账号）访问 MaxCompute。此时，可以使用 ODPS 入口对象的 ``as_account``
 方法创建一个使用新账号的入口对象，该对象与系统默认提供的 ``o`` 实例彼此独立。例如：
 

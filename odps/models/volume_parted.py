@@ -101,6 +101,7 @@ class VolumePartition(LazyLoad):
         resp = self._client.get(self.resource(), curr_schema=self._get_schema_name())
         self.parse(self._client, resp, obj=self)
         self.meta.load()
+        self._loaded = True
 
     @property
     def volume(self):

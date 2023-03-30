@@ -412,8 +412,18 @@ class TunnelArrowReader(object):
             self._reader.close()
 
     def to_pandas(self):
-        pa_table = self.read()
-        return pa_table.to_pandas()
+        import pandas as pd
+
+        batches = []
+        while True:
+            batch = self.read_next_batch()
+            if batch is None:
+                break
+            batches.append(batch.to_pandas())
+
+        if not batches:
+            return self._arrow_schema.empty_table().to_pandas()
+        return pd.concat(batches, axis=0)
 
     def __enter__(self):
         return self

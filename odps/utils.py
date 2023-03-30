@@ -36,7 +36,6 @@ import types
 import warnings
 import uuid
 import xml.dom.minidom
-import collections
 import random
 from hashlib import sha1, md5
 from base64 import b64encode
@@ -93,6 +92,8 @@ class ExperimentalNotAllowed(Exception):
 
 
 def experimental(msg, cond=None):
+    warn_cache = set()
+
     def _decorator(func):
         @six.wraps(func)
         def _new_func(*args, **kwargs):
@@ -106,8 +107,9 @@ def experimental(msg, cond=None):
                     err_msg += ' ' + msg
                 raise ExperimentalNotAllowed(err_msg)
 
-            if cond is None or cond():
-                warnings.warn(warn_msg, category=FutureWarning)
+            if func not in warn_cache and (cond is None or cond()):
+                warnings.warn(warn_msg, category=FutureWarning, stacklevel=2)
+                warn_cache.add(func)
             return func(*args, **kwargs)
 
         # intentionally eliminate __doc__ for Volume 2

@@ -16,10 +16,24 @@
 
 from __future__ import print_function
 
-from odps.tests.core import TestBase, tn
+try:
+    import oss2
+except ImportError:
+    oss2 = None
+
 from odps.compat import six
+from odps.errors import NoSuchObject
+from odps.models import (
+    PartedVolume,
+    ExternalVolume,
+    ExternalVolumeDir,
+    ExternalVolumeFile,
+    FSVolume,
+    FSVolumeDir,
+    FSVolumeFile,
+)
+from odps.tests.core import TestBase, tn
 from odps.utils import to_str
-from odps.models import PartedVolume, FSVolume, VolumeFSDir, VolumeFSFile
 
 FILE_CONTENT = to_str("""
 Four score and seven years ago our fathers brought forth,
@@ -35,7 +49,6 @@ What then is risk to me?
 TEST_PARTED_VOLUME_NAME = tn('pyodps_test_parted_volume')
 TEST_FS_VOLUME_NAME = tn('pyodps_test_fs_volume')
 TEST_EXT_VOLUME_NAME = tn('pyodps_test_external_volume')
-TEST_EXT_VOLUME_LOCATION = "oss://id:key@oss-cn-hangzhou-zmf.aliyuncs.com/12345/test_dir"
 
 TEST_PARTITION_NAME = 'pyodps_test_partition'
 TEST_FILE_NAME = 'test_output_file'
@@ -132,7 +145,7 @@ class Test(TestBase):
 
         self.odps.create_volume_directory(vol.path + '/' + TEST_DIR_NAME)
         dir_obj = vol[TEST_DIR_NAME]
-        self.assertIsInstance(dir_obj, VolumeFSDir)
+        self.assertIsInstance(dir_obj, FSVolumeDir)
         self.assertIs(dir_obj, self.odps.get_volume_file(vol.path + '/' + TEST_DIR_NAME))
         self.assertEqual(dir_obj.path, '/' + TEST_FS_VOLUME_NAME + '/' + TEST_DIR_NAME)
         self.assertTrue(any(f.path in (dir_obj.path, dir_obj.path + '/')
@@ -149,7 +162,7 @@ class Test(TestBase):
             self.assertEqual(to_str(content), FILE_CONTENT)
 
         file_obj = dir_obj[TEST_FILE_NAME]
-        self.assertIsInstance(file_obj, VolumeFSFile)
+        self.assertIsInstance(file_obj, FSVolumeFile)
         self.assertIs(file_obj, dir_obj[TEST_FILE_NAME])
         with file_obj.open_reader() as reader:
             content = reader.read()
@@ -170,13 +183,70 @@ class Test(TestBase):
         self.assertNotIn(TEST_DIR_NAME, vol)
 
     def testExternalVolume(self):
+        if not hasattr(self.config, "oss_bucket") or oss2 is None:
+            return
+
+        test_dir_name = tn("test_oss_directory")
+
         try:
             self.odps_daily.delete_volume(TEST_EXT_VOLUME_NAME)
-        except:
+        except NoSuchObject:
             pass
 
-        vol = self.odps_daily.create_external_volume(
-            TEST_EXT_VOLUME_NAME, location=TEST_EXT_VOLUME_LOCATION
+        self.config.oss_bucket.put_object(test_dir_name + "/", b"")
+
+        (
+            oss_access_id,
+            oss_secret_access_key,
+            oss_bucket_name,
+            oss_endpoint,
+        ) = self.config.oss_config
+        test_location = "oss://%s:%s@%s/%s/%s" % (
+            oss_access_id, oss_secret_access_key, oss_endpoint, oss_bucket_name, test_dir_name
         )
-        assert isinstance(vol, FSVolume)
-        vol.drop()
+
+        vol = self.odps_daily.create_external_volume(
+            TEST_EXT_VOLUME_NAME, location=test_location
+        )
+        try:
+            assert isinstance(vol, ExternalVolume)
+
+            test_read_file_name = "test_oss_file_read"
+            self.config.oss_bucket.put_object(
+                test_dir_name + "/" + test_read_file_name, FILE_CONTENT
+            )
+            assert isinstance(vol[test_read_file_name], ExternalVolumeFile)
+            with vol[test_read_file_name].open_reader() as reader:
+                assert reader.read() == FILE_CONTENT.encode()
+            vol[test_read_file_name].delete()
+            assert test_read_file_name not in vol
+
+            test_write_file_name = "test_oss_file_write"
+            with vol.open_writer(test_write_file_name) as writer:
+                writer.write(FILE_CONTENT2.encode())
+            assert any(test_write_file_name in f.path for f in vol)
+            assert self.config.oss_bucket.get_object(
+                test_dir_name + "/" + test_write_file_name
+            ).read() == FILE_CONTENT2.encode()
+            vol.delete(test_write_file_name)
+            assert not any(test_write_file_name in f.path for f in vol)
+
+            test_subdir_name = "test_oss_dir"
+            dir_obj = vol.create_dir(test_subdir_name)
+            assert isinstance(dir_obj, ExternalVolumeDir)
+            with dir_obj.open_writer(test_write_file_name) as writer:
+                writer.write(FILE_CONTENT2.encode())
+            assert self.config.oss_bucket.get_object(
+                "/".join([test_dir_name, test_subdir_name, test_write_file_name])
+            ).read() == FILE_CONTENT2.encode()
+            with dir_obj.open_reader(test_write_file_name) as reader:
+                assert reader.read() == FILE_CONTENT2.encode()
+            dir_obj.delete(recursive=True)
+            assert not any(test_subdir_name in f.path for f in vol)
+        finally:
+            keys = [
+                obj.key
+                for obj in oss2.ObjectIterator(self.config.oss_bucket, test_dir_name)
+            ]
+            self.config.oss_bucket.batch_delete_objects(keys)
+            vol.drop()

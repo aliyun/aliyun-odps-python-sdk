@@ -14,14 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .. import serializers, errors, utils
+from ..compat import six, long_type
 from .core import LazyLoad, cache, Iterable
 from .cache import cache_parent
 from .volumes import Volume
-from .. import serializers, errors, utils
-from ..compat import six, long_type
 
 
-class VolumeFSObject(LazyLoad):
+class FSVolumeObject(LazyLoad):
     __slots__ = '_volume_fs_tunnel',
     _type_indicator = '_isdir'
     _cache_name_arg = 'path'
@@ -39,7 +39,7 @@ class VolumeFSObject(LazyLoad):
         replication = serializers.XMLNodeField('Replication')
 
     _project = serializers.XMLNodeField('Project')
-    volume = serializers.XMLNodeField('Volume')
+    _volume = serializers.XMLNodeField('Volume')
     path = serializers.XMLNodeField('Path')
     _isdir = serializers.XMLNodeField('Isdir', type='bool')
     permission = serializers.XMLNodeField('permission')
@@ -53,6 +53,23 @@ class VolumeFSObject(LazyLoad):
     access_time = serializers.XMLNodeField('AccessTime', type='rfc822')
     last_modified_time = serializers.XMLNodeField('ModificationTime', type='rfc822')
     symlink = serializers.XMLNodeField('Symlink')
+    sign_url = serializers.XMLNodeField('URL')
+
+    @classmethod
+    def _get_base_cls(cls):
+        return FSVolumeObject
+
+    @classmethod
+    def _get_dir_cls(cls):
+        return FSVolumeDir
+
+    @classmethod
+    def _get_file_cls(cls):
+        return FSVolumeFile
+
+    @classmethod
+    def _get_objects_cls(cls):
+        return FSVolumeObjects
 
     @staticmethod
     def _filter_cache(_, **kwargs):
@@ -63,16 +80,18 @@ class VolumeFSObject(LazyLoad):
     @cache
     def __new__(cls, *args, **kwargs):
         isdir = kwargs.get('_isdir')
-        if cls != VolumeFSObject and issubclass(cls, VolumeFSObject):
+
+        base_cls = cls._get_base_cls()
+        if cls is not base_cls and issubclass(cls, base_cls):
             return object.__new__(cls)
         if isdir is not None:
             if isdir == 'UNKNOWN':
-                return object.__new__(VolumeFSObject)
-            return object.__new__(VolumeFSDir if isdir else VolumeFSFile)
+                return object.__new__(base_cls)
+            return object.__new__(cls._get_dir_cls() if isdir else cls._get_file_cls())
 
-        obj = VolumeFSObject(_isdir='UNKNOWN', **kwargs)
+        obj = base_cls(_isdir='UNKNOWN', **kwargs)
         obj.reload()
-        return VolumeFSObject(**obj.extract())
+        return base_cls(**obj.extract())
 
     def _name(self):
         return self.path
@@ -118,6 +137,8 @@ class VolumeFSObject(LazyLoad):
         )
         self.parse(self._client, resp, obj=self)
 
+        self._loaded = True
+
     @staticmethod
     def _normpath(path):
         path = path.rstrip('/')
@@ -144,7 +165,7 @@ class VolumeFSObject(LazyLoad):
         return ''.join(parts)
 
     def _del_cache(self, path):
-        root_objs = VolumeFSObjects(parent=self.volume.root, client=self._client)
+        root_objs = self._get_objects_cls()(parent=self.volume.root, client=self._client)
         if not path.startswith('/'):
             path = self.path + '/' + path.lstrip('/')
         del root_objs[path]
@@ -198,7 +219,7 @@ class VolumeFSObject(LazyLoad):
 
 
 @cache_parent
-class VolumeFSDir(VolumeFSObject):
+class FSVolumeDir(FSVolumeObject):
     """
     VolumeFSDir represents a directory under a file system volume in ODPS.
     You can use ``create_dir`` to create a sub-directory, ``open_reader`` to open a file to read,
@@ -212,21 +233,20 @@ class VolumeFSDir(VolumeFSObject):
     >>> # get a file/directory object
     >>> file_obj = fs_dir[file_name]
     """
-    @utils.experimental('Volume2 is still experimental. Usage in production environment is strongly opposed.')
     def __init__(self, **kw):
-        super(VolumeFSDir, self).__init__(**kw)
+        super(FSVolumeDir, self).__init__(**kw)
         self._isdir = True
 
     @property
     def objects(self):
-        return VolumeFSObjects(parent=self, client=self._client)
+        return self._get_objects_cls()(parent=self, client=self._client)
 
     def create_dir(self, path):
         """
         Creates and returns a sub-directory under the current directory.
         :param str path: directory name to be created
         :return: directory object
-        :rtype: :class:`odps.models.VolumeFSDir`
+        :rtype: :class:`odps.models.FSVolumeDir`
         """
         path = self.path + '/' + path.lstrip('/')
         dir_def = self.CreateRequestXML(type='directory', path=path)
@@ -238,7 +258,7 @@ class VolumeFSDir(VolumeFSObject):
             curr_schema=self.parent._get_schema_name(),
         )
 
-        dir_object = VolumeFSDir(path=path, parent=self.parent, client=self._client)
+        dir_object = type(self)(path=path, parent=self.parent, client=self._client)
         dir_object.reload()
         return dir_object
 
@@ -307,10 +327,9 @@ class VolumeFSDir(VolumeFSObject):
 
 
 @cache_parent
-class VolumeFSFile(VolumeFSObject):
-    @utils.experimental('Volume2 is still experimental. Usage in production environment is strongly opposed.')
+class FSVolumeFile(FSVolumeObject):
     def __init__(self, **kw):
-        super(VolumeFSFile, self).__init__(**kw)
+        super(FSVolumeFile, self).__init__(**kw)
         self._isdir = False
 
     @property
@@ -378,10 +397,10 @@ class VolumeFSFile(VolumeFSObject):
         return tunnel.open_writer(self.parent, path, replication=replication, **kw)
 
 
-class VolumeFSObjects(Iterable):
+class FSVolumeObjects(Iterable):
     marker = serializers.XMLNodeField('Marker')
     max_items = serializers.XMLNodeField('MaxItems', parse_callback=int)
-    objects = serializers.XMLNodesReferencesField(VolumeFSObject, 'Item')
+    objects = serializers.XMLNodesReferencesField(FSVolumeObject, 'Item')
 
     @property
     def project(self):
@@ -391,11 +410,15 @@ class VolumeFSObjects(Iterable):
     def volume(self):
         return self.parent.parent
 
+    @classmethod
+    def _get_single_object_cls(cls):
+        return FSVolumeObject
+
     def _get(self, name):
         path = name
         if not path.startswith(self.parent.path):
             path = self.parent.path + '/' + name.lstrip('/')
-        return VolumeFSObject(client=self._client, parent=self.volume, path=path)
+        return self._get_single_object_cls()(client=self._client, parent=self.volume, path=path)
 
     def __contains__(self, item):
         if isinstance(item, six.string_types):
@@ -404,7 +427,7 @@ class VolumeFSObjects(Iterable):
                 return self._get(item)
             except errors.NoSuchObject:
                 return False
-        elif isinstance(item, VolumeFSObject):
+        elif isinstance(item, self._get_single_object_cls()):
             obj = item
             try:
                 obj.reload()
@@ -434,7 +457,7 @@ class VolumeFSObjects(Iterable):
             url = self.volume.resource()
             resp = self._client.get(url, params=params, headers=headers)
 
-            r = VolumeFSObjects.parse(self._client, resp, obj=self, parent=self.volume)
+            r = type(self).parse(self._client, resp, obj=self, parent=self.volume)
             params['marker'] = r.marker
 
             return r.objects
@@ -464,12 +487,14 @@ class FSVolume(Volume):
     """
     __slots__ = '_root_dir',
 
+    _dir_cls = FSVolumeDir
+
     def create_dir(self, path):
         """
         Creates and returns a directory under the current volume.
         :param str path: directory name to be created
         :return: directory object
-        :rtype: :class:`odps.models.VolumeFSDir`
+        :rtype: :class:`odps.models.FSVolumeDir`
         """
         return self.root.create_dir(path)
 
@@ -533,8 +558,19 @@ class FSVolume(Volume):
         """
         return self.root.open_writer(path, replication=replication, **kw)
 
+    def delete(self, path, recursive=False):
+        try:
+            return self[path].delete(recursive=recursive)
+        except TypeError:
+            return self[path].delete()
+
     @property
     def root(self):
         if not self._root_dir:
-            self._root_dir = VolumeFSDir(path='/' + self.name, parent=self, client=self._client)
+            self._root_dir = self._dir_cls(path='/' + self.name, parent=self, client=self._client)
         return self._root_dir
+
+
+# keep renames compatible
+VolumeFSDir = FSVolumeDir
+VolumeFSFile = FSVolumeFile

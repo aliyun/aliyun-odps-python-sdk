@@ -359,6 +359,7 @@ options.register_option('default_task_settings', None, validator=any_validator(i
 options.register_option('resource_chunk_size', 64 << 20, validator=is_integer)
 options.register_option('upload_resource_in_chunks', True, validator=is_bool)
 options.register_option('verify_ssl', True)
+options.register_option('always_enable_schema', False, validator=is_bool)
 
 # c or python mode, use for UT, in other cases, please do not modify the value
 options.register_option('force_c', False, validator=is_integer)
@@ -385,6 +386,9 @@ options.register_option('tunnel.use_instance_tunnel', True, validator=is_bool)
 options.register_option('tunnel.limit_instance_tunnel', None, validator=any_validator(is_null, is_bool))
 options.register_option('tunnel.pd_mem_cache_size', 1024 * 4, validator=is_integer)
 options.register_option('tunnel.pd_row_cache_size', 1024 * 16, validator=is_integer)
+options.register_option('tunnel.read_row_batch_size', 1024, validator=is_integer)
+options.register_option('tunnel.batch_merge_threshold', 128, validator=is_integer)
+
 options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
 options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')
 options.redirect_option('limited_instance_tunnel', 'tunnel.limit_instance_tunnel')

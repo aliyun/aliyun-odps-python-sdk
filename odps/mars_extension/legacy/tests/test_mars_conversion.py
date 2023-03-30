@@ -54,7 +54,7 @@ class Test(TestBase):
             oss_secret_access_key,
             oss_bucket_name,
             oss_endpoint,
-        ) = self.config.oss
+        ) = self.config.oss_config
 
         t = df.to_mars_tensor_via_oss(
             ["i"],
@@ -105,7 +105,7 @@ class Test(TestBase):
             oss_secret_access_key,
             oss_bucket_name,
             oss_endpoint,
-        ) = self.config.oss
+        ) = self.config.oss_config
 
         # test dense
         t = df.to_mars_tensor_via_oss(
@@ -236,7 +236,7 @@ class Test(TestBase):
             oss_secret_access_key,
             oss_bucket_name,
             oss_endpoint,
-        ) = self.config.oss
+        ) = self.config.oss_config
 
         # test preprocess
         preprocess_table_name = tn("test_no_partition_dense_to_mars_preprocess")
@@ -316,7 +316,7 @@ class Test(TestBase):
             oss_secret_access_key,
             oss_bucket_name,
             oss_endpoint,
-        ) = self.config.oss
+        ) = self.config.oss_config
 
         # test dense
         td = df.to_mars_tensor_via_oss(
@@ -438,7 +438,7 @@ class Test(TestBase):
             oss_secret_access_key,
             oss_bucket_name,
             oss_endpoint,
-        ) = self.config.oss
+        ) = self.config.oss_config
 
         preprocess_table_name = tn("test_partition_dense_to_mars_preprocess")
         self.odps.delete_table(preprocess_table_name, if_exists=True)
@@ -506,7 +506,7 @@ class Test(TestBase):
             oss_secret_access_key,
             oss_bucket_name,
             oss_endpoint,
-        ) = self.config.oss
+        ) = self.config.oss_config
 
         table_name = "test_persist_to_tensor"
         self.odps.delete_table(table_name, if_exists=True)
@@ -547,7 +547,7 @@ class Test(TestBase):
             oss_secret_access_key,
             oss_bucket_name,
             oss_endpoint,
-        ) = self.config.oss
+        ) = self.config.oss_config
 
         table_name = "test_partitions_persist_to_tensor"
         self.odps.delete_table(table_name, if_exists=True)

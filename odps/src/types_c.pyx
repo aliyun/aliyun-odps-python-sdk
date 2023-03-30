@@ -30,6 +30,7 @@ cdef int decimal_int_len_max = 36
 cdef int decimal_scale_max = 18
 cdef object to_scale = decimal.Decimal("1e-%s" % decimal_scale_max)
 cdef object decimal_ctx = decimal.Context(prec=decimal_int_len_max)
+cdef object pd_na_type = types.pd_na_type
 
 cdef:
     int64_t BOOL_TYPE_ID = types.boolean._type_id
@@ -163,8 +164,8 @@ cdef object _validate_boolean(object val):
 
 
 cdef object validate_value(object val, object value_type):
-    if val is None and value_type.nullable:
-        return val
+    if value_type.nullable and (val is None or type(val) is pd_na_type):
+        return None
 
     cdef int64_t type_id = value_type._type_id
 

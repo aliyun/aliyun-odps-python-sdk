@@ -304,6 +304,8 @@ class ODPSSQLEngine(Engine):
         use_tunnel = kw.get('use_tunnel', True)
 
         self._ctx.default_schema = schema or self._ctx.default_schema
+        if self._odps.is_schema_namespace_enabled(hints):
+            self._ctx.default_schema = self._ctx.default_schema or "default"
 
         expr_dag = self._convert_table(expr_dag)
         self._rewrite(expr_dag)
@@ -470,6 +472,8 @@ class ODPSSQLEngine(Engine):
             name = table.name
 
         self._ctx.default_schema = schema or self._ctx.default_schema
+        if self._odps.is_schema_namespace_enabled(hints):
+            self._ctx.default_schema = self._ctx.default_schema or "default"
 
         expr_dag = self._convert_table(expr_dag)
         self._rewrite(expr_dag)

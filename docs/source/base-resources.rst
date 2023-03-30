@@ -55,8 +55,10 @@
 
 .. code-block:: python
 
-   resource = o.create_resource('test_file_resource', 'file', fileobj=open('/to/path/file'))  # 使用file-like的对象
-   resource = o.create_resource('test_py_resource', 'py', fileobj='import this')  # 使用字符串
+   # 使用 file-like 的对象创建文件资源，注意压缩包等文件需要用二进制模式读取
+   resource = o.create_resource('test_file_resource', 'file', fileobj=open('/to/path/file', 'rb'))
+   # 使用字符串
+   resource = o.create_resource('test_py_resource', 'py', fileobj='import this')
 
 
 可以通过 ``temp=True`` 创建一个临时资源。

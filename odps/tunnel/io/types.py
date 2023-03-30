@@ -56,6 +56,12 @@ def odps_type_to_arrow_type(odps_type):
             )
         elif isinstance(odps_type, types.Decimal):
             col_type = pa.decimal128(odps_type.precision, odps_type.scale)
+        elif isinstance(odps_type, types.Struct):
+            fields = [
+                (k, odps_type_to_arrow_type(v))
+                for k, v in odps_type.field_types.items()
+            ]
+            col_type = pa.struct(fields)
         else:
             raise TypeError('Unsupported type: {}'.format(odps_type))
     return col_type

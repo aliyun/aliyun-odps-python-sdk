@@ -16,6 +16,7 @@
 
 import csv
 import copy
+import itertools
 import math
 
 from requests import Response
@@ -94,15 +95,11 @@ class AbstractRecordReader(object):
                 if end is not None and curr >= end:
                     return
 
-    def to_result_frame(
-        self, unknown_as_string=True, as_type=None, start=None, count=None, **iter_kw
-    ):
+    def _data_to_result_frame(self, data, unknown_as_string=True, as_type=None):
         from .df.backends.frame import ResultFrame
         from .df.backends.odpssql.types import odps_schema_to_df_schema, odps_type_to_df_type
 
         kw = dict()
-        end = None if count is None else (start or 0) + count
-        data = [r for r in self._iter(start=start, end=end, **iter_kw)]
         if getattr(self, 'schema', None) is not None:
             kw['schema'] = odps_schema_to_df_schema(self.schema)
         elif getattr(self, '_schema', None) is not None:
@@ -134,6 +131,40 @@ class AbstractRecordReader(object):
             raise ValueError('Cannot convert to ResultFrame from %s.' % type(self).__name__)
 
         return ResultFrame(data, **kw)
+
+    def to_result_frame(
+        self, unknown_as_string=True, as_type=None, start=None, count=None, **iter_kw
+    ):
+        read_row_batch_size = options.tunnel.read_row_batch_size
+        end = None if count is None else (start or 0) + count
+
+        frames = []
+        if hasattr(self, "raw"):
+            # data represented as raw csv: just skip iteration
+            data = [r for r in self._iter(start=start, end=end, **iter_kw)]
+        else:
+            offset_iter = itertools.cycle(compat.irange(read_row_batch_size))
+            data = [None] * read_row_batch_size
+            for offset, rec in zip(
+                offset_iter, self._iter(start=start, end=end, **iter_kw)
+            ):
+                data[offset] = rec
+                if offset != read_row_batch_size - 1:
+                    continue
+
+                frames.append(self._data_to_result_frame(
+                    data, unknown_as_string=unknown_as_string, as_type=as_type
+                ))
+                data = [None] * read_row_batch_size
+                if len(frames) > options.tunnel.batch_merge_threshold:
+                    frames = [frames[0].concat(*frames[1:])]
+
+        if not frames or data[0] is not None:
+            data = list(itertools.takewhile(lambda x: x is not None, data))
+            frames.append(self._data_to_result_frame(
+                data, unknown_as_string=unknown_as_string, as_type=as_type
+            ))
+        return frames[0].concat(*frames[1:])
 
     def to_pandas(self, start=None, count=None, **kw):
         import pandas  # noqa: F401

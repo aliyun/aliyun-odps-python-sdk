@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .core import Iterable
-from .table import Table
 from .. import serializers, errors
 from ..compat import six
+from .core import Iterable
+from .table import Table
 
 
 class Tables(Iterable):
@@ -97,6 +97,8 @@ class Tables(Iterable):
         if schema_name is not None:
             settings["odps.sql.allow.namespace.schema"] = "true"
             settings["odps.namespace.schema"] = "true"
+        else:
+            settings["odps.namespace.schema"] = "false"
         task.update_sql_settings(settings)
         instance = self._parent.project.instances.create(task=task)
 

@@ -679,6 +679,27 @@ class Test(TestBase):
 
         table.drop(if_exists=True)
 
+    @pandas_case
+    @bothPyAndC
+    def testPandasNA(self):
+        import pandas as pd
+        table_name = tn('test_pandas_na_io')
+        self.odps.delete_table(table_name, if_exists=True)
+
+        table = self.odps.create_table(table_name, 'col1 bigint, col2 string', lifecycle=1)
+        contents = [
+            [0, 'agdesfdr'],
+            [1, pd.NA],
+            [pd.NA, 'aetlkakls;dfj'],
+            [3, 'aetlkakls;dfj'],
+        ]
+        self.odps.write_table(table_name, contents)
+        written = list(self.odps.read_table(table_name))
+        values = [[x if x is not None else pd.NA for x in v.values] for v in written]
+        assert contents == values
+
+        table.drop(if_exists=True)
+
     @odps2_typed_case
     @bothPyAndC
     def testLengthLimitTypes(self):
