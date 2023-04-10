@@ -78,7 +78,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 经过一系列的打包步骤，工具会显示包中的所有依赖版本
 
-.. code-block::
+::
 
     Package         Version
     --------------- -------
@@ -111,7 +111,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 下面用基于 ``pyproject.toml`` 组织的项目举例介绍一下如何使用 ``pyodps-pack`` 打包。假定项目的目录结构如下：
 
-.. code-block::
+::
 
     test_package_root
     ├── test_package
@@ -167,7 +167,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 也可以创建一个 ``install-requires.txt`` 文件并编写：
 
-.. code-block::
+::
 
     cython>0.29
 
