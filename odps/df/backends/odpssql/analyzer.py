@@ -278,15 +278,6 @@ class Analyzer(BaseAnalyzer):
             else:
                 return
 
-            if sys.version_info[:2] <= (2, 6):
-                def total_seconds(self):
-                    return self.days * 86400.0 + self.seconds + self.microseconds * 1.0e-6
-            else:
-                from datetime import timedelta
-
-                def total_seconds(self):
-                    return self.total_seconds()
-
             def func(l, r, method):
                 from datetime import datetime, timedelta
                 if not isinstance(l, datetime):
@@ -299,7 +290,7 @@ class Analyzer(BaseAnalyzer):
                 else:
                     res = l - r
                 if isinstance(res, timedelta):
-                    return int(total_seconds(res) * 1000)
+                    return int(res.total_seconds() * 1000)
                 return res
 
             inputs = expr.lhs, expr.rhs, Scalar('+') if isinstance(expr, Add) else Scalar('-')

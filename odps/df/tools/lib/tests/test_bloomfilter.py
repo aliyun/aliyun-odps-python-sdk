@@ -14,73 +14,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.compat import unittest, irange as xrange
-from odps.df.tools.lib import BloomFilter
-from odps.tests.core import TestBase
+import pytest
+
+from .....compat import irange as xrange
+from .. import BloomFilter
 
 
-class Test(TestBase):
-    def test_union(self):
-        bloom_one = BloomFilter(100, 0.001)
-        bloom_two = BloomFilter(100, 0.001)
-        chars = [chr(i) for i in range(97, 123)]
-        for char in chars[int(len(chars) / 2):]:
-            bloom_one.add(char)
-        for char in chars[:int(len(chars) / 2)]:
-            bloom_two.add(char)
-        new_bloom = bloom_one.union(bloom_two)
-        for char in chars:
-            self.assertTrue(char in new_bloom)
+def test_union():
+    bloom_one = BloomFilter(100, 0.001)
+    bloom_two = BloomFilter(100, 0.001)
+    chars = [chr(i) for i in range(97, 123)]
+    for char in chars[int(len(chars) / 2):]:
+        bloom_one.add(char)
+    for char in chars[:int(len(chars) / 2)]:
+        bloom_two.add(char)
+    new_bloom = bloom_one.union(bloom_two)
+    for char in chars:
+        assert char in new_bloom
 
-    def test_intersection(self):
-        bloom_one = BloomFilter(100, 0.001)
-        bloom_two = BloomFilter(100, 0.001)
-        chars = [chr(i) for i in xrange(97, 123)]
-        for char in chars:
-            bloom_one.add(char)
-        for char in chars[:int(len(chars) / 2)]:
-            bloom_two.add(char)
+
+def test_intersection():
+    bloom_one = BloomFilter(100, 0.001)
+    bloom_two = BloomFilter(100, 0.001)
+    chars = [chr(i) for i in xrange(97, 123)]
+    for char in chars:
+        bloom_one.add(char)
+    for char in chars[:int(len(chars) / 2)]:
+        bloom_two.add(char)
+    new_bloom = bloom_one.intersection(bloom_two)
+    for char in chars[:int(len(chars) / 2)]:
+        assert char in new_bloom
+    for char in chars[int(len(chars) / 2):]:
+        assert char not in new_bloom
+
+
+def test_intersection_capacity_fail():
+    bloom_one = BloomFilter(1000, 0.001)
+    bloom_two = BloomFilter(100, 0.001)
+
+    def _run():
         new_bloom = bloom_one.intersection(bloom_two)
-        for char in chars[:int(len(chars) / 2)]:
-            self.assertTrue(char in new_bloom)
-        for char in chars[int(len(chars) / 2):]:
-            self.assertTrue(char not in new_bloom)
 
-    def test_intersection_capacity_fail(self):
-        bloom_one = BloomFilter(1000, 0.001)
-        bloom_two = BloomFilter(100, 0.001)
+    pytest.raises(ValueError, _run)
 
-        def _run():
-            new_bloom = bloom_one.intersection(bloom_two)
 
-        self.assertRaises(ValueError, _run)
+def test_union_capacity_fail():
+    bloom_one = BloomFilter(1000, 0.001)
+    bloom_two = BloomFilter(100, 0.001)
 
-    def test_union_capacity_fail(self):
-        bloom_one = BloomFilter(1000, 0.001)
-        bloom_two = BloomFilter(100, 0.001)
+    def _run():
+        new_bloom = bloom_one.union(bloom_two)
 
-        def _run():
-            new_bloom = bloom_one.union(bloom_two)
+    pytest.raises(ValueError, _run)
 
-        self.assertRaises(ValueError, _run)
 
-    def test_intersection_k_fail(self):
-        bloom_one = BloomFilter(100, 0.001)
-        bloom_two = BloomFilter(100, 0.01)
+def test_intersection_k_fail():
+    bloom_one = BloomFilter(100, 0.001)
+    bloom_two = BloomFilter(100, 0.01)
 
-        def _run():
-            new_bloom = bloom_one.intersection(bloom_two)
+    def _run():
+        new_bloom = bloom_one.intersection(bloom_two)
 
-        self.assertRaises(ValueError, _run)
+    pytest.raises(ValueError, _run)
 
-    def test_union_k_fail(self):
-        bloom_one = BloomFilter(100, 0.01)
-        bloom_two = BloomFilter(100, 0.001)
 
-        def _run():
-            new_bloom = bloom_one.union(bloom_two)
+def test_union_k_fail():
+    bloom_one = BloomFilter(100, 0.01)
+    bloom_two = BloomFilter(100, 0.001)
 
-        self.assertRaises(ValueError, _run)
+    def _run():
+        new_bloom = bloom_one.union(bloom_two)
 
-if __name__ == '__main__':
-    unittest.main()
+    pytest.raises(ValueError, _run)

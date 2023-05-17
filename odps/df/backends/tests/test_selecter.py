@@ -15,75 +15,32 @@
 # limitations under the License.
 
 import uuid
+from collections import namedtuple
 
-from odps.df.backends.tests.core import TestBase, tn
-from odps.tests.core import sqlalchemy_case
-from odps.models import TableSchema
-from odps import types, options
-from odps.df.types import validate_data_type
-from odps.df.backends.odpssql.types import df_schema_to_odps_schema
-from odps.df.expr.expressions import CollectionExpr
-from odps.df.backends.odpssql.types import odps_schema_to_df_schema
-from odps.df.backends.selecter import EngineSelecter
-from odps.df.backends.core import EngineTypes as Engines
+import pytest
+
+from .... import types, options
+from ....df.backends.tests.core import tn
+from ....tests.core import sqlalchemy_case
+from ....models import TableSchema
+from ...expr.expressions import CollectionExpr
+from ...types import validate_data_type
+from ..core import EngineTypes as Engines
+from ..odpssql.types import df_schema_to_odps_schema
+from ..odpssql.types import odps_schema_to_df_schema
+from ..selecter import EngineSelecter
+from ..tests.core import NumGenerators
 
 
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                                   datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
-        self.schema = df_schema_to_odps_schema(schema)
-        table_name = tn('pyodps_test_selecter_table_%s' % str(uuid.uuid4()).replace('-', '_'))
-        self.odps.delete_table(table_name, if_exists=True)
-        self.table = self.odps.create_table(name=table_name, table_schema=self.schema)
-        self.expr = CollectionExpr(_source_data=self.table, _schema=schema)
-
-        class FakeBar(object):
-            def update(self, *args, **kwargs):
-                pass
-
-            def inc(self, *args, **kwargs):
-                pass
-
-            def status(self, *args, **kwargs):
-                pass
-        self.faked_bar = FakeBar()
-
-        data = [
-            ['name1', 4, 5.3, None, None, None],
-            ['name2', 2, 3.5, None, None, None],
-            ['name1', 4, 4.2, None, None, None],
-            ['name1', 3, 2.2, None, None, None],
-            ['name1', 3, 4.1, None, None, None],
-        ]
-
-        schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
-                                    [types.string, types.bigint, types.bigint])
-
-        table_name = tn('pyodps_test_selecter_table2')
-        self.odps.delete_table(table_name, if_exists=True)
-        table2 = self.odps.create_table(name=table_name, table_schema=schema2)
-        self.expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
-
-        self._gen_data(data=data)
-
-        data2 = [
-            ['name1', 4, -1],
-            ['name2', 1, -2]
-        ]
-
-        self.odps.write_table(table2, 0, data2)
-
-        self.selecter = EngineSelecter()
-
-    def _gen_data(self, rows=None, data=None, nullable_field=None, value_range=None):
+@pytest.fixture
+def setup(odps):
+    def gen_data(rows=None, data=None, nullable_field=None, value_range=None):
         if data is None:
             data = []
             for _ in range(rows):
                 record = []
-                for t in self.schema.types:
-                    method = getattr(self, '_gen_random_%s' % t.name)
+                for t in schema.types:
+                    method = getattr(NumGenerators, 'gen_random_%s' % t.name)
                     if t.name == 'bigint':
                         record.append(method(value_range=value_range))
                     else:
@@ -91,32 +48,83 @@ class Test(TestBase):
                 data.append(record)
 
             if nullable_field is not None:
-                j = self.schema._name_indexes[nullable_field]
+                j = schema._name_indexes[nullable_field]
                 for i, l in enumerate(data):
                     if i % 2 == 0:
                         data[i][j] = None
 
-        self.odps.write_table(self.table, 0, data)
+        odps.write_table(table, 0, data)
         return data
 
-    @sqlalchemy_case
-    def testSelecter(self):
-        src_max_size = options.df.seahawks.max_size
-        src_seahawks_url = options.seahawks_url
-        try:
-            if not options.seahawks_url:
-                options.seahawks_url = 'fake url'
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    pd_schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+                               datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
+    schema = df_schema_to_odps_schema(pd_schema)
+    table_name = tn('pyodps_test_selecter_table_%s' % str(uuid.uuid4()).replace('-', '_'))
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(name=table_name, table_schema=schema)
+    expr = CollectionExpr(_source_data=table, _schema=pd_schema)
 
-            self.assertEqual(self.selecter.select(self.expr.to_dag(copy=False)), Engines.SEAHAWKS)
+    class FakeBar(object):
+        def update(self, *args, **kwargs):
+            pass
 
-            expr = self.expr.join(self.expr2)
-            self.assertEqual(self.selecter.select(expr.to_dag(copy=False)), Engines.SEAHAWKS)
+        def inc(self, *args, **kwargs):
+            pass
 
-            options.df.seahawks.max_size = self.table.size - 1
+        def status(self, *args, **kwargs):
+            pass
+    faked_bar = FakeBar()
 
-            self.assertEqual(self.selecter.select(self.expr.to_dag(copy=False)), Engines.ODPS)
-            self.assertEqual(self.selecter.select(expr.to_dag(copy=False)), Engines.ODPS)
-        finally:
-            if options.seahawks_url == 'fake url':
-                options.seahawks_url = src_seahawks_url
-            options.df.seahawks.max_size = src_max_size
+    data = [
+        ['name1', 4, 5.3, None, None, None],
+        ['name2', 2, 3.5, None, None, None],
+        ['name1', 4, 4.2, None, None, None],
+        ['name1', 3, 2.2, None, None, None],
+        ['name1', 3, 4.1, None, None, None],
+    ]
+
+    schema2 = TableSchema.from_lists(['name', 'id2', 'id3'],
+                                [types.string, types.bigint, types.bigint])
+
+    table_name = tn('pyodps_test_selecter_table2')
+    odps.delete_table(table_name, if_exists=True)
+    table2 = odps.create_table(name=table_name, table_schema=schema2)
+    expr2 = CollectionExpr(_source_data=table2, _schema=odps_schema_to_df_schema(schema2))
+
+    gen_data(data=data)
+
+    data2 = [
+        ['name1', 4, -1],
+        ['name2', 1, -2]
+    ]
+
+    odps.write_table(table2, 0, data2)
+
+    selecter = EngineSelecter()
+
+    nt = namedtuple("NT", "expr expr2 selecter table")
+    return nt(expr, expr2, selecter, table)
+
+
+@sqlalchemy_case
+def test_selecter(setup):
+    src_max_size = options.df.seahawks.max_size
+    src_seahawks_url = options.seahawks_url
+    try:
+        if not options.seahawks_url:
+            options.seahawks_url = 'fake url'
+
+        assert setup.selecter.select(setup.expr.to_dag(copy=False)) == Engines.SEAHAWKS
+
+        expr = setup.expr.join(setup.expr2)
+        assert setup.selecter.select(expr.to_dag(copy=False)) == Engines.SEAHAWKS
+
+        options.df.seahawks.max_size = setup.table.size - 1
+
+        assert setup.selecter.select(setup.expr.to_dag(copy=False)) == Engines.ODPS
+        assert setup.selecter.select(expr.to_dag(copy=False)) == Engines.ODPS
+    finally:
+        if options.seahawks_url == 'fake url':
+            options.seahawks_url = src_seahawks_url
+        options.df.seahawks.max_size = src_max_size

@@ -21,7 +21,7 @@ LOG_TYPES_MAPPING = {
     'hs_err_log': 'hs_err_*.log',
     'coreinfo': 'coreinfo.tmp',
 }
-LOG_TYPES_MAPPING.update(dict((k, k) for k in 'stdout stderr waterfall_summary jstack pstack'.split()))
+LOG_TYPES_MAPPING.update({k: k for k in 'stdout stderr waterfall_summary jstack pstack'.split()})
 
 
 class Worker(serializers.JSONSerializableModel):

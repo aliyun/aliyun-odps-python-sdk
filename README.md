@@ -17,12 +17,6 @@ The quick way:
 pip install pyodps[full]
 ```
 
-To integrate with [Mars](https://docs.pymars.org/en/latest/):
-
-```
-pip install pyodps#egg=pyodps[mars]
-```
-
 If you don't need to use Jupyter, just type
 
 ```
@@ -36,21 +30,19 @@ Or from source code:
 ```shell
 $ virtualenv pyodps_env
 $ source pyodps_env/bin/activate
-$ git clone <git clone URL> pyodps
-$ cd pyodps
-$ python setup.py install
+$ pip install git+https://github.com/aliyun/aliyun-odps-python-sdk.git
 ```
 
 ## Dependencies
 
- * Python (>=2.6), including Python 3+, pypy, Python 2.7 recommended
+ * Python (>=2.7), including Python 3+, pypy, Python 3.7 recommended
  * setuptools (>=3.0)
- * requests (>=2.4.0)
 
-## Run Unittest
+## Run Tests
 
+- install pytest
 - copy conf/test.conf.template to odps/tests/test.conf, and fill it with your account
-- run `python -m unittest discover`
+- run `pytest odps`
 
 ## Usage
 
@@ -134,7 +126,7 @@ Out[2]: <odps.inter.Room at 0x10fe0e450>
 
 In [3]: %sql select * from pyodps_iris limit 5
 |==========================================|   1 /  1  (100.00%)         2s
-Out[3]: 
+Out[3]:
    sepallength  sepalwidth  petallength  petalwidth         name
 0          5.1         3.5          1.4         0.2  Iris-setosa
 1          4.9         3.0          1.4         0.2  Iris-setosa
@@ -169,7 +161,7 @@ $ pyou plus.Plus < plus.input
 For a development install, clone the repository and then install from source:
 
 ```
-git clone https://github.com/aliyun/aliyun-odps-python-sdk
+git clone https://github.com/aliyun/aliyun-odps-python-sdk.git
 cd pyodps
 pip install -r requirements.txt -e .
 ```

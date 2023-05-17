@@ -246,7 +246,7 @@ class GroupBy(BaseGroupBy):
             aggregations.extend([self._defunc(agg).rename(new_name)
                                  for new_name, agg in six.iteritems(kw)])
 
-        # keep sequence to ensure that unittests works well
+        # keep sequence to ensure that test cases work well
         if sort_by_name:
             aggregations = sorted([self._transform(agg) for agg in aggregations],
                                   key=lambda it: it.name)

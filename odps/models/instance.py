@@ -21,13 +21,13 @@ import sys
 import threading
 import time
 import warnings
+from collections import OrderedDict
 from datetime import datetime
-
-import requests
 
 from .. import serializers, utils, errors, compat, readers, options
 from ..accounts import BearerTokenAccount
-from ..compat import ElementTree, Enum, six, OrderedDict
+from ..compat import Enum, six
+from ..lib import requests
 from ..utils import to_str
 from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
 from .job import Job
@@ -397,7 +397,7 @@ class Instance(LazyLoad):
         resp = self._client.get(self.resource(), params=params)
 
         instance_result = Instance.InstanceResult.parse(self._client, resp)
-        return compat.OrderedDict([(r.name, r.result) for r in instance_result.task_results])
+        return OrderedDict([(r.name, r.result) for r in instance_result.task_results])
 
     @_with_status_api_lock
     def get_task_results(self):
@@ -410,9 +410,9 @@ class Instance(LazyLoad):
 
         results = self.get_task_results_without_format()
         if options.tunnel.string_as_binary:
-            return compat.OrderedDict([(k, bytes(result)) for k, result in six.iteritems(results)])
+            return OrderedDict([(k, bytes(result)) for k, result in six.iteritems(results)])
         else:
-            return compat.OrderedDict([(k, str(result)) for k, result in six.iteritems(results)])
+            return OrderedDict([(k, str(result)) for k, result in six.iteritems(results)])
 
     @_with_status_api_lock
     def get_task_result(self, task_name):
@@ -726,9 +726,6 @@ class Instance(LazyLoad):
         :return: the task's detail
         :rtype: list or dict according to the JSON
         """
-
-        from ..compat import json  # fix object_pairs_hook parameter for Py2.6
-
         params = {'detail': '',
                   'taskname': task_name}
 
@@ -865,8 +862,10 @@ class Instance(LazyLoad):
 
         from ..tunnel import InstanceTunnel
 
-        self._instance_tunnel = InstanceTunnel(client=self._client, project=self.project,
-                                               endpoint=endpoint or self.project._tunnel_endpoint)
+        self._instance_tunnel = InstanceTunnel(
+            client=self._client, project=self.project,
+            endpoint=endpoint or self.project._tunnel_endpoint
+        )
         return self._instance_tunnel
 
     @utils.survey
@@ -927,7 +926,7 @@ class Instance(LazyLoad):
         """
         Open the reader to read records from the result of the instance. If `tunnel` is `True`,
         instance tunnel will be used. Otherwise conventional routine will be used. If instance tunnel
-        is not available and `tunnel` is not specified,, the method will fall back to the
+        is not available and `tunnel` is not specified, the method will fall back to the
         conventional routine.
         Note that the number of records returned is limited unless `options.limited_instance_tunnel`
         is set to `True` or `limit=True` is configured under instance tunnel mode. Otherwise

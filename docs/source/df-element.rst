@@ -531,10 +531,15 @@ UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提�
 
 
 .. warning::
+
     由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS
     Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常
     执行。
 
+.. warning::
+
+    由于 PyODPS DataFrame 默认 Collection / Sequence 等对象均为分布式对象，故不支持在自定义函数内部引用这些对象。
+    请考虑改用 :ref:`Join 等方法 <dfmerge>` 引用多个 DataFrame 的数据，或者引用 Collection 作为资源，如下文所述。
 
 .. _function_resource:
 

@@ -33,7 +33,7 @@ class Decoder(object):
         """
         self._stream = input_stream.InputStream(input)
 
-    def position(self):
+    def __len__(self):
         """Returns the 0-indexed position in |s|."""
         return self._stream.position()
 
@@ -41,14 +41,6 @@ class Decoder(object):
         """Reads a tag from the wire. Returns a (field_number, wire_type) pair."""
         tag_and_type = self.read_uint32()
         return wire_format.unpack_tag(tag_and_type)
-
-    def read_int32(self):
-        """Reads and returns a signed, varint-encoded, 32-bit integer."""
-        return self._stream.read_varint32()
-
-    def read_int64(self):
-        """Reads and returns a signed, varint-encoded, 64-bit integer."""
-        return self._stream.read_varint64()
 
     def read_uint32(self):
         """Reads and returns an signed, varint-encoded, 32-bit integer."""

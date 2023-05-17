@@ -14,23 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import warnings
-
-from odps.tests.core import TestBase, snappy_case
-from odps.compat import unittest, PY26
-from odps.tunnel.io import stream as io_stream
-
+import importlib
 import io
 import traceback
-
 try:
     from string import letters
 except ImportError:
     from string import ascii_letters as letters  # noqa: F401
 
+import pytest
 
-class Test(TestBase):
-    TEXT = u"""
+from ..io import stream as io_stream
+
+
+TEXT = u"""
     上善若水。水善利万物而不争，处众人之所恶，故几於道。居善地，心善渊，与善仁，言善信，正善
 
 治，事善能，动善时。夫唯不争，故无尤。
@@ -49,133 +46,53 @@ class Test(TestBase):
 
 可托天下。"""
 
-    def tearDown(self):
-        super(Test, self).tearDown()
-        io_stream._FORCE_THREAD = False
 
-    def testCompressAndDecompress(self):
-        compress_algos = [
-            io_stream.CompressOption.CompressAlgorithm.ODPS_RAW,
-            io_stream.CompressOption.CompressAlgorithm.ODPS_ZLIB,
-        ]
-        untested = []
+@pytest.mark.parametrize("compress_algo, package", [
+    (io_stream.CompressOption.CompressAlgorithm.ODPS_RAW, None),
+    (io_stream.CompressOption.CompressAlgorithm.ODPS_ZLIB, None),
+    (io_stream.CompressOption.CompressAlgorithm.ODPS_SNAPPY, "snappy"),
+    (io_stream.CompressOption.CompressAlgorithm.ODPS_ZSTD, "zstandard"),
+    (io_stream.CompressOption.CompressAlgorithm.ODPS_LZ4, "lz4.frame"),
+])
+def test_compress_and_decompress(compress_algo, package):
+    if package is not None:
         try:
-            import snappy
-            compress_algos.append(io_stream.CompressOption.CompressAlgorithm.ODPS_SNAPPY)
+            importlib.import_module(package)
         except ImportError:
-            untested.append("python-snappy")
-        try:
-            import zstandard
-            compress_algos.append(io_stream.CompressOption.CompressAlgorithm.ODPS_ZSTD)
-        except ImportError:
-            untested.append("zstandard")
-        try:
-            import lz4.frame
-            compress_algos.append(io_stream.CompressOption.CompressAlgorithm.ODPS_LZ4)
-        except ImportError:
-            untested.append("lz4")
+            pytest.skip("Need %s to run the test" % package)
 
-        if untested:
-            warnings.warn(
-                "%s not installed, related tests not covered" % ", ".join(untested), ImportWarning
-            )
+    tube = io.BytesIO()
+    option = io_stream.CompressOption(compress_algo)
 
-        for compress_algo in compress_algos:
-            tube = io.BytesIO()
-            option = io_stream.CompressOption(compress_algo)
+    data_bytes = TEXT.encode('utf-8')
 
-            data_bytes = self.TEXT.encode('utf-8')
+    outstream = io_stream.get_compress_stream(tube, option)
+    for pos in range(0, len(data_bytes), 128):
+        outstream.write(data_bytes[pos : pos + 128])
+    outstream.flush()
 
-            outstream = io_stream.get_compress_stream(tube, option)
-            for pos in range(0, len(data_bytes), 128):
-                outstream.write(data_bytes[pos : pos + 128])
-            outstream.flush()
+    tube.seek(0)
+    instream = io_stream.get_decompress_stream(tube, option, requests=False)
 
-            tube.seek(0)
-            instream = io_stream.get_decompress_stream(tube, option, requests=False)
+    b = bytearray()
+    while True:
+        part = instream.read(1)
+        if not part:
+            break
+        b += part
 
-            b = bytearray()
-            while True:
-                part = instream.read(1)
-                if not part:
-                    break
-                b += part
+    assert TEXT.encode('utf8') == b
 
-            self.assertEqual(self.TEXT.encode('utf8'), b)
+    tube.seek(0)
+    instream = io_stream.get_decompress_stream(tube, option, requests=False)
 
-            if not PY26:
-                tube.seek(0)
-                instream = io_stream.get_decompress_stream(tube, option, requests=False)
+    b = bytearray(len(TEXT.encode('utf8')))
+    mv = memoryview(b)
+    pos = 0
+    while True:
+        incr = instream.readinto(mv[pos:pos + 1])
+        if not incr:
+            break
+        pos += incr
 
-                b = bytearray(len(self.TEXT.encode('utf8')))
-                mv = memoryview(b)
-                pos = 0
-                while True:
-                    incr = instream.readinto(mv[pos:pos + 1])
-                    if not incr:
-                        break
-                    pos += incr
-
-                self.assertEqual(self.TEXT.encode('utf8'), b)
-
-    def testClass(self):
-        io_stream._FORCE_THREAD = False
-
-        req_io = io_stream.RequestsIO(lambda c: None)
-        if io_stream.GreenletRequestsIO is None:
-            self.assertIsInstance(req_io, io_stream.ThreadRequestsIO)
-        else:
-            self.assertIsInstance(req_io, io_stream.GreenletRequestsIO)
-        self.assertIsInstance(io_stream.ThreadRequestsIO(lambda c: None), io_stream.ThreadRequestsIO)
-        if io_stream.GreenletRequestsIO is not None:
-            self.assertIsInstance(io_stream.GreenletRequestsIO(lambda c: None), io_stream.GreenletRequestsIO)
-
-        io_stream._FORCE_THREAD = True
-
-        req_io = io_stream.RequestsIO(lambda c: None)
-        self.assertIsInstance(req_io, io_stream.ThreadRequestsIO)
-        self.assertIsInstance(io_stream.ThreadRequestsIO(lambda c: None), io_stream.ThreadRequestsIO)
-        if io_stream.GreenletRequestsIO is not None:
-            self.assertIsInstance(io_stream.GreenletRequestsIO(lambda c: None), io_stream.GreenletRequestsIO)
-
-    def testRaises(self):
-        exc_trace = [None]
-
-        def raise_poster(it):
-            exc_trace[0] = None
-            next(it)
-            try:
-                raise AttributeError
-            except:
-                tb = traceback.format_exc().splitlines()
-                exc_trace[0] = '\n'.join(tb[-3:])
-                raise
-
-        io_stream._FORCE_THREAD = True
-
-        req_io = io_stream.ThreadRequestsIO(raise_poster)
-        req_io.start()
-        try:
-            req_io.write(b'TEST_DATA')
-            req_io.write(b'ANOTHER_PIECE')
-            req_io.finish()
-        except AttributeError:
-            tb = traceback.format_exc().splitlines()
-            self.assertEqual('\n'.join(tb[-3:]), exc_trace[0])
-
-        if io_stream.GreenletRequestsIO is None:
-            return
-
-        req_io = io_stream.GreenletRequestsIO(raise_poster)
-        req_io.start()
-        try:
-            req_io.write(b'TEST_DATA')
-            req_io.write(b'ANOTHER_PIECE')
-            req_io.finish()
-        except AttributeError:
-            tb = traceback.format_exc().splitlines()
-            self.assertEqual('\n'.join(tb[-3:]), exc_trace[0])
-
-
-if __name__ == '__main__':
-    unittest.main()
+    assert TEXT.encode('utf8') == b

@@ -14,474 +14,481 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import namedtuple
+
 import pytest
 
-from odps.tests.core import TestBase
-from odps.config import option_context
-from odps.compat import unittest
-from odps.models import TableSchema
-from odps.df.expr.expressions import *
-from odps.df.expr.core import ExprDictionary
-from odps.df.expr import errors
-from odps.df.expr.tests.core import MockTable
-from odps.df.expr.arithmetic import Add
+from ....config import option_context
+from ....models import TableSchema
+from .. import errors
+from ..arithmetic import Add
+from ..core import ExprDictionary
+from ..expressions import *
+from ..tests.core import MockTable
 
 
-class Test(TestBase):
-    def setup(self):
-        schema = TableSchema.from_lists(
-            ['name', 'id', 'fid'], [types.string, types.int64, types.float64]
+@pytest.fixture
+def exprs(config):
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid'], [types.string, types.int64, types.float64]
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+    table._client = config.odps.rest
+    expr = CollectionExpr(_source_data=table, _schema=schema)
+
+    schema2 = TableSchema.from_lists(
+        ['name', 'id', 'fid'], [types.string, types.int64, types.float64],
+        ['part1', 'part2'], [types.string, types.int64],
+    )
+    table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
+    table2._client = config.odps.rest
+    expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
+
+    schema3 = TableSchema.from_lists(
+        ['id', 'name', 'relatives', 'hobbies'],
+        [types.int64, types.string, types.Dict(types.string, types.string),
+         types.List(types.string)],
+    )
+    table3 = MockTable(name='pyodps_test_expr_table3', table_schema=schema3)
+    expr3 = CollectionExpr(_source_data=table3, _schema=schema3)
+
+    nt = namedtuple("NT", "expr, expr2, expr3")
+    return nt(expr, expr2, expr3)
+
+
+def test_dir(exprs):
+    expr_dir = dir(exprs.expr)
+    assert 'id' in expr_dir
+    assert 'fid' in expr_dir
+
+    new_df = exprs.expr[exprs.expr.id, exprs.expr.fid, exprs.expr.name.rename('if')]
+    assert 'if' not in dir(new_df)
+
+    assert exprs.expr._id == exprs.expr.copy()._id
+
+
+def test_typed_expr_missing_attr(exprs):
+    with pytest.raises(AttributeError) as ex_pack:
+        getattr(exprs.expr.name, "mean")
+    # need to show type of expression when certain method
+    assert str(exprs.expr.name.dtype) in str(ex_pack.value)
+
+
+def test_projection(exprs):
+    projected = exprs.expr['name', exprs.expr.id.rename('new_id')]
+
+    assert isinstance(projected, CollectionExpr)
+    assert projected._schema == TableSchema.from_lists(['name', 'new_id'], [types.string, types.int64])
+
+    projected = exprs.expr[[exprs.expr.name, exprs.expr.id.astype('string')]]
+
+    assert isinstance(projected, ProjectCollectionExpr)
+    assert projected._schema == TableSchema.from_lists(['name', 'id'], [types.string, types.string])
+
+    projected = exprs.expr.select(exprs.expr.name, Scalar('abc').rename('word'), size=5)
+
+    assert isinstance(projected, ProjectCollectionExpr)
+    assert projected._schema == TableSchema.from_lists(
+            ['name', 'word', 'size'], [types.string, types.string, types.int8]
         )
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
-        table._client = self.config.odps.rest
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
+    assert isinstance(projected._fields[1], StringScalar)
+    assert projected._fields[1].value == 'abc'
+    assert isinstance(projected._fields[2], Int8Scalar)
+    assert projected._fields[2].value == 5
 
-        schema2 = TableSchema.from_lists(
-            ['name', 'id', 'fid'], [types.string, types.int64, types.float64],
-            ['part1', 'part2'], [types.string, types.int64],
-        )
-        table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
-        table2._client = self.config.odps.rest
-        self.expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
+    expr = exprs.expr[lambda x: x.exclude('id')]
+    assert expr.schema.names == [n for n in expr.schema.names if n != 'id']
 
-        schema3 = TableSchema.from_lists(
-            ['id', 'name', 'relatives', 'hobbies'],
-            [types.int64, types.string, types.Dict(types.string, types.string),
-             types.List(types.string)],
-        )
-        table3 = MockTable(name='pyodps_test_expr_table3', table_schema=schema3)
-        self.expr3 = CollectionExpr(_source_data=table3, _schema=schema3)
+    pytest.raises(ExpressionError, lambda: exprs.expr[exprs.expr.distinct('id', 'fid'), 'name'])
+    pytest.raises(ExpressionError, lambda: exprs.expr[[exprs.expr.id + exprs.expr.fid]])
 
-    def testDir(self):
-        expr_dir = dir(self.expr)
-        self.assertIn('id', expr_dir)
-        self.assertIn('fid', expr_dir)
+    with option_context() as options:
+        options.interactive = True
 
-        new_df = self.expr[self.expr.id, self.expr.fid, self.expr.name.rename('if')]
-        self.assertNotIn('if', dir(new_df))
+        exprs.expr['name', 'id'][[exprs.expr.name, ]]
 
-        self.assertEqual(self.expr._id, self.expr.copy()._id)
+    pytest.raises(ExpressionError, lambda: exprs.expr[exprs.expr.name])
+    pytest.raises(ExpressionError, lambda: exprs.expr['name', exprs.expr.groupby('name').id.sum()])
 
-    def testTypedExprMissingAttr(self):
-        with pytest.raises(AttributeError) as ex_pack:
-            getattr(self.expr.name, "mean")
-        # need to show type of expression when certain method
-        assert str(self.expr.name.dtype) in str(ex_pack.value)
+    expr = exprs.expr.filter(exprs.expr.id < 0)
+    expr[exprs.expr.name, exprs.expr.id]
 
-    def testProjection(self):
-        projected = self.expr['name', self.expr.id.rename('new_id')]
 
-        self.assertIsInstance(projected, CollectionExpr)
-        self.assertEqual(
-            projected._schema,
-            TableSchema.from_lists(['name', 'new_id'], [types.string, types.int64]),
-        )
+def test_filter(exprs):
+    filtered = exprs.expr[(exprs.expr.id < 10) & (exprs.expr.name == 'test')]
 
-        projected = self.expr[[self.expr.name, self.expr.id.astype('string')]]
+    assert isinstance(filtered, FilterCollectionExpr)
 
-        self.assertIsInstance(projected, ProjectCollectionExpr)
-        self.assertEqual(
-            projected._schema,
-            TableSchema.from_lists(['name', 'id'], [types.string, types.string]),
-        )
+    filtered = exprs.expr.filter(exprs.expr.id < 10, exprs.expr.name == 'test')
 
-        projected = self.expr.select(self.expr.name, Scalar('abc').rename('word'), size=5)
+    assert isinstance(filtered, FilterCollectionExpr)
 
-        self.assertIsInstance(projected, ProjectCollectionExpr)
-        self.assertEqual(
-            projected._schema,
-            TableSchema.from_lists(
-                ['name', 'word', 'size'], [types.string, types.string, types.int8]
-            )
-        )
-        self.assertIsInstance(projected._fields[1], StringScalar)
-        self.assertEqual(projected._fields[1].value, 'abc')
-        self.assertIsInstance(projected._fields[2], Int8Scalar)
-        self.assertEqual(projected._fields[2].value, 5)
 
-        expr = self.expr[lambda x: x.exclude('id')]
-        self.assertEqual(expr.schema.names, [n for n in expr.schema.names if n != 'id'])
-
-        self.assertRaises(ExpressionError, lambda: self.expr[self.expr.distinct('id', 'fid'), 'name'])
-        self.assertRaises(ExpressionError, lambda: self.expr[[self.expr.id + self.expr.fid]])
+def test_slice(exprs):
+    sliced = exprs.expr[:100]
 
-        with option_context() as options:
-            options.interactive = True
+    assert isinstance(sliced, SliceCollectionExpr)
+    assert sliced._schema == exprs.expr._schema
+    assert isinstance(sliced._indexes, tuple)
 
-            self.expr['name', 'id'][[self.expr.name, ]]
-
-        self.assertRaises(ExpressionError, lambda: self.expr[self.expr.name])
-        self.assertRaises(ExpressionError, lambda: self.expr['name', self.expr.groupby('name').id.sum()])
+    not_sliced = exprs.expr[:]
 
-        expr = self.expr.filter(self.expr.id < 0)
-        expr[self.expr.name, self.expr.id]
+    assert not isinstance(not_sliced, SliceCollectionExpr)
+    assert isinstance(not_sliced, CollectionExpr)
 
-    def testFilter(self):
-        filtered = self.expr[(self.expr.id < 10) & (self.expr.name == 'test')]
 
-        self.assertIsInstance(filtered, FilterCollectionExpr)
+def test_as_type(exprs):
+    fid = exprs.expr.id.astype('float')
 
-        filtered = self.expr.filter(self.expr.id < 10, self.expr.name == 'test')
+    assert isinstance(fid._source_data_type, types.Int64)
+    assert isinstance(fid._data_type, types.Float64)
+    assert isinstance(fid, Float64SequenceExpr)
+    assert not isinstance(fid, Int64SequenceExpr)
 
-        self.assertIsInstance(filtered, FilterCollectionExpr)
+    int_fid = fid.astype('int')
 
-    def testSlice(self):
-        sliced = self.expr[:100]
+    assert isinstance(int_fid._source_data_type, types.Int64)
+    assert isinstance(int_fid._data_type, types.Int64)
+    assert isinstance(int_fid, Int64SequenceExpr)
+    assert not isinstance(int_fid, Float64SequenceExpr)
 
-        self.assertIsInstance(sliced, SliceCollectionExpr)
-        self.assertEqual(sliced._schema, self.expr._schema)
-        self.assertIsInstance(sliced._indexes, tuple)
+    float_fid = (fid + 1).astype('float32')
 
-        not_sliced = self.expr[:]
+    assert isinstance(float_fid, Float32SequenceExpr)
+    assert not isinstance(float_fid, Int32SequenceExpr)
+    assert isinstance(float_fid, AsTypedSequenceExpr)
 
-        self.assertNotIsInstance(not_sliced, SliceCollectionExpr)
-        self.assertIsInstance(not_sliced, CollectionExpr)
 
-    def testAsType(self):
-        fid = self.expr.id.astype('float')
+def test_rename(exprs):
+    new_id = exprs.expr.id.rename('new_id')
 
-        self.assertIsInstance(fid._source_data_type, types.Int64)
-        self.assertIsInstance(fid._data_type, types.Float64)
-        self.assertIsInstance(fid, Float64SequenceExpr)
-        self.assertNotIsInstance(fid, Int64SequenceExpr)
+    assert isinstance(new_id, SequenceExpr)
+    assert new_id._source_name == 'id'
+    assert new_id._name == 'new_id'
 
-        int_fid = fid.astype('int')
+    double_new_id = new_id.rename('2new_id')
 
-        self.assertIsInstance(int_fid._source_data_type, types.Int64)
-        self.assertIsInstance(int_fid._data_type, types.Int64)
-        self.assertIsInstance(int_fid, Int64SequenceExpr)
-        self.assertNotIsInstance(int_fid, Float64SequenceExpr)
+    assert isinstance(double_new_id, SequenceExpr)
+    assert double_new_id._source_name == 'id'
+    assert double_new_id._name == '2new_id'
 
-        float_fid = (fid + 1).astype('float32')
+    assert double_new_id is not new_id
 
-        self.assertIsInstance(float_fid, Float32SequenceExpr)
-        self.assertNotIsInstance(float_fid, Int32SequenceExpr)
-        self.assertIsInstance(float_fid, AsTypedSequenceExpr)
+    add_id = (exprs.expr.id + exprs.expr.fid).rename('add_id')
+    assert isinstance(add_id, Float64SequenceExpr)
+    assert not isinstance(add_id, Int64SequenceExpr)
+    assert add_id._source_name is None
+    assert isinstance(add_id, Add)
+    assert add_id.name == 'add_id'
+    assert isinstance(add_id._lhs, Int64SequenceExpr)
+    assert isinstance(add_id._rhs, Float64SequenceExpr)
+    assert add_id._lhs._source_name == 'id'
+    assert add_id._rhs._source_name == 'fid'
 
-    def testRename(self):
-        new_id = self.expr.id.rename('new_id')
+    add_scalar_id = (exprs.expr.id + 5).rename('add_s_id')
+    assert not isinstance(add_scalar_id, Float64SequenceExpr)
+    assert isinstance(add_scalar_id, Int64SequenceExpr)
+    assert isinstance(add_scalar_id, Add)
+    assert add_scalar_id.name == 'add_s_id'
+    assert add_scalar_id._lhs._source_name == 'id'
 
-        self.assertIsInstance(new_id, SequenceExpr)
-        self.assertEqual(new_id._source_name, 'id')
-        self.assertEqual(new_id._name, 'new_id')
 
-        double_new_id = new_id.rename('2new_id')
+def test_new_sequence(exprs):
+    column = Column(_data_type='int32')
 
-        self.assertIsInstance(double_new_id, SequenceExpr)
-        self.assertEqual(double_new_id._source_name, 'id')
-        self.assertEqual(double_new_id._name, '2new_id')
+    assert Int32SequenceExpr in type(column).mro()
+    assert isinstance(column, Int32SequenceExpr)
 
-        self.assertIsNot(double_new_id, new_id)
+    column = type(column)._new(_data_type='string')
+    assert Int32SequenceExpr not in type(column).mro()
+    assert StringSequenceExpr in type(column).mro()
+    assert isinstance(column, StringSequenceExpr)
+    assert not isinstance(column, Int32SequenceExpr)
+    assert isinstance(column, Column)
 
-        add_id = (self.expr.id + self.expr.fid).rename('add_id')
-        self.assertIsInstance(add_id, Float64SequenceExpr)
-        self.assertNotIsInstance(add_id, Int64SequenceExpr)
-        self.assertIsNone(add_id._source_name)
-        self.assertIsInstance(add_id, Add)
-        self.assertEqual(add_id.name, 'add_id')
-        self.assertIsInstance(add_id._lhs, Int64SequenceExpr)
-        self.assertIsInstance(add_id._rhs, Float64SequenceExpr)
-        self.assertEqual(add_id._lhs._source_name, 'id')
-        self.assertEqual(add_id._rhs._source_name, 'fid')
+    seq = SequenceExpr(_data_type='int64')
+    assert isinstance(seq, Int64SequenceExpr)
 
-        add_scalar_id = (self.expr.id + 5).rename('add_s_id')
-        self.assertNotIsInstance(add_scalar_id, Float64SequenceExpr)
-        self.assertIsInstance(add_scalar_id, Int64SequenceExpr)
-        self.assertIsInstance(add_scalar_id, Add)
-        self.assertEqual(add_scalar_id.name, 'add_s_id')
-        self.assertEqual(add_scalar_id._lhs._source_name, 'id')
+    seq = BooleanSequenceExpr(_data_type='boolean')
+    assert isinstance(seq, BooleanSequenceExpr)
 
-    def testNewSequence(self):
-        column = Column(_data_type='int32')
+    seq = DatetimeSequenceExpr(_data_type='float32')
+    assert isinstance(seq, Float32SequenceExpr)
 
-        self.assertIn(Int32SequenceExpr, type(column).mro())
-        self.assertIsInstance(column, Int32SequenceExpr)
+    class Int64Column(Column):
+        __slots__ = 'test',
 
-        column = type(column)._new(_data_type='string')
-        self.assertNotIn(Int32SequenceExpr, type(column).mro())
-        self.assertIn(StringSequenceExpr, type(column).mro())
-        self.assertIsInstance(column, StringSequenceExpr)
-        self.assertNotIsInstance(column, Int32SequenceExpr)
-        self.assertIsInstance(column, Column)
+    column = Int64Column(_data_type='float64', test='value')
 
-        seq = SequenceExpr(_data_type='int64')
-        self.assertIsInstance(seq, Int64SequenceExpr)
+    assert isinstance(column, Float64SequenceExpr)
+    assert not isinstance(column, Int64SequenceExpr)
 
-        seq = BooleanSequenceExpr(_data_type='boolean')
-        self.assertIsInstance(seq, BooleanSequenceExpr)
+    column = type(column)._new(_data_type='int8', test=column.test)
+    assert column.test == 'value'
+    assert isinstance(column, Int8SequenceExpr)
+    assert not isinstance(column, Float64SequenceExpr)
+    assert not isinstance(column, Int64SequenceExpr)
+    assert isinstance(column, Int64Column)
 
-        seq = DatetimeSequenceExpr(_data_type='float32')
-        self.assertIsInstance(seq, Float32SequenceExpr)
+    class Int64Column(Int64SequenceExpr):
+        pass
 
-        class Int64Column(Column):
-            __slots__ = 'test',
+    column = Int64Column(_data_type='float64')
 
-        column = Int64Column(_data_type='float64', test='value')
+    assert isinstance(column, Float64SequenceExpr)
+    assert not isinstance(column, Int64SequenceExpr)
 
-        self.assertIsInstance(column, Float64SequenceExpr)
-        self.assertNotIsInstance(column, Int64SequenceExpr)
+    column = type(column)._new(_data_type='int8')
+    assert isinstance(column, Int8SequenceExpr)
+    assert not isinstance(column, Float64SequenceExpr)
+    assert not isinstance(column, Int64SequenceExpr)
+    assert not isinstance(column, Int64Column)
 
-        column = type(column)._new(_data_type='int8', test=column.test)
-        self.assertEqual(column.test, 'value')
-        self.assertIsInstance(column, Int8SequenceExpr)
-        self.assertNotIsInstance(column, Float64SequenceExpr)
-        self.assertNotIsInstance(column, Int64SequenceExpr)
-        self.assertIsInstance(column, Int64Column)
 
-        class Int64Column(Int64SequenceExpr):
-            pass
+def test_sequence_cache(exprs):
+    df = exprs.expr.name
+    pytest.raises(ExpressionError, lambda: df.cache())
 
-        column = Int64Column(_data_type='float64')
 
-        self.assertIsInstance(column, Float64SequenceExpr)
-        self.assertNotIsInstance(column, Int64SequenceExpr)
+def test_expr_field_validation(exprs):
+    df = exprs.expr
+    pytest.raises(errors.ExpressionError, lambda: df[df[:10].id])
 
-        column = type(column)._new(_data_type='int8')
-        self.assertIsInstance(column, Int8SequenceExpr)
-        self.assertNotIsInstance(column, Float64SequenceExpr)
-        self.assertNotIsInstance(column, Int64SequenceExpr)
-        self.assertNotIsInstance(column, Int64Column)
+    df2 = exprs.expr[['id']]
+    pytest.raises(errors.ExpressionError, lambda: df[df2.id])
 
-    def testSequenceCache(self):
-        df = self.expr.name
-        self.assertRaises(ExpressionError, lambda: df.cache())
 
-    def testExprFieldValidation(self):
-        df = self.expr
-        self.assertRaises(errors.ExpressionError, lambda: df[df[:10].id])
+def test_filter_parts(exprs):
+    pytest.raises(ExpressionError, lambda: exprs.expr.filter_parts(None))
+    pytest.raises(ExpressionError, lambda: exprs.expr.filter_parts('part3=a'))
+    pytest.raises(ExpressionError, lambda: exprs.expr.filter_parts('part1=a,part2=1/part1=b,part2=2'))
+    pytest.raises(ExpressionError, lambda: exprs.expr2.filter_parts('part1,part2=1/part1=b,part2=2'))
 
-        df2 = self.expr[['id']]
-        self.assertRaises(errors.ExpressionError, lambda: df[df2.id])
+    filtered1 = exprs.expr2.filter_parts('part1=a,part2=1/part1=b,part2=2')
+    assert isinstance(filtered1, FilterPartitionCollectionExpr)
+    assert filtered1.schema == exprs.expr.schema
+    assert filtered1.predicate_string == 'part1=a,part2=1/part1=b,part2=2'
 
-    def testFilterParts(self):
-        self.assertRaises(ExpressionError, lambda: self.expr.filter_parts(None))
-        self.assertRaises(ExpressionError, lambda: self.expr.filter_parts('part3=a'))
-        self.assertRaises(ExpressionError, lambda: self.expr.filter_parts('part1=a,part2=1/part1=b,part2=2'))
-        self.assertRaises(ExpressionError, lambda: self.expr2.filter_parts('part1,part2=1/part1=b,part2=2'))
+    filtered2 = exprs.expr2.filter_parts('part1=a,part2=1/part1=b,part2=2', exclude=False)
+    assert isinstance(filtered2, FilterCollectionExpr)
 
-        filtered1 = self.expr2.filter_parts('part1=a,part2=1/part1=b,part2=2')
-        self.assertIsInstance(filtered1, FilterPartitionCollectionExpr)
-        self.assertEqual(filtered1.schema, self.expr.schema)
-        self.assertEqual(filtered1.predicate_string, 'part1=a,part2=1/part1=b,part2=2')
+    try:
+        import pandas as pd
+        from ... import DataFrame
+        pd_df = pd.DataFrame([['Col1', 1], ['Col2', 2]], columns=['Field1', 'Field2'])
+        df = DataFrame(pd_df)
+        pytest.raises(ExpressionError, lambda: df.filter_parts('Fieldd2=2'))
+    except ImportError:
+        pass
 
-        filtered2 = self.expr2.filter_parts('part1=a,part2=1/part1=b,part2=2', exclude=False)
-        self.assertIsInstance(filtered2, FilterCollectionExpr)
 
-        try:
-            import pandas as pd
-            from odps.df import DataFrame
-            pd_df = pd.DataFrame([['Col1', 1], ['Col2', 2]], columns=['Field1', 'Field2'])
-            df = DataFrame(pd_df)
-            self.assertRaises(ExpressionError, lambda: df.filter_parts('Fieldd2=2'))
-        except ImportError:
-            pass
+def test_dep_expr(exprs):
+    expr1 = Scalar('1')
+    expr2 = exprs.expr['id']
+    expr2.add_deps(expr1)
 
-    def testDepExpr(self):
-        expr1 = Scalar('1')
-        expr2 = self.expr['id']
-        expr2.add_deps(expr1)
+    assert expr1 in expr2.deps
 
-        self.assertIn(expr1, expr2.deps)
 
-    def testBacktrackField(self):
-        expr = self.expr.filter(self.expr.id < 3)[self.expr.id + 1, self.expr.name.rename('name2')]
+def test_backtrack_field(exprs):
+    expr = exprs.expr.filter(exprs.expr.id < 3)[exprs.expr.id + 1, exprs.expr.name.rename('name2')]
 
-        self.assertIs(expr._fields[0].lhs.input, expr.input)
-        self.assertIs(expr._fields[1].input, expr.input)
-        self.assertEqual(expr._fields[1].name, 'name2')
+    assert expr._fields[0].lhs.input is expr.input
+    assert expr._fields[1].input is expr.input
+    assert expr._fields[1].name == 'name2'
 
-        with self.assertRaises(ExpressionError):
-            self.expr[self.expr.id + 1, self.expr.name][self.expr.name, self.expr.id]
+    with pytest.raises(ExpressionError):
+        exprs.expr[exprs.expr.id + 1, exprs.expr.name][exprs.expr.name, exprs.expr.id]
 
-        expr = self.expr[self.expr.id + 1, 'name'].filter(self.expr.name == 'a')
+    expr = exprs.expr[exprs.expr.id + 1, 'name'].filter(exprs.expr.name == 'a')
 
-        self.assertIs(expr._predicate.lhs.input, expr.input)
+    assert expr._predicate.lhs.input is expr.input
 
-        with self.assertRaises(ExpressionError):
-            self.expr[self.expr.id + 1, self.expr.name][self.expr2.name,]
+    with pytest.raises(ExpressionError):
+        exprs.expr[exprs.expr.id + 1, exprs.expr.name][exprs.expr2.name,]
 
-        expr1 = self.expr['name', (self.expr.id + 1).rename('id2')]
-        expr = expr1[expr1.name.notnull()][
-            expr1.name.rename('name2'),
-            expr1.id2.rename('id3'),
-            expr1.groupby('id2').sort('id2').rank()
-        ]
-        self.assertIs(expr._fields[1].input, expr.input)
-        self.assertIs(expr._fields[2].input, expr.input)
+    expr1 = exprs.expr['name', (exprs.expr.id + 1).rename('id2')]
+    expr = expr1[expr1.name.notnull()][
+        expr1.name.rename('name2'),
+        expr1.id2.rename('id3'),
+        expr1.groupby('id2').sort('id2').rank()
+    ]
+    assert expr._fields[1].input is expr.input
+    assert expr._fields[2].input is expr.input
 
-    def testSetitemField(self):
-        from odps.df.expr.groupby import GroupByCollectionExpr
-        from odps.df.expr.merge import JoinFieldMergedCollectionExpr
 
-        expr = self.expr.copy()
+def test_setitem_field(config, exprs):
+    from ..groupby import GroupByCollectionExpr
+    from ..merge import JoinFieldMergedCollectionExpr
 
-        expr['new_id'] = expr.id + 1
+    expr = exprs.expr.copy()
 
-        self.assertIn('new_id', expr.schema.names)
-        self.assertIs(expr._fields[-1].lhs.input, expr.input)
+    expr['new_id'] = expr.id + 1
 
-        self.assertEqual(expr.schema.names, ['name', 'id', 'fid', 'new_id'])
+    assert 'new_id' in expr.schema.names
+    assert expr._fields[-1].lhs.input is expr.input
 
-        expr['new_id2'] = expr.id + 2
+    assert expr.schema.names == ['name', 'id', 'fid', 'new_id']
 
-        self.assertIn('new_id2', expr.schema.names)
-        self.assertIs(expr._fields[-1].lhs.input, expr.input)
+    expr['new_id2'] = expr.id + 2
 
-        self.assertEqual(expr.schema.names, ['name', 'id', 'fid', 'new_id', 'new_id2'])
-        self.assertIsNone(expr._input._proxy)
+    assert 'new_id2' in expr.schema.names
+    assert expr._fields[-1].lhs.input is expr.input
 
-        expr['new_id2'] = expr.new_id
+    assert expr.schema.names == ['name', 'id', 'fid', 'new_id', 'new_id2']
+    assert expr._input._proxy is None
 
-        expr['new_id3'] = expr.id + expr.new_id2
-        self.assertIs(expr._fields[-1].lhs.input, expr.input)
-        self.assertIs(expr._fields[-1].rhs.lhs.input, expr.input)
+    expr['new_id2'] = expr.new_id
 
-        self.assertIsInstance(expr, ProjectCollectionExpr)
-        self.assertTrue(isinstance(expr, ProjectCollectionExpr))
+    expr['new_id3'] = expr.id + expr.new_id2
+    assert expr._fields[-1].lhs.input is expr.input
+    assert expr._fields[-1].rhs.lhs.input is expr.input
 
-        expr2 = expr.groupby('name').agg(expr.id.sum())
-        expr2['new_id2'] = expr2.id_sum + 1
-        self.assertIsInstance(expr2, ProjectCollectionExpr)
-        self.assertNotIsInstance(expr2, GroupByCollectionExpr)
-        self.assertNotIsInstance(expr2, FilterCollectionExpr)
+    assert isinstance(expr, ProjectCollectionExpr)
+    assert isinstance(expr, ProjectCollectionExpr) is True
 
-        schema = TableSchema.from_lists(
-            ['name', 'id', 'fid2', 'fid3'],
-            [types.string, types.int64, types.float64, types.float64],
-        )
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
-        table._client = self.config.odps.rest
-        expr3 = CollectionExpr(_source_data=table, _schema=schema)
+    expr2 = expr.groupby('name').agg(expr.id.sum())
+    expr2['new_id2'] = expr2.id_sum + 1
+    assert isinstance(expr2, ProjectCollectionExpr)
+    assert not isinstance(expr2, GroupByCollectionExpr)
+    assert not isinstance(expr2, FilterCollectionExpr)
 
-        expr4 = expr.left_join(expr3, on=[expr.name == expr3.name, expr.id == expr3.id],
-                               merge_columns=True)
-        expr4['fid_1'] = expr4.groupby('id').sort('fid2').row_number()
-        self.assertIsInstance(expr4, JoinFieldMergedCollectionExpr)
-        self.assertIsNone(expr4._proxy)
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid2', 'fid3'],
+        [types.string, types.int64, types.float64, types.float64],
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+    table._client = config.odps.rest
+    expr3 = CollectionExpr(_source_data=table, _schema=schema)
 
-        expr5 = expr[expr]
-        expr5['name_2'] = expr5.apply(lambda row: row.name, axis=1, reduce=True)
-        self.assertIsInstance(expr5, ProjectCollectionExpr)
-        self.assertIsNone(expr5._proxy)
+    expr4 = expr.left_join(expr3, on=[expr.name == expr3.name, expr.id == expr3.id],
+                           merge_columns=True)
+    expr4['fid_1'] = expr4.groupby('id').sort('fid2').row_number()
+    assert isinstance(expr4, JoinFieldMergedCollectionExpr)
+    assert expr4._proxy is None
 
-    def testSetitemConditionField(self):
-        from odps.df.expr.arithmetic import And
-        from odps.df.expr.element import IfElse
+    expr5 = expr[expr]
+    expr5['name_2'] = expr5.apply(lambda row: row.name, axis=1, reduce=True)
+    assert isinstance(expr5, ProjectCollectionExpr)
+    assert expr5._proxy is None
 
-        expr = self.expr.copy()
 
-        self.assertRaises(ValueError, expr.__setitem__, (expr.id, 'new_id'), 0)
-        self.assertRaises(ValueError, expr.__setitem__, (expr.id, expr.name, 'new_id'), 0)
+def test_setitem_condition_field(exprs):
+    from ..arithmetic import And
+    from ..element import IfElse
 
-        expr[expr.id < 10, 'new_id'] = expr.id + 1
-        self.assertIn('new_id', expr.schema.names)
-        self.assertIsInstance(expr._fields[-1], IfElse)
+    expr = exprs.expr.copy()
 
-        expr[expr.id > 5, 'new_id'] = None
-        self.assertIn('new_id', expr.schema.names)
-        self.assertIsInstance(expr._fields[-1], IfElse)
-
-        expr[expr.id < 5, expr.name == 'test', 'new_id2'] = expr.id + 2
-        self.assertIn('new_id2', expr.schema.names)
-        self.assertIsInstance(expr._fields[-1], IfElse)
-        self.assertIsInstance(expr._fields[-1].input, And)
-
-        expr[expr.id >= 5, expr.name == 'test', 'new_id2'] = expr.id + 2
-        self.assertIn('new_id2', expr.schema.names)
-        self.assertIsInstance(expr._fields[-1], IfElse)
-        self.assertIsInstance(expr._fields[-1].input, And)
-        self.assertIsInstance(expr._fields[-1]._else, IfElse)
-
-        expr2 = expr['id', 'name']
-        expr2[expr2.id >= 5, expr2.name == 'test', 'new_id3'] = expr.id + 2
-        self.assertIn('new_id3', expr2.schema.names)
-        self.assertIsInstance(expr._fields[-1], IfElse)
-        self.assertIsInstance(expr._fields[-1].input, And)
-        self.assertIsInstance(expr._fields[-1]._else, IfElse)
-
-    def testDelitemField(self):
-        from odps.df.expr.groupby import GroupByCollectionExpr
-        from odps.df.expr.collections import DistinctCollectionExpr
-
-        expr = self.expr.copy()
-
-        del expr['fid']
-
-        self.assertNotIn('fid', expr.schema)
-        self.assertEqual(expr.schema.names, ['name', 'id'])
-        self.assertIsInstance(expr, ProjectCollectionExpr)
-
-        expr['id2'] = self.expr.id + 1
-        del expr['id2']
-
-        self.assertNotIn('id2', expr.schema)
-        self.assertEqual(expr.schema.names, ['name', 'id'])
-
-        expr['id3'] = expr.id
-        del expr['id']
-
-        self.assertNotIn('id', expr.schema)
-        self.assertIn('id3', expr.schema)
-        self.assertEqual(expr.schema.names, ['name', 'id3'])
-
-        expr2 = expr.groupby('name').agg(expr.id3.sum().rename('id'))
-        del expr2.name
-
-        self.assertNotIn('name', expr2.schema)
-        self.assertIn('id', expr2.schema)
-        self.assertEqual(expr2.schema.names, ['id'])
-        self.assertIsInstance(expr2, ProjectCollectionExpr)
-        self.assertNotIsInstance(expr2, GroupByCollectionExpr)
-
-        expr3 = expr2.distinct()
-        expr3['new_id'] = expr3.id + 1
-        expr3['new_id2'] = expr3.new_id * 2
-        del expr3['new_id']
-
-        self.assertNotIn('new_id', expr3.schema)
-        self.assertIn('new_id2', expr3.schema)
-        self.assertEqual(expr3.schema.names, ['id', 'new_id2'])
-        self.assertIsInstance(expr3, ProjectCollectionExpr)
-        self.assertNotIsInstance(expr3, DistinctCollectionExpr)
-
-    def testLateralView(self):
-        from odps.df.expr.collections import RowAppliedCollectionExpr
-
-        expr = self.expr3.copy()
-
-        expr1 = expr[expr.id, expr.relatives.explode(), expr.hobbies.explode()]
-        self.assertIsInstance(expr1, LateralViewCollectionExpr)
-        self.assertEqual(len(expr1.lateral_views), 2)
-        self.assertIsInstance(expr1.lateral_views[0], RowAppliedCollectionExpr)
-        self.assertTrue(expr1.lateral_views[0]._lateral_view)
-        self.assertIsInstance(expr1.lateral_views[1], RowAppliedCollectionExpr)
-        self.assertTrue(expr1.lateral_views[1]._lateral_view)
-
-        expr2 = expr.relatives.explode(['r_key', 'r_value'])
-        expr2 = expr2[expr2.r_key.rename('rk'), expr2]
-        self.assertIsInstance(expr2, ProjectCollectionExpr)
-        self.assertNotIsInstance(expr2, LateralViewCollectionExpr)
-
-        left = expr.relatives.explode(['r_key', 'r_value'])
-        joined = left.join(expr, on=(left.r_key == expr.name))
-        expr3 = joined['name', left]
-        self.assertIsInstance(expr3, ProjectCollectionExpr)
-        self.assertNotIsInstance(expr3, LateralViewCollectionExpr)
-
-        left = expr.relatives.explode(['name', 'r_value'])
-        joined = left.left_join(expr, on='name', merge_columns=True)
-        expr4 = joined['id', left]
-        self.assertIsInstance(expr4, ProjectCollectionExpr)
-        self.assertNotIsInstance(expr4, LateralViewCollectionExpr)
-
-        u1 = expr.relatives.explode(['name', 'r_value'])
-        u2 = expr.relatives.explode(['name', 'r_value'])
-        u3 = expr[expr.name, expr.hobbies.explode('r_value')]
-        unioned = u1.union(u2).union(u3)
-        expr5 = unioned[Scalar('unioned').rename('scalar'), u1]
-        self.assertIsInstance(expr5, ProjectCollectionExpr)
-        self.assertNotIsInstance(expr5, LateralViewCollectionExpr)
-
-
-if __name__ == '__main__':
-    unittest.main()
+    pytest.raises(ValueError, expr.__setitem__, (expr.id, 'new_id'), 0)
+    pytest.raises(ValueError, expr.__setitem__, (expr.id, expr.name, 'new_id'), 0)
+
+    expr[expr.id < 10, 'new_id'] = expr.id + 1
+    assert 'new_id' in expr.schema.names
+    assert isinstance(expr._fields[-1], IfElse)
+
+    expr[expr.id > 5, 'new_id'] = None
+    assert 'new_id' in expr.schema.names
+    assert isinstance(expr._fields[-1], IfElse)
+
+    expr[expr.id < 5, expr.name == 'test', 'new_id2'] = expr.id + 2
+    assert 'new_id2' in expr.schema.names
+    assert isinstance(expr._fields[-1], IfElse)
+    assert isinstance(expr._fields[-1].input, And)
+
+    expr[expr.id >= 5, expr.name == 'test', 'new_id2'] = expr.id + 2
+    assert 'new_id2' in expr.schema.names
+    assert isinstance(expr._fields[-1], IfElse)
+    assert isinstance(expr._fields[-1].input, And)
+    assert isinstance(expr._fields[-1]._else, IfElse)
+
+    expr2 = expr['id', 'name']
+    expr2[expr2.id >= 5, expr2.name == 'test', 'new_id3'] = expr.id + 2
+    assert 'new_id3' in expr2.schema.names
+    assert isinstance(expr._fields[-1], IfElse)
+    assert isinstance(expr._fields[-1].input, And)
+    assert isinstance(expr._fields[-1]._else, IfElse)
+
+
+def test_delitem_field(exprs):
+    from ..collections import DistinctCollectionExpr
+    from ..groupby import GroupByCollectionExpr
+
+    expr = exprs.expr.copy()
+
+    del expr['fid']
+
+    assert 'fid' not in expr.schema
+    assert expr.schema.names == ['name', 'id']
+    assert isinstance(expr, ProjectCollectionExpr)
+
+    expr['id2'] = exprs.expr.id + 1
+    del expr['id2']
+
+    assert 'id2' not in expr.schema
+    assert expr.schema.names == ['name', 'id']
+
+    expr['id3'] = expr.id
+    del expr['id']
+
+    assert 'id' not in expr.schema
+    assert 'id3' in expr.schema
+    assert expr.schema.names == ['name', 'id3']
+
+    expr2 = expr.groupby('name').agg(expr.id3.sum().rename('id'))
+    del expr2.name
+
+    assert 'name' not in expr2.schema
+    assert 'id' in expr2.schema
+    assert expr2.schema.names == ['id']
+    assert isinstance(expr2, ProjectCollectionExpr)
+    assert not isinstance(expr2, GroupByCollectionExpr)
+
+    expr3 = expr2.distinct()
+    expr3['new_id'] = expr3.id + 1
+    expr3['new_id2'] = expr3.new_id * 2
+    del expr3['new_id']
+
+    assert 'new_id' not in expr3.schema
+    assert 'new_id2' in expr3.schema
+    assert expr3.schema.names == ['id', 'new_id2']
+    assert isinstance(expr3, ProjectCollectionExpr)
+    assert not isinstance(expr3, DistinctCollectionExpr)
+
+
+def test_lateral_view(exprs):
+    from ..collections import RowAppliedCollectionExpr
+
+    expr = exprs.expr3.copy()
+
+    expr1 = expr[expr.id, expr.relatives.explode(), expr.hobbies.explode()]
+    assert isinstance(expr1, LateralViewCollectionExpr)
+    assert len(expr1.lateral_views) == 2
+    assert isinstance(expr1.lateral_views[0], RowAppliedCollectionExpr)
+    assert expr1.lateral_views[0]._lateral_view is True
+    assert isinstance(expr1.lateral_views[1], RowAppliedCollectionExpr)
+    assert expr1.lateral_views[1]._lateral_view is True
+
+    expr2 = expr.relatives.explode(['r_key', 'r_value'])
+    expr2 = expr2[expr2.r_key.rename('rk'), expr2]
+    assert isinstance(expr2, ProjectCollectionExpr)
+    assert not isinstance(expr2, LateralViewCollectionExpr)
+
+    left = expr.relatives.explode(['r_key', 'r_value'])
+    joined = left.join(expr, on=(left.r_key == expr.name))
+    expr3 = joined['name', left]
+    assert isinstance(expr3, ProjectCollectionExpr)
+    assert not isinstance(expr3, LateralViewCollectionExpr)
+
+    left = expr.relatives.explode(['name', 'r_value'])
+    joined = left.left_join(expr, on='name', merge_columns=True)
+    expr4 = joined['id', left]
+    assert isinstance(expr4, ProjectCollectionExpr)
+    assert not isinstance(expr4, LateralViewCollectionExpr)
+
+    u1 = expr.relatives.explode(['name', 'r_value'])
+    u2 = expr.relatives.explode(['name', 'r_value'])
+    u3 = expr[expr.name, expr.hobbies.explode('r_value')]
+    unioned = u1.union(u2).union(u3)
+    expr5 = unioned[Scalar('unioned').rename('scalar'), u1]
+    assert isinstance(expr5, ProjectCollectionExpr)
+    assert not isinstance(expr5, LateralViewCollectionExpr)

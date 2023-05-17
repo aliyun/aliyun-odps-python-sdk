@@ -4,21 +4,23 @@
 =====================
 
 制作三方包
---------
+----------
 PyODPS 自 0.11.3 起提供了 ``pyodps-pack`` 命令行工具，用于制作符合 PyODPS 及 DataWorks PyODPS
 节点标准的三方包，使用方法类似 ``pip`` 命令。你可以使用该工具将所有依赖项目制作成一个 ``.tar.gz``
 压缩包，其中包含所有依照 MaxCompute / DataWorks 环境编译并打包的项目依赖。如果你的项目有自行创建的 Python
 包，也可以使用该工具进行打包。
 
 准备工作
-~~~~~~
+~~~~~~~~
 Docker 模式
 ^^^^^^^^^^^
 你需要安装 Docker 以顺利在 Docker 下运行 ``pyodps-pack``。对于 Linux 环境，可以参考 `Docker 官方文档
 <https://docs.docker.com/engine/install/>`_ 安装 Docker。对于 MacOS / Windows，个人开发者可以使用
 `Docker Desktop <https://www.docker.com/products/docker-desktop/>`_ 。对于没有购买过授权的企业用户，推荐使用开源的
-`Rancher Desktop <https://rancherdesktop.io/>`_ 。我们没有在包括 ``minikube`` 在内的其他 Docker 环境中测试
-``pyodps-pack`` ，不保证在这些环境中的可用性。
+`Rancher Desktop <https://rancherdesktop.io/>`_ （
+`中国内地镜像 <http://mirrors.aliyun.com/github/releases/rancher-sandbox/rancher-desktop/>`_
+）。你也可以考虑使用 `minikube <https://minikube.sigs.k8s.io/docs/>`_，
+但需要一些额外的步骤，见 :ref:`这份文档 <pack_minikube>`。我们没有在其他 Docker 环境中测试 ``pyodps-pack`` ，不保证在这些环境中的可用性。
 
 对于期望在版本较老的专有云中的 MaxCompute / DataWorks 使用 ``--legacy-image`` 选项打包的用户，在 Windows / MacOS
 或者部分内核的 Linux 系统中可能出现无法打包的错误，请参考
@@ -30,7 +32,7 @@ Docker 模式
 作为容器引擎，可以尝试改用 ``dockerd`` ，具体参考 `该文档 <https://docs.rancherdesktop.io/ui/preferences/container-engine>`_
 进行配置。
 
-如果你的 MaxCompute / DataWorks 基于 Arm64 机型部署，你需要额外增加 ``--arch aarch64`` 参数指定打包需要的架构。通常
+如果你的 MaxCompute / DataWorks 基于 ARM64 机型部署（通常是专有云），你需要额外增加 ``--arch aarch64`` 参数指定打包需要的架构。通常
 Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfmt`` 相关组件，你也可以使用命令
 
 .. code-block:: bash
@@ -39,8 +41,14 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 安装相关的虚拟环境。该命令要求 Linux Kernel 版本高于 4.8，具体可以参考 `该页面 <https://github.com/tonistiigi/binfmt>`_。
 
+.. toctree::
+   :hidden:
+   :maxdepth: 1
+
+   pyodps-pack-minikube
+
 无 Docker 模式
-^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
 .. note::
 
     我们建议在打包时，尽量使用 Docker 模式。非 Docker 模式仅用于 Docker 不可用的场景，且生成的包有可能不可用。
@@ -50,7 +58,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 包含在 `Git for Windows <https://gitforwindows.org>`_ 中。
 
 打包所有依赖
-~~~~~~~~~
+~~~~~~~~~~~~
 .. note::
 
     MaxCompute 建议除非不得已，新项目请尽量使用 Python 3。我们不保证下面的打包步骤对 Python 2 的可用性。
@@ -105,7 +113,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
     pyodps-pack --dwpy27 pandas
 
 打包自定义代码
-~~~~~~~~~~~
+~~~~~~~~~~~~~~
 ``pyodps-pack`` 支持打包使用 ``setup.py`` 或者 ``pyproject.toml`` 组织的用户自定义 Python project。如果你之前从未
 接触过相关知识，可以参考 `这个链接 <https://pip.pypa.io/en/stable/reference/build-system/>`_ 获取更多信息。
 
@@ -142,7 +150,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
     pyodps-pack /<path_to_package>/test_package_root
 
 打包 Git Repo 中的代码
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
 ``pyodps-pack`` 支持打包远程 Git 代码仓库（例如 Github）中的代码。以 PyODPS 本身为例，可以使用下面的命令执行打包：
 
 .. code-block:: bash
@@ -180,7 +188,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
         git+https://github.com/aliyun/aliyun-odps-python-sdk.git@v0.11.2.2
 
 更复杂的例子：二进制依赖
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 一部分包包含额外的二进制依赖，例如需要编译 / 安装的外部动态链接库。``pyodps-pack`` 提供了
 ``--run-before`` 参数用以指定打包前需要执行的步骤，该步骤中可以安装所需的二进制依赖。
 我们用地理信息库 `GDAL <https://gdal.org/>`_ 来说明如何打包。
@@ -219,7 +227,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
     pyodps-pack --install-requires oldest-supported-numpy --run-before install-gdal.sh gdal==3.6.0.1
 
 命令详情
-~~~~~~
+~~~~~~~~~
 下面给出 ``pyodps-pack`` 命令的可用参数，可用于控制打包过程：
 
 - ``-r``, ``--requirement <file>``
@@ -250,10 +258,30 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
   指定打包时不包含指定项目的依赖项。
 
-- ``-i``, ``--index-url <index-url>``
+- ``--pre``
 
-  指定打包时所需的 PyPI URL。如果缺省，会使用 ``pip config list`` 命令返回的 ``global.index-url``
+  如果指定，则打包预发布和开发版本。默认情况下，只包含正式版本。
+
+- ``--proxy <proxy>``
+
+  指定打包所用的代理服务器，以 scheme://[user:passwd@]proxy.server:port 这样的形式。
+
+- ``--retries <retries>``
+
+  指定每次连接时的最大重试次数（默认5次）。
+
+- ``timeout <secs>``
+
+  指定套接字超时时间（默认15秒）。
+
+- ``-i``, ``--index-url <url>``
+
+  指定打包时所需的仓库索引 URL。如果缺省，会使用 ``pip config list`` 命令返回的 ``global.index-url``
   值，该值通常配置在 ``pip.conf`` 配置文件中。
+
+- ``--extra-index-url <url>``
+
+  指定除 ``--index-url`` 之外需要使用的仓库索引 URL，规则与 ``--index-url`` 类似。
 
 - ``--trusted-host <host>``
 
@@ -303,6 +331,10 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 除此之外，还有若干环境变量可供配置：
 
+- ``DOCKER_PATH="path to docker installation"``
+
+  指定 Docker 可执行文件路径，路径下需要包括 ``docker`` 可执行文件。
+
 - ``BEFORE_BUILD="command before build"``
 
   指定打包前需要执行的命令。
@@ -316,10 +348,10 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
   自定义需要使用的 Docker Image。建议基于 ``pypa/manylinux`` 系列镜像定制自定义打包用 Docker Image。
 
 使用三方包
---------
+----------
 
 上传三方包
-~~~~~~~~
+~~~~~~~~~~
 使用三方包前，请确保你生成的包被上传到 MaxCompute Archive 资源。可以使用下面的代码上传资源。
 需要注意的是，你需要将 packages.tar.gz 替换成你刚生成的包所在的路径和文件名：
 
@@ -350,7 +382,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 更详细的细节请参考 `这篇文章 <https://help.aliyun.com/document_detail/136928.html>`_ 。
 
 在 Python UDF 中使用三方包
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
 你需要对你的 UDF 进行修改以使用上传的三方包。具体地，你需要在 UDF 类的 ``__init__`` 方法中添加对三方包的引用，
 然后再在UDF代码中（例如 evaluate / process 方法）调用三方包。
 
@@ -434,7 +466,7 @@ PyODPS DataFrame 支持在 execute / persist 时使用 libraries 参数使用上
 
 假定我们的表名为 ``test_float_col`` ，内容只包含一列 float 值：
 
-.. code-block::
+::
 
        col1
     0  3.75
@@ -549,7 +581,7 @@ RHEL 5 x86\_64 Python 2.7       cp27-cp27m-manylinux1_x86_64
 RHEL 5 x86\_64 Python 3.7       cp37-cp37m-manylinux1_x86_64
 RHEL 7 x86\_64 Python 2.7       cp27-cp27m-manylinux1_x86_64, cp27-cp27m-manylinux2010_x86_64, cp27-cp27m-manylinux2014_x86_64
 RHEL 7 x86\_64 Python 3.7       cp37-cp37m-manylinux1_x86_64, cp37-cp37m-manylinux2010_x86_64, cp37-cp37m-manylinux2014_x86_64
-RHEL 7 Arm64   Python 3.7       cp37-cp37m-manylinux2014_aarch64
+RHEL 7 ARM64   Python 3.7       cp37-cp37m-manylinux2014_aarch64
 ============== ================ ====================================================================================================================
 
 所有的 whl 包都需要以 archive 格式上传，whl 后缀的包需要重命名为 zip。同时，作业需要开启

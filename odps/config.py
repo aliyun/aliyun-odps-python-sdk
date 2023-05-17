@@ -23,7 +23,7 @@ import warnings
 from .compat import six
 
 
-DEFAULT_CHUNK_SIZE = 1496
+DEFAULT_CHUNK_SIZE = 65536
 DEFAULT_CONNECT_RETRY_TIMES = 4
 DEFAULT_CONNECT_TIMEOUT = 120
 DEFAULT_READ_TIMEOUT = 120
@@ -360,6 +360,7 @@ options.register_option('resource_chunk_size', 64 << 20, validator=is_integer)
 options.register_option('upload_resource_in_chunks', True, validator=is_bool)
 options.register_option('verify_ssl', True)
 options.register_option('always_enable_schema', False, validator=is_bool)
+options.register_option('table_auto_flush_time', 150, validator=is_integer)
 
 # c or python mode, use for UT, in other cases, please do not modify the value
 options.register_option('force_c', False, validator=is_integer)
@@ -388,6 +389,7 @@ options.register_option('tunnel.pd_mem_cache_size', 1024 * 4, validator=is_integ
 options.register_option('tunnel.pd_row_cache_size', 1024 * 16, validator=is_integer)
 options.register_option('tunnel.read_row_batch_size', 1024, validator=is_integer)
 options.register_option('tunnel.batch_merge_threshold', 128, validator=is_integer)
+options.register_option('tunnel.overflow_date_as_none', False, validator=is_bool)
 
 options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
 options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')

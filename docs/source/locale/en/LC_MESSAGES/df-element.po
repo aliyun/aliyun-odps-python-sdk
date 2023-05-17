@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-11-16 17:33+0800\n"
+"POT-Creation-Date: 2023-04-10 15:49+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1269,7 +1269,7 @@ msgstr ""
 "project must support Python UDF or you cannot use these functions (Note: "
 "You need to apply for Python UDF support)**\\."
 
-#: ../../source/df-element.rst:534 ../../source/df-element.rst:597
+#: ../../source/df-element.rst:535 ../../source/df-element.rst:602
 msgid ""
 "由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS"
 " Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常 "
@@ -1281,11 +1281,23 @@ msgstr ""
 "code executes normally before writing production code using MapReduce API"
 " in Python 3."
 
-#: ../../source/df-element.rst:542
+#: ../../source/df-element.rst:541
+msgid ""
+"由于 PyODPS DataFrame 默认 Collection / Sequence "
+"等对象均为分布式对象，故不支持在自定义函数内部引用这些对象。 请考虑改用 :ref:`Join 等方法 <dfmerge>` 引用多个 "
+"DataFrame 的数据，或者引用 Collection 作为资源，如下文所述。"
+msgstr ""
+"PyODPS DataFrame recognizes all collections and sequences as distributed "
+"objects, and does not support referencing these objects inside user-defined"
+" functions. Please consider using :ref:`methods like join <dfmerge>` to "
+"reference data in multiple DataFrames, or referencing collections as "
+"resources, which is stated in the next section."
+
+#: ../../source/df-element.rst:547
 msgid "引用资源"
 msgstr "Reference Resources"
 
-#: ../../source/df-element.rst:544
+#: ../../source/df-element.rst:549
 msgid ""
 "自定义函数也能读取ODPS上的资源（表资源或文件资源），或者引用一个collection作为资源。 "
 "此时，自定义函数需要写成函数闭包或callable的类。"
@@ -1294,7 +1306,7 @@ msgstr ""
 "file resources, or reference Collection objects as resources. To do that,"
 " you need to write your functions as a closure or callable class."
 
-#: ../../source/df-element.rst:547
+#: ../../source/df-element.rst:552
 msgid ""
 ">>> file_resource = o.create_resource('pyodps_iris_file', 'file', "
 "file_obj='Iris-setosa')\n"
@@ -1306,7 +1318,7 @@ msgid ""
 "1  Iris-versicolor"
 msgstr ""
 
-#: ../../source/df-element.rst:557
+#: ../../source/df-element.rst:562
 msgid ""
 ">>> def myfunc(resources):  # resources按调用顺序传入\n"
 ">>>     names = set()\n"
@@ -1361,17 +1373,17 @@ msgstr ""
 "1  Iris-versicolor   True\n"
 "2   Iris-virginica  False"
 
-#: ../../source/df-element.rst:584
+#: ../../source/df-element.rst:589
 msgid "注：分区表资源在读取时不包含分区字段。"
 msgstr ""
 "Note: when reading the partitioned tables, partition fields are not "
 "included."
 
-#: ../../source/df-element.rst:589
+#: ../../source/df-element.rst:594
 msgid "使用第三方Python库"
 msgstr "Use third-party Python libraries"
 
-#: ../../source/df-element.rst:590
+#: ../../source/df-element.rst:595
 msgid ""
 "现在用户可以把第三方 Wheel 包作为资源上传到 MaxCompute。在全局或者在立即执行的方法时，指定需要使用的包文件， "
 "即可以在自定义函数中使用第三方库。值得注意的是，第三方库的依赖库也必须指定，否则依然会有导入错误。"
@@ -1381,22 +1393,23 @@ msgstr ""
 "DataFrames immediately. Note that you also need to add dependencies of "
 "your third-party libraries, or import could fail."
 
-#: ../../source/df-element.rst:593
+#: ../../source/df-element.rst:598
 msgid ""
 "PyODPS 提供了 ``pyodps-pack`` 工具，可在安装完 PyODPS 后打包三方包及其依赖。同时，execute / "
 "persist / to_pandas 方法支持增加 ``libraries`` 参数以使用这些资源。如何制作及使用三方包的说明请参考 "
 ":ref:`这里 <pyodps_pack>`。"
 msgstr ""
-"PyODPS installation provides ``pyodps-pack`` tool for packing third-party libraries. "
-"Meanwhile methods like execute, persist or to_pandas support ``libraries`` argument to"
-" use these resources. You may take a look at :ref:`documents here <pyodps_pack>` to see"
-" how to build and use these third-party libraries."
+"PyODPS installation provides ``pyodps-pack`` tool for packing third-party"
+" libraries. Meanwhile methods like execute, persist or to_pandas support "
+"``libraries`` argument to use these resources. You may take a look at "
+":ref:`documents here <pyodps_pack>` to see how to build and use these "
+"third-party libraries."
 
-#: ../../source/df-element.rst:602
+#: ../../source/df-element.rst:607
 msgid "使用计数器"
 msgstr "Use the counter"
 
-#: ../../source/df-element.rst:604
+#: ../../source/df-element.rst:609
 msgid ""
 "from odps.udf import get_execution_context\n"
 "\n"
@@ -1409,15 +1422,15 @@ msgid ""
 "df.field.map(h)"
 msgstr ""
 
-#: ../../source/df-element.rst:616
+#: ../../source/df-element.rst:621
 msgid "logview 的 JSONSummary 中即可找到计数器值。"
 msgstr "You can find the value of the counter in the JSONSummary of LogView."
 
-#: ../../source/df-element.rst:620
+#: ../../source/df-element.rst:625
 msgid "调用ODPS内建或者已定义函数"
 msgstr "Call MaxCompute built-in functions or UDFs"
 
-#: ../../source/df-element.rst:622
+#: ../../source/df-element.rst:627
 msgid ""
 "要想调用 ODPS 上的内建或者已定义函数，来生成列，我们可以使用 ``func`` 接口，该接口默认函数返回值为 String， 可以用 "
 "rtype 参数指定返回值。"
@@ -1426,7 +1439,7 @@ msgstr ""
 "or UDFs to generate columns. This interface returns a string type by "
 "default. You can use the rtype parameter to specify the return type."
 
-#: ../../source/df-element.rst:625
+#: ../../source/df-element.rst:630
 msgid ""
 ">>> from odps.df import func\n"
 ">>>\n"
@@ -1454,7 +1467,7 @@ msgstr ""
 "rtype='float', project='udf_project',\n"
 ">>>                               name='new_col')]"
 
-#: ../../source/df-element.rst:638
+#: ../../source/df-element.rst:643
 msgid "注意：在使用 Pandas 后端时，不支持执行带有 ``func`` 的表达式。"
 msgstr ""
 "Note: when executing under pandas backend, executing expressions "

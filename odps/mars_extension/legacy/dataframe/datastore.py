@@ -21,7 +21,15 @@ import logging
 
 from mars.dataframe.operands import DataFrameOperandMixin, DataFrameOperand
 from mars.dataframe.utils import parse_index
-from mars.serialize import StringField, SeriesField, BoolField, DictField, Int64Field
+from mars.serialize import (
+    StringField,
+    SeriesField,
+    BoolField,
+    DictField,
+    Int64Field,
+    ListField,
+    ValueType,
+)
 from mars.dataframe.utils import build_concatenated_rows_frame
 
 from ....utils import to_str
@@ -47,6 +55,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
     _odps_params = DictField("odps_params")
     _table_name = StringField("table_name")
     _partition_spec = StringField("partition_spec")
+    _partition_columns = ListField("partition_columns", ValueType.string)
     _overwrite = BoolField("overwrite")
     _write_batch_size = Int64Field("write_batch_size")
     _unknown_as_string = BoolField("unknown_as_string")
@@ -105,6 +114,10 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
     @property
     def write_batch_size(self):
         return self._write_batch_size
+
+    @property
+    def partition_columns(self):
+        return self._partition_columns
 
     def __call__(self, x):
         shape = (0,) * len(x.shape)

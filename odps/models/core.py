@@ -74,17 +74,22 @@ class RestModel(XMLRemoteModel):
     def _name(self):
         return type(self).__name__.lower()
 
+    def _getattr(self, attr):
+        return object.__getattribute__(self, attr)
+
     @classmethod
     def _encode(cls, name):
         name = quote_plus(name).replace('+', '%20')
         return name
 
-    def resource(self, client=None):
+    def resource(self, client=None, endpoint=None):
         parent = self._parent
         if parent is None:
-            parent_res = (client or self._client).endpoint
+            if endpoint is None:
+                endpoint = (client or self._client).endpoint
+            parent_res = endpoint
         else:
-            parent_res = parent.resource(client=client)
+            parent_res = parent.resource(client=client, endpoint=endpoint)
         name = self._name()
         if name is None:
             return parent_res
@@ -131,9 +136,6 @@ class LazyLoad(RestModel):
 
     def _name(self):
         return self._getattr('name')
-
-    def _getattr(self, attr):
-        return object.__getattribute__(self, attr)
 
     def __getattribute__(self, attr):
         if (

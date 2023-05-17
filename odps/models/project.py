@@ -16,6 +16,7 @@
 
 import json
 import time
+import weakref
 
 from .. import serializers, utils
 from ..compat import six, Enum
@@ -65,7 +66,7 @@ class Project(LazyLoad):
         "_tunnel_endpoint",
         "_all_props_loaded",
         "_extended_props_loaded",
-        "_odps",
+        "_odps_ref",
     )
 
     class Cluster(XMLRemoteModel):
@@ -165,7 +166,7 @@ class Project(LazyLoad):
         self._tunnel_endpoint = None
         self._policy_cache = None
         self._all_props_loaded = False
-        self._odps = None
+        self._odps_ref = None
         super(Project, self).__init__(*args, **kwargs)
 
     def reload(self, all_props=False):
@@ -269,12 +270,18 @@ class Project(LazyLoad):
     def odps(self):
         from ..core import ODPS
 
-        if self._getattr("_odps") is not None:
-            return self._odps
+        def get_odps_ref(obj):
+            if obj and obj._getattr("_odps_ref") is not None and obj._odps_ref() is not None:
+                return obj._odps_ref()
+
+        if get_odps_ref(self):
+            return get_odps_ref(self)
+        if get_odps_ref(self.parent):
+            return get_odps_ref(self.parent)
 
         client = self._client
 
-        self._odps = ODPS._from_account(
+        odps = ODPS._from_account(
             client.account,
             client.project,
             endpoint=client.endpoint,
@@ -283,7 +290,8 @@ class Project(LazyLoad):
             logview_host=self._logview_host,
             app_account=getattr(client, 'app_account', None),
         )
-        return self._odps
+        self._odps_ref = weakref.ref(odps)
+        return odps
 
     @property
     def policy(self):

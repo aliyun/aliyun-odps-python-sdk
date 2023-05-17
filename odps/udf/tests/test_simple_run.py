@@ -12,32 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.compat import unittest
-from odps.udf.tests.udf_examples import *
-from odps.udf.tools import runners
-from odps.tests.core import TestBase
+import pytest
+
+from ..tools import runners
+from .udf_examples import *
 
 
-class TestSimpleRun(TestBase):
-    
-    def test_udf(self):
-        self.assertEqual([2,3], runners.simple_run(Plus, [(1,1), (2,1)]))
-        self.assertEqual([None], runners.simple_run(Plus, [(None,1) ]))
-
-    def test_udaf(self):
-        self.assertEqual([2], runners.simple_run(Avg, [(1,),(2,),(3,)]))
-
-    def test_udtf(self):
-        self.assertEqual(['a', 'b', 'ok'], runners.simple_run(Explode, [('a|b',),]))
+def test_udf():
+    assert [2,3] == runners.simple_run(Plus, [(1,1), (2,1)])
+    assert [None] == runners.simple_run(Plus, [(None,1) ])
 
 
-class TestDistributedCache(TestBase):
-
-    @unittest.skip("Not implemented yet")
-    def test_get_cache_table(self):
-        from odps import distcache
-        self.assertEqual(distcache.get_cache_table('dual'), ('0',))
+def test_udaf():
+    assert [2] == runners.simple_run(Avg, [(1,),(2,),(3,)])
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_udtf():
+    assert ['a', 'b', 'ok'] == runners.simple_run(Explode, [('a|b',),])
+
+
+@pytest.mark.skip("Not implemented yet")
+def test_get_cache_table():
+    from odps import distcache
+    assert distcache.get_cache_table('dual') == ('0',)

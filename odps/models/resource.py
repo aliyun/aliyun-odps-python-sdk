@@ -266,7 +266,7 @@ class FileResource(Resource):
 
     def _upload_with_stream(self, file_obj, overwrite=True):
         chunk_size = options.resource_chunk_size
-        with self.open("w", stream=True, overwrite=overwrite) as res_file:
+        with self.open("wb", stream=True, overwrite=overwrite) as res_file:
             while True:
                 buf = file_obj.read(chunk_size)
                 if not buf:
@@ -653,9 +653,7 @@ class TableResource(Resource):
         except AttributeError:
             return
 
-        from .projects import Projects
-
-        tables_parent = Projects(client=self._client)[table_source.project]
+        tables_parent = self.project.parent[table_source.project]
         if table_source.schema:
             tables_parent = tables_parent.schemas[table_source.schema]
         return tables_parent.tables[table_source.table]

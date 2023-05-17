@@ -14,16 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from collections import OrderedDict
-    from collections import namedtuple
-except ImportError:  # pragma: no cover
-    from ordereddict import OrderedDict
-    from collections import namedtuple as _namedtuple
-
-    def namedtuple(typename, field_names, rename=False):
-        return _namedtuple(typename, field_names)
-
+from collections import namedtuple, OrderedDict
 
 try:
     string_types = (unicode, basestring)
@@ -79,7 +70,7 @@ class NamedTupleMixin(object):
         return OrderedDict(zip(self._names, self))
 
     def replace(self, **kwds):
-        new_kw = dict((self._fields[self._name_map[k]], v) for k, v in iteritems(kwds))
+        new_kw = {self._fields[self._name_map[k]]: v for k, v in iteritems(kwds)}
         return self._replace(**new_kw)
 
 
@@ -89,6 +80,6 @@ def xnamedtuple(typename, field_names):
     base_nt = namedtuple(typename + "_base", field_names, rename=True)
     nt = type(typename, (NamedTupleMixin, base_nt), {})
     nt._base = base_nt
-    nt._name_map = dict((v, k) for k, v in enumerate(field_names))
+    nt._name_map = {v: k for k, v in enumerate(field_names)}
     nt._names = field_names
     return nt

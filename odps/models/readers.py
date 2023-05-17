@@ -13,13 +13,15 @@
 # limitations under the License.
 
 from ..compat import six
+from ..config import options
 from ..lib.tblib import pickling_support
 from ..readers import AbstractRecordReader
+from ..utils import call_with_retry
 
 pickling_support.install()
 
 
-class SpawnedTunnelReaderMixin(object):
+class TunnelReaderMixin(object):
     def _to_pandas_with_processes(self, start=None, count=None, columns=None, n_process=1):
         import pandas as pd
         import multiprocessing
@@ -61,8 +63,42 @@ class SpawnedTunnelReaderMixin(object):
     def _get_process_split_reader(self, columns=None):
         raise NotImplementedError
 
+    def _open_and_iter_reader(
+        self, start, record_count, step=None, compress=False, columns=None, counter=None
+    ):
+        raise NotImplementedError
 
-class TunnelRecordReader(SpawnedTunnelReaderMixin, AbstractRecordReader):
+    def _retry_iter_reader(
+        self, start, record_count, step=None, compress=False, columns=None
+    ):
+        end = start + record_count
+        retry_num = 0
+        while start < end:
+            is_yield_err = False
+            counter = [0]
+            try:
+                for rec in self._open_and_iter_reader(
+                    start, record_count, step, compress=compress, columns=columns, counter=counter
+                ):
+                    try:
+                        # next record successfully obtained, reset retry counter
+                        retry_num = 0
+                        yield rec
+                    except BaseException:
+                        # avoid catching errors caused in yield block
+                        is_yield_err = True
+                        raise
+                break
+            except:
+                retry_num += 1
+                if is_yield_err or retry_num > options.retry_times:
+                    raise
+            finally:
+                start += counter[0]
+                record_count -= counter[0]
+
+
+class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
     def __init__(self, parent, download_session, columns=None):
         self._it = iter(self)
         self._parent = parent
@@ -96,21 +132,33 @@ class TunnelRecordReader(SpawnedTunnelReaderMixin, AbstractRecordReader):
             start=start, count=count, step=step, compress=compress, columns=columns
         )
 
+    def _open_and_iter_reader(
+        self, start, record_count, step=None, compress=False, columns=None, counter=None
+    ):
+        counter = counter or [0]
+        with call_with_retry(
+            self._download_session.open_record_reader,
+            start, record_count, compress=compress, columns=columns
+        ) as reader:
+            for record in reader[::step]:
+                counter[0] += step
+                yield record
+
     def read(self, start=None, count=None, step=None,
              compress=False, columns=None):
         start = start or 0
         step = step or 1
-        count = count * step if count is not None else self.count - start
+        max_rec_count = self.count - start
+        rec_count = min(max_rec_count, count * step) if count is not None else max_rec_count
         columns = columns or self._column_names
 
-        if count == 0:
+        if rec_count == 0:
             return
 
-        with self._download_session.open_record_reader(
-            start, count, compress=compress, columns=columns
-        ) as reader:
-            for record in reader[::step]:
-                yield record
+        for record in self._retry_iter_reader(
+            start, rec_count, step=step, compress=compress, columns=columns
+        ):
+            yield record
 
     def to_pandas(self, start=None, count=None, columns=None, n_process=1):
         columns = columns or self._column_names
@@ -130,7 +178,7 @@ class TunnelRecordReader(SpawnedTunnelReaderMixin, AbstractRecordReader):
         pass
 
 
-class TunnelArrowReader(SpawnedTunnelReaderMixin):
+class TunnelArrowReader(TunnelReaderMixin):
     def __init__(self, parent, download_session, columns=None):
         self._it = iter(self)
         self._parent = parent
@@ -158,23 +206,35 @@ class TunnelArrowReader(SpawnedTunnelReaderMixin):
 
     next = __next__
 
-    def read(self, start=None, count=None, columns=None):
-        start = start or 0
-        count = count if count is not None else self.count - start
-        columns = columns or self._column_names
-
-        if count == 0:
-            return
-
-        with self._download_session.open_arrow_reader(
-            start, count, columns=columns
+    def _open_and_iter_reader(
+        self, start, record_count, step=None, compress=False, columns=None, counter=None
+    ):
+        counter = counter or [0]
+        with call_with_retry(
+            self._download_session.open_arrow_reader,
+            start, record_count, compress=compress, columns=columns
         ) as reader:
             while True:
                 batch = reader.read_next_batch()
                 if batch is not None:
+                    counter[0] += batch.num_rows
                     yield batch
                 else:
                     break
+
+    def read(self, start=None, count=None, compress=False, columns=None):
+        start = start or 0
+        max_rec_count = self.count - start
+        rec_count = min(max_rec_count, count) if count is not None else max_rec_count
+        columns = columns or self._column_names
+
+        if rec_count == 0:
+            return
+
+        for batch in self._retry_iter_reader(
+            start, rec_count, compress=compress, columns=columns
+        ):
+            yield batch
 
     def read_all(self, start=None, count=None, columns=None):
         start = start or 0
@@ -182,7 +242,10 @@ class TunnelArrowReader(SpawnedTunnelReaderMixin):
         columns = columns or self._column_names
 
         if count == 0:
-            return
+            from ..tunnel.io.types import odps_schema_to_arrow_schema
+
+            arrow_schema = odps_schema_to_arrow_schema(self.schema)
+            return arrow_schema.empty_table()
 
         with self._download_session.open_arrow_reader(
             start, count, columns=columns

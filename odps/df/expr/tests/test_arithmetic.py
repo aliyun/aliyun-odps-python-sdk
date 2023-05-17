@@ -14,279 +14,280 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps.compat import unittest
-from odps.models import TableSchema
-from odps.df.expr.expressions import CollectionExpr, SequenceExpr, Scalar, Float64SequenceExpr
-from odps.df.types import validate_data_type
-from odps.df.expr.tests.core import MockTable
-import odps.df.expr.arithmetic as arithmetic
 import decimal
 import datetime
 
+import pytest
 
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                                   datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+from ....models import TableSchema
+from ...types import validate_data_type
+from .. import arithmetic
+from ..expressions import CollectionExpr, SequenceExpr, Scalar, Float64SequenceExpr
+from ..tests.core import MockTable
 
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
 
-    def test_binary_operate(self):
-        # test string
-        expr = self.expr
-        self.assertIsInstance("hello" + expr['name'] + "test", arithmetic.Add)
-        self.assertIsInstance(expr['name'] + expr['name'], arithmetic.Add)
-        self.assertIsInstance(expr['name'] != "test", arithmetic.NotEqual)
-        self.assertIsInstance(expr['name'] == "test", arithmetic.Equal)
+@pytest.fixture
+def test_expr():
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
-        # test number
-        d = decimal.Decimal('3.145926')
-        self.assertIsInstance(20.0 + expr['id'] + 10, arithmetic.Add)
-        self.assertIsInstance(float(10 / 3) + expr['id'] + float(4.5556), arithmetic.Add)
-        self.assertIsInstance(expr['id'] + expr['id'], arithmetic.Add)
+    return CollectionExpr(_source_data=table, _schema=schema)
 
-        self.assertIsInstance(20.0 + expr['fid'] + 10, arithmetic.Add)
-        self.assertIsInstance(float(10 / 3) + expr['fid'] + float(4.5556), arithmetic.Add)
-        self.assertIsInstance(expr['fid'] + expr['fid'], arithmetic.Add)
 
-        self.assertIsInstance(expr['id'] + expr['fid'], arithmetic.Add)
+def test_binary_operate(test_expr):
+    expr = test_expr
+    # test string
+    assert isinstance("hello" + expr['name'] + "test", arithmetic.Add)
+    assert isinstance(expr['name'] + expr['name'], arithmetic.Add)
+    assert isinstance(expr['name'] != "test", arithmetic.NotEqual)
+    assert isinstance(expr['name'] == "test", arithmetic.Equal)
 
-        self.assertIsInstance(expr['scale'] + d, arithmetic.Add)
-        self.assertIsInstance(expr['scale'] + expr['scale'], arithmetic.Add)
-        self.assertIsInstance(d + expr['scale'], arithmetic.Add)
+    # test number
+    d = decimal.Decimal('3.145926')
+    assert isinstance(20.0 + expr['id'] + 10, arithmetic.Add)
+    assert isinstance(float(10 / 3) + expr['id'] + float(4.5556), arithmetic.Add)
+    assert isinstance(expr['id'] + expr['id'], arithmetic.Add)
 
-        self.assertIsInstance(20 + expr['scale'], arithmetic.Add)
-        self.assertIsInstance(expr['id'] + expr['scale'], arithmetic.Add)
-        self.assertIsInstance(expr['scale'] + 20, arithmetic.Add)
+    assert isinstance(20.0 + expr['fid'] + 10, arithmetic.Add)
+    assert isinstance(float(10 / 3) + expr['fid'] + float(4.5556), arithmetic.Add)
+    assert isinstance(expr['fid'] + expr['fid'], arithmetic.Add)
 
-        self.assertIsInstance(20.0 - expr['id'] - 10, arithmetic.Substract)
-        self.assertIsInstance(float(10 / 3) - expr['id'] - float(4.555667), arithmetic.Substract)
-        self.assertIsInstance(expr['id'] - expr['id'], arithmetic.Substract)
+    assert isinstance(expr['id'] + expr['fid'], arithmetic.Add)
 
-        self.assertIsInstance(20.0 - expr['fid'] - 10, arithmetic.Substract)
-        self.assertIsInstance(float(10 / 3) - expr['fid'] - float(4.555667), arithmetic.Substract)
-        self.assertIsInstance(expr['fid'] - expr['fid'], arithmetic.Substract)
+    assert isinstance(expr['scale'] + d, arithmetic.Add)
+    assert isinstance(expr['scale'] + expr['scale'], arithmetic.Add)
+    assert isinstance(d + expr['scale'], arithmetic.Add)
 
-        self.assertIsInstance(expr['id'] - expr['fid'], arithmetic.Substract)
+    assert isinstance(20 + expr['scale'], arithmetic.Add)
+    assert isinstance(expr['id'] + expr['scale'], arithmetic.Add)
+    assert isinstance(expr['scale'] + 20, arithmetic.Add)
 
-        self.assertIsInstance(expr['scale'] - d, arithmetic.Substract)
-        self.assertIsInstance(expr['scale'] - expr['scale'], arithmetic.Substract)
-        self.assertIsInstance(d - expr['scale'], arithmetic.Substract)
+    assert isinstance(20.0 - expr['id'] - 10, arithmetic.Substract)
+    assert isinstance(float(10 / 3) - expr['id'] - float(4.555667), arithmetic.Substract)
+    assert isinstance(expr['id'] - expr['id'], arithmetic.Substract)
 
-        self.assertIsInstance(expr['scale'] - 20, arithmetic.Substract)
-        self.assertIsInstance(20 - expr['scale'], arithmetic.Substract)
-        self.assertIsInstance(expr['id'] - expr['scale'], arithmetic.Substract)
+    assert isinstance(20.0 - expr['fid'] - 10, arithmetic.Substract)
+    assert isinstance(float(10 / 3) - expr['fid'] - float(4.555667), arithmetic.Substract)
+    assert isinstance(expr['fid'] - expr['fid'], arithmetic.Substract)
 
-        # multiply
-        self.assertIsInstance(20 * expr['id'] * 10, arithmetic.Multiply)
-        self.assertIsInstance(float(4.5) * expr['id'] * float(4.556), arithmetic.Multiply)
-        self.assertIsInstance(expr['id'] * expr['id'], arithmetic.Multiply)
+    assert isinstance(expr['id'] - expr['fid'], arithmetic.Substract)
 
-        self.assertIsInstance(20 * expr['fid'] * 10, arithmetic.Multiply)
-        self.assertIsInstance(float(4.5) * expr['fid'] * float(4.556), arithmetic.Multiply)
-        self.assertIsInstance(expr['fid'] * expr['fid'], arithmetic.Multiply)
+    assert isinstance(expr['scale'] - d, arithmetic.Substract)
+    assert isinstance(expr['scale'] - expr['scale'], arithmetic.Substract)
+    assert isinstance(d - expr['scale'], arithmetic.Substract)
 
-        self.assertIsInstance(expr['id'] * expr['fid'], arithmetic.Multiply)
+    assert isinstance(expr['scale'] - 20, arithmetic.Substract)
+    assert isinstance(20 - expr['scale'], arithmetic.Substract)
+    assert isinstance(expr['id'] - expr['scale'], arithmetic.Substract)
 
-        self.assertIsInstance(expr['scale'] * expr['scale'], arithmetic.Multiply)
-        self.assertIsInstance(expr['scale'] * d, arithmetic.Multiply)
-        self.assertIsInstance(expr['scale'] * expr['scale'], arithmetic.Multiply)
-        self.assertIsInstance(d * expr['scale'], arithmetic.Multiply)
+    # multiply
+    assert isinstance(20 * expr['id'] * 10, arithmetic.Multiply)
+    assert isinstance(float(4.5) * expr['id'] * float(4.556), arithmetic.Multiply)
+    assert isinstance(expr['id'] * expr['id'], arithmetic.Multiply)
 
-        # divide
-        self.assertIsInstance(20 / expr['id'] / 3, arithmetic.Divide)
-        self.assertIsInstance(float(34.6) / expr['id'] / float(4.5), arithmetic.Divide)
-        self.assertIsInstance(expr['id'] / expr['id'], arithmetic.Divide)
+    assert isinstance(20 * expr['fid'] * 10, arithmetic.Multiply)
+    assert isinstance(float(4.5) * expr['fid'] * float(4.556), arithmetic.Multiply)
+    assert isinstance(expr['fid'] * expr['fid'], arithmetic.Multiply)
 
-        self.assertIsInstance(20 / expr['fid'] / 3, arithmetic.Divide)
-        self.assertIsInstance(float(34.6) / expr['fid'] / float(4.5), arithmetic.Divide)
-        self.assertIsInstance(expr['fid'] / expr['fid'], arithmetic.Divide)
+    assert isinstance(expr['id'] * expr['fid'], arithmetic.Multiply)
 
-        self.assertIsInstance(expr['id'] / expr['fid'], arithmetic.Divide)
+    assert isinstance(expr['scale'] * expr['scale'], arithmetic.Multiply)
+    assert isinstance(expr['scale'] * d, arithmetic.Multiply)
+    assert isinstance(expr['scale'] * expr['scale'], arithmetic.Multiply)
+    assert isinstance(d * expr['scale'], arithmetic.Multiply)
 
-        self.assertIsInstance(d / expr['scale'], arithmetic.Divide)
-        self.assertIsInstance(expr['scale'] / d, arithmetic.Divide)
-        self.assertIsInstance(expr['scale'] / expr['scale'], arithmetic.Divide)
+    # divide
+    assert isinstance(20 / expr['id'] / 3, arithmetic.Divide)
+    assert isinstance(float(34.6) / expr['id'] / float(4.5), arithmetic.Divide)
+    assert isinstance(expr['id'] / expr['id'], arithmetic.Divide)
 
-        self.assertIsInstance(expr.id / 20, Float64SequenceExpr)
+    assert isinstance(20 / expr['fid'] / 3, arithmetic.Divide)
+    assert isinstance(float(34.6) / expr['fid'] / float(4.5), arithmetic.Divide)
+    assert isinstance(expr['fid'] / expr['fid'], arithmetic.Divide)
 
-        # power
-        self.assertIsInstance(pow(20, expr['id']), arithmetic.Power)
-        self.assertIsInstance(pow(float(34.6), expr['id']), arithmetic.Power)
-        self.assertIsInstance(pow(expr['id'], 20), arithmetic.Power)
-        self.assertIsInstance(pow(expr['id'], float(34.6)), arithmetic.Power)
-        self.assertIsInstance(pow(expr['id'], expr['id']), arithmetic.Power)
+    assert isinstance(expr['id'] / expr['fid'], arithmetic.Divide)
 
-        self.assertIsInstance(pow(20, expr['fid']), arithmetic.Power)
-        self.assertIsInstance(pow(float(34.6), expr['fid']), arithmetic.Power)
-        self.assertIsInstance(pow(expr['fid'], 20), arithmetic.Power)
-        self.assertIsInstance(pow(expr['fid'], float(34.6)), arithmetic.Power)
-        self.assertIsInstance(pow(expr['fid'], expr['fid']), arithmetic.Power)
+    assert isinstance(d / expr['scale'], arithmetic.Divide)
+    assert isinstance(expr['scale'] / d, arithmetic.Divide)
+    assert isinstance(expr['scale'] / expr['scale'], arithmetic.Divide)
 
-        self.assertIsInstance(pow(expr['id'], expr['fid']), arithmetic.Power)
-        self.assertIsInstance(pow(expr['fid'], expr['id']), arithmetic.Power)
+    assert isinstance(expr.id / 20, Float64SequenceExpr)
 
-        self.assertIsInstance(pow(d, expr['scale']), arithmetic.Power)
-        self.assertIsInstance(pow(expr['scale'], 20), arithmetic.Power)
-        self.assertIsInstance(pow(expr['scale'], expr['scale']), arithmetic.Power)
+    # power
+    assert isinstance(pow(20, expr['id']), arithmetic.Power)
+    assert isinstance(pow(float(34.6), expr['id']), arithmetic.Power)
+    assert isinstance(pow(expr['id'], 20), arithmetic.Power)
+    assert isinstance(pow(expr['id'], float(34.6)), arithmetic.Power)
+    assert isinstance(pow(expr['id'], expr['id']), arithmetic.Power)
 
-        # floor divide
-        self.assertIsInstance(20 // expr['id'] // 3, arithmetic.FloorDivide)
-        self.assertIsInstance(float(34.6) // expr['id'] // float(4.5), arithmetic.FloorDivide)
-        self.assertIsInstance(expr['id'] // expr['id'], arithmetic.FloorDivide)
+    assert isinstance(pow(20, expr['fid']), arithmetic.Power)
+    assert isinstance(pow(float(34.6), expr['fid']), arithmetic.Power)
+    assert isinstance(pow(expr['fid'], 20), arithmetic.Power)
+    assert isinstance(pow(expr['fid'], float(34.6)), arithmetic.Power)
+    assert isinstance(pow(expr['fid'], expr['fid']), arithmetic.Power)
 
-        self.assertIsInstance(20 // expr['fid'] // 3, arithmetic.FloorDivide)
-        self.assertIsInstance(float(34.6) // expr['fid'] // float(4.5), arithmetic.FloorDivide)
-        self.assertIsInstance(expr['fid'] // expr['fid'], arithmetic.FloorDivide)
+    assert isinstance(pow(expr['id'], expr['fid']), arithmetic.Power)
+    assert isinstance(pow(expr['fid'], expr['id']), arithmetic.Power)
 
-        self.assertIsInstance(expr['id'] // expr['fid'], arithmetic.FloorDivide)
+    assert isinstance(pow(d, expr['scale']), arithmetic.Power)
+    assert isinstance(pow(expr['scale'], 20), arithmetic.Power)
+    assert isinstance(pow(expr['scale'], expr['scale']), arithmetic.Power)
 
-        self.assertIsInstance(d // expr['scale'], arithmetic.FloorDivide)
-        self.assertIsInstance(expr['scale'] // d, arithmetic.FloorDivide)
-        self.assertIsInstance(expr['scale'] // expr['scale'], arithmetic.FloorDivide)
+    # floor divide
+    assert isinstance(20 // expr['id'] // 3, arithmetic.FloorDivide)
+    assert isinstance(float(34.6) // expr['id'] // float(4.5), arithmetic.FloorDivide)
+    assert isinstance(expr['id'] // expr['id'], arithmetic.FloorDivide)
 
-        # comparison
-        self.assertIsInstance(expr['id'] == expr['fid'], arithmetic.Equal)
-        self.assertIsInstance(expr['id'] == 20, arithmetic.Equal)
-        self.assertIsInstance(expr['fid'] == 20, arithmetic.Equal)
-        self.assertIsInstance(expr['scale'] == d, arithmetic.Equal)
+    assert isinstance(20 // expr['fid'] // 3, arithmetic.FloorDivide)
+    assert isinstance(float(34.6) // expr['fid'] // float(4.5), arithmetic.FloorDivide)
+    assert isinstance(expr['fid'] // expr['fid'], arithmetic.FloorDivide)
 
-        self.assertIsInstance(expr['id'] != expr['fid'], arithmetic.NotEqual)
-        self.assertIsInstance(expr['id'] != 20, arithmetic.NotEqual)
-        self.assertIsInstance(expr['fid'] != 20, arithmetic.NotEqual)
-        self.assertIsInstance(expr['scale'] != d, arithmetic.NotEqual)
+    assert isinstance(expr['id'] // expr['fid'], arithmetic.FloorDivide)
 
-        self.assertIsInstance(expr['id'] <= expr['id'], arithmetic.LessEqual)
-        self.assertIsInstance(expr['id'] <= expr['fid'], arithmetic.LessEqual)
-        self.assertIsInstance(expr['id'] <= 20, arithmetic.LessEqual)
-        self.assertIsInstance(expr['id'] <= 20.123, arithmetic.LessEqual)
-        self.assertIsInstance(expr['id'] <= float(10 / 3), arithmetic.LessEqual)
+    assert isinstance(d // expr['scale'], arithmetic.FloorDivide)
+    assert isinstance(expr['scale'] // d, arithmetic.FloorDivide)
+    assert isinstance(expr['scale'] // expr['scale'], arithmetic.FloorDivide)
 
-        self.assertIsInstance(expr['fid'] <= expr['fid'], arithmetic.LessEqual)
-        self.assertIsInstance(expr['fid'] <= expr['id'], arithmetic.LessEqual)
-        self.assertIsInstance(expr['fid'] <= 20, arithmetic.LessEqual)
-        self.assertIsInstance(expr['fid'] <= 20.123, arithmetic.LessEqual)
-        self.assertIsInstance(expr['fid'] <= float(10 / 3), arithmetic.LessEqual)
+    # comparison
+    assert isinstance(expr['id'] == expr['fid'], arithmetic.Equal)
+    assert isinstance(expr['id'] == 20, arithmetic.Equal)
+    assert isinstance(expr['fid'] == 20, arithmetic.Equal)
+    assert isinstance(expr['scale'] == d, arithmetic.Equal)
 
-        compareExpr3 = 20 <= expr['id']
-        self.assertIsInstance(compareExpr3, arithmetic.GreaterEqual)
-        self.assertIsInstance(compareExpr3._lhs, SequenceExpr)
-        self.assertIsInstance(compareExpr3._rhs, Scalar)
+    assert isinstance(expr['id'] != expr['fid'], arithmetic.NotEqual)
+    assert isinstance(expr['id'] != 20, arithmetic.NotEqual)
+    assert isinstance(expr['fid'] != 20, arithmetic.NotEqual)
+    assert isinstance(expr['scale'] != d, arithmetic.NotEqual)
 
-        self.assertIsInstance(20.123 <= expr['id'], arithmetic.GreaterEqual)
-        self.assertIsInstance(float(10 / 3) <= expr['id'], arithmetic.GreaterEqual)
+    assert isinstance(expr['id'] <= expr['id'], arithmetic.LessEqual)
+    assert isinstance(expr['id'] <= expr['fid'], arithmetic.LessEqual)
+    assert isinstance(expr['id'] <= 20, arithmetic.LessEqual)
+    assert isinstance(expr['id'] <= 20.123, arithmetic.LessEqual)
+    assert isinstance(expr['id'] <= float(10 / 3), arithmetic.LessEqual)
 
-        self.assertIsInstance(20 <= expr['fid'], arithmetic.GreaterEqual)
-        self.assertIsInstance(20.123 <= expr['fid'], arithmetic.GreaterEqual)
-        self.assertIsInstance(float(10 / 3) <= expr['fid'], arithmetic.GreaterEqual)
+    assert isinstance(expr['fid'] <= expr['fid'], arithmetic.LessEqual)
+    assert isinstance(expr['fid'] <= expr['id'], arithmetic.LessEqual)
+    assert isinstance(expr['fid'] <= 20, arithmetic.LessEqual)
+    assert isinstance(expr['fid'] <= 20.123, arithmetic.LessEqual)
+    assert isinstance(expr['fid'] <= float(10 / 3), arithmetic.LessEqual)
 
-        self.assertIsInstance(expr['scale'] <= d, arithmetic.LessEqual)
-        self.assertIsInstance(expr['scale'] <= expr['scale'], arithmetic.LessEqual)
-        self.assertIsInstance(d <= expr['scale'], arithmetic.GreaterEqual)
+    compareExpr3 = 20 <= expr['id']
+    assert isinstance(compareExpr3, arithmetic.GreaterEqual)
+    assert isinstance(compareExpr3._lhs, SequenceExpr)
+    assert isinstance(compareExpr3._rhs, Scalar)
 
-        self.assertIsInstance(expr['id'] < expr['id'], arithmetic.Less)
-        self.assertIsInstance(expr['id'] < expr['fid'], arithmetic.Less)
-        self.assertIsInstance(expr['id'] < 20, arithmetic.Less)
-        self.assertIsInstance(expr['id'] < 20.123, arithmetic.Less)
-        self.assertIsInstance(expr['id'] < float(10 / 3), arithmetic.Less)
+    assert isinstance(20.123 <= expr['id'], arithmetic.GreaterEqual)
+    assert isinstance(float(10 / 3) <= expr['id'], arithmetic.GreaterEqual)
 
-        self.assertIsInstance(expr['fid'] < expr['fid'], arithmetic.Less)
-        self.assertIsInstance(expr['fid'] < expr['id'], arithmetic.Less)
-        self.assertIsInstance(expr['fid'] < 20, arithmetic.Less)
-        self.assertIsInstance(expr['fid'] < 20.123, arithmetic.Less)
-        self.assertIsInstance(expr['fid'] < float(10 / 3), arithmetic.Less)
+    assert isinstance(20 <= expr['fid'], arithmetic.GreaterEqual)
+    assert isinstance(20.123 <= expr['fid'], arithmetic.GreaterEqual)
+    assert isinstance(float(10 / 3) <= expr['fid'], arithmetic.GreaterEqual)
 
-        compareExpr = 20 < expr['id']
-        self.assertIsInstance(compareExpr, arithmetic.Greater)
-        self.assertIsInstance(compareExpr._lhs, SequenceExpr)
-        self.assertIsInstance(compareExpr._rhs, Scalar)
+    assert isinstance(expr['scale'] <= d, arithmetic.LessEqual)
+    assert isinstance(expr['scale'] <= expr['scale'], arithmetic.LessEqual)
+    assert isinstance(d <= expr['scale'], arithmetic.GreaterEqual)
 
-        self.assertIsInstance(20.123 < expr['id'], arithmetic.Greater)
-        self.assertIsInstance(float(10 / 3) < expr['id'], arithmetic.Greater)
+    assert isinstance(expr['id'] < expr['id'], arithmetic.Less)
+    assert isinstance(expr['id'] < expr['fid'], arithmetic.Less)
+    assert isinstance(expr['id'] < 20, arithmetic.Less)
+    assert isinstance(expr['id'] < 20.123, arithmetic.Less)
+    assert isinstance(expr['id'] < float(10 / 3), arithmetic.Less)
 
-        self.assertIsInstance(20 < expr['fid'], arithmetic.Greater)
-        self.assertIsInstance(20.123 < expr['fid'], arithmetic.Greater)
-        self.assertIsInstance(float(10 / 3) < expr['fid'], arithmetic.Greater)
+    assert isinstance(expr['fid'] < expr['fid'], arithmetic.Less)
+    assert isinstance(expr['fid'] < expr['id'], arithmetic.Less)
+    assert isinstance(expr['fid'] < 20, arithmetic.Less)
+    assert isinstance(expr['fid'] < 20.123, arithmetic.Less)
+    assert isinstance(expr['fid'] < float(10 / 3), arithmetic.Less)
 
-        self.assertIsInstance(d < expr['scale'], arithmetic.Greater)
-        self.assertIsInstance(expr['scale'] < d, arithmetic.Less)
-        self.assertIsInstance(expr['scale'] < expr['scale'], arithmetic.Less)
+    compareExpr = 20 < expr['id']
+    assert isinstance(compareExpr, arithmetic.Greater)
+    assert isinstance(compareExpr._lhs, SequenceExpr)
+    assert isinstance(compareExpr._rhs, Scalar)
 
-        # bool
-        self.assertIsInstance(expr['isMale'] == False, arithmetic.Equal)
-        self.assertIsInstance(expr['isMale'] != False, arithmetic.NotEqual)
+    assert isinstance(20.123 < expr['id'], arithmetic.Greater)
+    assert isinstance(float(10 / 3) < expr['id'], arithmetic.Greater)
 
-        self.assertIsInstance((expr['isMale'] & True), arithmetic.And)
-        self.assertIsInstance(True & expr['isMale'], arithmetic.And)
-        self.assertIsInstance((expr['isMale'] | False), arithmetic.Or)
-        self.assertIsInstance(True | expr['isMale'], arithmetic.Or)
+    assert isinstance(20 < expr['fid'], arithmetic.Greater)
+    assert isinstance(20.123 < expr['fid'], arithmetic.Greater)
+    assert isinstance(float(10 / 3) < expr['fid'], arithmetic.Greater)
 
-        # date
-        date = datetime.datetime(2015, 12, 2)
+    assert isinstance(d < expr['scale'], arithmetic.Greater)
+    assert isinstance(expr['scale'] < d, arithmetic.Less)
+    assert isinstance(expr['scale'] < expr['scale'], arithmetic.Less)
 
-        self.assertIsInstance(expr['birth'] == date, arithmetic.Equal)
-        self.assertIsInstance(expr['birth'] != date, arithmetic.NotEqual)
-        self.assertIsInstance(date - expr['birth'] - date, arithmetic.Substract)
-        self.assertIsInstance(expr['birth'] >= date, arithmetic.GreaterEqual)
-        self.assertIsInstance(expr['birth'] <= date, arithmetic.LessEqual)
+    # bool
+    assert isinstance(expr['isMale'] == False, arithmetic.Equal)
+    assert isinstance(expr['isMale'] != False, arithmetic.NotEqual)
 
-        compareExpr2 = expr['birth'] > date
-        self.assertIsInstance(compareExpr2, arithmetic.Greater)
-        self.assertIsInstance(compareExpr2._lhs, SequenceExpr)
-        self.assertIsInstance(compareExpr2._rhs, Scalar)
-        self.assertIsInstance(expr['birth'] < date, arithmetic.Less)
-        self.assertIsInstance(expr['birth'] < expr['birth'], arithmetic.Less)
+    assert isinstance((expr['isMale'] & True), arithmetic.And)
+    assert isinstance(True & expr['isMale'], arithmetic.And)
+    assert isinstance((expr['isMale'] | False), arithmetic.Or)
+    assert isinstance(True | expr['isMale'], arithmetic.Or)
 
-    def test_unary_operate(self):
-        expr = self.expr
-        self.assertIsInstance(-expr['id'], arithmetic.Negate)
-        self.assertIsInstance(-(-expr['id']), SequenceExpr)
-        self.assertIsInstance(-(-(-expr['id'])), arithmetic.Negate)
-        self.assertIsInstance(-(-(-(-expr['id']))), SequenceExpr)
+    # date
+    date = datetime.datetime(2015, 12, 2)
 
-        self.assertIsInstance(-expr['scale'], arithmetic.Negate)
-        self.assertIsInstance(-(-expr['scale']), SequenceExpr)
-        self.assertIsInstance(-(-(-expr['scale'])), arithmetic.Negate)
-        self.assertIsInstance(-(-(-(-expr['scale']))), SequenceExpr)
+    assert isinstance(expr['birth'] == date, arithmetic.Equal)
+    assert isinstance(expr['birth'] != date, arithmetic.NotEqual)
+    assert isinstance(date - expr['birth'] - date, arithmetic.Substract)
+    assert isinstance(expr['birth'] >= date, arithmetic.GreaterEqual)
+    assert isinstance(expr['birth'] <= date, arithmetic.LessEqual)
 
-        self.assertIsInstance(-expr['fid'], arithmetic.Negate)
-        self.assertIsInstance(-(-expr['fid']), SequenceExpr)
-        self.assertIsInstance(-(-(-expr['fid'])), arithmetic.Negate)
-        self.assertIsInstance(-(-(-(-expr['fid']))), SequenceExpr)
+    compareExpr2 = expr['birth'] > date
+    assert isinstance(compareExpr2, arithmetic.Greater)
+    assert isinstance(compareExpr2._lhs, SequenceExpr)
+    assert isinstance(compareExpr2._rhs, Scalar)
+    assert isinstance(expr['birth'] < date, arithmetic.Less)
+    assert isinstance(expr['birth'] < expr['birth'], arithmetic.Less)
 
-        self.assertIsInstance(~expr['id'], arithmetic.Invert)
-        self.assertIsInstance(~(~expr['id']), SequenceExpr)
-        self.assertIsInstance(~(~(~expr['id'])), arithmetic.Invert)
-        self.assertIsInstance(~(~(~(~expr['id']))), SequenceExpr)
 
-        self.assertIsInstance(~expr['isMale'], arithmetic.Invert)
-        self.assertIsInstance(~(~expr['isMale']), SequenceExpr)
-        self.assertIsInstance(~(~(~expr['isMale'])), arithmetic.Invert)
-        self.assertIsInstance(~(~(~(~expr['isMale']))), SequenceExpr)
+def test_unary_operate(test_expr):
+    expr = test_expr
+    assert isinstance(-expr['id'], arithmetic.Negate)
+    assert isinstance(-(-expr['id']), SequenceExpr)
+    assert isinstance(-(-(-expr['id'])), arithmetic.Negate)
+    assert isinstance(-(-(-(-expr['id']))), SequenceExpr)
 
-        self.assertIsInstance(abs(expr['id']), arithmetic.Abs)
-        self.assertIsInstance(abs(abs(expr['id'])), arithmetic.Abs)
+    assert isinstance(-expr['scale'], arithmetic.Negate)
+    assert isinstance(-(-expr['scale']), SequenceExpr)
+    assert isinstance(-(-(-expr['scale'])), arithmetic.Negate)
+    assert isinstance(-(-(-(-expr['scale']))), SequenceExpr)
 
-        self.assertIsInstance(abs(expr['fid']), arithmetic.Abs)
-        self.assertIsInstance(abs(abs(expr['fid'])), arithmetic.Abs)
+    assert isinstance(-expr['fid'], arithmetic.Negate)
+    assert isinstance(-(-expr['fid']), SequenceExpr)
+    assert isinstance(-(-(-expr['fid'])), arithmetic.Negate)
+    assert isinstance(-(-(-(-expr['fid']))), SequenceExpr)
 
-    def test_negative_operate(self):
-        expr = self.expr
-        self.assertRaises(AttributeError, lambda: expr['name'] - 10)
-        self.assertRaises(AttributeError, lambda: ~expr['fid'])
+    assert isinstance(~expr['id'], arithmetic.Invert)
+    assert isinstance(~(~expr['id']), SequenceExpr)
+    assert isinstance(~(~(~expr['id'])), arithmetic.Invert)
+    assert isinstance(~(~(~(~expr['id']))), SequenceExpr)
 
-        self.assertRaises(TypeError, lambda: expr['name'] + expr['id'])
-        self.assertRaises(TypeError, lambda: 'hello' + expr['id'])
+    assert isinstance(~expr['isMale'], arithmetic.Invert)
+    assert isinstance(~(~expr['isMale']), SequenceExpr)
+    assert isinstance(~(~(~expr['isMale'])), arithmetic.Invert)
+    assert isinstance(~(~(~(~expr['isMale']))), SequenceExpr)
 
-    def test_complex_airith(self):
-        expr = self.expr
-        self.assertIsInstance(20 - expr['id'] / expr['id'] + 10, arithmetic.Add)
-        self.assertIsInstance(
-            -(expr['id']) + 20.34 - expr['fid'] + float(20) * expr['id'] - expr['fid'] / 4.9 + 40 // 2 + expr[
-                'fid'] // 1.2, arithmetic.Add)
+    assert isinstance(abs(expr['id']), arithmetic.Abs)
+    assert isinstance(abs(abs(expr['id'])), arithmetic.Abs)
 
-if __name__ == '__main__':
-    unittest.main()
+    assert isinstance(abs(expr['fid']), arithmetic.Abs)
+    assert isinstance(abs(abs(expr['fid'])), arithmetic.Abs)
+
+
+def test_negative_operate(test_expr):
+    expr = test_expr
+    pytest.raises(AttributeError, lambda: expr['name'] - 10)
+    pytest.raises(AttributeError, lambda: ~expr['fid'])
+
+    pytest.raises(TypeError, lambda: expr['name'] + expr['id'])
+    pytest.raises(TypeError, lambda: 'hello' + expr['id'])
+
+
+def test_complex_airith(test_expr):
+    expr = test_expr
+    assert isinstance(20 - expr['id'] / expr['id'] + 10, arithmetic.Add)
+    assert isinstance(-(expr['id']) + 20.34 - expr['fid'] + float(20) * expr['id'] - expr['fid'] / 4.9 + 40 // 2 + expr[
+            'fid'] // 1.2, arithmetic.Add)

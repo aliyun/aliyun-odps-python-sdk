@@ -17,9 +17,10 @@ import json
 import time
 import uuid
 import logging
+from collections import OrderedDict
 
 from ..config import options
-from ..compat import OrderedDict, six
+from ..compat import six
 from ..errors import InternalServerError, RequestTimeTooSkewed
 from ..models.instance import Instance
 from ..serializers import JSONSerializableModel, JSONNodeField, JSONNodesReferencesField

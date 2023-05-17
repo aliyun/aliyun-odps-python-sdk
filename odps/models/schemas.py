@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from ..errors import InternalServerError, InvalidParameter, NoSuchObject
+from ..utils import with_wait_argument
 from .core import Iterable
 from .schema import Schema
 
@@ -21,8 +22,8 @@ class Schemas(Iterable):
     def __iter__(self):
         return self.iterate()
 
-    def resource(self, client=None):
-        return self.parent.resource(client)
+    def resource(self, client=None, endpoint=None):
+        return self.parent.resource(client, endpoint=endpoint)
 
     def iterate(self):
         inst = self.parent.odps.execute_sql("SHOW SCHEMAS IN %s" % self.parent.name)
@@ -30,6 +31,7 @@ class Schemas(Iterable):
         for schema_name in schema_names:
             yield Schema(name=schema_name, parent=self, client=self._client)
 
+    @with_wait_argument
     def create(self, schema_name, async_=False):
         inst = self.parent.odps.run_sql(
             "CREATE SCHEMA %s.%s" % (self.parent.name, schema_name)
@@ -39,6 +41,7 @@ class Schemas(Iterable):
             return Schema(name=schema_name, parent=self, client=self._client)
         return inst
 
+    @with_wait_argument
     def delete(self, schema_name, async_=False):
         if isinstance(schema_name, Schema):
             schema_name = schema_name.name

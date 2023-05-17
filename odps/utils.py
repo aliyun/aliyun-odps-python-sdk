@@ -285,8 +285,14 @@ except OverflowError:
     _antique_mills = int(
         (datetime(1928, 1, 1) - datetime.utcfromtimestamp(0)).total_seconds()
     ) * 1000
-_antique_errmsg = 'Date older than 1928/01/01 and may contain errors. ' \
+_min_datetime_mills = int(
+    (datetime.min - datetime.utcfromtimestamp(0)).total_seconds() * 1000
+)
+_antique_errmsg = 'Date older than 1928-01-01 and may contain errors. ' \
                   'Ignore this error by configuring `options.allow_antique_date` to True.'
+_min_datetime_errmsg = 'Date exceed range Python can handle. If you are reading data with tunnel, read '\
+                       'the value as None by setting options.tunnel.overflow_date_as_none to True, ' \
+                       'or convert the value into strings with SQL before processing them with Python.'
 
 
 def to_timestamp(dt, local_tz=None, is_dst=False):
@@ -364,6 +370,8 @@ class MillisecondsConverter(object):
             self._localize = lambda dt: dt.replace(tzinfo=self._tz)
 
     def to_milliseconds(self, dt):
+        from .errors import DatetimeOverflowError
+
         if not self._use_default_tz and dt.tzinfo is None:
             dt = self._localize(dt)
 
@@ -375,12 +383,16 @@ class MillisecondsConverter(object):
             mills = int((self._mktime(dt.timetuple()) + dt.microsecond / 1000000.0) * 1000)
 
         if not self._allow_antique and mills < _antique_mills:
-            raise OverflowError(_antique_errmsg)
+            raise DatetimeOverflowError(_antique_errmsg)
         return mills
 
     def from_milliseconds(self, milliseconds):
+        from .errors import DatetimeOverflowError
+
         if not self._allow_antique and milliseconds < _antique_mills:
-            raise OverflowError(_antique_errmsg)
+            raise DatetimeOverflowError(_antique_errmsg)
+        if milliseconds < _min_datetime_mills:
+            raise DatetimeOverflowError(_min_datetime_errmsg)
 
         seconds = compat.long_type(math.floor(milliseconds / 1000))
         microseconds = compat.long_type(milliseconds) % 1000 * 1000
@@ -883,6 +895,19 @@ def thread_local_attribute(thread_local_name, default_value=None):
     return property(fget=_getter, fset=_setter)
 
 
+def call_with_retry(callable, *args, **kwargs):
+    retry_num = 0
+    delay = kwargs.pop("delay", 0.1)
+    while True:
+        try:
+            return callable(*args, **kwargs)
+        except:
+            retry_num += 1
+            time.sleep(delay)
+            if retry_num > options.retry_times:
+                raise
+
+
 def get_id(n):
     if hasattr(n, '_node_id'):
         return n._node_id
@@ -894,3 +919,43 @@ def strip_if_str(s):
     if isinstance(s, six.string_types):
         return s.strip()
     return s
+
+
+def with_wait_argument(func):
+    func_spec = compat.getfullargspec(func) if compat.getfullargspec else compat.getargspec(func)
+    args_set = set(func_spec.args)
+    if hasattr(func_spec, "kwonlyargs"):
+        args_set |= set(func_spec.kwonlyargs or [])
+    has_varkw = (getattr(func_spec, "varkw", None) or getattr(func_spec, "keywords", None)) is not None
+
+    try:
+        async_index = func_spec.args.index("async_")
+    except ValueError:
+        async_index = None
+
+    @six.wraps(func)
+    def wrapped(*args, **kwargs):
+        if async_index is not None and len(args) >= async_index + 1:
+            warnings.warn(
+                "Please use async_ as a keyword argument, like obj.func(async_=True)",
+                DeprecationWarning, stacklevel=2
+            )
+            add_survey_call(".".join([func.__module__, func.__name__, "async_"]))
+        elif "wait" in kwargs:
+            kwargs["async_"] = not kwargs.pop("wait")
+        elif "async" in kwargs:
+            kwargs["async_"] = kwargs.pop("async")
+
+        if not has_varkw and kwargs:
+            no_args_match = [key for key in kwargs if key not in args_set]
+            if no_args_match:
+                warnings.warn(
+                    "Arguments %s not supported, ignored by default. "
+                    "Please check argument spellings." % (", ".join(no_args_match)),
+                    stacklevel=2,
+                )
+            for arg in no_args_match:
+                kwargs.pop(arg, None)
+        return func(*args, **kwargs)
+
+    return wrapped

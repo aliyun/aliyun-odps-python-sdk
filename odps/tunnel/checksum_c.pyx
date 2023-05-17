@@ -63,7 +63,7 @@ cdef class Checksum:
     cpdef update_double(self, double val):
         self.c_update(<char *>&val, sizeof(double))
 
-    cdef void c_update(self, char *ptr, size_t length) nogil:
+    cdef void c_update(self, const char *ptr, size_t length) nogil:
         if self.use_c:
             self._checksum = crc32c(self._checksum, ptr, length)
         else:

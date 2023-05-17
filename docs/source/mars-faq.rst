@@ -91,7 +91,7 @@ PyODPS 由于背后使用 MaxCompute 计算和存储数据，而 MaxCompute 并�
 
     -  Mars DataFrame 包含行和列索引，如果需要使用索引，使用 Mars。
     -  Mars DataFrame 创建后会保证顺序，通过 iloc 等接口可以获取某个偏移的数据。如 ``df.iloc[10]`` 可以获取第10行数据。此外，如 ``df.shift()`` 、\ ``df.ffill()`` 等需要有保证顺序特性的接口也在 Mars DataFrame 里得到了实现，有这方面的需求可以使用 Mars。
--  Mars 还包含 `Mars tensor <https://docs.pymars.org/zh_CN/latest/tensor/index.html>`__ 来并行和分布式化 Numpy，以及 `Mars learn <https://docs.pymars.org/zh_CN/latest/learn/index.html>`__ 来并行和分布式化 scikit-learn、以及支持在 Mars 集群里分布式运行 TensorFlow、PyTorch 和 XGBoost。有这方面的需求使用 Mars。
+-  Mars 还包含 `Mars tensor <https://mars-project.readthedocs.io/zh_CN/latest/getting_started/tensor.html>`__ 来并行和分布式化 Numpy，以及 `Mars learn <https://mars-project.readthedocs.io/zh_CN/latest/getting_started/learn.html>`__ 来并行和分布式化 scikit-learn、以及支持在 Mars 集群里分布式运行 TensorFlow、PyTorch 和 XGBoost。有这方面的需求使用 Mars。
 
 -  Mars 集群一旦创建，后续不再需要通过 MaxCompute 调度，任务可以直接提交到 Mars 集群执行；此外，Mars 对于中小型任务（数据量 T 级别以下），会有较好的性能。这些情况可以使用 Mars。
 
@@ -106,7 +106,7 @@ Mars 参考文档
 -------------
 
 -  Mars 开源地址：https://github.com/mars-project/mars
--  Mars 文档：https://docs.pymars.org/zh\_CN/latest/
+-  Mars 文档：https://mars-project.readthedocs.io/zh\_CN/latest/
 -  Mars 团队专栏：https://zhuanlan.zhihu.com/mars-project
 
 FAQ

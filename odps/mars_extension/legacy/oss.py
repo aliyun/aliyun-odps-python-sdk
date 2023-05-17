@@ -17,6 +17,7 @@
 import logging
 import uuid
 import warnings
+from collections import OrderedDict
 from itertools import chain
 
 import numpy as np
@@ -24,7 +25,7 @@ import oss2
 from mars.tensor.utils import decide_chunk_sizes
 
 from ...df import CollectionExpr
-from ...compat import six, OrderedDict
+from ...compat import six
 from ...df.backends.engine import get_default_engine
 from ...df.backends.odpssql.types import df_type_to_odps_type
 from ...df.backends.pd.types import df_type_to_np_type

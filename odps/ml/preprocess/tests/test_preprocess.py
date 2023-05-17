@@ -15,10 +15,12 @@
 
 from __future__ import print_function
 
-from odps.df import DataFrame
-from odps.ml import merge_data
-from odps.ml.preprocess import *
-from odps.ml.tests.base import MLTestBase, tn, ci_skip_case
+import pytest
+
+from ....df import DataFrame
+from ... import merge_data
+from ...preprocess import *
+from ...tests.base import MLTestUtil, tn, ci_skip_case
 
 IONOSPHERE_TABLE = tn('pyodps_test_ml_ionosphere')
 IONOSPHERE_RANDOM_SAMPLE_TABLE = tn('pyodps_test_ml_iono_rand_sample')
@@ -31,25 +33,28 @@ USER_ITEM_TABLE = tn('pyodps_test_ml_user_item')
 USER_ITEM_UNPIVOT_TABLE = tn('pyodps_test_ml_unpivot_user_item')
 
 
-class TestPreprocess(MLTestBase):
-    def setUp(self):
-        super(TestPreprocess, self).setUp()
-        self.create_ionosphere(IONOSPHERE_TABLE)
+@pytest.fixture
+def utils(odps, tunnel):
+    util = MLTestUtil(odps, tunnel)
+    util.create_ionosphere(IONOSPHERE_TABLE)
+    return util
 
-    @ci_skip_case
-    def test_merge(self):
-        self.delete_table(IONOSPHERE_MERGED_TABLE)
-        ds = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
-        merged_df = merge_data(ds, ds, auto_rename=True)
-        merged_df.persist(IONOSPHERE_MERGED_TABLE)
-        assert self.odps.exist_table(IONOSPHERE_MERGED_TABLE)
 
-    @ci_skip_case
-    def test_sample(self):
-        self.delete_table(IONOSPHERE_WEIGHTED_SAMPLE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).label_field('class')
-        df.sample(0.5, replace=True).persist(IONOSPHERE_RANDOM_SAMPLE_TABLE)
-        assert self.odps.exist_table(IONOSPHERE_RANDOM_SAMPLE_TABLE)
-        df['a01', 'a02', ((df.a05 + 1) / 2).rename('a05')].sample(0.5, prob_field='a05', replace=True).persist(
-            IONOSPHERE_WEIGHTED_SAMPLE_TABLE)
-        assert self.odps.exist_table(IONOSPHERE_WEIGHTED_SAMPLE_TABLE)
+@ci_skip_case
+def test_merge(odps, utils):
+    utils.delete_table(IONOSPHERE_MERGED_TABLE)
+    ds = DataFrame(odps.get_table(IONOSPHERE_TABLE))
+    merged_df = merge_data(ds, ds, auto_rename=True)
+    merged_df.persist(IONOSPHERE_MERGED_TABLE)
+    assert odps.exist_table(IONOSPHERE_MERGED_TABLE)
+
+
+@ci_skip_case
+def test_sample(odps, utils):
+    utils.delete_table(IONOSPHERE_WEIGHTED_SAMPLE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE)).label_field('class')
+    df.sample(0.5, replace=True).persist(IONOSPHERE_RANDOM_SAMPLE_TABLE)
+    assert odps.exist_table(IONOSPHERE_RANDOM_SAMPLE_TABLE)
+    df['a01', 'a02', ((df.a05 + 1) / 2).rename('a05')].sample(0.5, prob_field='a05', replace=True).persist(
+        IONOSPHERE_WEIGHTED_SAMPLE_TABLE)
+    assert odps.exist_table(IONOSPHERE_WEIGHTED_SAMPLE_TABLE)

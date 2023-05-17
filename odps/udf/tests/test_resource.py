@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import odps.tests.core as ut
 from odps import distcache
 
 
-class TestDistCache(ut.TestBase):
-    
-    def test_get_cache_archive(self):
-        self.assertIsNone(distcache.get_cache_archive('x'))
-        self.assertIsNone(distcache.get_cache_archive('x', 'y'))
+def test_get_cache_archive():
+    assert distcache.get_cache_archive('x') is None
+    assert distcache.get_cache_archive('x', 'y') is None
 
-    def test_get_cache_tabledesc(self):
-        self.assertIsNone(distcache.get_cache_tabledesc('x'))
 
-    def test_get_cache_tableinfo(self):
-        self.assertIsNone(distcache.get_cache_tableinfo('x'))
+def test_get_cache_tabledesc():
+    assert distcache.get_cache_tabledesc('x') is None
+
+
+def test_get_cache_tableinfo():
+    assert distcache.get_cache_tableinfo('x') is None

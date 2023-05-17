@@ -19,50 +19,50 @@ from libcpp.vector cimport vector
 
 from ...src.types_c cimport SchemaSnapshot
 from ...src.utils_c cimport CMillisecondsConverter
-from ..pb.decoder_c cimport Decoder
+from ..pb.decoder_c cimport CDecoder
 from ..checksum_c cimport Checksum
 
 
-ctypedef void (*_SET_FUNCTION)(BaseTunnelRecordReader self, list record, int i)
+ctypedef int (*_SET_FUNCTION)(BaseTunnelRecordReader self, list record, int i) except? -1
 
 
 cdef class BaseTunnelRecordReader:
-
-    cdef object _last_error
     cdef public object _schema
     cdef object _columns
     cdef CMillisecondsConverter _mills_converter
     cdef object _to_date
-    cdef Decoder _reader
+    cdef CDecoder _reader
     cdef Checksum _crc
     cdef Checksum _crccrc
     cdef int _curr_cursor
     cdef int _n_columns
     cdef int _read_limit
+    cdef bint _overflow_date_as_none
     cdef vector[_SET_FUNCTION] _column_setters
     cdef SchemaSnapshot _schema_snapshot
 
     cdef object _read_struct(self, object value_type)
-    cdef object _read_element(self, object data_type)
+    cdef object _read_element(self, int data_type_id, object data_type)
     cdef list _read_array(self, object value_type)
     cdef bytes _read_string(self)
-    cdef float _read_float(self)
-    cdef double _read_double(self)
-    cdef bint _read_bool(self)
-    cdef int64_t _read_bigint(self)
+    cdef float _read_float(self) nogil except? -1.0
+    cdef double _read_double(self) nogil except? -1.0
+    cdef bint _read_bool(self) nogil except? False
+    cdef int64_t _read_bigint(self) nogil except? -1
     cdef object _read_datetime(self)
     cdef object _read_date(self)
     cdef object _read_timestamp(self)
     cdef object _read_interval_day_time(self)
-    cdef void _set_record_list_value(self, list record, int i, object value)
-    cdef void _set_string(self, list record, int i)
-    cdef void _set_float(self, list record, int i)
-    cdef void _set_double(self, list record, int i)
-    cdef void _set_bool(self, list record, int i)
-    cdef void _set_bigint(self, list record, int i)
-    cdef void _set_datetime(self, list record, int i)
-    cdef void _set_date(self, list record, int i)
-    cdef void _set_decimal(self, list record, int i)
-    cdef void _set_timestamp(self, list record, int i)
-    cdef void _set_interval_day_time(self, list record, int i)
+    cdef int _set_record_list_value(self, list record, int i, object value) except? -1
+    cdef int _set_string(self, list record, int i) except? -1
+    cdef int _set_float(self, list record, int i) except? -1
+    cdef int _set_double(self, list record, int i) except? -1
+    cdef int _set_bool(self, list record, int i) except? -1
+    cdef int _set_bigint(self, list record, int i) except? -1
+    cdef int _set_datetime(self, list record, int i) except? -1
+    cdef int _set_date(self, list record, int i) except? -1
+    cdef int _set_decimal(self, list record, int i) except? -1
+    cdef int _set_timestamp(self, list record, int i) except? -1
+    cdef int _set_interval_day_time(self, list record, int i) except? -1
+    cdef int _set_interval_year_month(self, list record, int i) except? -1
     cpdef read(self)

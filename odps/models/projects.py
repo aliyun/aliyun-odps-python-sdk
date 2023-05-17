@@ -21,10 +21,15 @@ from ..compat import six
 
 
 class Projects(Container):
+    __slots__ = "_odps_ref",
 
     marker = serializers.XMLNodeField('Marker')
     max_items = serializers.XMLNodeField('MaxItems')
     projects = serializers.XMLNodesReferencesField(Project, 'Project')
+
+    def __init__(self, *args, **kwargs):
+        self._odps_ref = None
+        super(Projects, self).__init__(*args, **kwargs)
 
     def _get(self, item):
         return Project(client=self._client, _parent=self, name=item)

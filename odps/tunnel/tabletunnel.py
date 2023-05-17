@@ -17,13 +17,12 @@
 import time
 import random
 
-import requests
-
 from .. import errors, serializers, types, options
 from ..compat import Enum, six
-from ..models import Projects, Record, TableSchema
+from ..lib import requests
+from ..models import Projects, Record, TableSchema, Tenant
 from .base import BaseTunnel, TUNNEL_VERSION
-from .io.writer import RecordWriter, BufferredRecordWriter, StreamRecordWriter, ArrowWriter
+from .io.writer import RecordWriter, BufferedRecordWriter, StreamRecordWriter, ArrowWriter
 from .io.reader import TunnelRecordReader, TunnelArrowReader
 from .io.stream import CompressOption, get_decompress_stream
 from .errors import MetaTransactionFailed, TunnelError, TunnelWriteTimeout
@@ -38,6 +37,7 @@ TUNNEL_DATA_TRANSFORM_VERSION = "v1"
 
 def _wrap_upload_call(request_id):
     def wrapper(func):
+        @six.wraps(func)
         def wrapped(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
@@ -48,7 +48,6 @@ def _wrap_upload_call(request_id):
                 else:
                     raise
 
-        wrapped.__name__ = func.__name__
         return wrapped
 
     return wrapper
@@ -71,7 +70,7 @@ class TableDownloadSession(serializers.JSONSerializableModel):
     schema = serializers.JSONNodeReferenceField(TableSchema, 'Schema')
 
     def __init__(self, client, table, partition_spec, download_id=None,
-                 compress_option=None, async_mode=False, timeout=None, **kw):
+                 compress_option=None, async_mode=True, timeout=None, **kw):
         super(TableDownloadSession, self).__init__()
 
         self._client = client
@@ -115,10 +114,12 @@ class TableDownloadSession(serializers.JSONSerializableModel):
 
         url = self._table.table_resource()
         resp = self._client.post(url, {}, params=params, headers=headers, timeout=timeout)
+        delay_time = 0.5
         if self._client.is_ok(resp):
             self.parse(resp, obj=self)
             while self.status == self.Status.Initiating:
-                time.sleep(random.randint(0, 30) + 5)
+                time.sleep(delay_time)
+                delay_time = min(delay_time + 0.1, 30)
                 self.reload()
             if self.schema is not None:
                 self.schema.build_snapshot()
@@ -330,16 +331,18 @@ class TableUploadSession(serializers.JSONSerializableModel):
             @_wrap_upload_call(self.id)
             def upload_block(blockid, data):
                 params['blockid'] = blockid
-                self._client.put(url, data=data, params=params, headers=headers)
+                return self._client.put(url, data=data, params=params, headers=headers)
 
-            writer = BufferredRecordWriter(self.schema, upload_block, compress_option=option,
-                                           buffer_size=buffer_size)
+            writer = BufferedRecordWriter(self.schema, upload_block, compress_option=option,
+                                          buffer_size=buffer_size)
         else:
             params['blockid'] = block_id
 
             @_wrap_upload_call(self.id)
-            def upload(data):
-                self._client.put(url, data=data, params=params, headers=headers)
+            def upload(chunk_size):
+                return self._client.put(
+                    url, params=params, headers=headers, file_upload=True, chunk_size=chunk_size
+                )
 
             if writer_cls is ArrowWriter:
                 params['arrow'] = ''
@@ -616,8 +619,10 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
         url = self._get_resource()
         option = compress_option if compress else None
 
-        def upload(data):
-            return self._client.put(url, data=data, params=params, headers=headers)
+        def upload(chunk_size):
+            return self._client.put(
+                url, file_upload=True, params=params, headers=headers, chunk_size=chunk_size
+            )
 
         writer = StreamRecordWriter(
             self.schema, upload, session=self, slot=slot, compress_option=option
@@ -635,6 +640,8 @@ class TableTunnel(BaseTunnel):
             schema = schema or getattr(table.get_schema(), "name", None)
             table = table.name
         parent = Projects(client=self.tunnel_rest)[self._project.name]
+        # tunnel rest does not have tenant options, thus creating a default one
+        parent.odps._default_tenant = Tenant(parameters={})
         if schema is not None:
             parent = parent.schemas[schema]
         return parent.tables[table]

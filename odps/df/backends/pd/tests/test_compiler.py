@@ -14,38 +14,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase, pandas_case
-from odps.compat import unittest
-from odps.df.expr.expressions import *
-from odps.df import types
-from odps.df.backends.pd.compiler import PandasCompiler
-from odps.df.backends.context import ExecuteContext
+from .....tests.core import pandas_case
+from ....expr.expressions import *
+from .... import types
+from ...context import ExecuteContext
+from ..compiler import PandasCompiler
 
 
 @pandas_case
-class Test(TestBase):
-    def testPandasCompilation(self):
-        import pandas as pd
-        import numpy as np
+def test_pandas_compilation():
+    import pandas as pd
+    import numpy as np
 
-        df = pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc'))
+    df = pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc'))
 
-        schema = TableSchema.from_lists(list('abc'), [types.int8] * 3)
-        expr = CollectionExpr(_source_data=df, _schema=schema)
+    schema = TableSchema.from_lists(list('abc'), [types.int8] * 3)
+    expr = CollectionExpr(_source_data=df, _schema=schema)
 
-        expr = expr['a', 'b']
-        ctx = ExecuteContext()
+    expr = expr['a', 'b']
+    _ = ExecuteContext()
 
-        compiler = PandasCompiler(expr.to_dag())
-        dag = compiler.compile(expr)
+    compiler = PandasCompiler(expr.to_dag())
+    dag = compiler.compile(expr)
 
-        self.assertEqual(len(dag._graph), 4)
-        topos = dag.topological_sort()
-        self.assertIsInstance(topos[0][0], CollectionExpr)
-        self.assertIsInstance(topos[1][0], Column)
-        self.assertIsInstance(topos[2][0], Column)
-        self.assertIsInstance(topos[3][0], ProjectCollectionExpr)
-
-
-if __name__ == '__main__':
-    unittest.main()
+    assert len(dag._graph) == 4
+    topos = dag.topological_sort()
+    assert isinstance(topos[0][0], CollectionExpr)
+    assert isinstance(topos[1][0], Column)
+    assert isinstance(topos[2][0], Column)
+    assert isinstance(topos[3][0], ProjectCollectionExpr)

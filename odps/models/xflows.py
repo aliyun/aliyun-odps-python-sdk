@@ -15,12 +15,13 @@
 # limitations under the License.
 
 import time
+from collections import OrderedDict
 
 from .core import Iterable, XMLRemoteModel
 from .xflow import XFlow
 from .instance import Instance
 from .. import serializers, errors, compat, options
-from ..compat import six, OrderedDict
+from ..compat import six
 
 
 class XFlows(Iterable):
@@ -167,7 +168,7 @@ class XFlows(Iterable):
         resp = self._client.get(url, params=params)
 
         xflow_result = XFlows.XFlowResult.parse(self._client, resp)
-        return dict((action.name, action) for action in xflow_result.actions)
+        return {action.name: action for action in xflow_result.actions}
 
     def get_xflow_source(self, instance):
         params = {'xsource': ''}
@@ -182,7 +183,7 @@ class XFlows(Iterable):
             raise errors.ODPSError(e)
 
     def get_xflow_sub_instances(self, instance):
-        inst_dict = compat.OrderedDict()
+        inst_dict = OrderedDict()
         for x_result in filter(lambda xr: xr.node_type != 'Local',
                                six.itervalues(self.get_xflow_results(instance))):
             if x_result.node_type == 'Instance':

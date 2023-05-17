@@ -14,70 +14,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase, tn
-from odps.models import TableSchema
-from odps.df import DataFrame
-from odps.df.backends.utils import fetch_data_source_size
+import pytest
+
+from ...tests.core import tn
+from ...models import TableSchema
+from .. import DataFrame
+from ..backends.utils import fetch_data_source_size
 
 
-class Test(TestBase):
+@pytest.fixture
+def test_table(odps):
+    test_table_name = tn('pyodps_test_dataframe')
+    schema = TableSchema.from_lists(
+        ['id', 'name'], ['bigint', 'string'], ['ds', 'mm', 'hh'], ['string'] * 3
+    )
 
-    def setup(self):
-        test_table_name = tn('pyodps_test_dataframe')
-        schema = TableSchema.from_lists(
-            ['id', 'name'], ['bigint', 'string'], ['ds', 'mm', 'hh'], ['string'] * 3
-        )
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(test_table_name, schema)
 
-        self.odps.delete_table(test_table_name, if_exists=True)
-        self.table = self.odps.create_table(test_table_name, schema)
+    pt = 'ds=today,mm=now,hh=curr'
+    table.create_partition(pt)
+    with table.open_writer(pt) as w:
+        w.write([[1, 'name1'], [2, 'name2'], [3, 'name3']])
 
-        self.pt = 'ds=today,mm=now,hh=curr'
-        self.table.create_partition(self.pt)
-        with self.table.open_writer(self.pt) as w:
-            w.write([[1, 'name1'], [2, 'name2'], [3, 'name3']])
+    try:
+        yield table, pt
+    finally:
+        table.drop()
 
-    def teardown(self):
-        self.table.drop()
 
-    def testFetchTableSize(self):
-        df = DataFrame(self.table)
+def test_fetch_table_size(test_table):
+    table, pt = test_table
+    df = DataFrame(table)
 
-        expr = df.filter_parts(self.pt)
-        dag = expr.to_dag(copy=False)
-        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
+    expr = df.filter_parts(pt)
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) > 0
 
-        expr = df.filter_parts('ds=today,hh=curr,mm=now')
-        dag = expr.to_dag(copy=False)
-        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
+    expr = df.filter_parts('ds=today,hh=curr,mm=now')
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) > 0
 
-        expr = df.filter_parts('ds=today,hh=curr,mm=now2')
-        dag = expr.to_dag(copy=False)
-        self.assertIsNone(fetch_data_source_size(dag, df, self.table))
+    expr = df.filter_parts('ds=today,hh=curr,mm=now2')
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) is None
 
-        expr = df.filter_parts('ds=today,hh=curr')
-        dag = expr.to_dag(copy=False)
-        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
+    expr = df.filter_parts('ds=today,hh=curr')
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) > 0
 
-        expr = df.filter_parts('ds=today,mm=now')
-        dag = expr.to_dag(copy=False)
-        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
+    expr = df.filter_parts('ds=today,mm=now')
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) > 0
 
-        expr = df.filter(df.ds == 'today', df.mm == 'now', df.hh == 'curr')
-        dag = expr.to_dag(copy=False)
-        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
+    expr = df.filter(df.ds == 'today', df.mm == 'now', df.hh == 'curr')
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) > 0
 
-        expr = df.filter(df.ds == 'today', df.hh == 'curr', df.mm == 'now')
-        dag = expr.to_dag(copy=False)
-        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
+    expr = df.filter(df.ds == 'today', df.hh == 'curr', df.mm == 'now')
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) > 0
 
-        expr = df.filter(df.ds == 'today', df.hh == 'curr', df.mm == 'now2')
-        dag = expr.to_dag(copy=False)
-        self.assertIsNone(fetch_data_source_size(dag, df, self.table))
+    expr = df.filter(df.ds == 'today', df.hh == 'curr', df.mm == 'now2')
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) is None
 
-        expr = df.filter(df.ds == 'today', df.hh == 'curr')
-        dag = expr.to_dag(copy=False)
-        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
+    expr = df.filter(df.ds == 'today', df.hh == 'curr')
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) > 0
 
-        expr = df.filter(df.ds == 'today', df.mm == 'now')
-        dag = expr.to_dag(copy=False)
-        self.assertGreater(fetch_data_source_size(dag, df, self.table), 0)
+    expr = df.filter(df.ds == 'today', df.mm == 'now')
+    dag = expr.to_dag(copy=False)
+    assert fetch_data_source_size(dag, df, table) > 0

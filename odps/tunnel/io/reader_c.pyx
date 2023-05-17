@@ -13,18 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import warnings
+from collections import OrderedDict
+from cpython.datetime cimport import_datetime
 from libc.stdint cimport *
 from libc.string cimport *
 
 from ...src.types_c cimport BaseRecord
 from ...src.utils_c cimport CMillisecondsConverter
-from ..pb.decoder_c cimport Decoder
+from ..pb.decoder_c cimport CDecoder
 from ..checksum_c cimport Checksum
 
 from ... import utils, types, compat, options
-from ...compat import six
+from ...errors import DatetimeOverflowError
 from ...models import Record
 from ...readers import AbstractRecordReader
 from ..wireconstants import ProtoWireConstants
@@ -36,13 +37,27 @@ cdef:
     uint32_t WIRE_TUNNEL_END_RECORD = ProtoWireConstants.TUNNEL_END_RECORD
 
 cdef:
+    int64_t BOOL_TYPE_ID = types.boolean._type_id
+    int64_t DATETIME_TYPE_ID = types.datetime._type_id
+    int64_t DATE_TYPE_ID = types.date._type_id
+    int64_t STRING_TYPE_ID = types.string._type_id
+    int64_t FLOAT_TYPE_ID = types.float_._type_id
+    int64_t DOUBLE_TYPE_ID = types.double._type_id
+    int64_t BIGINT_TYPE_ID = types.bigint._type_id
+    int64_t BINARY_TYPE_ID = types.binary._type_id
+    int64_t TIMESTAMP_TYPE_ID = types.timestamp._type_id
+    int64_t INTERVAL_DAY_TIME_TYPE_ID = types.interval_day_time._type_id
+    int64_t INTERVAL_YEAR_MONTH_TYPE_ID = types.interval_year_month._type_id
+    int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
+
+cdef:
     object pd_timestamp = None
     object pd_timedelta = None
 
+import_datetime()
 
 cdef class BaseTunnelRecordReader:
     def __init__(self, object schema, object input_stream, columns=None):
-        self._last_error = None
         self._schema = schema
         if columns is None:
             self._columns = self._schema.columns
@@ -51,6 +66,7 @@ cdef class BaseTunnelRecordReader:
         self._reader_schema = types.OdpsSchema(columns=self._columns)
         self._schema_snapshot = self._reader_schema.build_snapshot()
         self._n_columns = len(self._columns)
+        self._overflow_date_as_none = options.tunnel.overflow_date_as_none
 
         self._column_setters.resize(self._n_columns)
         for i in range(self._n_columns):
@@ -76,7 +92,7 @@ cdef class BaseTunnelRecordReader:
             elif data_type == types.interval_day_time:
                 self._column_setters[i] = self._set_interval_day_time
             elif data_type == types.interval_year_month:
-                self._column_setters[i] = self._set_bigint
+                self._column_setters[i] = self._set_interval_year_month
             elif isinstance(data_type, types.Decimal):
                 self._column_setters[i] = self._set_decimal
             elif isinstance(data_type, (types.Char, types.Varchar)):
@@ -84,7 +100,7 @@ cdef class BaseTunnelRecordReader:
             else:
                 self._column_setters[i] = NULL
 
-        self._reader = Decoder(input_stream)
+        self._reader = CDecoder(input_stream)
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._curr_cursor = 0
@@ -100,46 +116,45 @@ cdef class BaseTunnelRecordReader:
         return self._curr_cursor
 
     cdef object _read_struct(self, object value_type):
-        res = compat.OrderedDict()
-        for k in value_type.field_types:
+        res = OrderedDict()
+        for field_name, field_type in value_type.field_types.items():
             if self._reader.read_bool():
-                res[k] = None
+                res[field_name] = None
             else:
-                res[k] = self._read_element(value_type.field_types[k])
+                res[field_name] = self._read_element(field_type._type_id, field_type)
         return res
 
-    cdef object _read_element(self, object data_type):
-        if data_type == types.float_:
+    cdef object _read_element(self, int data_type_id, object data_type):
+        if data_type_id == FLOAT_TYPE_ID:
             val = self._read_float()
-        elif data_type == types.double:
-            val = self._read_double()
-        elif data_type == types.boolean:
-            val = self._read_bool()
-        elif data_type in types.integer_types:
+        elif data_type_id == BIGINT_TYPE_ID:
             val = self._read_bigint()
-        elif data_type == types.string:
+        elif data_type_id == DOUBLE_TYPE_ID:
+            val = self._read_double()
+        elif data_type_id == STRING_TYPE_ID:
             val = self._read_string()
-        elif data_type == types.datetime:
+        elif data_type_id == BOOL_TYPE_ID:
+            val = self._read_bool()
+        elif data_type_id == DATETIME_TYPE_ID:
             val = self._read_datetime()
-        elif data_type == types.binary:
+        elif data_type_id == BINARY_TYPE_ID:
             val = self._read_string()
-        elif data_type == types.timestamp:
+        elif data_type_id == TIMESTAMP_TYPE_ID:
             val = self._read_timestamp()
-        elif data_type == types.interval_day_time:
+        elif data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
             val = self._read_interval_day_time()
-        elif data_type == types.interval_year_month:
+        elif data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
             val = compat.Monthdelta(self._read_bigint())
         elif isinstance(data_type, (types.Char, types.Varchar)):
             val = self._read_string()
         elif isinstance(data_type, types.Decimal):
             val = self._read_string()
-            self._crc.update(val)
         elif isinstance(data_type, types.Array):
             val = self._read_array(data_type.value_type)
         elif isinstance(data_type, types.Map):
             keys = self._read_array(data_type.key_type)
             values = self._read_array(data_type.value_type)
-            val = compat.OrderedDict(zip(keys, values))
+            val = OrderedDict(zip(keys, values))
         elif isinstance(data_type, types.Struct):
             val = self._read_struct(data_type)
         else:
@@ -149,89 +164,54 @@ cdef class BaseTunnelRecordReader:
     cdef list _read_array(self, object value_type):
         cdef:
             uint32_t size
+            int value_type_id = value_type._type_id
             object val
-            list res = []
 
         size = self._reader.read_uint32()
-        for _ in range(size):
-            if self._reader.read_bool():
-                res.append(None)
-            else:
-                res.append(self._read_element(value_type))
+
+        cdef list res = [None] * size
+        for idx in range(size):
+            if not self._reader.read_bool():
+                res[idx] = self._read_element(value_type_id, value_type)
         return res
 
     cdef bytes _read_string(self):
-        cdef bytes val
-        try:
-            val = self._reader.read_string()
-        except:
-            self._last_error = sys.exc_info()
-            raise
-        self._crc.update(val)
-
+        cdef bytes val = self._reader.read_string()
+        self._crc.c_update(val, len(val))
         return val
 
-    cdef float _read_float(self):
-        cdef float val
-        try:
-            val = self._reader.read_float()
-        except:
-            self._last_error = sys.exc_info()
-            raise
+    cdef float _read_float(self) nogil except? -1.0:
+        cdef float val = self._reader.read_float()
         self._crc.c_update_float(val)
-
         return val
 
-    cdef double _read_double(self):
-        cdef double val
-        try:
-            val = self._reader.read_double()
-        except:
-            self._last_error = sys.exc_info()
-            raise
+    cdef double _read_double(self) nogil except? -1.0:
+        cdef double val = self._reader.read_double()
         self._crc.c_update_double(val)
-
         return val
 
-    cdef bint _read_bool(self):
-        cdef bint val
-        try:
-            val = self._reader.read_bool()
-        except:
-            self._last_error = sys.exc_info()
-            raise
+    cdef bint _read_bool(self) nogil except? False:
+        cdef bint val = self._reader.read_bool()
         self._crc.c_update_bool(val)
-
         return val
 
-    cdef int64_t _read_bigint(self):
-        cdef int64_t val
-        try:
-            val = self._reader.read_sint64()
-        except:
-            self._last_error = sys.exc_info()
-            raise
+    cdef int64_t _read_bigint(self) nogil except? -1:
+        cdef int64_t val = self._reader.read_sint64()
         self._crc.c_update_long(val)
-
         return val
 
     cdef object _read_datetime(self):
-        cdef int64_t val
-        try:
-            val = self._reader.read_sint64()
-        except:
-            self._last_error = sys.exc_info()
-            raise
+        cdef int64_t val = self._reader.read_sint64()
         self._crc.c_update_long(val)
-        return self._mills_converter.from_milliseconds(val)
+        try:
+            return self._mills_converter.from_milliseconds(val)
+        except DatetimeOverflowError:
+            if not self._overflow_date_as_none:
+                raise
+            return None
 
     cdef object _read_date(self):
-        cdef int64_t val
-        try:
-            val = self._reader.read_sint64()
-        except:
-            self._last_error = sys.exc_info()
-            raise
+        cdef int64_t val = self._reader.read_sint64()
         self._crc.c_update_long(val)
         return self._to_date(val)
 
@@ -242,22 +222,23 @@ cdef class BaseTunnelRecordReader:
         global pd_timestamp, pd_timedelta
 
         if pd_timestamp is None:
-            try:
-                import pandas as pd
-                pd_timestamp = pd.Timestamp
-                pd_timedelta = pd.Timedelta
-            except ImportError:
-                self._last_error = sys.exc_info()
-                raise
+            import pandas as pd
+            pd_timestamp = pd.Timestamp
+            pd_timedelta = pd.Timedelta
+
+        val = self._reader.read_sint64()
+        self._crc.c_update_long(val)
+        nano_secs = self._reader.read_sint32()
+        self._crc.c_update_int(nano_secs)
         try:
-            val = self._reader.read_sint64()
-            self._crc.c_update_long(val)
-            nano_secs = self._reader.read_sint32()
-            self._crc.c_update_int(nano_secs)
-        except:
-            self._last_error = sys.exc_info()
-            raise
-        return pd_timestamp(self._mills_converter.from_milliseconds(val * 1000)) + pd_timedelta(nanoseconds=nano_secs)
+            return (
+                pd_timestamp(self._mills_converter.from_milliseconds(val * 1000))
+                + pd_timedelta(nanoseconds=nano_secs)
+            )
+        except DatetimeOverflowError:
+            if not self._overflow_date_as_none:
+                raise
+            return None
 
     cdef object _read_interval_day_time(self):
         cdef:
@@ -266,67 +247,67 @@ cdef class BaseTunnelRecordReader:
         global pd_timestamp, pd_timedelta
 
         if pd_timedelta is None:
-            try:
-                import pandas as pd
-                pd_timestamp = pd.Timestamp
-                pd_timedelta = pd.Timedelta
-            except ImportError:
-                self._last_error = sys.exc_info()
-                raise
-        try:
-            val = self._reader.read_sint64()
-            self._crc.c_update_long(val)
-            nano_secs = self._reader.read_sint32()
-            self._crc.c_update_int(nano_secs)
-        except:
-            self._last_error = sys.exc_info()
-            raise
+            import pandas as pd
+            pd_timestamp = pd.Timestamp
+            pd_timedelta = pd.Timedelta
+        val = self._reader.read_sint64()
+        self._crc.c_update_long(val)
+        nano_secs = self._reader.read_sint32()
+        self._crc.c_update_int(nano_secs)
         return pd_timedelta(seconds=val, nanoseconds=nano_secs)
 
-    cdef void _set_record_list_value(self, list record, int i, object value):
+    cdef int _set_record_list_value(self, list record, int i, object value) except? -1:
         record[i] = self._schema_snapshot.validate_value(i, value)
+        return 0
 
-    cdef void _set_string(self, list record, int i):
+    cdef int _set_string(self, list record, int i) except? -1:
         cdef object val = self._read_string()
         self._set_record_list_value(record, i, val)
+        return 0
 
-    cdef void _set_float(self, list record, int i):
-        cdef float val = self._read_float()
-        self._set_record_list_value(record, i, val)
+    cdef int _set_float(self, list record, int i) except? -1:
+        record[i] = self._read_float()
+        return 0
 
-    cdef void _set_double(self, list record, int i):
-        cdef double val = self._read_double()
-        self._set_record_list_value(record, i, val)
+    cdef int _set_double(self, list record, int i) except? -1:
+        record[i] = self._read_double()
+        return 0
 
-    cdef void _set_bool(self, list record, int i):
-        cdef bint val = self._read_bool()
-        self._set_record_list_value(record, i, val)
+    cdef int _set_bool(self, list record, int i) except? -1:
+        record[i] = self._read_bool()
+        return 0
 
-    cdef void _set_bigint(self, list record, int i):
-        cdef int64_t val = self._read_bigint()
-        self._set_record_list_value(record, i, val)
+    cdef int _set_bigint(self, list record, int i) except? -1:
+        record[i] = self._read_bigint()
+        return 0
 
-    cdef void _set_datetime(self, list record, int i):
-        cdef object val = self._read_datetime()
-        self._set_record_list_value(record, i, val)
+    cdef int _set_datetime(self, list record, int i) except? -1:
+        record[i] = self._read_datetime()
+        return 0
 
-    cdef void _set_date(self, list record, int i):
-        cdef object val = self._read_date()
-        self._set_record_list_value(record, i, val)
+    cdef int _set_date(self, list record, int i) except? -1:
+        record[i] = self._read_date()
+        return 0
 
-    cdef void _set_decimal(self, list record, int i):
+    cdef int _set_decimal(self, list record, int i) except? -1:
         cdef bytes val
         val = self._reader.read_string()
-        self._crc.update(val)
+        self._crc.c_update(val, len(val))
         self._set_record_list_value(record, i, val)
+        return 0
 
-    cdef void _set_timestamp(self, list record, int i):
-        cdef object val = self._read_timestamp()
-        self._set_record_list_value(record, i, val)
+    cdef int _set_timestamp(self, list record, int i) except? -1:
+        record[i] = self._read_timestamp()
+        return 0
 
-    cdef void _set_interval_day_time(self, list record, int i):
-        cdef object val = self._read_interval_day_time()
-        self._set_record_list_value(record, i, val)
+    cdef int _set_interval_day_time(self, list record, int i) except? -1:
+        record[i] = self._read_interval_day_time()
+        return 0
+
+    cdef int _set_interval_year_month(self, list record, int i) except? -1:
+        cdef int64_t val = self._read_bigint()
+        self._set_record_list_value(record, i, compat.Monthdelta(val))
+        return 0
 
     cpdef read(self):
         cdef:
@@ -340,7 +321,10 @@ cdef class BaseTunnelRecordReader:
             list rec_list
 
         if self._curr_cursor >= self._read_limit > 0:
-            warnings.warn('Number of lines read via tunnel already reaches the limitation.')
+            warnings.warn(
+                'Number of lines read via tunnel already reaches the limitation.',
+                RuntimeWarning,
+            )
             return None
 
         record = Record(schema=self._reader_schema)
@@ -352,10 +336,10 @@ cdef class BaseTunnelRecordReader:
             if index == 0:
                 continue
             if index == WIRE_TUNNEL_END_RECORD:
-                checksum = <int32_t>self._crc.getvalue()
+                checksum = <int32_t>self._crc.c_getvalue()
                 if self._reader.read_uint32() != <uint32_t>checksum:
                     raise IOError('Checksum invalid')
-                self._crc.reset()
+                self._crc.c_reset()
                 self._crccrc.c_update_int(checksum)
                 break
 
@@ -365,7 +349,7 @@ cdef class BaseTunnelRecordReader:
                 idx_of_checksum = self._reader.read_field_number()
                 if WIRE_TUNNEL_META_CHECKSUM != idx_of_checksum:
                     raise IOError('Invalid stream data.')
-                if self._crccrc.getvalue() != self._reader.read_uint32():
+                if self._crccrc.c_getvalue() != self._reader.read_uint32():
                     raise IOError('Checksum invalid.')
                 # if not self._reader.at_end():
                 #     raise IOError('Expect at the end of stream, but not.')
@@ -389,16 +373,13 @@ cdef class BaseTunnelRecordReader:
                 elif isinstance(data_type, types.Map):
                     keys = self._read_array(data_type.key_type)
                     values = self._read_array(data_type.value_type)
-                    val = compat.OrderedDict(zip(keys, values))
+                    val = OrderedDict(zip(keys, values))
                     rec_list[i] = self._schema_snapshot.validate_value(i, val)
                 elif isinstance(data_type, types.Struct):
                     val = self._read_struct(data_type)
                     rec_list[i] = self._schema_snapshot.validate_value(i, val)
                 else:
                     raise IOError('Unsupported type %s' % data_type)
-
-            if self._last_error is not None:
-                six.reraise(*self._last_error)
 
         self._curr_cursor += 1
         return record

@@ -18,12 +18,12 @@ import csv
 import copy
 import itertools
 import math
-
-from requests import Response
+from collections import OrderedDict
 
 from . import types, compat, utils, options
-from .models.record import Record
 from .compat import six, StringIO
+from .lib.requests import Response
+from .models.record import Record
 
 
 class AbstractRecordReader(object):
@@ -40,6 +40,7 @@ class AbstractRecordReader(object):
     def _calc_count(cls, start, end, step):
         if end is None:
             return end
+        step = step or 1
         return int(math.ceil(float(end - start) / step))
 
     @classmethod
@@ -64,13 +65,38 @@ class AbstractRecordReader(object):
         if start < 0 or (count is not None and count <= 0) or step < 0:
             raise ValueError('start, count, or step cannot be negative')
 
-        it = self._iter(start=start, end=end, step=step)
+        it = self._get_slice_iter(start=start, end=end, step=step)
         if isinstance(item, six.integer_types):
             try:
                 return next(it)
             except StopIteration:
                 raise IndexError('Index out of range: %s' % item)
         return it
+
+    def _get_slice_iter(self, start=None, end=None, step=None):
+        class SliceIterator(six.Iterator):
+            def __init__(self, it):
+                self.it = it
+
+            def __iter__(self):
+                return self.it
+
+            def __next__(self):
+                return next(self.it)
+
+            @staticmethod
+            def to_pandas():
+                if end is not None:
+                    count = (end - (start or 0)) // (step or 1)
+                else:
+                    count = None
+                pstep = None if step == 1 else step
+                kw = dict(start=start, count=count, step=pstep)
+                kw = {k: v for k, v in kw.items() if v is not None}
+                return parent.to_pandas(**kw)
+
+        parent = self
+        return SliceIterator(self._iter(start=start, end=end, step=step))
 
     def _iter(self, start=None, end=None, step=None):
         start = start or 0
@@ -121,8 +147,9 @@ class AbstractRecordReader(object):
                 import pandas as pd
                 from .df.backends.pd.types import pd_to_df_schema
                 data = pd.read_csv(StringIO(self.raw))
-                kw['schema'] = pd_to_df_schema(data, unknown_as_string=unknown_as_string,
-                                               as_type=as_type)
+                kw['schema'] = pd_to_df_schema(
+                    data, unknown_as_string=unknown_as_string, as_type=as_type
+                )
                 kw.pop('columns', None)
             except ImportError:
                 pass
@@ -136,7 +163,10 @@ class AbstractRecordReader(object):
         self, unknown_as_string=True, as_type=None, start=None, count=None, **iter_kw
     ):
         read_row_batch_size = options.tunnel.read_row_batch_size
-        end = None if count is None else (start or 0) + count
+        if "end" in iter_kw:
+            end = iter_kw["end"]
+        else:
+            end = None if count is None else (start or 0) + count * (iter_kw.get("step") or 1)
 
         frames = []
         if hasattr(self, "raw"):
@@ -255,7 +285,7 @@ class RecordReader(AbstractRecordReader):
                         k = col_type.key_type.cast_value(k.strip(), types.string)
                         v = col_type.value_type.cast_value(v.strip(), types.string)
                         items.append((k, v))
-                    res.append(compat.OrderedDict(items))
+                    res.append(OrderedDict(items))
                 elif self._columns and isinstance(self._columns[i].type, types.Array):
                     col_type = self._columns[i].type
                     if not (value.startswith('[') and value.endswith(']')):

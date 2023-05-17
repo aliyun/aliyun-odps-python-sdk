@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-
 import numpy as np
+import pytest
 
 try:
     import mars
@@ -22,59 +21,55 @@ try:
 except ImportError:
     mars = None
 
-from odps.mars_extension.oscar.filesystem import VolumeFileSystem
-from odps.tests.core import TestBase
+from ..filesystem import VolumeFileSystem
 
 
-@unittest.skipIf(mars is None, "mars not installed")
-class Test(TestBase):
-    def testVolumeFilesystem(self):
-        volume_name = "test_mars_volume"
-        filename = "test_data"
-        content = np.random.bytes(30)
-        filename2 = "test_data2"
-        content2 = np.random.bytes(40)
+@pytest.mark.skipif(mars is None, reason="mars not installed")
+def test_volume_filesystem(odps):
+    volume_name = "test_mars_volume"
+    filename = "test_data"
+    content = np.random.bytes(30)
+    filename2 = "test_data2"
+    content2 = np.random.bytes(40)
 
-        if self.odps.exist_volume(volume_name):
-            self.odps.delete_volume(volume_name)
+    if odps.exist_volume(volume_name):
+        odps.delete_volume(volume_name)
 
-        path = "odps:///{}/volumes/{}".format(self.odps.project, volume_name)
-        fs = get_fs(path, {"odps": self.odps})
-        self.assertIsInstance(fs, VolumeFileSystem)
+    path = "odps:///{}/volumes/{}".format(odps.project, volume_name)
+    fs = get_fs(path, {"odps": odps})
+    assert isinstance(fs, VolumeFileSystem)
 
-        fs.mkdir("/")
-        files = fs.ls("/")
-        self.assertEqual(len(files), 0)
+    fs.mkdir("/")
+    files = fs.ls("/")
+    assert len(files) == 0
 
-        f = fs.open(filename, "wb")
-        with f:
-            f.write(content)
+    f = fs.open(filename, "wb")
+    with f:
+        f.write(content)
 
-        files = fs.ls("/")
-        self.assertEqual(len(files), 1)
-        self.assertIn(filename, files[0])
+    files = fs.ls("/")
+    assert len(files) == 1
+    assert filename in files[0]
 
-        f = fs.open(filename, "rb")
-        with f:
-            self.assertEqual(f.read(), content)
+    f = fs.open(filename, "rb")
+    with f:
+        assert f.read() == content
 
-        fs2 = get_fs(path, {"odps": self.odps, "chunk_size": 25})
+    fs2 = get_fs(path, {"odps": odps, "chunk_size": 25})
 
-        f = fs2.open(filename2, "wb")
-        with f:
-            f.write(content)
-            f.write(content2)
+    f = fs2.open(filename2, "wb")
+    with f:
+        f.write(content)
+        f.write(content2)
 
-        self.assertGreater(
-            len(list(self.odps.list_volume_files(volume_name, filename2))), 1
-        )
+    assert len(list(odps.list_volume_files(volume_name, filename2))) > 1
 
-        f = fs2.open(filename2, "rb")
-        with f:
-            self.assertEqual(f.read(), content + content2)
+    f = fs2.open(filename2, "rb")
+    with f:
+        assert f.read() == content + content2
 
-        fs2.delete(filename2)
-        self.assertFalse(self.odps.exist_volume_partition(volume_name, filename2))
+    fs2.delete(filename2)
+    assert odps.exist_volume_partition(volume_name, filename2) is False
 
-        with self.assertRaises(FileNotFoundError):
-            fs.ls("odps:///{}/volumes/{}".format(self.odps.project, "not_exist"))
+    with pytest.raises(FileNotFoundError):
+        fs.ls("odps:///{}/volumes/{}".format(odps.project, "not_exist"))

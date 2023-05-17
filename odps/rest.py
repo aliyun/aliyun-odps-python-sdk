@@ -19,26 +19,16 @@ import json
 import logging
 import platform
 import threading
+from contextlib import contextmanager
 from string import Template
 
-import requests
-try:
-    from requests import ConnectTimeout
-except ImportError:
-    from requests import Timeout as ConnectTimeout
-
 from . import __version__
-from . import errors, utils
-from .config import options
-from .utils import get_survey_calls, clear_survey_calls
+from . import compat, errors, utils
 from .compat import six
-
-try:
-    import requests.packages.urllib3.util.ssl_
-    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
-    requests.packages.urllib3.disable_warnings()
-except ImportError:
-    pass
+from .config import options
+from .lib import requests
+from .lib.requests import ConnectTimeout
+from .utils import get_survey_calls, clear_survey_calls
 
 try:
     import urllib3.util.ssl_
@@ -46,6 +36,11 @@ try:
     urllib3.disable_warnings()
 except ImportError:
     pass
+
+if compat.LESS_PY32:
+    mv_to_bytes = lambda v: bytes(bytearray(v))
+else:
+    mv_to_bytes = bytes
 
 
 LOG = logging.getLogger(__name__)
@@ -84,6 +79,47 @@ def default_user_agent():
     return _default_user_agent
 
 
+class RestUploadWriter(object):
+    def __init__(self, ctx, chunk_size=None):
+        self._ctx = ctx
+        self._writer = None
+        self._result = None
+        self._chunk_size = chunk_size or options.chunk_size
+
+    @property
+    def result(self):
+        return self._result
+
+    def open(self):
+        self._writer = self._ctx.__enter__()
+
+    def write(self, data):
+        if self._writer is None:
+            raise IOError("Writer not opened")
+        chunk_size = self._chunk_size
+        data = memoryview(data)
+        while data:
+            to_send = mv_to_bytes(data[:chunk_size])
+            data = data[chunk_size:]
+            self._writer.write(to_send)
+
+    def flush(self):
+        pass
+
+    def close(self):
+        self.__exit__(None, None, None)
+        return self._result
+
+    def __enter__(self):
+        self.open()
+        return self
+
+    def __exit__(self, *exc_info):
+        self._ctx.__exit__(*exc_info)
+        self._result = self._writer.result
+        self._writer = None
+
+
 class RestClient(object):
     _session_local = threading.local()
 
@@ -99,6 +135,7 @@ class RestClient(object):
         self.schema = schema
         self._proxy = kwargs.get('proxy')
         self._app_account = kwargs.get('app_account')
+        self._tag = kwargs.get('tag')
         if isinstance(self._proxy, six.string_types):
             self._proxy = dict(http=self._proxy, https=self._proxy)
 
@@ -133,17 +170,32 @@ class RestClient(object):
         return self._session_local._session
 
     def request(self, url, method, stream=False, **kwargs):
+        file_upload = kwargs.get("file_upload", False)
+        chunk_size = kwargs.pop("chunk_size", None)
+        if not file_upload:
+            with self._request(url, method, stream=stream, **kwargs) as writer:
+                pass
+            return writer.result
+        else:
+            return RestUploadWriter(
+                self._request(url, method, stream=stream, **kwargs), chunk_size=chunk_size
+            )
+
+    @contextmanager
+    def _request(self, url, method, stream=False, **kwargs):
         self.upload_survey_log()
+
+        file_upload = kwargs.get("file_upload", False)
 
         LOG.debug('Start request.')
         LOG.debug('url: ' + url)
         if LOG.level == logging.DEBUG:
             for k, v in kwargs.items():
-                LOG.debug(k + ': ' + utils.to_text(v))
+                LOG.debug(k + ': ' + str(v))
 
         # Construct user agent without handling the letter case.
         headers = kwargs.get('headers', {})
-        headers = dict((k, str(v)) for k, v in six.iteritems(headers))
+        headers = {k: str(v) for k, v in six.iteritems(headers)}
         headers['User-Agent'] = self._user_agent
         kwargs['headers'] = headers
         params = kwargs.setdefault('params', {})
@@ -165,30 +217,41 @@ class RestClient(object):
             self._app_account.sign_request(prepared_req, self._endpoint)
 
         try:
-            res = self.session.send(prepared_req, stream=stream,
-                                    timeout=timeout or (options.connect_timeout, options.read_timeout),
-                                    verify=options.verify_ssl,
-                                    proxies=self._proxy)
+            res = self.session.send(
+                prepared_req,
+                stream=stream,
+                timeout=timeout or (options.connect_timeout, options.read_timeout),
+                verify=options.verify_ssl,
+                proxies=self._proxy,
+                file_upload=file_upload,
+            )
+            if not file_upload:
+                writer = RestUploadWriter(None)
+                yield writer
+            else:
+                with res as writer:
+                    yield writer
+                res = writer.result
         except ConnectTimeout:
             raise errors.ConnectTimeout('Connecting to endpoint %s timeout.' % self._endpoint)
 
         LOG.debug('response.status_code %d' % res.status_code)
         LOG.debug('response.headers: \n%s' % res.headers)
         if not stream:
-            LOG.debug('response.content: %s\n' % (res.content))
+            LOG.debug('response.content: %s\n' % res.content)
         # Automatically detect error
         if not self.is_ok(res):
-            errors.throw_if_parsable(res)
-        return res
+            errors.throw_if_parsable(res, self._endpoint, self._tag)
+        writer._result = res
 
     def get(self, url, stream=False, **kwargs):
         return self.request(url, 'get', stream=stream, **kwargs)
 
-    def post(self, url, data, **kwargs):
+    def post(self, url, data=None, **kwargs):
         data = utils.to_binary(data, encoding='utf-8') if isinstance(data, six.string_types) else data
         return self.request(url, 'post', data=data, **kwargs)
 
-    def put(self, url, data, **kwargs):
+    def put(self, url, data=None, **kwargs):
         data = utils.to_binary(data) if isinstance(data, six.string_types) else data
         return self.request(url, 'put', data=data, **kwargs)
 

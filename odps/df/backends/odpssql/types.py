@@ -15,11 +15,12 @@
 # limitations under the License.
 
 import threading
+from collections import OrderedDict
 
 from ....models import TableSchema
 from .... import types as odps_types
 from ... import types as df_types
-from ....compat import six, OrderedDict
+from ....compat import six
 from ....config import options
 
 

@@ -15,13 +15,13 @@
 
 import itertools
 import uuid
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 from . import op
 from .core import AlgoExprMixin
 from ..enums import FieldRole
 from ..utils import KVConfig, MLField
-from ...compat import six, reduce, OrderedDict
+from ...compat import six, reduce
 from ...df import DataFrame
 from ...df.backends.odpssql.types import odps_schema_to_df_schema, df_schema_to_odps_schema, \
     df_type_to_odps_type

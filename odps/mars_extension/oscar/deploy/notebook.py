@@ -22,8 +22,7 @@ import subprocess
 import sys
 import time
 
-import requests
-
+from ....lib import requests
 from ....utils import to_str
 from .client import CUPID_APP_NAME, NOTEBOOK_NAME
 

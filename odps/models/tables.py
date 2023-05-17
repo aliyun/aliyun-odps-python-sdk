@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .. import serializers, errors
+from .. import serializers, errors, utils
 from ..compat import six
 from .core import Iterable
 from .table import Table
@@ -81,9 +81,10 @@ class Tables(Iterable):
             for table in tables:
                 yield table
 
+    @utils.with_wait_argument
     def create(self, table_name, table_schema, comment=None, if_not_exists=False,
-               lifecycle=None, shard_num=None, hub_lifecycle=None, async_=False, **kw):
-        async_ = kw.pop('async', async_)
+               lifecycle=None, shard_num=None, hub_lifecycle=None, hints=None,
+               async_=False, **kw):
         project_name = self._parent.project.name
         schema_name = self._get_schema_name()
         sql = Table.gen_create_table_sql(
@@ -92,14 +93,15 @@ class Tables(Iterable):
             project=project_name, schema=schema_name, **kw)
 
         from .tasks import SQLTask
+
         task = SQLTask(name='SQLCreateTableTask', query=sql)
-        settings = {}
+        hints = hints or {}
         if schema_name is not None:
-            settings["odps.sql.allow.namespace.schema"] = "true"
-            settings["odps.namespace.schema"] = "true"
+            hints["odps.sql.allow.namespace.schema"] = "true"
+            hints["odps.namespace.schema"] = "true"
         else:
-            settings["odps.namespace.schema"] = "false"
-        task.update_sql_settings(settings)
+            hints["odps.namespace.schema"] = "false"
+        task.update_sql_settings(hints)
         instance = self._parent.project.instances.create(task=task)
 
         if not async_:
@@ -125,8 +127,8 @@ class Tables(Iterable):
 
         return buf.getvalue()
 
-    def delete(self, table_name, if_exists=False, async_=False, **kw):
-        async_ = kw.get('async', async_)
+    @utils.with_wait_argument
+    def delete(self, table_name, if_exists=False, async_=False, hints=None):
         if isinstance(table_name, Table):
             table_name = table_name.name
 
@@ -136,12 +138,14 @@ class Tables(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLDropTableTask', query=sql)
-        settings = {'odps.sql.submit.mode': ''}
+
+        hints = hints or {}
+        hints['odps.sql.submit.mode'] = ''
         schema_name = self._get_schema_name()
         if schema_name is not None:
-            settings["odps.sql.allow.namespace.schema"] = "true"
-            settings["odps.namespace.schema"] = "true"
-        task.update_sql_settings(settings)
+            hints["odps.sql.allow.namespace.schema"] = "true"
+            hints["odps.namespace.schema"] = "true"
+        task.update_sql_settings(hints)
         instance = self._parent.project.instances.create(task=task)
 
         if not async_:

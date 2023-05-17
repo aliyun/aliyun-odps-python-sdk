@@ -22,16 +22,17 @@ import logging
 import os
 import threading
 import time
+from collections import OrderedDict
 from datetime import datetime, timedelta
 
-import requests
-
-from .compat import six, cgi
-from .compat import urlparse, unquote, parse_qsl
+from .compat import six, cgi, urlparse, unquote, parse_qsl
+from .lib import requests
 from . import compat, utils, options
 
 
 LOG = logging.getLogger(__name__)
+
+DEFAULT_BEARER_TOKEN_HOURS = 5
 
 
 class BaseAccount(object):
@@ -71,8 +72,8 @@ class BaseAccount(object):
             if param_key.startswith('x-odps-'):
                 headers_to_sign[param_key] = param_value
 
-        headers_to_sign = compat.OrderedDict([(k, headers_to_sign[k])
-                                              for k in sorted(headers_to_sign)])
+        headers_to_sign = OrderedDict([(k, headers_to_sign[k])
+                                       for k in sorted(headers_to_sign)])
         LOG.debug('headers to sign: %s' % headers_to_sign)
         for k, v in six.iteritems(headers_to_sign):
             if k.startswith('x-odps-'):
@@ -306,16 +307,30 @@ class SignServerAccount(BaseAccount):
 
 
 class BearerTokenAccount(BaseAccount):
-    def __init__(self, token, expired_hours=5, get_bearer_token_fun=None):
-        self._token = token
-        self._last_modified_time = None
+    def __init__(
+        self, token=None, expired_hours=DEFAULT_BEARER_TOKEN_HOURS, get_bearer_token_fun=None
+    ):
+        self._token = token or self.get_bearer_token()
+        self._reload_bearer_token_time()
+
         self._expired_time = timedelta(hours=expired_hours)
         self._get_bearer_token = get_bearer_token_fun or self.get_bearer_token
 
+    @classmethod
+    def from_environments(cls):
+        expired_hours = int(os.getenv('ODPS_BEARER_TOKEN_HOURS', str(DEFAULT_BEARER_TOKEN_HOURS)))
+        kwargs = {"expired_hours": expired_hours}
+        if 'ODPS_BEARER_TOKEN' in os.environ:
+            return cls(os.environ['ODPS_BEARER_TOKEN'], **kwargs)
+        elif 'ODPS_BEARER_TOKEN_FILE' in os.environ:
+            return cls(**kwargs)
+        return None
+
     @staticmethod
     def get_bearer_token():
-        if "ODPS_BEARER_TOKEN_FILE" in os.environ:
-            with open(os.environ["ODPS_BEARER_TOKEN_FILE"], "r") as token_file:
+        token_file_name = os.getenv("ODPS_BEARER_TOKEN_FILE")
+        if token_file_name and os.path.exists(token_file_name):
+            with open(token_file_name, "r") as token_file:
                 return token_file.read().strip()
 
         from cupid.runtime import context, RuntimeContext
@@ -325,6 +340,13 @@ class BearerTokenAccount(BaseAccount):
         cupid_context = context()
         return cupid_context.get_bearer_token()
 
+    def _reload_bearer_token_time(self):
+        if "ODPS_BEARER_TOKEN_TIMESTAMP_FILE" in os.environ:
+            with open(os.getenv("ODPS_BEARER_TOKEN_TIMESTAMP_FILE"), "r") as ts_file:
+                self._last_modified_time = datetime.fromtimestamp(float(ts_file.read()))
+        else:
+            self._last_modified_time = datetime.now()
+
     def _check_bearer_token(self):
         t = datetime.now()
         if self._last_modified_time is None:
@@ -333,13 +355,13 @@ class BearerTokenAccount(BaseAccount):
                 return
             if token != self._token:
                 self._token = token
-                self._last_modified_time = datetime.now()
+                self._reload_bearer_token_time()
         elif (t - self._last_modified_time) > self._expired_time:
             token = self._get_bearer_token()
             if token is None:
                 return
             self._token = token
-            self._last_modified_time = datetime.now()
+            self._reload_bearer_token_time()
 
     @property
     def token(self):

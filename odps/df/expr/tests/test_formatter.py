@@ -14,12 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase, to_str
-from odps.compat import unittest
-from odps.models import TableSchema
-from odps.df.expr.expressions import CollectionExpr
-from odps.df.types import validate_data_type
-from odps.df.expr.tests.core import MockTable
+from collections import namedtuple
+
+import pytest
+
+from ....models import TableSchema
+from ....utils import to_text
+from ...types import validate_data_type
+from ..expressions import CollectionExpr
+from ..tests.core import MockTable
 
 
 EXPECTED_PROJECTION_FORMAT = '''\
@@ -462,125 +465,137 @@ id = TypedSequence[sequence(float64)]
 '''
 
 
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = TableSchema.from_lists(['name', 'id'], datatypes('string', 'int64'))
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+@pytest.fixture
+def exprs():
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    schema = TableSchema.from_lists(['name', 'id'], datatypes('string', 'int64'))
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
+    expr = CollectionExpr(_source_data=table, _schema=schema)
 
-        schema2 = TableSchema.from_lists(['name2', 'id2'], datatypes('string', 'int64'))
-        table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
-        self.expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
+    schema2 = TableSchema.from_lists(['name2', 'id2'], datatypes('string', 'int64'))
+    table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
+    expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
 
-    def _lines_eq(self, expected, actual):
-        self.assertSequenceEqual([to_str(line.rstrip()) for line in expected.split('\n')],
-                                 [to_str(line.rstrip()) for line in actual.split('\n')])
+    nt = namedtuple("NT", "expr, expr2")
+    return nt(expr, expr2)
 
-    def testProjectionFormatter(self):
-        expr = self.expr['name', self.expr.id.rename('new_id')].new_id.astype('float32')
-        self._lines_eq(EXPECTED_PROJECTION_FORMAT, repr(expr))
 
-    def testFilterFormatter(self):
-        expr = self.expr[(self.expr.name != 'test') & (self.expr.id > 100)]
-        self._lines_eq(EXPECTED_FILTER_FORMAT, repr(expr))
+def _lines_eq(expected, actual):
+    assert [to_text(line.rstrip()) for line in expected.split('\n')] == \
+           [to_text(line.rstrip()) for line in actual.split('\n')]
 
-    def testSliceFormatter(self):
-        expr = self.expr[:100]
-        self._lines_eq(EXPECTED_SLICE_FORMAT, repr(expr))
 
-        expr = self.expr[5:100:3]
-        self._lines_eq(EXPECTED_SLICE_WITH_START_STEP_FORMAT, repr(expr))
+def test_projection_formatter(exprs):
+    expr = exprs.expr['name', exprs.expr.id.rename('new_id')].new_id.astype('float32')
+    _lines_eq(EXPECTED_PROJECTION_FORMAT, repr(expr))
 
-    def testArithmeticFormatter(self):
-        expr = self.expr
-        d = -(expr['id']) + 20.34 - expr['id'] + float(20) * expr['id'] \
-            - expr['id'] / 4.9 + 40 // 2 + expr['id'] // 1.2
 
-        try:
-            self._lines_eq(EXPECTED_ARITHMETIC_FORMAT, repr(d))
-        except AssertionError as e:
-            left = [to_str(line.rstrip()) for line in EXPECTED_ARITHMETIC_FORMAT.split('\n')]
-            right = [to_str(line.rstrip()) for line in repr(d).split('\n')]
-            self.assertEqual(len(left), len(right))
-            for l, r in zip(left, right):
+def test_filter_formatter(exprs):
+    expr = exprs.expr[(exprs.expr.name != 'test') & (exprs.expr.id > 100)]
+    _lines_eq(EXPECTED_FILTER_FORMAT, repr(expr))
+
+
+def test_slice_formatter(exprs):
+    expr = exprs.expr[:100]
+    _lines_eq(EXPECTED_SLICE_FORMAT, repr(expr))
+
+    expr = exprs.expr[5:100:3]
+    _lines_eq(EXPECTED_SLICE_WITH_START_STEP_FORMAT, repr(expr))
+
+
+def test_arithmetic_formatter(exprs):
+    expr = exprs.expr
+    d = -(expr['id']) + 20.34 - expr['id'] + float(20) * expr['id'] \
+        - expr['id'] / 4.9 + 40 // 2 + expr['id'] // 1.2
+
+    try:
+        _lines_eq(EXPECTED_ARITHMETIC_FORMAT, repr(d))
+    except AssertionError as e:
+        left = [to_text(line.rstrip()) for line in EXPECTED_ARITHMETIC_FORMAT.split('\n')]
+        right = [to_text(line.rstrip()) for line in repr(d).split('\n')]
+        assert len(left) == len(right)
+        for l, r in zip(left, right):
+            try:
+                assert l == r
+            except AssertionError:
                 try:
-                    self.assertEqual(l, r)
-                except AssertionError:
-                    try:
-                        self.assertAlmostEqual(float(l), float(r))
-                    except:
-                        raise e
-
-    def testSortFormatter(self):
-        expr = self.expr.sort(['name', -self.expr.id])
-
-        self._lines_eq(EXPECTED_SORT_FORMAT, repr(expr))
-
-    def testDistinctFormatter(self):
-        expr = self.expr.distinct(['name', self.expr.id+1])
-
-        self._lines_eq(EXPECTED_DISTINCT_FORMAT, repr(expr))
-
-    def testGroupbyFormatter(self):
-        expr = self.expr.groupby(['name', 'id']).agg(new_id=self.expr.id.sum())
-
-        self._lines_eq(EXPECTED_GROUPBY_FORMAT, repr(expr))
-
-        grouped = self.expr.groupby(['name'])
-        expr = grouped.mutate(grouped.row_number(sort='id'))
-
-        self._lines_eq(EXPECTED_MUTATE_FORMAT, repr(expr))
-
-        expr = self.expr.groupby(['name', 'id']).count()
-        self._lines_eq(EXPECTED_GROUPBY_COUNT_FORMAT, repr(expr))
-
-    def testReductionFormatter(self):
-        expr = self.expr.groupby(['id']).id.std()
-
-        self._lines_eq(EXPECTED_REDUCTION_FORMAT, repr(expr))
-
-        expr = self.expr.id.mean()
-        self._lines_eq(EXPECTED_REDUCTION_FORMAT2, repr(expr))
-
-        expr = self.expr.count()
-        self._lines_eq(EXPECTED_REDUCTION_FORMAT3, repr(expr))
-
-    def testWindowFormatter(self):
-        expr = self.expr.groupby(['name']).sort(-self.expr.id).name.rank()
-
-        self._lines_eq(EXPECTED_WINDOW_FORMAT1, repr(expr))
-
-        expr = self.expr.groupby(['id']).id.cummean(preceding=10, following=5, unique=True)
-
-        self._lines_eq(EXPECTED_WINDOW_FORMAT2, repr(expr))
-
-    def testElementFormatter(self):
-        expr = self.expr.name.contains('test')
-
-        self._lines_eq(EXPECTED_STRING_FORMAT, repr(expr))
-
-        expr = self.expr.id.between(1, 3)
-
-        self._lines_eq(EXPECTED_ELEMENT_FORMAT, repr(expr))
-
-        expr = self.expr.name.astype('datetime').strftime('%Y')
-
-        self._lines_eq(EXPECTED_DATETIME_FORMAT, repr(expr))
-
-        expr = self.expr.id.switch(3, self.expr.name, 4, self.expr.name + 'abc',
-                                   default=self.expr.name + 'test')
-        self._lines_eq(EXPECTED_SWITCH_FORMAT, repr(expr))
-
-    def testJoinFormatter(self):
-        expr = self.expr.join(self.expr2, ('name', 'name2'))
-        self._lines_eq(EXPECTED_JOIN_FORMAT, repr(expr))
-
-    def testAstypeFormatter(self):
-        expr = self.expr.id.astype('float')
-        self._lines_eq(EXPECTED_CAST_FORMAT, repr(expr))
+                    assert pytest.approx(float(l)) == float(r)
+                except:
+                    raise e
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_sort_formatter(exprs):
+    expr = exprs.expr.sort(['name', -exprs.expr.id])
+
+    _lines_eq(EXPECTED_SORT_FORMAT, repr(expr))
+
+
+def test_distinct_formatter(exprs):
+    expr = exprs.expr.distinct(['name', exprs.expr.id+1])
+
+    _lines_eq(EXPECTED_DISTINCT_FORMAT, repr(expr))
+
+
+def test_groupby_formatter(exprs):
+    expr = exprs.expr.groupby(['name', 'id']).agg(new_id=exprs.expr.id.sum())
+
+    _lines_eq(EXPECTED_GROUPBY_FORMAT, repr(expr))
+
+    grouped = exprs.expr.groupby(['name'])
+    expr = grouped.mutate(grouped.row_number(sort='id'))
+
+    _lines_eq(EXPECTED_MUTATE_FORMAT, repr(expr))
+
+    expr = exprs.expr.groupby(['name', 'id']).count()
+    _lines_eq(EXPECTED_GROUPBY_COUNT_FORMAT, repr(expr))
+
+
+def test_reduction_formatter(exprs):
+    expr = exprs.expr.groupby(['id']).id.std()
+
+    _lines_eq(EXPECTED_REDUCTION_FORMAT, repr(expr))
+
+    expr = exprs.expr.id.mean()
+    _lines_eq(EXPECTED_REDUCTION_FORMAT2, repr(expr))
+
+    expr = exprs.expr.count()
+    _lines_eq(EXPECTED_REDUCTION_FORMAT3, repr(expr))
+
+
+def test_window_formatter(exprs):
+    expr = exprs.expr.groupby(['name']).sort(-exprs.expr.id).name.rank()
+
+    _lines_eq(EXPECTED_WINDOW_FORMAT1, repr(expr))
+
+    expr = exprs.expr.groupby(['id']).id.cummean(preceding=10, following=5, unique=True)
+
+    _lines_eq(EXPECTED_WINDOW_FORMAT2, repr(expr))
+
+
+def test_element_formatter(exprs):
+    expr = exprs.expr.name.contains('test')
+
+    _lines_eq(EXPECTED_STRING_FORMAT, repr(expr))
+
+    expr = exprs.expr.id.between(1, 3)
+
+    _lines_eq(EXPECTED_ELEMENT_FORMAT, repr(expr))
+
+    expr = exprs.expr.name.astype('datetime').strftime('%Y')
+
+    _lines_eq(EXPECTED_DATETIME_FORMAT, repr(expr))
+
+    expr = exprs.expr.id.switch(3, exprs.expr.name, 4, exprs.expr.name + 'abc',
+                                default=exprs.expr.name + 'test')
+    _lines_eq(EXPECTED_SWITCH_FORMAT, repr(expr))
+
+
+def test_join_formatter(exprs):
+    expr = exprs.expr.join(exprs.expr2, ('name', 'name2'))
+    _lines_eq(EXPECTED_JOIN_FORMAT, repr(expr))
+
+
+def test_astype_formatter(exprs):
+    expr = exprs.expr.id.astype('float')
+    _lines_eq(EXPECTED_CAST_FORMAT, repr(expr))

@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 from libc.stdint cimport *
 from libc.string cimport *
 from cpython.bool cimport PyBool_Check
 from cpython.datetime cimport import_datetime, PyDateTime_Check
-
 from datetime import datetime
-from decimal import Decimal
 
-from .. import types, options, utils
+from .. import types, options
 from ..compat import decimal
 
 cdef int64_t bigint_min = types.bigint._bounds[0]
@@ -31,6 +30,7 @@ cdef int decimal_scale_max = 18
 cdef object to_scale = decimal.Decimal("1e-%s" % decimal_scale_max)
 cdef object decimal_ctx = decimal.Context(prec=decimal_int_len_max)
 cdef object pd_na_type = types.pd_na_type
+cdef bint is_py3 = sys.version_info[0] == 3
 
 cdef:
     int64_t BOOL_TYPE_ID = types.boolean._type_id
@@ -133,9 +133,16 @@ cdef object _validate_decimal(object val):
     cdef:
         object scaled_val
         int int_len
+        str sval
 
     if not isinstance(val, decimal.Decimal):
-        val = decimal.Decimal(utils.to_str(val))
+        if is_py3 and type(val) is bytes:
+            sval = (<bytes> val).decode("utf-8")
+        elif not is_py3 and type(val) is unicode:
+            sval = (<unicode> val).encode("utf-8")
+        else:
+            sval = val
+        val = decimal.Decimal(sval)
 
     scaled_val = val.quantize(to_scale, decimal.ROUND_HALF_UP, decimal_ctx)
     int_len = len(str(scaled_val)) - decimal_scale_max - 1
@@ -144,7 +151,7 @@ cdef object _validate_decimal(object val):
             'decimal value %s overflow, max integer digit number is %s.' %
             (val, decimal_int_len_max))
 
-    return Decimal(str(val))
+    return decimal.Decimal(str(val))
 
 
 cdef object _validate_float(object val):
@@ -259,7 +266,7 @@ cdef class BaseRecord:
         self._c_schema_snapshot = getattr(schema, '_snapshot', None)
         if columns is not None:
             self._c_columns = columns
-            self._c_name_indexes = dict((col.name, i) for i, col in enumerate(self._columns))
+            self._c_name_indexes = {col.name: i for i, col in enumerate(self._c_columns)}
         else:
             self._c_columns = schema.columns if self._c_schema_snapshot is None else self._c_schema_snapshot._columns
             self._c_name_indexes = schema._name_indexes

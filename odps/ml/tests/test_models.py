@@ -15,62 +15,68 @@
 
 import json
 
-from odps import utils
-from odps.ml import utils as ml_utils
-from odps.ml.tests.base import MLTestBase, tn
+import pytest
+
+from ... import utils as odps_utils
+from .. import utils as ml_utils
+from .base import MLTestUtil, tn
 
 TEST_LR_MODEL_NAME = tn('pyodps_test_lr_model')
 TEST_TABLE_MODEL_NAME = tn('pyodps_table_model')
-TEST_TEMP_TABLE_MODEL_NAME = tn(utils.TEMP_TABLE_PREFIX + 'table_model')
+TEST_TEMP_TABLE_MODEL_NAME = tn(odps_utils.TEMP_TABLE_PREFIX + 'table_model')
 IONOSPHERE_TABLE = tn('pyodps_test_ml_ionosphere')
 
 
-class Test(MLTestBase):
-    def testNonTemp(self):
-        model_comment = dict(key='value')
+@pytest.fixture
+def utils(odps, tunnel):
+    return MLTestUtil(odps, tunnel)
 
-        model_table_name1 = ml_utils.build_model_table_name(TEST_TABLE_MODEL_NAME, 'st1')
-        self.odps.execute_sql('drop table if exists {0}'.format(model_table_name1))
-        self.odps.execute_sql('create table if not exists {0} (col1 string) comment \'{1}\' lifecycle 1'.format(
-            model_table_name1, utils.escape_odps_string(json.dumps(model_comment))
-        ))
-        model_table_name2 = ml_utils.build_model_table_name(TEST_TABLE_MODEL_NAME, 'st2')
-        self.odps.execute_sql('drop table if exists {0}'.format(model_table_name2))
-        self.odps.execute_sql('create table if not exists {0} (col1 string) comment \'{1}\' lifecycle 1'.format(
-            model_table_name2, utils.escape_odps_string(json.dumps(model_comment))
-        ))
-        self.assertIn(TEST_TABLE_MODEL_NAME, [tn.name for tn in self.odps.list_tables_model()])
-        self.assertTrue(self.odps.exist_tables_model(TEST_TABLE_MODEL_NAME))
 
-        tables_model = self.odps.get_tables_model(TEST_TABLE_MODEL_NAME)
-        self.assertDictEqual(model_comment, tables_model.params)
-        self.assertIn('st1', tables_model.tables)
-        self.assertIn('st2', tables_model.tables)
+def test_non_temp(odps, utils):
+    model_comment = dict(key='value')
 
-        self.odps.delete_tables_model(TEST_TABLE_MODEL_NAME)
-        self.assertFalse(self.odps.exist_tables_model(TEST_TABLE_MODEL_NAME))
+    model_table_name1 = ml_utils.build_model_table_name(TEST_TABLE_MODEL_NAME, 'st1')
+    odps.execute_sql('drop table if exists {0}'.format(model_table_name1))
+    odps.execute_sql('create table if not exists {0} (col1 string) comment \'{1}\' lifecycle 1'.format(
+        model_table_name1, odps_utils.escape_odps_string(json.dumps(model_comment))
+    ))
+    model_table_name2 = ml_utils.build_model_table_name(TEST_TABLE_MODEL_NAME, 'st2')
+    odps.execute_sql('drop table if exists {0}'.format(model_table_name2))
+    odps.execute_sql('create table if not exists {0} (col1 string) comment \'{1}\' lifecycle 1'.format(
+        model_table_name2, odps_utils.escape_odps_string(json.dumps(model_comment))
+    ))
+    assert TEST_TABLE_MODEL_NAME in [tn.name for tn in odps.list_tables_model()]
+    assert odps.exist_tables_model(TEST_TABLE_MODEL_NAME) is True
 
-    def testTemp(self):
-        model_comment = dict(key='value')
+    tables_model = odps.get_tables_model(TEST_TABLE_MODEL_NAME)
+    assert model_comment == tables_model.params
+    assert 'st1' in tables_model.tables
+    assert 'st2' in tables_model.tables
 
-        model_table_name1 = ml_utils.build_model_table_name(TEST_TEMP_TABLE_MODEL_NAME, 'st1')
-        self.odps.execute_sql('drop table if exists {0}'.format(model_table_name1))
-        self.odps.execute_sql('create table if not exists {0} (col1 string) comment \'{1}\' lifecycle 1'.format(
-            model_table_name1, utils.escape_odps_string(json.dumps(model_comment))
-        ))
-        model_table_name2 = ml_utils.build_model_table_name(TEST_TEMP_TABLE_MODEL_NAME, 'st2')
-        self.odps.execute_sql('create table if not exists {0} (col1 string) comment \'{1}\' lifecycle 1'.format(
-            model_table_name2, utils.escape_odps_string(json.dumps(model_comment))
-        ))
-        self.assertIn(TEST_TEMP_TABLE_MODEL_NAME, [tn.name for tn in self.odps.list_tables_model()])
-        self.assertIn(TEST_TEMP_TABLE_MODEL_NAME,
-                      [tn.name for tn in self.odps.list_tables_model(prefix=ml_utils.TEMP_TABLE_PREFIX)])
-        self.assertTrue(self.odps.exist_tables_model(TEST_TEMP_TABLE_MODEL_NAME))
+    odps.delete_tables_model(TEST_TABLE_MODEL_NAME)
+    assert odps.exist_tables_model(TEST_TABLE_MODEL_NAME) is False
 
-        tables_model = self.odps.get_tables_model(TEST_TEMP_TABLE_MODEL_NAME)
-        self.assertDictEqual(model_comment, tables_model.params)
-        self.assertIn('st1', tables_model.tables)
-        self.assertIn('st2', tables_model.tables)
 
-        self.odps.delete_tables_model(TEST_TEMP_TABLE_MODEL_NAME)
-        self.assertFalse(self.odps.exist_tables_model(TEST_TEMP_TABLE_MODEL_NAME))
+def test_temp(odps, utils):
+    model_comment = dict(key='value')
+
+    model_table_name1 = ml_utils.build_model_table_name(TEST_TEMP_TABLE_MODEL_NAME, 'st1')
+    odps.execute_sql('drop table if exists {0}'.format(model_table_name1))
+    odps.execute_sql('create table if not exists {0} (col1 string) comment \'{1}\' lifecycle 1'.format(
+        model_table_name1, odps_utils.escape_odps_string(json.dumps(model_comment))
+    ))
+    model_table_name2 = ml_utils.build_model_table_name(TEST_TEMP_TABLE_MODEL_NAME, 'st2')
+    odps.execute_sql('create table if not exists {0} (col1 string) comment \'{1}\' lifecycle 1'.format(
+        model_table_name2, odps_utils.escape_odps_string(json.dumps(model_comment))
+    ))
+    assert TEST_TEMP_TABLE_MODEL_NAME in [tn.name for tn in odps.list_tables_model()]
+    assert TEST_TEMP_TABLE_MODEL_NAME in [tn.name for tn in odps.list_tables_model(prefix=ml_utils.TEMP_TABLE_PREFIX)]
+    assert odps.exist_tables_model(TEST_TEMP_TABLE_MODEL_NAME) is True
+
+    tables_model = odps.get_tables_model(TEST_TEMP_TABLE_MODEL_NAME)
+    assert model_comment == tables_model.params
+    assert 'st1' in tables_model.tables
+    assert 'st2' in tables_model.tables
+
+    odps.delete_tables_model(TEST_TEMP_TABLE_MODEL_NAME)
+    assert odps.exist_tables_model(TEST_TEMP_TABLE_MODEL_NAME) is False

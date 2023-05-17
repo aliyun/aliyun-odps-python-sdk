@@ -14,53 +14,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
 
-from odps.tests.core import TestBase
-from odps.df.expr.expressions import *
-from odps.df.expr.tests.core import MockTable
-
-
-class Test(TestBase):
-    def setup(self):
-        schema = TableSchema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
-        table = MockTable(name='pyodps_test_query_table', table_schema=schema)
-        table._client = self.config.odps.rest
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
-
-    def testBaseQuery(self):
-        expr = self.expr
-
-        result = expr.query('@expr.id > 0')
-        self.assertIsInstance(result, FilterCollectionExpr)
-
-        result = expr.query('name == "test"')
-        self.assertIsInstance(result, FilterCollectionExpr)
-
-        result = expr.query('id + fid > id * fid')
-        self.assertIsInstance(result, FilterCollectionExpr)
-
-        result = expr.query('id ** fid <= id / fid - 1')
-        self.assertIsInstance(result, FilterCollectionExpr)
-
-    def testChainedCmp(self):
-        expr = self.expr
-
-        result = expr.query('id > 0 & fid < 10 and (name in ["test1", "test2"])')
-        self.assertIsInstance(result, FilterCollectionExpr)
-
-        result = expr.query('id >= 0 | fid in id or name != "test"')
-        self.assertIsInstance(result, FilterCollectionExpr)
-
-    def testLocalVariable(self):
-        expr = self.expr
-        id = 1
-        name = ['test1', 'test2']
-
-        result = expr.query('id + 1 > @id & name in @name')
-        self.assertIsInstance(result, FilterCollectionExpr)
-
-        self.assertRaises(KeyError, lambda: expr.query('id == @fid'))
+from ..expressions import *
+from ..tests.core import MockTable
 
 
+@pytest.fixture
+def src_expr(odps):
+    schema = TableSchema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
+    table = MockTable(name='pyodps_test_query_table', table_schema=schema)
+    table._client = odps.rest
+    return CollectionExpr(_source_data=table, _schema=schema)
 
 
+def test_base_query(src_expr):
+    expr = src_expr
+
+    result = expr.query('@expr.id > 0')
+    assert isinstance(result, FilterCollectionExpr)
+
+    result = expr.query('name == "test"')
+    assert isinstance(result, FilterCollectionExpr)
+
+    result = expr.query('id + fid > id * fid')
+    assert isinstance(result, FilterCollectionExpr)
+
+    result = expr.query('id ** fid <= id / fid - 1')
+    assert isinstance(result, FilterCollectionExpr)
+
+
+def test_chained_cmp(src_expr):
+    expr = src_expr
+
+    result = expr.query('id > 0 & fid < 10 and (name in ["test1", "test2"])')
+    assert isinstance(result, FilterCollectionExpr)
+
+    result = expr.query('id >= 0 | fid in id or name != "test"')
+    assert isinstance(result, FilterCollectionExpr)
+
+
+def test_local_variable(src_expr):
+    expr = src_expr
+    id = 1  # npqa: E722
+    name = ['test1', 'test2']  # npqa: E722
+
+    result = expr.query('id + 1 > @id & name in @name')
+    assert isinstance(result, FilterCollectionExpr)
+
+    pytest.raises(KeyError, lambda: expr.query('id == @fid'))

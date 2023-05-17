@@ -15,6 +15,7 @@
 
 from libc.stdint cimport *
 from libc.string cimport *
+from ...src.stringstream cimport stringstream
 
 
 cdef int read_input_byte(char** input, char* end) nogil:
@@ -109,7 +110,7 @@ cdef int64_t get_signed_varint64(char** input, char* end, size_t* pos) nogil:
             return <int64_t>((value >> 1) ^ (-(value & 1))) # zigzag decoding
 
 
-cdef int set_varint32(int32_t varint, bytearray buf) except -1:
+cdef int set_varint32(int32_t varint, stringstream &buf) nogil except +:
     """
     Serialize an integer into a protobuf varint; return the number of bytes
     serialized.
@@ -122,15 +123,15 @@ cdef int set_varint32(int32_t varint, bytearray buf) except -1:
     enc >>= 7
     cdef int idx = 1
     while enc:
-        buf.append(<unsigned char>(0x80|bits))
+        buf.put(<char>(0x80|bits))
         bits = enc & 0x7f
         enc >>= 7
         idx += 1
-    buf.append(<unsigned char>bits)
+    buf.put(<char>bits)
     return idx + 1
 
 
-cdef int set_varint64(int64_t varint, bytearray buf) except -1:
+cdef int set_varint64(int64_t varint, stringstream &buf) nogil except +:
     """
     Serialize an integer into a protobuf varint; return the number of bytes
     serialized.
@@ -143,15 +144,15 @@ cdef int set_varint64(int64_t varint, bytearray buf) except -1:
     enc >>= 7
     cdef int idx = 1
     while enc:
-        buf.append(<unsigned char>(0x80|bits))
+        buf.put(<char>(0x80|bits))
         bits = enc & 0x7f
         enc >>= 7
         idx += 1
-    buf.append(<unsigned char>bits)
+    buf.put(<unsigned char>bits)
     return idx + 1
 
 
-cdef int set_signed_varint32(int32_t varint, bytearray buf) except -1:
+cdef int set_signed_varint32(int32_t varint, stringstream &buf) nogil except +:
     """
     Serialize an integer into a signed protobuf varint; return the number of
     bytes serialized.
@@ -163,16 +164,16 @@ cdef int set_signed_varint32(int32_t varint, bytearray buf) except -1:
     bits = enc & 0x7f
     enc >>= 7
     while enc:
-        buf.append(<unsigned char>(bits | 0x80))
+        buf.put(<char>(bits | 0x80))
         bits = enc & 0x7f
         enc >>= 7
         idx += 1
 
-    buf.append(<unsigned char>bits)
+    buf.put(<char>bits)
     return idx + 1
 
 
-cdef int set_signed_varint64(int64_t varint, bytearray buf) except -1:
+cdef int set_signed_varint64(int64_t varint, stringstream &buf) nogil except +:
     """
     Serialize an integer into a signed protobuf varint; return the number of
     bytes serialized.
@@ -184,10 +185,10 @@ cdef int set_signed_varint64(int64_t varint, bytearray buf) except -1:
     bits = enc & 0x7f
     enc >>= 7
     while enc:
-        buf.append(<unsigned char>(bits | 0x80))
+        buf.put(<char>(bits | 0x80))
         bits = enc & 0x7f
         enc >>= 7
         idx += 1
 
-    buf.append(<unsigned char>bits)
+    buf.put(<char>bits)
     return idx + 1

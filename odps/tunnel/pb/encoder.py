@@ -43,14 +43,6 @@ class Encoder(object):
         """Appends a tag containing field number and wire type information."""
         self._stream.append_var_uint32(wire_format.pack_tag(field_number, wire_type))
 
-    def append_int32(self, value):
-        """Appends a 32-bit integer to our buffer, varint-encoded."""
-        self._stream.append_varint32(value)
-
-    def append_int64(self, value):
-        """Appends a 64-bit integer to our buffer, varint-encoded."""
-        self._stream.append_varint64(value)
-
     def append_uint32(self, unsigned_value):
         """Appends an unsigned 32-bit integer to our buffer, varint-encoded."""
         self._stream.append_var_uint32(unsigned_value)
@@ -113,11 +105,7 @@ class Encoder(object):
 
     def append_bool(self, value):
         """Appends a boolean to our buffer."""
-        self.append_int32(value)
-
-    def append_enum(self, value):
-        """Appends an enum value to our buffer."""
-        self.append_int32(value)
+        self._stream.append_varint32(value)
 
     def append_string(self, value):
         """Appends a length-prefixed string to our buffer, with the

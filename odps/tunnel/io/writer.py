@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import struct
+import time
 
 try:
     import pyarrow as pa
@@ -51,7 +52,7 @@ from ... import types, compat, utils, options
 from ...compat import six
 from ..checksum import Checksum
 from ..wireconstants import ProtoWireConstants
-from .stream import RequestsIO, get_compress_stream
+from .stream import get_compress_stream
 from .types import odps_schema_to_arrow_schema
 
 
@@ -84,14 +85,20 @@ if BaseRecordWriter is None:
             self._output = output
             self._buffer_size = buffer_size or self.DEFAULT_BUFFER_SIZE
             self._n_total = 0
+            self._last_flush_time = time.time()
 
         def _re_init(self, output):
             self._encoder = Encoder()
             self._output = output
             self._n_total = 0
+            self._last_flush_time = time.time()
 
         def _mode(self):
             return 'py'
+
+        @property
+        def last_flush_time(self):
+            return self._last_flush_time
 
         def flush(self):
             if len(self._encoder) > 0:
@@ -99,6 +106,7 @@ if BaseRecordWriter is None:
                 self._output.write(data)
                 self._n_total += len(self._encoder)
                 self._encoder = Encoder()
+                self._last_flush_time = time.time()
 
         def close(self):
             self.flush_all()
@@ -314,11 +322,14 @@ if BaseRecordWriter is None:
         def count(self):
             return self._curr_cursor
 
-        def close(self):
+        def _write_finish_tags(self):
             self._write_tag(ProtoWireConstants.TUNNEL_META_COUNT, WIRETYPE_VARINT)
             self._write_raw_long(self.count)
             self._write_tag(ProtoWireConstants.TUNNEL_META_CHECKSUM, WIRETYPE_VARINT)
             self._write_raw_uint(utils.long_to_uint(self._crccrc.getvalue()))
+
+        def close(self):
+            self._write_finish_tags()
             super(BaseRecordWriter, self).close()
             self._curr_cursor = 0
 
@@ -338,27 +349,21 @@ class RecordWriter(BaseRecordWriter):
     """
 
     def __init__(self, schema, request_callback, compress_option=None, encoding="utf-8"):
-        self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
+        self._req_io = request_callback(options.chunk_size)
 
         out = get_compress_stream(self._req_io, compress_option)
         super(RecordWriter, self).__init__(schema, out, encoding=encoding)
-        self._req_io.start()
-
-    def write(self, record):
-        if self._req_io._async_err:
-            ex_type, ex_value, tb = self._req_io._async_err
-            six.reraise(ex_type, ex_value, tb)
-        super(RecordWriter, self).write(record)
+        self._req_io.open()
 
     def close(self):
         super(RecordWriter, self).close()
-        self._req_io.finish()
+        self._req_io.close()
 
     def get_total_bytes(self):
         return self.n_bytes
 
 
-class BufferredRecordWriter(BaseRecordWriter):
+class BufferedRecordWriter(BaseRecordWriter):
     """
     This writer buffers the output of serializer. When the buffer exceeds a fixed-size of limit
      (default 10 MiB), it uploads the buffered output within one http connection.
@@ -383,10 +388,10 @@ class BufferredRecordWriter(BaseRecordWriter):
         self._compress_option = compress_option
 
         out = get_compress_stream(self._buffer, compress_option)
-        super(BufferredRecordWriter, self).__init__(schema, out, encoding=encoding)
+        super(BufferedRecordWriter, self).__init__(schema, out, encoding=encoding)
 
     def write(self, record):
-        super(BufferredRecordWriter, self).write(record)
+        super(BufferedRecordWriter, self).write(record)
         if self._n_raw_bytes > self._buffer_size:
             self._flush()
 
@@ -397,11 +402,7 @@ class BufferredRecordWriter(BaseRecordWriter):
         self._buffer.close()
 
     def _flush(self):
-        self._write_tag(ProtoWireConstants.TUNNEL_META_COUNT, WIRETYPE_VARINT)
-        self._write_raw_long(self.count)
-        self._write_tag(ProtoWireConstants.TUNNEL_META_CHECKSUM, WIRETYPE_VARINT)
-        self._write_raw_uint(utils.long_to_uint(self._crccrc.getvalue()))
-
+        self._write_finish_tags()
         self._n_bytes_written += self._n_raw_bytes
         self.flush_all()
 
@@ -425,7 +426,7 @@ class BufferredRecordWriter(BaseRecordWriter):
 
     @property
     def _n_raw_bytes(self):
-        return super(BufferredRecordWriter, self).n_bytes
+        return super(BufferedRecordWriter, self).n_bytes
 
     @property
     def n_bytes(self):
@@ -436,6 +437,10 @@ class BufferredRecordWriter(BaseRecordWriter):
 
     def get_blocks_written(self):
         return self._blocks_written
+
+
+# make sure original typo class also referable
+BufferredRecordWriter = BufferedRecordWriter
 
 
 class StreamRecordWriter(BaseRecordWriter):
@@ -450,22 +455,16 @@ class StreamRecordWriter(BaseRecordWriter):
     ):
         self.session = session
         self.slot = slot
-        self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
-
+        self._req_io = request_callback(options.chunk_size)
         out = get_compress_stream(self._req_io, compress_option)
         super(StreamRecordWriter, self).__init__(schema, out, encoding=encoding)
-        self._req_io.start()
-
-    def write(self, record):
-        if self._req_io._async_err:
-            ex_type, ex_value, tb = self._req_io._async_err
-            six.reraise(ex_type, ex_value, tb)
-        super(StreamRecordWriter, self).write(record)
+        self._req_io.open()
 
     def close(self):
         super(StreamRecordWriter, self).close()
-        self._req_io.finish()
-        resp = self._req_io._resp
+        self.flush_all()
+        self._req_io.close()
+        resp = self._req_io.result
         slot_server = resp.headers['odps-tunnel-routed-server']
         slot_num = int(resp.headers['odps-tunnel-slot-num'])
         self.session.reload_slots(self.slot, slot_server, slot_num)
@@ -475,9 +474,6 @@ class StreamRecordWriter(BaseRecordWriter):
 
 
 class ArrowWriter(object):
-
-    CHUNK_SIZE = 65536
-
     def __init__(self, schema, request_callback, out=None, compress_option=None,
                  chunk_size=None):
         if pa is None:
@@ -485,14 +481,16 @@ class ArrowWriter(object):
 
         self._schema = schema
         self._arrow_schema = odps_schema_to_arrow_schema(schema)
-        self._request_callback = request_callback
         self._buffer = out or compat.BytesIO()
-        self._chunk_size = chunk_size or self.CHUNK_SIZE
+        self._chunk_size = chunk_size or options.chunk_size
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._cur_chunk_size = 0
 
-        self._output = get_compress_stream(self._buffer, compress_option)
+        self._req_io = request_callback(chunk_size)
+        self._req_io.open()
+
+        self._output = get_compress_stream(self._req_io, compress_option)
         self._write_chunk_size()
 
     def _write_chunk_size(self):
@@ -525,13 +523,15 @@ class ArrowWriter(object):
                         data = data.copy()
                         copied = True
                     data[col_name] = data[col_name].dt.tz_localize(tzlocal.get_localzone())
-            arrow_batch = pa.RecordBatch.from_pandas(data)
+            arrow_data = pa.RecordBatch.from_pandas(data)
         else:
-            arrow_batch = data
+            arrow_data = data
 
-        if not arrow_batch.schema.equals(self._arrow_schema):
-            type_dict = dict(zip(arrow_batch.schema.names, arrow_batch.schema.types))
-            column_dict = dict(zip(arrow_batch.schema.names, arrow_batch.columns))
+        assert isinstance(arrow_data, (pa.RecordBatch, pa.Table))
+
+        if not arrow_data.schema.equals(self._arrow_schema):
+            type_dict = dict(zip(arrow_data.schema.names, arrow_data.schema.types))
+            column_dict = dict(zip(arrow_data.schema.names, arrow_data.columns))
             arrays = []
             for name, tp in zip(self._arrow_schema.names, self._arrow_schema.types):
                 if name not in column_dict:
@@ -544,40 +544,34 @@ class ArrowWriter(object):
                         arrays.append(column_dict[name].cast(tp, safe=False))
                     except pa.ArrowInvalid:
                         raise ValueError("Failed to cast column %s to type %s" % (name, tp))
-            arrow_batch = pa.RecordBatch.from_arrays(arrays, names=self._arrow_schema.names)
-        assert isinstance(arrow_batch, pa.RecordBatch)
+            pa_type = type(arrow_data)
+            arrow_data = pa_type.from_arrays(arrays, names=self._arrow_schema.names)
 
-        data = arrow_batch.serialize().to_pybytes()
-        written_bytes = 0
-        while written_bytes < len(data):
-            length = min(self._chunk_size - self._cur_chunk_size,
-                         len(data) - written_bytes)
-            chunk_data = data[written_bytes: written_bytes + length]
-            self._write_chunk(chunk_data)
-            written_bytes += length
+        if isinstance(arrow_data, pa.RecordBatch):
+            batches = [arrow_data]
+        else:  # pa.Table
+            batches = arrow_data.to_batches()
 
-    def _flush(self):
+        for batch in batches:
+            data = batch.serialize().to_pybytes()
+            written_bytes = 0
+            while written_bytes < len(data):
+                length = min(self._chunk_size - self._cur_chunk_size,
+                             len(data) - written_bytes)
+                chunk_data = data[written_bytes: written_bytes + length]
+                self._write_chunk(chunk_data)
+                written_bytes += length
+
+    def _finish(self):
         checksum = self._crccrc.getvalue()
         self._write_unint32(checksum)
         self._crccrc.reset()
 
         self._output.flush()
-
-        def gen():  # synchronize chunk upload
-            try:
-                data = self._buffer.getbuffer()
-            except AttributeError:
-                data = self._buffer.getvalue()
-
-            while data:
-                to_send = data[:options.chunk_size]
-                data = data[options.chunk_size:]
-                yield to_send
-
-        self._request_callback(gen())
+        self._req_io.close()
 
     def close(self):
-        self._flush()
+        self._finish()
         self._buffer.close()
 
     def __enter__(self):

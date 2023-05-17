@@ -17,6 +17,7 @@ import time
 
 from ..df import RandomScalar, Delay
 from ..compat import six
+from ..utils import with_wait_argument
 from .utils import get_function_args
 from .metrics import SCORERS
 
@@ -60,10 +61,10 @@ def train_test(train_size=None, test_size=None):
     return _calc
 
 
+@with_wait_argument
 def cross_val_score(trainer, df, col_true=None, col_pred=None, col_score=None, scoring=None, cv=None,
                     fit_params=None, ui=None, async_=False, n_parallel=1, timeout=None,
-                    close_and_notify=True, **kw):
-    async_ = kw.get('async', async_)
+                    close_and_notify=True):
     if cv is None:
         cv = k_fold()
     elif isinstance(cv, six.integer_types):

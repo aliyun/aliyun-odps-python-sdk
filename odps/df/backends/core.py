@@ -222,8 +222,7 @@ class ExecuteDAG(DAG):
 
             raise
 
-    def _run_in_parallel(self, ui, n_parallel, async_=False, timeout=None, progress_proportion=1.0, **kw):
-        async_ = kw.get('async', async_)
+    def _run_in_parallel(self, ui, n_parallel, wait=True, timeout=None, progress_proportion=1.0):
         submits_lock = threading.RLock()
         submits = dict()
         user_wait = dict()
@@ -310,7 +309,7 @@ class ExecuteDAG(DAG):
                     with submits_lock:
                         submits[call] = executor.submit(run, call)
 
-            if not async_:
+            if wait:
                 dones, _ = futures.wait(user_wait.values())
                 for done in dones:
                     done.result()
@@ -322,7 +321,7 @@ class ExecuteDAG(DAG):
                 futures.wait(user_wait.values(), timeout=timeout)
 
         actual_run()
-        if not async_:
+        if wait:
             return [it[1].result() for it in sorted(result_wait.items(), key=itemgetter(0))]
         else:
             return [it[1] for it in sorted(result_wait.items(), key=itemgetter(0))]
@@ -350,7 +349,7 @@ class ExecuteDAG(DAG):
                         ui.notify('DataFrame execution failed')
         else:
             try:
-                fs = self._run_in_parallel(ui, n_parallel, async_=async_, timeout=timeout,
+                fs = self._run_in_parallel(ui, n_parallel, wait=not async_, timeout=timeout,
                                            progress_proportion=progress_proportion)
                 succeeded = True
                 return fs

@@ -14,60 +14,57 @@
 
 from datetime import datetime
 
-from odps.tests.core import TestBase
-from odps.compat import unittest, six
-from odps.models import Projects, Project
+import pytest
+
+from ...compat import six
+from .. import Projects, Project
 
 
-class Test(TestBase):
+def test_projects_exists(odps):
+    not_exists_project_name = 'a_not_exists_project'
+    assert odps.exist_project(not_exists_project_name) is False
 
-    def testProjectsExists(self):
-        not_exists_project_name = 'a_not_exists_project'
-        self.assertFalse(self.odps.exist_project(not_exists_project_name))
-
-        self.assertTrue(self.odps.exist_project(self.odps.project))
-
-    def testProject(self):
-        self.assertIs(self.odps.get_project(), self.odps.get_project())
-        self.assertIs(Projects(client=self.odps.rest), Projects(client=self.odps.rest))
-
-        del self.odps._projects[self.odps.project]
-        project = self.odps.get_project()
-
-        self.assertEqual(project.name, self.odps.project)
-
-        self.assertIsNone(project._getattr("owner"))
-        self.assertIsNone(project._getattr("comment"))
-        self.assertIsNone(project._getattr("creation_time"))
-        self.assertIsNone(project._getattr("last_modified_time"))
-        self.assertIsNone(project._getattr("project_group_name"))
-        self.assertIsNone(project._getattr("properties"))
-        self.assertIsNone(project._getattr("_extended_properties"))
-        self.assertIsNone(project._getattr("state"))
-        self.assertIsNone(project._getattr("clusters"))
-
-        self.assertFalse(project.is_loaded)
-
-        self.assertIsInstance(project.extended_properties, dict)
-        self.assertIsInstance(project.owner, six.string_types)
-        self.assertIsInstance(project.creation_time, datetime)
-        self.assertIsInstance(project.last_modified_time, datetime)
-        self.assertIsInstance(project.properties, dict)
-        self.assertGreater(len(project.properties), 0)
-        self.assertGreater(len(project.extended_properties), 0)
-        self.assertIsInstance(project.state, six.string_types)
-
-        self.assertTrue(project.is_loaded)
-
-        with self.assertRaises(KeyError):
-            project.get_property("non_exist_property")
-        self.assertIsNone(project.get_property("non_exist_property", None), None)
-
-    def testListProjects(self):
-        projects = [next(self.odps.list_projects(max_items=1)) for _ in range(2)]
-        self.assertGreater(len(projects), 1)
-        self.assertIsInstance(projects[0], Project)
+    assert odps.exist_project(odps.project) is True
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_project(odps):
+    assert odps.get_project() is odps.get_project()
+    assert Projects(client=odps.rest) is Projects(client=odps.rest)
+
+    del odps._projects[odps.project]
+    project = odps.get_project()
+
+    assert project.name == odps.project
+
+    assert project._getattr("owner") is None
+    assert project._getattr("comment") is None
+    assert project._getattr("creation_time") is None
+    assert project._getattr("last_modified_time") is None
+    assert project._getattr("project_group_name") is None
+    assert project._getattr("properties") is None
+    assert project._getattr("_extended_properties") is None
+    assert project._getattr("state") is None
+    assert project._getattr("clusters") is None
+
+    assert project.is_loaded is False
+
+    assert isinstance(project.extended_properties, dict)
+    assert isinstance(project.owner, six.string_types)
+    assert isinstance(project.creation_time, datetime)
+    assert isinstance(project.last_modified_time, datetime)
+    assert isinstance(project.properties, dict)
+    assert len(project.properties) > 0
+    assert len(project.extended_properties) > 0
+    assert isinstance(project.state, six.string_types)
+
+    assert project.is_loaded is True
+
+    with pytest.raises(KeyError):
+        project.get_property("non_exist_property")
+    assert project.get_property("non_exist_property", None) is None
+
+
+def test_list_projects(odps):
+    projects = [next(odps.list_projects(max_items=1)) for _ in range(2)]
+    assert len(projects) > 1
+    assert isinstance(projects[0], Project)

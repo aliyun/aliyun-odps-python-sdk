@@ -230,7 +230,7 @@ def create_mars_cluster(
         task_name=task_name,
         **kw
     )
-    kw = dict((k, v) for k, v in kw.items() if v is not None)
+    kw = {k: v for k, v in kw.items() if v is not None}
     return client.submit(**kw)
 
 

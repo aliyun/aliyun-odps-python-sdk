@@ -287,7 +287,7 @@ MaxCompute 表读写支持
 读表
 ^^^^
 
-通过 ``o.to_mars_dataframe`` 来读取 MaxCompute 表，并返回 `Mars DataFrame <https://docs.pymars.org/zh_CN/latest/dataframe/index.html>`__\ 。
+通过 ``o.to_mars_dataframe`` 来读取 MaxCompute 表，并返回 `Mars DataFrame <https://mars-project.readthedocs.io/zh_CN/latest/dataframe/index.html>`__\ 。
 
 .. code:: ipython
 

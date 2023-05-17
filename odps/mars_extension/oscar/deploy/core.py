@@ -292,7 +292,7 @@ class CupidCommandRunnerMixin:
         self._cupid_context = context()
 
         envs = self._cupid_context.prepare_channel()
-        envs_dict = dict((env.name, env.value) for env in envs)
+        envs_dict = {env.name: env.value for env in envs}
         with open(self._channel_file, "w") as env_file:
             env_file.write(json.dumps(envs_dict))
 

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-02-28 17:51+0800\n"
+"POT-Creation-Date: 2023-05-09 15:16+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -971,8 +971,8 @@ msgstr "Data upload and download channels"
 
 #: ../../source/base-tables.rst:543
 msgid ""
-"不推荐直接使用tunnel接口（难用且复杂），推荐直接使用表的 :ref:`写 <table_write>` 和 :ref:`读 "
-"<table_read>` 接口。"
+"不推荐直接使用 Tunnel 接口，该接口较为低级。推荐直接使用表的 :ref:`写 <table_write>` 和 :ref:`读 "
+"<table_read>` 接口，可靠性和易用性更高。"
 msgstr ""
 "If you just need to upload a small amount of data, we do not recommend "
 "using table tunnel directly as there are more convenient :ref:`read "
@@ -980,24 +980,24 @@ msgstr ""
 "tunnel invocations. However, when your data amount is large and "
 "throughput is critical, you may try using table tunnel methods directly."
 
-#: ../../source/base-tables.rst:547
+#: ../../source/base-tables.rst:546
 msgid "ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据。"
 msgstr ""
 "MaxCompute Tunnel is the data channel of MaxCompute. You can use this to "
 "upload data to or download data from MaxCompute."
 
-#: ../../source/base-tables.rst:549
+#: ../../source/base-tables.rst:548
 msgid "**注意**，如果安装了 **Cython**，在安装pyodps时会编译C代码，加速Tunnel的上传和下载。"
 msgstr ""
 "**Note**: In a **Cython** environment, PyODPS compiles C programs during "
 "installation to increase the Tunnel upload and download speed when "
 "required."
 
-#: ../../source/base-tables.rst:552
+#: ../../source/base-tables.rst:551
 msgid "上传"
 msgstr "Upload"
 
-#: ../../source/base-tables.rst:554
+#: ../../source/base-tables.rst:553
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -1019,11 +1019,11 @@ msgid ""
 "upload_session.commit([0])"
 msgstr ""
 
-#: ../../source/base-tables.rst:574
+#: ../../source/base-tables.rst:573
 msgid "也可以使用流式上传的接口："
 msgstr "You can also use stream-like upload interface:"
 
-#: ../../source/base-tables.rst:576
+#: ../../source/base-tables.rst:575
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"
@@ -1052,11 +1052,11 @@ msgid ""
 "    writer.write(batch)"
 msgstr ""
 
-#: ../../source/base-tables.rst:604
+#: ../../source/base-tables.rst:603
 msgid "下载"
 msgstr "Download"
 
-#: ../../source/base-tables.rst:606
+#: ../../source/base-tables.rst:605
 msgid ""
 "from odps.tunnel import TableTunnel\n"
 "\n"

@@ -15,8 +15,8 @@
 from datetime import datetime
 
 from .. import serializers
-from ..compat import enum
-from ..errors import InvalidProjectTable, NoSuchObject
+from ..compat import enum, TimeoutError
+from ..errors import ODPSError, InternalServerError
 from .core import JSONRemoteModel
 
 
@@ -74,25 +74,29 @@ class Tenant(JSONRemoteModel):
 
     def __getattribute__(self, attr):
         val = object.__getattribute__(self, attr)
-        if val is None and not self._loaded:
+        if val is None and not self._getattr("_loaded"):
             fields = getattr(type(self), '__fields')
             if attr in fields:
                 self.reload()
         return object.__getattribute__(self, attr)
 
-    def resource(self, client=None):
-        return (client or self._client).endpoint + "/tenants"
+    def resource(self, client=None, endpoint=None):
+        endpoint = endpoint if endpoint is not None else (client or self._client).endpoint
+        return endpoint + "/tenants"
 
     def reload(self):
         try:
             resp = self._client.get(self.resource())
             self.parse(self._client, resp, obj=self)
-        except (InvalidProjectTable, NoSuchObject):
-            pass
+        except ODPSError as ex:
+            if isinstance(ex, (InternalServerError, TimeoutError)):
+                raise
         self._loaded = True
 
     def get_parameter(self, key, default=None):
         try:
             return (self.parameters or {}).get(key, default)
-        except (InvalidProjectTable, NoSuchObject):
+        except ODPSError as ex:
+            if isinstance(ex, (InternalServerError, TimeoutError)):
+                raise
             return default

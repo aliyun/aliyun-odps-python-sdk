@@ -110,6 +110,8 @@ class ODPS(object):
         if account is None:
             if access_id is not None:
                 self.account = self._build_account(access_id, secret_access_key)
+            elif accounts.BearerTokenAccount.from_environments():
+                self.account = accounts.BearerTokenAccount.from_environments()
             elif options.account is not None:
                 self.account = options.account
             else:
@@ -117,10 +119,12 @@ class ODPS(object):
         else:
             self.account = account
         self.endpoint = endpoint or options.endpoint or DEFAULT_ENDPOINT
-        self.project = project or options.project
+        self.project = project or options.default_project
         self._schema = schema
-        self.rest = RestClient(self.account, self.endpoint, project, schema,
-                               app_account=self.app_account, proxy=options.api_proxy)
+        self.rest = RestClient(
+            self.account, self.endpoint, project, schema,
+            app_account=self.app_account, proxy=options.api_proxy, tag="ODPS"
+        )
 
         self._tunnel_endpoint = kw.pop('tunnel_endpoint', None) or options.tunnel.endpoint
 
@@ -132,7 +136,7 @@ class ODPS(object):
 
         self._default_tenant = models.Tenant(client=self.rest)
 
-        self._projects = models.Projects(client=self.rest)
+        self._projects = models.Projects(client=self.rest, _odps_ref=weakref.ref(self))
         if project:
             self._project = self.get_project()
 
@@ -174,15 +178,15 @@ class ODPS(object):
                 state['endpoint'] = os.environ['ODPS_ENDPOINT']
             self._init(**state)
             return
-        try:
-            bearer_token = os.environ['ODPS_BEARER_TOKEN']
-            state['project'] = os.environ['ODPS_PROJECT_NAME']
+
+        bearer_token_account = accounts.BearerTokenAccount.from_environments()
+        if bearer_token_account is not None:
+            state['project'] = os.environ.get('ODPS_PROJECT_NAME')
             state['endpoint'] = os.environ.get('ODPS_RUNTIME_ENDPOINT') or os.environ['ODPS_ENDPOINT']
-            account = accounts.BearerTokenAccount(bearer_token)
             state.pop('access_id', None)
             state.pop('secret_access_key', None)
-            self._init(None, None, account=account, **state)
-        except KeyError:
+            self._init(None, None, account=bearer_token_account, **state)
+        else:
             self._init(**state)
 
     def as_account(self, access_id=None, secret_access_key=None, account=None, app_account=None):
@@ -377,6 +381,7 @@ class ODPS(object):
         project = self.get_project(name=project)
         return name in project.schemas
 
+    @utils.with_wait_argument
     def create_schema(self, name, project=None, async_=False):
         """
         Create a schema with given name
@@ -389,6 +394,7 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.schemas.create(name, async_=async_)
 
+    @utils.with_wait_argument
     def delete_schema(self, name, project=None, async_=False):
         """
         Delete the schema with given name
@@ -485,10 +491,11 @@ class ODPS(object):
         parent = self._get_project_or_schema(project, schema)
         return name in parent.tables
 
+    @utils.with_wait_argument
     def create_table(
         self, name, table_schema=None, project=None, schema=None, comment=None,
         if_not_exists=False, lifecycle=None, shard_num=None, hub_lifecycle=None,
-        async_=False, **kw
+        hints=None, async_=False, **kw
     ):
         """
         Create a table by given schema and other optional parameters.
@@ -497,19 +504,14 @@ class ODPS(object):
         :param table_schema: table schema. Can be an instance
             of :class:`odps.models.TableSchema` or a string like 'col1 string, col2 bigint'
         :param project: project name, if not provided, will be the default project
-        :param comment:  table comment
-        :param schema: schema name, if not provided, will be the default schema
-        :type schema: str
-        :param if_not_exists:  will not create if this table already exists, default False
-        :type if_not_exists: bool
-        :param lifecycle:  table's lifecycle. If absent, `options.lifecycle` will be used.
-        :type lifecycle: int
-        :param shard_num:  table's shard num
-        :type shard_num: int
-        :param hub_lifecycle:  hub lifecycle
-        :type hub_lifecycle: int
-        :param async_: if True, will run asynchronously
-        :type async_: bool
+        :param comment: table comment
+        :param str schema: schema name, if not provided, will be the default schema
+        :param bool if_not_exists: will not create if this table already exists, default False
+        :param int lifecycle: table's lifecycle. If absent, `options.lifecycle` will be used.
+        :param int shard_num: table's shard num
+        :param int hub_lifecycle: hub lifecycle
+        :param dict hints: hints for the task
+        :param bool async_: if True, will run asynchronously
         :return: the created Table if not async else odps instance
         :rtype: :class:`odps.models.Table` or :class:`odps.models.Instance`
 
@@ -542,25 +544,24 @@ class ODPS(object):
         if lifecycle is None and options.lifecycle is not None:
             lifecycle = options.lifecycle
 
-        async_ = kw.pop('async', async_)
         parent = self._get_project_or_schema(project, schema)
         return parent.tables.create(
             name, table_schema, comment=comment, if_not_exists=if_not_exists,
             lifecycle=lifecycle, shard_num=shard_num,
-            hub_lifecycle=hub_lifecycle, async_=async_, **kw
+            hub_lifecycle=hub_lifecycle, hints=hints, async_=async_, **kw
         )
 
-    def delete_table(self, name, project=None, if_exists=False, schema=None, async_=False, **kw):
+    @utils.with_wait_argument
+    def delete_table(self, name, project=None, if_exists=False, schema=None, hints=None, async_=False):
         """
         Delete the table with given name
 
         :param name: table name
         :param project: project name, if not provided, will be the default project
-        :param if_exists:  will not raise errors when the table does not exist, default False
-        :param async_: if True, will run asynchronously
-        :type async_: bool
-        :param schema: schema name, if not provided, will be the default schema
-        :type schema: str
+        :param bool if_exists:  will not raise errors when the table does not exist, default False
+        :param str schema: schema name, if not provided, will be the default schema
+        :param dict hints: hints for the task
+        :param bool async_: if True, will run asynchronously
         :return: None if not async else odps instance
         """
 
@@ -568,7 +569,7 @@ class ODPS(object):
             project, schema, name = self._split_object_dots(name)
 
         parent = self._get_project_or_schema(project, schema)
-        return parent.tables.delete(name, if_exists=if_exists, async_=kw.get('async', async_))
+        return parent.tables.delete(name, if_exists=if_exists, hints=hints, async_=async_)
 
     def read_table(self, name, limit=None, start=0, step=None,
                    project=None, schema=None, partition=None, **kw):
@@ -1099,6 +1100,7 @@ class ODPS(object):
             priority = options.get_priority(self)
         on_instance_create = kwargs.pop('on_instance_create', None)
 
+        sql = utils.to_text(sql)
         alter_table_match = _ALTER_TABLE_REGEX.match(sql)
         if alter_table_match:
             drop_table_name = alter_table_match.group('table_name')
@@ -1107,7 +1109,7 @@ class ODPS(object):
             sql_schema = sql_schema or default_schema
             del self._get_project_or_schema(sql_project, sql_schema).tables[sql_name]
 
-        task = models.SQLTask(query=utils.to_text(sql), **kwargs)
+        task = models.SQLTask(query=sql, **kwargs)
         task.update_sql_settings(hints)
 
         default_schema = default_schema or self.schema
@@ -1870,6 +1872,7 @@ class ODPS(object):
         project = self.get_project(name=project)
         return name in project.offline_models
 
+    @utils.with_wait_argument
     def copy_offline_model(self, name, new_name, project=None, new_project=None, async_=False):
         """
         Copy current model into a new location.
@@ -2311,11 +2314,14 @@ class ODPS(object):
     @classmethod
     def from_environments(cls):
         try:
-            bearer_token = os.environ['ODPS_BEARER_TOKEN']
-            project = os.environ['ODPS_PROJECT_NAME']
+            account = accounts.BearerTokenAccount.from_environments()
+            if not account:
+                raise KeyError('ODPS_BEARER_TOKEN')
+            project = os.getenv('ODPS_PROJECT_NAME')
             endpoint = os.environ['ODPS_ENDPOINT']
-            account = accounts.BearerTokenAccount(bearer_token)
-            return cls(None, None, account=account, project=project, endpoint=endpoint)
+            tunnel_endpoint = os.getenv('ODPS_TUNNEL_ENDPOINT')
+            return cls(None, None, account=account, project=project,
+                       endpoint=endpoint, tunnel_endpoint=tunnel_endpoint)
         except KeyError:
             return None
 
@@ -2372,5 +2378,4 @@ except ImportError:
     pass
 
 
-if 'PYODPS_ENDPOINT' in os.environ:
-    DEFAULT_ENDPOINT = os.environ.get('PYODPS_ENDPOINT')
+DEFAULT_ENDPOINT = os.getenv('ODPS_ENDPOINT', os.getenv('PYODPS_ENDPOINT', DEFAULT_ENDPOINT))

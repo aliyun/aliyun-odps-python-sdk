@@ -19,6 +19,7 @@ import sys
 import threading
 
 from ..compat import izip, six, futures
+from ..utils import with_wait_argument
 from .backends.core import Engine
 
 try:
@@ -36,10 +37,9 @@ class Delay(object):
         self._wrappers = dict()
         self._running = False
 
+    @with_wait_argument
     def execute(self, ui=None, async_=False, n_parallel=1, timeout=None,
-                close_and_notify=True, **kw):
-        async_ = kw.get('async', async_)
-
+                close_and_notify=True):
         if self._running:
             raise RuntimeError('Cannot execute on an executing delay object.')
 

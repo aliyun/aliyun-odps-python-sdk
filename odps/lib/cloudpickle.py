@@ -65,6 +65,7 @@ import opcode
 import pickle
 import struct
 import logging
+import warnings
 import weakref
 import operator
 import itertools
@@ -349,7 +350,7 @@ class CloudPickler(Pickler):
 
     dispatch = Pickler.dispatch.copy()
 
-    def __init__(self, file, protocol=None, dump_code=False):
+    def __init__(self, file, protocol=None, dump_code=False, object_repr=None):
         if protocol is None:
             protocol = DEFAULT_PROTOCOL
         Pickler.__init__(self, file, protocol=protocol)
@@ -358,6 +359,7 @@ class CloudPickler(Pickler):
         # map ids to dictionary. used to ensure that functions can share global env
         self.globals_ref = {}
         self.dump_code = dump_code
+        self._object_repr = object_repr
 
     def dump(self, obj):
         self.inject_addons()
@@ -776,6 +778,18 @@ class CloudPickler(Pickler):
             return self.save_dynamic_class(obj)
 
         try:
+            if (
+                hasattr(obj, "__module__")
+                and hasattr(obj, "__name__")
+                and obj.__module__.startswith("odps.df")
+            ):
+                warnings.warn(
+                    "Found PyODPS DataFrame object %s.%s referenced in %s. "
+                    "Might get error when executed remotely." % (
+                        obj.__module__, obj.__name__, self._object_repr
+                    ),
+                    RuntimeWarning,
+                )
             return Pickler.save_global(self, obj, name=name)
         except Exception:
             if obj.__module__ == "__builtin__" or obj.__module__ == "builtins":
@@ -1038,7 +1052,14 @@ def dumps(obj, protocol=None, dump_code=False):
     """
     file = StringIO()
     try:
-        cp = CloudPickler(file, protocol=protocol, dump_code=dump_code)
+        object_repr = repr(obj)
+    except:
+        object_repr = None
+
+    try:
+        cp = CloudPickler(
+            file, protocol=protocol, dump_code=dump_code, object_repr=object_repr
+        )
         cp.dump(obj)
         return file.getvalue()
     finally:
@@ -1073,13 +1094,19 @@ class CloudUnpickler(Unpickler):
             mod = sys.modules[module]
             klass = getattr(mod, name)
             return klass
-        except ImportError as e:
+        except ImportError as ex:
             try:
                 return globals()[name]
             except KeyError:
-                raise ImportError(str(e) + ', name: ' + name +
-                                  '\nYou need to use third-party library support '
-                                  'to run this module in MaxCompute clusters.')
+                if "odps.df" in str(ex):
+                    msg = 'Please do not reference external PyODPS DataFrame ' \
+                          'objects inside your functions.'
+                else:
+                    msg = 'You need to use third-party library support to ' \
+                          'run this module in MaxCompute clusters.'
+                raise ImportError('%s, name: %s\n%s' % (ex, name, msg))
+            except:
+                raise
 
     def load_binint(self):
         # Replace the internal implementation of pickle
@@ -1157,8 +1184,6 @@ class CloudUnpickler(Unpickler):
                         args = Cp35_Cp27(args).translate_code()
                     elif self._src_major == 3 and self._src_version <= (3, 5):  # src PY3 && src <= PY35, dest PY27
                         args = Cp35_Cp27(args).translate_code()
-                    elif self._src_version == (2, 6):  # src PY26, dest PY27
-                        args = Cp26_Cp27(args).translate_code()
                     elif not hasattr(sys, "pypy_version_info") and self._src_impl == 'pypy':
                         args = Pypy2_Cp27(args).translate_code()
                 elif sys.version_info[:2] == (3, 7):
@@ -1476,7 +1501,7 @@ if sys.version_info < (3, 4):
 
 
 """
-Code blow resolves bytecode translation between py26 / py3 and py27
+Code blow resolves bytecode translation between py3 and py27
 """
 # relevant opcodes
 BEGIN_FINALLY_PY38 = 53
@@ -1511,7 +1536,6 @@ DUP_TOP_TWO_PY3 = 5
 DUP_TOPX = dis.opmap.get('DUP_TOPX')
 END_FINALLY = dis.opmap.get("END_FINALLY")
 EXTENDED_ARG = dis.EXTENDED_ARG
-EXTENDED_ARG_PY26 = 143
 EXTENDED_ARG_PY3 = 144
 FORMAT_VALUE_PY36 = 155
 FOR_ITER = opcode.opmap['FOR_ITER']
@@ -1529,7 +1553,6 @@ JUMP_IF_NOT_DEBUG_PYPY = 204
 JUMP_IF_NOT_EXC_MATCH_PY39 = 121
 JUMP_IF_TRUE_OR_POP = opcode.opmap.get('JUMP_IF_TRUE_OR_POP')
 LIST_APPEND = opcode.opmap['LIST_APPEND']
-LIST_APPEND_PY26 = 18
 LIST_APPEND_PY3 = 145
 LIST_EXTEND_PY39 = 162
 LIST_TO_TUPLE_PY39 = 82
@@ -1584,7 +1607,7 @@ def op_translator(op):
         func_args = set(inspect.getargs(fun.__code__).args)
 
         def _wrapper(self, *args, **kwargs):
-            new_kwargs = dict((k, v) for k, v in kwargs.items() if k in func_args)
+            new_kwargs = {k: v for k, v in kwargs.items() if k in func_args}
             return fun(self, *args, **new_kwargs)
 
         _wrapper._bind_ops = ops
@@ -1988,37 +2011,6 @@ class Py38CodeRewriter(Py36CodeRewriter):
     CO_FREEVARS_POS = 14
     CO_CELLVARS_POS = 15
     OP_EXTENDED_ARG = EXTENDED_ARG_PY3
-
-
-class Cp26_Cp27(Py2CodeRewriter):
-    @op_translator(JUMP_IF_TRUE_OR_POP)
-    def handle_jump_if_true_or_pop(self, arg, pc):
-        return sum([
-            self.write_instruction(DUP_TOP),
-            self.write_instruction(POP_JUMP_IF_TRUE, pc + arg + 1)
-        ])
-
-    @op_translator(JUMP_IF_FALSE_OR_POP)
-    def handle_jump_if_false_or_pop(self, arg, pc):
-        return sum([
-            self.write_instruction(DUP_TOP),
-            self.write_instruction(POP_JUMP_IF_FALSE, pc + arg + 1)
-        ])
-
-    @op_translator([v - 1 for v in (COMPARE_OP, IMPORT_NAME, BUILD_MAP, LOAD_ATTR, IMPORT_FROM)])
-    def handle_op_increment(self, op, arg):
-        return self.write_instruction(op + 1, arg)
-
-    @op_translator(EXTENDED_ARG_PY26)
-    def handle_extended_arg(self, arg):
-        return self.write_instruction(EXTENDED_ARG, arg)
-
-    @op_translator(LIST_APPEND_PY26)
-    def handle_list_append(self):
-        return sum([
-            self.write_instruction(LIST_APPEND, 1),
-            self.write_instruction(POP_TOP),
-        ])
 
 
 class Pypy2_Cp27(Py2CodeRewriter):

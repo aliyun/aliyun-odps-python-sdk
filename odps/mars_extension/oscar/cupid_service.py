@@ -63,7 +63,7 @@ def _write_request_result(sock, success=True, result=None, exc_info=None):
             "result": result,
             "exc_info": exc_info,
         }
-        pickled = pickle.dumps(dict((k, v) for k, v in result_dict.items()))
+        pickled = pickle.dumps({k: v for k, v in result_dict.items()})
         sock_out_file = sock.makefile("wb")
         sock_out_file.write(struct.pack("<I", len(pickled)))
         sock_out_file.write(pickled)

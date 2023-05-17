@@ -13,14 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps.df import examples
+from .. import examples
 
 
-class Test(TestBase):
-    def test_examples(self):
-        df = examples.create_iris(self.odps, tunnel=self.tunnel)
-        self.assertEqual(len(df.columns), 5)
-        
-        df = examples.create_ionosphere(self.odps, tunnel=self.tunnel)
-        self.assertEqual(len(df.columns), 35)
+def test_examples(odps, tunnel):
+    df = examples.create_iris(odps, tunnel=tunnel)
+    assert len(df.columns) == 5
+
+    df = examples.create_ionosphere(odps, tunnel=tunnel)
+    assert len(df.columns) == 35

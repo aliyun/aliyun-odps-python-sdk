@@ -18,12 +18,14 @@ from __future__ import print_function
 import logging
 import sys
 
-from odps.df import DataFrame
-from odps.config import options
-from odps.ml.utils import TEMP_TABLE_PREFIX
-from odps.ml.algolib import *
-from odps.ml.algolib.loader import load_classifiers
-from odps.ml.tests.base import MLTestBase, tn
+import pytest
+
+from ....df import DataFrame
+from ....config import options
+from ...utils import TEMP_TABLE_PREFIX
+from .. import *
+from ..loader import load_classifiers
+from ...tests.base import MLTestUtil, tn
 
 logger = logging.getLogger(__name__)
 
@@ -32,39 +34,39 @@ IONOSPHERE_TABLE = tn('pyodps_test_ml_ionosphere')
 MODEL_NAME = tn('pyodps_test_out_model')
 
 
-class TestAlgoBuild(MLTestBase):
-    def setUp(self):
-        super(TestAlgoBuild, self).setUp()
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        self.register_algorithm()
+def register_algorithm():
+    algo_def = XflowAlgorithmDef('MyNaiveBayes', project='algo_public', xflow_name='NaiveBayes')
 
-    def tearDown(self):
-        super(TestAlgoBuild, self).tearDown()
+    algo_def.add_port(PortDef.build_data_input()).add_port(PortDef.build_model_output())
 
-    def register_algorithm(self):
-        algo_def = XflowAlgorithmDef('MyNaiveBayes', project='algo_public', xflow_name='NaiveBayes')
+    algo_def.add_param(ParamDef.build_input_table()).add_param(ParamDef.build_input_partitions())
+    algo_def.add_param(ParamDef.build_model_name())
+    algo_def.add_param(ParamDef.build_feature_col_names())
+    algo_def.add_param(ParamDef.build_label_col_name())
 
-        algo_def.add_port(PortDef.build_data_input()).add_port(PortDef.build_model_output())
+    load_classifiers(algo_def, sys.modules[__name__])
 
-        algo_def.add_param(ParamDef.build_input_table()).add_param(ParamDef.build_input_partitions())
-        algo_def.add_param(ParamDef.build_model_name())
-        algo_def.add_param(ParamDef.build_feature_col_names())
-        algo_def.add_param(ParamDef.build_label_col_name())
 
-        load_classifiers(algo_def, sys.modules[__name__])
+@pytest.fixture
+def utils(odps, tunnel):
+    util = MLTestUtil(odps, tunnel)
+    util.create_ionosphere(IONOSPHERE_TABLE)
+    register_algorithm()
+    return util
 
-    def test_custom_algo(self):
-        options.ml.dry_run = True
 
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
-        splited = df.split(0.6)
+def test_custom_algo(odps, utils):
+    options.ml.dry_run = True
 
-        labeled_data = splited[0].label_field("class")
-        naive_bayes = MyNaiveBayes()
-        model = naive_bayes.train(labeled_data)._add_case(self.gen_check_params_case(
-                {'labelColName': 'class', 'featureColNames': ','.join('a%02d' % i for i in range(1, 35)),
-                 'modelName': MODEL_NAME, 'inputTableName': TEMP_TABLE_PREFIX + '_split'}))
-        model.persist(MODEL_NAME)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE))
+    splited = df.split(0.6)
 
-        predicted = model.predict(splited[1])
-        predicted.persist(MODEL_NAME)
+    labeled_data = splited[0].label_field("class")
+    naive_bayes = MyNaiveBayes()
+    model = naive_bayes.train(labeled_data)._add_case(utils.gen_check_params_case(
+            {'labelColName': 'class', 'featureColNames': ','.join('a%02d' % i for i in range(1, 35)),
+             'modelName': MODEL_NAME, 'inputTableName': TEMP_TABLE_PREFIX + '_split'}))
+    model.persist(MODEL_NAME)
+
+    predicted = model.predict(splited[1])
+    predicted.persist(MODEL_NAME)

@@ -14,34 +14,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.compat import unittest, irange as xrange
-from odps.df.tools.lib import HyperLogLog
-from odps.tests.core import TestBase
+import pytest
 
-class Test(TestBase):
-    def testHLL(self):
-        hll = HyperLogLog(0.05)
-        buf = hll.buffer()
-
-        for i in xrange(10000):
-            hll(buf, str(i))
-
-        self.assertAlmostEqual(hll.getvalue(buf) / float(10000), 1, delta=0.1)
-
-        for i in xrange(100000, 200000):
-            hll(buf, str(i))
-
-        self.assertAlmostEqual(hll.getvalue(buf) / 110000, 1, delta=0.2)
-
-        buf2 = hll.buffer()
-
-        for i in xrange(10000):
-            hll(buf2, str(i))
-
-        hll.merge(buf, buf2)
-
-        self.assertAlmostEqual(hll.getvalue(buf) / 110000, 1, delta=0.2)
+from .....compat import irange as xrange
+from .. import HyperLogLog
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_hll():
+    hll = HyperLogLog(0.05)
+    buf = hll.buffer()
+
+    for i in xrange(10000):
+        hll(buf, str(i))
+
+    assert pytest.approx(hll.getvalue(buf) / float(10000), 0.1) == 1
+
+    for i in xrange(100000, 200000):
+        hll(buf, str(i))
+
+    assert pytest.approx(hll.getvalue(buf) / 110000, 0.2) == 1
+
+    buf2 = hll.buffer()
+
+    for i in xrange(10000):
+        hll(buf2, str(i))
+
+    hll.merge(buf, buf2)
+
+    assert pytest.approx(hll.getvalue(buf) / 110000, 0.2) == 1

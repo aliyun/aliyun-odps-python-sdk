@@ -116,7 +116,7 @@ class CupidActorPool(ActorPool):
 
     def _prepare_process_channel(self, idx):
         envs = self._cupid_context.prepare_channel()
-        envs_dict = dict((env.name, env.value) for env in envs)
+        envs_dict = {env.name: env.value for env in envs}
         with open(self._channel_file[idx], "w") as env_file:
             env_file.write(json.dumps(envs_dict))
 

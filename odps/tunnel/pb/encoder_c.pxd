@@ -15,29 +15,24 @@
 
 from libc.stdint cimport *
 from libc.string cimport *
+from ...src.stringstream cimport stringstream
+
+
+cdef class CEncoder:
+    cdef stringstream *_buffer
+
+    cdef size_t position(self) nogil
+    cpdef bytes tostring(self)
+    cdef int append_tag(self, int field_num, int wire_type) nogil except +
+    cdef int append_sint32(self, int32_t value) nogil except +
+    cdef int append_uint32(self, uint32_t value) nogil except +
+    cdef int append_sint64(self, int64_t value) nogil except +
+    cdef int append_uint64(self, uint64_t value) nogil except +
+    cdef int append_bool(self, bint value) nogil except +
+    cdef int append_double(self, double value) nogil except +
+    cdef int append_float(self, float value) nogil except +
+    cdef int append_string(self, const char *ptr, size_t value_len) nogil except +
 
 
 cdef class Encoder:
-    cdef bytearray _buffer
-
-    cpdef size_t position(self)
-
-    cpdef bytes tostring(self)
-
-    cpdef int append_tag(self, int field_num, int wire_type) except -1
-
-    cpdef int append_sint32(self, int32_t value) except -1
-
-    cpdef int append_uint32(self, uint32_t value) except -1
-
-    cpdef int append_sint64(self, int64_t value) except -1
-
-    cpdef int append_uint64(self, uint64_t value) except -1
-
-    cpdef int append_bool(self, bint value) except -1
-
-    cpdef int append_double(self, double value) except -1
-
-    cpdef int append_float(self, float value) except -1
-
-    cpdef int append_string(self, bytes value) except -1
+    cdef CEncoder _encoder

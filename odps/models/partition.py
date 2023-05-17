@@ -156,12 +156,24 @@ class Partition(LazyLoad):
 
     def reload_extend_info(self):
         url = self.resource()
-        params = {'extended': '',
-                  'partition': str(self.partition_spec)}
+        params = {'extended': '', 'partition': str(self.partition_spec)}
         resp = self._client.get(url, params=params, curr_schema=self._get_schema_name())
 
         self.parse(self._client, resp, obj=self)
         self._is_extend_info_loaded = True
+
+    def head(self, limit, columns=None):
+        """
+        Get the head records of a partition
+
+        :param limit: records' size, 10000 at most
+        :param list columns: the columns which is subset of the table columns
+        :return: records
+        :rtype: list
+
+        .. seealso:: :class:`odps.models.Record`
+        """
+        return self.table.head(limit, partition=self.partition_spec, columns=columns)
 
     def to_df(self):
         """
@@ -173,14 +185,15 @@ class Partition(LazyLoad):
 
         return DataFrame(self.table).filter_parts(self)
 
-    def drop(self, async_=False, if_exists=False, **kw):
+    @utils.with_wait_argument
+    def drop(self, async_=False, if_exists=False):
         """
         Drop this partition.
 
         :param async_: run asynchronously if True
+        :param if_exists:
         :return: None
         """
-        async_ = kw.get('async', async_)
         return self.parent.delete(self, if_exists=if_exists, async_=async_)
 
     def open_reader(self, **kw):
@@ -208,7 +221,8 @@ class Partition(LazyLoad):
         return self.table.open_reader(str(self), **kw)
 
     def open_writer(self, blocks=None, **kw):
-        return self.table.open_writer(str(self), blocks=blocks, **kw)
+        return self.table.open_writer(self.partition_spec, blocks=blocks, **kw)
 
+    @utils.with_wait_argument
     def truncate(self, async_=False):
-        return self.table.truncate(str(self), async_=async_)
+        return self.table.truncate(self.partition_spec, async_=async_)

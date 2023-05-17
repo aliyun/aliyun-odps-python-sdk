@@ -17,7 +17,7 @@ from libc.stdint cimport *
 from libc.string cimport *
 
 
-cdef class Decoder:
+cdef class CDecoder:
     cdef size_t _pos
     cdef object _stream
     cdef bytes _buffer
@@ -25,28 +25,19 @@ cdef class Decoder:
     cdef char* _end
     cdef bint _is_source_eof
 
-    cpdef size_t position(self)
+    cdef size_t position(self) nogil
+    cdef int32_t read_field_number(self) nogil except? -1
+    cdef read_field_number_and_wire_type(self)
+    cdef int32_t read_sint32(self) nogil except? -1
+    cdef uint32_t read_uint32(self) nogil except? 0xffffffff
+    cdef int64_t read_sint64(self) nogil except? -1
+    cdef uint64_t read_uint64(self) nogil except? 0xffffffff
+    cdef bint read_bool(self) nogil except? False
+    cdef double read_double(self) nogil except? -1.0
+    cdef float read_float(self) nogil except? -1.0
+    cdef bytes read_string(self)
+    cdef int _load_next_buffer(self) except -1 with gil
 
-    cpdef int32_t read_field_number(self) except? -1
 
-    cpdef read_field_number_and_wire_type(self)
-
-    cpdef int32_t read_sint32(self) except? -1
-
-    cpdef uint32_t read_uint32(self) except? 0xffffffff
-
-    cpdef int64_t read_sint64(self) except? -1
-
-    cpdef uint64_t read_uint64(self) except? 0xffffffff
-
-    cpdef bint read_bool(self) except? False
-
-    cpdef double read_double(self) except? -1.0
-
-    cpdef float read_float(self) except? -1.0
-
-    cpdef bytes read_string(self)
-
-    cdef int _load_next_buffer(self) except -1
-
-    cdef bint _is_eof(self)
+cdef class Decoder:
+    cdef CDecoder _decoder

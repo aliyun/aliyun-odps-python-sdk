@@ -16,10 +16,10 @@
 import re
 import sys
 import json
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 from ... import serializers, DataFrame
-from ...compat import six, OrderedDict
+from ...compat import six
 from ..utils import camel_to_underline, parse_hist_repr
 from ..algolib.loader import load_defined_algorithms
 

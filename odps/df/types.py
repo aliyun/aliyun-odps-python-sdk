@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
 from datetime import datetime as _datetime, date as _date
 from decimal import Decimal as _Decimal
 
 from ..types import DataType, Array, Map, Struct as _Struct, parse_composite_types
 from ..models import TableSchema, Column
-from ..compat import OrderedDict, six
+from ..compat import six
 
 
 class Primitive(DataType):

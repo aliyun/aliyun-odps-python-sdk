@@ -15,13 +15,15 @@
 
 from __future__ import print_function
 
-from odps.df import DataFrame
-from odps.ml.classifiers import *
-from odps.ml.feature import *
-from odps.tests.core import tn, ci_skip_case, pandas_case
-from odps.config import options
-from odps.ml.tests.base import MLTestBase
-from odps.tests.core import pandas_case
+import pytest
+
+from ...df import DataFrame
+from ...tests.core import tn, ci_skip_case, pandas_case
+from ...config import options
+from ...tests.core import pandas_case
+from ..classifiers import *
+from ..feature import *
+from ..tests.base import MLTestUtil
 
 IONOSPHERE_TABLE = tn('pyodps_test_ml_ionosphere')
 IONOSPHERE_TABLE_TWO_PARTS = tn('pyodps_test_ml_ionosphere_two_parts')
@@ -33,121 +35,135 @@ IONOSPHERE_SPLIT_1 = tn('pyodps_test_ml_iono_split_1')
 IONOSPHERE_SPLIT_2 = tn('pyodps_test_ml_iono_split_2')
 
 
-class Test(MLTestBase):
-    @ci_skip_case
-    def test_df_store(self):
-        self.delete_table(IONOSPHERE_SORTED_TABLE_PART)
-        self.create_ionosphere_two_parts(IONOSPHERE_TABLE_TWO_PARTS)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE_TWO_PARTS)).filter_parts('part1=1,part2=2')
-        self.odps.delete_table(IONOSPHERE_SORTED_TABLE_PART)
-        sorted_df = df.groupby(df['class']).agg(df.a01.count().rename('count')).sort('class', ascending=False)
-        sorted_df.persist(IONOSPHERE_SORTED_TABLE_PART)
+@pytest.fixture
+def utils(odps, tunnel):
+    return MLTestUtil(odps, tunnel)
 
-    @ci_skip_case
-    def test_df_method(self):
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
-        sorted_df = df.groupby(df['class']).agg(df.a01.count().rename('count')).sort('class', ascending=False)
-        sorted_df.to_pandas()
 
-    @pandas_case
-    def test_df_consecutive(self):
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
-        df = df[df['a04'] != 0]
-        df = df.roles(label='class')
-        df.head(10)
-        df['b01'] = df['a06']
-        train, test = df.split(0.6)
-        lr = LogisticRegression(epsilon=0.01)
-        model = lr.train(train)
-        predicted = model.predict(test)
-        predicted['appended_col'] = predicted['prediction_score'] * 2
-        predicted.to_pandas()
+@ci_skip_case
+def test_df_store(odps, utils):
+    utils.delete_table(IONOSPHERE_SORTED_TABLE_PART)
+    utils.create_ionosphere_two_parts(IONOSPHERE_TABLE_TWO_PARTS)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE_TWO_PARTS)).filter_parts('part1=1,part2=2')
+    odps.delete_table(IONOSPHERE_SORTED_TABLE_PART)
+    sorted_df = df.groupby(df['class']).agg(df.a01.count().rename('count')).sort('class', ascending=False)
+    sorted_df.persist(IONOSPHERE_SORTED_TABLE_PART)
 
-    def test_sequential_execute(self):
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
-        train, test = df.split(0.6)
-        lr = LogisticRegression(epsilon=0.01)
-        model = lr.train(train)
-        predicted = model.predict(test)
-        predicted.count().execute()
-        model = lr.train(predicted)
-        predicted2 = model.predict(test)
-        predicted2.count().execute()
 
-    def test_df_multiple_persist(self):
-        self.odps.delete_table(IONOSPHERE_PREDICTED_1, if_exists=True)
-        self.odps.delete_table(IONOSPHERE_PREDICTED_2, if_exists=True)
+@ci_skip_case
+def test_df_method(odps, utils):
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE))
+    sorted_df = df.groupby(df['class']).agg(df.a01.count().rename('count')).sort('class', ascending=False)
+    sorted_df.to_pandas()
 
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
-        lr = LogisticRegression(epsilon=0.01)
-        model = lr.train(df)
-        predicted = model.predict(df)
-        predicted.persist(IONOSPHERE_PREDICTED_1)
-        predicted.persist(IONOSPHERE_PREDICTED_2)
-        assert self.odps.exist_table(IONOSPHERE_PREDICTED_1)
-        assert self.odps.exist_table(IONOSPHERE_PREDICTED_2)
 
-    def test_persist_split(self):
-        self.odps.delete_table(IONOSPHERE_SPLIT_1, if_exists=True)
-        self.odps.delete_table(IONOSPHERE_SPLIT_2, if_exists=True)
+@pandas_case
+def test_df_consecutive(odps, utils):
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE))
+    df = df[df['a04'] != 0]
+    df = df.roles(label='class')
+    df.head(10)
+    df['b01'] = df['a06']
+    train, test = df.split(0.6)
+    lr = LogisticRegression(epsilon=0.01)
+    model = lr.train(train)
+    predicted = model.predict(test)
+    predicted['appended_col'] = predicted['prediction_score'] * 2
+    predicted.to_pandas()
 
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
-        split1, split2 = df.split(0.6)
-        split1.persist(IONOSPHERE_SPLIT_1)
-        split2.persist(IONOSPHERE_SPLIT_2)
-        assert self.odps.exist_table(IONOSPHERE_SPLIT_1)
-        assert self.odps.exist_table(IONOSPHERE_SPLIT_2)
 
-    @pandas_case
-    def test_df_combined(self):
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
-        df = df[df['a04'] != 0]
-        df = df['a01', df.a05.map(lambda v: v * 2).rename('a05'), 'a06', 'class']
-        df = df.roles(label='class')
-        df = df[df.a05 != 0].cache()
-        df = df[df.a05, ((df.a06 + 1) / 2).rename('a06'), 'class']
-        train, test = df.split(0.6)
-        lr = LogisticRegression(epsilon=0.01)
-        model = lr.train(train)
-        predicted = model.predict(test)
-        (- 1.0 * ((predicted['class'] * predicted.prediction_score.log().rename('t')).rename('t1') + (
-        (1 - predicted['class']) * (1 - predicted.prediction_score).log().rename('t0')).rename('t2')).rename(
-            't3').sum() / predicted.prediction_score.count()).rename('t4').execute()
+def test_sequential_execute(odps, utils):
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
+    train, test = df.split(0.6)
+    lr = LogisticRegression(epsilon=0.01)
+    model = lr.train(train)
+    predicted = model.predict(test)
+    predicted.count().execute()
+    model = lr.train(predicted)
+    predicted2 = model.predict(test)
+    predicted2.count().execute()
 
-    @pandas_case
-    def test_pd_df(self):
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        pd_df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).to_pandas()
 
-    @ci_skip_case
-    def test_direct_method(self):
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
-        train, test = df.split(0.6)
-        lr = LogisticRegression(epsilon=0.01)
-        model = lr.train(train)
-        predicted = model.predict(test)
-        predicted.to_pandas()
+def test_df_multiple_persist(odps, utils):
+    odps.delete_table(IONOSPHERE_PREDICTED_1, if_exists=True)
+    odps.delete_table(IONOSPHERE_PREDICTED_2, if_exists=True)
 
-    @ci_skip_case
-    def test_dynamic_output(self):
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE))
-        df = df.roles(label=df['class'])
-        filtered, importance = select_features(df)
-        print(filtered.describe().execute())
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
+    lr = LogisticRegression(epsilon=0.01)
+    model = lr.train(df)
+    predicted = model.predict(df)
+    predicted.persist(IONOSPHERE_PREDICTED_1)
+    predicted.persist(IONOSPHERE_PREDICTED_2)
+    assert odps.exist_table(IONOSPHERE_PREDICTED_1)
+    assert odps.exist_table(IONOSPHERE_PREDICTED_2)
 
-    @ci_skip_case
-    def test_ml_end(self):
-        old_interactive = options.interactive
-        options.interactive = True
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).sample(n=20)
-        repr(df)
-        options.interactive = old_interactive
+
+def test_persist_split(odps, utils):
+    odps.delete_table(IONOSPHERE_SPLIT_1, if_exists=True)
+    odps.delete_table(IONOSPHERE_SPLIT_2, if_exists=True)
+
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE))
+    split1, split2 = df.split(0.6)
+    split1.persist(IONOSPHERE_SPLIT_1)
+    split2.persist(IONOSPHERE_SPLIT_2)
+    assert odps.exist_table(IONOSPHERE_SPLIT_1)
+    assert odps.exist_table(IONOSPHERE_SPLIT_2)
+
+
+@pandas_case
+def test_df_combined(odps, utils):
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE))
+    df = df[df['a04'] != 0]
+    df = df['a01', df.a05.map(lambda v: v * 2).rename('a05'), 'a06', 'class']
+    df = df.roles(label='class')
+    df = df[df.a05 != 0].cache()
+    df = df[df.a05, ((df.a06 + 1) / 2).rename('a06'), 'class']
+    train, test = df.split(0.6)
+    lr = LogisticRegression(epsilon=0.01)
+    model = lr.train(train)
+    predicted = model.predict(test)
+    (- 1.0 * ((predicted['class'] * predicted.prediction_score.log().rename('t')).rename('t1') + (
+    (1 - predicted['class']) * (1 - predicted.prediction_score).log().rename('t0')).rename('t2')).rename(
+        't3').sum() / predicted.prediction_score.count()).rename('t4').execute()
+
+
+@pandas_case
+def test_pd_df(odps, utils):
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    DataFrame(odps.get_table(IONOSPHERE_TABLE)).to_pandas()
+
+
+@ci_skip_case
+def test_direct_method(odps, utils):
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
+    train, test = df.split(0.6)
+    lr = LogisticRegression(epsilon=0.01)
+    model = lr.train(train)
+    predicted = model.predict(test)
+    predicted.to_pandas()
+
+
+@ci_skip_case
+def test_dynamic_output(odps, utils):
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE))
+    df = df.roles(label=df['class'])
+    filtered, importance = select_features(df)
+    print(filtered.describe().execute())
+
+
+@ci_skip_case
+def test_ml_end(odps, utils):
+    old_interactive = options.interactive
+    options.interactive = True
+    utils.create_ionosphere(IONOSPHERE_TABLE)
+    df = DataFrame(odps.get_table(IONOSPHERE_TABLE)).sample(n=20)
+    repr(df)
+    options.interactive = old_interactive

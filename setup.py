@@ -114,11 +114,10 @@ class CustomInstall(install):
 version = sys.version_info
 PY2 = version[0] == 2
 PY3 = version[0] == 3
-PY26 = PY2 and version[1] == 6
 PYPY = platform.python_implementation().lower() == 'pypy'
 
-if PY2 and version[:2] < (2, 6):
-    raise Exception('PyODPS supports Python 2.6+ (including Python 3+).')
+if PY2 and version[:2] < (2, 7):
+    raise Exception('PyODPS supports Python 2.7+ (including Python 3+).')
 
 try:
     import distribute
@@ -155,11 +154,6 @@ requirements = []
 with open('requirements.txt') as f:
     requirements.extend(f.read().splitlines())
 
-if PY26:
-    requirements.append('ordereddict>=1.1')
-    requirements.append('simplejson>=2.1.0')
-    requirements.append('importlib>=1.0')
-
 full_requirements = [
     'jupyter>=1.0.0',
     'ipython>=4.0.0',
@@ -167,7 +161,6 @@ full_requirements = [
     'pandas>=0.17.0',
     'matplotlib>=1.4',
     'graphviz>=0.4',
-    'greenlet>=0.4.10',
 ]
 mars_requirements = [
     'pymars>=0.5.4',
@@ -198,7 +191,6 @@ setup_options = dict(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
@@ -240,11 +232,21 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
         if sys.platform == 'win32':
             cython.inline('return a + b', a=1, b=1)
 
+        cythonize_kw = dict(language_level=sys.version_info[0])
         extension_kw = dict(language='c++', include_dirs=[])
-        if 'MSC' in sys.version:
-            extension_kw['extra_compile_args'] = ['/Ot', '/I' + os.path.join(repo_root, 'misc')]
+        if "MSC" in sys.version:
+            extra_compile_args = ["/Ot", "/I" + os.path.join(repo_root, "misc")]
+            extension_kw["extra_compile_args"] = extra_compile_args
         else:
-            extension_kw['extra_compile_args'] = ['-O3']
+            extra_compile_args = ["-O3"]
+            extension_kw["extra_compile_args"] = extra_compile_args
+
+        if os.environ.get("CYTHON_TRACE"):
+            extension_kw["define_macros"] = [
+                ("CYTHON_TRACE_NOGIL", "1"),
+                ("CYTHON_TRACE", "1"),
+            ]
+            cythonize_kw["compiler_directives"] = {"linetrace": True}
 
         extensions = [
             Extension('odps.src.types_c', ['odps/src/types_c.pyx'], **extension_kw),
@@ -272,7 +274,7 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
 
         setup_options['cmdclass'].update({'build_ext': build_ext})
         force_recompile = bool(int(os.getenv("CYTHON_FORCE_RECOMPILE", "0")))
-        setup_options['ext_modules'] = cythonize(extensions, force=force_recompile)
+        setup_options['ext_modules'] = cythonize(extensions, force=force_recompile, **cythonize_kw)
     except:
         pass
 
@@ -357,8 +359,10 @@ if build_cmd != 'clean' and has_jupyterlab:
             pass
 
         def run(self):
-            print(self.registry)
-            os.chdir(os.path.join(os.path.abspath(os.getcwd()), 'odps', 'lab_extension'))
+            lab_location = os.path.join(os.path.abspath(os.getcwd()), 'odps', 'lab_extension')
+            if not os.path.exists(lab_location):
+                return
+            os.chdir(lab_location)
             print("\033[1;34m" + "Install pyodps-lab-extension" + "\033[0;0m")
             os.system('npm install --registry=' + self.registry)
             os.system('pip install .')

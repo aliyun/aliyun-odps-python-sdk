@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-01-18 17:53+0800\n"
+"POT-Creation-Date: 2023-05-16 10:26+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -30,13 +30,14 @@ msgstr ""
 "Python SDK of MaxCompute. It supports basic actions on MaxCompute objects"
 " and the DataFrame framework for ease of data analysis on MaxCompute."
 
+#: ../../source/index.rst:-1
 msgid "安装"
 msgstr "Installation"
 
 #: ../../source/index.rst:17
-msgid "PyODPS 支持Python 2.6 以上的 Python 版本，包括Python 3。系统安装了 pip 后，只需运行："
+msgid "PyODPS 支持Python 2.7 以上的 Python 版本，包括Python 3。系统安装了 pip 后，只需运行："
 msgstr ""
-"PyODPS supports Python 2.6 and later versions (including Python 3). After"
+"PyODPS supports Python 2.7 and later versions (including Python 3). After"
 " installing PIP in the system, you only need to run"
 
 #: ../../source/index.rst:21
@@ -63,6 +64,7 @@ msgstr ""
 "<https://wiki.python.org/moin/WindowsCompilers>`_ versions of Visual C++ "
 "and Cython can also enjoy this acceleration."
 
+#: ../../source/index.rst:-1
 msgid "快速开始"
 msgstr "Quick start"
 
@@ -94,8 +96,9 @@ msgid ""
 "如果你使用 `STS Token <https://help.aliyun.com/document_detail/112449.html>`_ "
 "访问 ODPS，可以使用下面的语句初始化 ODPS 入口对象："
 msgstr ""
-"If you need to use `STS Token <https://www.alibabacloud.com/help/en/iot-platform/latest/ram-and-sts>`_ "
-"to access MaxCompute, you may use code below to create a MaxCompute (ODPS) entrance object."
+"If you need to use `STS Token <https://www.alibabacloud.com/help/en/iot-"
+"platform/latest/ram-and-sts>`_ to access MaxCompute, you may use code "
+"below to create a MaxCompute (ODPS) entrance object."
 
 #: ../../source/index.rst:48
 msgid ""

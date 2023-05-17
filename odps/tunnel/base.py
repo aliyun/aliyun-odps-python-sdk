@@ -32,7 +32,10 @@ class BaseTunnel(object):
         if project is None and odps is None:
             raise AttributeError('%s requires project parameter.' % type(self).__name__)
         if isinstance(project, six.string_types):
-            self._project = Projects(client=self._client)[project or odps.project]
+            if odps is not None:
+                self._project = odps.get_project(project or odps.project)
+            else:
+                self._project = Projects(client=self._client)[project]
         elif project is None:
             self._project = odps.get_project()
         else:
@@ -82,7 +85,7 @@ class BaseTunnel(object):
         if self._tunnel_rest is not None:
             return self._tunnel_rest
 
-        kw = dict()
+        kw = dict(tag="TUNNEL")
         if options.data_proxy is not None:
             kw['proxy'] = options.data_proxy
         if getattr(self._client, 'app_account', None) is not None:

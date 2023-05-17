@@ -19,19 +19,21 @@ import logging
 import operator
 from datetime import datetime
 
-from requests import ConnectTimeout as RequestsConnectTimeout
-
 from . import utils
 from .compat import (
-    LESS_PY27,
     six,
     reduce,
     ElementTree as ET,
     ElementTreeParseError as ETParseError,
     TimeoutError
 )
+from .lib.requests import ConnectTimeout as RequestsConnectTimeout
 
 LOG = logging.getLogger(__name__)
+
+
+class DatetimeOverflowError(OverflowError):
+    pass
 
 
 class DependencyNotInstalledError(Exception):
@@ -42,55 +44,57 @@ class InteractiveError(Exception):
     pass
 
 
-def parse_response(resp):
+def parse_response(resp, endpoint=None, tag=None):
     """Parses the content of response and returns an exception object.
     """
-    host_id, msg, code = None, None, None
     try:
-        content = resp.content
-        root = ET.fromstring(content)
-        code = root.find('./Code').text
-        msg = root.find('./Message').text
-        request_id = root.find('./RequestId').text
-        host_id = root.find('./HostId').text
-    except ETParseError:
-        request_id = resp.headers.get('x-odps-request-id', None)
-        if len(resp.content) > 0:
-            obj = json.loads(resp.text)
-            msg = obj['Message']
-            code = obj.get('Code')
-            host_id = obj.get('HostId')
-            if request_id is None:
-                request_id = obj.get('RequestId')
-        else:
-            return
-    clz = globals().get(code, ODPSError)
-    return clz(msg, request_id=request_id, code=code, host_id=host_id)
-
-
-def throw_if_parsable(resp):
-    """Try to parse the content of the response and raise an exception
-    if neccessary.
-    """
-    e = None
-    try:
-        e = parse_response(resp)
+        try:
+            content = resp.content
+            root = ET.fromstring(content)
+            code = root.find('./Code').text
+            msg = root.find('./Message').text
+            request_id = root.find('./RequestId').text
+            host_id = root.find('./HostId').text
+        except ETParseError:
+            request_id = resp.headers.get('x-odps-request-id', None)
+            if len(resp.content) > 0:
+                obj = json.loads(resp.text)
+                msg = obj['Message']
+                code = obj.get('Code')
+                host_id = obj.get('HostId')
+                if request_id is None:
+                    request_id = obj.get('RequestId')
+            else:
+                raise
+        clz = globals().get(code, ODPSError)
+        return clz(
+            msg, request_id=request_id, code=code, host_id=host_id, endpoint=endpoint, tag=tag
+        )
     except:
         # Error occurred during parsing the response. We ignore it and delegate
         # the situation to caller to handle.
         LOG.debug(utils.stringify_expt())
 
-    if e is not None:
-        raise e
-
     if resp.status_code == 404:
-        raise NoSuchObject('No such object.')
+        return NoSuchObject('No such object.', endpoint=endpoint, tag=tag)
     else:
         text = resp.content.decode() if six.PY3 else resp.content
         if text:
-            raise ODPSError(text, code=str(resp.status_code))
+            if resp.status_code == 502 and _nginx_bad_gateway_message in text:
+                return BadGatewayError(
+                    text, code=str(resp.status_code), endpoint=endpoint, tag=tag
+                )
+            else:
+                return ODPSError(text, code=str(resp.status_code), endpoint=endpoint, tag=tag)
         else:
-            raise ODPSError(str(resp.status_code))
+            return ODPSError(str(resp.status_code), endpoint=endpoint, tag=tag)
+
+
+def throw_if_parsable(resp, endpoint=None, tag=None):
+    """Try to parse the content of the response and raise an exception
+    if necessary.
+    """
+    raise parse_response(resp, endpoint, tag)
 
 
 _CODE_MAPPING = {
@@ -111,6 +115,8 @@ _SQA_CODE_MAPPING = {
     'ODPS-185': 'SQAUnsupportedFeature',
     'ODPS-186': 'SQAQueryTimedout',
 }
+
+_nginx_bad_gateway_message = "the page you are looking for is currently unavailable"
 
 
 def parse_instance_error(msg):
@@ -136,46 +142,40 @@ def parse_instance_error(msg):
 
 
 class ODPSError(RuntimeError):
-    """
-    """
-
-    def __init__(self, msg, request_id=None, code=None, host_id=None, instance_id=None):
+    """Base class of ODPS error"""
+    def __init__(
+        self, msg, request_id=None, code=None, host_id=None, instance_id=None, endpoint=None, tag=None
+    ):
         super(ODPSError, self).__init__(msg)
         self.request_id = request_id
         self.instance_id = instance_id
         self.code = code
         self.host_id = host_id
+        self.endpoint = endpoint
+        self.tag = tag
 
     def __str__(self):
-        if LESS_PY27 and hasattr(self, 'message'):
-            message = self.message
-        else:
-            message = self.args[0]
-        if self.request_id:
-            message = 'RequestId: %s\n%s' % (self.request_id, message)
-        if self.instance_id:
-            message = 'InstanceId: %s\n%s' % (self.instance_id, message)
+        message = self.args[0]
+
+        head_parts = []
         if self.code:
-            return '%s: %s' % (self.code, message)
+            head_parts.append("%s:" % self.code)
+        if self.request_id:
+            head_parts.append("RequestId: %s" % self.request_id)
+        if self.instance_id:
+            head_parts.append("InstanceId: %s" % self.instance_id)
+        if self.tag:
+            head_parts.append("Tag: %s" % self.tag)
+        if self.endpoint:
+            head_parts.append("Endpoint: %s" % self.endpoint)
+
+        if head_parts:
+            return '%s\n%s' % (" ".join(head_parts), message)
         return message
 
     @classmethod
     def parse(cls, resp):
-        content = resp.content
-        try:
-            error = parse_response(resp)
-        except:
-            try:
-                root = json.loads(content)
-                code = root.get('Code')
-                msg = root.get('Message')
-                request_id = root.get('RequestId')
-                host_id = root.get('HostId')
-                error = ODPSError(msg, request_id, code, host_id)
-            except:
-                # XXX: Can this happen?
-                error = ODPSError(content, None)
-        return error
+        return parse_response(resp)
 
 
 class ConnectTimeout(ODPSError, TimeoutError, RequestsConnectTimeout):
@@ -216,7 +216,11 @@ class InvalidArgument(ServerDefinedException):
     pass
 
 
-class Unauthorized(ServerDefinedException):
+class AuthorizationRequired(ServerDefinedException):
+    pass
+
+
+class Unauthorized(AuthorizationRequired):
     pass
 
 
@@ -257,6 +261,10 @@ class ParseError(ServerDefinedException):
 
 
 class DataVersionError(InternalServerError):
+    pass
+
+
+class BadGatewayError(InternalServerError):
     pass
 
 
@@ -313,6 +321,10 @@ class WaitTimeoutError(ODPSError, TimeoutError):
 
 
 class SecurityQueryError(ODPSError):
+    pass
+
+
+class NoSuchProject(ODPSError):
     pass
 
 

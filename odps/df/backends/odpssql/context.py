@@ -19,9 +19,10 @@ import os
 import tarfile
 import uuid
 import time
+from collections import OrderedDict
 
 from .... import tempobj
-from ....compat import OrderedDict, BytesIO, six
+from ....compat import BytesIO, six
 from ....utils import TEMP_TABLE_PREFIX
 from ....errors import ODPSError
 

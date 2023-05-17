@@ -26,7 +26,7 @@ cdef class Checksum:
     cdef void c_update_long(self, int64_t val) nogil
     cdef void c_update_float(self, float val) nogil
     cdef void c_update_double(self, double val) nogil
-    cdef void c_update(self, char *ptr, size_t length) nogil
+    cdef void c_update(self, const char *ptr, size_t length) nogil
     cdef uint32_t c_getvalue(self) nogil
     cdef uint32_t c_setvalue(self, uint32_t val) nogil
     cdef void c_reset(self) nogil

@@ -16,168 +16,173 @@
 
 import textwrap
 
-from odps.tests.core import TestBase
-from odps.compat import unittest, six, LESS_PY35
-from odps.models import TableSchema
-from odps.df.types import validate_data_type
-from odps.df.expr.tests.core import MockTable
-from odps.df.expr.expressions import *
-from odps.df.expr.element import *
+import pytest
+
+from ....compat import LESS_PY35
+from ....models import TableSchema
+from ...types import validate_data_type
+from ..tests.core import MockTable
+from ..expressions import *
+from ..element import *
 
 
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = TableSchema.from_lists(
-            ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-            datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
-        )
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+@pytest.fixture
+def src_expr():
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
-
-    def testIsNull(self):
-        self.assertIsInstance(self.expr.fid.isnull(), IsNull)
-        self.assertIsInstance(self.expr.fid.isnull(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.fid.sum().isnull(), BooleanScalar)
-
-    def testNotNull(self):
-        self.assertIsInstance(self.expr.fid.notnull(), NotNull)
-        self.assertIsInstance(self.expr.fid.notnull(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.fid.sum().notnull(), BooleanScalar)
-
-    def testFillNa(self):
-        self.assertIsInstance(self.expr.name.fillna('test'), FillNa)
-        self.assertIsInstance(self.expr.name.fillna('test'), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().fillna('test'), StringScalar)
-        self.assertIsInstance(self.expr.scale.fillna(0), DecimalSequenceExpr)
-
-        self.assertRaises(ValueError, lambda: self.expr.id.fillna('abc'))
-
-    def testIsIn(self):
-        expr = self.expr.name.isin(list('abc'))
-        self.assertIsInstance(expr, IsIn)
-        self.assertEqual(len(expr.values), 3)
-        self.assertEqual([it.value for it in expr.values], list('abc'))
-        self.assertIsInstance(self.expr.name.isin(list('abc')), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().isin(list('abc')), BooleanScalar)
-
-    def testBetween(self):
-        self.assertIsInstance(self.expr.id.between(1, 3), Between)
-        self.assertIsInstance(self.expr.name.between(1, 3), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().between(1, 3), BooleanScalar)
-
-    def testIfElse(self):
-        self.assertIsInstance(
-                (self.expr.id == 3).ifelse(self.expr.id, self.expr.fid), IfElse)
-        self.assertIsInstance(
-                (self.expr.id == 3).ifelse(self.expr.id, self.expr.fid), Float64SequenceExpr)
-        self.assertIsInstance(
-                (self.expr.id == 3).ifelse(self.expr.id.sum(), self.expr.fid), Float64SequenceExpr)
-
-    def testSwitch(self):
-        expr = self.expr.id.switch(3, self.expr.name, self.expr.fid.abs(), self.expr.name + 'test')
-        self.assertIsInstance(expr, Switch)
-        self.assertEqual(len(expr.conditions), 2)
-        self.assertEqual(len(expr.thens), 2)
-        self.assertIsInstance(expr, StringSequenceExpr)
-        self.assertNotIsInstance(expr, Scalar)
-
-        expr = self.expr.id.switch((3, self.expr.name), (self.expr.fid.abs(), self.expr.name + 'test'))
-        self.assertIsInstance(expr, Switch)
-        self.assertEqual(len(expr.conditions), 2)
-        self.assertEqual(len(expr.thens), 2)
-        self.assertIsInstance(expr, StringSequenceExpr)
-        self.assertNotIsInstance(expr, Scalar)
-
-        expr = self.expr.id.switch(3, self.expr.name, self.expr.fid.abs(), self.expr.name + 'test',
-                                   default=self.expr.name.lower())
-        self.assertIsInstance(expr, Switch)
-        self.assertEqual(len(expr.conditions), 2)
-        self.assertEqual(len(expr.thens), 2)
-        self.assertIsInstance(expr.default, StringSequenceExpr)
-        self.assertIsInstance(expr, StringSequenceExpr)
-        self.assertNotIsInstance(expr, Scalar)
-
-        self.assertRaises(ExpressionError, lambda: self.expr.switch(3, self.expr.name))
-
-        expr = self.expr.switch(self.expr.id == 3, self.expr.name,
-                                self.expr.id == 2, self.expr.name + 'test')
-        self.assertIsInstance(expr, Switch)
-        self.assertEqual(len(expr.conditions), 2)
-        self.assertEqual(len(expr.thens), 2)
-        self.assertIsInstance(expr, StringSequenceExpr)
-        self.assertNotIsInstance(expr, Scalar)
-
-    def testCut(self):
-        expr = self.expr.id.cut([5, 10], labels=['mid'])
-        self.assertIsInstance(expr, Cut)
-        self.assertIsInstance(expr, StringSequenceExpr)
-
-        expr = self.expr.id.max().cut([5, 10], labels=['mid'])
-        self.assertIsInstance(expr, Cut)
-        self.assertIsInstance(expr, StringScalar)
-
-        self.assertRaises(ValueError, lambda: self.expr.id.cut([5]))
-        self.assertRaises(ValueError, lambda: self.expr.id.cut([5], include_under=True))
-        self.assertRaises(ValueError, lambda: self.expr.id.cut([5], include_over=True))
-
-    def testToDatetime(self):
-        expr = self.expr.id.to_datetime()
-        self.assertIsInstance(expr, IntToDatetime)
-        self.assertIsInstance(expr, DatetimeSequenceExpr)
-
-        expr = self.expr.id.max().to_datetime()
-        self.assertIsInstance(expr, IntToDatetime)
-        self.assertIsInstance(expr, DatetimeScalar)
-
-    def testMap(self):
-        expr = self.expr.id.map(lambda a: float(a + 1), rtype=types.float64)
-        self.assertIsInstance(expr, MappedExpr)
-        self.assertIs(expr._data_type, types.float64)
-
-        if not LESS_PY35:
-            l = locals().copy()
-            six.exec_(textwrap.dedent("""
-            from typing import Optional
-            
-            def fun(v) -> float:
-                return float(v + 1)
-            expr = self.expr.id.map(fun)
-            """), globals(), l)
-            expr = l['expr']
-            self.assertIsInstance(expr, MappedExpr)
-            self.assertIsInstance(expr._data_type, types.Float)
-
-            l = locals().copy()
-            six.exec_(textwrap.dedent("""
-            from typing import Optional
-            
-            def fun(v) -> Optional[float]:
-                return float(v + 1)
-            expr = self.expr.id.map(fun)
-            """), globals(), l)
-            expr = l['expr']
-            self.assertIsInstance(expr, MappedExpr)
-            self.assertIsInstance(expr._data_type, types.Float)
-
-    def testReduceApply(self):
-        expr = self.expr[self.expr.id, self.expr['name', 'id'].apply(
-            lambda row: row.name + row.id, axis=1, reduce=True).rename('nameid')]
-
-        self.assertIsInstance(expr._fields[1], MappedExpr)
-
-        if not LESS_PY35:
-            l = locals().copy()
-            six.exec_(textwrap.dedent("""
-            def fun(r) -> float:
-                return r.id + r.fid
-            expr = self.expr[self.expr.id, self.expr['id', 'fid'].apply(fun, axis=1, reduce=True).rename('idfid')]
-            """), globals(), l)
-            expr = l['expr']
-            self.assertIsInstance(expr._fields[1], MappedExpr)
-            self.assertIsInstance(expr._fields[1]._data_type, types.Float)
+    return CollectionExpr(_source_data=table, _schema=schema)
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_is_null(src_expr):
+    assert isinstance(src_expr.fid.isnull(), IsNull)
+    assert isinstance(src_expr.fid.isnull(), BooleanSequenceExpr)
+    assert isinstance(src_expr.fid.sum().isnull(), BooleanScalar)
+
+
+def test_not_null(src_expr):
+    assert isinstance(src_expr.fid.notnull(), NotNull)
+    assert isinstance(src_expr.fid.notnull(), BooleanSequenceExpr)
+    assert isinstance(src_expr.fid.sum().notnull(), BooleanScalar)
+
+
+def test_fill_na(src_expr):
+    assert isinstance(src_expr.name.fillna('test'), FillNa)
+    assert isinstance(src_expr.name.fillna('test'), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().fillna('test'), StringScalar)
+    assert isinstance(src_expr.scale.fillna(0), DecimalSequenceExpr)
+
+    pytest.raises(ValueError, lambda: src_expr.id.fillna('abc'))
+
+
+def test_is_in(src_expr):
+    expr = src_expr.name.isin(list('abc'))
+    assert isinstance(expr, IsIn)
+    assert len(expr.values) == 3
+    assert [it.value for it in expr.values] == list('abc')
+    assert isinstance(src_expr.name.isin(list('abc')), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().isin(list('abc')), BooleanScalar)
+
+
+def test_between(src_expr):
+    assert isinstance(src_expr.id.between(1, 3), Between)
+    assert isinstance(src_expr.name.between(1, 3), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().between(1, 3), BooleanScalar)
+
+
+def test_if_else(src_expr):
+    assert isinstance((src_expr.id == 3).ifelse(src_expr.id, src_expr.fid), IfElse)
+    assert isinstance((src_expr.id == 3).ifelse(src_expr.id, src_expr.fid), Float64SequenceExpr)
+    assert isinstance((src_expr.id == 3).ifelse(src_expr.id.sum(), src_expr.fid), Float64SequenceExpr)
+
+
+def test_switch(src_expr):
+    expr = src_expr.id.switch(3, src_expr.name, src_expr.fid.abs(), src_expr.name + 'test')
+    assert isinstance(expr, Switch)
+    assert len(expr.conditions) == 2
+    assert len(expr.thens) == 2
+    assert isinstance(expr, StringSequenceExpr)
+    assert not isinstance(expr, Scalar)
+
+    expr = src_expr.id.switch((3, src_expr.name), (src_expr.fid.abs(), src_expr.name + 'test'))
+    assert isinstance(expr, Switch)
+    assert len(expr.conditions) == 2
+    assert len(expr.thens) == 2
+    assert isinstance(expr, StringSequenceExpr)
+    assert not isinstance(expr, Scalar)
+
+    expr = src_expr.id.switch(3, src_expr.name, src_expr.fid.abs(), src_expr.name + 'test',
+                               default=src_expr.name.lower())
+    assert isinstance(expr, Switch)
+    assert len(expr.conditions) == 2
+    assert len(expr.thens) == 2
+    assert isinstance(expr.default, StringSequenceExpr)
+    assert isinstance(expr, StringSequenceExpr)
+    assert not isinstance(expr, Scalar)
+
+    pytest.raises(ExpressionError, lambda: src_expr.switch(3, src_expr.name))
+
+    expr = src_expr.switch(src_expr.id == 3, src_expr.name,
+                            src_expr.id == 2, src_expr.name + 'test')
+    assert isinstance(expr, Switch)
+    assert len(expr.conditions) == 2
+    assert len(expr.thens) == 2
+    assert isinstance(expr, StringSequenceExpr)
+    assert not isinstance(expr, Scalar)
+
+
+def test_cut(src_expr):
+    expr = src_expr.id.cut([5, 10], labels=['mid'])
+    assert isinstance(expr, Cut)
+    assert isinstance(expr, StringSequenceExpr)
+
+    expr = src_expr.id.max().cut([5, 10], labels=['mid'])
+    assert isinstance(expr, Cut)
+    assert isinstance(expr, StringScalar)
+
+    pytest.raises(ValueError, lambda: src_expr.id.cut([5]))
+    pytest.raises(ValueError, lambda: src_expr.id.cut([5], include_under=True))
+    pytest.raises(ValueError, lambda: src_expr.id.cut([5], include_over=True))
+
+
+def test_to_datetime(src_expr):
+    expr = src_expr.id.to_datetime()
+    assert isinstance(expr, IntToDatetime)
+    assert isinstance(expr, DatetimeSequenceExpr)
+
+    expr = src_expr.id.max().to_datetime()
+    assert isinstance(expr, IntToDatetime)
+    assert isinstance(expr, DatetimeScalar)
+
+
+def test_map(src_expr):
+    expr = src_expr.id.map(lambda a: float(a + 1), rtype=types.float64)
+    assert isinstance(expr, MappedExpr)
+    assert expr._data_type is types.float64
+
+    if not LESS_PY35:
+        l = locals().copy()
+        six.exec_(textwrap.dedent("""
+        from typing import Optional
+        
+        def fun(v) -> float:
+            return float(v + 1)
+        expr = src_expr.id.map(fun)
+        """), globals(), l)
+        expr = l['expr']
+        assert isinstance(expr, MappedExpr)
+        assert isinstance(expr._data_type, types.Float)
+
+        l = locals().copy()
+        six.exec_(textwrap.dedent("""
+        from typing import Optional
+        
+        def fun(v) -> Optional[float]:
+            return float(v + 1)
+        expr = src_expr.id.map(fun)
+        """), globals(), l)
+        expr = l['expr']
+        assert isinstance(expr, MappedExpr)
+        assert isinstance(expr._data_type, types.Float)
+
+
+def test_reduce_apply(src_expr):
+    expr = src_expr[src_expr.id, src_expr['name', 'id'].apply(
+        lambda row: row.name + row.id, axis=1, reduce=True).rename('nameid')]
+
+    assert isinstance(expr._fields[1], MappedExpr)
+
+    if not LESS_PY35:
+        l = locals().copy()
+        six.exec_(textwrap.dedent("""
+        def fun(r) -> float:
+            return r.id + r.fid
+        expr = src_expr[src_expr.id, src_expr['id', 'fid'].apply(fun, axis=1, reduce=True).rename('idfid')]
+        """), globals(), l)
+        expr = l['expr']
+        assert isinstance(expr._fields[1], MappedExpr)
+        assert isinstance(expr._fields[1]._data_type, types.Float)

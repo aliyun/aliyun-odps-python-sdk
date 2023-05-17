@@ -16,8 +16,10 @@
 
 from copy import deepcopy
 
-from odps.accounts import AliyunAccount
-from odps.config import (
+import pytest
+
+from ..accounts import AliyunAccount
+from ..config import (
     Config,
     options,
     option_context,
@@ -26,113 +28,109 @@ from odps.config import (
     any_validator,
     OptionError,
 )
-from odps.tests.core import TestBase
-from odps.compat import unittest
 
 
-class Test(TestBase):
-    def testOptions(self):
-        old_config = Config(deepcopy(options._config))
+def test_options():
+    old_config = Config(deepcopy(options._config))
 
-        with option_context() as local_options:
-            if options.account is None:
-                self.assertEqual(options.account, old_config.account)
-            else:
-                self.assertEqual(options.account.access_id, old_config.account.access_id)
-                self.assertEqual(options.account.secret_access_key, old_config.account.secret_access_key)
-            self.assertEqual(options.endpoint, old_config.endpoint)
-            self.assertEqual(options.default_project, old_config.default_project)
-            self.assertIsNone(local_options.tunnel.endpoint)
-            self.assertGreater(local_options.chunk_size, 0)
-            self.assertGreater(local_options.connect_timeout, 0)
-            self.assertGreater(local_options.read_timeout, 0)
-            self.assertIsNone(local_options.console.max_lines)
-            self.assertIsNone(local_options.console.max_width)
-
-            local_options.account = AliyunAccount('test', '')
-            self.assertEqual(local_options.account.access_id, 'test')
-
-            local_options.register_option('nest.inner.value', 50,
-                                          validator=any_validator(is_null, is_integer))
-            self.assertEqual(local_options.nest.inner.value, 50)
-            def set(val):
-                local_options.nest.inner.value = val
-            self.assertRaises(ValueError, lambda: set('test'))
-            set(None)
-            self.assertIsNone(local_options.nest.inner.value)
-            set(30)
-            self.assertEqual(local_options.nest.inner.value, 30)
-
-            local_options.console.max_width = 40
-            self.assertEqual(local_options.console.max_width, 40)
-            local_options.console.max_lines = 30
-            self.assertEqual(local_options.console.max_lines, 30)
-
+    with option_context() as local_options:
         if options.account is None:
-            self.assertEqual(options.account, old_config.account)
+            assert options.account == old_config.account
         else:
-            self.assertEqual(options.account.access_id, old_config.account.access_id)
-            self.assertEqual(options.account.secret_access_key, old_config.account.secret_access_key)
-        self.assertEqual(options.endpoint, old_config.endpoint)
-        self.assertEqual(options.default_project, old_config.default_project)
-        self.assertIsNone(options.tunnel.endpoint)
-        self.assertGreater(options.chunk_size, 0)
-        self.assertGreater(options.connect_timeout, 0)
-        self.assertGreater(options.read_timeout, 0)
-        self.assertIsNone(options.console.max_lines)
-        self.assertIsNone(options.console.max_width)
-        self.assertRaises(AttributeError, lambda: options.nest.inner.value)
-        self.assertFalse(options.interactive)
+            assert options.account.access_id == old_config.account.access_id
+            assert options.account.secret_access_key == old_config.account.secret_access_key
+        assert options.endpoint == old_config.endpoint
+        assert options.default_project == old_config.default_project
+        assert local_options.tunnel.endpoint is None
+        assert local_options.chunk_size > 0
+        assert local_options.connect_timeout > 0
+        assert local_options.read_timeout > 0
+        assert local_options.console.max_lines is None
+        assert local_options.console.max_width is None
 
-        def set_notexist():
-            options.display.val = 3
-        self.assertRaises(OptionError, set_notexist)
+        local_options.account = AliyunAccount('test', '')
+        assert local_options.account.access_id == 'test'
 
-    def testRedirection(self):
-        local_config = Config()
+        local_options.register_option('nest.inner.value', 50,
+                                      validator=any_validator(is_null, is_integer))
+        assert local_options.nest.inner.value == 50
+        def set(val):
+            local_options.nest.inner.value = val
+        pytest.raises(ValueError, lambda: set('test'))
+        set(None)
+        assert local_options.nest.inner.value is None
+        set(30)
+        assert local_options.nest.inner.value == 30
 
-        local_config.register_option('test.redirect_src', 10)
-        local_config.redirect_option('test.redirect_redir', 'test.redirect_src')
+        local_options.console.max_width = 40
+        assert local_options.console.max_width == 40
+        local_options.console.max_lines = 30
+        assert local_options.console.max_lines == 30
 
-        self.assertIn('test', dir(local_config))
-        self.assertIn('redirect_redir', dir(local_config.test))
+    if options.account is None:
+        assert options.account == old_config.account
+    else:
+        assert options.account.access_id == old_config.account.access_id
+        assert options.account.secret_access_key == old_config.account.secret_access_key
+    assert options.endpoint == old_config.endpoint
+    assert options.default_project == old_config.default_project
+    assert options.tunnel.endpoint is None
+    assert options.chunk_size > 0
+    assert options.connect_timeout > 0
+    assert options.read_timeout > 0
+    assert options.console.max_lines is None
+    assert options.console.max_width is None
+    pytest.raises(AttributeError, lambda: options.nest.inner.value)
+    assert options.interactive is False
 
-        local_config.test.redirect_redir = 20
-        self.assertEqual(local_config.test.redirect_src, 20)
-        local_config.test.redirect_src = 10
-        self.assertEqual(local_config.test.redirect_redir, 10)
-
-        local_config.unregister_option('test.redirect_redir')
-        local_config.unregister_option('test.redirect_src')
-        self.assertRaises(AttributeError, lambda: local_config.test.redirect_redir)
-        self.assertRaises(AttributeError, lambda: local_config.test.redirect_src)
-
-    def testSetDisplayOption(self):
-        options.display.max_rows = 10
-        options.display.unicode.ambiguous_as_wide = True
-        self.assertEqual(options.display.max_rows, 10)
-        self.assertTrue(options.display.unicode.ambiguous_as_wide)
-        options.register_pandas('display.non_exist', True)
-        self.assertEqual(options.display.non_exist, True)
-
-        try:
-            import pandas as pd
-            self.assertEqual(pd.options.display.max_rows, 10)
-            self.assertTrue(pd.options.display.unicode.ambiguous_as_wide)
-        except ImportError:
-            pass
-
-    def testDumpAndLoad(self):
-        with option_context() as local_options:
-            local_options.register_option('test.value', 50,
-                                          validator=any_validator(is_null, is_integer))
-            d = local_options.dumps()
-            self.assertEqual(d['test.value'], 50)
-
-            d['test.value'] = 100
-            local_options.loads(d)
-            self.assertEqual(local_options.test.value, 100)
+    def set_notexist():
+        options.display.val = 3
+    pytest.raises(OptionError, set_notexist)
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_redirection():
+    local_config = Config()
+
+    local_config.register_option('test.redirect_src', 10)
+    local_config.redirect_option('test.redirect_redir', 'test.redirect_src')
+
+    assert 'test' in dir(local_config)
+    assert 'redirect_redir' in dir(local_config.test)
+
+    local_config.test.redirect_redir = 20
+    assert local_config.test.redirect_src == 20
+    local_config.test.redirect_src = 10
+    assert local_config.test.redirect_redir == 10
+
+    local_config.unregister_option('test.redirect_redir')
+    local_config.unregister_option('test.redirect_src')
+    pytest.raises(AttributeError, lambda: local_config.test.redirect_redir)
+    pytest.raises(AttributeError, lambda: local_config.test.redirect_src)
+
+
+def test_set_display_option():
+    options.display.max_rows = 10
+    options.display.unicode.ambiguous_as_wide = True
+    assert options.display.max_rows == 10
+    assert options.display.unicode.ambiguous_as_wide is True
+    options.register_pandas('display.non_exist', True)
+    assert options.display.non_exist
+
+    try:
+        import pandas as pd
+        assert pd.options.display.max_rows == 10
+        assert pd.options.display.unicode.ambiguous_as_wide is True
+    except ImportError:
+        pass
+
+
+def test_dump_and_load():
+    with option_context() as local_options:
+        local_options.register_option('test.value', 50,
+                                      validator=any_validator(is_null, is_integer))
+        d = local_options.dumps()
+        assert d['test.value'] == 50
+
+        d['test.value'] = 100
+        local_options.loads(d)
+        assert local_options.test.value == 100

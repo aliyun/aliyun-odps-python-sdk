@@ -14,145 +14,137 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
 
-from odps.tests.core import TestBase
-from odps.compat import unittest
-from odps.models import TableSchema
-from odps.df.types import validate_data_type
-from odps.df.expr.tests.core import MockTable
-from odps.df.expr.math import *
-
-
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = TableSchema.from_lists(
-            ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-            datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
-        )
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
-
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
-
-    # def testCacheNode(self):
-    #     self.assertIs(self.expr.fid.abs(), self.expr.fid.abs())
-    #     self.assertIs(self.expr.id.log(2), self.expr.id.log(2))
-
-    def testMath(self):
-        self.assertRaises(AttributeError, lambda: self.expr.name.sin())
-        self.assertRaises(AttributeError, lambda: self.expr.isMale.cos())
-        self.assertRaises(AttributeError, lambda: self.expr.birth.tan())
-
-        self.assertIsInstance(self.expr.fid.abs(), Abs)
-        self.assertIsInstance(self.expr.fid.abs(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.fid.sum().abs(), Float64Scalar)
-
-        self.assertIsInstance(self.expr.id.sqrt(), Sqrt)
-        self.assertIsInstance(self.expr.id.sqrt(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.sum().sqrt(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.sqrt(), Sqrt)
-        self.assertIsInstance(self.expr.id.sqrt(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.sum().sqrt(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.sin(), Sin)
-        self.assertIsInstance(self.expr.id.sin(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().sin(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.sinh(), Sinh)
-        self.assertIsInstance(self.expr.id.sinh(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().sinh(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.cos(), Cos)
-        self.assertIsInstance(self.expr.id.cos(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().cos(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.cosh(), Cosh)
-        self.assertIsInstance(self.expr.id.cosh(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().cosh(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.tan(), Tan)
-        self.assertIsInstance(self.expr.id.tan(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().tan(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.tanh(), Tanh)
-        self.assertIsInstance(self.expr.id.tanh(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().tanh(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.exp(), Exp)
-        self.assertIsInstance(self.expr.id.exp(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().exp(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.expm1(), Expm1)
-        self.assertIsInstance(self.expr.id.expm1(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().expm1(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.log(), Log)
-        self.assertIsInstance(self.expr.id.log(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().log(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.log(2), Log)
-        self.assertIsInstance(self.expr.id.log(2), Float64SequenceExpr)
-        self.assertEqual(self.expr.id.log(2)._base, 2)
-        self.assertIsInstance(self.expr.scale.max().log(2), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.log10(), Log10)
-        self.assertIsInstance(self.expr.id.log10(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().log10(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.log1p(), Log1p)
-        self.assertIsInstance(self.expr.id.log1p(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().log1p(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.arccos(), Arccos)
-        self.assertIsInstance(self.expr.id.arccos(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().arccos(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.arccosh(), Arccosh)
-        self.assertIsInstance(self.expr.id.arccosh(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().arccosh(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.arcsin(), Arcsin)
-        self.assertIsInstance(self.expr.id.arcsin(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().arcsin(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.arcsinh(), Arcsinh)
-        self.assertIsInstance(self.expr.id.arcsin(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().arcsin(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.arctan(), Arctan)
-        self.assertIsInstance(self.expr.id.arctan(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().arctan(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.arctanh(), Arctanh)
-        self.assertIsInstance(self.expr.id.sin(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().sin(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.radians(), Radians)
-        self.assertIsInstance(self.expr.id.radians(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().radians(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.degrees(), Degrees)
-        self.assertIsInstance(self.expr.id.degrees(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().degrees(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.fid.ceil(), Ceil)
-        self.assertIsInstance(self.expr.fid.ceil(), Int64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().ceil(), Int64Scalar)
-
-        self.assertIsInstance(self.expr.fid.floor(), Floor)
-        self.assertIsInstance(self.expr.fid.floor(), Int64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().floor(), Int64Scalar)
-
-        self.assertIsInstance(self.expr.id.trunc(), Trunc)
-        self.assertIsInstance(self.expr.id.trunc(), Float64SequenceExpr)
-        self.assertIsInstance(self.expr.scale.max().trunc(), DecimalScalar)
-
-        self.assertIsInstance(self.expr.id.trunc(2), Trunc)
-        self.assertIsInstance(self.expr.id.trunc(2), Float64SequenceExpr)
-        self.assertEqual(self.expr.id.trunc(2)._decimals, 2)
-        self.assertIsInstance(self.expr.scale.max().trunc(2), DecimalScalar)
+from ....models import TableSchema
+from ...types import validate_data_type
+from ..tests.core import MockTable
+from ..math import *
 
 
-if __name__ == '__main__':
-    unittest.main()
+@pytest.fixture
+def src_expr():
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+
+    return CollectionExpr(_source_data=table, _schema=schema)
+
+
+def test_math(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.name.sin())
+    pytest.raises(AttributeError, lambda: src_expr.isMale.cos())
+    pytest.raises(AttributeError, lambda: src_expr.birth.tan())
+
+    assert isinstance(src_expr.fid.abs(), Abs)
+    assert isinstance(src_expr.fid.abs(), Float64SequenceExpr)
+    assert isinstance(src_expr.fid.sum().abs(), Float64Scalar)
+
+    assert isinstance(src_expr.id.sqrt(), Sqrt)
+    assert isinstance(src_expr.id.sqrt(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.sum().sqrt(), DecimalScalar)
+
+    assert isinstance(src_expr.id.sqrt(), Sqrt)
+    assert isinstance(src_expr.id.sqrt(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.sum().sqrt(), DecimalScalar)
+
+    assert isinstance(src_expr.id.sin(), Sin)
+    assert isinstance(src_expr.id.sin(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().sin(), DecimalScalar)
+
+    assert isinstance(src_expr.id.sinh(), Sinh)
+    assert isinstance(src_expr.id.sinh(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().sinh(), DecimalScalar)
+
+    assert isinstance(src_expr.id.cos(), Cos)
+    assert isinstance(src_expr.id.cos(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().cos(), DecimalScalar)
+
+    assert isinstance(src_expr.id.cosh(), Cosh)
+    assert isinstance(src_expr.id.cosh(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().cosh(), DecimalScalar)
+
+    assert isinstance(src_expr.id.tan(), Tan)
+    assert isinstance(src_expr.id.tan(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().tan(), DecimalScalar)
+
+    assert isinstance(src_expr.id.tanh(), Tanh)
+    assert isinstance(src_expr.id.tanh(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().tanh(), DecimalScalar)
+
+    assert isinstance(src_expr.id.exp(), Exp)
+    assert isinstance(src_expr.id.exp(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().exp(), DecimalScalar)
+
+    assert isinstance(src_expr.id.expm1(), Expm1)
+    assert isinstance(src_expr.id.expm1(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().expm1(), DecimalScalar)
+
+    assert isinstance(src_expr.id.log(), Log)
+    assert isinstance(src_expr.id.log(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().log(), DecimalScalar)
+
+    assert isinstance(src_expr.id.log(2), Log)
+    assert isinstance(src_expr.id.log(2), Float64SequenceExpr)
+    assert src_expr.id.log(2)._base == 2
+    assert isinstance(src_expr.scale.max().log(2), DecimalScalar)
+
+    assert isinstance(src_expr.id.log10(), Log10)
+    assert isinstance(src_expr.id.log10(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().log10(), DecimalScalar)
+
+    assert isinstance(src_expr.id.log1p(), Log1p)
+    assert isinstance(src_expr.id.log1p(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().log1p(), DecimalScalar)
+
+    assert isinstance(src_expr.id.arccos(), Arccos)
+    assert isinstance(src_expr.id.arccos(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().arccos(), DecimalScalar)
+
+    assert isinstance(src_expr.id.arccosh(), Arccosh)
+    assert isinstance(src_expr.id.arccosh(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().arccosh(), DecimalScalar)
+
+    assert isinstance(src_expr.id.arcsin(), Arcsin)
+    assert isinstance(src_expr.id.arcsin(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().arcsin(), DecimalScalar)
+
+    assert isinstance(src_expr.id.arcsinh(), Arcsinh)
+    assert isinstance(src_expr.id.arcsin(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().arcsin(), DecimalScalar)
+
+    assert isinstance(src_expr.id.arctan(), Arctan)
+    assert isinstance(src_expr.id.arctan(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().arctan(), DecimalScalar)
+
+    assert isinstance(src_expr.id.arctanh(), Arctanh)
+    assert isinstance(src_expr.id.sin(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().sin(), DecimalScalar)
+
+    assert isinstance(src_expr.id.radians(), Radians)
+    assert isinstance(src_expr.id.radians(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().radians(), DecimalScalar)
+
+    assert isinstance(src_expr.id.degrees(), Degrees)
+    assert isinstance(src_expr.id.degrees(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().degrees(), DecimalScalar)
+
+    assert isinstance(src_expr.fid.ceil(), Ceil)
+    assert isinstance(src_expr.fid.ceil(), Int64SequenceExpr)
+    assert isinstance(src_expr.scale.max().ceil(), Int64Scalar)
+
+    assert isinstance(src_expr.fid.floor(), Floor)
+    assert isinstance(src_expr.fid.floor(), Int64SequenceExpr)
+    assert isinstance(src_expr.scale.max().floor(), Int64Scalar)
+
+    assert isinstance(src_expr.id.trunc(), Trunc)
+    assert isinstance(src_expr.id.trunc(), Float64SequenceExpr)
+    assert isinstance(src_expr.scale.max().trunc(), DecimalScalar)
+
+    assert isinstance(src_expr.id.trunc(2), Trunc)
+    assert isinstance(src_expr.id.trunc(2), Float64SequenceExpr)
+    assert src_expr.id.trunc(2)._decimals == 2
+    assert isinstance(src_expr.scale.max().trunc(2), DecimalScalar)

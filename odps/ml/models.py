@@ -19,6 +19,7 @@ import json
 
 from ..compat import six
 from ..errors import NoSuchObject
+from ..utils import with_wait_argument
 from .utils import build_model_table_name, TABLE_MODEL_PREFIX, TABLE_MODEL_SEPARATOR, \
     TEMP_TABLE_PREFIX, TEMP_TABLE_MODEL_PREFIX
 
@@ -128,8 +129,8 @@ def _exist_tables_model(self, name, project=None):
     return _get_tables_model(self, name, project=project).exists()
 
 
-def _delete_tables_model(self, name, project=None, async_=False, if_exists=False, **kw):
-    async_ = kw.pop('async', async_)
+@with_wait_argument
+def _delete_tables_model(self, name, project=None, async_=False, if_exists=False):
     prefix = build_model_table_name(name, '')
     for tb in self.list_tables(project=project, prefix=prefix):
         tb.drop(async_=async_, if_exists=if_exists)
