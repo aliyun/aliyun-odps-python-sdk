@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import datetime
-import importlib
 import math
 from collections import namedtuple
 try:
@@ -204,11 +203,8 @@ def test_partition_download_with_specified_columns(odps, setup):
 @pytest.mark.parametrize("compress_algo, module", [("zlib", None), ("lz4", "lz4.frame")])
 def test_upload_and_download_with_compress(odps, setup, compress_algo, module):
     options.chunk_size = 16
-    try:
-        if module:
-            importlib.import_module(module)
-    except ImportError:
-        pytest.skip("Need %s to run the test" % module)
+    if module:
+        pytest.importorskip(module)
 
     test_table_name = tn('pyodps_test_arrow_zlib_tunnel')
     odps.delete_table(test_table_name, if_exists=True)

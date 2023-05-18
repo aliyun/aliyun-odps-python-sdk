@@ -103,6 +103,10 @@ def test_iter_sub_instances(odps):
     table = create_iris(odps, tn('test_iris_table'))
     model_name = tn('test_xflow_model')
     try:
+        odps.delete_offline_model(model_name, if_exists=True)
+    except:
+        pass
+    try:
         xflow_inst = odps.run_xflow(
             'LogisticRegression',
             'algo_public',
@@ -115,7 +119,7 @@ def test_iter_sub_instances(odps):
             hints={"settings": "{\"SKYNET_ID\": \"12345\"}"}
         )
         sub_insts = dict()
-        for k, v in odps.iter_xflow_sub_instances(xflow_inst):
+        for k, v in odps.iter_xflow_sub_instances(xflow_inst, check=True):
             sub_insts[k] = v
         assert xflow_inst.is_terminated
         assert len(sub_insts) > 0

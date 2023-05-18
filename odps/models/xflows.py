@@ -194,7 +194,7 @@ class XFlows(Iterable):
                 inst_dict.update(**sub_inst_dict)
         return inst_dict
 
-    def iter_xflow_sub_instances(self, instance, interval=1):
+    def iter_xflow_sub_instances(self, instance, interval=1, check=False):
         inst_id_set = set()
         while not instance.is_terminated(retry=True):
             sub_tasks_result = self.get_xflow_sub_instances(instance)
@@ -206,6 +206,8 @@ class XFlows(Iterable):
                 time.sleep(interval)
             except KeyboardInterrupt:
                 break
+        if check:
+            instance.wait_for_success(interval=interval)
 
     def is_xflow_instance(self, instance):
         try:

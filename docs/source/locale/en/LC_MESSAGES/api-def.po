@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-05-12 16:25+0800\n"
+"POT-Creation-Date: 2023-05-18 11:20+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1522,7 +1522,7 @@ msgid "The result iterates the sub instance of xflow"
 msgstr ""
 
 #: odps.core.ODPS.get_xflow_sub_instances:6
-#: odps.core.ODPS.iter_xflow_sub_instances:7 of
+#: odps.core.ODPS.iter_xflow_sub_instances:8 of
 msgid "sub instances dictionary"
 msgstr ""
 
@@ -1536,6 +1536,10 @@ msgstr ""
 #: odps.models.instance.Instance.wait_for_completion:3
 #: odps.models.instance.Instance.wait_for_success:3 of
 msgid "time interval to check"
+msgstr ""
+
+#: odps.core.ODPS.iter_xflow_sub_instances:7 of
+msgid "check if the instance is successful"
 msgstr ""
 
 #: odps.core.ODPS.list_functions:1 of

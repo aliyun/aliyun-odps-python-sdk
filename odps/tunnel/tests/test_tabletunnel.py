@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 import math
 import random
 import time
@@ -450,12 +449,8 @@ def test_partition_download_with_specified_columns(odps, setup):
 def test_upload_and_download_with_compress(setup, algo, module):
     raw_chunk_size = options.chunk_size
     options.chunk_size = 16
-
-    try:
-        if module:
-            importlib.import_module(module)
-    except ImportError:
-        pytest.skip("Need %s to run the test" % module)
+    if module:
+        pytest.importorskip(module)
 
     try:
         test_table_name = tn('pyodps_test_zlib_tunnel')

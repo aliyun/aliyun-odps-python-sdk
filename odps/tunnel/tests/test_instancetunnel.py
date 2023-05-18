@@ -145,12 +145,8 @@ def test_download_by_raw_tunnel(config, instance_tunnel):
 def test_upload_and_download_with_compress(config, instance_tunnel, algo, module):
     raw_chunk_size = options.chunk_size
     options.chunk_size = 16
-
-    try:
-        if module:
-            __import__(module, fromlist=[""])
-    except ImportError:
-        pytest.skip("Need %s to run the test" % module)
+    if module:
+        pytest.importorskip(module)
 
     try:
         test_table_name = tn('pyodps_test_zlib_inst_tunnel')

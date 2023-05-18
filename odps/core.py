@@ -1805,7 +1805,7 @@ class ODPS(object):
         project = self.get_project(name=project)
         return project.xflows.get_xflow_sub_instances(instance)
 
-    def iter_xflow_sub_instances(self, instance, interval=1, project=None):
+    def iter_xflow_sub_instances(self, instance, interval=1, project=None, check=False):
         """
         The result iterates the sub instance of xflow and will wait till instance finish
 
@@ -1813,10 +1813,13 @@ class ODPS(object):
         :type instance: :class:`odps.models.Instance`
         :param interval: time interval to check
         :param project: project name, if not provided, will be the default project
+        :param bool check: check if the instance is successful
         :return: sub instances dictionary
         """
         project = self.get_project(name=project)
-        return project.xflows.iter_xflow_sub_instances(instance, interval=interval)
+        return project.xflows.iter_xflow_sub_instances(
+            instance, interval=interval, check=check
+        )
 
     def delete_xflow(self, name, project=None):
         """

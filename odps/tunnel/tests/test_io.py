@@ -14,9 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
 import io
-import traceback
 try:
     from string import letters
 except ImportError:
@@ -56,10 +54,7 @@ TEXT = u"""
 ])
 def test_compress_and_decompress(compress_algo, package):
     if package is not None:
-        try:
-            importlib.import_module(package)
-        except ImportError:
-            pytest.skip("Need %s to run the test" % package)
+        pytest.importorskip(package)
 
     tube = io.BytesIO()
     option = io_stream.CompressOption(compress_algo)
