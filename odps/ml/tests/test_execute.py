@@ -15,45 +15,53 @@
 
 from __future__ import print_function
 
-from odps.tests.core import tn
-from odps.df import DataFrame
-from odps.df.backends.frame import ResultFrame
-from odps.ml import PmmlModel
-from odps.ml.tests.base import MLTestBase
+import pytest
+
+from ...tests.core import tn
+from ...df import DataFrame
+from ...df.backends.frame import ResultFrame
+from .. import PmmlModel
+from ..tests.base import MLTestUtil
 
 IRIS_TABLE = tn('pyodps_test_ml_iris_execute')
 IRIS_TEST_OFFLINE_MODEL = tn('pyodps_test_iris_model_exec')
 
 
-class Test(MLTestBase):
-    def testExecuteTable(self):
-        self.create_iris(IRIS_TABLE)
-        df = DataFrame(self.odps.get_table(IRIS_TABLE)).append_id()
-        result = df.execute()
-        self.assertIsInstance(result, ResultFrame)
+@pytest.fixture
+def utils(odps, tunnel):
+    return MLTestUtil(odps, tunnel)
 
-    def testExecuteModel(self):
-        from odps.ml import classifiers
-        from odps.ml.expr.models.pmml import PmmlRegressionResult
 
-        self.create_iris(IRIS_TABLE)
-        df = DataFrame(self.odps.get_table(IRIS_TABLE)).roles(label='category')
-        model = classifiers.LogisticRegression().train(df)
-        result = model.execute()
-        self.assertIsInstance(result, PmmlRegressionResult)
+def test_execute_table(odps, utils):
+    utils.create_iris(IRIS_TABLE)
+    df = DataFrame(odps.get_table(IRIS_TABLE)).append_id()
+    result = df.execute()
+    assert isinstance(result, ResultFrame)
 
-    def testExecuteAfterModelCreate(self):
-        from odps.ml import classifiers
-        from odps.ml.expr.models.pmml import PmmlRegressionResult
 
-        self.create_iris(IRIS_TABLE)
+def test_execute_model(odps, utils):
+    from .. import classifiers
+    from ..expr.models.pmml import PmmlRegressionResult
 
-        df = DataFrame(self.odps.get_table(IRIS_TABLE)).roles(label='category')
-        model = classifiers.LogisticRegression().train(df)
-        persisted = model.persist(IRIS_TEST_OFFLINE_MODEL, drop_model=True)
-        result = persisted.execute()
-        self.assertIsInstance(result, PmmlRegressionResult)
+    utils.create_iris(IRIS_TABLE)
+    df = DataFrame(odps.get_table(IRIS_TABLE)).roles(label='category')
+    model = classifiers.LogisticRegression().train(df)
+    result = model.execute()
+    assert isinstance(result, PmmlRegressionResult)
 
-        expr = PmmlModel(self.odps.get_offline_model(IRIS_TEST_OFFLINE_MODEL))
-        result = expr.execute()
-        self.assertIsInstance(result, PmmlRegressionResult)
+
+def test_execute_after_model_create(odps, utils):
+    from .. import classifiers
+    from ..expr.models.pmml import PmmlRegressionResult
+
+    utils.create_iris(IRIS_TABLE)
+
+    df = DataFrame(odps.get_table(IRIS_TABLE)).roles(label='category')
+    model = classifiers.LogisticRegression().train(df)
+    persisted = model.persist(IRIS_TEST_OFFLINE_MODEL, drop_model=True)
+    result = persisted.execute()
+    assert isinstance(result, PmmlRegressionResult)
+
+    expr = PmmlModel(odps.get_offline_model(IRIS_TEST_OFFLINE_MODEL))
+    result = expr.execute()
+    assert isinstance(result, PmmlRegressionResult)

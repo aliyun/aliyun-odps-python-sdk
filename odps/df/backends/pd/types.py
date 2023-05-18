@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import OrderedDict
 from datetime import datetime, date
 from decimal import Decimal
 
@@ -22,10 +23,14 @@ try:
     has_np = True
 except ImportError:
     has_np = False
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 from ... import types
 from ....models import TableSchema
-from ....compat import six, OrderedDict
+from ....compat import six
 
 _np_to_df_types = dict()
 _df_to_np_types = dict()
@@ -46,6 +51,8 @@ if has_np:
 def np_type_to_df_type(dtype, arr=None, unknown_as_string=False, name=None):
     if dtype in _np_to_df_types:
         return _np_to_df_types[dtype]
+    if hasattr(pd, "StringDtype") and isinstance(dtype, pd.StringDtype):
+        return types.string
 
     name = ', field: ' + name if name else ''
     if arr is None or len(arr) == 0:

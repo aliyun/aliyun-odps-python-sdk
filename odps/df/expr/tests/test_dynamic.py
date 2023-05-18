@@ -14,133 +14,136 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps.compat import unittest
-from odps.models import TableSchema
-from odps.df.types import validate_data_type
-from odps.df.expr.tests.core import MockTable
-from odps.df.expr.expressions import StringScalar
-from odps.df.expr.dynamic import *
+from collections import namedtuple
+
+import pytest
+
+from ....models import TableSchema
+from ...types import validate_data_type
+from ..dynamic import *
+from ..expressions import StringScalar
+from ..tests.core import MockTable
 
 
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = DynamicSchema.from_schema(
-            TableSchema.from_lists(
-                ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
-            )
+@pytest.fixture
+def setup():
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    schema = DynamicSchema.from_schema(
+        TableSchema.from_lists(
+            ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+            datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
         )
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
-        schema2 = DynamicSchema.from_schema(
-            TableSchema.from_lists(
-                ['name2', 'id', 'fid2'], datatypes('string', 'int64', 'float64')
-            ),
-            default_type=types.string
-        )
-        table2 = MockTable(name='pyodps_test_expr_tabl2', table_schema=schema2)
+    schema2 = DynamicSchema.from_schema(
+        TableSchema.from_lists(
+            ['name2', 'id', 'fid2'], datatypes('string', 'int64', 'float64')
+        ),
+        default_type=types.string
+    )
+    table2 = MockTable(name='pyodps_test_expr_tabl2', table_schema=schema2)
 
-        self.expr = DynamicCollectionExpr(_source_data=table, _schema=schema)
-        self.expr2 = DynamicCollectionExpr(_source_data=table2, _schema=schema2)
+    expr = DynamicCollectionExpr(_source_data=table, _schema=schema)
+    expr2 = DynamicCollectionExpr(_source_data=table2, _schema=schema2)
 
-    def testDynamic(self):
-        df = self.expr.distinct('name', 'id')
-        self.assertNotIsInstance(df, DynamicMixin)
-        self.assertNotIsInstance(df._schema, DynamicSchema)
+    nt = namedtuple("NT", "expr expr2")
+    return nt(expr, expr2)
 
-        # the sequence must be definite, no need for generating dynamic sequence
-        self.assertNotIsInstance(self.expr['name'], DynamicMixin)
-        # a field which does not exist is fine
-        self.assertIsInstance(self.expr['not_exist'], DynamicMixin)
-        # df's schema is not dynamic
-        self.assertRaises(ValueError, lambda: df['non_exist'])
 
-        df = self.expr.distinct('name', 'non_exist')
-        self.assertIsInstance(df, DynamicMixin)
-        self.assertNotIsInstance(df._schema, DynamicSchema)
+def test_dynamic(setup):
+    df = setup.expr.distinct('name', 'id')
+    assert not isinstance(df, DynamicMixin)
+    assert not isinstance(df._schema, DynamicSchema)
 
-        df = self.expr.distinct()
-        self.assertIsInstance(df, DynamicMixin)
-        self.assertIsInstance(df._schema, DynamicSchema)
+    # the sequence must be definite, no need for generating dynamic sequence
+    assert not isinstance(setup.expr['name'], DynamicMixin)
+    # a field which does not exist is fine
+    assert isinstance(setup.expr['not_exist'], DynamicMixin)
+    # df's schema is not dynamic
+    pytest.raises(ValueError, lambda: df['non_exist'])
 
-        df2 = self.expr2.distinct('name2', 'not_exist')
-        self.assertNotIsInstance(df2, DynamicMixin)
-        self.assertNotIsInstance(df2._schema, DynamicSchema)
+    df = setup.expr.distinct('name', 'non_exist')
+    assert isinstance(df, DynamicMixin)
+    assert not isinstance(df._schema, DynamicSchema)
 
-        # the sequence must be definite, no need for generating dynamic sequence
-        self.assertNotIsInstance(df2['name2'], DynamicMixin)
-        # a field which does not exist is fine
-        self.assertNotIsInstance(df2['not_exist'], DynamicMixin)
-        # df2's schema is not dynamic
-        self.assertRaises(ValueError, lambda: df2['non_exist'])
+    df = setup.expr.distinct()
+    assert isinstance(df, DynamicMixin)
+    assert isinstance(df._schema, DynamicSchema)
 
-        self.assertEqual(self.expr2['non_exist'].dtype, types.string)
-        self.assertIsInstance(self.expr2['non_exist'].sum(), StringScalar)
+    df2 = setup.expr2.distinct('name2', 'not_exist')
+    assert not isinstance(df2, DynamicMixin)
+    assert not isinstance(df2._schema, DynamicSchema)
 
-        # projection
-        df3 = self.expr2[self.expr2, self.expr2.id.astype('string').rename('id2')]
-        self.assertIsInstance(df3, DynamicMixin)
-        self.assertIsInstance(df3._schema, DynamicSchema)
-        # non_exist need to be checked
-        self.assertIsInstance(df3['non_exist'], DynamicMixin)
-        self.assertNotIsInstance(self.expr['id', 'name2']._schema, DynamicSchema)
+    # the sequence must be definite, no need for generating dynamic sequence
+    assert not isinstance(df2['name2'], DynamicMixin)
+    # a field which does not exist is fine
+    assert not isinstance(df2['not_exist'], DynamicMixin)
+    # df2's schema is not dynamic
+    pytest.raises(ValueError, lambda: df2['non_exist'])
 
-        # filter
-        df4 = self.expr2.filter(self.expr2.id < 10)
-        self.assertIsInstance(df4, DynamicMixin)
-        self.assertIsInstance(df4._schema, DynamicSchema)
+    assert setup.expr2['non_exist'].dtype == types.string
+    assert isinstance(setup.expr2['non_exist'].sum(), StringScalar)
 
-        # slice
-        df5 = self.expr2[2:4]
-        self.assertIsInstance(df5, DynamicMixin)
-        self.assertIsInstance(df5._schema, DynamicSchema)
+    # projection
+    df3 = setup.expr2[setup.expr2, setup.expr2.id.astype('string').rename('id2')]
+    assert isinstance(df3, DynamicMixin)
+    assert isinstance(df3._schema, DynamicSchema)
+    # non_exist need to be checked
+    assert isinstance(df3['non_exist'], DynamicMixin)
+    assert not isinstance(setup.expr['id', 'name2']._schema, DynamicSchema)
 
-        # sort
-        df6 = self.expr2.sort('id')
-        self.assertIsInstance(df6, DynamicMixin)
-        self.assertIsInstance(df6._schema, DynamicSchema)
+    # filter
+    df4 = setup.expr2.filter(setup.expr2.id < 10)
+    assert isinstance(df4, DynamicMixin)
+    assert isinstance(df4._schema, DynamicSchema)
 
-        # apply
-        df7 = self.expr2.apply(lambda row: row, axis=1, names=self.expr2.schema.names)
-        self.assertNotIsInstance(df7, DynamicMixin)
-        self.assertNotIsInstance(df7._schema, DynamicSchema)
+    # slice
+    df5 = setup.expr2[2:4]
+    assert isinstance(df5, DynamicMixin)
+    assert isinstance(df5._schema, DynamicSchema)
 
-        # sample
-        df8 = self.expr2.sample(parts=10)
-        self.assertIsInstance(df8, DynamicMixin)
-        self.assertIsInstance(df8._schema, DynamicSchema)
+    # sort
+    df6 = setup.expr2.sort('id')
+    assert isinstance(df6, DynamicMixin)
+    assert isinstance(df6._schema, DynamicSchema)
 
-        # groupby
-        df9 = self.expr2.groupby('id').agg(self.expr2['name3'].sum())
-        self.assertNotIsInstance(df9, DynamicMixin)
-        self.assertNotIsInstance(df9._schema, DynamicSchema)
-        df10 = self.expr.groupby('id2').agg(self.expr.name.sum())
-        self.assertNotIsInstance(df10, DynamicMixin)
-        self.assertNotIsInstance(df10._schema, DynamicSchema)
+    # apply
+    df7 = setup.expr2.apply(lambda row: row, axis=1, names=setup.expr2.schema.names)
+    assert not isinstance(df7, DynamicMixin)
+    assert not isinstance(df7._schema, DynamicSchema)
 
-        # mutate
-        df11 = self.expr2.groupby('id').mutate(id2=lambda x: x.id.cumsum())
-        self.assertNotIsInstance(df11, DynamicMixin)
-        self.assertNotIsInstance(df11._schema, DynamicSchema)
-        self.expr.groupby('id').sort('id').non_exist.astype('int').cumsum()
+    # sample
+    df8 = setup.expr2.sample(parts=10)
+    assert isinstance(df8, DynamicMixin)
+    assert isinstance(df8._schema, DynamicSchema)
 
-        # join
-        df12 = self.expr.join(self.expr2)[self.expr, self.expr2['id2']]
-        self.assertIsInstance(df12, DynamicMixin)
-        self.assertIsInstance(df12._schema, DynamicSchema)
-        self.assertIsInstance(df12.input, DynamicMixin)
-        self.assertIsInstance(df12.input._schema, DynamicSchema)
-        df13 = self.expr.join(self.expr2)[self.expr.id, self.expr2.name2]
-        self.assertNotIsInstance(df13, DynamicMixin)
-        self.assertNotIsInstance(df13._schema, DynamicSchema)
+    # groupby
+    df9 = setup.expr2.groupby('id').agg(setup.expr2['name3'].sum())
+    assert not isinstance(df9, DynamicMixin)
+    assert not isinstance(df9._schema, DynamicSchema)
+    df10 = setup.expr.groupby('id2').agg(setup.expr.name.sum())
+    assert not isinstance(df10, DynamicMixin)
+    assert not isinstance(df10._schema, DynamicSchema)
 
-        # union
-        df14 = self.expr['id', self.expr.name.rename('name2'), self.expr.fid.rename('fid2')]\
-            .union(self.expr2)
-        self.assertNotIsInstance(df14, DynamicMixin)
-        self.assertNotIsInstance(df14._schema, DynamicSchema)
+    # mutate
+    df11 = setup.expr2.groupby('id').mutate(id2=lambda x: x.id.cumsum())
+    assert not isinstance(df11, DynamicMixin)
+    assert not isinstance(df11._schema, DynamicSchema)
+    setup.expr.groupby('id').sort('id').non_exist.astype('int').cumsum()
 
-if __name__ == '__main__':
-    unittest.main()
+    # join
+    df12 = setup.expr.join(setup.expr2)[setup.expr, setup.expr2['id2']]
+    assert isinstance(df12, DynamicMixin)
+    assert isinstance(df12._schema, DynamicSchema)
+    assert isinstance(df12.input, DynamicMixin)
+    assert isinstance(df12.input._schema, DynamicSchema)
+    df13 = setup.expr.join(setup.expr2)[setup.expr.id, setup.expr2.name2]
+    assert not isinstance(df13, DynamicMixin)
+    assert not isinstance(df13._schema, DynamicSchema)
+
+    # union
+    df14 = setup.expr['id', setup.expr.name.rename('name2'), setup.expr.fid.rename('fid2')]\
+        .union(setup.expr2)
+    assert not isinstance(df14, DynamicMixin)
+    assert not isinstance(df14._schema, DynamicSchema)

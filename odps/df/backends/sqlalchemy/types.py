@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import warnings
+from collections import OrderedDict
 
 try:
     import sqlalchemy
@@ -23,7 +24,7 @@ except ImportError:
     has_sqlalchemy = False
 
 from ... import types
-from ....compat import OrderedDict, six
+from ....compat import six
 from ....models import TableSchema
 
 

@@ -2,6 +2,7 @@
 from __future__ import print_function
 import argparse
 import contextlib
+import errno
 import glob
 import json
 import logging
@@ -12,6 +13,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import warnings
 from collections import defaultdict
@@ -30,6 +32,7 @@ _EXCLUDE_FILE_NAME = "excludes.txt"
 _BEFORE_SCRIPT_FILE_NAME = "before-script.sh"
 _VCS_FILE_NAME = "requirements-vcs.txt"
 _PACK_SCRIPT_FILE_NAME = "pack.sh"
+_DEFAULT_MINIKUBE_USER_ROOT = "/pypack_user_home"
 
 _SEGFAULT_ERR_CODE = 139
 
@@ -37,8 +40,12 @@ python_abi_env = os.getenv("PYABI")
 cmd_before_build = os.getenv("BEFORE_BUILD") or ""
 cmd_after_build = os.getenv("AFTER_BUILD") or ""
 docker_image_env = os.getenv("DOCKER_IMAGE")
-docker_path = os.getenv("DOCKER_PATH")
 package_site = os.getenv("PACKAGE_SITE") or _DEFAULT_PACKAGE_SITE
+minikube_user_root = os.getenv("MINIKUBE_USER_ROOT") or _DEFAULT_MINIKUBE_USER_ROOT
+
+docker_path = os.getenv("DOCKER_PATH")
+if docker_path and os.path.isfile(docker_path):
+    docker_path = os.path.dirname(docker_path)
 
 _is_linux = sys.platform.lower().startswith("linux")
 _is_windows = sys.platform.lower().startswith("win")
@@ -102,9 +109,26 @@ fi
 if [[ "{without_merge}" == "true" ]]; then
   WITHOUT_MERGE="true"
 fi
+if [[ "{pypi_pre}" == "true" ]]; then
+  PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --pre"
+fi
+if [[ -n "{pypi_proxy}" ]]; then
+  PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --proxy {pypi_proxy}"
+fi
+if [[ -n "{pypi_retries}" ]]; then
+  PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --retries {pypi_retries}"
+fi
+if [[ -n "{pypi_timeout}" ]]; then
+  PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --timeout {pypi_timeout}"
+fi
 if [[ -n "{pypi_trusted_hosts}" ]]; then
   for trusted_host in `echo "{pypi_trusted_hosts}"`; do
     PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --trusted-host $trusted_host"
+  done
+fi
+if [[ -n "{pypi_extra_index_urls}" ]]; then
+  for extra_index_url in `echo "{pypi_extra_index_urls}"`; do
+    PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --extra-index-url $extra_index_url"
   done
 fi
 
@@ -451,9 +475,17 @@ def _create_temp_work_dir(
     before_script,
     **script_kwargs
 ):
-    tmp_path = None
     try:
-        tmp_path = os.path.expanduser("~/.tmp-pyodps-pack-%d" % int(time.time()))
+        try:
+            from pip._vendor.platformdirs import user_cache_dir
+        except ImportError:
+            from pip._vendor.appdirs import user_cache_dir
+        cache_root = user_cache_dir("pyodps-pack")
+    except ImportError:
+        cache_root = os.path.expanduser("~/.cache/pyodps-pack")
+
+    tmp_path = "%s/pack-root-%d" % (cache_root, int(time.time()))
+    try:
         _makedirs(tmp_path, exist_ok=True)
         script_path = os.path.join(tmp_path, "scripts")
         _makedirs(script_path, exist_ok=True)
@@ -504,10 +536,19 @@ def _create_temp_work_dir(
     finally:
         if tmp_path and os.path.exists(tmp_path):
             shutil.rmtree(tmp_path)
+        try:
+            os.rmdir(cache_root)
+        except OSError:
+            pass
 
 
-def _get_default_pypi_index():
-    proc = subprocess.Popen([sys.executable, "-m", "pip", "config", "list"], stdout=subprocess.PIPE)
+def _get_default_pypi_config():
+    def split_config(config_str):
+        return [x for x in config_str.strip("'").split("\\n") if x]
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "pip", "config", "list"], stdout=subprocess.PIPE
+    )
     proc.wait()
     if proc.returncode != 0:
         warnings.warn(
@@ -515,12 +556,22 @@ def _get_default_pypi_index():
             'Will use default index instead. Specify "-i <index-url>" '
             'if you want to use another package index.' % proc.returncode
         )
-        return None
+        return {}
+
+    sections = defaultdict(dict)
     for line in proc.stdout.read().decode().splitlines():
         var, value = line.split("=", 1)
-        if var == "global.index-url":
-            return value.strip("'")
-    return None
+        if "." not in var:
+            continue
+        section, var_name = var.split(".", 1)
+        sections[section][var_name] = split_config(value)
+
+    items = defaultdict(list)
+    for section in ("global", "download", "install"):
+        section_values = sections[section]
+        for key, val in section_values.items():
+            items[key].extend(val)
+    return items
 
 
 def _filter_local_package_paths(parsed_args):
@@ -686,6 +737,45 @@ def _get_local_pack_executable(work_dir):
         return os.path.join(env_dir, "bin/python")
 
 
+def _rewrite_minikube_command(docker_cmd, done_timeout=10):
+    if "MINIKUBE_ACTIVE_DOCKERD" not in os.environ:
+        return docker_cmd, None
+
+    print("Mounting home directory to minikube...")
+    user_home = os.path.expanduser("~")
+    mount_cmd = ["minikube", "mount", user_home + ":" + minikube_user_root]
+    logger.debug("Minikube mount command: %r", mount_cmd)
+    proc = subprocess.Popen(mount_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    mount_event = threading.Event()
+
+    def wait_start_thread_func():
+        while True:
+            line = proc.stdout.readline()
+            if not line and proc.poll() is not None:
+                break
+            try:
+                line_str = line.decode("utf-8").rstrip()
+                logger.debug(u"Output of minikube mount: %s", line_str)
+            except:
+                logger.debug("Output of minikube mount: %r", line)
+            if b"mounted" in line:
+                mount_event.set()
+
+    def rewrite_docker_cmd_part(part):
+        if user_home in part:
+            part = part.replace(user_home, minikube_user_root)
+            return part.replace(os.path.sep, "/")
+        return part
+
+    wait_thread = threading.Thread(target=wait_start_thread_func)
+    wait_thread.start()
+    if not mount_event.wait(done_timeout):
+        raise PackException("Mount minikube directory timed out.")
+
+    new_docker_cmd = [rewrite_docker_cmd_part(part) for part in docker_cmd]
+    return new_docker_cmd, proc
+
+
 def _main(parsed_args):
     if parsed_args.debug:
         logging.basicConfig(level=logging.DEBUG)
@@ -705,7 +795,13 @@ def _main(parsed_args):
     if not parsed_args.specifiers and not parsed_args.package_path and not parsed_args.vcs_urls:
         raise PackException("ERROR: You must give at least one requirement to install.")
 
-    index_url = parsed_args.index_url or _get_default_pypi_index() or ""
+    file_cfg = _get_default_pypi_config()
+
+    def _first_or_none(list_val):
+        return list_val[0] if list_val else None
+
+    index_url = parsed_args.index_url or _first_or_none(file_cfg.get("index-url")) or ""
+
     if index_url:
         logger.debug("Using PyPI index %s", index_url)
     else:
@@ -715,11 +811,24 @@ def _main(parsed_args):
     no_deps_str = "true" if parsed_args.no_deps else ""
     debug_str = "true" if parsed_args.debug else ""
     without_merge_str = "true" if parsed_args.without_merge else ""
+    pre_str = "true" if parsed_args.pre else ""
+    timeout_str = parsed_args.timeout or _first_or_none(file_cfg.get("timeout")) or ""
+    proxy_str = parsed_args.proxy or _first_or_none(file_cfg.get("proxy")) or ""
+    retries_str = parsed_args.retries or _first_or_none(file_cfg.get("retries")) or ""
 
     python_abi_version = _get_python_abi_version(
         parsed_args.python_version, parsed_args.mcpy27, parsed_args.dwpy27
     )
-    pypi_trusted_hosts = " ".join(parsed_args.trusted_host or [])
+
+    extra_index_urls = (parsed_args.extra_index_url or []) + (
+        file_cfg.get("extra-index-url") or []
+    )
+    extra_index_urls_str = " ".join(extra_index_urls)
+
+    trusted_hosts = (parsed_args.trusted_host or []) + (
+        file_cfg.get("trusted-host") or []
+    )
+    trusted_hosts_str = " ".join(trusted_hosts)
 
     with _create_temp_work_dir(
         parsed_args.specifiers,
@@ -727,12 +836,17 @@ def _main(parsed_args):
         parsed_args.install_requires,
         parsed_args.exclude,
         parsed_args.run_before,
+        pypi_pre=pre_str,
         pypi_index=index_url,
+        pypi_extra_index_urls=extra_index_urls_str,
+        pypi_proxy=proxy_str,
+        pypi_retries=retries_str,
+        pypi_timeout=timeout_str,
         prefer_binary=prefer_binary_str,
         no_deps=no_deps_str,
         without_merge=without_merge_str,
         python_abi_version=python_abi_version,
-        pypi_trusted_hosts=pypi_trusted_hosts,
+        pypi_trusted_hosts=trusted_hosts_str,
         debug=debug_str,
     ) as work_dir:
         container_name = "pack-cnt-%d" % int(time.time())
@@ -741,6 +855,7 @@ def _main(parsed_args):
         default_image = _get_default_image(use_legacy_image, parsed_args.arch)
         docker_image = docker_image_env or default_image
 
+        minikube_mount_proc = None
         if parsed_args.without_docker:
             _copy_package_paths(parsed_args.package_path, work_dir, skip_user_path=False)
 
@@ -766,10 +881,33 @@ def _main(parsed_args):
                 parsed_args.package_path,
                 parsed_args.docker_args,
             )
+            build_cmd, minikube_mount_proc = _rewrite_minikube_command(build_cmd)
             build_env = None
             logger.debug("Docker command: %r", build_cmd)
 
-        proc = subprocess.Popen(build_cmd, env=build_env)
+        try:
+            proc = subprocess.Popen(build_cmd, env=build_env)
+        except OSError as ex:
+            if ex.errno != errno.ENOENT:
+                raise
+
+            logger.error("Failed to execute command %r, the error message is %s.", build_cmd, ex)
+            if parsed_args.without_docker:
+                if _is_windows:
+                    raise PackException(
+                        "Cannot locate git bash. Please install Git for Windows or "
+                        "try WSL instead."
+                    )
+                else:
+                    # in MacOS or Linux, this error is not a FAQ, thus just raise it
+                    raise
+            else:
+                raise PackException(
+                    "Cannot locate docker. Please install it, reopen your terminal and "
+                    "retry. Or you may try `--without-docker` instead. If you've already "
+                    "installed Docker, you may specify the path of its executable via "
+                    "DOCKER_PATH environment."
+                )
         cancelled = False
         try:
             proc.wait()
@@ -780,6 +918,9 @@ def _main(parsed_args):
                 logger.debug("Docker rm command: %r", docker_rm_cmd)
                 subprocess.Popen(docker_rm_cmd, stdout=subprocess.PIPE)
                 proc.wait()
+        finally:
+            if minikube_mount_proc is not None:
+                minikube_mount_proc.terminate()
 
         if proc.returncode != 0:
             cancelled = cancelled or os.path.exists(os.path.join(work_dir, "scripts", ".cancelled"))
@@ -859,6 +1000,22 @@ def main():
         help="Don't put package dependencies into archives",
     )
     parser.add_argument(
+        "--pre", action="store_true", default=False,
+        help="Include pre-release and development versions. "
+             "By default, pyodps-pack only finds stable versions.",
+    )
+    parser.add_argument(
+        "--proxy", metavar="proxy",
+        help="Specify a proxy in the form scheme://[user:passwd@]proxy.server:port.",
+    )
+    parser.add_argument(
+        "--retries", metavar="retries",
+        help="Maximum number of retries each connection should attempt (default 5 times).",
+    )
+    parser.add_argument(
+        "--timeout", metavar="sec", help="Set the socket timeout (default 15 seconds).",
+    )
+    parser.add_argument(
         "--exclude", "-X", action="append", default=[],
         metavar="DEPEND", help="Requirements to exclude from the package",
     )
@@ -868,7 +1025,12 @@ def main():
              "`global.index-url` in `pip config list` command by default.",
     )
     parser.add_argument(
-        "--trusted-host", metavar="HOST:PATH", action="append", default=[],
+        "--extra-index-url", metavar="url", action="append", default=[],
+        help="Extra URLs of package indexes to use in addition to --index-url. "
+             "Should follow the same rules as --index-url.",
+    )
+    parser.add_argument(
+        "--trusted-host", metavar="host", action="append", default=[],
         help="Mark this host or host:port pair as trusted, "
              "even though it does not have valid or any HTTPS.",
     )

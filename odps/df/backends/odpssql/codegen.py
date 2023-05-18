@@ -19,6 +19,7 @@ import os
 import sys
 import platform
 import uuid
+from collections import OrderedDict
 
 from .types import df_type_to_odps_type
 from ...expr.collections import RowAppliedCollectionExpr
@@ -28,7 +29,7 @@ from ...expr.utils import get_executed_collection_project_table_name
 from ...utils import make_copy
 from ....config import options
 from ....lib import cloudpickle
-from ....compat import OrderedDict, six
+from ....compat import six
 from ....models import FileResource, TableResource, ArchiveResource
 from ....utils import to_str
 
@@ -128,7 +129,7 @@ def get_cache_archive_data(name, relative_path='.'):
     try:
         return [os.path.normpath(f) for f in get_cache_archive_filenames(name, relative_path)]
     except RuntimeError:
-        return dict((os.path.normpath(fo.name), fo) for fo in get_cache_archive(name, relative_path))
+        return {os.path.normpath(fo.name): fo for fo in get_cache_archive(name, relative_path)}
 
 
 class UnbufferedStream(object):

@@ -16,119 +16,116 @@
 
 from datetime import datetime
 
-from odps.tests.core import TestBase
-from odps.compat import unittest
-from odps.models import TableSchema
-from odps.df.types import validate_data_type
-from odps.df.expr.tests.core import MockTable
-from odps.df.expr.datetimes import *
+import pytest
+
+from ....models import TableSchema
+from ...types import validate_data_type
+from ..tests.core import MockTable
+from ..datetimes import *
 
 
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = TableSchema.from_lists(
-            ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-            datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
-        )
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+@pytest.fixture
+def src_expr():
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
-
-    def testDatetimes(self):
-        self.assertRaises(AttributeError, lambda: self.expr.id.hour)
-        self.assertRaises(AttributeError, lambda: self.expr.fid.minute)
-        self.assertRaises(AttributeError, lambda: self.expr.isMale.week)
-        self.assertRaises(AttributeError, lambda: self.expr.scale.year)
-        self.assertRaises(AttributeError, lambda: self.expr.name.strftime('%Y'))
-
-        self.assertIsInstance(self.expr.birth.date, Date)
-        self.assertIsInstance(self.expr.birth.date, DatetimeSequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().date, DatetimeScalar)
-
-        self.assertIsInstance(self.expr.birth.time, Time)
-        self.assertIsInstance(self.expr.birth.time, DatetimeSequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().time, DatetimeScalar)
-
-        self.assertIsInstance(self.expr.birth.year, Year)
-        self.assertIsInstance(self.expr.birth.year, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().year, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.month, Month)
-        self.assertIsInstance(self.expr.birth.month, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().month, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.day, Day)
-        self.assertIsInstance(self.expr.birth.day, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().day, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.hour, Hour)
-        self.assertIsInstance(self.expr.birth.hour, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().hour, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.minute, Minute)
-        self.assertIsInstance(self.expr.birth.minute, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().minute, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.second, Second)
-        self.assertIsInstance(self.expr.birth.second, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().second, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.microsecond, MicroSecond)
-        self.assertIsInstance(self.expr.birth.microsecond, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().microsecond, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.week, Week)
-        self.assertIsInstance(self.expr.birth.week, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().week, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.weekofyear, WeekOfYear)
-        self.assertIsInstance(self.expr.birth.weekofyear, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().weekofyear, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.dayofweek, WeekDay)
-        self.assertIsInstance(self.expr.birth.dayofweek, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().dayofweek, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.weekday, WeekDay)
-        self.assertIsInstance(self.expr.birth.weekday, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().weekday, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.dayofyear, DayOfYear)
-        self.assertIsInstance(self.expr.birth.dayofyear, Int64SequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().dayofyear, Int64Scalar)
-
-        self.assertIsInstance(self.expr.birth.is_month_start, IsMonthStart)
-        self.assertIsInstance(self.expr.birth.is_month_start, BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().is_month_start, BooleanScalar)
-
-        self.assertIsInstance(self.expr.birth.is_month_end, IsMonthEnd)
-        self.assertIsInstance(self.expr.birth.is_month_end, BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().is_month_end, BooleanScalar)
-
-        self.assertIsInstance(self.expr.birth.is_year_start, IsYearStart)
-        self.assertIsInstance(self.expr.birth.is_year_start, BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().is_year_start, BooleanScalar)
-
-        self.assertIsInstance(self.expr.birth.is_year_end, IsYearEnd)
-        self.assertIsInstance(self.expr.birth.is_year_end, BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().is_year_end, BooleanScalar)
-
-        self.assertIsInstance(self.expr.birth.strftime('%Y'), Strftime)
-        self.assertIsInstance(self.expr.birth.strftime('%Y'), StringSequenceExpr)
-        self.assertIsInstance(self.expr.birth.max().strftime('%Y'), StringScalar)
-
-        expr = self.expr.birth + hour(10)
-        self.assertIsInstance(expr, DatetimeSequenceExpr)
-
-        expr = self.expr.birth - microsecond(100)
-        self.assertIsInstance(expr, DatetimeSequenceExpr)
-
-        expr = self.expr.birth - datetime.now()
-        self.assertIsInstance(expr, Int64SequenceExpr)
-
-        self.assertRaises(ExpressionError, lambda: self.expr.birth + datetime.now())
+    return CollectionExpr(_source_data=table, _schema=schema)
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_datetimes(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.id.hour)
+    pytest.raises(AttributeError, lambda: src_expr.fid.minute)
+    pytest.raises(AttributeError, lambda: src_expr.isMale.week)
+    pytest.raises(AttributeError, lambda: src_expr.scale.year)
+    pytest.raises(AttributeError, lambda: src_expr.name.strftime('%Y'))
+
+    assert isinstance(src_expr.birth.date, Date)
+    assert isinstance(src_expr.birth.date, DatetimeSequenceExpr)
+    assert isinstance(src_expr.birth.max().date, DatetimeScalar)
+
+    assert isinstance(src_expr.birth.time, Time)
+    assert isinstance(src_expr.birth.time, DatetimeSequenceExpr)
+    assert isinstance(src_expr.birth.max().time, DatetimeScalar)
+
+    assert isinstance(src_expr.birth.year, Year)
+    assert isinstance(src_expr.birth.year, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().year, Int64Scalar)
+
+    assert isinstance(src_expr.birth.month, Month)
+    assert isinstance(src_expr.birth.month, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().month, Int64Scalar)
+
+    assert isinstance(src_expr.birth.day, Day)
+    assert isinstance(src_expr.birth.day, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().day, Int64Scalar)
+
+    assert isinstance(src_expr.birth.hour, Hour)
+    assert isinstance(src_expr.birth.hour, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().hour, Int64Scalar)
+
+    assert isinstance(src_expr.birth.minute, Minute)
+    assert isinstance(src_expr.birth.minute, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().minute, Int64Scalar)
+
+    assert isinstance(src_expr.birth.second, Second)
+    assert isinstance(src_expr.birth.second, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().second, Int64Scalar)
+
+    assert isinstance(src_expr.birth.microsecond, MicroSecond)
+    assert isinstance(src_expr.birth.microsecond, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().microsecond, Int64Scalar)
+
+    assert isinstance(src_expr.birth.week, Week)
+    assert isinstance(src_expr.birth.week, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().week, Int64Scalar)
+
+    assert isinstance(src_expr.birth.weekofyear, WeekOfYear)
+    assert isinstance(src_expr.birth.weekofyear, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().weekofyear, Int64Scalar)
+
+    assert isinstance(src_expr.birth.dayofweek, WeekDay)
+    assert isinstance(src_expr.birth.dayofweek, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().dayofweek, Int64Scalar)
+
+    assert isinstance(src_expr.birth.weekday, WeekDay)
+    assert isinstance(src_expr.birth.weekday, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().weekday, Int64Scalar)
+
+    assert isinstance(src_expr.birth.dayofyear, DayOfYear)
+    assert isinstance(src_expr.birth.dayofyear, Int64SequenceExpr)
+    assert isinstance(src_expr.birth.max().dayofyear, Int64Scalar)
+
+    assert isinstance(src_expr.birth.is_month_start, IsMonthStart)
+    assert isinstance(src_expr.birth.is_month_start, BooleanSequenceExpr)
+    assert isinstance(src_expr.birth.max().is_month_start, BooleanScalar)
+
+    assert isinstance(src_expr.birth.is_month_end, IsMonthEnd)
+    assert isinstance(src_expr.birth.is_month_end, BooleanSequenceExpr)
+    assert isinstance(src_expr.birth.max().is_month_end, BooleanScalar)
+
+    assert isinstance(src_expr.birth.is_year_start, IsYearStart)
+    assert isinstance(src_expr.birth.is_year_start, BooleanSequenceExpr)
+    assert isinstance(src_expr.birth.max().is_year_start, BooleanScalar)
+
+    assert isinstance(src_expr.birth.is_year_end, IsYearEnd)
+    assert isinstance(src_expr.birth.is_year_end, BooleanSequenceExpr)
+    assert isinstance(src_expr.birth.max().is_year_end, BooleanScalar)
+
+    assert isinstance(src_expr.birth.strftime('%Y'), Strftime)
+    assert isinstance(src_expr.birth.strftime('%Y'), StringSequenceExpr)
+    assert isinstance(src_expr.birth.max().strftime('%Y'), StringScalar)
+
+    expr = src_expr.birth + hour(10)
+    assert isinstance(expr, DatetimeSequenceExpr)
+
+    expr = src_expr.birth - microsecond(100)
+    assert isinstance(expr, DatetimeSequenceExpr)
+
+    expr = src_expr.birth - datetime.now()
+    assert isinstance(expr, Int64SequenceExpr)
+
+    pytest.raises(ExpressionError, lambda: src_expr.birth + datetime.now())

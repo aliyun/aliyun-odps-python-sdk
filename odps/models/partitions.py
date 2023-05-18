@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 
 from .. import serializers, errors, types
-from ..compat import six, OrderedDict
+from ..compat import six
+from ..utils import with_wait_argument
 from .core import Iterable
 from .partition import Partition
 
@@ -204,8 +205,8 @@ class Partitions(Iterable):
                 None,
             )
 
-    def create(self, partition_spec, if_not_exists=False, async_=False, **kw):
-        async_ = kw.get('async', async_)
+    @with_wait_argument
+    def create(self, partition_spec, if_not_exists=False, async_=False, hints=None):
         if isinstance(partition_spec, Partition):
             partition_spec = partition_spec.partition_spec
         else:
@@ -221,12 +222,12 @@ class Partitions(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLAddPartitionTask', query=buf.getvalue())
-        settings = {}
+        hints = hints or {}
         schema_name = self._get_schema_name()
         if schema_name is not None:
-            settings["odps.sql.allow.namespace.schema"] = "true"
-            settings["odps.namespace.schema"] = "true"
-        task.update_sql_settings(settings)
+            hints["odps.sql.allow.namespace.schema"] = "true"
+            hints["odps.namespace.schema"] = "true"
+        task.update_sql_settings(hints)
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
         if not async_:
@@ -235,8 +236,8 @@ class Partitions(Iterable):
         else:
             return instance
 
-    def delete(self, partition_spec, if_exists=False, async_=False, **kw):
-        async_ = kw.get('async', async_)
+    @with_wait_argument
+    def delete(self, partition_spec, if_exists=False, async_=False, hints=None):
         if isinstance(partition_spec, Partition):
             partition_spec = partition_spec.partition_spec
         else:
@@ -252,12 +253,14 @@ class Partitions(Iterable):
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLDropPartitionTask', query=buf.getvalue())
-        settings = {'odps.sql.submit.mode': ''}
+
+        hints = hints or {}
+        hints['odps.sql.submit.mode'] = ''
         schema_name = self._get_schema_name()
         if schema_name is not None:
-            settings["odps.sql.allow.namespace.schema"] = "true"
-            settings["odps.namespace.schema"] = "true"
-        task.update_sql_settings(settings)
+            hints["odps.sql.allow.namespace.schema"] = "true"
+            hints["odps.namespace.schema"] = "true"
+        task.update_sql_settings(hints)
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
         if not async_:

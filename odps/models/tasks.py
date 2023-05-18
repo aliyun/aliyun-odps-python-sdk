@@ -19,9 +19,10 @@ import random
 import sys
 import time
 import warnings
+from collections import OrderedDict
 
 from .core import AbstractXMLRemoteModel
-from .. import serializers, errors, compat
+from .. import serializers, errors
 from ..compat import six
 from ..config import options
 
@@ -58,7 +59,7 @@ class Task(AbstractXMLRemoteModel):
 
     def set_property(self, key, value):
         if self.properties is None:
-            self.properties = compat.OrderedDict()
+            self.properties = OrderedDict()
         self.properties[key] = value
 
     def _update_property_json(self, field, value):
@@ -72,11 +73,11 @@ class Task(AbstractXMLRemoteModel):
                     dest[k] = str(v)
 
         if self.properties is None:
-            self.properties = compat.OrderedDict()
+            self.properties = OrderedDict()
         if field in self.properties:
             settings = json.loads(self.properties[field])
         else:
-            settings = compat.OrderedDict()
+            settings = OrderedDict()
         update(value, settings)
         self.properties[field] = json.dumps(settings)
 
@@ -164,7 +165,7 @@ def format_cdata(query, semicolon=False):
 def collect_sql_settings(value, glob):
     from .. import __version__
 
-    settings = dict()
+    settings = OrderedDict()
     if options.default_task_settings:
         settings = options.default_task_settings
 
@@ -212,7 +213,7 @@ class SQLTask(Task):
 
     def serial(self):
         if self.properties is None:
-            self.properties = compat.OrderedDict()
+            self.properties = OrderedDict()
 
         key = 'settings'
         if key not in self.properties:

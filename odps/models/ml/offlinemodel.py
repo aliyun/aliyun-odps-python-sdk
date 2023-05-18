@@ -62,6 +62,7 @@ class OfflineModel(LazyLoad):
 
         return resp.text
 
+    @utils.with_wait_argument
     def copy(self, new_name, new_project=None, async_=False):
         """
         Copy current model into a new location.

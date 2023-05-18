@@ -16,36 +16,28 @@
 import decimal
 import json
 import random
+from collections import namedtuple
 
-from odps.df import DataFrame
-from odps.df.backends.tests.core import TestBase, pandas_case
-from odps.df.types import validate_data_type
-from odps.df.expr.expressions import *
-from odps.df.backends.odpssql.types import df_schema_to_odps_schema
+import pytest
 
-from odps.df.ui import DFViewMixin, MAX_TABLE_FETCH_SIZE, _rv
+from .. import DataFrame
+from ..backends.tests.core import pandas_case, NumGenerators
+from ..types import validate_data_type
+from ..expr.expressions import *
+from ..backends.odpssql.types import df_schema_to_odps_schema
+from ..ui import DFViewMixin, MAX_TABLE_FETCH_SIZE, _rv
 
 
+@pytest.fixture
 @pandas_case
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = TableSchema.from_lists(['name', 'category', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                                   datatypes('string', 'string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
-        self.schema = df_schema_to_odps_schema(schema)
-
-        import pandas as pd
-        self.data = self._gen_data(20, value_range=(-1000, 1000))
-        self.df = pd.DataFrame(self.data, columns=schema.names)
-        self.expr = DataFrame(self.df, schema=schema)
-
-    def _gen_data(self, rows=None, data=None, nullable_field=None, value_range=None):
+def setup(odps):
+    def gen_data(rows=None, data=None, nullable_field=None, value_range=None):
         if data is None:
             data = []
             for _ in range(rows):
                 record = []
-                for col in self.schema:
-                    method = getattr(self, '_gen_random_%s' % col.type.name)
+                for col in schema:
+                    method = getattr(NumGenerators, 'gen_random_%s' % col.type.name)
                     if col.name == 'category':
                         record.append(u'鬼'.encode('utf-8') if random.random() > 0.5 else u'人')
                     elif col.type.name == 'bigint':
@@ -55,45 +47,62 @@ class Test(TestBase):
                 data.append(record)
 
             if nullable_field is not None:
-                j = self.schema._name_indexes[nullable_field]
+                j = schema._name_indexes[nullable_field]
                 for i, l in enumerate(data):
                     if i % 2 == 0:
                         data[i][j] = None
         return data
 
-    def testFetchTable(self):
-        df_widget = DFViewMixin()
-        df_widget.df = self.expr
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    pd_schema = TableSchema.from_lists(['name', 'category', 'id', 'fid', 'isMale', 'scale', 'birth'],
+                               datatypes('string', 'string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
+    schema = df_schema_to_odps_schema(pd_schema)
 
-        df_widget._handle_fetch_table({}, None)
-        rendered_data = [[_rv(v) for v in r] for r in self.data[:MAX_TABLE_FETCH_SIZE]]
-        self.assertEqual(rendered_data, df_widget.table_records['data'])
+    import pandas as pd
+    data = gen_data(20, value_range=(-1000, 1000))
+    df = pd.DataFrame(data, columns=pd_schema.names)
+    expr = DataFrame(df, schema=pd_schema)
 
-        df_widget._handle_fetch_table({'page': 1}, None)
-        rendered_data = [[_rv(v) for v in r] for r in self.data[MAX_TABLE_FETCH_SIZE:MAX_TABLE_FETCH_SIZE * 2]]
-        self.assertEqual(json.dumps(rendered_data), json.dumps(df_widget.table_records['data']))
+    nt = namedtuple("NT", "data df expr schema gen_data")
+    return nt(data, df, expr, schema, gen_data)
 
-    def testAggregateGraph(self):
-        df_widget = DFViewMixin()
-        df_widget.df = self.expr
 
-        df_widget._handle_aggregate_graph(dict(groups=['isMale'], keys=['category'],
-                                               values={'scale': ['sum']}, target='test_case_target'), None)
+@pytest.mark.skipif(DFViewMixin is None, reason="Need jupyter to run the test")
+def test_fetch_table(odps, setup):
+    df_widget = DFViewMixin()
+    df_widget.df = setup.expr
 
-        sum_v = dict()
-        cats, genders = set(), set()
-        for r in self.data:
-            k = (_rv(r[4]), _rv(r[1]))
-            if k not in sum_v:
-                sum_v[k] = decimal.Decimal(0)
-            sum_v[k] += r[5]
-            cats.add(_rv(r[1]))
-            genders.add(_rv(r[4]))
+    df_widget._handle_fetch_table({}, None)
+    rendered_data = [[_rv(v) for v in r] for r in setup.data[:MAX_TABLE_FETCH_SIZE]]
+    assert rendered_data == df_widget.table_records['data']
 
-        agg_result = getattr(df_widget, 'test_case_target')
-        self.assertSetEqual(set(v[0] for v in agg_result['keys']), cats)
-        self.assertSetEqual(set(v[0] for v in agg_result['groups']), genders)
+    df_widget._handle_fetch_table({'page': 1}, None)
+    rendered_data = [[_rv(v) for v in r] for r in setup.data[MAX_TABLE_FETCH_SIZE:MAX_TABLE_FETCH_SIZE * 2]]
+    assert json.dumps(rendered_data) == json.dumps(df_widget.table_records['data'])
 
-        for g, dr in zip(agg_result['groups'], agg_result['data']):
-            for cat, s in zip(dr['category'], dr['scale__sum']):
-                self.assertEqual(_rv(sum_v[(g[0], cat)]), s)
+
+@pytest.mark.skipif(DFViewMixin is None, reason="Need jupyter to run the test")
+def test_aggregate_graph(odps, setup):
+    df_widget = DFViewMixin()
+    df_widget.df = setup.expr
+
+    df_widget._handle_aggregate_graph(dict(groups=['isMale'], keys=['category'],
+                                           values={'scale': ['sum']}, target='test_case_target'), None)
+
+    sum_v = dict()
+    cats, genders = set(), set()
+    for r in setup.data:
+        k = (_rv(r[4]), _rv(r[1]))
+        if k not in sum_v:
+            sum_v[k] = decimal.Decimal(0)
+        sum_v[k] += r[5]
+        cats.add(_rv(r[1]))
+        genders.add(_rv(r[4]))
+
+    agg_result = getattr(df_widget, 'test_case_target')
+    assert set(v[0] for v in agg_result['keys']) == cats
+    assert set(v[0] for v in agg_result['groups']) == genders
+
+    for g, dr in zip(agg_result['groups'], agg_result['data']):
+        for cat, s in zip(dr['category'], dr['scale__sum']):
+            assert _rv(sum_v[(g[0], cat)]) == s

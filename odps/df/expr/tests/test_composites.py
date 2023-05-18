@@ -13,142 +13,143 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps import compat
-from odps.df.types import validate_data_type
-from odps.df.expr.tests.core import MockTable
-from odps.df.expr.expressions import *
-from odps.df.expr.composites import *
+import pytest
+
+from .... import compat
+from ...types import validate_data_type
+from ..tests.core import MockTable
+from ..expressions import *
+from ..composites import *
 
 
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = TableSchema.from_lists(['id', 'name', 'relatives', 'hobbies'],
-                                   datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+@pytest.fixture
+def src_expr():
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    schema = TableSchema.from_lists(['id', 'name', 'relatives', 'hobbies'],
+                               datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
+    return CollectionExpr(_source_data=table, _schema=schema)
 
-    def testExplode(self):
-        expr = self.expr.hobbies.explode()
-        self.assertIsInstance(expr, RowAppliedCollectionExpr)
-        self.assertIs(expr.input, self.expr)
-        self.assertEqual(expr._func, 'EXPLODE')
-        self.assertEqual(expr.dtypes.names, [self.expr.hobbies.name])
-        self.assertEqual(expr.dtypes.types, [self.expr.hobbies.dtype.value_type])
 
-        expr = self.expr.hobbies.explode('exploded')
-        self.assertEqual(expr.dtypes.names, ['exploded'])
+def test_explode(src_expr):
+    expr = src_expr.hobbies.explode()
+    assert isinstance(expr, RowAppliedCollectionExpr)
+    assert expr.input is src_expr
+    assert expr._func == 'EXPLODE'
+    assert expr.dtypes.names == [src_expr.hobbies.name]
+    assert expr.dtypes.types == [src_expr.hobbies.dtype.value_type]
 
-        self.assertRaises(ValueError, self.expr.hobbies.explode, ['abc', 'def'])
+    expr = src_expr.hobbies.explode('exploded')
+    assert expr.dtypes.names == ['exploded']
 
-        expr = self.expr.hobbies.explode(pos=True)
-        self.assertIsInstance(expr, RowAppliedCollectionExpr)
-        self.assertIs(expr.input, self.expr)
-        self.assertEqual(expr._func, 'POSEXPLODE')
-        self.assertEqual(expr.dtypes.names,
-                         [self.expr.hobbies.name + '_pos', self.expr.hobbies.name])
-        self.assertEqual(expr.dtypes.types,
-                         [validate_data_type('int64'), self.expr.hobbies.dtype.value_type])
+    pytest.raises(ValueError, src_expr.hobbies.explode, ['abc', 'def'])
 
-        expr = self.expr.hobbies.explode(['pos', 'exploded'], pos=True)
-        self.assertEqual(expr.dtypes.names, ['pos', 'exploded'])
+    expr = src_expr.hobbies.explode(pos=True)
+    assert isinstance(expr, RowAppliedCollectionExpr)
+    assert expr.input is src_expr
+    assert expr._func == 'POSEXPLODE'
+    assert expr.dtypes.names == [src_expr.hobbies.name + '_pos', src_expr.hobbies.name]
+    assert expr.dtypes.types == [validate_data_type('int64'), src_expr.hobbies.dtype.value_type]
 
-        expr = self.expr.hobbies.explode('exploded', pos=True)
-        self.assertEqual(expr.dtypes.names, ['exploded_pos', 'exploded'])
+    expr = src_expr.hobbies.explode(['pos', 'exploded'], pos=True)
+    assert expr.dtypes.names == ['pos', 'exploded']
 
-        expr = self.expr.relatives.explode()
-        self.assertIsInstance(expr, RowAppliedCollectionExpr)
-        self.assertIs(expr.input, self.expr)
-        self.assertEqual(expr._func, 'EXPLODE')
-        self.assertEqual(expr.dtypes.names,
-                         [self.expr.relatives.name + '_key', self.expr.relatives.name + '_value'])
-        self.assertEqual(expr.dtypes.types,
-                         [self.expr.relatives.dtype.key_type, self.expr.relatives.dtype.value_type])
+    expr = src_expr.hobbies.explode('exploded', pos=True)
+    assert expr.dtypes.names == ['exploded_pos', 'exploded']
 
-        expr = self.expr.relatives.explode(['k', 'v'])
-        self.assertEqual(expr.dtypes.names, ['k', 'v'])
+    expr = src_expr.relatives.explode()
+    assert isinstance(expr, RowAppliedCollectionExpr)
+    assert expr.input is src_expr
+    assert expr._func == 'EXPLODE'
+    assert expr.dtypes.names == [src_expr.relatives.name + '_key', src_expr.relatives.name + '_value']
+    assert expr.dtypes.types == [src_expr.relatives.dtype.key_type, src_expr.relatives.dtype.value_type]
 
-        self.assertRaises(ValueError, self.expr.relatives.explode, ['abc'])
-        self.assertRaises(ValueError, self.expr.relatives.explode, ['abc'], pos=True)
+    expr = src_expr.relatives.explode(['k', 'v'])
+    assert expr.dtypes.names == ['k', 'v']
 
-    def testListMethods(self):
-        expr = self.expr.hobbies[0]
-        self.assertIsInstance(expr, ListDictGetItem)
-        self.assertIsInstance(expr, StringSequenceExpr)
-        self.assertEqual(expr.dtype, validate_data_type('string'))
+    pytest.raises(ValueError, src_expr.relatives.explode, ['abc'])
+    pytest.raises(ValueError, src_expr.relatives.explode, ['abc'], pos=True)
 
-        expr = self.expr.hobbies.len()
-        self.assertIsInstance(expr, ListDictLength)
-        self.assertIsInstance(expr, Int64SequenceExpr)
 
-        expr = self.expr.hobbies.sort()
-        self.assertIsInstance(expr, ListSort)
-        self.assertIsInstance(expr, ListSequenceExpr)
-        self.assertEqual(expr.dtype, validate_data_type('list<string>'))
+def test_list_methods(src_expr):
+    expr = src_expr.hobbies[0]
+    assert isinstance(expr, ListDictGetItem)
+    assert isinstance(expr, StringSequenceExpr)
+    assert expr.dtype == validate_data_type('string')
 
-        expr = self.expr.hobbies.contains('yacht')
-        self.assertIsInstance(expr, ListContains)
-        self.assertIsInstance(expr, BooleanSequenceExpr)
+    expr = src_expr.hobbies.len()
+    assert isinstance(expr, ListDictLength)
+    assert isinstance(expr, Int64SequenceExpr)
 
-    def testDictMethods(self):
-        expr = self.expr.relatives['abc']
-        self.assertIsInstance(expr, ListDictGetItem)
-        self.assertIsInstance(expr, StringSequenceExpr)
-        self.assertEqual(expr.dtype, validate_data_type('string'))
+    expr = src_expr.hobbies.sort()
+    assert isinstance(expr, ListSort)
+    assert isinstance(expr, ListSequenceExpr)
+    assert expr.dtype == validate_data_type('list<string>')
 
-        expr = self.expr.relatives.len()
-        self.assertIsInstance(expr, ListDictLength)
-        self.assertIsInstance(expr, Int64SequenceExpr)
+    expr = src_expr.hobbies.contains('yacht')
+    assert isinstance(expr, ListContains)
+    assert isinstance(expr, BooleanSequenceExpr)
 
-        expr = self.expr.relatives.keys()
-        self.assertIsInstance(expr, DictKeys)
-        self.assertIsInstance(expr, ListSequenceExpr)
-        self.assertEqual(expr.dtype, validate_data_type('list<string>'))
 
-        expr = self.expr.relatives.values()
-        self.assertIsInstance(expr, DictValues)
-        self.assertIsInstance(expr, ListSequenceExpr)
-        self.assertEqual(expr.dtype, validate_data_type('list<string>'))
+def test_dict_methods(src_expr):
+    expr = src_expr.relatives['abc']
+    assert isinstance(expr, ListDictGetItem)
+    assert isinstance(expr, StringSequenceExpr)
+    assert expr.dtype == validate_data_type('string')
 
-    def testBuilders(self):
-        expr = make_list(1, 2, 3, 4)
-        self.assertIsInstance(expr, ListBuilder)
-        self.assertIsInstance(expr, ListScalar)
-        self.assertEqual(expr.dtype, validate_data_type('list<int32>'))
+    expr = src_expr.relatives.len()
+    assert isinstance(expr, ListDictLength)
+    assert isinstance(expr, Int64SequenceExpr)
 
-        expr = make_list(1, 2, 3, self.expr.id)
-        self.assertIsInstance(expr, ListBuilder)
-        self.assertIsInstance(expr, ListSequenceExpr)
-        self.assertEqual(expr.dtype, validate_data_type('list<int64>'))
+    expr = src_expr.relatives.keys()
+    assert isinstance(expr, DictKeys)
+    assert isinstance(expr, ListSequenceExpr)
+    assert expr.dtype == validate_data_type('list<string>')
 
-        self.assertRaises(TypeError, make_list, 1, 2, 'str', type='int32')
-        self.assertRaises(TypeError, make_list, 1, 2, 'str')
-        expr = make_list(1, 2, 3, 4, type='int64')
-        self.assertEqual(expr.dtype, validate_data_type('list<int64>'))
-        expr = make_list(1.1, 2.2, 3.3, 4.4)
-        self.assertEqual(expr.dtype, validate_data_type('list<float64>'))
-        expr = make_list(1, 2, 3, 65535)
-        self.assertEqual(expr.dtype, validate_data_type('list<int32>'))
-        expr = make_list(1, 2, 3, compat.long_type(12345678910))
-        self.assertEqual(expr.dtype, validate_data_type('list<int64>'))
-        expr = make_list(1, 2, 3, 3.5)
-        self.assertEqual(expr.dtype, validate_data_type('list<float64>'))
+    expr = src_expr.relatives.values()
+    assert isinstance(expr, DictValues)
+    assert isinstance(expr, ListSequenceExpr)
+    assert expr.dtype == validate_data_type('list<string>')
 
-        self.assertRaises(ValueError, make_dict, 1, 2, 3)
 
-        expr = make_dict(1, 2, 3, 4)
-        self.assertIsInstance(expr, DictBuilder)
-        self.assertIsInstance(expr, DictScalar)
-        self.assertEqual(expr.dtype, validate_data_type('dict<int32,int32>'))
+def test_builders(src_expr):
+    expr = make_list(1, 2, 3, 4)
+    assert isinstance(expr, ListBuilder)
+    assert isinstance(expr, ListScalar)
+    assert expr.dtype == validate_data_type('list<int32>')
 
-        expr = make_dict(1, 2, 3, 4, key_type='int16', value_type='int64')
-        self.assertIsInstance(expr, DictBuilder)
-        self.assertIsInstance(expr, DictScalar)
-        self.assertEqual(expr.dtype, validate_data_type('dict<int16,int64>'))
+    expr = make_list(1, 2, 3, src_expr.id)
+    assert isinstance(expr, ListBuilder)
+    assert isinstance(expr, ListSequenceExpr)
+    assert expr.dtype == validate_data_type('list<int64>')
 
-        expr = make_dict(1, 2, 3, self.expr.id)
-        self.assertIsInstance(expr, DictBuilder)
-        self.assertIsInstance(expr, DictSequenceExpr)
-        self.assertEqual(expr.dtype, validate_data_type('dict<int32,int64>'))
+    pytest.raises(TypeError, make_list, 1, 2, 'str', type='int32')
+    pytest.raises(TypeError, make_list, 1, 2, 'str')
+    expr = make_list(1, 2, 3, 4, type='int64')
+    assert expr.dtype == validate_data_type('list<int64>')
+    expr = make_list(1.1, 2.2, 3.3, 4.4)
+    assert expr.dtype == validate_data_type('list<float64>')
+    expr = make_list(1, 2, 3, 65535)
+    assert expr.dtype == validate_data_type('list<int32>')
+    expr = make_list(1, 2, 3, compat.long_type(12345678910))
+    assert expr.dtype == validate_data_type('list<int64>')
+    expr = make_list(1, 2, 3, 3.5)
+    assert expr.dtype == validate_data_type('list<float64>')
+
+    pytest.raises(ValueError, make_dict, 1, 2, 3)
+
+    expr = make_dict(1, 2, 3, 4)
+    assert isinstance(expr, DictBuilder)
+    assert isinstance(expr, DictScalar)
+    assert expr.dtype == validate_data_type('dict<int32,int32>')
+
+    expr = make_dict(1, 2, 3, 4, key_type='int16', value_type='int64')
+    assert isinstance(expr, DictBuilder)
+    assert isinstance(expr, DictScalar)
+    assert expr.dtype == validate_data_type('dict<int16,int64>')
+
+    expr = make_dict(1, 2, 3, src_expr.id)
+    assert isinstance(expr, DictBuilder)
+    assert isinstance(expr, DictSequenceExpr)
+    assert expr.dtype == validate_data_type('dict<int32,int64>')

@@ -19,6 +19,7 @@ import json
 import re
 import time
 import uuid
+import warnings
 from datetime import datetime
 
 from ..core import Backend
@@ -39,6 +40,7 @@ from . import types
 from ... import types as df_types
 from ....models import FileResource, TableResource, TableSchema
 from .... import compat
+from ....lib import cloudpickle
 from ....lib.xnamedtuple import xnamedtuple
 from ....compat import lzip, Version
 
@@ -235,6 +237,17 @@ class PandasCompiler(Backend):
         predecessors = [self._expr_to_dag_node[child] for child in children
                         if child in self._expr_to_dag_node]
         [self._dag.add_edge(p, node) for p in predecessors]
+
+    @staticmethod
+    def _attempt_pickle_unpickle(*args):
+        try:
+            cloudpickle.loads(cloudpickle.dumps(args))
+        except Exception as ex:  # pragma: no cover
+            warnings.warn(
+                "Failed serializing user-defined function %r. Might get errors "
+                "when running remotely. Error message: %s" % (args, ex),
+                RuntimeWarning,
+            )
 
     def visit_source_collection(self, expr):
         df = next(expr.data_source())
@@ -902,6 +915,7 @@ class PandasCompiler(Backend):
             func = expr._aggregator
             args = expr._func_args
             kwargs = expr._func_kwargs or dict()
+            self._attempt_pickle_unpickle(func, args, kwargs)
 
             if resources:
                 if not args and not kwargs:
@@ -1002,6 +1016,8 @@ class PandasCompiler(Backend):
                 func = expr._func
                 args = expr._func_args
                 kwargs = expr._func_kwargs
+                self._attempt_pickle_unpickle(func, args, kwargs)
+
                 if args is not None and len(args) > 0:
                     raise NotImplementedError
                 if kwargs is not None and len(kwargs) > 0:
@@ -1102,6 +1118,8 @@ class PandasCompiler(Backend):
             expr._func_kwargs = expr._func_kwargs or {}
 
             func = expr._func
+            self._attempt_pickle_unpickle(func, expr._func_args, expr._func_kwargs)
+
             if isinstance(func, six.string_types) and func.upper() in BUILTIN_FUNCS:
                 func = BUILTIN_FUNCS[func.upper()]
             if inspect.isfunction(func):

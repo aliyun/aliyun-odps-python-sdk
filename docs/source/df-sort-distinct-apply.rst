@@ -519,7 +519,13 @@ apply 的自定义函数接收一个参数，为上一步 Collection 的一行�
     0                 5.843333                   3.054                 3.758667                1.198667
 
 .. warning::
+
     目前，受限于 Python UDF，自定义函数无法支持将 list / dict 类型作为初始输入或最终输出结果。
+
+.. warning::
+
+    由于 PyODPS DataFrame 默认 Collection / Sequence 等对象均为分布式对象，故不支持在自定义函数内部引用这些对象。
+    请考虑改用 :ref:`Join 等方法 <dfmerge>` 引用多个 DataFrame 的数据，或者引用 Collection 作为资源，如下文所述。
 
 引用资源
 ~~~~~~~~~~~~~
@@ -675,6 +681,25 @@ combiner表示在map_reduce API里表示在mapper端，就先对数据进行聚�
 
     >>> words_df.map_reduce(mapper, reducer, combiner=reducer, group='word')
 
+使用第三方Python库
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+现在用户可以把第三方 Wheel 包作为资源上传到 MaxCompute。在全局或者在立即执行的方法时，指定需要使用的包文件，
+即可以在自定义函数中使用第三方库。值得注意的是，第三方库的依赖库也必须指定，否则依然会有导入错误。
+
+PyODPS 提供了 ``pyodps-pack`` 工具，可在安装完 PyODPS 后打包三方包及其依赖。同时，execute / persist / to_pandas
+方法支持增加 ``libraries`` 参数以使用这些资源。如何制作及使用三方包的说明请参考 :ref:`这里 <pyodps_pack>`。
+
+.. warning::
+
+    由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS
+    Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常
+    执行。
+
+.. warning::
+
+    由于 PyODPS DataFrame 默认 Collection / Sequence 等对象均为分布式对象，故不支持在自定义函数内部引用这些对象。
+    请考虑改用 :ref:`Join 等方法 <dfmerge>` 引用多个 DataFrame 的数据，或者引用 Collection 作为资源。
+
 引用资源
 ~~~~~~~~~~~~~
 
@@ -720,19 +745,6 @@ combiner表示在map_reduce API里表示在mapper端，就先对数据进行聚�
     3   world    6
     4   short    1
     5     use    1
-
-使用第三方Python库
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-现在用户可以把第三方 Wheel 包作为资源上传到 MaxCompute。在全局或者在立即执行的方法时，指定需要使用的包文件，
-即可以在自定义函数中使用第三方库。值得注意的是，第三方库的依赖库也必须指定，否则依然会有导入错误。
-
-PyODPS 提供了 ``pyodps-pack`` 工具，可在安装完 PyODPS 后打包三方包及其依赖。同时，execute / persist / to_pandas
-方法支持增加 ``libraries`` 参数以使用这些资源。如何制作及使用三方包的说明请参考 :ref:`这里 <pyodps_pack>`。
-
-.. warning::
-    由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS
-    Worker 上执行时会发生错误。因而建议在 Python 3 下使用 MapReduce API 编写生产作业前，先确认相关代码是否能正常
-    执行。
 
 
 重排数据

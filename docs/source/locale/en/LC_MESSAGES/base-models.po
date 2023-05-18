@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-08-02 10:47+0800\n"
+"POT-Creation-Date: 2023-05-18 11:37+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -97,40 +97,78 @@ msgstr ""
 msgid ""
 "需要注意的是，``get_xflow_sub_instances`` 返回的是 Instance 当前的子 "
 "Instance，可能会随时间变化，因而可能需要定时查询。 为简化这一步骤，可以使用 ``iter_xflow_sub_instances "
-"方法``。该方法返回一个迭代器，会阻塞执行直至发现新的子 Instance 或者主 Instance 结束："
+"方法``。该方法返回一个迭代器，会阻塞执行直至发现新的子 Instance 或者主 Instance 结束。同时需要注意的是， "
+"``iter_xflow_sub_instances`` 默认不会检查 Instance 是否报错，建议在循环结束时手动检查 Instance "
+"是否报错，以免遗漏可能的问题，或者增加 ``check=True`` 参数在 ``iter_xflow_sub_instances`` "
+"退出时自动检查："
 msgstr ""
 "Note that ``get_xflow_sub_instances`` returns the current sub-instances "
 "of an Instance object, which may change over time. Periodic queries may "
 "be required. To simplify this, you may use ``iter_xflow_sub_instances`` "
 "which returns a generator of sub-instances that will block current thread"
-" till a new instance starts or the main instance terminates."
+" till a new instance starts or the main instance terminates. Also note "
+"that ``iter_xflow_sub_instances`` will not check if the instance succeeds"
+" by default. It is recommended to check whether the instance succeeds "
+"manually to avoid potential errors, or add a ``check=True`` parameter to "
+"let ``iter_xflow_sub_instances`` check automatically at exit."
 
-#: ../../source/base-models.rst:45
+#: ../../source/base-models.rst:46
 #, python-format
 msgid ""
 ">>> # 此处建议使用异步调用\n"
 ">>> inst = o.run_xflow('AlgoName', 'algo_public',\n"
 "                       parameters={'param1': 'param_value1', 'param2': "
 "'param_value2', ...})\n"
-">>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):  # "
-"此处将等待\n"
+">>> # 如果循环中没有 break，该循环会执行到 instance 退出\n"
+">>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):\n"
+">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
+"\n"
+">>> # 手动检查 instance 是否成功，以避免遗漏 instance 报错\n"
+">>> instance.wait_for_success()"
+msgstr ""
+">>> # asynchronous call is recommended here\n"
+">>> inst = o.run_xflow('AlgoName', 'algo_public',\n"
+"                       parameters={'param1': 'param_value1', 'param2': "
+"'param_value2', ...})\n"
+">>> # if no break in loop, will run till instance exits\n"
+">>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):\n"
+">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
+"\n"
+">>> # check if instance succeeds in case of uncaught errors\n"
+">>> instance.wait_for_success()"
+
+#: ../../source/base-models.rst:57
+msgid "或者"
+msgstr "Or"
+
+#: ../../source/base-models.rst:59
+#, python-format
+msgid ""
+">>> # 此处建议使用异步调用\n"
+">>> inst = o.run_xflow('AlgoName', 'algo_public',\n"
+"                       parameters={'param1': 'param_value1', 'param2': "
+"'param_value2', ...})\n"
+">>> # 增加 check=True，在循环结束时自动检查报错。如果循环中 break，instance 错误不会被抛出\n"
+">>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst, "
+"check=True):\n"
 ">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
 msgstr ""
 ">>> # asynchronous call is recommended here\n"
 ">>> inst = o.run_xflow('AlgoName', 'algo_public',\n"
 "                       parameters={'param1': 'param_value1', 'param2': "
 "'param_value2', ...})\n"
-">>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):  # "
-"will wait here\n"
+">>> # add check=True to check if instance succeeds at exit.\n"
+">>> # check not available if break in loop\n"
+">>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):\n"
 ">>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))"
 
-#: ../../source/base-models.rst:53
+#: ../../source/base-models.rst:68
 msgid "在调用 run_xflow 或者 execute_xflow 时，也可以指定运行参数，指定的方法与 SQL 类似："
 msgstr ""
 "You can specify runtime parameters when calling run_xflow or "
 "execute_xflow. This process is similar to executing SQL statements:"
 
-#: ../../source/base-models.rst:55
+#: ../../source/base-models.rst:70
 msgid ""
 ">>> parameters = {'param1': 'param_value1', 'param2': 'param_value2', "
 "...}\n"
@@ -138,23 +176,23 @@ msgid ""
 "hints={'odps.xxx.yyy': 10})"
 msgstr ""
 
-#: ../../source/base-models.rst:61
+#: ../../source/base-models.rst:76
 msgid "例如，如果需要任务运行到指定卡型的机器上，可以在 hints 中增加如下配置："
 msgstr ""
 "For instance, if you want to run your code in hosts with certain "
 "hardware, you can add a configuration in hints:"
 
-#: ../../source/base-models.rst:63
+#: ../../source/base-models.rst:78
 msgid ""
 ">>> hints={\"settings\": json.dumps({\"odps.algo.hybrid.deploy.info\": "
 "\"xxxxx\"})}"
 msgstr ""
 
-#: ../../source/base-models.rst:68
+#: ../../source/base-models.rst:83
 msgid "使用 options.ml.xflow_settings 可以配置全局设置："
 msgstr "You can use options.ml.xflow_settings to configure the global settings:"
 
-#: ../../source/base-models.rst:70
+#: ../../source/base-models.rst:85
 msgid ""
 ">>> from odps import options\n"
 ">>> options.ml.xflow_settings = {'odps.xxx.yyy': 10}\n"
@@ -163,7 +201,7 @@ msgid ""
 ">>> o.execute_xflow('AlgoName', 'algo_public', parameters=parameters)"
 msgstr ""
 
-#: ../../source/base-models.rst:77
+#: ../../source/base-models.rst:92
 msgid ""
 "PAI 命令的文档可以参考 `这份文档 "
 "<https://help.aliyun.com/document_detail/114368.html>`_ 里列出的各个\"组件参考\"章节。"
@@ -173,11 +211,11 @@ msgstr ""
 "/machine-learning-platform-for-ai/latest/visualized-modeling-in-machine-"
 "learning-studio>`_ 。"
 
-#: ../../source/base-models.rst:80
+#: ../../source/base-models.rst:95
 msgid "离线模型"
 msgstr "Offline models"
 
-#: ../../source/base-models.rst:82
+#: ../../source/base-models.rst:97
 msgid ""
 "离线模型是 XFlow 分类 / 回归算法输出的模型。用户可以使用 PyODPS ML 或直接使用 odps.run_xflow "
 "创建一个离线模型，例如下面使用 run_xflow 的例子："
@@ -186,7 +224,7 @@ msgstr ""
 "algorithms. You can directly call odps.run_xflow to create an offline "
 "model. For example:"
 
-#: ../../source/base-models.rst:85
+#: ../../source/base-models.rst:100
 msgid ""
 ">>> o.run_xflow('LogisticRegression', 'algo_public', "
 "dict(modelName='logistic_regression_model_name',\n"
@@ -196,33 +234,33 @@ msgid ""
 "inputTableName='bank_data'))"
 msgstr ""
 
-#: ../../source/base-models.rst:91
+#: ../../source/base-models.rst:106
 msgid "在模型创建后，用户可以列出当前 Project 下的模型："
 msgstr ""
 "After creating the models, you can list the models under the current "
 "project as follows:"
 
-#: ../../source/base-models.rst:93
+#: ../../source/base-models.rst:108
 msgid ">>> models = o.list_offline_models(prefix='prefix')"
 msgstr ""
 
-#: ../../source/base-models.rst:97
+#: ../../source/base-models.rst:112
 msgid "也可以通过模型名获取模型并读取模型 PMML（如果支持）："
 msgstr ""
 "You can also retrieve the models and read their PMML (if supported) by "
 "the model names:"
 
-#: ../../source/base-models.rst:99
+#: ../../source/base-models.rst:114
 msgid ""
 ">>> model = o.get_offline_model('logistic_regression_model_name')\n"
 ">>> pmml = model.get_model()"
 msgstr ""
 
-#: ../../source/base-models.rst:104
+#: ../../source/base-models.rst:119
 msgid "复制离线模型可以使用下列语句："
 msgstr "You can copy a model using the following statement:"
 
-#: ../../source/base-models.rst:106
+#: ../../source/base-models.rst:121
 msgid ""
 ">>> model = o.get_offline_model('logistic_regression_model_name')\n"
 ">>> # 复制到当前 project\n"
@@ -238,11 +276,11 @@ msgstr ""
 ">>> new_model2 = model.copy('logistic_regression_model_name_new2', "
 "project='new_project')"
 
-#: ../../source/base-models.rst:114
+#: ../../source/base-models.rst:129
 msgid "删除模型可使用下列语句："
 msgstr "You can delete a model using the following statement:"
 
-#: ../../source/base-models.rst:116
+#: ../../source/base-models.rst:131
 msgid ">>> o.delete_offline_model('logistic_regression_model_name')"
 msgstr ""
 

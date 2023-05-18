@@ -192,8 +192,9 @@ def setup(access_id, access_key, default_project, endpoint=None, tunnel_endpoint
 
     if with_options:
         trivial_types = (six.string_types, six.integer_types, float, type(None))
-        options_dump = dict((k, v) for k, v in six.iteritems(options.dumps())
-                            if isinstance(v, trivial_types))
+        options_dump = {
+            k: v for k, v in six.iteritems(options.dumps()) if isinstance(v, trivial_types)
+        }
         kwargs['options'] = options_dump
 
     if os.path.exists(odps_file):

@@ -18,7 +18,6 @@ import base64
 import json
 import logging
 import time
-import requests
 import warnings
 
 from mars import new_session
@@ -26,13 +25,14 @@ from mars import new_session
 from ....utils import write_log
 from ....models import Instance
 from ....config import options
+from ....lib import requests
 from .... import errors
 from ...utils import get_default_resource_files, build_mars_image_name
 
 NOTEBOOK_NAME = "MarsNotebook"
 CUPID_APP_NAME = "MarsWeb"
 GS_COORDINATOR_NAME = "GSCoordinator"
-DEFAULT_RESOURCES = ["pymars-0.9.0", "pyodps-0.11.3", "pyarrow-4.0.0"]
+DEFAULT_RESOURCES = ["pymars-0.9.0", "pyodps-0.11.4", "pyarrow-4.0.0"]
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +262,9 @@ class MarsCupidClient:
         from ....rest import RestClient
 
         if options.mars.use_common_proxy:
-            return RestClient(self._odps.account, self._endpoint, self._odps.project)
+            return RestClient(
+                self._odps.account, self._endpoint, self._odps.project, tag="MARS"
+            )
         else:
             return requests.Session()
 

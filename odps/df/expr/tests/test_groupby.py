@@ -14,121 +14,121 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps.compat import unittest
-from odps.df.expr.reduction import *
+import pytest
+
+from ..reduction import *
 
 
-class Test(TestBase):
-    def setup(self):
-        schema = TableSchema.from_lists(types._data_types.keys(), types._data_types.values())
-        self.expr = CollectionExpr(_source_data=True, _schema=schema)
-
-    def testGroupby(self):
-        grouped = self.expr.groupby(['int16', 'boolean'])\
-            .agg(self.expr.string.sum().rename('sum_string'),
-                 sum=self.expr.int16.sum())
-        self.assertIsInstance(grouped, CollectionExpr)
-        self.assertSequenceEqual(grouped._schema.names, ['int16', 'boolean', 'sum', 'sum_string'])
-        self.assertSequenceEqual(grouped._schema.types, [types.int16, types.boolean, types.int16, types.string])
-        self.assertIsInstance(grouped.sum_string, StringSequenceExpr)
-
-        grouped = self.expr.groupby('datetime').aggregate(
-            self.expr.boolean.sum(),
-            min_int32=self.expr.int32.min())
-        self.assertSequenceEqual(grouped._schema.names, ['datetime', 'boolean_sum', 'min_int32'])
-        self.assertSequenceEqual(grouped._schema.types, [types.datetime, types.int64, types.int32])
-
-        grouped = self.expr.groupby(['float32', 'string']).agg(int64std=self.expr.int64.std(ddof=3))
-        self.assertSequenceEqual(grouped._schema.names, ['float32', 'string', 'int64std'])
-        self.assertSequenceEqual(grouped._schema.types, [types.float32, types.string, types.float64])
-        self.assertEqual(grouped._aggregations[0]._ddof, 3)
-
-        selected = grouped[[grouped.float32.rename('new_col')]]
-        self.assertEqual(selected.schema.names, ['new_col'])
-
-    def testGroupbyReductions(self):
-        expr = self.expr.groupby('string').min()
-        self.assertIsInstance(expr, GroupByCollectionExpr)
-        self.assertGreater(len(expr.aggregations), 0)
-        self.assertIsInstance(expr.aggregations[0], GroupedMin)
-
-        expr = self.expr.groupby('string').max()
-        self.assertIsInstance(expr, GroupByCollectionExpr)
-        self.assertGreater(len(expr.aggregations), 0)
-        self.assertIsInstance(expr.aggregations[0], GroupedMax)
-
-        expr = self.expr.groupby('string').count()
-        self.assertIsInstance(expr, SequenceExpr)
-        self.assertIsInstance(expr, Int64SequenceExpr)
-
-        expr = self.expr.groupby('string').var()
-        self.assertIsInstance(expr, GroupByCollectionExpr)
-        self.assertGreater(len(expr.aggregations), 0)
-        self.assertIsInstance(expr.aggregations[0], GroupedVar)
-
-        expr = self.expr.groupby('string').sum()
-        self.assertIsInstance(expr, GroupByCollectionExpr)
-        self.assertGreater(len(expr.aggregations), 0)
-        self.assertIsInstance(expr.aggregations[0], GroupedSum)
-
-        expr = self.expr.groupby('string').std()
-        self.assertIsInstance(expr, GroupByCollectionExpr)
-        self.assertGreater(len(expr.aggregations), 0)
-        self.assertIsInstance(expr.aggregations[0], GroupedStd)
-
-        expr = self.expr.groupby('string').mean()
-        self.assertIsInstance(expr, GroupByCollectionExpr)
-        self.assertGreater(len(expr.aggregations), 0)
-        self.assertIsInstance(expr.aggregations[0], GroupedMean)
-
-        expr = self.expr.groupby('string').median()
-        self.assertIsInstance(expr, GroupByCollectionExpr)
-        self.assertGreater(len(expr.aggregations), 0)
-        self.assertIsInstance(expr.aggregations[0], GroupedMedian)
-
-        metric = self.expr.int32.mean() > 10
-        field = (metric.ifelse(self.expr.int64.max(), 0) + 1).rename('int64_max')
-        expr = self.expr.groupby('string').agg(field)
-        self.assertIsInstance(expr, GroupByCollectionExpr)
-        self.assertIsInstance(expr.int64_max, Int64SequenceExpr)
-
-    def testGroupbyField(self):
-        grouped = self.expr.groupby(['int32', 'boolean']).string.sum()
-        self.assertIsInstance(grouped, StringSequenceExpr)
-        self.assertIsInstance(grouped, GroupedSum)
-        self.assertIsInstance(grouped._input, Column)
-
-        grouped = self.expr.groupby('string').int64.count()
-        self.assertIsInstance(grouped, Int64SequenceExpr)
-        self.assertIsInstance(grouped, GroupedCount)
-        self.assertIsInstance(grouped._input, Column)
-
-    def testMutate(self):
-        grouped = self.expr.groupby(['int16', self.expr.datetime]).sort(-self.expr.boolean)
-        expr = grouped.mutate(grouped.float64.cumsum(), count=grouped.boolean.cumcount())
-
-        self.assertIsInstance(expr, MutateCollectionExpr)
-        self.assertSequenceEqual(expr._schema.names,
-                                 ['int16', 'datetime', 'float64_sum', 'count'])
-        self.assertSequenceEqual(expr._schema.types,
-                                 [types.int16, types.datetime, types.float64, types.int64])
-
-    def testIllegalGroupby(self):
-        self.assertRaises(ExpressionError, lambda: self.expr.groupby('int16').agg(self.expr['string']))
-        self.assertRaises(ExpressionError,
-                          lambda: self.expr.groupby('int16').agg(self.expr['string'] + self.expr['string'].sum()))
-        self.assertRaises(ExpressionError,
-                          lambda: self.expr.groupby('int8').agg(self.expr['boolean', ]['boolean'].sum()))
-
-        grouped = self.expr.groupby('string')
-        self.assertRaises(ExpressionError, lambda: self.expr.groupby('boolean').agg(grouped.int32.sum()))
-
-    def testBacktrackField(self):
-        expr = self.expr[self.expr.int64 < 10].groupby(self.expr.string).agg(s=self.expr.float32.sum())
-        self.assertIs(expr._by[0]._input, expr._input)
-        self.assertIs(expr._aggregations[0]._input._input, expr._input)
+@pytest.fixture
+def src_expr():
+    schema = TableSchema.from_lists(types._data_types.keys(), types._data_types.values())
+    return CollectionExpr(_source_data=True, _schema=schema)
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_groupby(src_expr):
+    grouped = src_expr.groupby(['int16', 'boolean'])\
+        .agg(src_expr.string.sum().rename('sum_string'),
+             sum=src_expr.int16.sum())
+    assert isinstance(grouped, CollectionExpr)
+    assert grouped._schema.names == ['int16', 'boolean', 'sum', 'sum_string']
+    assert grouped._schema.types == [types.int16, types.boolean, types.int16, types.string]
+    assert isinstance(grouped.sum_string, StringSequenceExpr)
+
+    grouped = src_expr.groupby('datetime').aggregate(
+        src_expr.boolean.sum(),
+        min_int32=src_expr.int32.min())
+    assert grouped._schema.names == ['datetime', 'boolean_sum', 'min_int32']
+    assert grouped._schema.types == [types.datetime, types.int64, types.int32]
+
+    grouped = src_expr.groupby(['float32', 'string']).agg(int64std=src_expr.int64.std(ddof=3))
+    assert grouped._schema.names == ['float32', 'string', 'int64std']
+    assert grouped._schema.types == [types.float32, types.string, types.float64]
+    assert grouped._aggregations[0]._ddof == 3
+
+    selected = grouped[[grouped.float32.rename('new_col')]]
+    assert selected.schema.names == ['new_col']
+
+
+def test_groupby_reductions(src_expr):
+    expr = src_expr.groupby('string').min()
+    assert isinstance(expr, GroupByCollectionExpr)
+    assert len(expr.aggregations) > 0
+    assert isinstance(expr.aggregations[0], GroupedMin)
+
+    expr = src_expr.groupby('string').max()
+    assert isinstance(expr, GroupByCollectionExpr)
+    assert len(expr.aggregations) > 0
+    assert isinstance(expr.aggregations[0], GroupedMax)
+
+    expr = src_expr.groupby('string').count()
+    assert isinstance(expr, SequenceExpr)
+    assert isinstance(expr, Int64SequenceExpr)
+
+    expr = src_expr.groupby('string').var()
+    assert isinstance(expr, GroupByCollectionExpr)
+    assert len(expr.aggregations) > 0
+    assert isinstance(expr.aggregations[0], GroupedVar)
+
+    expr = src_expr.groupby('string').sum()
+    assert isinstance(expr, GroupByCollectionExpr)
+    assert len(expr.aggregations) > 0
+    assert isinstance(expr.aggregations[0], GroupedSum)
+
+    expr = src_expr.groupby('string').std()
+    assert isinstance(expr, GroupByCollectionExpr)
+    assert len(expr.aggregations) > 0
+    assert isinstance(expr.aggregations[0], GroupedStd)
+
+    expr = src_expr.groupby('string').mean()
+    assert isinstance(expr, GroupByCollectionExpr)
+    assert len(expr.aggregations) > 0
+    assert isinstance(expr.aggregations[0], GroupedMean)
+
+    expr = src_expr.groupby('string').median()
+    assert isinstance(expr, GroupByCollectionExpr)
+    assert len(expr.aggregations) > 0
+    assert isinstance(expr.aggregations[0], GroupedMedian)
+
+    metric = src_expr.int32.mean() > 10
+    field = (metric.ifelse(src_expr.int64.max(), 0) + 1).rename('int64_max')
+    expr = src_expr.groupby('string').agg(field)
+    assert isinstance(expr, GroupByCollectionExpr)
+    assert isinstance(expr.int64_max, Int64SequenceExpr)
+
+
+def test_groupby_field(src_expr):
+    grouped = src_expr.groupby(['int32', 'boolean']).string.sum()
+    assert isinstance(grouped, StringSequenceExpr)
+    assert isinstance(grouped, GroupedSum)
+    assert isinstance(grouped._input, Column)
+
+    grouped = src_expr.groupby('string').int64.count()
+    assert isinstance(grouped, Int64SequenceExpr)
+    assert isinstance(grouped, GroupedCount)
+    assert isinstance(grouped._input, Column)
+
+
+def test_mutate(src_expr):
+    grouped = src_expr.groupby(['int16', src_expr.datetime]).sort(-src_expr.boolean)
+    expr = grouped.mutate(grouped.float64.cumsum(), count=grouped.boolean.cumcount())
+
+    assert isinstance(expr, MutateCollectionExpr)
+    assert expr._schema.names == ['int16', 'datetime', 'float64_sum', 'count']
+    assert expr._schema.types == [types.int16, types.datetime, types.float64, types.int64]
+
+
+def test_illegal_groupby(src_expr):
+    pytest.raises(ExpressionError, lambda: src_expr.groupby('int16').agg(src_expr['string']))
+    pytest.raises(ExpressionError,
+                      lambda: src_expr.groupby('int16').agg(src_expr['string'] + src_expr['string'].sum()))
+    pytest.raises(ExpressionError,
+                      lambda: src_expr.groupby('int8').agg(src_expr['boolean', ]['boolean'].sum()))
+
+    grouped = src_expr.groupby('string')
+    pytest.raises(ExpressionError, lambda: src_expr.groupby('boolean').agg(grouped.int32.sum()))
+
+
+def test_backtrack_field(src_expr):
+    expr = src_expr[src_expr.int64 < 10].groupby(src_expr.string).agg(s=src_expr.float32.sum())
+    assert expr._by[0]._input is expr._input
+    assert expr._aggregations[0]._input._input is expr._input

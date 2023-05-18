@@ -14,10 +14,11 @@
 
 import itertools
 
-from odps.tests.core import TestBase, to_str, tn
-from odps.compat import unittest, ConfigParser
-from odps.models import Resource
-from odps import errors
+from ... import errors
+from ...compat import ConfigParser
+from ...tests.core import tn
+from ...utils import to_text
+from .. import Resource
 
 FUNCTION_CONTENT = """\
 from odps.udf import annotate
@@ -32,142 +33,143 @@ class MyPlus(object):
 """
 
 
-class Test(TestBase):
-    def testFunctions(self):
-        self.assertIs(self.odps.get_project().functions, self.odps.get_project().functions)
+def test_functions(odps):
+    assert odps.get_project().functions is odps.get_project().functions
 
-        functions_model = self.odps.get_project().functions
+    functions_model = odps.get_project().functions
 
-        functions = list(functions_model.iterate(maxitems=400))
-        size = len(functions)
-        self.assertGreaterEqual(size, 0)
+    functions = list(functions_model.iterate(maxitems=400))
+    size = len(functions)
+    assert size >= 0
 
-        for i, function in zip(itertools.count(1), functions):
-            if i > 50:
-                break
-            try:
-                self.assertTrue(all(map(lambda r: type(r) != Resource, function.resources)))
-            except errors.ODPSError:
-                continue
-
-    def testFunctionExists(self):
-        non_exists_function = 'a_non_exists_function'
-        self.assertFalse(self.odps.exist_function(non_exists_function))
-
-    def testFunction(self):
-        functions = self.odps.list_functions()
+    for i, function in zip(itertools.count(1), functions):
+        if i > 50:
+            break
         try:
-            function = next(functions)
-        except StopIteration:
-            return
+            assert all(map(lambda r: type(r) != Resource, function.resources)) is True
+        except errors.ODPSError:
+            continue
 
-        self.assertIs(function, self.odps.get_function(function.name))
 
-        self.assertIsNotNone(function._getattr('name'))
-        self.assertIsNotNone(function._getattr('owner'))
-        self.assertIsNotNone(function._getattr('creation_time'))
-        self.assertIsNotNone(function._getattr('class_type'))
-        self.assertIsNotNone(function._getattr('_resources'))
+def test_function_exists(odps):
+    non_exists_function = 'a_non_exists_function'
+    assert odps.exist_function(non_exists_function) is False
 
-    def testCreateDeleteUpdateFunction(self):
+
+def test_function(odps):
+    functions = odps.list_functions()
+    try:
+        function = next(functions)
+    except StopIteration:
+        return
+
+    assert function is odps.get_function(function.name)
+
+    assert function._getattr('name') is not None
+    assert function._getattr('owner') is not None
+    assert function._getattr('creation_time') is not None
+    assert function._getattr('class_type') is not None
+    assert function._getattr('_resources') is not None
+
+
+def test_create_delete_update_function(config, odps):
+    try:
+        secondary_project = config.get('test', 'secondary_project')
+        secondary_user = config.get('test', 'secondary_user')
+    except ConfigParser.NoOptionError:
+        secondary_project = secondary_user = None
+
+    test_resource_name = tn('pyodps_t_tmp_test_function_resource') + '.py'
+    test_resource_name2 = tn('pyodps_t_tmp_test_function_resource2') + '.py'
+    test_resource_name3 = tn('pyodps_t_tmp_test_function_resource3') + '.py'
+    test_function_name = tn('pyodps_t_tmp_test_function')
+    test_function_name3 = tn('pyodps_t_tmp_test_function3')
+
+    try:
+        odps.delete_resource(test_resource_name)
+    except errors.NoSuchObject:
+        pass
+    try:
+        odps.delete_resource(test_resource_name2)
+    except errors.NoSuchObject:
+        pass
+    try:
+        odps.delete_function(test_function_name)
+    except errors.NoSuchObject:
+        pass
+    try:
+        odps.delete_function(test_function_name3)
+    except errors.NoSuchObject:
+        pass
+
+    if secondary_project:
         try:
-            secondary_project = self.config.get('test', 'secondary_project')
-            secondary_user = self.config.get('test', 'secondary_user')
-        except ConfigParser.NoOptionError:
-            secondary_project = secondary_user = None
-
-        test_resource_name = tn('pyodps_t_tmp_test_function_resource') + '.py'
-        test_resource_name2 = tn('pyodps_t_tmp_test_function_resource2') + '.py'
-        test_resource_name3 = tn('pyodps_t_tmp_test_function_resource3') + '.py'
-        test_function_name = tn('pyodps_t_tmp_test_function')
-        test_function_name3 = tn('pyodps_t_tmp_test_function3')
-
-        try:
-            self.odps.delete_resource(test_resource_name)
+            odps.delete_resource(test_resource_name3, project=secondary_project)
         except errors.NoSuchObject:
             pass
-        try:
-            self.odps.delete_resource(test_resource_name2)
-        except errors.NoSuchObject:
-            pass
-        try:
-            self.odps.delete_function(test_function_name)
-        except errors.NoSuchObject:
-            pass
-        try:
-            self.odps.delete_function(test_function_name3)
-        except errors.NoSuchObject:
-            pass
 
-        if secondary_project:
-            try:
-                self.odps.delete_resource(test_resource_name3, project=secondary_project)
-            except errors.NoSuchObject:
-                pass
+    test_resource = odps.create_resource(
+        test_resource_name, 'py', file_obj=FUNCTION_CONTENT
+    )
 
-        test_resource = self.odps.create_resource(
-            test_resource_name, 'py', file_obj=FUNCTION_CONTENT
+    test_function = odps.create_function(
+        test_function_name,
+        class_type=test_resource_name.split('.', 1)[0]+'.MyPlus',
+        resources=[test_resource]
+    )
+
+    assert test_function.name is not None
+    assert test_function.owner is not None
+    assert test_function.creation_time is not None
+    assert test_function.class_type is not None
+    assert len(test_function.resources) == 1
+
+    with odps.open_resource(name=test_resource_name, mode='r') as fp:
+        assert to_text(fp.read()) == to_text(FUNCTION_CONTENT)
+
+    assert test_function.owner != secondary_user
+
+    test_resource2 = odps.create_resource(
+        test_resource_name2, 'file', file_obj='Hello World'
+    )
+    test_function.resources.append(test_resource2)
+    if secondary_user:
+        test_function.owner = secondary_user
+    test_function.update()
+
+    test_function_id = id(test_function)
+    del test_function.project.functions[test_function.name]
+    test_function = odps.get_function(test_function_name)
+    assert test_function_id != id(test_function)
+    assert len(test_function.resources) == 2
+    if secondary_user:
+        assert test_function.owner == secondary_user
+
+    test_resource3 = None
+    test_function3 = None
+    if secondary_project:
+        test_resource3 = odps.create_resource(
+            test_resource_name3, 'py', file_obj=FUNCTION_CONTENT, project=secondary_project
         )
 
-        test_function = self.odps.create_function(
-            test_function_name,
-            class_type=test_resource_name.split('.', 1)[0]+'.MyPlus',
-            resources=[test_resource])
-
-        self.assertIsNotNone(test_function.name)
-        self.assertIsNotNone(test_function.owner)
-        self.assertIsNotNone(test_function.creation_time)
-        self.assertIsNotNone(test_function.class_type)
-        self.assertEqual(len(test_function.resources), 1)
-
-        with self.odps.open_resource(name=test_resource_name, mode='r') as fp:
-            self.assertEqual(to_str(fp.read()), to_str(FUNCTION_CONTENT))
-
-        self.assertNotEqual(test_function.owner, secondary_user)
-
-        test_resource2 = self.odps.create_resource(
-            test_resource_name2, 'file', file_obj='Hello World'
+        test_function3 = odps.create_function(
+            test_function_name3,
+            class_type=test_resource_name3.split('.', 1)[0]+'.MyPlus',
+            resources=[test_resource3]
         )
-        test_function.resources.append(test_resource2)
-        if secondary_user:
-            test_function.owner = secondary_user
-        test_function.update()
 
-        test_function_id = id(test_function)
-        del test_function.project.functions[test_function.name]
-        test_function = self.odps.get_function(test_function_name)
-        self.assertNotEqual(test_function_id, id(test_function))
-        self.assertEqual(len(test_function.resources), 2)
-        if secondary_user:
-            self.assertEqual(test_function.owner, secondary_user)
+        assert test_function3.name == test_function_name3
+        assert test_function3.owner is not None
+        assert test_function3.creation_time is not None
+        assert test_function3.class_type is not None
+        assert len(test_function3.resources) == 1
+        assert test_function3.resources[0].name == test_resource_name3
+        assert test_function3.resources[0].project.name == secondary_project
 
-        test_resource3 = None
-        test_function3 = None
-        if secondary_project:
-            test_resource3 = self.odps.create_resource(
-                test_resource_name3, 'py', file_obj=FUNCTION_CONTENT, project=secondary_project)
-
-            test_function3 = self.odps.create_function(
-                test_function_name3,
-                class_type=test_resource_name3.split('.', 1)[0]+'.MyPlus',
-                resources=[test_resource3])
-
-            self.assertEqual(test_function3.name, test_function_name3)
-            self.assertIsNotNone(test_function3.owner)
-            self.assertIsNotNone(test_function3.creation_time)
-            self.assertIsNotNone(test_function3.class_type)
-            self.assertEqual(len(test_function3.resources), 1)
-            self.assertEqual(test_function3.resources[0].name, test_resource_name3)
-            self.assertEqual(test_function3.resources[0].project.name, secondary_project)
-
-        test_resource.drop()
-        test_resource2.drop()
-        if test_resource3:
-            test_resource3.drop()
-        if test_function3:
-            test_function3.drop()
-        test_function.drop()
-
-
-if __name__ == '__main__':
-    unittest.main()
+    test_resource.drop()
+    test_resource2.drop()
+    if test_resource3:
+        test_resource3.drop()
+    if test_function3:
+        test_function3.drop()
+    test_function.drop()

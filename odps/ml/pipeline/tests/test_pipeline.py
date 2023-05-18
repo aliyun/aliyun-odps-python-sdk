@@ -17,12 +17,14 @@ from __future__ import print_function
 
 from collections import namedtuple
 
-from odps.df import DataFrame
-from odps.ml.text import *
-from odps.ml.classifiers import *
-from odps.ml.pipeline import Pipeline, FeatureUnion
-from odps.ml.pipeline.core import PipelineStep
-from odps.ml.tests.base import MLTestBase, tn, ci_skip_case
+import pytest
+
+from ....df import DataFrame
+from ...text import *
+from ...classifiers import *
+from ...pipeline import Pipeline, FeatureUnion
+from ...pipeline.core import PipelineStep
+from ...tests.base import MLTestUtil, tn, ci_skip_case
 
 CORPUS_TABLE = tn('pyodps_test_ml_corpus')
 W2V_TABLE = tn('pyodps_test_ml_w2v')
@@ -50,53 +52,59 @@ class MockTransformStep(PipelineStep):
         return out_type(**dict(zip(self._output_names,  output_ds)))
 
 
-class Test(MLTestBase):
-    def test_pipeline_param(self):
-        step1 = MockTransformStep(self, 'Step1', params=['p1', 'p2'], outputs=['o1', ])
-        step2 = MockTransformStep(self, 'Step2', params=['p1', 'p2'], outputs=['o1', 'o2'])
-        step2.p2 = 'val22'
-        step3 = MockTransformStep(self, 'Step3', params=['p1', 'p2'], outputs=['o1', ])
+@pytest.fixture
+def utils(odps, tunnel):
+    return MLTestUtil(odps, tunnel)
 
-        pl1 = Pipeline(step1, (step2, 'o2'), name='pl1')
-        pl = Pipeline(pl1, ('s3', step3))
-        pl.pl1__step1__p1, pl.pl1__step2__p1, pl.s3__p1 = 'val1', 'val2', 'val3'
 
-        self.assertRaises(AttributeError, lambda: setattr(pl, 'step3__p1', 1))
-        self.assertTrue(step1 == pl['pl1'][0])
-        self.assertTrue(step2 == pl['pl1']['Step2'])
-        self.assertTrue(step3 == pl['s3'])
-        self.assertEqual(pl.pl1__step1__p1, 'val1')
-        self.assertEqual(pl.pl1__step2__p1, 'val2')
-        self.assertEqual(pl.pl1__step2__p2, 'val22')
-        self.assertEqual(pl1.step1__p1, 'val1')
-        self.assertEqual(pl1.step2__p1, 'val2')
-        self.assertEqual(pl1.step2__p2, 'val22')
-        self.assertEqual(pl.s3__p1, 'val3')
-        self.assertEqual(step1.p1, 'val1')
-        self.assertEqual(step2.p1, 'val2')
-        self.assertEqual(step2.p2, 'val22')
-        self.assertEqual(step3.p1, 'val3')
+def test_pipeline_param(utils):
+    step1 = MockTransformStep(utils, 'Step1', params=['p1', 'p2'], outputs=['o1', ])
+    step2 = MockTransformStep(utils, 'Step2', params=['p1', 'p2'], outputs=['o1', 'o2'])
+    step2.p2 = 'val22'
+    step3 = MockTransformStep(utils, 'Step3', params=['p1', 'p2'], outputs=['o1', ])
 
-        fu = FeatureUnion(pl1, step3)
-        self.assertTrue(step1 == fu['pl1'][0])
-        self.assertTrue(step2 == fu['pl1']['Step2'])
-        self.assertTrue(step3 == fu['step3'])
+    pl1 = Pipeline(step1, (step2, 'o2'), name='pl1')
+    pl = Pipeline(pl1, ('s3', step3))
+    pl.pl1__step1__p1, pl.pl1__step2__p1, pl.s3__p1 = 'val1', 'val2', 'val3'
 
-    @ci_skip_case
-    def test_tfidf_array(self):
-        self.delete_table(W2V_TABLE)
-        self.create_corpus(CORPUS_TABLE)
-        df = DataFrame(self.odps.get_table(CORPUS_TABLE)).doc_content_field('content')
-        pl = Pipeline(Pipeline(SplitWord(), (DocWordStat(), 'multi'), Word2Vec()))
-        word_feature, _ = pl.transform(df)
-        word_feature.persist(W2V_TABLE)
+    pytest.raises(AttributeError, lambda: setattr(pl, 'step3__p1', 1))
+    assert step1 == pl['pl1'][0]
+    assert step2 == pl['pl1']['Step2']
+    assert step3 == pl['s3']
+    assert pl.pl1__step1__p1 == 'val1'
+    assert pl.pl1__step2__p1 == 'val2'
+    assert pl.pl1__step2__p2 == 'val22'
+    assert pl1.step1__p1 == 'val1'
+    assert pl1.step2__p1 == 'val2'
+    assert pl1.step2__p2 == 'val22'
+    assert pl.s3__p1 == 'val3'
+    assert step1.p1 == 'val1'
+    assert step2.p1 == 'val2'
+    assert step2.p2 == 'val22'
+    assert step3.p1 == 'val3'
 
-    @ci_skip_case
-    def test_tfidf_code(self):
-        self.delete_table(TFIDF_TABLE)
-        self.create_corpus(CORPUS_TABLE)
-        df = DataFrame(self.odps.get_table(CORPUS_TABLE)).doc_content_field('content')
-        pl = Pipeline(SplitWord())
-        TFIDF().link(DocWordStat().link(pl).triple)
-        ret_df = pl.transform(df)
-        ret_df.persist(TFIDF_TABLE)
+    fu = FeatureUnion(pl1, step3)
+    assert step1 == fu['pl1'][0]
+    assert step2 == fu['pl1']['Step2']
+    assert step3 == fu['step3']
+
+
+@ci_skip_case
+def test_tfidf_array(odps, utils):
+    utils.delete_table(W2V_TABLE)
+    utils.create_corpus(CORPUS_TABLE)
+    df = DataFrame(odps.get_table(CORPUS_TABLE)).doc_content_field('content')
+    pl = Pipeline(Pipeline(SplitWord(), (DocWordStat(), 'multi'), Word2Vec()))
+    word_feature, _ = pl.transform(df)
+    word_feature.persist(W2V_TABLE)
+
+
+@ci_skip_case
+def test_tfidf_code(odps, utils):
+    utils.delete_table(TFIDF_TABLE)
+    utils.create_corpus(CORPUS_TABLE)
+    df = DataFrame(odps.get_table(CORPUS_TABLE)).doc_content_field('content')
+    pl = Pipeline(SplitWord())
+    TFIDF().link(DocWordStat().link(pl).triple)
+    ret_df = pl.transform(df)
+    ret_df.persist(TFIDF_TABLE)

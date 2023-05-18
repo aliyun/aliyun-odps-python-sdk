@@ -14,78 +14,74 @@
 
 import json
 
-from odps.compat import unittest, six
-from odps.counters import *
-from odps.tests.core import TestBase
+from ...compat import six
+from ...counters import *
 
 
-class TestUserCounter(TestBase):
-    
-    def test_counter(self):
-        counter = Counter("test", 12)
-        self.assertEqual("test", counter.get_name())
-        self.assertEqual(12, counter.get_value())
+def test_counter():
+    counter = Counter("test", 12)
+    assert "test" == counter.get_name()
+    assert 12 == counter.get_value()
 
-        counter = Counter("test2")
-        self.assertEqual("test2", counter.get_name())
-        self.assertEqual(0, counter.get_value())
+    counter = Counter("test2")
+    assert "test2" == counter.get_name()
+    assert 0 == counter.get_value()
 
-    def test_counter_group(self):
-        counter_group = CounterGroup("test_group")
-        self.assertEqual("test_group", counter_group.get_name())
-        
-        counter_group.get_counter("test")
-        counter = Counter("test2")
-        counter_group.add_counter(counter)
 
-        self.assertEqual(2, counter_group.size())
+def test_counter_group():
+    counter_group = CounterGroup("test_group")
+    assert "test_group" == counter_group.get_name()
 
-    def test_counters(self):
-        def _normalize_counter(json_str):
-            obj = json.loads(json_str)
-            for v in six.itervalues(obj):
-                if 'counters' not in v:
-                    continue
-                v['counters'] = sorted(v['counters'], key=lambda item: item['name'])
+    counter_group.get_counter("test")
+    counter = Counter("test2")
+    counter_group.add_counter(counter)
 
-            return json.dumps(obj, sort_keys=True)
+    assert 2 == counter_group.size()
 
-        result_json = '''
-                {
-                  "group1" : {
-                    "name" : "group1",
-                    "counters" : [
-                         {
-                           "name" : "test1",
-                           "value" : 1
-                         },
-                         {
-                           "name" : "test2",
-                           "value" : 2
-                         }
-                    ]},
-                  "group2" : {
-                    "name" : "group2",
-                    "counters" : [
-                         {
-                           "name" : "test3",
-                           "value" : 3
-                         }
-                     ]
-                   }
-                }
-                '''
 
-        counters = Counters()
-        c1 = counters.get_group("group1").get_counter("test1")
-        c1.increment(1)
-        c2 = counters.get_group("group1").get_counter("test2")
-        c2.increment(2)
-        c3 = counters.get_group("group2").get_counter("test3")
-        c3.increment(3)
+def test_counters():
+    def _normalize_counter(json_str):
+        obj = json.loads(json_str)
+        for v in six.itervalues(obj):
+            if 'counters' not in v:
+                continue
+            v['counters'] = sorted(v['counters'], key=lambda item: item['name'])
 
-        self.assertEqual(2, counters.size())
-        self.assertEqual(_normalize_counter(result_json), _normalize_counter(counters.to_json_string()))
+        return json.dumps(obj, sort_keys=True)
 
-if __name__ == '__main__':
-    unittest.main()
+    result_json = '''
+            {
+              "group1" : {
+                "name" : "group1",
+                "counters" : [
+                     {
+                       "name" : "test1",
+                       "value" : 1
+                     },
+                     {
+                       "name" : "test2",
+                       "value" : 2
+                     }
+                ]},
+              "group2" : {
+                "name" : "group2",
+                "counters" : [
+                     {
+                       "name" : "test3",
+                       "value" : 3
+                     }
+                 ]
+               }
+            }
+            '''
+
+    counters = Counters()
+    c1 = counters.get_group("group1").get_counter("test1")
+    c1.increment(1)
+    c2 = counters.get_group("group1").get_counter("test2")
+    c2.increment(2)
+    c3 = counters.get_group("group2").get_counter("test3")
+    c3.increment(3)
+
+    assert 2 == counters.size()
+    assert _normalize_counter(result_json) == _normalize_counter(counters.to_json_string())

@@ -19,61 +19,62 @@ from datetime import datetime
 from decimal import Decimal
 from pstats import Stats
 
-from odps.compat import unittest
-from odps.tests.core import TestBase
+import pytest
+
 from odps.models import TableSchema, Record
 
+COMPRESS_DATA = True
+BUFFER_SIZE = 1024 * 1024
+DATA_AMOUNT = 100000
+STRING_LITERAL = "Soft kitty, warm kitty, little ball of fur; happy kitty, sleepy kitty, purr, purr"
 
-class Test(TestBase):
-    COMPRESS_DATA = True
-    BUFFER_SIZE = 1024*1024
-    DATA_AMOUNT = 100000
-    STRING_LITERAL = "Soft kitty, warm kitty, little ball of fur; happy kitty, sleepy kitty, purr, purr"
 
-    def setUp(self):
-        TestBase.setUp(self)
-        self.pr = cProfile.Profile()
-        self.pr.enable()
-        fields = ['bigint', 'double', 'datetime', 'boolean', 'string', 'decimal']
-        types = ['bigint', 'double', 'datetime', 'boolean', 'string', 'decimal']
-        self.SCHEMA = TableSchema.from_lists(fields, types)
-
-    def tearDown(self):
-        p = Stats(self.pr)
+@pytest.fixture
+def schema():
+    pr = cProfile.Profile()
+    pr.enable()
+    fields = ['bigint', 'double', 'datetime', 'boolean', 'string', 'decimal']
+    types = ['bigint', 'double', 'datetime', 'boolean', 'string', 'decimal']
+    try:
+        yield TableSchema.from_lists(fields, types)
+    finally:
+        p = Stats(pr)
         p.strip_dirs()
         p.sort_stats('cumtime')
         p.print_stats(40)
-        TestBase.teardown(self)
 
-    def testSetRecordFieldBigint(self):
-        r = Record(schema=self.SCHEMA)
-        for i in range(10**6):
-            r['bigint'] = 2**63-1
 
-    def testSetRecordFieldDouble(self):
-        r = Record(schema=self.SCHEMA)
-        for i in range(10**6):
-            r['double'] = 0.0001
+def test_set_record_field_bigint(schema):
+    r = Record(schema=schema)
+    for i in range(10**6):
+        r['bigint'] = 2**63-1
 
-    def testSetRecordFieldBoolean(self):
-        r = Record(schema=self.SCHEMA)
-        for i in range(10**6):
-            r['boolean'] = False
 
-    def testSetRecordFieldString(self):
-        r = Record(schema=self.SCHEMA)
-        for i in range(10**6):
-            r['string'] = self.STRING_LITERAL
+def test_set_record_field_double(schema):
+    r = Record(schema=schema)
+    for i in range(10**6):
+        r['double'] = 0.0001
 
-    def testWriteSetRecordFieldDatetime(self):
-        r = Record(schema=self.SCHEMA)
-        for i in range(10**6):
-            r['datetime'] = datetime(2016, 1, 1)
 
-    def testSetRecordFieldDecimal(self):
-        r = Record(schema=self.SCHEMA)
-        for i in range(10**6):
-            r['decimal'] = Decimal('1.111111')
+def test_set_record_field_boolean(schema):
+    r = Record(schema=schema)
+    for i in range(10**6):
+        r['boolean'] = False
 
-if __name__ == '__main__':
-    unittest.main()
+
+def test_set_record_field_string(schema):
+    r = Record(schema=schema)
+    for i in range(10**6):
+        r['string'] = STRING_LITERAL
+
+
+def test_write_set_record_field_datetime(schema):
+    r = Record(schema=schema)
+    for i in range(10**6):
+        r['datetime'] = datetime(2016, 1, 1)
+
+
+def test_set_record_field_decimal(schema):
+    r = Record(schema=schema)
+    for i in range(10**6):
+        r['decimal'] = Decimal('1.111111')

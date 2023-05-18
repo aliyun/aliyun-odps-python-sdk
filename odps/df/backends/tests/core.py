@@ -23,34 +23,41 @@ try:
 except ImportError:
     from string import ascii_letters as letters
 
-from odps.tests.core import TestBase as Base, to_str, tn, pandas_case
-from odps import types
-from odps.df.backends.frame import ResultFrame
+from .... import types
+from ....tests.core import tn, pandas_case
+from ....utils import to_text
+from ..frame import ResultFrame
 
 
-class TestBase(Base):
-    def _gen_random_bigint(self, value_range=None):
+class NumGenerators(object):
+    @staticmethod
+    def gen_random_bigint(value_range=None):
         return random.randint(*(value_range or types.bigint._bounds))
 
-    def _gen_random_string(self, max_length=15):
+    @staticmethod
+    def gen_random_string(max_length=15):
         gen_letter = lambda: letters[random.randint(0, 51)]
-        return to_str(''.join([gen_letter() for _ in range(random.randint(1, max_length))]))
+        return to_text(''.join([gen_letter() for _ in range(random.randint(1, max_length))]))
 
-    def _gen_random_double(self):
+    @staticmethod
+    def gen_random_double():
         return random.uniform(-2**32, 2**32)
 
-    def _gen_random_datetime(self):
+    @staticmethod
+    def gen_random_datetime():
         dt = datetime.fromtimestamp(random.randint(0, int(time.time())))
         if dt.year >= 1986 or dt.year <= 1992:  # ignore years when daylight saving time is used
             return dt.replace(year=1996)
         else:
             return dt
 
-    def _gen_random_boolean(self):
+    @staticmethod
+    def gen_random_boolean():
         return random.uniform(-1, 1) > 0
 
-    def _gen_random_decimal(self):
-        return Decimal(str(self._gen_random_double()))
+    @classmethod
+    def gen_random_decimal(cls):
+        return Decimal(str(cls.gen_random_double()))
 
 
-__all__ = ['TestBase', 'to_str', 'tn', 'pandas_case']
+__all__ = ['NumGenerators', 'tn', 'pandas_case']

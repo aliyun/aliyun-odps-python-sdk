@@ -19,7 +19,7 @@ import functools
 import re
 import time
 import uuid
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 from odps.df.expr.dynamic import DynamicMixin
 from .objects import SchemaDef
@@ -27,7 +27,7 @@ from ..expr import ModelDataCollectionExpr, ODPSModelExpr
 from ..expr.op import ProgrammaticFieldChangeOperation
 from ..pipeline.core import PipelineStep
 from ..utils import import_class_member, get_function_args, ML_ARG_PREFIX
-from ...compat import six, OrderedDict, irange, Iterable
+from ...compat import six, irange, Iterable
 from ...df.core import DataFrame
 from ...models import TableSchema
 from ..enums import PortType, PortDirection

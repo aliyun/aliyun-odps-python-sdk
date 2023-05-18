@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from odps.models import Table
+from ....models import Table
 
 
 class MockProject(object):

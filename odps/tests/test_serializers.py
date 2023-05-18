@@ -19,10 +19,8 @@ import textwrap
 import time
 from datetime import datetime
 
-from odps.tests.core import TestBase, to_str
-from odps.compat import unittest
-from odps.serializers import *
-from odps import utils
+from ..serializers import *
+from .. import utils
 
 expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
 <Example type="ex">
@@ -123,84 +121,80 @@ class Example(XMLSerializableModel):
     jsn = XMLNodeReferenceField(Json, 'json')
 
 
-class Test(TestBase):
+def test_serializers():
+    teacher = Example.Teacher(name='t1')
+    student = Example.Student(name='s1', content='s1_content')
+    professors = [Example.Teacher(name='p1'), Example.Teacher(name='p2')]
+    jsn = Example.Json(label='json', tags=['t1', 't2'],
+                       nest=Example.Json.Nest(name='n'),
+                       nests=[Example.Json.Nest(name='n1'), Example.Json.Nest(name='n2')])
 
-    def testSerializers(self):
-        teacher = Example.Teacher(name='t1')
-        student = Example.Student(name='s1', content='s1_content')
-        professors = [Example.Teacher(name='p1'), Example.Teacher(name='p2')]
-        jsn = Example.Json(label='json', tags=['t1', 't2'],
-                           nest=Example.Json.Nest(name='n'),
-                           nests=[Example.Json.Nest(name='n1'), Example.Json.Nest(name='n2')])
+    dt = datetime.fromtimestamp(time.mktime(datetime.now().timetuple()))
+    example = Example(name='example 1', type='ex', date=dt, bool_true=True, bool_false=False,
+                      lessons=['less1', 'less2'], teacher=teacher, student=student,
+                      professors=professors, properties={'test': 'true'}, jsn=jsn)
+    sel = example.serialize()
 
-        dt = datetime.fromtimestamp(time.mktime(datetime.now().timetuple()))
-        example = Example(name='example 1', type='ex', date=dt, bool_true=True, bool_false=False,
-                          lessons=['less1', 'less2'], teacher=teacher, student=student,
-                          professors=professors, properties={'test': 'true'}, jsn=jsn)
-        sel = example.serialize()
+    assert utils.to_str(
+        expected_xml_template % utils.gen_rfc822(dt, localtime=True)
+    ) == utils.to_str(sel)
 
-        self.assertEqual(
-            to_str(expected_xml_template % utils.gen_rfc822(dt, localtime=True)), to_str(sel))
+    parsed_example = Example.parse(sel)
 
-        parsed_example = Example.parse(sel)
-
-        self.assertEqual(example.name, parsed_example.name)
-        self.assertEqual(example.type, parsed_example.type)
-        self.assertEqual(example.date, parsed_example.date)
-        self.assertEqual(example.bool_true, parsed_example.bool_true)
-        self.assertEqual(example.bool_false, parsed_example.bool_false)
-        self.assertSequenceEqual(example.lessons, parsed_example.lessons)
-        self.assertEqual(example.teacher, parsed_example.teacher)
-        self.assertEqual(example.student, parsed_example.student)
-        self.assertSequenceEqual(example.professors, parsed_example.professors)
-        self.assertTrue(len(example.properties) == len(parsed_example.properties) and
-                        any(example.properties[it] == parsed_example.properties[it])
+    assert example.name == parsed_example.name
+    assert example.type == parsed_example.type
+    assert example.date == parsed_example.date
+    assert example.bool_true == parsed_example.bool_true
+    assert example.bool_false == parsed_example.bool_false
+    assert list(example.lessons) == list(parsed_example.lessons)
+    assert example.teacher == parsed_example.teacher
+    assert example.student == parsed_example.student
+    assert list(example.professors) == list(parsed_example.professors)
+    assert len(example.properties) == len(parsed_example.properties) and \
+        (any(example.properties[it] == parsed_example.properties[it])
                         for it in example.properties)
-        self.assertEqual(example.jsn.label, parsed_example.jsn.label)
-        self.assertEqual(example.jsn.tags, parsed_example.jsn.tags)
-        self.assertEqual(example.jsn.nest, parsed_example.jsn.nest)
-        self.assertSequenceEqual(example.jsn.nests, parsed_example.jsn.nests)
-
-    def testCodedJson(self):
-        parsed_example = Example.parse(expected_xml_template % utils.gen_rfc822(datetime.now(), localtime=True))
-        json_bytes = parsed_example.jsn.serialize().encode("iso-8859-1")
-        coded_json = email.header.Header(json_bytes, "iso-8859-1").encode()
-
-        coded = textwrap.dedent('''
-        <?xml version="1.0" encoding="utf-8"?>
-        <Example type="ex">
-          <json>{JSON_CODED}</json>
-        </Example>
-        ''').strip().replace("{JSON_CODED}", coded_json)
-
-        parsed = Example.parse(coded)
-        self.assertSequenceEqual(parsed.jsn.nests, parsed_example.jsn.nests)
-
-    def testPropertyOverride(self):
-        def gen_objs(marker):
-            assert marker > 0
-            if marker >= 3:
-                return LIST_OBJ_LAST_TMPL % 3
-            else:
-                return LIST_OBJ_TMPL % (marker, marker)
-
-        class Objs(XMLSerializableModel):
-            skip_null = False
-
-            marker = XMLNodeField('marker')
-            obj = XMLNodeField('obj')
-
-        objs = Objs()
-        i = 1
-        while True:
-            objs.parse(gen_objs(i), obj=objs)
-            if objs.marker is None:
-                break
-            i += 1
-
-        self.assertEqual(i, 3)
+    assert example.jsn.label == parsed_example.jsn.label
+    assert example.jsn.tags == parsed_example.jsn.tags
+    assert example.jsn.nest == parsed_example.jsn.nest
+    assert list(example.jsn.nests) == list(parsed_example.jsn.nests)
 
 
-if __name__ == "__main__":
-    #import sys;sys.argv = ['', 'Test.testName']
-    unittest.main()
+def test_coded_json():
+    parsed_example = Example.parse(expected_xml_template % utils.gen_rfc822(datetime.now(), localtime=True))
+    json_bytes = parsed_example.jsn.serialize().encode("iso-8859-1")
+    coded_json = email.header.Header(json_bytes, "iso-8859-1").encode()
+
+    coded = textwrap.dedent('''
+    <?xml version="1.0" encoding="utf-8"?>
+    <Example type="ex">
+      <json>{JSON_CODED}</json>
+    </Example>
+    ''').strip().replace("{JSON_CODED}", coded_json)
+
+    parsed = Example.parse(coded)
+    assert list(parsed.jsn.nests) == list(parsed_example.jsn.nests)
+
+
+def test_property_override():
+    def gen_objs(marker):
+        assert marker > 0
+        if marker >= 3:
+            return LIST_OBJ_LAST_TMPL % 3
+        else:
+            return LIST_OBJ_TMPL % (marker, marker)
+
+    class Objs(XMLSerializableModel):
+        skip_null = False
+
+        marker = XMLNodeField('marker')
+        obj = XMLNodeField('obj')
+
+    objs = Objs()
+    i = 1
+    while True:
+        objs.parse(gen_objs(i), obj=objs)
+        if objs.marker is None:
+            break
+        i += 1
+
+    assert i == 3

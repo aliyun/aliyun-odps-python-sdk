@@ -14,95 +14,98 @@
 # limitations under the License.
 
 import functools
-import unittest
 
-from odps.tests.core import TestBase, tn
-from odps.models import TableSchema
-from odps.df import DataFrame, Delay
+import pytest
+
+from ...tests.core import get_result, tn
+from ...models import TableSchema
+from .. import DataFrame, Delay
 
 
-class Test(TestBase):
+@pytest.fixture
+def setup(odps):
+    test_table_name = tn('pyodps_test_delay')
+    schema = TableSchema.from_lists(['id', 'name', 'value'], ['bigint', 'string', 'bigint'])
 
-    def setup(self):
-        test_table_name = tn('pyodps_test_delay')
-        schema = TableSchema.from_lists(['id', 'name', 'value'], ['bigint', 'string', 'bigint'])
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(test_table_name, schema)
+    data = [[1, 'name1', 1], [2, 'name1', 2], [3, 'name1', 3],
+            [4, 'name2', 1], [5, 'name2', 2], [6, 'name2', 3]]
 
-        self.odps.delete_table(test_table_name, if_exists=True)
-        self.table = self.odps.create_table(test_table_name, schema)
-        self.data = [[1, 'name1', 1], [2, 'name1', 2], [3, 'name1', 3],
-                     [4, 'name2', 1], [5, 'name2', 2], [6, 'name2', 3]]
+    with table.open_writer() as w:
+        w.write(data)
 
-        with self.table.open_writer() as w:
-            w.write(self.data)
+    return DataFrame(table), data
 
-        self.df = DataFrame(self.table)
 
-    def testSyncExecute(self):
-        delay = Delay()
-        filtered = self.df[self.df.id > 0].cache()
-        sub_futures = [filtered[filtered.value == i].execute(delay=delay) for i in range(1, 3)]
-        delay.execute(timeout=10 * 60)
+def test_sync_execute(setup):
+    df, data = setup
+    delay = Delay()
+    filtered = df[df.id > 0].cache()
+    sub_futures = [filtered[filtered.value == i].execute(delay=delay) for i in range(1, 3)]
+    delay.execute(timeout=10 * 60)
 
-        self.assertTrue(all(f.done() for f in sub_futures))
-        for i in range(1, 3):
-            self.assertEqual(self._get_result(sub_futures[i - 1].result()), [d for d in self.data if d[2] == i])
+    assert all(f.done() for f in sub_futures) is True
+    for i in range(1, 3):
+        assert get_result(sub_futures[i - 1].result()) == [d for d in data if d[2] == i]
 
-        # execute on executed delay
-        sub_future = filtered[filtered.value == 3].execute(delay=delay)
-        delay.execute(timeout=10 * 60)
-        self.assertTrue(sub_future.done())
-        self.assertEqual(self._get_result(sub_future.result()), [d for d in self.data if d[2] == 3])
+    # execute on executed delay
+    sub_future = filtered[filtered.value == 3].execute(delay=delay)
+    delay.execute(timeout=10 * 60)
+    assert sub_future.done() is True
+    assert get_result(sub_future.result()) == [d for d in data if d[2] == 3]
 
-    def testAsyncExecute(self):
-        def make_filter(df, cnt):
-            def waiter(val, c):
-                import time
-                time.sleep(5 * c)
-                return val
 
-            f_df = df[df.value == cnt]
-            return f_df[f_df.exclude('value'), f_df.value.map(functools.partial(waiter, cnt))]
+def test_async_execute(setup):
+    def make_filter(df, cnt):
+        def waiter(val, c):
+            import time
+            time.sleep(5 * c)
+            return val
 
-        delay = Delay()
-        filtered = self.df[self.df.id > 0].cache()
-        sub_futures = [make_filter(filtered, i).execute(delay=delay) for i in range(1, 4)]
-        future = delay.execute(async_=True, n_parallel=3)
-        self.assertRaises(RuntimeError, lambda: delay.execute())
+        f_df = df[df.value == cnt]
+        return f_df[f_df.exclude('value'), f_df.value.map(functools.partial(waiter, cnt))]
 
-        for i in range(1, 4):
-            self.assertFalse(future.done())
-            self.assertFalse(any(f.done() for f in sub_futures[i - 1:]))
-            self.assertTrue(all(f.done() for f in sub_futures[:i - 1]))
-            self.assertEqual(self._get_result(sub_futures[i - 1].result()), [d for d in self.data if d[2] == i])
-        self.assertTrue(all(f.done() for f in sub_futures))
-        future.result(timeout=10 * 60)
-        self.assertTrue(future.done())
+    df, data = setup
+    delay = Delay()
+    filtered = df[df.id > 0].cache()
+    sub_futures = [make_filter(filtered, i).execute(delay=delay) for i in range(1, 4)]
+    future = delay.execute(async_=True, n_parallel=3)
+    pytest.raises(RuntimeError, lambda: delay.execute())
 
-    def testPersistExecute(self):
-        delay = Delay()
-        filtered = self.df[self.df.id > 0].cache()
+    for i in range(1, 4):
+        assert future.done() is False
+        assert any(f.done() for f in sub_futures[i - 1:]) is False
+        assert all(f.done() for f in sub_futures[:i - 1]) is True
+        assert get_result(sub_futures[i - 1].result()) == [d for d in data if d[2] == i]
+    assert all(f.done() for f in sub_futures) is True
+    future.result(timeout=10 * 60)
+    assert future.done() is True
 
-        persist_table_name = tn('pyodps_test_delay_persist')
-        schema = TableSchema.from_lists(
-            ['id', 'name', 'value'], ['bigint', 'string', 'bigint'],
-            ['pt', 'ds'], ['string', 'string']
-        )
-        self.odps.delete_table(persist_table_name, if_exists=True)
-        self.odps.create_table(persist_table_name, schema)
 
-        future1 = filtered[filtered.value > 2].persist(persist_table_name, partition='pt=a,ds=d1', delay=delay)
-        future2 = filtered[filtered.value < 2].persist(persist_table_name, partition='pt=a,ds=d2', delay=delay)
+def test_persist_execute(odps, setup):
+    df, data = setup
+    delay = Delay()
+    filtered = df[df.id > 0].cache()
 
-        delay.execute()
-        df1 = future1.result()
-        df2 = future2.result()
+    persist_table_name = tn('pyodps_test_delay_persist')
+    schema = TableSchema.from_lists(
+        ['id', 'name', 'value'], ['bigint', 'string', 'bigint'],
+        ['pt', 'ds'], ['string', 'string']
+    )
+    odps.delete_table(persist_table_name, if_exists=True)
+    odps.create_table(persist_table_name, schema)
 
-        self.assertEqual([c.lhs.name for c in df1.predicate.children()], ['pt', 'ds'])
-        result1 = self._get_result(df1.execute())
-        self.assertEqual([r[:-2] for r in result1], [d for d in self.data if d[2] > 2])
-        self.assertEqual([c.lhs.name for c in df2.predicate.children()], ['pt', 'ds'])
-        result2 = self._get_result(df2.execute())
-        self.assertEqual([r[:-2] for r in result2], [d for d in self.data if d[2] < 2])
+    future1 = filtered[filtered.value > 2].persist(persist_table_name, partition='pt=a,ds=d1', delay=delay)
+    future2 = filtered[filtered.value < 2].persist(persist_table_name, partition='pt=a,ds=d2', delay=delay)
 
-if __name__ == '__main__':
-    unittest.main()
+    delay.execute()
+    df1 = future1.result()
+    df2 = future2.result()
+
+    assert [c.lhs.name for c in df1.predicate.children()] == ['pt', 'ds']
+    result1 = get_result(df1.execute())
+    assert [r[:-2] for r in result1] == [d for d in data if d[2] > 2]
+    assert [c.lhs.name for c in df2.predicate.children()] == ['pt', 'ds']
+    result2 = get_result(df2.execute())
+    assert [r[:-2] for r in result2] == [d for d in data if d[2] < 2]

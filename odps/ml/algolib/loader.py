@@ -15,13 +15,14 @@
 
 import re
 import textwrap
+from collections import OrderedDict
 from functools import partial
 
 from .objects import AlgorithmsDef, AlgorithmDef
 from ..expr import AlgoCollectionExpr, ODPSModelExpr, MetricsResultExpr
 from ..enums import PortType
 from ..utils import import_class_member, get_function_args, ML_ARG_PREFIX
-from ...compat import OrderedDict, six, Iterable
+from ...compat import six, Iterable
 from ...df.expr.collections import SequenceExpr
 from ...utils import camel_to_underline, underline_to_capitalized, load_static_text_file,\
     load_internal_static_text_file, survey

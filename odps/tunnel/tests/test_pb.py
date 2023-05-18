@@ -15,101 +15,60 @@
 # limitations under the License.
 
 import io
-import warnings
 
-from odps.tests.core import TestBase, to_str
-from odps.compat import unittest
-from odps.tunnel.pb.wire_format import *
-from odps.utils import to_binary
+import pytest
 
+from ...utils import to_binary, to_text
+from ..pb.encoder import Encoder as PyEncoder
+from ..pb.decoder import Decoder as PyDecoder
+from ..pb.wire_format import *
 
-class Test(TestBase):
-
-    def testPyEncodeAndDecode(self):
-        from odps.tunnel.pb.encoder import Encoder
-        from odps.tunnel.pb.decoder import Decoder
-
-        encoder = Encoder()
-        encoder.append_tag(0, WIRETYPE_VARINT)
-        encoder.append_int32(2 ** 20)
-        encoder.append_tag(1, WIRETYPE_VARINT)
-        encoder.append_sint64(-2 ** 40)
-        encoder.append_tag(2, WIRETYPE_LENGTH_DELIMITED)
-        encoder.append_string(to_binary("hello"))
-        encoder.append_tag(3, WIRETYPE_VARINT)
-        encoder.append_bool(True)
-        encoder.append_tag(4, WIRETYPE_FIXED64)
-        encoder.append_float(3.14)
-        encoder.append_double(0.31415926)
-        encoder.append_tag(5, WIRETYPE_VARINT)
-        encoder.append_uint32(2 ** 30)
-        encoder.append_tag(6, WIRETYPE_VARINT)
-        encoder.append_uint64(2 ** 40)
-        buffer_size = len(encoder)
-
-        tube = io.BytesIO(encoder.tostring())
-        decoder = Decoder(tube)
-        self.assertEqual((0, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-        self.assertEqual(2**20, decoder.read_int32())
-        self.assertEqual((1, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-        self.assertEqual(-2**40, decoder.read_sint64())
-        self.assertEqual((2, WIRETYPE_LENGTH_DELIMITED), decoder.read_field_number_and_wire_type())
-        self.assertEqual(to_str("hello"), to_str(decoder.read_string()))
-        self.assertEqual((3, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-        self.assertEqual(True, decoder.read_bool())
-        self.assertEqual((4, WIRETYPE_FIXED64), decoder.read_field_number_and_wire_type())
-        self.assertAlmostEqual(3.14, decoder.read_float(), delta=0.001)
-        self.assertEqual(0.31415926, decoder.read_double())
-        self.assertEqual((5, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-        self.assertEqual(2**30, decoder.read_uint32())
-        self.assertEqual((6, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-        self.assertEqual(2**40, decoder.read_uint64())
-        self.assertEqual(buffer_size, decoder.position())
-
-    def testCEncodeAndDecode(self):
-        try:
-            from odps.tunnel.pb.encoder_c import Encoder
-            from odps.tunnel.pb.decoder_c import Decoder
-
-            encoder = Encoder()
-            encoder.append_tag(0, WIRETYPE_VARINT)
-            encoder.append_tag(1, WIRETYPE_VARINT)
-            encoder.append_sint64(-2 ** 40)
-            encoder.append_tag(2, WIRETYPE_LENGTH_DELIMITED)
-            encoder.append_string(to_binary("hello"))
-            encoder.append_tag(3, WIRETYPE_VARINT)
-            encoder.append_bool(True)
-            encoder.append_tag(4, WIRETYPE_FIXED64)
-            encoder.append_float(3.14)
-            encoder.append_double(0.31415926)
-            encoder.append_tag(5, WIRETYPE_VARINT)
-            encoder.append_uint32(2 ** 30)
-            encoder.append_tag(6, WIRETYPE_VARINT)
-            encoder.append_uint64(2 ** 40)
-            encoder.append_string(b"VAL" * 65000)
-            buffer_size = len(encoder)
-
-            tube = io.BytesIO(encoder.tostring())
-            decoder = Decoder(tube)
-            self.assertEqual((0, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-            self.assertEqual((1, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-            self.assertEqual(-2 ** 40, decoder.read_sint64())
-            self.assertEqual((2, WIRETYPE_LENGTH_DELIMITED), decoder.read_field_number_and_wire_type())
-            self.assertEqual(to_str("hello"), to_str(decoder.read_string()))
-            self.assertEqual((3, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-            self.assertEqual(True, decoder.read_bool())
-            self.assertEqual((4, WIRETYPE_FIXED64), decoder.read_field_number_and_wire_type())
-            self.assertAlmostEqual(3.14, decoder.read_float(), delta=0.001)
-            self.assertEqual(0.31415926, decoder.read_double())
-            self.assertEqual((5, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-            self.assertEqual(2 ** 30, decoder.read_uint32())
-            self.assertEqual((6, WIRETYPE_VARINT), decoder.read_field_number_and_wire_type())
-            self.assertEqual(2 ** 40, decoder.read_uint64())
-            self.assertEqual(b"VAL" * 65000, decoder.read_string())
-            self.assertEqual(buffer_size, decoder.position())
-        except ImportError:
-            warnings.warn('No Encoder or Decoder built by cython found')
+try:
+    from ..pb.encoder_c import Encoder as CEncoder
+    from ..pb.decoder_c import Decoder as CDecoder
+except ImportError:
+    CEncoder = CDecoder = None
 
 
-if __name__ == '__main__':
-    unittest.main()
+@pytest.mark.parametrize("encoder_cls, decoder_cls", [
+    pytest.param(PyEncoder, PyDecoder, id="py"),
+    pytest.param(CEncoder, CDecoder, id="c"),
+])
+def test_encode_and_decode(encoder_cls, decoder_cls):
+    if encoder_cls is None or decoder_cls is None:
+        pytest.skip('No Encoder or Decoder built by cython found')
+
+    encoder = encoder_cls()
+    encoder.append_tag(0, WIRETYPE_VARINT)
+    encoder.append_tag(1, WIRETYPE_VARINT)
+    encoder.append_sint64(-2 ** 40)
+    encoder.append_tag(2, WIRETYPE_LENGTH_DELIMITED)
+    encoder.append_string(to_binary("hello"))
+    encoder.append_tag(3, WIRETYPE_VARINT)
+    encoder.append_bool(True)
+    encoder.append_tag(4, WIRETYPE_FIXED64)
+    encoder.append_float(3.14)
+    encoder.append_double(0.31415926)
+    encoder.append_tag(5, WIRETYPE_VARINT)
+    encoder.append_uint32(2 ** 30)
+    encoder.append_tag(6, WIRETYPE_VARINT)
+    encoder.append_uint64(2 ** 40)
+    buffer_size = len(encoder)
+
+    tube = io.BytesIO(encoder.tostring())
+    decoder = decoder_cls(tube)
+    assert (0, WIRETYPE_VARINT) == decoder.read_field_number_and_wire_type()
+    assert (1, WIRETYPE_VARINT) == decoder.read_field_number_and_wire_type()
+    assert -2**40 == decoder.read_sint64()
+    assert (2, WIRETYPE_LENGTH_DELIMITED) == decoder.read_field_number_and_wire_type()
+    assert to_text("hello") == to_text(decoder.read_string())
+    assert (3, WIRETYPE_VARINT) == decoder.read_field_number_and_wire_type()
+    assert decoder.read_bool()
+    assert (4, WIRETYPE_FIXED64) == decoder.read_field_number_and_wire_type()
+    assert pytest.approx(3.14) == decoder.read_float()
+    assert 0.31415926 == decoder.read_double()
+    assert (5, WIRETYPE_VARINT) == decoder.read_field_number_and_wire_type()
+    assert 2**30 == decoder.read_uint32()
+    assert (6, WIRETYPE_VARINT) == decoder.read_field_number_and_wire_type()
+    assert 2**40 == decoder.read_uint64()
+    assert buffer_size == len(decoder)

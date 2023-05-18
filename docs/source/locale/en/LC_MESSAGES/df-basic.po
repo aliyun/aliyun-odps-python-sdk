@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-10-26 21:42+0800\n"
+"POT-Creation-Date: 2023-04-10 15:31+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -392,8 +392,8 @@ msgstr ""
 "other cases, you need to name the column yourself."
 
 #: ../../source/df-basic.rst:170
-msgid "Sequence 提供 rename 方法对一列进行重命名，用法示例如下："
-msgstr "Sequence provides the rename method to rename columns. For example:"
+msgid "Sequence 提供 rename 方法为一列设置名字，用法示例如下："
+msgstr "Sequence provides rename method to reset names of columns. For example:"
 
 #: ../../source/df-basic.rst:172
 msgid ""
@@ -406,11 +406,30 @@ msgid ""
 "4          3.6"
 msgstr ""
 
+#: ../../source/df-basic.rst:182
+msgid "需要注意的是，rename 操作并不是就地重命名。如果要在 Collection 上应用新的列名，需要重新做列选择，例如"
+msgstr ""
+"Note that rename method does not actually rename the column in place. If you "
+"want to apply new names in your collection, you need to select columns again."
+" For instance,"
+
 #: ../../source/df-basic.rst:184
+msgid ""
+">>> iris[iris.exclude(\"sepalwidth\"), "
+"iris.sepalwidth.rename('sepal_width')].head(5)\n"
+"   sepallength  petallength  petalwidth         name  sepal_width\n"
+"0          5.1          1.4         0.2  Iris-setosa          3.5\n"
+"1          4.9          1.4         0.2  Iris-setosa          3.0\n"
+"2          4.7          1.3         0.2  Iris-setosa          3.2\n"
+"3          4.6          1.5         0.2  Iris-setosa          3.1\n"
+"4          5.0          1.4         0.2  Iris-setosa          3.6"
+msgstr ""
+
+#: ../../source/df-basic.rst:196
 msgid "简单的列变换"
 msgstr "Simple column transformations"
 
-#: ../../source/df-basic.rst:186
+#: ../../source/df-basic.rst:198
 msgid ""
 "你可以对一个 Sequence 进行运算，返回一个新的 Sequence，正如对简单的 Python 变量进行运算一样。对数值列， "
 "Sequence 支持四则运算，而对字符串则支持字符串相加等操作。例如，"
@@ -420,7 +439,7 @@ msgstr ""
 "arithmetic operations are supported. For string columns, operations such "
 "as string concatenations are supported. For example:"
 
-#: ../../source/df-basic.rst:189
+#: ../../source/df-basic.rst:201
 msgid ""
 ">>> (iris.sepallength + 5).head(5)\n"
 "   sepallength\n"
@@ -431,11 +450,11 @@ msgid ""
 "4         10.0"
 msgstr ""
 
-#: ../../source/df-basic.rst:199
+#: ../../source/df-basic.rst:211
 msgid "而"
 msgstr "String addition:"
 
-#: ../../source/df-basic.rst:201
+#: ../../source/df-basic.rst:213
 msgid ""
 ">>> (iris.sepallength + iris.sepalwidth).rename('sum_sepal').head(5)\n"
 "   sum_sepal\n"
@@ -446,18 +465,18 @@ msgid ""
 "4        8.6"
 msgstr ""
 
-#: ../../source/df-basic.rst:211
+#: ../../source/df-basic.rst:223
 msgid "注意到两列参与运算，因而 PyODPS 无法确定最终显示的列名，需要手动指定。详细的列变换说明，请参见 :ref:`dfelement`。"
 msgstr ""
 "Note that when two columns are involved in operations, you need to "
 "manually specify the name of the result column. For details about column "
 "transformations, see :ref:`dfelement`."
 
-#: ../../source/df-basic.rst:214
+#: ../../source/df-basic.rst:226
 msgid "Collection"
 msgstr "Collection"
 
-#: ../../source/df-basic.rst:215
+#: ../../source/df-basic.rst:227
 msgid ""
 "DataFrame 中所有二维数据集上的操作都属于 :class:`CollectionExpr`，可视为一张 ODPS "
 "表或一张电子表单，DataFrame 对象也是 CollectionExpr 的特例。CollectionExpr "
@@ -469,11 +488,11 @@ msgstr ""
 "operations, filter operations, and transform operations on two-"
 "dimensional datasets are supported by CollectionExpr."
 
-#: ../../source/df-basic.rst:219
+#: ../../source/df-basic.rst:231
 msgid "获取类型"
 msgstr "Retrieve types"
 
-#: ../../source/df-basic.rst:221
+#: ../../source/df-basic.rst:233
 msgid ""
 "``dtypes``\\ 可以用来获取 CollectionExpr 中所有列的类型。``dtypes`` 返回的是 :ref:`Schema类型"
 " <table_schema>` 。"
@@ -481,7 +500,7 @@ msgstr ""
 "You can use the ``dtypes`` method to retrieve the types of all columns in"
 " a CollectionExpr object. ``dtypes`` returns a :ref:`Schema type."
 
-#: ../../source/df-basic.rst:223
+#: ../../source/df-basic.rst:235
 msgid ""
 ">>> iris.dtypes\n"
 "odps.Schema {\n"
@@ -493,17 +512,17 @@ msgid ""
 "}"
 msgstr ""
 
-#: ../../source/df-basic.rst:236
+#: ../../source/df-basic.rst:248
 msgid "列选择和增删"
 msgstr "Select, add, and delete columns"
 
-#: ../../source/df-basic.rst:238
+#: ../../source/df-basic.rst:250
 msgid "如果要从一个 CollectionExpr 中选取部分列，产生新的数据集，可以使用 expr[columns] 语法。例如，"
 msgstr ""
 "You can use the expr[columns] syntax to select a certain amount of "
 "columns from a CollectionExpr object and form a new dataset. For example:"
 
-#: ../../source/df-basic.rst:240
+#: ../../source/df-basic.rst:252
 msgid ""
 ">>> iris['name', 'sepallength'].head(5)\n"
 "          name  sepallength\n"
@@ -514,7 +533,7 @@ msgid ""
 "4  Iris-setosa          5.0"
 msgstr ""
 
-#: ../../source/df-basic.rst:252
+#: ../../source/df-basic.rst:264
 msgid ""
 "**注意**\\ ：如果需要选择的列只有一列，需要在 columns 后加上逗号或者显示标记为列表，例如 df[df.sepal_length, "
 "] 或 df[[df.sepal_length]]，否则返回的将是一个 Sequence 对象，而不是 Collection。"
@@ -524,13 +543,13 @@ msgstr ""
 "example df[df.sepal_length, ] or df[[df.sepal_length]]. Otherwise, a "
 "Sequence object, instead of a Collection object, is returned."
 
-#: ../../source/df-basic.rst:255
+#: ../../source/df-basic.rst:267
 msgid "如果想要在新的数据集中排除已有数据集的某些列，可使用 exclude 方法："
 msgstr ""
 "You can use the exclude method to exclude certain columns from the new "
 "dataset:"
 
-#: ../../source/df-basic.rst:257
+#: ../../source/df-basic.rst:269
 msgid ""
 ">>> iris.exclude('sepallength', 'petallength')[:5]\n"
 "   sepalwidth  petalwidth         name\n"
@@ -541,13 +560,13 @@ msgid ""
 "4         3.6         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:267
+#: ../../source/df-basic.rst:279
 msgid "0.7.2 以后的 PyODPS 支持另一种写法，即在数据集上直接排除相应的列："
 msgstr ""
 "In PyODPS versions 0.7.2 and higher, a new method is supported. You can "
 "exclude certain columns of the dataset directly:"
 
-#: ../../source/df-basic.rst:269
+#: ../../source/df-basic.rst:281
 msgid ""
 ">>> del iris['sepallength']\n"
 ">>> del iris['petallength']\n"
@@ -560,7 +579,7 @@ msgid ""
 "4         3.6         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:281
+#: ../../source/df-basic.rst:293
 msgid ""
 "如果我们需要在已有 collection 中添加某一列变换的结果，也可以使用 expr[expr, new_sequence] 语法， "
 "新增的列会作为新 collection 的一部分。"
@@ -569,7 +588,7 @@ msgstr ""
 "sequence transformation to the original collection. The new sequence is "
 "part of the new collection."
 
-#: ../../source/df-basic.rst:284
+#: ../../source/df-basic.rst:296
 msgid "下面的例子将 iris 中的 sepalwidth 列加一后重命名为 sepalwidthplus1 并追加到数据集末尾，形成新的数据集："
 msgstr ""
 "The following example illustrates that, we create a new sequence by "
@@ -577,7 +596,7 @@ msgstr ""
 "rename it to sepalwidthplus1, and add it to the iris collection as a new "
 "sequence."
 
-#: ../../source/df-basic.rst:286
+#: ../../source/df-basic.rst:298
 msgid ""
 ">>> iris[iris, (iris.sepalwidth + 1).rename('sepalwidthplus1')].head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name  \\\n"
@@ -595,7 +614,7 @@ msgid ""
 "4              4.6"
 msgstr ""
 
-#: ../../source/df-basic.rst:303
+#: ../../source/df-basic.rst:315
 msgid ""
 "使用 `df[df, new_sequence]` 需要注意的是，变换后的列名与原列名可能相同，如果需要与原 collection 合并， "
 "请将该列重命名。"
@@ -604,13 +623,13 @@ msgstr ""
 "have the same name as the original column. Rename the new column if you "
 "want to append it to the original collection."
 
-#: ../../source/df-basic.rst:306
+#: ../../source/df-basic.rst:318
 msgid "0.7.2 以后版本的 PyODPS 支持直接在当前数据集中追加，写法为"
 msgstr ""
 "In PyODPS versions 0.7.2 and higher, you can append a column to the "
 "current dataset directly:"
 
-#: ../../source/df-basic.rst:308
+#: ../../source/df-basic.rst:320
 msgid ""
 ">>> iris['sepalwidthplus1'] = iris.sepalwidth + 1\n"
 ">>> iris.head(5)\n"
@@ -629,13 +648,13 @@ msgid ""
 "4              4.6"
 msgstr ""
 
-#: ../../source/df-basic.rst:326
+#: ../../source/df-basic.rst:338
 msgid "我们也可以先将原列通过 exclude 方法进行排除，再将变换后的新列并入，而不必担心重名。"
 msgstr ""
 "You can also use the exclude method to exclude the original column before"
 " appending the new one to the dataset."
 
-#: ../../source/df-basic.rst:328
+#: ../../source/df-basic.rst:340
 msgid ""
 ">>> iris[iris.exclude('sepalwidth'), iris.sepalwidth * 2].head(5)\n"
 "   sepallength  petallength  petalwidth         name  sepalwidth\n"
@@ -646,13 +665,13 @@ msgid ""
 "4          5.0          1.4         0.2  Iris-setosa         7.2"
 msgstr ""
 
-#: ../../source/df-basic.rst:338
+#: ../../source/df-basic.rst:350
 msgid "对于 0.7.2 以后版本的 PyODPS，如果想在当前数据集上直接覆盖，则可以写"
 msgstr ""
 "In PyODPS versions 0.7.2 and higher, you can also overwrite an existing "
 "column:"
 
-#: ../../source/df-basic.rst:340
+#: ../../source/df-basic.rst:352
 msgid ""
 ">>> iris['sepalwidth'] = iris.sepalwidth * 2\n"
 ">>> iris.head(5)\n"
@@ -664,7 +683,7 @@ msgid ""
 "4          5.0         7.2          1.4         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:351
+#: ../../source/df-basic.rst:363
 msgid ""
 "增删列以创建新 collection 的另一种方法是调用 select 方法，将需要选择的列作为参数输入。如果需要重命名，使用 keyword "
 "参数输入，并将新的列名作为参数名即可。"
@@ -672,7 +691,7 @@ msgstr ""
 "The select method provides another way to create a new collection, "
 "keyword argument will rename the provided sequence to the given keyword."
 
-#: ../../source/df-basic.rst:354
+#: ../../source/df-basic.rst:366
 msgid ""
 ">>> iris.select('name', sepalwidthminus1=iris.sepalwidth - 1).head(5)\n"
 "          name  sepalwidthminus1\n"
@@ -683,7 +702,7 @@ msgid ""
 "4  Iris-setosa               2.6"
 msgstr ""
 
-#: ../../source/df-basic.rst:364
+#: ../../source/df-basic.rst:376
 msgid ""
 "此外，我们也可以传入一个 lambda 表达式，它接收一个参数，接收上一步的结果。在执行时，PyODPS 会检查这些 lambda "
 "表达式，传入上一步生成的 collection 并将其替换为正确的列。"
@@ -693,7 +712,7 @@ msgstr ""
 "lambda expression and passes in the Collection object generated from the "
 "previous operation to get new columns."
 
-#: ../../source/df-basic.rst:367
+#: ../../source/df-basic.rst:379
 msgid ""
 ">>> iris['name', 'petallength'][[lambda x: x.name]].head(5)\n"
 "          name\n"
@@ -704,13 +723,13 @@ msgid ""
 "4  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:377
+#: ../../source/df-basic.rst:389
 msgid "此外，在 0.7.2 以后版本的 PyODPS 中，支持对数据进行条件赋值，例如"
 msgstr ""
 "In PyODPS versions 0.7.2 and higher, conditional assignments are "
 "supported."
 
-#: ../../source/df-basic.rst:379
+#: ../../source/df-basic.rst:391
 msgid ""
 ">>> iris[iris.sepallength > 5.0, 'sepalwidth'] = iris.sepalwidth * 2\n"
 ">>> iris.head(5)\n"
@@ -722,18 +741,18 @@ msgid ""
 "4          5.0         7.2          1.4         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:391
+#: ../../source/df-basic.rst:403
 msgid "引入常数和随机数"
 msgstr "Constants and random numbers"
 
-#: ../../source/df-basic.rst:392
+#: ../../source/df-basic.rst:404
 msgid "DataFrame 支持在 collection 中追加一列常数。追加常数需要使用 :class:`Scalar`，引入时需要手动指定列名，如"
 msgstr ""
 "DataFrame allows you to append a column of constants to a Collection "
 "object. Scalar is required and you need to manually specify the column "
 "name. For example:"
 
-#: ../../source/df-basic.rst:394
+#: ../../source/df-basic.rst:406
 msgid ""
 ">>> from odps.df import Scalar\n"
 ">>> iris[iris, Scalar(1).rename('id')][:5]\n"
@@ -745,13 +764,13 @@ msgid ""
 "4          5.0         3.6          1.4         0.2  Iris-setosa   1"
 msgstr ""
 
-#: ../../source/df-basic.rst:406
+#: ../../source/df-basic.rst:418
 msgid "如果需要指定一个空值列，可以使用 :class:`NullScalar`，需要提供字段类型。"
 msgstr ""
 "You can use NullScalar to create a null column. The column type must be "
 "specified."
 
-#: ../../source/df-basic.rst:408
+#: ../../source/df-basic.rst:420
 msgid ""
 ">>> from odps.df import NullScalar\n"
 ">>> iris[iris, NullScalar('float').rename('fid')][:5]\n"
@@ -768,13 +787,13 @@ msgid ""
 "4           5.0          3.6           1.4          0.2  Iris-setosa  None"
 msgstr ""
 
-#: ../../source/df-basic.rst:420
+#: ../../source/df-basic.rst:432
 msgid "在 PyODPS 0.7.12 及以后版本中，引入了简化写法："
 msgstr ""
 "In PyODPS versions 0.7.12 and higher, a simpler method has been "
 "introduced:"
 
-#: ../../source/df-basic.rst:422
+#: ../../source/df-basic.rst:434
 msgid ""
 ">>> iris['id'] = 1\n"
 ">>> iris\n"
@@ -786,13 +805,13 @@ msgid ""
 "4          5.0         3.6          1.4         0.2  Iris-setosa   1"
 msgstr ""
 
-#: ../../source/df-basic.rst:434
+#: ../../source/df-basic.rst:446
 msgid "需要注意的是，这种写法无法自动识别空值的类型，所以在增加空值列时，仍然要使用"
 msgstr ""
 "Note that this method cannot automatically recognize the type of null "
 "values. Add null columns as follows: "
 
-#: ../../source/df-basic.rst:436
+#: ../../source/df-basic.rst:448
 msgid ""
 ">>> iris['null_col'] = NullScalar('float')\n"
 ">>> iris\n"
@@ -809,7 +828,7 @@ msgid ""
 "4          5.0         3.6          1.4         0.2  Iris-setosa      None"
 msgstr ""
 
-#: ../../source/df-basic.rst:448
+#: ../../source/df-basic.rst:460
 msgid ""
 "DataFrame 也支持在 collection 中增加一列随机数列，该列类型为 float，范围为 0 - 1，每行数值均不同。 "
 "追加随机数列需要使用 :class:`RandomScalar`，参数为随机数种子，可省略。"
@@ -819,7 +838,7 @@ msgstr ""
 "Each number has a different value. :class:`RandomScalar` is required and "
 "the parameter is an optional random seed."
 
-#: ../../source/df-basic.rst:451
+#: ../../source/df-basic.rst:463
 msgid ""
 ">>> from odps.df import RandomScalar\n"
 ">>> iris[iris, RandomScalar().rename('rand_val')][:5]\n"
@@ -836,21 +855,21 @@ msgid ""
 "4          5.0         3.6          1.4         0.2  Iris-setosa  0.763442"
 msgstr ""
 
-#: ../../source/df-basic.rst:463
+#: ../../source/df-basic.rst:475
 msgid "过滤数据"
 msgstr "Filter data"
 
-#: ../../source/df-basic.rst:465
+#: ../../source/df-basic.rst:477
 msgid "Collection 提供了数据过滤的功能，"
 msgstr "Collection provides different ways to filter data."
 
-#: ../../source/df-basic.rst:467
+#: ../../source/df-basic.rst:479
 msgid "我们试着查询\\ ``sepallength``\\ 大于5的几条数据。"
 msgstr ""
 "The following example finds records where \\ ``sepallength``\\ is greater"
 " than 5."
 
-#: ../../source/df-basic.rst:469
+#: ../../source/df-basic.rst:481
 msgid ""
 ">>> iris[iris.sepallength > 5].head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name\n"
@@ -861,11 +880,11 @@ msgid ""
 "4          5.7         4.4          1.5         0.4  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:479
+#: ../../source/df-basic.rst:491
 msgid "多个查询条件："
 msgstr "Multiple filter conditions:"
 
-#: ../../source/df-basic.rst:481
+#: ../../source/df-basic.rst:493
 msgid ""
 ">>> iris[(iris.sepallength < 5) & (iris['petallength'] > 1.5)].head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth             name\n"
@@ -876,11 +895,11 @@ msgid ""
 "4          4.9         2.4          3.3         1.0  Iris-versicolor"
 msgstr ""
 
-#: ../../source/df-basic.rst:492
+#: ../../source/df-basic.rst:504
 msgid "或条件："
 msgstr "OR operator:"
 
-#: ../../source/df-basic.rst:494
+#: ../../source/df-basic.rst:506
 msgid ""
 ">>> iris[(iris.sepalwidth < 2.5) | (iris.sepalwidth > 4)].head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth             name\n"
@@ -891,17 +910,17 @@ msgid ""
 "4          5.5         2.3          4.0         1.3  Iris-versicolor"
 msgstr ""
 
-#: ../../source/df-basic.rst:507
+#: ../../source/df-basic.rst:519
 msgid "**记住，与和或条件必须使用&和|，不能使用and和or。**"
 msgstr ""
 "**Note that you must use ampersands (&) and vertical bars (|) to "
 "represent the AND and OR operators respectively.**"
 
-#: ../../source/df-basic.rst:510
+#: ../../source/df-basic.rst:522
 msgid "非条件："
 msgstr "NOT operator:"
 
-#: ../../source/df-basic.rst:512
+#: ../../source/df-basic.rst:524
 msgid ""
 ">>> iris[~(iris.sepalwidth > 3)].head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name\n"
@@ -912,13 +931,13 @@ msgid ""
 "4          5.0         3.0          1.6         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:523
+#: ../../source/df-basic.rst:535
 msgid "我们也可以显式调用filter方法，提供多个与条件"
 msgstr ""
 "You can also explicitly call the filter method to specify multiple "
 "conditions."
 
-#: ../../source/df-basic.rst:525
+#: ../../source/df-basic.rst:537
 msgid ""
 ">>> iris.filter(iris.sepalwidth > 3.5, iris.sepalwidth < 4).head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name\n"
@@ -929,11 +948,11 @@ msgid ""
 "4          5.7         3.8          1.7         0.3  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:536
+#: ../../source/df-basic.rst:548
 msgid "同样对于连续的操作，我们可以使用lambda表达式"
 msgstr "You can use lambda expressions to perform sequential operations."
 
-#: ../../source/df-basic.rst:538
+#: ../../source/df-basic.rst:550
 msgid ""
 ">>> iris[iris.sepalwidth > 3.8]['name', lambda x: x.sepallength + 1]\n"
 "          name  sepallength\n"
@@ -945,13 +964,13 @@ msgid ""
 "5  Iris-setosa          6.5"
 msgstr ""
 
-#: ../../source/df-basic.rst:549
+#: ../../source/df-basic.rst:561
 msgid "对于Collection，如果它包含一个列是boolean类型，则可以直接使用该列作为过滤条件。"
 msgstr ""
 "If a Collection object contains a boolean column, you can use it directly"
 " as a filter condition."
 
-#: ../../source/df-basic.rst:552
+#: ../../source/df-basic.rst:564
 msgid ""
 ">>> df.dtypes\n"
 "odps.Schema {\n"
@@ -964,13 +983,13 @@ msgid ""
 "1  True  3"
 msgstr ""
 
-#: ../../source/df-basic.rst:564
+#: ../../source/df-basic.rst:576
 msgid "因此，记住对Collection取单个squence的操作时，只有boolean列是合法的，即对Collection作过滤操作。"
 msgstr ""
 "When retrieving a single sequence from a Collection object, only the "
 "boolean column can be used as a valid filter condition."
 
-#: ../../source/df-basic.rst:567
+#: ../../source/df-basic.rst:579
 msgid ""
 ">>> df[df.a, ]       # 取列操作\n"
 ">>> df[[df.a]]       # 取列操作\n"
@@ -987,7 +1006,7 @@ msgstr ""
 ">>> df.a             # obtain a sequence from a collection\n"
 ">>> df['a']          # obtain a sequence from a collection"
 
-#: ../../source/df-basic.rst:576
+#: ../../source/df-basic.rst:588
 msgid ""
 "同时，我们也支持Pandas中的\\ ``query``\\方法，用查询语句来做数据的筛选，在表达式中直接使用列名如\\ "
 "``sepallength``\\进行操作， 另外在查询语句中\\ ``&``\\和\\ ``and``\\都表示与操作，\\ "
@@ -999,7 +1018,7 @@ msgstr ""
 "\\``and``\\ both represent the AND operator. Vertical bars (\\``|``\\) "
 "and \\ ``or``\\ both represent the OR operator."
 
-#: ../../source/df-basic.rst:580
+#: ../../source/df-basic.rst:592
 msgid ""
 ">>> iris.query(\"(sepallength < 5) and (petallength > 1.5)\").head(5)\n"
 "   sepallength  sepalwidth  petallength  petalwidth             name\n"
@@ -1010,13 +1029,13 @@ msgid ""
 "4          4.9         2.4          3.3         1.0  Iris-versicolor"
 msgstr ""
 
-#: ../../source/df-basic.rst:590
+#: ../../source/df-basic.rst:602
 msgid "当表达式中需要使用到本地变量时，需要在该变量前加一个\\ ``@``\\ 前缀。"
 msgstr ""
 "When local variables are needed in the expressions, add an at sign (@) "
 "before the variable name."
 
-#: ../../source/df-basic.rst:593
+#: ../../source/df-basic.rst:605
 msgid ""
 ">>> var = 4\n"
 ">>> iris.query(\"(iris.sepalwidth < 2.5) | (sepalwidth > @var)\").head(5)"
@@ -1029,33 +1048,33 @@ msgid ""
 "4          5.5         2.3          4.0         1.3  Iris-versicolor"
 msgstr ""
 
-#: ../../source/df-basic.rst:604
+#: ../../source/df-basic.rst:616
 msgid "目前\\ ``query``\\支持的语法包括："
 msgstr "The query method currently supports the following syntaxes."
 
-#: ../../source/df-basic.rst:607
+#: ../../source/df-basic.rst:619
 msgid "语法"
 msgstr "Syntax"
 
-#: ../../source/df-basic.rst:607 ../../source/df-basic.rst:709
+#: ../../source/df-basic.rst:619 ../../source/df-basic.rst:721
 msgid "说明"
 msgstr "Description"
 
-#: ../../source/df-basic.rst:609
+#: ../../source/df-basic.rst:621
 msgid "name"
 msgstr ""
 
-#: ../../source/df-basic.rst:609
+#: ../../source/df-basic.rst:621
 msgid "没有 \\ ``@``\\ 前缀的都当做列名处理，有前缀的会获取本地变量"
 msgstr ""
 "Names without the at sign (@) are processed as column names. Otherwise, "
 "they are processed as local variables. "
 
-#: ../../source/df-basic.rst:610
+#: ../../source/df-basic.rst:622
 msgid "operator"
 msgstr ""
 
-#: ../../source/df-basic.rst:610
+#: ../../source/df-basic.rst:622
 msgid ""
 "支持部分运算符：\\ ``+``\\，\\ ``-``\\，\\ ``*``\\，\\ ``/``\\，\\ ``//``\\，\\ "
 "``%``\\，\\ ``**``\\, \\ ``==``\\，\\ ``!=``\\，\\ ``<``\\，\\ ``<=``\\，\\ "
@@ -1066,37 +1085,37 @@ msgstr ""
 "\\ ``!=``\\, \\ ``<``\\, \\ ``<=``\\, \\ ``>``\\, \\ ``>=``\\, \\ "
 "``in``\\, and \\ ``not in``\\"
 
-#: ../../source/df-basic.rst:612
+#: ../../source/df-basic.rst:624
 msgid "bool"
 msgstr ""
 
-#: ../../source/df-basic.rst:612
+#: ../../source/df-basic.rst:624
 msgid "与或非操作，其中 \\ ``&``\\ 和 \\ ``and``\\ 表示与，\\ ``|``\\ 和 \\ ``or``\\ 表示或"
 msgstr ""
 "Ampersands (\\ ``&``\\ ) and \\ ``and``\\ represent the AND operator. "
 "Vertical bars (\\ ``|``\\) and \\ ``or``\\ represent the OR operator."
 
-#: ../../source/df-basic.rst:613
+#: ../../source/df-basic.rst:625
 msgid "attribute"
 msgstr ""
 
-#: ../../source/df-basic.rst:613
+#: ../../source/df-basic.rst:625
 msgid "取对象属性"
 msgstr "the attribute of the object"
 
-#: ../../source/df-basic.rst:614
+#: ../../source/df-basic.rst:626
 msgid "index, slice, Subscript"
 msgstr "index, slice, Subscript"
 
-#: ../../source/df-basic.rst:614
+#: ../../source/df-basic.rst:626
 msgid "切片操作"
 msgstr "slice operations"
 
-#: ../../source/df-basic.rst:620
+#: ../../source/df-basic.rst:632
 msgid "并列多行输出"
 msgstr "Lateral view"
 
-#: ../../source/df-basic.rst:621
+#: ../../source/df-basic.rst:633
 msgid ""
 "对于 list 及 map 类型的列，explode 方法会将该列转换为多行输出。使用 apply 方法也可以输出多行。 "
 "为了进行聚合等操作，常常需要将这些输出和原表中的列合并。此时可以使用 DataFrame 提供的并列多行输出功能， "
@@ -1109,11 +1128,11 @@ msgstr ""
 " In databases, this kind of operation is often called lateral view. In "
 "PyODPS, you can achieve this as follows:"
 
-#: ../../source/df-basic.rst:625
+#: ../../source/df-basic.rst:637
 msgid "并列多行输出的例子如下："
 msgstr "To generate the lateral view:"
 
-#: ../../source/df-basic.rst:627
+#: ../../source/df-basic.rst:639
 msgid ""
 ">>> df\n"
 "   id         a             b\n"
@@ -1136,7 +1155,7 @@ msgid ""
 "7   2  c1  e2"
 msgstr ""
 
-#: ../../source/df-basic.rst:649
+#: ../../source/df-basic.rst:661
 msgid ""
 "如果多行输出方法对某个输入不产生任何输出，默认输入行将不在最终结果中出现。如果需要在结果中出现该行，可以设置 "
 "``keep_nulls=True``。此时，与该行并列的值将输出为空值："
@@ -1147,7 +1166,7 @@ msgstr ""
 "or ``apply`` calls. In this scenario, columns produced by ``explode`` or "
 "``apply`` will be left None."
 
-#: ../../source/df-basic.rst:652
+#: ../../source/df-basic.rst:664
 msgid ""
 ">>> df\n"
 "   id         a\n"
@@ -1164,7 +1183,7 @@ msgid ""
 "2   2  None"
 msgstr ""
 
-#: ../../source/df-basic.rst:668
+#: ../../source/df-basic.rst:680
 msgid ""
 "关于 explode 使用并列输出的具体文档可参考 :ref:`dfcollections`，对于 apply 方法使用并列输出的例子可参考 "
 ":ref:`dfudtfapp`。"
@@ -1172,11 +1191,11 @@ msgstr ""
 "For details about the explode method, see :ref:`dfcollections`. For "
 "examples of the apply method, see :ref:`dfudtfapp`."
 
-#: ../../source/df-basic.rst:672
+#: ../../source/df-basic.rst:684
 msgid "限制条数"
 msgstr "Limit output records"
 
-#: ../../source/df-basic.rst:674
+#: ../../source/df-basic.rst:686
 msgid ""
 ">>> iris[:3]\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name\n"
@@ -1185,13 +1204,13 @@ msgid ""
 "2          4.7         3.2          1.3         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:682
+#: ../../source/df-basic.rst:694
 msgid "值得注意的是，目前切片对于ODPS SQL后端不支持start和step。我们也可以使用limit方法"
 msgstr ""
 "Note that for MaxCompute SQL backend, start and step are not supported in"
 " slice operations. You can also use the limit method."
 
-#: ../../source/df-basic.rst:684
+#: ../../source/df-basic.rst:696
 msgid ""
 ">>> iris.limit(3)\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name\n"
@@ -1200,21 +1219,21 @@ msgid ""
 "2          4.7         3.2          1.3         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:694
+#: ../../source/df-basic.rst:706
 msgid "**另外，切片操作只能作用在collection上，不能作用于sequence。**"
 msgstr ""
 "**Additionally, you can perform slice operations on Collection objects "
 "only, not Sequence objects.**"
 
-#: ../../source/df-basic.rst:697
+#: ../../source/df-basic.rst:709
 msgid "执行"
 msgstr "Execution"
 
-#: ../../source/df-basic.rst:702
+#: ../../source/df-basic.rst:714
 msgid "延迟执行"
 msgstr "Deferred execution"
 
-#: ../../source/df-basic.rst:704
+#: ../../source/df-basic.rst:716
 msgid ""
 "DataFrame上的所有操作并不会立即执行，只有当用户显式调用\\ ``execute``\\ "
 "方法，或者一些立即执行的方法时（内部调用的就是\\ ``execute``\\ ），才会真正去执行。"
@@ -1223,86 +1242,86 @@ msgstr ""
 " executed when you explicitly call the \\ `ʻexecute`` \\ action or "
 "actions that internally call \\ `ʻexecute`` \\."
 
-#: ../../source/df-basic.rst:706
+#: ../../source/df-basic.rst:718
 msgid "这些立即执行的方法包括："
 msgstr "These actions include:"
 
-#: ../../source/df-basic.rst:709
+#: ../../source/df-basic.rst:721
 msgid "方法"
 msgstr "Action"
 
-#: ../../source/df-basic.rst:709
+#: ../../source/df-basic.rst:721
 msgid "返回值"
 msgstr "Return value"
 
-#: ../../source/df-basic.rst:711
+#: ../../source/df-basic.rst:723
 msgid "persist"
 msgstr ""
 
-#: ../../source/df-basic.rst:711
+#: ../../source/df-basic.rst:723
 msgid "将执行结果保存到ODPS表"
 msgstr "Saves the execution result to MaxCompute tables."
 
-#: ../../source/df-basic.rst:711
+#: ../../source/df-basic.rst:723
 msgid "PyODPS DataFrame"
 msgstr ""
 
-#: ../../source/df-basic.rst:712
+#: ../../source/df-basic.rst:724
 msgid "execute"
 msgstr ""
 
-#: ../../source/df-basic.rst:712
+#: ../../source/df-basic.rst:724
 msgid "执行并返回全部结果"
 msgstr "Executes the operations and returns all the results."
 
-#: ../../source/df-basic.rst:712 ../../source/df-basic.rst:713
-#: ../../source/df-basic.rst:714
+#: ../../source/df-basic.rst:724 ../../source/df-basic.rst:725
+#: ../../source/df-basic.rst:726
 msgid "ResultFrame"
 msgstr ""
 
-#: ../../source/df-basic.rst:713
+#: ../../source/df-basic.rst:725
 msgid "head"
 msgstr ""
 
-#: ../../source/df-basic.rst:713
+#: ../../source/df-basic.rst:725
 msgid "查看开头N行数据，这个方法会执行所有结果，并取开头N行数据"
 msgstr "Executes the operations and returns the first N rows of result data."
 
-#: ../../source/df-basic.rst:714
+#: ../../source/df-basic.rst:726
 msgid "tail"
 msgstr ""
 
-#: ../../source/df-basic.rst:714
+#: ../../source/df-basic.rst:726
 msgid "查看结尾N行数据，这个方法会执行所有结果，并取结尾N行数据"
 msgstr "Executes the operations and returns the last N rows of result data."
 
-#: ../../source/df-basic.rst:715
+#: ../../source/df-basic.rst:727
 msgid "to_pandas"
 msgstr ""
 
-#: ../../source/df-basic.rst:715
+#: ../../source/df-basic.rst:727
 msgid "转化为 Pandas DataFrame 或者 Series，wrap 参数为 True 的时候，返回 PyODPS DataFrame 对象"
 msgstr ""
 "Converts a collection object to a pandas DataFrame object or a Sequence "
 "object to a Series object. When the wrap parameter is set to Ture, a "
 "PyODPS DataFrame object is returned."
 
-#: ../../source/df-basic.rst:715
+#: ../../source/df-basic.rst:727
 msgid "wrap为True返回PyODPS DataFrame，False（默认）返回pandas DataFrame"
 msgstr ""
 "When wrap is set to True, a PyODPS DataFrame object is returned. If you "
 "do not set wrap to True, a pandas DataFrame object is returned by "
 "default."
 
-#: ../../source/df-basic.rst:716
+#: ../../source/df-basic.rst:728
 msgid "plot，hist，boxplot"
 msgstr "plot, hist, boxplot"
 
-#: ../../source/df-basic.rst:716
+#: ../../source/df-basic.rst:728
 msgid "画图有关"
 msgstr "Plotting-related methods."
 
-#: ../../source/df-basic.rst:721
+#: ../../source/df-basic.rst:733
 msgid ""
 "**注意**\\ ：在交互式环境下，PyODPS DataFrame会在打印或者repr的时候，调用\\ ``execute``\\ "
 "方法，这样省去了用户手动去调用execute。"
@@ -1312,7 +1331,7 @@ msgstr ""
 "called, so that you do not need to manually call the ``execution`` "
 "method."
 
-#: ../../source/df-basic.rst:724
+#: ../../source/df-basic.rst:736
 msgid ""
 ">>> iris[iris.sepallength < 5][:5]\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name\n"
@@ -1323,11 +1342,11 @@ msgid ""
 "4          4.4         2.9          1.4         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:734
+#: ../../source/df-basic.rst:746
 msgid "如果想关闭自动调用执行，则需要手动设置"
 msgstr "You can manually disable automatic execution as follows:"
 
-#: ../../source/df-basic.rst:736
+#: ../../source/df-basic.rst:748
 msgid ""
 ">>> from odps import options\n"
 ">>> options.interactive = False\n"
@@ -1360,14 +1379,14 @@ msgid ""
 "      5"
 msgstr ""
 
-#: ../../source/df-basic.rst:767
+#: ../../source/df-basic.rst:779
 msgid "此时打印或者 repr 对象，会显示整棵抽象语法树。如果需要执行，则必须手动调用 ``execute`` 方法："
 msgstr ""
 "Now the entire abstract syntax tree is displayed when printing or repr is"
 " called. When you want to actually execute this DataFrame, you have to "
 "call ``execute`` method manually:"
 
-#: ../../source/df-basic.rst:769
+#: ../../source/df-basic.rst:781
 msgid ""
 ">>> iris[iris.sepallength < 5][:5].execute()\n"
 "   sepallength  sepalwidth  petallength  petalwidth         name\n"
@@ -1378,27 +1397,27 @@ msgid ""
 "4          4.4         2.9          1.4         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:780
+#: ../../source/df-basic.rst:792
 msgid "读取执行结果"
 msgstr "Obtaining execution results"
 
-#: ../../source/df-basic.rst:782
+#: ../../source/df-basic.rst:794
 msgid "``execute`` 或 ``head`` 函数输出的结果为 ``ResultFrame`` 类型，可从中读取结果。"
 msgstr ""
 "Outputs of ``execute`` or ``head`` methods are ``ResultFrame`` instances "
 "where you can obtain execution results."
 
-#: ../../source/df-basic.rst:786
+#: ../../source/df-basic.rst:798
 msgid "ResultFrame 是结果集合，不能参与后续计算。"
 msgstr ""
 "The ResultFrame is a result set and cannot be used in subsequent "
 "calculations."
 
-#: ../../source/df-basic.rst:789
+#: ../../source/df-basic.rst:801
 msgid "ResultFrame 可以迭代取出每条记录："
 msgstr "You can use an iterative method to retrieve all records from ResultFrame."
 
-#: ../../source/df-basic.rst:792
+#: ../../source/df-basic.rst:804
 msgid ""
 ">>> result = iris.head(3)\n"
 ">>> for r in result:\n"
@@ -1411,7 +1430,7 @@ msgid ""
 "'Iris-setosa']"
 msgstr ""
 
-#: ../../source/df-basic.rst:802
+#: ../../source/df-basic.rst:814
 msgid ""
 "ResultFrame 也支持在安装有 pandas 的前提下转换为 pandas DataFrame 或使用 pandas 后端的 PyODPS"
 " DataFrame："
@@ -1419,7 +1438,7 @@ msgstr ""
 "When pandas is installed, a ResultFrame can be converted into a pandas "
 "DataFrame or a PyODPS DataFrame with pandas backend."
 
-#: ../../source/df-basic.rst:805
+#: ../../source/df-basic.rst:817
 msgid ""
 ">>> pd_df = iris.head(3).to_pandas()  # 返回 pandas DataFrame\n"
 ">>> wrapped_df = iris.head(3).to_pandas(wrap=True)  # 返回使用 Pandas 后端的 "
@@ -1429,23 +1448,23 @@ msgstr ""
 ">>> wrapped_df = iris.head(3).to_pandas(wrap=True)  # returns a PyODPS "
 "DataFrame with pandas backend"
 
-#: ../../source/df-basic.rst:811
+#: ../../source/df-basic.rst:823
 msgid ""
 "关于如何使用 pandas，请参考 `pandas 文档 <https://pandas.pydata.org/docs/>`_ 。pandas "
 "为开源库，ODPS 不对其结果负责。"
 msgstr ""
 
-#: ../../source/df-basic.rst:815
+#: ../../source/df-basic.rst:827
 msgid "保存执行结果为 ODPS 表"
 msgstr "Save results to MaxCompute tables"
 
-#: ../../source/df-basic.rst:817
+#: ../../source/df-basic.rst:829
 msgid "对 Collection，我们可以调用\\ ``persist``\\ 方法，参数为表名。返回一个新的DataFrame对象"
 msgstr ""
 "For collection objects, you can use the \\ ``persist``\\ method, which "
 "takes a table name as the parameter and returns a new DataFrame object."
 
-#: ../../source/df-basic.rst:819
+#: ../../source/df-basic.rst:831
 msgid ""
 ">>> iris2 = iris[iris.sepalwidth < 2.5].persist('pyodps_iris2')\n"
 ">>> iris2.head(5)\n"
@@ -1457,7 +1476,7 @@ msgid ""
 "4          6.0         2.2          4.0         1.0  Iris-versicolor"
 msgstr ""
 
-#: ../../source/df-basic.rst:830
+#: ../../source/df-basic.rst:842
 msgid ""
 "``persist``\\ 可以传入 partitions 参数。加入该参数后，会创建一个分区表，它的分区字段为 partitions "
 "列出的字段， DataFrame 中相应字段的值决定该行将被写入的分区。例如，当 partitions 为 ['name'] 且某行 name "
@@ -1471,7 +1490,7 @@ msgstr ""
 "row will be written into partition ``name=test``. This parameter can be "
 "used when target partitions of data need to be calculated."
 
-#: ../../source/df-basic.rst:834
+#: ../../source/df-basic.rst:846
 msgid ""
 ">>> iris3 = iris[iris.sepalwidth < 2.5].persist('pyodps_iris3', "
 "partitions=['name'])\n"
@@ -1487,7 +1506,7 @@ msgid ""
 "    name                  : string"
 msgstr ""
 
-#: ../../source/df-basic.rst:849
+#: ../../source/df-basic.rst:861
 msgid ""
 "如果想写入已经存在的表的某个分区，``persist``\\ 可以传入 partition 参数，指明写入表的哪个分区（如ds=******）。 "
 "这时要注意，该DataFrame的每个字段都必须在该表存在，且类型相同。drop_partition和create_partition参数只有在此时有效,"
@@ -1501,35 +1520,35 @@ msgstr ""
 "indicating respectively whether to delete (if the partition exists) or "
 "create (if the partition does not exist) the partition."
 
-#: ../../source/df-basic.rst:853
+#: ../../source/df-basic.rst:865
 msgid ""
 ">>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris4', "
 "partition='ds=test', drop_partition=True, create_partition=True)"
 msgstr ""
 
-#: ../../source/df-basic.rst:857
+#: ../../source/df-basic.rst:869
 msgid ""
 "persist 时，默认会覆盖原有数据。例如，当 persist "
 "到一张分区表，对应分区的数据将会被重写。如果写入一张非分区表，整张表的数据都将被重写。如果你想要追加数据，可以使用参数 "
 "``overwrite=False`` 。"
 msgstr ""
 "Persisting a DataFrame will overwrite existing data by default. For "
-"instance, when persisting into a partitioned table, data in corresponding "
-"partitions will be overwritten, while persisting into an unpartitioned "
+"instance, when persisting into a partitioned table, data in corresponding"
+" partitions will be overwritten, while persisting into an unpartitioned "
 "table will overwrite all data in it. If you want to append data into "
 "existing tables or partitions, you may add ``overwrite=False`` ."
 
-#: ../../source/df-basic.rst:859
+#: ../../source/df-basic.rst:871
 msgid "写入表时，还可以指定表的生命周期，如下列语句将表的生命周期指定为10天："
 msgstr ""
 "You can also specify the lifecycle of a table when writing to it. The "
 "following example sets the lifecycle of a table to 10 days."
 
-#: ../../source/df-basic.rst:861
+#: ../../source/df-basic.rst:873
 msgid ">>> iris[iris.sepalwidth < 2.5].persist('pyodps_iris5', lifecycle=10)"
 msgstr ""
 
-#: ../../source/df-basic.rst:865
+#: ../../source/df-basic.rst:877
 msgid ""
 "如果数据源中没有 ODPS 对象，例如数据源仅为 Pandas，在 persist 时需要手动指定 ODPS 入口对象， "
 "或者将需要的入口对象标明为全局对象，如："
@@ -1538,7 +1557,7 @@ msgstr ""
 "data, you need to manually specify the ODPS object or mark the object as "
 "global when calling persist. For example:"
 
-#: ../../source/df-basic.rst:868
+#: ../../source/df-basic.rst:880
 msgid ""
 ">>> # 假设入口对象为 o\n"
 ">>> # 指定入口对象\n"
@@ -1554,17 +1573,17 @@ msgstr ""
 ">>> o.to_global()\n"
 ">>> df.persist('table_name')"
 
-#: ../../source/df-basic.rst:878
+#: ../../source/df-basic.rst:890
 msgid "保存执行结果为 Pandas DataFrame"
 msgstr "Save results to pandas DataFrame"
 
-#: ../../source/df-basic.rst:880
+#: ../../source/df-basic.rst:892
 msgid "我们可以使用 ``to_pandas``\\ 方法，如果wrap参数为True，将返回PyODPS DataFrame对象。"
 msgstr ""
 "You can use the ``to_pandas``\\ method. If wrap is set to True, a PyODPS "
 "DataFrame object is returned."
 
-#: ../../source/df-basic.rst:882
+#: ../../source/df-basic.rst:894
 msgid ""
 ">>> type(iris[iris.sepalwidth < 2.5].to_pandas())\n"
 "pandas.core.frame.DataFrame\n"
@@ -1572,7 +1591,7 @@ msgid ""
 "odps.df.core.DataFrame"
 msgstr ""
 
-#: ../../source/df-basic.rst:891
+#: ../../source/df-basic.rst:903
 msgid ""
 "``to_pandas`` 返回的 pandas DataFrame 与直接通过 pandas 创建的 DataFrame 没有任何区别， "
 "数据的存储和计算均在本地。如果 ``wrap=True``，生成的即便是 PyODPS DataFrame，数据依然在本地。 "
@@ -1586,11 +1605,11 @@ msgstr ""
 " of data, or your running enviromnent is quite restrictive, please be "
 "cautious when using ``to_pandas``."
 
-#: ../../source/df-basic.rst:896
+#: ../../source/df-basic.rst:908
 msgid "立即运行设置运行参数"
 msgstr "Set runtime parameters"
 
-#: ../../source/df-basic.rst:898
+#: ../../source/df-basic.rst:910
 msgid ""
 "对于立即执行的方法，比如 ``execute``、``persist``、``to_pandas`` 等，可以设置运行时参数（仅对ODPS "
 "SQL后端有效 ）。"
@@ -1598,35 +1617,35 @@ msgstr ""
 "For actions such as `execute``, ``persist``, and ``to_pandas``, you can "
 "set runtime parameters. This is only valid for MaxCompute SQL."
 
-#: ../../source/df-basic.rst:900
+#: ../../source/df-basic.rst:912
 msgid "一种方法是设置全局参数。详细参考 :ref:`SQL设置运行参数 <sql_hints>` 。"
 msgstr ""
 "You can also set global parameters. For details, see :ref:`SQL - runtime "
 "parameters <sql_hints>`."
 
-#: ../../source/df-basic.rst:902
+#: ../../source/df-basic.rst:914
 msgid "也可以在这些立即执行的方法上，使用 ``hints`` 参数。这样，这些参数只会作用于当前的计算过程。"
 msgstr ""
 "Additionally, you can use the `hints`` parameter. These parameters are "
 "only valid for the current calculation."
 
-#: ../../source/df-basic.rst:905
+#: ../../source/df-basic.rst:917
 msgid ""
 ">>> iris[iris.sepallength < "
 "5].to_pandas(hints={'odps.sql.mapper.split.size': 16})"
 msgstr ""
 
-#: ../../source/df-basic.rst:911
+#: ../../source/df-basic.rst:923
 msgid "运行时显示详细信息"
 msgstr "Display details at runtime"
 
-#: ../../source/df-basic.rst:913
+#: ../../source/df-basic.rst:925
 msgid "有时，用户需要查看运行时instance的logview时，需要修改全局配置："
 msgstr ""
 "You sometimes need to modify the global configuration to view the logview"
 " of an instance."
 
-#: ../../source/df-basic.rst:915
+#: ../../source/df-basic.rst:927
 msgid ""
 ">>> from odps import options\n"
 ">>> options.verbose = True\n"
@@ -1648,11 +1667,11 @@ msgid ""
 "4         2.9          1.4         0.2  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:936
+#: ../../source/df-basic.rst:948
 msgid "用户可以指定自己的日志记录函数，比如像这样："
 msgstr "You can specify a logging function as follows:"
 
-#: ../../source/df-basic.rst:938
+#: ../../source/df-basic.rst:950
 msgid ""
 ">>> my_logs = []\n"
 ">>> def my_logger(x):\n"
@@ -1675,11 +1694,11 @@ msgid ""
 "\\nLIMIT 5', 'logview:', u'http://logview']"
 msgstr ""
 
-#: ../../source/df-basic.rst:958
+#: ../../source/df-basic.rst:970
 msgid "缓存中间Collection计算结果"
 msgstr "Cache intermediate results"
 
-#: ../../source/df-basic.rst:960
+#: ../../source/df-basic.rst:972
 msgid ""
 "DataFrame的计算过程中，一些Collection被多处使用，或者用户需要查看中间过程的执行结果， 这时用户可以使用 ``cache``\\"
 " 标记某个collection需要被优先计算。"
@@ -1689,13 +1708,13 @@ msgstr ""
 "intermediate process, you can use the cache method to mark a collection "
 "object so that it is calculated first."
 
-#: ../../source/df-basic.rst:965
+#: ../../source/df-basic.rst:977
 msgid "值得注意的是，``cache``\\ 延迟执行，调用cache不会触发立即计算。"
 msgstr ""
 "Note that ``cache``\\ delays execution. Calling this method does not "
 "trigger automatic calculation."
 
-#: ../../source/df-basic.rst:967
+#: ../../source/df-basic.rst:979
 msgid ""
 ">>> cached = iris[iris.sepalwidth < 3.5].cache()\n"
 ">>> df = cached['sepallength', 'name'].head(3)\n"
@@ -1724,11 +1743,11 @@ msgstr ""
 "1          4.7  Iris-setosa\n"
 "2          4.6  Iris-setosa"
 
-#: ../../source/df-basic.rst:986
+#: ../../source/df-basic.rst:998
 msgid "异步和并行执行"
 msgstr "Asynchronous and parallel executions"
 
-#: ../../source/df-basic.rst:988
+#: ../../source/df-basic.rst:1000
 msgid ""
 "DataFrame 支持异步操作，对于立即执行的方法，包括 "
 "``execute``、``persist``、``head``、``tail``、``to_pandas`` （其他方法不支持）， 传入 "
@@ -1744,7 +1763,7 @@ msgstr ""
 "<https://docs.python.org/3/library/concurrent.futures.html#future-"
 "objects>`_ objects."
 
-#: ../../source/df-basic.rst:992
+#: ../../source/df-basic.rst:1004
 msgid ""
 ">>> future = iris[iris.sepal_width < 10].head(10, async=True)\n"
 ">>> future.done()\n"
@@ -1763,7 +1782,7 @@ msgid ""
 "9           4.9          3.1           1.5          0.1  Iris-setosa"
 msgstr ""
 
-#: ../../source/df-basic.rst:1011
+#: ../../source/df-basic.rst:1023
 msgid ""
 "DataFrame 的并行执行可以使用多线程来并行，单个 expr 的执行可以通过 ``n_parallel`` 参数来指定并发度。 比如，当一个"
 " DataFrame 的执行依赖的多个 cache 的 DataFrame 能够并行执行时，该参数就会生效。"
@@ -1774,7 +1793,7 @@ msgstr ""
 "the multiple cached DataFrame objects that a single DataFrame execution "
 "depends on can be executed in parallel."
 
-#: ../../source/df-basic.rst:1014
+#: ../../source/df-basic.rst:1026
 msgid ""
 ">>> expr1 = "
 "iris.groupby('category').agg(value=iris.sepal_width.sum()).cache()\n"
@@ -1819,14 +1838,14 @@ msgstr ""
 "7  Iris-versicolor    3.000\n"
 "8   Iris-virginica    4.500"
 
-#: ../../source/df-basic.rst:1034
+#: ../../source/df-basic.rst:1046
 msgid "当同时执行多个 expr 时，我们可以用多线程执行，但会面临一个问题， 比如两个 DataFrame 有共同的依赖，这个依赖将会被执行两遍。"
 msgstr ""
 "You can use multiple threads to execute multiple expr objects in "
 "parallel, but you may encounter a problem when two DataFrame objects "
 "share the same dependency, and this dependency will be executed twice."
 
-#: ../../source/df-basic.rst:1037
+#: ../../source/df-basic.rst:1049
 msgid ""
 "现在我们提供了新的 ``Delay API``， 来将立即执行的操作（包括 "
 "``execute``、``persist``、``head``、``tail``、``to_pandas``，其他方法不支持）变成延迟操作， "
@@ -1841,7 +1860,7 @@ msgstr ""
 "dependency is executed based on the degree of parallelism you have "
 "specified. Asynchronous execution is supported."
 
-#: ../../source/df-basic.rst:1042
+#: ../../source/df-basic.rst:1054
 msgid ""
 ">>> from odps.df import Delay\n"
 ">>> delay = Delay()  # 创建Delay对象\n"
@@ -1877,7 +1896,7 @@ msgstr ""
 ">>> future2.result()\n"
 "3.0540000000000007"
 
-#: ../../source/df-basic.rst:1059
+#: ../../source/df-basic.rst:1071
 msgid ""
 "可以看到上面的例子里，共同依赖的对象会先执行，然后再以并发度为3分别执行future1到future3。 当 ``n_parallel`` "
 "为1时，执行时间会达到37s。"
@@ -1887,7 +1906,7 @@ msgstr ""
 "parallelism set to 3. When ``n_parallel`` is set to 1, the execution time"
 " reaches 37s."
 
-#: ../../source/df-basic.rst:1062
+#: ../../source/df-basic.rst:1074
 msgid ""
 "``delay.execute`` 也接受 ``async`` 操作来指定是否异步执行，当异步的时候，也可以指定 ``timeout`` "
 "参数来指定超时时间。"

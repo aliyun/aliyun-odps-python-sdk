@@ -19,34 +19,36 @@ from libc.string cimport *
 from ...src.types_c cimport BaseRecord, SchemaSnapshot
 from ...src.utils_c cimport CMillisecondsConverter
 from ..checksum_c cimport Checksum
-from ..pb.encoder_c cimport Encoder
+from ..pb.encoder_c cimport CEncoder
 
 cdef class ProtobufRecordWriter:
 
     cdef int DEFAULT_BUFFER_SIZE
-    cdef Encoder _encoder
+    cdef CEncoder _encoder
     cdef object _output
     cdef int _buffer_size
     cdef int _n_total
     cdef int _n_columns
+    cdef int _last_flush_time
 
     cpdef _re_init(self, output)
     cpdef flush(self)
     cpdef close(self)
     cpdef flush_all(self)
     cpdef int _refresh_buffer(self) except -1
-    cpdef int _write_tag(self, int field_num, int wire_type) except -1
-    cpdef int _write_raw_long(self, int64_t val) except -1
-    cpdef int _write_raw_int(self, int32_t val) except -1
-    cpdef int _write_raw_uint(self, uint32_t val) except -1
-    cpdef int _write_raw_bool(self, bint val) except -1
-    cpdef int _write_raw_float(self, float val) except -1
-    cpdef int _write_raw_double(self, double val) except -1
-    cpdef int _write_raw_string(self, bytes val) except -1
+    cdef int _write_tag(self, int field_num, int wire_type) nogil except +
+    cdef int _write_raw_long(self, int64_t val) nogil except +
+    cdef int _write_raw_int(self, int32_t val) nogil except +
+    cdef int _write_raw_uint(self, uint32_t val) nogil except +
+    cdef int _write_raw_bool(self, bint val) nogil except +
+    cdef int _write_raw_float(self, float val) nogil except +
+    cdef int _write_raw_double(self, double val) nogil except +
+    cdef int _write_raw_string(self, const char *ptr, uint32_t size) nogil except +
 
 
 cdef class BaseRecordWriter(ProtobufRecordWriter):
     cdef object _encoding
+    cdef bint _is_utf8
     cdef object _schema
     cdef object _columns
     cdef size_t _curr_cursor_c
@@ -58,14 +60,15 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     cdef SchemaSnapshot _schema_snapshot
 
     cpdef write(self, BaseRecord record)
-    cpdef _write_bool(self, bint data)
-    cpdef _write_long(self, int64_t data)
-    cpdef _write_float(self, float data)
-    cpdef _write_double(self, double data)
-    cpdef _write_string(self, object data)
-    cpdef _write_timestamp(self, object data)
-    cpdef _write_interval_day_time(self, object data)
-    cpdef _write_field(self, object val, int data_type_id, object data_type)
-    cpdef _write_array(self, object data, object data_type)
-    cpdef _write_struct(self, object data, object data_type)
+    cdef void _write_bool(self, bint data) nogil except +
+    cdef void _write_long(self, int64_t data) nogil except +
+    cdef void _write_float(self, float data) nogil except +
+    cdef void _write_double(self, double data) nogil except +
+    cdef _write_string(self, object data)
+    cdef _write_timestamp(self, object data)
+    cdef _write_interval_day_time(self, object data)
+    cdef _write_field(self, object val, int data_type_id, object data_type)
+    cdef _write_array(self, object data, object data_type)
+    cdef _write_struct(self, object data, object data_type)
+    cpdef _write_finish_tags(self)
     cpdef close(self)

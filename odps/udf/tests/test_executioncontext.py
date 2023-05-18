@@ -12,34 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.compat import unittest
-from odps.udf import get_execution_context
-from odps.udf import ExecutionContext
-from odps.tests.core import TestBase
+from .. import get_execution_context, ExecutionContext
 
 
-class TestExecutionContext(TestBase):
-    
-    def test_get_counter(self):
-        ctx = get_execution_context()
-        counters = ctx.get_counters()
-        c = counters.get_counter("test_group", "test")
-        self.assertEqual("test", c.get_name())
-        self.assertEqual(0, c.get_value())
+def test_get_counter():
+    ctx = get_execution_context()
+    counters = ctx.get_counters()
+    c = counters.get_counter("test_group", "test")
+    assert "test" == c.get_name()
+    assert 0 == c.get_value()
 
-        c.increment(1)
-        self.assertEqual(1, c.get_value())
-    
-    def test_single_counters(self):
-        ctx1 = get_execution_context()
-        counters = ctx1.get_counters()
-        counters.get_counter("test_group", "test")
-        self.assertEqual(1, counters.size())
-        
-        ctx2 = ExecutionContext()
-        counters2 = ctx2.get_counters()
-        counters2.get_counter("test_group2", "test2")
-        self.assertEqual(2, counters2.size())
+    c.increment(1)
+    assert 1 == c.get_value()
 
-if __name__ == '__main__':
-    unittest.main()
+
+def test_single_counters():
+    ctx1 = get_execution_context()
+    counters = ctx1.get_counters()
+    counters.get_counter("test_group", "test")
+    assert 1 == counters.size()
+
+    ctx2 = ExecutionContext()
+    counters2 = ctx2.get_counters()
+    counters2.get_counter("test_group2", "test2")
+    assert 2 == counters2.size()

@@ -16,12 +16,11 @@
 
 import contextlib
 
-import requests
-
-from . import cache_parent
 from .. import serializers
 from ..compat import Enum
 from ..errors import OSSSignUrlError
+from ..lib import requests
+from . import cache_parent
 from .volume_fs import FSVolumeObject, FSVolumeObjects, FSVolume
 
 
@@ -69,7 +68,14 @@ class ExternalVolumeObject(FSVolumeObject):
             resp = requests.put(sign_url, *args, **kw)
         else:
             resp = requests.get(sign_url, *args, **kw)
-        if resp.status_code >= 400:
+        resp.volume_path = path
+        self._check_response(resp)
+        return resp
+
+    @staticmethod
+    def _check_response(resp):
+        # when response code is a string, just skip
+        if hasattr(resp, "status_code") and resp.status_code >= 400:
             try:
                 import oss2.exceptions
 
@@ -77,8 +83,6 @@ class ExternalVolumeObject(FSVolumeObject):
                 raise OSSSignUrlError(oss_exc)
             except ImportError:
                 raise OSSSignUrlError(resp.content)
-        resp.volume_path = path
-        return resp
 
     def _delete(self, recursive=False):
         """
@@ -123,19 +127,12 @@ class ExternalVolumeObject(FSVolumeObject):
         >>> with fs_dir.open_writer('file') as reader:
         >>>     writer.write('some content')
         """
-        from ..tunnel.io import RequestsIO
-
         if kwargs.pop("replication", None) is not None:  # pragma: no cover
             raise TypeError("External volume does not support replication argument")
 
-        def put_func(data):
-            self._request_sign_url(path, SignUrlMethod.PUT, data=data)
-
-        rio = RequestsIO(put_func)
-        try:
-            yield rio
-        finally:
-            rio.finish()
+        with self._request_sign_url(path, SignUrlMethod.PUT, file_upload=True) as writer:
+            yield writer
+        self._check_response(writer.result)
 
 
 @cache_parent

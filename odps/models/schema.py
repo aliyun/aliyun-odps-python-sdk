@@ -16,6 +16,7 @@ import datetime
 
 from .. import serializers
 from ..compat import Enum
+from ..utils import with_wait_argument
 from .core import JSONRemoteModel, LazyLoad
 from .functions import Functions
 from .resources import Resources
@@ -66,9 +67,10 @@ class Schema(LazyLoad):
         desc_obj.parse(self._client, desc_result, obj=desc_obj)
         self._loaded = True
 
-    def resource(self, client=None):
-        return self.parent.resource(client)
+    def resource(self, client=None, endpoint=None):
+        return self.parent.resource(client, endpoint=endpoint)
 
+    @with_wait_argument
     def drop(self, async_=False):
         self.parent.delete(self, async_=async_)
 

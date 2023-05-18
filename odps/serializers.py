@@ -18,13 +18,12 @@ import email.header
 import inspect
 import json
 import re
+from collections import OrderedDict
 from xml.dom import minidom
 
-import requests
-
-from . import compat, utils
-from .compat import BytesIO, ElementTree, PY26, six
-from .utils import to_text
+from . import utils
+from .compat import BytesIO, ElementTree, six
+from .lib import requests
 
 
 def _route_xml_path(root, *keys, **kw):
@@ -66,7 +65,7 @@ def _route_json_path(root, *keys, **kw):
         if root is None:
             if not create_if_not_exists:
                 return
-            root = prev[key] = compat.OrderedDict()
+            root = prev[key] = OrderedDict()
 
     return root
 
@@ -212,10 +211,10 @@ class SerializableModelMetaClass(type):
                 fields[attr] = field
         kv['_parent_attrs'] = set(parent_attrs)
 
-        slots = tuple(compat.OrderedDict.fromkeys(slots))
+        slots = tuple(OrderedDict.fromkeys(slots))
 
         slots_pos = dict([(v, k) for k, v in enumerate(slots)])
-        fields = compat.OrderedDict(
+        fields = OrderedDict(
             sorted(six.iteritems(fields), key=lambda s: slots_pos.get(s[0], float('inf'))))
 
         for attr in attrs:
@@ -348,7 +347,7 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
             assert self._root is not None
             root = ElementTree.Element(self._root)
         else:
-            root = compat.OrderedDict()
+            root = OrderedDict()
 
         for attr, prop in six.iteritems(getattr(self, '__fields')):
             if isinstance(prop, SerializeField):
@@ -385,14 +384,11 @@ class XMLSerializableModel(SerializableModel):
         root = self.serial()
 
         sio = BytesIO()
-        if PY26:
-            ElementTree.ElementTree(root).write(sio, encoding="utf-8")
-        else:
-            ElementTree.ElementTree(root).write(sio, encoding="utf-8", xml_declaration=True)
+        ElementTree.ElementTree(root).write(sio, encoding="utf-8", xml_declaration=True)
         xml_content = sio.getvalue()
 
         prettified_xml = minidom.parseString(xml_content).toprettyxml(indent=' '*2, encoding='utf-8')
-        prettified_xml = to_text(prettified_xml, encoding='utf-8')
+        prettified_xml = utils.to_text(prettified_xml, encoding='utf-8')
 
         cdata_re = re.compile(r'&lt;!\[CDATA\[.*\]\]&gt;', (re.M | re.S))
         for src_cdata in cdata_re.finditer(prettified_xml):
@@ -673,7 +669,7 @@ class XMLNodePropertiesField(SerializeField):
         results = self._default
 
         if root is not None:
-            results = compat.OrderedDict()
+            results = OrderedDict()
 
             for node in root.findall(self._path_keys[-1]):
                 key_node = node.find(self._key_tag)
@@ -691,7 +687,7 @@ class XMLNodePropertiesField(SerializeField):
     def serialize(self, root, value):
         value = value if value is not None else self._default
         if value is None and self._blank_if_null:
-            value = compat.OrderedDict()
+            value = OrderedDict()
 
         if not self._required and value is None:
             return

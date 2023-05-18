@@ -37,10 +37,7 @@ from unicodedata import east_asian_width
 
 from .lib import six
 
-PY26 = six.PY2 and sys.version_info[1] == 6
 PY27 = six.PY2 and sys.version_info[1] == 7
-LESS_PY26 = sys.version_info[:2] < (2, 6)
-LESS_PY27 = sys.version_info[:2] < (2, 7)
 LESS_PY32 = sys.version_info[:2] < (3, 2)
 LESS_PY33 = sys.version_info[:2] < (3, 3)
 LESS_PY34 = sys.version_info[:2] < (3, 4)
@@ -98,9 +95,6 @@ if six.PY3:
     else:
         import decimal
 
-    import unittest
-    from collections import OrderedDict
-
     def u(s):
         return s
 
@@ -121,9 +115,6 @@ if six.PY3:
 
     import builtins
     from concurrent import futures  # don't remove
-
-    from datetime import timedelta
-    total_seconds = timedelta.total_seconds
 
     from .lib import cgi_compat as cgi
 
@@ -182,30 +173,7 @@ else:
         else:
             return len(data)
 
-    if PY26:
-        warnings.warn('Python 2.6 is no longer supported by the Python core team. A future version of PyODPS ' +
-                      'will drop support for this version.')
-
-        try:
-            import unittest2 as unittest
-        except ImportError:
-            pass
-
-        try:
-            from ordereddict import OrderedDict
-        except ImportError:
-            raise
-
-        def total_seconds(self):
-            return self.days * 86400.0 + self.seconds + self.microseconds * 1.0e-6
-    else:
-        import unittest
-        from collections import OrderedDict
-
-        dictconfig = lambda config: logging.config.dictConfig(config)
-
-        from datetime import timedelta
-        total_seconds = timedelta.total_seconds
+    dictconfig = lambda config: logging.config.dictConfig(config)
 
     import __builtin__ as builtins  # don't remove
     from .lib import futures  # don't remove
@@ -215,12 +183,7 @@ else:
 
     from distutils.version import LooseVersion as Version
 
-if PY26:
-    try:
-        import simplejson as json
-    except ImportError:
-        pass
-if PY26 or LESS_PY32:
+if LESS_PY32:
     try:
         from .tests.dictconfig import dictConfig
         dictconfig = lambda config: dictConfig(config)
@@ -314,7 +277,7 @@ except ImportError:
         return datetime.datetime(*dtuple[:6], tzinfo=FixedOffset(tz / 60.0))
 
 
-__all__ = ['sys', 'builtins', 'logging.config', 'unittest', 'OrderedDict', 'dictconfig', 'suppress',
+__all__ = ['sys', 'builtins', 'logging.config', 'dictconfig', 'suppress',
            'reduce', 'reload_module', 'Queue', 'Empty', 'ElementTree', 'ElementTreeParseError',
            'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
            'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc', 'Monthdelta',

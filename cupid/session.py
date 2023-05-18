@@ -17,6 +17,7 @@ import threading
 import warnings
 
 from odps.compat import six
+from odps.utils import with_wait_argument
 
 from .config import options
 from .errors import CupidMasterTimeoutError
@@ -109,6 +110,7 @@ class CupidSession(object):
         return 'http://%s.%s' % (self.get_proxy_token(instance, app_name, expired_in_hours),
                                  options.cupid.proxy_endpoint)
 
+    @with_wait_argument
     def start_kubernetes(self, async_=False, priority=None, running_cluster=None,
                          proxy_endpoint=None, major_task_version=None,
                          app_command=None, app_image=None, resources=None, **kw):
@@ -122,7 +124,6 @@ class CupidSession(object):
         if major_task_version is not None:
             options.cupid.major_task_version = major_task_version
 
-        async_ = kw.pop('async', async_)
         runtime_endpoint = kw.pop('runtime_endpoint', None)
         task_operator = task_param_pb.CupidTaskOperator(moperator='startam', menginetype=menginetype)
         task_name = kw.pop('task_name', None)

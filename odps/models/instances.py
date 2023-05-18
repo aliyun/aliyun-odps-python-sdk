@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import uuid
+from collections import OrderedDict
 from datetime import datetime
 
 from .core import Iterable
@@ -22,7 +23,7 @@ from .instance import Instance
 from .session import SessionInstance
 from .job import Job
 from .. import serializers, errors, utils
-from ..compat import six, OrderedDict
+from ..compat import six
 from ..config import options
 
 

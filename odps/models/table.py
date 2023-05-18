@@ -17,7 +17,10 @@
 import functools
 import itertools
 import sys
+import threading
+import time
 import warnings
+from collections import OrderedDict
 from datetime import datetime
 from types import GeneratorType
 
@@ -28,6 +31,7 @@ except (AttributeError, ImportError):
 
 from .. import types as odps_types, serializers, utils, readers
 from ..compat import six, dir2
+from ..config import options
 from .core import LazyLoad, JSONRemoteModel
 from .readers import TunnelArrowReader, TunnelRecordReader
 from .record import Record
@@ -157,13 +161,17 @@ class SpawnedTableReaderMixin(object):
             tunnel = TableTunnel(
                 client=rest_client, project=project, endpoint=tunnel_endpoint
             )
-            session = tunnel.create_download_session(
-                table_name, download_id=download_id, partition_spec=partition_spec
+            session = utils.call_with_retry(
+                tunnel.create_download_session, table_name, download_id=download_id, partition_spec=partition_spec
             )
             if not arrow:
-                data = session.open_record_reader(start, count, columns=columns).to_pandas()
+                data = utils.call_with_retry(
+                    session.open_record_reader, start, count, columns=columns
+                ).to_pandas()
             else:
-                data = session.open_arrow_reader(start, count, columns=columns).to_pandas()
+                data = utils.call_with_retry(
+                    session.open_arrow_reader, start, count, columns=columns
+                ).to_pandas()
             conn.send((idx, data, True))
         except:
             conn.send((idx, sys.exc_info(), False))
@@ -204,6 +212,12 @@ class TableArrowReader(SpawnedTableReaderMixin, TunnelArrowReader):
 
 
 class AbstractTableWriter(object):
+    class BlockInfo(object):
+        def __init__(self, block_id=0, writer=None, written=False):
+            self.block_id = block_id
+            self.writer = writer
+            self.written = written
+
     def __init__(
         self,
         table,
@@ -216,12 +230,23 @@ class AbstractTableWriter(object):
         self._commit = commit
         self._closed = False
 
-        self._blocks = blocks or upload_session.blocks or [0, ]
-        self._blocks_writes = [False] * len(self._blocks)
-        self._blocks_writers = [None] * len(self._blocks)
+        blocks = blocks or upload_session.blocks or [0]
+        self._id_to_blocks = OrderedDict((bid, self.BlockInfo(bid)) for bid in blocks)
+        self._id_remaps = dict()
+
+        self._id_data_lock = threading.Lock()
+        self._id_locks = dict()
+        self._close_event = threading.Event()
 
         for block in (upload_session.blocks or ()):
-            self._blocks_writes[self._blocks.index(block)] = True
+            self._id_to_blocks[block].written = True
+
+        self._daemon_thread = None
+
+    def __del__(self):
+        if self._closed:
+            return
+        self._close_event.set()
 
     @property
     def upload_id(self):
@@ -235,6 +260,31 @@ class AbstractTableWriter(object):
     def status(self):
         return self._upload_session.status
 
+    def _daemon_thread_body(self):
+        auto_flush_time = options.table_auto_flush_time
+        while not self._close_event.wait(min(5, auto_flush_time)):
+            check_time = time.time()
+            blocks_to_flush = []
+            with self._id_data_lock:
+                for block_info in self._id_to_blocks.values():
+                    if (
+                        block_info.writer is not None
+                        and check_time - block_info.writer.last_flush_time > auto_flush_time
+                    ):
+                        blocks_to_flush.append(block_info)
+
+            for block_info in blocks_to_flush:
+                block_id = block_info.block_id
+                with self._id_locks[block_id]:
+                    block_info.writer.close()
+                    block_info.writer = None
+                    if not block_info.written:
+                        self._id_to_blocks.pop(block_id)
+
+                    new_id = max(self._id_to_blocks) + 1
+                    self._id_remaps[block_id] = new_id
+                    self._id_to_blocks[new_id] = self.BlockInfo(new_id)
+
     def _open_writer(self, block_id, compress):
         raise NotImplementedError
 
@@ -245,6 +295,15 @@ class AbstractTableWriter(object):
         if self._closed:
             raise IOError('Cannot write to a closed writer.')
 
+        if self._daemon_thread is None:
+            if six.PY3:
+                self._daemon_thread = threading.Thread(
+                        target=self._daemon_thread_body, daemon=True
+                    )
+            else:
+                self._daemon_thread = threading.Thread(target=self._daemon_thread_body)
+            self._daemon_thread.start()
+
         block_id = kwargs.get('block_id')
         if block_id is None:
             if type(args[0]) in six.integer_types:
@@ -253,30 +312,39 @@ class AbstractTableWriter(object):
             else:
                 block_id = 0
 
-        compress = kwargs.get('compress', False)
-        idx = self._blocks.index(block_id)
-        writer = self._blocks_writers[idx]
-        if writer is None:
-            writer = self._open_writer(block_id, compress)
+        with self._id_data_lock:
+            if block_id not in self._id_locks:
+                self._id_locks[block_id] = threading.Lock()
+
+        with self._id_locks[block_id]:
+            real_block_id = self._id_remaps.get(block_id, block_id)
+            compress = kwargs.get('compress', False)
+            block_info = self._id_to_blocks[real_block_id]
+            writer = block_info.writer
+            if writer is None:
+                block_info.writer = writer = self._open_writer(
+                    real_block_id, compress
+                )
 
         self._write_contents(writer, *args)
-        self._blocks_writes[idx] = True
+        block_info.written = True
 
     def close(self):
         if self._closed:
             return
+        self._close_event.set()
 
-        for writer in self._blocks_writers:
-            if writer is not None:
-                writer.close()
+        for block_info in self._id_to_blocks.values():
+            if block_info.writer is not None:
+                block_info.writer.close()
 
         if self._commit:
             written_blocks = [
-                block
-                for block, block_write in zip(self._blocks, self._blocks_writes)
-                if block_write
+                block_info.block_id
+                for block_info in self._id_to_blocks.values()
+                if block_info.written
             ]
-            self._upload_session.commit(written_blocks)
+            utils.call_with_retry(self._upload_session.commit, written_blocks)
 
         self._closed = True
 
@@ -284,6 +352,8 @@ class AbstractTableWriter(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        # make sure thread is always triggered to close
+        self._close_event.set()
         # if an error occurs inside the with block, we do not commit
         if exc_val is not None:
             return
@@ -292,19 +362,19 @@ class AbstractTableWriter(object):
 
 class TableRecordWriter(AbstractTableWriter):
     def _open_writer(self, block_id, compress):
-        writer = self._upload_session.open_record_writer(
-            block_id, compress=compress
+        writer = utils.call_with_retry(
+            self._upload_session.open_record_writer, block_id, compress=compress
         )
-        self._blocks_writers[block_id] = writer
+        self._id_to_blocks[block_id].writer = writer
         return writer
 
     def _write_contents(self, writer, *args):
         if len(args) == 1:
             arg = args[0]
-            if isinstance(arg, Record):
+            if odps_types.is_record(arg):
                 records = [arg, ]
             elif isinstance(arg, (list, tuple)):
-                if isinstance(arg[0], Record):
+                if odps_types.is_record(arg[0]):
                     records = arg
                 elif isinstance(arg[0], (list, tuple)):
                     records = (self._table.new_record(vals) for vals in arg)
@@ -315,7 +385,7 @@ class TableRecordWriter(AbstractTableWriter):
                     # peek the first element and then put back
                     next_arg = six.next(arg)
                     chained = itertools.chain((next_arg,), arg)
-                    if isinstance(next_arg, Record):
+                    if odps_types.is_record(next_arg):
                         records = chained
                     else:
                         records = (self._table.new_record(vals) for vals in chained)
@@ -334,8 +404,10 @@ class TableRecordWriter(AbstractTableWriter):
 
 class TableArrowWriter(AbstractTableWriter):
     def _open_writer(self, block_id, compress):
-        writer = self._upload_session.open_arrow_writer(block_id)
-        self._blocks_writers[block_id] = writer
+        writer = utils.call_with_retry(
+            self._upload_session.open_arrow_writer, block_id, compress=compress
+        )
+        self._id_to_blocks[block_id].writer = writer
         return writer
 
     def _write_contents(self, writer, *args):
@@ -417,13 +489,15 @@ class Table(LazyLoad):
         except AttributeError:
             pass
 
-    def table_resource(self, client=None):
+    def table_resource(self, client=None, endpoint=None, force_schema=False):
         schema_name = self._get_schema_name()
+        if force_schema:
+            schema_name = schema_name or "default"
         if schema_name is None:
-            return self.resource(client=client)
+            return self.resource(client=client, endpoint=endpoint)
         return "/".join(
             [
-                self.project.resource(client),
+                self.project.resource(client, endpoint=endpoint),
                 "schemas",
                 schema_name,
                 "tables",
@@ -653,10 +727,9 @@ class Table(LazyLoad):
         """
         Get the head records of a table or its partition.
 
-        :param limit: records' size, 10000 at most
+        :param int limit: records' size, 10000 at most
         :param partition: partition of this table
-        :param columns: the columns which is subset of the table columns
-        :type columns: list
+        :param list columns: the columns which is subset of the table columns
         :return: records
         :rtype: list
 
@@ -680,9 +753,7 @@ class Table(LazyLoad):
             params['schema_name'] = schema_name
 
         resp = self._client.get(self.resource(), params=params, stream=True)
-        with readers.RecordReader(self.table_schema, resp) as reader:
-            for record in reader:
-                yield record
+        return readers.RecordReader(self.table_schema, resp)
 
     def _create_table_tunnel(self, endpoint=None, quota_name=None):
         if self._table_tunnel is not None:
@@ -741,19 +812,25 @@ class Table(LazyLoad):
 
         from ..tunnel.tabletunnel import TableDownloadSession
 
+        if partition and not isinstance(partition, odps_types.PartitionSpec):
+            partition = odps_types.PartitionSpec(partition)
         tunnel = self._create_table_tunnel(endpoint=endpoint, quota_name=quota_name)
         download_ids = dict()
         if download_id is None:
             download_ids = self._download_ids
             download_id = download_ids.get(partition) if not reopen else None
-        download_session = tunnel.create_download_session(
+        download_session = utils.call_with_retry(
+            tunnel.create_download_session,
             table=self, partition_spec=partition, download_id=download_id,
-            timeout=timeout, async_mode=async_mode, **kw)
+            timeout=timeout, async_mode=async_mode, **kw
+        )
 
         if download_id and download_session.status != TableDownloadSession.Status.Normal:
-            download_session = tunnel.create_download_session(
+            download_session = utils.call_with_retry(
+                tunnel.create_download_session,
                 table=self, partition_spec=partition, timeout=timeout,
-                async_mode=async_mode, **kw)
+                async_mode=async_mode, **kw
+            )
         download_ids[partition] = download_session.id
 
         if arrow:
@@ -818,13 +895,16 @@ class Table(LazyLoad):
             upload_id = upload_ids.get(partition) if not reopen else None
         else:
             upload_ids = dict()
-        upload_session = tunnel.create_upload_session(
+        upload_session = utils.call_with_retry(
+            tunnel.create_upload_session,
             table=self, partition_spec=partition, upload_id=upload_id, **kw
         )
 
         if upload_id and upload_session.status.value != TableUploadSession.Status.Normal.value:
             # check upload session status
-            upload_session = tunnel.create_upload_session(table=self, partition_spec=partition, **kw)
+            upload_session = utils.call_with_retry(
+                tunnel.create_upload_session, table=self, partition_spec=partition, **kw
+            )
             upload_id = None
         upload_ids[partition] = upload_session.id
         # as data of partition changed, remove existing download id to avoid TableModified error
@@ -832,41 +912,47 @@ class Table(LazyLoad):
 
         writer_cls = TableArrowWriter if arrow else TableRecordWriter
 
-        class _RecordWriter(writer_cls):
+        class _TableWriter(writer_cls):
             def close(self):
-                super(_RecordWriter, self).close()
+                super(_TableWriter, self).close()
                 if commit:
                     upload_ids[partition] = None
 
-        return _RecordWriter(self, upload_session, blocks, commit)
+        return _TableWriter(self, upload_session, blocks, commit)
 
     @property
     def partitions(self):
         return Partitions(parent=self, client=self._client)
 
-    def create_partition(self, partition_spec, if_not_exists=False, async_=False, **kw):
+    @utils.with_wait_argument
+    def create_partition(self, partition_spec, if_not_exists=False, async_=False, hints=None):
         """
         Create a partition within the table.
 
         :param partition_spec: specification of the partition.
         :param if_not_exists:
+        :param hints:
         :param async_:
         :return: partition object
         :rtype: odps.models.partition.Partition
         """
-        async_ = kw.get('async', async_)
-        return self.partitions.create(partition_spec, if_not_exists=if_not_exists, async_=async_)
+        return self.partitions.create(
+            partition_spec, if_not_exists=if_not_exists, hints=hints, async_=async_
+        )
 
-    def delete_partition(self, partition_spec, if_exists=False, async_=False, **kw):
+    @utils.with_wait_argument
+    def delete_partition(self, partition_spec, if_exists=False, async_=False, hints=None):
         """
         Delete a partition within the table.
 
         :param partition_spec: specification of the partition.
         :param if_exists:
+        :param hints:
         :param async_:
         """
-        async_ = kw.get('async', async_)
-        return self.partitions.delete(partition_spec, if_exists=if_exists, async_=async_)
+        return self.partitions.delete(
+            partition_spec, if_exists=if_exists, hints=hints, async_=async_
+        )
 
     def exist_partition(self, partition_spec):
         """
@@ -924,11 +1010,13 @@ class Table(LazyLoad):
             spec, skip_empty=skip_empty, reverse=reverse
         )
 
-    def truncate(self, partition_spec=None, async_=False, **kw):
+    @utils.with_wait_argument
+    def truncate(self, partition_spec=None, async_=False, hints=None):
         """
         truncate this table.
 
         :param partition_spec: partition specs
+        :param hints:
         :param async_: run asynchronously if True
         :return: None
         """
@@ -942,18 +1030,24 @@ class Table(LazyLoad):
                 "PARTITION (%s)" % spec for spec in partition_spec
             )
 
-        async_ = kw.get('async', async_)
+        # as data of partition changed, remove existing download id to avoid TableModified error
+        for part in (partition_spec or [None]):
+            if isinstance(part, six.string_types):
+                part = odps_types.PartitionSpec(part)
+            self._download_ids.pop(part, None)
+
         task = SQLTask(
             name='SQLTruncateTableTask',
             query='TRUNCATE TABLE %s%s;' % (self.full_table_name, partition_expr)
         )
 
-        settings = {'odps.sql.submit.mode': ''}
+        hints = hints or {}
+        hints['odps.sql.submit.mode'] = ''
         schema_name = self._get_schema_name()
         if schema_name is not None:
-            settings["odps.sql.allow.namespace.schema"] = "true"
-            settings["odps.namespace.schema"] = "true"
-        task.update_sql_settings(settings)
+            hints["odps.sql.allow.namespace.schema"] = "true"
+            hints["odps.namespace.schema"] = "true"
+        task.update_sql_settings(hints)
 
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
@@ -962,15 +1056,17 @@ class Table(LazyLoad):
         else:
             return instance
 
-    def drop(self, async_=False, if_exists=False, **kw):
+    @utils.with_wait_argument
+    def drop(self, async_=False, if_exists=False, hints=None):
         """
         Drop this table.
 
         :param async_: run asynchronously if True
+        :param if_exists:
+        :param hints:
         :return: None
         """
-        async_ = kw.get('async', async_)
-        return self.parent.delete(self, async_=async_, if_exists=if_exists)
+        return self.parent.delete(self, async_=async_, if_exists=if_exists, hints=hints)
 
     def new_record(self, values=None):
         """

@@ -14,137 +14,131 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps.compat import unittest
-from odps.dag import DAG, DAGValidationError
+import pytest
+
+from ..dag import DAG, DAGValidationError
 
 
-class Test(TestBase):
-    def testDAG(self):
-        dag = DAG()
+def test_dag():
+    dag = DAG()
 
-        labels = tuple('abcde')
+    labels = tuple('abcde')
 
-        node1, node2, node3, node4, node5 = labels
+    node1, node2, node3, node4, node5 = labels
 
-        for i in range(1, 6):
-            dag.add_node(locals()['node%d' % i])
+    for i in range(1, 6):
+        dag.add_node(locals()['node%d' % i])
 
-        dag.add_edge(node1, node3)
-        dag.add_edge(node2, node4)
-        dag.add_edge(node3, node4)
-        dag.add_edge(node4, node5)
+    dag.add_edge(node1, node3)
+    dag.add_edge(node2, node4)
+    dag.add_edge(node3, node4)
+    dag.add_edge(node4, node5)
 
-        loc_vars = locals()
-        self.assertEqual(sorted([loc_vars['node%d' % i] for i in range(1, 6)]),
-                         sorted(dag.nodes()))
+    loc_vars = locals()
+    assert sorted([loc_vars['node%d' % i] for i in range(1, 6)]) == sorted(dag.nodes())
 
-        self.assertTrue(dag.contains_node(node1))
-        self.assertTrue(dag.contains_edge(node2, node4))
-        self.assertFalse(dag.contains_edge(node2, node5))
+    assert dag.contains_node(node1) is True
+    assert dag.contains_edge(node2, node4) is True
+    assert dag.contains_edge(node2, node5) is False
 
-        try:
-            self.assertEqual(list('bacde'), dag.topological_sort())
-        except AssertionError:
-            self.assertEqual(list('abcde'), dag.topological_sort())
-        self.assertEqual(list('bca'), dag.ancestors([node4, ]))
-        self.assertEqual(list('de'), dag.descendants([node3, ]))
+    try:
+        assert list('bacde') == dag.topological_sort()
+    except AssertionError:
+        assert list('abcde') == dag.topological_sort()
+    assert list('bca') == dag.ancestors([node4, ])
+    assert list('de') == dag.descendants([node3, ])
 
-        dag.add_edge(node2, node1)
-        self.assertEqual(list('bacde'), dag.topological_sort())
-        self.assertEqual(list('ab'), dag.ancestors([node3, ]))
-        self.assertEqual(list('daec'), dag.descendants([node2, ]))
+    dag.add_edge(node2, node1)
+    assert list('bacde') == dag.topological_sort()
+    assert list('ab') == dag.ancestors([node3, ])
+    assert list('daec') == dag.descendants([node2, ])
 
-        self.assertRaises(DAGValidationError, lambda: dag.add_edge(node4, node2))
-        self.assertRaises(DAGValidationError, lambda: dag.add_edge(node4, node1))
+    pytest.raises(DAGValidationError, lambda: dag.add_edge(node4, node2))
+    pytest.raises(DAGValidationError, lambda: dag.add_edge(node4, node1))
 
-        self.assertEqual(dag.successors(node2), list('da'))
-        self.assertEqual(dag.predecessors(node4), list('bc'))
+    assert dag.successors(node2) == list('da')
+    assert dag.predecessors(node4) == list('bc')
 
-        dag.remove_node(node4)
-        self.assertIn(''.join(dag.topological_sort()), set(['beac', 'ebac']))
-        self.assertFalse(dag.contains_node(node4))
-        self.assertRaises(KeyError, lambda: dag.remove_node(node4))
-        self.assertFalse(dag.contains_edge(node4, node5))
-        self.assertRaises(KeyError, lambda: dag.add_edge(node4, node5))
-        self.assertRaises(KeyError, lambda: dag.remove_edge(node4, node5))
-        self.assertRaises(KeyError, lambda: dag.successors(node4))
+    dag.remove_node(node4)
+    assert ''.join(dag.topological_sort()) in set(['beac', 'ebac'])
+    assert dag.contains_node(node4) is False
+    pytest.raises(KeyError, lambda: dag.remove_node(node4))
+    assert dag.contains_edge(node4, node5) is False
+    pytest.raises(KeyError, lambda: dag.add_edge(node4, node5))
+    pytest.raises(KeyError, lambda: dag.remove_edge(node4, node5))
+    pytest.raises(KeyError, lambda: dag.successors(node4))
 
-        self.assertEqual(list('ab'), dag.ancestors([node3, ]))
-        self.assertEqual(list(''), dag.ancestors([node5, ]))
-        self.assertEqual(list('ac'), dag.descendants([node2, ]))
-        self.assertEqual(list(''), dag.descendants([node5, ]))
+    assert list('ab') == dag.ancestors([node3, ])
+    assert list('') == dag.ancestors([node5, ])
+    assert list('ac') == dag.descendants([node2, ])
+    assert list('') == dag.descendants([node5, ])
 
-        dag.remove_edge(node2, node1)
-        self.assertFalse(dag.contains_edge(node2, node1))
-        self.assertEqual(list('a'), dag.ancestors([node3, ]))
-        self.assertEqual(list('c'), dag.descendants([node1, ]))
-        self.assertSetEqual(set('abe'), set(dag.indep_nodes()))
+    dag.remove_edge(node2, node1)
+    assert dag.contains_edge(node2, node1) is False
+    assert list('a') == dag.ancestors([node3, ])
+    assert list('c') == dag.descendants([node1, ])
+    assert set('abe') == set(dag.indep_nodes())
 
-        dag.reset_graph()
-        self.assertEqual(len(dag.nodes()), 0)
-
-    def testReversedDAG(self):
-        dag = DAG(reverse=True)
-
-        labels = tuple('abcde')
-
-        node1, node2, node3, node4, node5 = labels
-
-        for i in range(1, 6):
-            dag.add_node(locals()['node%d' % i])
-
-        dag.add_edge(node1, node3)
-        dag.add_edge(node2, node4)
-        dag.add_edge(node3, node4)
-        dag.add_edge(node4, node5)
-
-        loc_vars = locals()
-        self.assertEqual(sorted([loc_vars['node%d' % i] for i in range(1, 6)]),
-                         sorted(dag.nodes()))
-
-        self.assertTrue(dag.contains_node(node1))
-        self.assertTrue(dag.contains_edge(node2, node4))
-        self.assertFalse(dag.contains_edge(node2, node5))
-
-        self.assertEqual(list(labels), dag.topological_sort())
-        self.assertEqual(list('bca'), dag.ancestors([node4, ]))
-        self.assertEqual(list('de'), dag.descendants([node3, ]))
-
-        dag.add_edge(node2, node1)
-        self.assertEqual(list('bacde'), dag.topological_sort())
-        self.assertEqual(list('ab'), dag.ancestors([node3, ]))
-        self.assertEqual(list('daec'), dag.descendants([node2, ]))
-
-        self.assertRaises(DAGValidationError, lambda: dag.add_edge(node4, node2))
-        self.assertRaises(DAGValidationError, lambda: dag.add_edge(node4, node1))
-
-        self.assertEqual(dag.successors(node2), list('da'))
-        self.assertEqual(dag.predecessors(node4), list('bc'))
-
-        dag.remove_node(node4)
-        self.assertIn(''.join(dag.topological_sort()), set(['beac', 'ebac']))
-        self.assertFalse(dag.contains_node(node4))
-        self.assertRaises(KeyError, lambda: dag.remove_node(node4))
-        self.assertFalse(dag.contains_edge(node4, node5))
-        self.assertRaises(KeyError, lambda: dag.add_edge(node4, node5))
-        self.assertRaises(KeyError, lambda: dag.remove_edge(node4, node5))
-        self.assertRaises(KeyError, lambda: dag.successors(node4))
-
-        self.assertEqual(list('ab'), dag.ancestors([node3, ]))
-        self.assertEqual(list(''), dag.ancestors([node5, ]))
-        self.assertEqual(list('ac'), dag.descendants([node2, ]))
-        self.assertEqual(list(''), dag.descendants([node5, ]))
-
-        dag.remove_edge(node2, node1)
-        self.assertFalse(dag.contains_edge(node2, node1))
-        self.assertEqual(list('a'), dag.ancestors([node3, ]))
-        self.assertEqual(list('c'), dag.descendants([node1, ]))
-        self.assertSetEqual(set('abe'), set(dag.indep_nodes()))
-
-        dag.reset_graph()
-        self.assertEqual(len(dag.nodes()), 0)
+    dag.reset_graph()
+    assert len(dag.nodes()) == 0
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_reversed_dag():
+    dag = DAG(reverse=True)
+
+    labels = tuple('abcde')
+
+    node1, node2, node3, node4, node5 = labels
+
+    for i in range(1, 6):
+        dag.add_node(locals()['node%d' % i])
+
+    dag.add_edge(node1, node3)
+    dag.add_edge(node2, node4)
+    dag.add_edge(node3, node4)
+    dag.add_edge(node4, node5)
+
+    loc_vars = locals()
+    assert sorted([loc_vars['node%d' % i] for i in range(1, 6)]) == sorted(dag.nodes())
+
+    assert dag.contains_node(node1) is True
+    assert dag.contains_edge(node2, node4) is True
+    assert dag.contains_edge(node2, node5) is False
+
+    assert list(labels) == dag.topological_sort()
+    assert list('bca') == dag.ancestors([node4, ])
+    assert list('de') == dag.descendants([node3, ])
+
+    dag.add_edge(node2, node1)
+    assert list('bacde') == dag.topological_sort()
+    assert list('ab') == dag.ancestors([node3, ])
+    assert list('daec') == dag.descendants([node2, ])
+
+    pytest.raises(DAGValidationError, lambda: dag.add_edge(node4, node2))
+    pytest.raises(DAGValidationError, lambda: dag.add_edge(node4, node1))
+
+    assert dag.successors(node2) == list('da')
+    assert dag.predecessors(node4) == list('bc')
+
+    dag.remove_node(node4)
+    assert ''.join(dag.topological_sort()) in set(['beac', 'ebac'])
+    assert dag.contains_node(node4) is False
+    pytest.raises(KeyError, lambda: dag.remove_node(node4))
+    assert dag.contains_edge(node4, node5) is False
+    pytest.raises(KeyError, lambda: dag.add_edge(node4, node5))
+    pytest.raises(KeyError, lambda: dag.remove_edge(node4, node5))
+    pytest.raises(KeyError, lambda: dag.successors(node4))
+
+    assert list('ab') == dag.ancestors([node3, ])
+    assert list('') == dag.ancestors([node5, ])
+    assert list('ac') == dag.descendants([node2, ])
+    assert list('') == dag.descendants([node5, ])
+
+    dag.remove_edge(node2, node1)
+    assert dag.contains_edge(node2, node1) is False
+    assert list('a') == dag.ancestors([node3, ])
+    assert list('c') == dag.descendants([node1, ])
+    assert set('abe') == set(dag.indep_nodes())
+
+    dag.reset_graph()
+    assert len(dag.nodes()) == 0

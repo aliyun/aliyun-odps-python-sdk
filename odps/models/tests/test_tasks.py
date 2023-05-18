@@ -15,12 +15,13 @@
 import json
 import sys
 
-from odps.tests.core import TestBase, to_str
-from odps.errors import ODPSError
-from odps.compat import unittest
-from odps.config import options
-from odps.models import SQLTask, MergeTask, CupidTask, SQLCostTask, Task
-from odps.tests.core import tn
+import pytest
+
+from ...errors import ODPSError
+from ...config import options
+from ...tests.core import tn, wait_filled
+from ...utils import to_text
+from .. import SQLTask, MergeTask, CupidTask, SQLCostTask, Task
 
 try:
     import pytz
@@ -92,124 +93,125 @@ sql_cost_template = '''<?xml version="1.0" encoding="utf-8"?>
 '''
 
 
-class Test(TestBase):
-    def testTaskClassType(self):
-        typed = Task(type='SQL', query='select * from dual')
-        self.assertIsInstance(typed, SQLTask)
+def test_task_class_type():
+    typed = Task(type='SQL', query='select * from dual')
+    assert isinstance(typed, SQLTask)
 
-        unknown_typed = Task(type='UnknownType')
-        self.assertIs(type(unknown_typed), Task)
-        self.assertRaises(ODPSError, lambda: unknown_typed.serialize())
+    unknown_typed = Task(type='UnknownType')
+    assert type(unknown_typed) is Task
+    pytest.raises(ODPSError, lambda: unknown_typed.serialize())
 
-        untyped = Task()
-        self.assertIs(type(untyped), Task)
-        self.assertRaises(ODPSError, lambda: untyped.serialize())
+    untyped = Task()
+    assert type(untyped) is Task
+    pytest.raises(ODPSError, lambda: untyped.serialize())
 
-    def testSQLTaskToXML(self):
-        query = 'select * from dual'
 
+def test_sql_task_to_xml():
+    query = 'select * from dual'
+
+    task = SQLTask(query=query)
+    to_xml = task.serialize()
+    right_xml = sql_template % {'sql': query}
+
+    assert to_text(to_xml) == to_text(right_xml)
+
+    task = Task.parse(None, to_xml)
+    assert isinstance(task, SQLTask)
+
+
+@pytest.mark.skipif(pytz is None, reason='pytz not installed')
+def test_sql_task_to_xml_timezone():
+    from ... import __version__
+    from ...lib import tzlocal
+
+    query = 'select * from dual'
+    versions = {"pyodps_version": __version__, "python_version": json.dumps(sys.version)}
+
+    def _format_template(**kwargs):
+        kwargs.update(versions)
+        return sql_tz_template % kwargs
+
+    try:
+        options.local_timezone = True
+        local_zone_name = tzlocal.get_localzone().zone
         task = SQLTask(query=query)
+        task.update_sql_settings()
         to_xml = task.serialize()
-        right_xml = sql_template % {'sql': query}
+        right_xml = _format_template(sql=query, tz=local_zone_name)
 
-        self.assertEqual(to_str(to_xml), to_str(right_xml))
+        assert to_text(to_xml) == to_text(right_xml)
 
-        task = Task.parse(None, to_xml)
-        self.assertIsInstance(task, SQLTask)
-
-    @unittest.skipIf(pytz is None, 'pytz not installed')
-    def testSQLTaskToXMLTimezone(self):
-        from odps import __version__
-        from odps.lib import tzlocal
-
-        query = 'select * from dual'
-        versions = {"pyodps_version": __version__, "python_version": json.dumps(sys.version)}
-
-        def _format_template(**kwargs):
-            kwargs.update(versions)
-            return sql_tz_template % kwargs
-
-        try:
-            options.local_timezone = True
-            local_zone_name = tzlocal.get_localzone().zone
-            task = SQLTask(query=query)
-            task.update_sql_settings()
-            to_xml = task.serialize()
-            right_xml = _format_template(sql=query, tz=local_zone_name)
-
-            self.assertEqual(to_str(to_xml), to_str(right_xml))
-
-            options.local_timezone = False
-            task = SQLTask(query=query)
-            task.update_sql_settings()
-            to_xml = task.serialize()
-            right_xml = _format_template(sql=query, tz='Etc/GMT')
-
-            self.assertEqual(to_str(to_xml), to_str(right_xml))
-
-            options.local_timezone = pytz.timezone('Asia/Shanghai')
-            task = SQLTask(query=query)
-            task.update_sql_settings()
-            to_xml = task.serialize()
-            right_xml = _format_template(sql=query, tz=options.local_timezone.zone)
-
-            self.assertEqual(to_str(to_xml), to_str(right_xml))
-        finally:
-            options.local_timezone = None
-
-    def testMergeTaskToXML(self):
-        task = MergeTask('task_1', table='table_name')
-        task.update_settings({'odps.merge.cross.paths': True})
+        options.local_timezone = False
+        task = SQLTask(query=query)
+        task.update_sql_settings()
         to_xml = task.serialize()
-        right_xml = merge_template % dict(name='task_1', table='table_name')
+        right_xml = _format_template(sql=query, tz='Etc/GMT')
 
-        self.assertEqual(to_str(to_xml), to_str(right_xml))
+        assert to_text(to_xml) == to_text(right_xml)
 
-        task = Task.parse(None, to_xml)
-        self.assertIsInstance(task, MergeTask)
-
-    def testRunMergeTask(self):
-        table_name = tn('pyodps_test_merge_task_table')
-        if self.odps.exist_table(table_name):
-            self.odps.delete_table(table_name)
-
-        table = self.odps.create_table(table_name, ('col string', 'part1 string, part2 string'))
-        table.create_partition('part1=1,part2=1', if_not_exists=True)
-        self.odps.write_table(table_name, [('col_name', )], partition='part1=1,part2=1')
-        inst = self.odps.run_merge_files(table_name, 'part1=1, part2="1"')
-        self.waitContainerFilled(lambda: inst.tasks)
-
-        task = inst.tasks[0]
-        self.assertIsInstance(task, MergeTask)
-
-        try:
-            inst.stop()
-        except:
-            pass
-
-        self.odps.delete_table(table_name)
-
-    def testCupidTaskToXML(self):
-        task = CupidTask('task_1', 'plan_text', {'odps.cupid.wait.am.start.time': 600})
+        options.local_timezone = pytz.timezone('Asia/Shanghai')
+        task = SQLTask(query=query)
+        task.update_sql_settings()
         to_xml = task.serialize()
-        right_xml = cupid_template
+        right_xml = _format_template(sql=query, tz=options.local_timezone.zone)
 
-        self.assertEqual(to_str(to_xml), to_str(right_xml))
-
-        task = Task.parse(None, to_xml)
-        self.assertIsInstance(task, CupidTask)
-
-    def testSQLCostTaskToXML(self):
-        query = 'select * from dual'
-        task = SQLCostTask(query=query)
-        to_xml = task.serialize()
-        right_xml = sql_cost_template % {'sql': query}
-
-        self.assertEqual(to_str(to_xml), to_str(right_xml))
-
-        task = Task.parse(None, to_xml)
-        self.assertIsInstance(task, SQLCostTask)
+        assert to_text(to_xml) == to_text(right_xml)
+    finally:
+        options.local_timezone = None
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_merge_task_to_xml():
+    task = MergeTask('task_1', table='table_name')
+    task.update_settings({'odps.merge.cross.paths': True})
+    to_xml = task.serialize()
+    right_xml = merge_template % dict(name='task_1', table='table_name')
+
+    assert to_text(to_xml) == to_text(right_xml)
+
+    task = Task.parse(None, to_xml)
+    assert isinstance(task, MergeTask)
+
+
+def test_run_merge_task(odps):
+    table_name = tn('pyodps_test_merge_task_table')
+    if odps.exist_table(table_name):
+        odps.delete_table(table_name)
+
+    table = odps.create_table(table_name, ('col string', 'part1 string, part2 string'))
+    table.create_partition('part1=1,part2=1', if_not_exists=True)
+    odps.write_table(table_name, [('col_name', )], partition='part1=1,part2=1')
+    inst = odps.run_merge_files(table_name, 'part1=1, part2="1"')
+    wait_filled(lambda: inst.tasks)
+
+    task = inst.tasks[0]
+    assert isinstance(task, MergeTask)
+
+    try:
+        inst.stop()
+    except:
+        pass
+
+    odps.delete_table(table_name)
+
+
+def test_cupid_task_to_xml():
+    task = CupidTask('task_1', 'plan_text', {'odps.cupid.wait.am.start.time': 600})
+    to_xml = task.serialize()
+    right_xml = cupid_template
+
+    assert to_text(to_xml) == to_text(right_xml)
+
+    task = Task.parse(None, to_xml)
+    assert isinstance(task, CupidTask)
+
+
+def test_sql_cost_task_to_xml():
+    query = 'select * from dual'
+    task = SQLCostTask(query=query)
+    to_xml = task.serialize()
+    right_xml = sql_cost_template % {'sql': query}
+
+    assert to_text(to_xml) == to_text(right_xml)
+
+    task = Task.parse(None, to_xml)
+    assert isinstance(task, SQLCostTask)

@@ -16,19 +16,22 @@ import os
 import tempfile
 import zipfile
 
-from odps import compat, errors, options, types
-from odps.compat import futures, six, unittest, ConfigParser, UnsupportedOperation
-from odps.models import Resource, FileResource, TableResource, VolumeArchiveResource, \
-    VolumeFileResource, TableSchema
-from odps.tests.core import TestBase, to_str, tn
+import pytest
 
-FILE_CONTENT = to_str("""
+from ... import compat, errors, options, types
+from ...compat import futures, six, ConfigParser, UnsupportedOperation
+from ...tests.core import tn
+from ...utils import to_text
+from .. import Resource, FileResource, TableResource, VolumeArchiveResource, \
+    VolumeFileResource, TableSchema
+
+FILE_CONTENT = to_text("""
 Proudly swept the rain by the cliffs
 As it glided through the trees
 Still following ever the bud
 The ahihi lehua of the vale
 """)
-OVERWRITE_FILE_CONTENT = to_str("""
+OVERWRITE_FILE_CONTENT = to_text("""
 Farewell to thee, farewell to thee
 The charming one who dwells in the shaded bowers
 One fond embrace,
@@ -42,378 +45,378 @@ From you, true love shall never depart
 """)
 
 
-class Test(TestBase):
-    def tearDown(self):
+@pytest.fixture(autouse=True)
+def reset_options():
+    try:
+        yield
+    finally:
         options.resource_chunk_size = 64 << 20
         options.upload_resource_in_chunks = True
 
-    def testResources(self):
-        self.assertIs(self.odps.get_project().resources, self.odps.get_project().resources)
 
-        next(self.odps.list_resources())
+def test_resources(odps):
+    assert odps.get_project().resources is odps.get_project().resources
 
-        for idx, resource in enumerate(self.odps.list_resources()):
-            if idx >= 20:
-                break
-            self.assertIsInstance(resource, Resource._get_cls(resource.type))
+    next(odps.list_resources())
 
-        self.assertRaises(
-            TypeError, lambda: self.odps.create_resource(
-                'test_error', 'py', resource=['uvw']
-            )
+    for idx, resource in enumerate(odps.list_resources()):
+        if idx >= 20:
+            break
+        assert isinstance(resource, Resource._get_cls(resource.type))
+
+    pytest.raises(TypeError, lambda: odps.create_resource(
+            'test_error', 'py', resource=['uvw']
         )
+    )
 
-    def testResourceExists(self):
-        non_exists_resource = 'a_non_exists_resource'
-        self.assertFalse(self.odps.exist_resource(non_exists_resource))
 
-    def testTableResource(self):
+def test_resource_exists(odps):
+    non_exists_resource = 'a_non_exists_resource'
+    assert odps.exist_resource(non_exists_resource) is False
+
+
+def test_table_resource(config, odps):
+    try:
+        secondary_project = config.get('test', 'secondary_project')
+    except ConfigParser.NoOptionError:
+        secondary_project = None
+
+    test_table_name = tn('pyodps_t_tmp_resource_table')
+    schema = TableSchema.from_lists(['id', 'name'], ['string', 'string'])
+    odps.delete_table(test_table_name, if_exists=True)
+    odps.create_table(test_table_name, schema)
+    if secondary_project:
+        odps.delete_table(test_table_name, if_exists=True, project=secondary_project)
+        odps.create_table(test_table_name, schema, project=secondary_project)
+
+    resource_name = tn('pyodps_t_tmp_table_resource')
+    try:
+        odps.delete_resource(resource_name)
+    except errors.NoSuchObject:
+        pass
+    res = odps.create_resource(resource_name, 'table', table_name=test_table_name)
+    assert isinstance(res, TableResource)
+    assert res.get_source_table().name == test_table_name
+    assert res.table.name == test_table_name
+    assert res.get_source_table_partition() is None
+    assert res is odps.get_resource(resource_name)
+
+    with res.open_writer() as writer:
+        writer.write([0, FILE_CONTENT])
+    with res.open_reader() as reader:
+        rec = list(reader)[0]
+        assert rec[1] == FILE_CONTENT
+
+    del res.parent[resource_name]  # delete from cache
+
+    assert res is not odps.get_resource(resource_name)
+    res = odps.get_resource(resource_name)
+    assert isinstance(res, TableResource)
+    assert res.get_source_table().name == test_table_name
+    assert res.get_source_table_partition() is None
+
+    test_table_partition = 'pt=test,sec=1'
+    schema = TableSchema.from_lists(['id', 'name'], ['string', 'string'], ['pt', 'sec'], ['string', 'bigint'])
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(test_table_name, schema)
+    table.create_partition(test_table_partition)
+
+    res = res.update(partition=test_table_partition)
+    assert isinstance(res, TableResource)
+    assert res.get_source_table().name == test_table_name
+    assert res.table.name == test_table_name
+    assert str(res.get_source_table_partition()) == str(types.PartitionSpec(test_table_partition))
+    assert str(res.partition.spec) == str(types.PartitionSpec(test_table_partition))
+    assert res is odps.get_resource(resource_name)
+
+    test_table_partition = 'pt=test,sec=2'
+    table.create_partition(test_table_partition)
+    res = res.update(partition=test_table_partition)
+    assert isinstance(res, TableResource)
+    assert res.get_source_table().name == test_table_name
+    assert str(res.get_source_table_partition()) == str(types.PartitionSpec(test_table_partition))
+    assert res is odps.get_resource(resource_name)
+
+    test_table_partition = types.PartitionSpec('pt=test,sec=3')
+    table.create_partition(test_table_partition)
+    res = res.update(partition=test_table_partition)
+    assert isinstance(res, TableResource)
+    assert res.get_source_table().name == test_table_name
+    assert str(res.get_source_table_partition()) == str(test_table_partition)
+    assert res is odps.get_resource(resource_name)
+
+    with res.open_writer() as writer:
+        writer.write([0, FILE_CONTENT])
+    with res.open_reader() as reader:
+        rec = list(reader)[0]
+        assert rec[1] == FILE_CONTENT
+
+    if secondary_project:
+        resource_name2 = tn('pyodps_t_tmp_table_resource2')
         try:
-            secondary_project = self.config.get('test', 'secondary_project')
-        except ConfigParser.NoOptionError:
-            secondary_project = None
-
-        test_table_name = tn('pyodps_t_tmp_resource_table')
-        schema = TableSchema.from_lists(['id', 'name'], ['string', 'string'])
-        self.odps.delete_table(test_table_name, if_exists=True)
-        self.odps.create_table(test_table_name, schema)
-        if secondary_project:
-            self.odps.delete_table(test_table_name, if_exists=True, project=secondary_project)
-            self.odps.create_table(test_table_name, schema, project=secondary_project)
-
-        resource_name = tn('pyodps_t_tmp_table_resource')
-        try:
-            self.odps.delete_resource(resource_name)
+            odps.delete_resource(resource_name2)
         except errors.NoSuchObject:
             pass
-        res = self.odps.create_resource(resource_name, 'table', table_name=test_table_name)
-        self.assertIsInstance(res, TableResource)
-        self.assertEqual(res.get_source_table().name, test_table_name)
-        self.assertEqual(res.table.name, test_table_name)
-        self.assertIsNone(res.get_source_table_partition())
-        self.assertIs(res, self.odps.get_resource(resource_name))
+        res = odps.create_resource(resource_name2, 'table', project_name=secondary_project,
+                                   table_name=test_table_name)
+        assert isinstance(res, TableResource)
+        assert res.get_source_table().project.name == secondary_project
+        assert res.get_source_table().name == test_table_name
+        assert res.table.project.name == secondary_project
+        assert res.table.name == test_table_name
+        assert res.get_source_table_partition() is None
+        assert res is odps.get_resource(resource_name2)
 
-        with res.open_writer() as writer:
-            writer.write([0, FILE_CONTENT])
-        with res.open_reader() as reader:
-            rec = list(reader)[0]
-            self.assertEqual(rec[1], FILE_CONTENT)
+        del res.parent[resource_name2]  # delete from cache
 
-        del res.parent[resource_name]  # delete from cache
-
-        self.assertIsNot(res, self.odps.get_resource(resource_name))
-        res = self.odps.get_resource(resource_name)
-        self.assertIsInstance(res, TableResource)
-        self.assertEqual(res.get_source_table().name, test_table_name)
-        self.assertIsNone(res.get_source_table_partition())
+        assert res is not odps.get_resource(resource_name2)
+        res = odps.get_resource(resource_name2)
+        assert isinstance(res, TableResource)
+        assert res.get_source_table().project.name == secondary_project
+        assert res.get_source_table().name == test_table_name
+        assert res.get_source_table_partition() is None
 
         test_table_partition = 'pt=test,sec=1'
-        schema = TableSchema.from_lists(['id', 'name'], ['string', 'string'], ['pt', 'sec'], ['string', 'bigint'])
-        self.odps.delete_table(test_table_name, if_exists=True)
-        table = self.odps.create_table(test_table_name, schema)
-        table.create_partition(test_table_partition)
+        res = res.update(project_name=odps.project, partition=test_table_partition)
+        assert isinstance(res, TableResource)
+        assert res.get_source_table().project.name == odps.project
+        assert res.get_source_table().name == test_table_name
+        assert str(res.partition.spec) == str(types.PartitionSpec(test_table_partition))
 
-        res = res.update(partition=test_table_partition)
-        self.assertIsInstance(res, TableResource)
-        self.assertEqual(res.get_source_table().name, test_table_name)
-        self.assertEqual(res.table.name, test_table_name)
-        self.assertEqual(str(res.get_source_table_partition()),
-                         str(types.PartitionSpec(test_table_partition)))
-        self.assertEqual(str(res.partition.spec),
-                         str(types.PartitionSpec(test_table_partition)))
-        self.assertIs(res, self.odps.get_resource(resource_name))
+        res = res.update(table_name=secondary_project + '.' + test_table_name, partition=None)
+        assert isinstance(res, TableResource)
+        assert res.get_source_table().project.name == secondary_project
+        assert res.get_source_table().name == test_table_name
+        assert res.get_source_table_partition() is None
 
-        test_table_partition = 'pt=test,sec=2'
-        table.create_partition(test_table_partition)
-        res = res.update(partition=test_table_partition)
-        self.assertIsInstance(res, TableResource)
-        self.assertEqual(res.get_source_table().name, test_table_name)
-        self.assertEqual(str(res.get_source_table_partition()),
-                         str(types.PartitionSpec(test_table_partition)))
-        self.assertIs(res, self.odps.get_resource(resource_name))
+    odps.delete_resource(resource_name)
+    odps.delete_table(test_table_name)
+    if secondary_project:
+        odps.delete_table(test_table_name, project=secondary_project)
 
-        test_table_partition = types.PartitionSpec('pt=test,sec=3')
-        table.create_partition(test_table_partition)
-        res = res.update(partition=test_table_partition)
-        self.assertIsInstance(res, TableResource)
-        self.assertEqual(res.get_source_table().name, test_table_name)
-        self.assertEqual(str(res.get_source_table_partition()),
-                         str(test_table_partition))
-        self.assertIs(res, self.odps.get_resource(resource_name))
 
-        with res.open_writer() as writer:
-            writer.write([0, FILE_CONTENT])
-        with res.open_reader() as reader:
-            rec = list(reader)[0]
-            self.assertEqual(rec[1], FILE_CONTENT)
+def test_temp_file_resource(odps):
+    resource_name = tn('pyodps_t_tmp_file_resource')
 
-        if secondary_project:
-            resource_name2 = tn('pyodps_t_tmp_table_resource2')
-            try:
-                self.odps.delete_resource(resource_name2)
-            except errors.NoSuchObject:
-                pass
-            res = self.odps.create_resource(resource_name2, 'table', project_name=secondary_project,
-                                            table_name=test_table_name)
-            self.assertIsInstance(res, TableResource)
-            self.assertEqual(res.get_source_table().project.name, secondary_project)
-            self.assertEqual(res.get_source_table().name, test_table_name)
-            self.assertEqual(res.table.project.name, secondary_project)
-            self.assertEqual(res.table.name, test_table_name)
-            self.assertIsNone(res.get_source_table_partition())
-            self.assertIs(res, self.odps.get_resource(resource_name2))
+    try:
+        odps.delete_resource(resource_name)
+    except errors.ODPSError:
+        pass
 
-            del res.parent[resource_name2]  # delete from cache
+    resource = odps.create_resource(resource_name, 'file', file_obj=FILE_CONTENT, temp=True)
+    assert isinstance(resource, FileResource)
+    assert resource.is_temp_resource is True
 
-            self.assertIsNot(res, self.odps.get_resource(resource_name2))
-            res = self.odps.get_resource(resource_name2)
-            self.assertIsInstance(res, TableResource)
-            self.assertEqual(res.get_source_table().project.name, secondary_project)
-            self.assertEqual(res.get_source_table().name, test_table_name)
-            self.assertIsNone(res.get_source_table_partition())
+    odps.delete_resource(resource_name)
 
-            test_table_partition = 'pt=test,sec=1'
-            res = res.update(project_name=self.odps.project, partition=test_table_partition)
-            self.assertIsInstance(res, TableResource)
-            self.assertEqual(res.get_source_table().project.name, self.odps.project)
-            self.assertEqual(res.get_source_table().name, test_table_name)
-            self.assertEqual(str(res.partition.spec),
-                             str(types.PartitionSpec(test_table_partition)))
 
-            res = res.update(table_name=secondary_project + '.' + test_table_name, partition=None)
-            self.assertIsInstance(res, TableResource)
-            self.assertEqual(res.get_source_table().project.name, secondary_project)
-            self.assertEqual(res.get_source_table().name, test_table_name)
-            self.assertIsNone(res.get_source_table_partition())
+def test_stream_file_resource(odps):
+    options.resource_chunk_size = 1024
+    content = OVERWRITE_FILE_CONTENT * 32
+    resource_name = tn('pyodps_t_tmp_file_resource')
 
-        self.odps.delete_resource(resource_name)
-        self.odps.delete_table(test_table_name)
-        if secondary_project:
-            self.odps.delete_table(test_table_name, project=secondary_project)
+    del_pool = futures.ThreadPoolExecutor(10)
+    res_to_del = [resource_name]
+    for idx in range(10):
+        res_to_del.append("%s.part.tmp.%06d" % (resource_name, idx))
+    for res_name in res_to_del:
+        del_pool.submit(odps.delete_resource, res_name)
+    del_pool.shutdown(wait=True)
 
-    def testTempFileResource(self):
-        resource_name = tn('pyodps_t_tmp_file_resource')
+    try:
+        temp_dir = tempfile.mkdtemp(prefix="pyodps-test-")
+        temp_file = os.path.join(temp_dir, "res_source")
+        with open(temp_file, "w") as out_file:
+            out_file.write(content)
+        with open(temp_file, "r") as in_file:
+            odps.create_resource(resource_name, "file", fileobj=in_file)
+        with odps.open_resource(resource_name, mode="r", stream=True) as res:
+            assert res.read() == content
+    finally:
+        odps.delete_resource(resource_name)
 
-        try:
-            self.odps.delete_resource(resource_name)
-        except errors.ODPSError:
-            pass
+    with odps.open_resource(resource_name, mode="w", stream=True) as res:
+        pytest.raises(UnsupportedOperation, lambda: res.seek(0, os.SEEK_END))
+        for offset in range(0, len(content), 1023):
+            res.write(content[offset:offset + 1023])
+            assert res.tell() == min(offset + 1023, len(content))
+        pytest.raises(UnsupportedOperation, lambda: res.truncate(1024))
 
-        resource = self.odps.create_resource(resource_name, 'file', file_obj=FILE_CONTENT, temp=True)
-        self.assertIsInstance(resource, FileResource)
-        self.assertTrue(resource.is_temp_resource)
+    with odps.open_resource(resource_name, mode="r", stream=True) as res:
+        sio = compat.StringIO()
+        for offset in range(0, len(content), 1025):
+            sio.write(res.read(1025))
+    assert sio.getvalue() == content
 
-        self.odps.delete_resource(resource_name)
+    with odps.open_resource(resource_name, mode="r", stream=True) as res:
+        sio = compat.StringIO()
+        for line in res:
+            sio.write(line)
+    assert sio.getvalue() == content
 
-    def testStreamFileResource(self):
-        options.resource_chunk_size = 1024
-        content = OVERWRITE_FILE_CONTENT * 32
-        resource_name = tn('pyodps_t_tmp_file_resource')
+    with odps.open_resource(resource_name, mode="w", stream=True) as res:
+        lines = content.splitlines(True)
+        for offset in range(0, len(lines), 50):
+            res.writelines(lines[offset:offset + 50])
 
-        del_pool = futures.ThreadPoolExecutor(10)
-        res_to_del = [resource_name]
-        for idx in range(10):
-            res_to_del.append("%s.part.tmp.%06d" % (resource_name, idx))
-        for res_name in res_to_del:
-            del_pool.submit(self.odps.delete_resource, res_name)
-        del_pool.shutdown(wait=True)
+    with odps.open_resource(resource_name, mode="r", stream=True) as res:
+        lines = res.readlines()
+    assert "".join(lines) == content
 
-        try:
-            temp_dir = tempfile.mkdtemp(prefix="pyodps-test-")
-            temp_file = os.path.join(temp_dir, "res_source")
-            with open(temp_file, "w") as out_file:
-                out_file.write(content)
-            with open(temp_file, "r") as in_file:
-                self.odps.create_resource(resource_name, "file", fileobj=in_file)
-            with self.odps.open_resource(resource_name, mode="r", stream=True) as res:
-                assert res.read() == content
-        finally:
-            self.odps.delete_resource(resource_name)
 
-        with self.odps.open_resource(resource_name, mode="w", stream=True) as res:
-            self.assertRaises(UnsupportedOperation, lambda: res.seek(0, os.SEEK_END))
-            for offset in range(0, len(content), 1023):
-                res.write(content[offset:offset + 1023])
-                assert res.tell() == min(offset + 1023, len(content))
-            self.assertRaises(UnsupportedOperation, lambda: res.truncate(1024))
+def test_file_resource(odps):
+    resource_name = tn('pyodps_t_tmp_file_resource')
 
-        with self.odps.open_resource(resource_name, mode="r", stream=True) as res:
-            sio = compat.StringIO()
-            for offset in range(0, len(content), 1025):
-                sio.write(res.read(1025))
-        assert sio.getvalue() == content
+    try:
+        odps.delete_resource(resource_name)
+    except errors.ODPSError:
+        pass
 
-        with self.odps.open_resource(resource_name, mode="r", stream=True) as res:
-            sio = compat.StringIO()
-            for line in res:
-                sio.write(line)
-        assert sio.getvalue() == content
+    resource = odps.create_resource(resource_name, 'file', file_obj=FILE_CONTENT)
+    assert isinstance(resource, FileResource)
 
-        with self.odps.open_resource(resource_name, mode="w", stream=True) as res:
-            lines = content.splitlines(True)
-            for offset in range(0, len(lines), 50):
-                res.writelines(lines[offset:offset + 50])
+    with resource.open(mode='r') as fp:
+        pytest.raises(IOError, lambda: fp.write('sss'))
+        pytest.raises(IOError, lambda: fp.writelines(['sss\n']))
 
-        with self.odps.open_resource(resource_name, mode="r", stream=True) as res:
-            lines = res.readlines()
-        assert "".join(lines) == content
+        assert isinstance(fp.read(), six.text_type)
 
-    def testFileResource(self):
-        resource_name = tn('pyodps_t_tmp_file_resource')
+        fp.seek(0, compat.SEEK_END)
+        size = fp.tell()
+        fp.seek(0)
+        assert fp._size == size
 
-        try:
-            self.odps.delete_resource(resource_name)
-        except errors.ODPSError:
-            pass
+        assert to_text(fp.read()) == to_text(FILE_CONTENT)
+        fp.seek(1)
+        assert to_text(fp.read()) == to_text(FILE_CONTENT[1:])
 
-        resource = self.odps.create_resource(resource_name, 'file', file_obj=FILE_CONTENT)
-        self.assertIsInstance(resource, FileResource)
+        fp.seek(0)
+        assert to_text(fp.readline()) == to_text(FILE_CONTENT.split('\n', 1)[0] + '\n')
 
-        with resource.open(mode='r') as fp:
-            self.assertRaises(IOError, lambda: fp.write('sss'))
-            self.assertRaises(IOError, lambda: fp.writelines(['sss\n']))
+        fp.seek(0)
+        add_newline = lambda s: s if s.endswith('\n') else s+'\n'
+        assert [to_text(add_newline(l)) for l in fp] == [to_text(add_newline(l)) for l in FILE_CONTENT.splitlines()]
 
-            self.assertIsInstance(fp.read(), six.text_type)
+        assert fp._fp._need_commit is False
+        assert fp.opened is True
 
-            fp.seek(0, compat.SEEK_END)
-            size = fp.tell()
-            fp.seek(0)
-            self.assertEqual(fp._size, size)
+    assert fp.opened is False
+    assert fp._fp is None
 
-            self.assertEqual(to_str(fp.read()), to_str(FILE_CONTENT))
-            fp.seek(1)
-            self.assertEqual(to_str(fp.read()), to_str(FILE_CONTENT[1:]))
+    with resource.open(mode='w') as fp:
+        pytest.raises(IOError, fp.read)
+        pytest.raises(IOError, fp.readline)
+        pytest.raises(IOError, fp.readlines)
 
-            fp.seek(0)
-            self.assertEqual(to_str(fp.readline()), to_str(FILE_CONTENT.split('\n', 1)[0]+'\n'))
+        fp.writelines([OVERWRITE_FILE_CONTENT] * 2)
 
-            fp.seek(0)
-            add_newline = lambda s: s if s.endswith('\n') else s+'\n'
-            self.assertEqual([to_str(add_newline(l)) for l in fp],
-                             [to_str(add_newline(l)) for l in FILE_CONTENT.splitlines()])
+        assert fp._fp._need_commit is True
 
-            self.assertFalse(fp._fp._need_commit)
-            self.assertTrue(fp.opened)
+        size = fp._size
 
-        self.assertFalse(fp.opened)
-        self.assertIsNone(fp._fp)
+    with resource.open(mode='r+') as fp:
+        assert to_text(fp.read()) == to_text(OVERWRITE_FILE_CONTENT * 2)
 
-        with resource.open(mode='w') as fp:
-            self.assertRaises(IOError, fp.read)
-            self.assertRaises(IOError, fp.readline)
-            self.assertRaises(IOError, fp.readlines)
+        assert size == fp._size
 
-            fp.writelines([OVERWRITE_FILE_CONTENT] * 2)
+        fp.seek(0)
+        fp.write(FILE_CONTENT)
+        fp.truncate()
 
-            self.assertTrue(fp._fp._need_commit)
+        assert fp._fp._need_commit is True
 
-            size = fp._size
+    with resource.open(mode='a') as fp:
+        pytest.raises(IOError, fp.read)
+        pytest.raises(IOError, fp.readline)
+        pytest.raises(IOError, fp.readlines)
 
-        with resource.open(mode='r+') as fp:
-            self.assertEqual(to_str(fp.read()), to_str(OVERWRITE_FILE_CONTENT*2))
+        fp.write(OVERWRITE_FILE_CONTENT)
 
-            self.assertEqual(size, fp._size)
+        assert fp._fp._need_commit is True
 
-            fp.seek(0)
-            fp.write(FILE_CONTENT)
-            fp.truncate()
-
-            self.assertTrue(fp._fp._need_commit)
-
-        with resource.open(mode='a') as fp:
-            self.assertRaises(IOError, fp.read)
-            self.assertRaises(IOError, fp.readline)
-            self.assertRaises(IOError, fp.readlines)
-
-            fp.write(OVERWRITE_FILE_CONTENT)
-
-            self.assertTrue(fp._fp._need_commit)
-
-        with resource.open(mode='a+') as fp:
-            self.assertEqual(to_str(fp.read()), to_str(FILE_CONTENT+OVERWRITE_FILE_CONTENT))
-            fp.seek(1)
-            fp.truncate()
-            self.assertTrue(fp._fp._need_commit)
-            # redundant closing should work as well
-            fp.close()
-
-        fp = resource.open(mode='r')
-        self.assertEqual(to_str(fp.read()), FILE_CONTENT[0])
+    with resource.open(mode='a+') as fp:
+        assert to_text(fp.read()) == to_text(FILE_CONTENT + OVERWRITE_FILE_CONTENT)
+        fp.seek(1)
+        fp.truncate()
+        assert fp._fp._need_commit is True
+        # redundant closing should work as well
         fp.close()
 
-        with resource.open(mode='w+') as fp:
-            self.assertEqual(len(fp.read()), 0)
-            fp.write(FILE_CONTENT)
+    fp = resource.open(mode='r')
+    assert to_text(fp.read()) == FILE_CONTENT[0]
+    fp.close()
 
-        with resource.open(mode='r+') as fp:
-            self.assertEqual(to_str(fp.read()), FILE_CONTENT)
+    with resource.open(mode='w+') as fp:
+        assert len(fp.read()) == 0
+        fp.write(FILE_CONTENT)
 
-        resource.update(file_obj='update')
-        with resource.open(mode='rb') as fp:
-            self.assertIsInstance(fp.read(), six.binary_type)
-            fp.seek(0)
-            self.assertEqual(to_str(fp.read()), to_str('update'))
+    with resource.open(mode='r+') as fp:
+        assert to_text(fp.read()) == FILE_CONTENT
 
-        self.odps.delete_resource(resource_name)
+    resource.update(file_obj='update')
+    with resource.open(mode='rb') as fp:
+        assert isinstance(fp.read(), six.binary_type)
+        fp.seek(0)
+        assert to_text(fp.read()) == to_text('update')
 
-    def testVolumeArchiveResource(self):
-        volume_name = tn('pyodps_t_tmp_resource_archive_volume')
-        resource_name = tn('pyodps_t_tmp_volume_archive_resource') + '.zip'
-        partition_name = 'test_partition'
-        file_name = 'test_file.zip'
-        try:
-            self.odps.delete_volume(volume_name)
-        except errors.ODPSError:
-            pass
-        try:
-            self.odps.delete_resource(resource_name)
-        except errors.ODPSError:
-            pass
-
-        file_io = six.BytesIO()
-        zfile = zipfile.ZipFile(file_io, 'a', zipfile.ZIP_DEFLATED, False)
-        zfile.writestr('file1.txt', FILE_CONTENT)
-        zfile.writestr('file2.txt', OVERWRITE_FILE_CONTENT)
-        zfile.close()
-
-        self.odps.create_parted_volume(volume_name)
-        with self.odps.open_volume_writer(volume_name, partition_name) as writer:
-            writer.write(file_name, file_io.getvalue())
-
-        volume_file = self.odps.get_volume_partition(volume_name, partition_name).files[file_name]
-        self.odps.create_resource(resource_name, 'volumearchive', volume_file=volume_file)
-        res = self.odps.get_resource(resource_name)
-        self.assertIsInstance(res, VolumeArchiveResource)
-        self.assertEqual(res.type, Resource.Type.VOLUMEARCHIVE)
-        self.assertEqual(res.volume_path, volume_file.path)
-        self.odps.delete_resource(resource_name)
-
-    def testVolumeFileResource(self):
-        volume_name = tn('pyodps_t_tmp_resource_file_volume')
-        resource_name = tn('pyodps_t_tmp_volume_file_resource')
-        partition_name = 'test_partition'
-        file_name = 'test_file.txt'
-        try:
-            self.odps.delete_volume(volume_name)
-        except errors.ODPSError:
-            pass
-        try:
-            self.odps.delete_resource(resource_name)
-        except errors.ODPSError:
-            pass
-
-        self.odps.create_parted_volume(volume_name)
-        with self.odps.open_volume_writer(volume_name, partition_name) as writer:
-            writer.write(file_name, FILE_CONTENT)
-
-        volume_file = self.odps.get_volume_partition(volume_name, partition_name).files[file_name]
-        self.odps.create_resource(resource_name, 'volumefile', volume_file=volume_file)
-        res = self.odps.get_resource(resource_name)
-        self.assertIsInstance(res, VolumeFileResource)
-        self.assertEqual(res.type, Resource.Type.VOLUMEFILE)
-        self.assertEqual(res.volume_path, volume_file.path)
-        self.odps.delete_resource(resource_name)
+    odps.delete_resource(resource_name)
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_volume_archive_resource(odps):
+    volume_name = tn('pyodps_t_tmp_resource_archive_volume')
+    resource_name = tn('pyodps_t_tmp_volume_archive_resource') + '.zip'
+    partition_name = 'test_partition'
+    file_name = 'test_file.zip'
+    try:
+        odps.delete_volume(volume_name)
+    except errors.ODPSError:
+        pass
+    try:
+        odps.delete_resource(resource_name)
+    except errors.ODPSError:
+        pass
+
+    file_io = six.BytesIO()
+    zfile = zipfile.ZipFile(file_io, 'a', zipfile.ZIP_DEFLATED, False)
+    zfile.writestr('file1.txt', FILE_CONTENT)
+    zfile.writestr('file2.txt', OVERWRITE_FILE_CONTENT)
+    zfile.close()
+
+    odps.create_parted_volume(volume_name)
+    with odps.open_volume_writer(volume_name, partition_name) as writer:
+        writer.write(file_name, file_io.getvalue())
+
+    volume_file = odps.get_volume_partition(volume_name, partition_name).files[file_name]
+    odps.create_resource(resource_name, 'volumearchive', volume_file=volume_file)
+    res = odps.get_resource(resource_name)
+    assert isinstance(res, VolumeArchiveResource)
+    assert res.type == Resource.Type.VOLUMEARCHIVE
+    assert res.volume_path == volume_file.path
+    odps.delete_resource(resource_name)
+
+
+def test_volume_file_resource(odps):
+    volume_name = tn('pyodps_t_tmp_resource_file_volume')
+    resource_name = tn('pyodps_t_tmp_volume_file_resource')
+    partition_name = 'test_partition'
+    file_name = 'test_file.txt'
+    try:
+        odps.delete_volume(volume_name)
+    except errors.ODPSError:
+        pass
+    try:
+        odps.delete_resource(resource_name)
+    except errors.ODPSError:
+        pass
+
+    odps.create_parted_volume(volume_name)
+    with odps.open_volume_writer(volume_name, partition_name) as writer:
+        writer.write(file_name, FILE_CONTENT)
+
+    volume_file = odps.get_volume_partition(volume_name, partition_name).files[file_name]
+    odps.create_resource(resource_name, 'volumefile', volume_file=volume_file)
+    res = odps.get_resource(resource_name)
+    assert isinstance(res, VolumeFileResource)
+    assert res.type == Resource.Type.VOLUMEFILE
+    assert res.volume_path == volume_file.path
+    odps.delete_resource(resource_name)

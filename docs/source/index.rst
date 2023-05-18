@@ -14,7 +14,7 @@ PyODPS: ODPS Python SDK and data analysis framework
 .. rubric:: 安装
     :class: rubric-h2
 
-PyODPS 支持Python 2.6 以上的 Python 版本，包括Python 3。系统安装了 pip 后，只需运行：
+PyODPS 支持Python 2.7 以上的 Python 版本，包括Python 3。系统安装了 pip 后，只需运行：
 
 ::
 

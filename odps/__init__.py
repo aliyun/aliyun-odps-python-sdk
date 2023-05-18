@@ -17,8 +17,8 @@ from ._version import __version__
 
 __all__ = ['ODPS', 'DataFrame', 'options']
 
-if sys.version_info[0] == 2 and sys.version_info[:2] < (2, 6):
-    raise Exception('pyodps supports python 2.6+ (including python 3+).')
+if sys.version_info[0] == 2 and sys.version_info[:2] < (2, 7):
+    raise Exception('pyodps supports python 2.7+ (including python 3+).')
 
 from .config import options
 from .core import ODPS

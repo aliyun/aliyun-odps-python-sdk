@@ -14,26 +14,25 @@
 
 import json
 
-from odps.ui.tests.base import UITestBase, setup_kernel, ui_case
-from odps.compat import six
+from ...compat import six
+from ..tests.base import setup_kernel, ui_case, grab_iopub_comm
 
 TIMEOUT = 10
 
 
-class TestUI(UITestBase):
-    @ui_case
-    def test_html_notify(self):
-        with setup_kernel() as client:
-            client.execute('from odps.ui import html_notify')
-            shell_msg = client.get_shell_msg(timeout=TIMEOUT)
-            content = shell_msg['content']
-            self.assertEqual(content['status'], 'ok')
+@ui_case
+def test_html_notify():
+    with setup_kernel() as client:
+        client.execute('from odps.ui import html_notify')
+        shell_msg = client.get_shell_msg(timeout=TIMEOUT)
+        content = shell_msg['content']
+        assert content['status'] == 'ok'
 
-            msg_id = client.execute('html_notify("TestMessage")')
-            iopub_data = self.grab_iopub_comm(client, msg_id)
-            assert any(u"TestMessage" in json.dumps(l)
-                       for l in six.itervalues(iopub_data))
+        msg_id = client.execute('html_notify("TestMessage")')
+        iopub_data = grab_iopub_comm(client, msg_id)
+        assert any(u"TestMessage" in json.dumps(l)
+                   for l in six.itervalues(iopub_data))
 
-            shell_msg = client.get_shell_msg(timeout=TIMEOUT)
-            content = shell_msg['content']
-            self.assertEqual(content['status'], 'ok')
+        shell_msg = client.get_shell_msg(timeout=TIMEOUT)
+        content = shell_msg['content']
+        assert content['status'] == 'ok'

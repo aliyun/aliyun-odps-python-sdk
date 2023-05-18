@@ -20,7 +20,7 @@ import json
 import re
 import time
 import uuid
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 from .expressions import *
 from .dynamic import DynamicCollectionExpr
@@ -29,7 +29,7 @@ from . import utils
 from ..types import validate_data_type, string, DynamicSchema
 from ..utils import FunctionWrapper, output
 from ...models import TableSchema
-from ...compat import OrderedDict, six, lkeys, lvalues, reduce
+from ...compat import six, lkeys, lvalues, reduce
 from ...utils import str_to_kv
 
 

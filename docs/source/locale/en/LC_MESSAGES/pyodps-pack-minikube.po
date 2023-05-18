@@ -1,0 +1,106 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2014-2018, The Alibaba Group Holding Ltd.
+# This file is distributed under the same license as the PyODPS package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2023.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyODPS 0.11.3.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-04-12 15:40+0800\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.9.1\n"
+
+#: ../../source/pyodps-pack-minikube.rst:4
+msgid "使用 Minikube 作为 Docker 环境"
+msgstr "Use Minikube as Docker environment"
+
+#: ../../source/pyodps-pack-minikube.rst:5
+msgid ""
+"`Minikube <https://minikube.sigs.k8s.io/docs/>`_ 是一种常用的 Docker Desktop "
+"替代环境。与 Docker Desktop 或者 Rancher Desktop 直接通过图形界面启动不同，Minikube "
+"需要通过命令行启动并手动配置环境。"
+msgstr ""
+"`Minikube <https://minikube.sigs.k8s.io/docs/>`_ is a common alternative "
+"to Docker Desktop. Instead of graphical user interfaces in Docker Desktop"
+" or Rancher Desktop, you need to start minikube with shell and configure "
+"environment variables before calling Docker."
+
+#: ../../source/pyodps-pack-minikube.rst:8
+msgid ""
+"依照 `这篇文档 <https://minikube.sigs.k8s.io/docs/start/>`_ 完成安装 Minikube 后，启动 "
+"Minikube："
+msgstr ""
+"After installing minikube according to `this article "
+"<https://minikube.sigs.k8s.io/docs/start/>`_, launch it with command "
+"below."
+
+#: ../../source/pyodps-pack-minikube.rst:10
+msgid "minikube start"
+msgstr ""
+
+#: ../../source/pyodps-pack-minikube.rst:14
+msgid "此后，需要手动设置 Minikube 需要的环境变量。MacOS 用户可以使用"
+msgstr ""
+"After that, you need to configure environment variables needed by "
+"Minikube. MacOS users can use command below to set these variables."
+
+#: ../../source/pyodps-pack-minikube.rst:16
+msgid "eval $(minikube -p minikube docker-env)"
+msgstr ""
+
+#: ../../source/pyodps-pack-minikube.rst:20
+msgid "此后，即可在当前 Shell 会话中使用 pyodps-pack 进行打包。如果启动新的 Shell 会话，你可能需要重新配置环境变量。"
+msgstr ""
+"Then use ``pyodps-pack`` to pack in current shell. If you want to pack "
+"under new shells, you might need to configure environment variables "
+"again."
+
+#: ../../source/pyodps-pack-minikube.rst:22
+msgid ""
+"对于 Windows 用户，可能需要使用 HyperV 作为默认 VM 驱动，参见 `这篇文档 "
+"<https://minikube.sigs.k8s.io/docs/drivers/hyperv/>`_："
+msgstr ""
+"Windows users might need to use HyperV as default VM driver, see `this "
+"document <https://minikube.sigs.k8s.io/docs/drivers/hyperv/>`_ for more "
+"details."
+
+#: ../../source/pyodps-pack-minikube.rst:24
+msgid "minikube start --driver=hyperv"
+msgstr ""
+
+#: ../../source/pyodps-pack-minikube.rst:28
+msgid "此后为当前 Shell 配置环境变量。如果你使用的是 CMD，可以使用下面的命令："
+msgstr ""
+"Then you need to configure environment variables for your shell. If you "
+"are using CMD, you can use command below."
+
+#: ../../source/pyodps-pack-minikube.rst:30
+#, python-format
+msgid ""
+"@FOR /f \"tokens=*\" %i IN ('minikube -p minikube docker-env --shell "
+"cmd') DO @%i"
+msgstr ""
+
+#: ../../source/pyodps-pack-minikube.rst:34
+msgid "如果你使用的是 Powershell，可以使用下面的命令："
+msgstr "If you are using Powershell, you can use command below."
+
+#: ../../source/pyodps-pack-minikube.rst:36
+msgid "& minikube -p minikube docker-env --shell powershell | Invoke-Expression"
+msgstr ""
+
+#: ../../source/pyodps-pack-minikube.rst:40
+msgid ""
+"关于如何使用 Minikube 的进一步信息请参考 `Minikube 文档 "
+"<https://minikube.sigs.k8s.io/docs/>`_ 。"
+msgstr ""
+"Please take a look at `minikube documents <https://minikube.sigs.k8s.io/docs/>`_"
+" for more details about Minikube."
+

@@ -78,7 +78,7 @@ ODPS 入口是 MaxCompute 所有操作的基础：
 .. rubric:: Mars 简介
     :class: rubric-h3
 
-Mars 能够加速 Python 数据科学栈，兼容 numpy、pandas 和 scikit-learn 的接口，可以通过查看 `Mars文档 <https://docs.pymars.org/zh_CN/latest/>`__ 了解详细用法，
+Mars 能够加速 Python 数据科学栈，兼容 numpy、pandas 和 scikit-learn 的接口，可以通过查看 `Mars文档 <https://mars-project.readthedocs.io/zh_CN/latest/>`__ 了解详细用法，
 并且 Mars 能够直接读写 MaxCompute 表，具体用法可以参考 :ref:`Mars 读写表 <read_write_table>` 。
 
 .. toctree::

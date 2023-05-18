@@ -12,20 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps.compat import unittest
+def test_offline_models(odps):
+    assert odps.get_project().offline_models is odps.get_project().offline_models
+    size = len(list(odps.list_offline_models()))
+    assert size >= 0
 
 
-class Test(TestBase):
-    def testOfflineModels(self):
-        self.assertIs(self.odps.get_project().offline_models, self.odps.get_project().offline_models)
-        size = len(list(self.odps.list_offline_models()))
-        self.assertGreaterEqual(size, 0)
-
-    def testInstanceExists(self):
-        non_exists_offline_model = 'a_non_exists_offline_model'
-        self.assertFalse(self.odps.exist_offline_model(non_exists_offline_model))
-
-
-if __name__ == '__main__':
-    unittest.main()
+def test_instance_exists(odps):
+    non_exists_offline_model = 'a_non_exists_offline_model'
+    assert odps.exist_offline_model(non_exists_offline_model) is False

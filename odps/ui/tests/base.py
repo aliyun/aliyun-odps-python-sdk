@@ -19,8 +19,8 @@ import time
 from contextlib import contextmanager
 from subprocess import Popen, PIPE
 
-from odps.compat import Empty
-from odps.tests.core import TestBase, ignore_case
+from ...compat import Empty
+from ...tests.core import ignore_case
 
 try:
     from jupyter_core import paths
@@ -49,45 +49,43 @@ def ui_case(func):
         return ignore_case(func, "UI case skipped, since no Jupyter installation found.")
 
 
-class UITestBase(TestBase):
-    @staticmethod
-    def grab_iopub_messages(client, msg_id):
-        try:
-            iopub_msg = {}
+def grab_iopub_messages(client, msg_id):
+    try:
+        iopub_msg = {}
 
-            while (not iopub_msg or
-                   iopub_msg['parent_header']['msg_id'] != msg_id or
-                   iopub_msg['msg_type'] != 'status' or
-                   'execution_state' not in iopub_msg['content'] or
-                   iopub_msg['content']['execution_state'] != "idle"):
+        while (not iopub_msg or
+               iopub_msg['parent_header']['msg_id'] != msg_id or
+               iopub_msg['msg_type'] != 'status' or
+               'execution_state' not in iopub_msg['content'] or
+               iopub_msg['content']['execution_state'] != "idle"):
 
-                iopub_msg = client.get_iopub_msg(timeout=TIMEOUT)
-                if iopub_msg['parent_header']['msg_id'] != msg_id:
-                    continue
-                yield iopub_msg
-        except Empty:
-            pass
-
-    @classmethod
-    def grab_iopub_comm(cls, client, msg_id):
-        iopub_data = {}
-        for iopub_msg in cls.grab_iopub_messages(client, msg_id):
-            content = iopub_msg['content']
-            if 'comm_id' not in content:
+            iopub_msg = client.get_iopub_msg(timeout=TIMEOUT)
+            if iopub_msg['parent_header']['msg_id'] != msg_id:
                 continue
-            comm_id = content['comm_id']
-            if iopub_msg['msg_type'] == 'comm_open':
-                iopub_data[comm_id] = []
-            elif iopub_msg['msg_type'] == 'comm_msg' and comm_id in iopub_data:
-                iopub_data[comm_id].append(content['data'])
-        return iopub_data
+            yield iopub_msg
+    except Empty:
+        pass
 
-    @classmethod
-    def grab_execute_result(cls, client, msg_id):
-        for iopub_msg in cls.grab_iopub_messages(client, msg_id):
-            content = iopub_msg['content']
-            if iopub_msg['msg_type'] == 'execute_result':
-                return content
+
+def grab_iopub_comm(client, msg_id):
+    iopub_data = {}
+    for iopub_msg in grab_iopub_messages(client, msg_id):
+        content = iopub_msg['content']
+        if 'comm_id' not in content:
+            continue
+        comm_id = content['comm_id']
+        if iopub_msg['msg_type'] == 'comm_open':
+            iopub_data[comm_id] = []
+        elif iopub_msg['msg_type'] == 'comm_msg' and comm_id in iopub_data:
+            iopub_data[comm_id].append(content['data'])
+    return iopub_data
+
+
+def grab_execute_result(client, msg_id):
+    for iopub_msg in grab_iopub_messages(client, msg_id):
+        content = iopub_msg['content']
+        if iopub_msg['msg_type'] == 'execute_result':
+            return content
 
 
 # from https://github.com/ipython/ipykernel/blob/master/ipykernel/tests/test_embed_kernel.py

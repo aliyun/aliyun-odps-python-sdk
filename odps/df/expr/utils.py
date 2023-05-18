@@ -20,10 +20,10 @@ import itertools
 import inspect
 import traceback
 import threading
+from collections import OrderedDict
 from datetime import datetime
 from decimal import Decimal
 
-from ... import compat
 from ...compat import six
 from ...models import FileResource, TableResource
 from .. import types
@@ -79,7 +79,7 @@ def get_attrs(node):
     if inspect.getmro(tp) is None:
         tp = type(tp)
 
-    return tuple(compat.OrderedDict.fromkeys(
+    return tuple(OrderedDict.fromkeys(
         it for it in
         itertools.chain(*(cls.__slots__ for cls in inspect.getmro(tp) if issubclass(cls, Node)))
         if not it.startswith('__')))

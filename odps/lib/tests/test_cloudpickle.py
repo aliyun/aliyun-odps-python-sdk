@@ -29,10 +29,12 @@ import textwrap
 import traceback
 import uuid
 
-from odps.compat import six, unittest
-from odps.lib.cloudpickle import loads, dumps
-from odps.tests.core import TestBase, numpy_case
-from odps.utils import to_binary
+import pytest
+
+from ...compat import six
+from ...tests.core import numpy_case
+from ...utils import to_binary
+from ..cloudpickle import loads, dumps
 
 PY27 = sys.version_info[:2] == (2, 7)
 PY37 = sys.version_info[:2] == (3, 7)
@@ -40,7 +42,6 @@ PY37 = sys.version_info[:2] == (3, 7)
 # if bytecode needed in debug, switch it on
 DUMP_CODE = False
 
-PY26_EXECUTABLE_KEY = 'py26_executable'
 PY37_EXECUTABLE_KEY = 'py37_executable'
 PY310_EXECUTABLE_KEY = 'py310_executable'
 
@@ -328,146 +329,140 @@ def _gen_nested_fun():
     return lambda v: _gen_nested_obj()(*(v, ))
 
 
-class Test(TestBase):
-    @staticmethod
-    def _invoke_other_python_pickle(executable, method_ref):
-        paths = [path for path in sys.path if 'odps' in path.lower()]
-        if callable(method_ref):
-            method_ref = method_ref.__name__
-        ts_name = os.path.join(tempfile.gettempdir(), 'pyodps_pk_cross_test_{0}.py'.format(str(uuid.uuid4())))
-        tp_name = os.path.join(tempfile.gettempdir(), 'pyodps_pk_cross_pickled_{0}'.format(str(uuid.uuid4())))
-        script_text = CROSS_VAR_PICKLE_CODE.format(import_paths=json.dumps(paths), method_ref=method_ref,
-                                                   pickled_file=tp_name)
-        with open(ts_name, 'w') as out_file:
-            out_file.write(script_text)
-            out_file.close()
-        proc = subprocess.Popen([executable, ts_name])
-        proc.wait()
-        if not os.path.exists(tp_name):
+def _invoke_other_python_pickle(executable, method_ref):
+    paths = [path for path in sys.path if 'odps' in path.lower()]
+    if callable(method_ref):
+        method_ref = method_ref.__name__
+    ts_name = os.path.join(tempfile.gettempdir(), 'pyodps_pk_cross_test_{0}.py'.format(str(uuid.uuid4())))
+    tp_name = os.path.join(tempfile.gettempdir(), 'pyodps_pk_cross_pickled_{0}'.format(str(uuid.uuid4())))
+    script_text = CROSS_VAR_PICKLE_CODE.format(import_paths=json.dumps(paths), method_ref=method_ref,
+                                               pickled_file=tp_name)
+    with open(ts_name, 'w') as out_file:
+        out_file.write(script_text)
+        out_file.close()
+    proc = subprocess.Popen([executable, ts_name])
+    proc.wait()
+    if not os.path.exists(tp_name):
+        raise SystemError('Pickle error occurred!')
+    else:
+        with open(tp_name, 'r') as f:
+            pickled = f.read().strip()
+            f.close()
+        os.unlink(tp_name)
+
+        if not pickled:
             raise SystemError('Pickle error occurred!')
-        else:
-            with open(tp_name, 'r') as f:
-                pickled = f.read().strip()
-                f.close()
-            os.unlink(tp_name)
+    return pickled
 
-            if not pickled:
-                raise SystemError('Pickle error occurred!')
-        return pickled
 
-    def testRangeObject(self):
-        obj_serial = dumps(range(10))
-        deserial = loads(obj_serial)
-        self.assertListEqual(list(range(10)), list(deserial))
+def test_range_object():
+    obj_serial = dumps(range(10))
+    deserial = loads(obj_serial)
+    assert list(range(10)) == list(deserial)
 
-    def testNestedFunc(self):
-        func = _gen_nested_fun()
-        obj_serial = base64.b64encode(dumps(func))
-        deserial = loads(base64.b64decode(obj_serial))
-        self.assertEqual(deserial(20), func(20))
 
-    @unittest.skipIf(not PY27, 'Ignored under Python 3')
-    @numpy_case
-    def testFromImport(self):
-        executable = self.config.get('test', PY37_EXECUTABLE_KEY)
-        if not executable:
-            return
-        func = _gen_from_import_func()
-        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_from_import_func))
-        self.assertEqual(run_pickled(py3_serial, 20), func(20))
+def test_nested_func():
+    func = _gen_nested_fun()
+    obj_serial = base64.b64encode(dumps(func))
+    deserial = loads(base64.b64decode(obj_serial))
+    assert deserial(20) == func(20)
 
-    @unittest.skipIf(not PY27, 'Ignored under Python 3')
-    def testCrossFormatString(self):
-        executable = self.config.get('test', PY37_EXECUTABLE_KEY)
-        if not executable:
-            return
-        func = _gen_format_string_func()
-        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_format_string_func))
-        self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
-    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
-    def testCrossBuildUnpack(self):
+@pytest.mark.skipif(not PY27, reason='Ignored under Python 3')
+@numpy_case
+def test_from_import(config):
+    executable = config.get('test', PY37_EXECUTABLE_KEY)
+    if not executable:
+        return
+    func = _gen_from_import_func()
+    py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_from_import_func))
+    assert run_pickled(py3_serial, 20) == func(20)
+
+
+@pytest.mark.skipif(not PY27, reason='Ignored under Python 3')
+def test_cross_format_string(config):
+    executable = config.get('test', PY37_EXECUTABLE_KEY)
+    if not executable:
+        return
+    func = _gen_format_string_func()
+    py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_format_string_func))
+    assert run_pickled(py3_serial, 20) == func(20)
+
+
+@pytest.mark.skipif(not PY27 and not PY37, reason='Ignored under Python other than 2.7 or 3.7')
+def test_cross_build_unpack(config):
+    executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
+    executable = config.get('test', executable_key)
+    if not executable:
+        return
+    func = _gen_build_unpack_func()
+    py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_build_unpack_func))
+    assert run_pickled(py3_serial, 20) == func(20)
+
+
+@pytest.mark.skipif(not PY27, reason='Ignored under Python 3')
+@numpy_case
+def test_cross_mat_mul(config):
+    executable = config.get('test', PY37_EXECUTABLE_KEY)
+    if not executable:
+        return
+    func = _gen_matmul_func()
+    py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_matmul_func))
+    assert run_pickled(py3_serial, 20) == func(20)
+
+
+@pytest.mark.skipif(not PY27 and not PY37, reason='Ignored under Python other than 2.7 or 3.7')
+def test_cross_try_except(config):
+    executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
+    executable = config.get('test', executable_key)
+    if not executable:
+        return
+    func = _gen_try_except_func()
+    py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_try_except_func))
+    assert run_pickled(py3_serial, 20) == func(20)
+
+
+@pytest.mark.skipif(not PY27 and not PY37, reason='Ignored under Python other than 2.7 or 3.7')
+def test_cross_nested_func(config):
+    executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
+    executable = config.get('test', executable_key)
+    if not executable:
+        return
+    func = _gen_nested_fun()
+    py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_nested_fun))
+    assert run_pickled(py3_serial, 20) == func(20)
+
+
+def test_nested_class_obj():
+    func = _gen_nested_yield_obj()
+    obj_serial = base64.b64encode(dumps(func))
+    deserial = loads(base64.b64decode(obj_serial))
+    assert sum(deserial()(20)) == sum(func()(20))
+
+
+@pytest.mark.skipif(not PY27 and not PY37, reason='Ignored under Python other than 2.7 or 3.7')
+def test_cross_nested_yield_obj(config):
+    try:
         executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
-        executable = self.config.get('test', executable_key)
+        executable = config.get('test', executable_key)
         if not executable:
             return
-        func = _gen_build_unpack_func()
-        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_build_unpack_func))
-        self.assertEqual(run_pickled(py3_serial, 20), func(20))
+    except:
+        return
+    func = _gen_nested_yield_obj()
+    py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_nested_yield_obj))
+    assert run_pickled(py3_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw))) == sum(func()(20))
 
-    @unittest.skipIf(not PY27, 'Ignored under Python 3')
-    @numpy_case
-    def testCrossMatMul(self):
-        executable = self.config.get('test', PY37_EXECUTABLE_KEY)
-        if not executable:
-            return
-        func = _gen_matmul_func()
-        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_matmul_func))
-        self.assertEqual(run_pickled(py3_serial, 20), func(20))
 
-    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
-    def testCrossTryExcept(self):
+@pytest.mark.skipif(not PY27 and not PY37, reason='Ignored under Python other than 2.7 or 3.7')
+def test_cross_nested_class_obj(config):
+    try:
         executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
-        executable = self.config.get('test', executable_key)
+        executable = config.get('test', executable_key)
         if not executable:
             return
-        func = _gen_try_except_func()
-        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_try_except_func))
-        self.assertEqual(run_pickled(py3_serial, 20), func(20))
-
-    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
-    def testCrossNestedFunc(self):
-        executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
-        executable = self.config.get('test', executable_key)
-        if not executable:
-            return
-        func = _gen_nested_fun()
-        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_fun))
-        self.assertEqual(run_pickled(py3_serial, 20), func(20))
-
-    def testNestedClassObj(self):
-        func = _gen_nested_yield_obj()
-        obj_serial = base64.b64encode(dumps(func))
-        deserial = loads(base64.b64decode(obj_serial))
-        self.assertEqual(sum(deserial()(20)), sum(func()(20)))
-
-    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
-    def testCrossNestedYieldObj(self):
-        try:
-            executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
-            executable = self.config.get('test', executable_key)
-            if not executable:
-                return
-        except:
-            return
-        func = _gen_nested_yield_obj()
-        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_yield_obj))
-        self.assertEqual(run_pickled(py3_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw))),
-                         sum(func()(20)))
-
-    @unittest.skipIf(not PY27, 'Only runnable under Python 2.7')
-    def test26to27NestedYieldObj(self):
-        try:
-            executable = self.config.get('test', PY26_EXECUTABLE_KEY)
-            if not executable:
-                return
-        except:
-            return
-        func = _gen_nested_yield_obj()
-        py26_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_nested_yield_obj))
-        self.assertEqual(run_pickled(py26_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw))),
-                         sum(func()(20)))
-
-    @unittest.skipIf(not PY27 and not PY37, 'Ignored under Python other than 2.7 or 3.7')
-    def testCrossNestedClassObj(self):
-        try:
-            executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
-            executable = self.config.get('test', executable_key)
-            if not executable:
-                return
-        except:
-            return
-        cls = _gen_class_builder_func()()
-        py3_serial = to_binary(self._invoke_other_python_pickle(executable, _gen_class_builder_func))
-        self.assertEqual(run_pickled(py3_serial, 5, wrapper=lambda cls, a, kw: cls()().b(*a, **kw)),
-                         cls().b(5))
+    except:
+        return
+    cls = _gen_class_builder_func()()
+    py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_class_builder_func))
+    assert run_pickled(py3_serial, 5, wrapper=lambda cls, a, kw: cls()().b(*a, **kw)) == cls().b(5)

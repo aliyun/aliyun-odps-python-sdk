@@ -17,8 +17,12 @@
 import math
 import random
 import time
+import warnings
+from collections import OrderedDict
 from datetime import datetime, date
 from multiprocessing.pool import ThreadPool
+
+import six
 
 try:
     from string import letters
@@ -31,373 +35,33 @@ except ImportError:
 
 import mock
 import pytest
-import requests
 
-from odps import types, options
-from odps.tests.core import TestBase, to_str, tn, snappy_case, zstd_case, lz4_case, \
-    pandas_case, odps2_typed_case
-from odps.compat import reload_module, unittest, OrderedDict, Decimal, Monthdelta
-from odps.models import TableSchema
-from odps.tunnel import TableTunnel
-from odps.tunnel.errors import TunnelWriteTimeout
-
-
-def bothPyAndC(func):
-    def inner(self, *args, **kwargs):
-        try:
-            import cython  # noqa: F401
-
-            ts = 'py', 'c'
-        except ImportError:
-            ts = 'py',
-            import warnings
-            warnings.warn('No c code tests for table tunnel')
-        for t in ts:
-            old_config = getattr(options, 'force_{0}'.format(t))
-            setattr(options, 'force_{0}'.format(t), True)
-            try:
-                from odps.models import record
-                reload_module(record)
-
-                from odps import models
-                reload_module(models)
-
-                from odps.tunnel.io import writer
-                reload_module(writer)
-
-                from odps.tunnel.io import reader
-                reload_module(reader)
-
-                from odps.tunnel import tabletunnel
-                reload_module(tabletunnel)
-
-                self.tunnel = TableTunnel(self.odps, endpoint=self.odps._tunnel_endpoint)
-                self.mode = t
-
-                func(self, *args, **kwargs)
-            finally:
-                setattr(options, 'force_{0}'.format(t), old_config)
-
-    return inner
-
-
-class Test(TestBase):
-    def setUp(self):
-        random.seed(0)
-        super(Test, self).setUp()
-
-    def _upload_data(self, test_table, records, compress=False, **kw):
-        upload_ss = self.tunnel.create_upload_session(test_table, **kw)
-        # make sure session reprs work well
-        repr(upload_ss)
-        writer = upload_ss.open_record_writer(0, compress=compress)
-
-        # test use right py or c writer
-        self.assertEqual(self.mode, writer._mode())
-
-        for r in records:
-            record = upload_ss.new_record()
-            # test record
-            self.assertEqual(self.mode, record._mode())
-            for i, it in enumerate(r):
-                record[i] = it
-            writer.write(record)
-        writer.close()
-        upload_ss.commit([0, ])
-
-    def _stream_upload_data(self, test_table, records, compress=False, **kw):
-        upload_ss = self.tunnel.create_stream_upload_session(test_table, **kw)
-        # make sure session reprs work well
-        repr(upload_ss)
-        writer = upload_ss.open_record_writer(compress=compress)
-
-        # test use right py or c writer
-        self.assertEqual(self.mode, writer._mode())
-
-        for r in records:
-            record = upload_ss.new_record()
-            # test record
-            self.assertEqual(self.mode, record._mode())
-            for i, it in enumerate(r):
-                record[i] = it
-            writer.write(record)
-        writer.close()
-        upload_ss.abort()
-
-    def _buffered_upload_data(self, test_table, records, buffer_size=None, compress=False, **kw):
-        upload_ss = self.tunnel.create_upload_session(test_table, **kw)
-        # make sure session reprs work well
-        repr(upload_ss)
-        writer = upload_ss.open_record_writer(buffer_size=buffer_size, compress=compress)
-        for r in records:
-            record = upload_ss.new_record()
-            for i, it in enumerate(r):
-                record[i] = it
-            writer.write(record)
-        writer.close()
-        upload_ss.commit(writer.get_blocks_written())
-
-    def _download_data(self, test_table, compress=False, columns=None, **kw):
-        count = kw.pop('count', 4)
-        download_ss = self.tunnel.create_download_session(test_table, **kw)
-        # make sure session reprs work well
-        repr(download_ss)
-        with download_ss.open_record_reader(0, count, compress=compress, columns=columns) as reader:
-            # test use right py or c writer
-            self.assertEqual(self.mode, reader._mode())
-
-            records = []
-
-            for record in reader:
-                records.append(tuple(record.values))
-                self.assertEqual(self.mode, record._mode())
-
-            return records
-
-    def _gen_data(self):
-        return [
-            ('hello \x00\x00 world', 2**63-1, math.pi, datetime(2015, 9, 19, 2, 11, 25, 33000),
-             True, Decimal('3.14'), ['simple', 'easy'], OrderedDict({'s': 1})),
-            ('goodbye', 222222, math.e, datetime(2020, 3, 10), False, Decimal('1234567898765431'),
-             ['true', None], OrderedDict({'true': 1})),
-            ('c' * 300, -2 ** 63 + 1, -2.222, datetime(1999, 5, 25, 3, 10), True, Decimal(28318318318318318),
-             ['false'], OrderedDict({'false': 0})),
-            ('c' * 20, -2 ** 11 + 1, 2.222, datetime(1961, 10, 30, 11, 32), True, Decimal('12345678.98765431'),
-             ['true'], OrderedDict({'false': 0})),
-        ]
-
-    def _create_table(self, table_name):
-        fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
-        types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
-                 'array<string>', 'map<string,bigint>']
-
-        self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(
-            table_name, TableSchema.from_lists(fields, types), lifecycle=1
-        )
-
-    def _create_partitioned_table(self, table_name):
-        fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
-        types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
-                 'array<string>', 'map<string,bigint>']
-
-        self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(
-            table_name,
-            TableSchema.from_lists(fields, types, ['ds'], ['string']),
-        )
-
-    def _delete_table(self, table_name):
-        self.odps.delete_table(table_name)
-
-    @bothPyAndC
-    def testUploadAndDownloadByRawTunnel(self):
-        test_table_name = tn('pyodps_test_raw_tunnel')
-        self._create_table(test_table_name)
-        data = self._gen_data()
-
-        self._upload_data(test_table_name, data)
-        records = self._download_data(test_table_name)
-        self.assertSequenceEqual(data, records)
-
-        self._delete_table(test_table_name)
-
-    @bothPyAndC
-    def testStreamUploadAndDownloadTunnel(self):
-        test_table_name = tn('pyodps_test_stream_upload_' + self.mode)
-        self._create_table(test_table_name)
-        data = self._gen_data()
-
-        self._stream_upload_data(test_table_name, data)
-        records = self._download_data(test_table_name)
-        self.assertSequenceEqual(data, records)
-
-        self._delete_table(test_table_name)
-
-    @bothPyAndC
-    def testBufferredUploadAndDownloadByRawTunnel(self):
-        table, data = self._gen_table(size=10)
-        self._buffered_upload_data(table, data)
-        records = self._download_data(table)
-        self._assert_reads_data_equal(records, data)
-        self._delete_table(table)
-
-        table, data = self._gen_table(size=10)
-        self._buffered_upload_data(table, data, buffer_size=1024)
-        records = self._download_data(table)
-        self._assert_reads_data_equal(records, data)
-        self._delete_table(table)
-
-    @bothPyAndC
-    @unittest.skipIf(pytz is None, 'pytz not installed')
-    def testBufferredUploadAndDownloadWithTimezone(self):
-        from odps.utils import MillisecondsConverter
-        zones = (False, True, 'Asia/Shanghai', 'America/Los_Angeles')
-        try:
-            for zone in zones:
-                tz = MillisecondsConverter._get_tz(zone)
-                options.local_timezone = zone
-                table, data = self._gen_table(size=10)
-                self._buffered_upload_data(table, data)
-                records = self._download_data(table, count=10)
-
-                if not isinstance(zone, bool):
-                    for idx, rec in enumerate(records):
-                        new_rec = []
-                        for d in rec:
-                            if not isinstance(d, datetime):
-                                new_rec.append(d)
-                                continue
-                            self.assertEqual(d.tzinfo.zone, tz.zone)
-                            new_rec.append(d.replace(tzinfo=None))
-                        records[idx] = tuple(new_rec)
-
-                self._assert_reads_data_equal(records, data)
-                self._delete_table(table)
-        finally:
-            options.local_timezone = None
-
-    @bothPyAndC
-    def testDownloadWithSpecifiedColumns(self):
-        test_table_name = tn('pyodps_test_raw_tunnel_columns')
-        self._create_table(test_table_name)
-
-        data = self._gen_data()
-        self._upload_data(test_table_name, data)
-
-        records = self._download_data(test_table_name, columns=['id'])
-        self.assertSequenceEqual([r[0] for r in records], [r[0] for r in data])
-        for r in records:
-            for i in range(1, len(r)):
-                self.assertIsNone(r[i])
-        self._delete_table(test_table_name)
-
-    @bothPyAndC
-    def testDownloadLimitation(self):
-        old_limit = options.table_read_limit
-
-        test_table_name = tn('pyodps_test_tunnel_limit')
-        self._create_table(test_table_name)
-        data = self._gen_data()
-        self._upload_data(test_table_name, data * 20)
-
-        options.table_read_limit = 10
-        records = self.assertWarns(lambda: self._download_data(test_table_name, compress=True, count=20))
-        self.assertEqual(len(records), 10)
-
-        options.table_read_limit = None
-        records = self.assertNoWarns(lambda: self._download_data(test_table_name, compress=True, count=20))
-        self.assertEqual(len(records), 20)
-
-        options.table_read_limit = old_limit
-
-    @bothPyAndC
-    def testPartitionUploadAndDownloadByRawTunnel(self):
-        test_table_name = tn('pyodps_test_raw_partition_tunnel')
-        test_table_partition = 'ds=test'
-        self.odps.delete_table(test_table_name, if_exists=True)
-
-        table = self._create_partitioned_table(test_table_name)
-        table.create_partition(test_table_partition)
-        data = self._gen_data()
-
-        self._upload_data(test_table_name, data, partition_spec=test_table_partition)
-        records = self._download_data(test_table_name, partition_spec=test_table_partition)
-        self.assertSequenceEqual(data, [r[:-1] for r in records])
-
-        self._delete_table(test_table_name)
-
-    @bothPyAndC
-    def testPartitionDownloadWithSpecifiedColumns(self):
-        test_table_name = tn('pyodps_test_raw_tunnel_partition_columns')
-        test_table_partition = 'ds=test'
-        self.odps.delete_table(test_table_name, if_exists=True)
-
-        table = self._create_partitioned_table(test_table_name)
-        table.create_partition(test_table_partition)
-        data = self._gen_data()
-
-        self._upload_data(test_table_name, data, partition_spec=test_table_partition)
-        records = self._download_data(test_table_name, partition_spec=test_table_partition,
-                                      columns=['int_num'])
-        self.assertSequenceEqual([r[1] for r in data], [r[0] for r in records])
-
-        self._delete_table(test_table_name)
-
-    @bothPyAndC
-    def testUploadAndDownloadByZlibTunnel(self):
-        raw_chunk_size = options.chunk_size
-        options.chunk_size = 16
-
-        try:
-            test_table_name = tn('pyodps_test_zlib_tunnel')
-            self._create_table(test_table_name)
-            data = self._gen_data()
-
-            self._upload_data(test_table_name, data, compress=True)
-            records = self._download_data(test_table_name, compress=True)
-            self.assertSequenceEqual(data, records)
-
-            self._delete_table(test_table_name)
-        finally:
-            options.chunk_size = raw_chunk_size
-
-    @bothPyAndC
-    def testBufferredUploadAndDownloadByZlibTunnel(self):
-        table, data = self._gen_table(size=10)
-        self._buffered_upload_data(table, data, compress=True)
-        records = self._download_data(table, compress=True)
-        self._assert_reads_data_equal(records, data)
-        self._delete_table(table)
-
-    @snappy_case
-    @bothPyAndC
-    def testUploadAndDownloadBySnappyTunnel(self):
-        test_table_name = tn('pyodps_test_snappy_tunnel')
-        self._create_table(test_table_name)
-        data = self._gen_data()
-
-        self._upload_data(test_table_name, data, compress=True, compress_algo='snappy')
-        records = self._download_data(test_table_name, compress=True, compress_algo='snappy')
-        self.assertSequenceEqual(data, records)
-
-        self._delete_table(test_table_name)
-
-    @zstd_case
-    @bothPyAndC
-    def testUploadAndDownloadByZstdTunnel(self):
-        test_table_name = tn('pyodps_test_zstd_tunnel')
-        self._create_table(test_table_name)
-        data = self._gen_data()
-
-        self._upload_data(test_table_name, data, compress=True, compress_algo='zstd')
-        records = self._download_data(test_table_name, compress=True, compress_algo='zstd')
-        self.assertSequenceEqual(data, records)
-
-        self._delete_table(test_table_name)
-
-    @lz4_case
-    @bothPyAndC
-    def testUploadAndDownloadByLZ4Tunnel(self):
-        test_table_name = tn('pyodps_test_lz4_tunnel')
-        self._create_table(test_table_name)
-        data = self._gen_data()
-
-        self._upload_data(test_table_name, data, compress=True, compress_algo='lz4')
-        records = self._download_data(test_table_name, compress=True, compress_algo='lz4')
-        self.assertSequenceEqual(data, records)
-
-        self._delete_table(test_table_name)
+from ... import types, options
+from ...lib import requests
+from ...tests.core import py_and_c, tn, pandas_case, odps2_typed_case, \
+    get_code_mode, approx_list
+from ...utils import to_text
+from ...compat import Decimal, Monthdelta, Iterable
+from ...errors import DatetimeOverflowError
+from ...models import TableSchema
+from .. import TableTunnel
+from ..errors import TunnelWriteTimeout
+
+
+class TunnelTestUtil(object):
+    def __init__(self, odps, tunnel):
+        self.odps = odps
+        self.tunnel = tunnel
 
     def _gen_random_bigint(self):
         return random.randint(*types.bigint._bounds)
 
     def _gen_random_string(self, max_length=15):
         gen_letter = lambda: letters[random.randint(0, 51)]
-        return to_str(''.join([gen_letter() for _ in range(random.randint(1, 15))]))
+        return to_text(''.join([gen_letter() for _ in range(random.randint(1, 15))]))
 
     def _gen_random_double(self):
-        return random.uniform(-2**32, 2**32)
+        return random.uniform(-2 ** 32, 2 ** 32)
 
     def _gen_random_datetime(self):
         return datetime.fromtimestamp(random.randint(0, int(time.time())))
@@ -411,6 +75,8 @@ class Test(TestBase):
     def _gen_random_array_type(self):
         t = random.choice(['string', 'bigint', 'double', 'boolean'])
         return types.Array(t)
+
+    gen_random_array_type = _gen_random_array_type
 
     def _gen_random_map_type(self):
         random_key_type = random.choice(['bigint', 'string'])
@@ -429,18 +95,20 @@ class Test(TestBase):
 
         return array
 
+    gen_random_array = _gen_random_array
+
     def _gen_random_map(self, random_map_type):
         size = random.randint(100, 500)
 
         random_map_type = types.validate_data_type(random_map_type)
 
-        key_arrays = self._gen_random_array(random_map_type.key_type, size)
-        value_arrays = self._gen_random_array(random_map_type.value_type, size)
+        key_arrays = self.gen_random_array(random_map_type.key_type, size)
+        value_arrays = self.gen_random_array(random_map_type.value_type, size)
 
         m = OrderedDict(zip(key_arrays, value_arrays))
         return m
 
-    def _gen_table(self, partition=None, partition_type=None, partition_val=None, size=100):
+    def gen_table(self, partition=None, partition_type=None, partition_val=None, size=100):
         def gen_name(name):
             if '<' in name:
                 name = name.split('<', 1)[0]
@@ -452,7 +120,7 @@ class Test(TestBase):
 
         test_table_name = tn('pyodps_test_tunnel')
         types = ['bigint', 'string', 'double', 'datetime', 'boolean', 'decimal']
-        types.append(self._gen_random_array_type().name)
+        types.append(self.gen_random_array_type().name)
         types.append(self._gen_random_map_type().name)
         random.shuffle(types)
         names = [gen_name(t) for t in types]
@@ -474,7 +142,7 @@ class Test(TestBase):
             record = []
             for t in types:
                 n = t.split('<', 1)[0]
-                method = getattr(self, '_gen_random_'+n)
+                method = getattr(self, '_gen_random_' + n)
                 if n in ('map', 'array'):
                     record.append(method(t))
                 elif n == 'double' and i == 0:
@@ -487,374 +155,764 @@ class Test(TestBase):
 
         return table, data
 
-    def _assert_reads_data_equal(self, reads, data, ignore_tz=True):
+    def assert_reads_data_equal(self, reads, data, ignore_tz=True):
         for val1, val2 in zip(data, reads):
             for it1, it2 in zip(val1, val2):
                 if isinstance(it1, dict):
-                    self.assertEqual(len(it1), len(it2))
-                    self.assertTrue(any(it1[k] == it2[k] for k in it1))
+                    assert len(it1) == len(it2)
+                    assert any(it1[k] == it2[k] for k in it1) is True
                 elif isinstance(it1, list):
-                    self.assertSequenceEqual(it1, it2)
+                    assert it1 == list(it2)
                 elif isinstance(it1, float) and math.isnan(it1) and \
                         isinstance(it2, float) and math.isnan(it2):
                     continue
                 else:
-                    self.assertEqual(it1, it2)
+                    assert it1 == it2
 
-    @bothPyAndC
-    def testTableUploadAndDownloadTunnel(self):
-        table, data = self._gen_table()
+    def upload_data(self, test_table, records, compress=False, **kw):
+        upload_ss = self.tunnel.create_upload_session(test_table, **kw)
+        # make sure session reprs work well
+        repr(upload_ss)
+        writer = upload_ss.open_record_writer(0, compress=compress)
 
-        records = [table.new_record(values=d) for d in data]
-        self.odps.write_table(table, 0, records)
+        # test use right py or c writer
+        assert get_code_mode() == writer._mode()
 
-        reads = list(self.odps.read_table(table, len(data)))
-        for val1, val2 in zip(data, [r.values for r in reads]):
-            for it1, it2 in zip(val1, val2):
-                if isinstance(it1, dict):
-                    self.assertEqual(len(it1), len(it2))
-                    self.assertTrue(any(it1[k] == it2[k] for k in it1))
-                elif isinstance(it1, list):
-                    self.assertSequenceEqual(it1, it2)
-                else:
-                    if isinstance(it1, float) and math.isnan(it1) \
-                            and isinstance(it2, float) and math.isnan(it2):
+        for r in records:
+            record = upload_ss.new_record()
+            # test record
+            assert get_code_mode() == record._mode()
+            for i, it in enumerate(r):
+                record[i] = it
+            writer.write(record)
+        writer.close()
+        assert writer.last_flush_time is not None
+        upload_ss.commit([0, ])
+
+    def stream_upload_data(self, test_table, records, compress=False, **kw):
+        upload_ss = self.tunnel.create_stream_upload_session(test_table, **kw)
+        # make sure session reprs work well
+        repr(upload_ss)
+        writer = upload_ss.open_record_writer(compress=compress)
+
+        # test use right py or c writer
+        assert get_code_mode() == writer._mode()
+
+        for r in records:
+            record = upload_ss.new_record()
+            # test record
+            assert get_code_mode() == record._mode()
+            for i, it in enumerate(r):
+                record[i] = it
+            writer.write(record)
+        writer.close()
+        upload_ss.abort()
+
+    def buffered_upload_data(self, test_table, records, buffer_size=None, compress=False, **kw):
+        upload_ss = self.tunnel.create_upload_session(test_table, **kw)
+        # make sure session reprs work well
+        repr(upload_ss)
+        writer = upload_ss.open_record_writer(buffer_size=buffer_size, compress=compress)
+        for r in records:
+            record = upload_ss.new_record()
+            for i, it in enumerate(r):
+                record[i] = it
+            writer.write(record)
+        writer.close()
+        upload_ss.commit(writer.get_blocks_written())
+
+    def download_data(self, test_table, compress=False, columns=None, **kw):
+        count = kw.pop('count', 4)
+        download_ss = self.tunnel.create_download_session(test_table, **kw)
+        # make sure session reprs work well
+        repr(download_ss)
+        with download_ss.open_record_reader(0, count, compress=compress, columns=columns) as reader:
+            # test use right py or c writer
+            assert get_code_mode() == reader._mode()
+
+            records = []
+
+            for record in reader:
+                records.append(tuple(record.values))
+                assert get_code_mode() == record._mode()
+
+            return records
+
+    def gen_data(self):
+        return [
+            ('hello \x00\x00 world', 2**63-1, math.pi, datetime(2015, 9, 19, 2, 11, 25, 33000),
+             True, Decimal('3.14'), ['simple', 'easy'], OrderedDict({'s': 1})),
+            ('goodbye', 222222, math.e, datetime(2020, 3, 10), False, Decimal('1234567898765431'),
+             ['true', None], OrderedDict({'true': 1})),
+            ('c' * 300, -2 ** 63 + 1, -2.222, datetime(1999, 5, 25, 3, 10), True, Decimal(28318318318318318),
+             ['false'], OrderedDict({'false': 0})),
+            ('c' * 20, -2 ** 11 + 1, 2.222, datetime(1961, 10, 30, 11, 32), True, Decimal('12345678.98765431'),
+             ['true'], OrderedDict({'false': 0})),
+        ]
+
+    def create_table(self, table_name):
+        fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
+        types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
+                 'array<string>', 'map<string,bigint>']
+
+        self.odps.delete_table(table_name, if_exists=True)
+        return self.odps.create_table(
+            table_name, TableSchema.from_lists(fields, types), lifecycle=1
+        )
+
+    def create_partitioned_table(self, table_name):
+        fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
+        types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
+                 'array<string>', 'map<string,bigint>']
+
+        self.odps.delete_table(table_name, if_exists=True)
+        return self.odps.create_table(
+            table_name,
+            TableSchema.from_lists(fields, types, ['ds'], ['string']),
+        )
+
+    def delete_table(self, table_name):
+        self.odps.delete_table(table_name)
+
+
+def _reloader():
+    from ...conftest import get_config
+
+    cfg = get_config()
+    cfg.tunnel = TableTunnel(cfg.odps, endpoint=cfg.odps._tunnel_endpoint)
+
+
+py_and_c_deco = py_and_c([
+    "odps.models.record", "odps.models", "odps.tunnel.io.reader",
+    "odps.tunnel.io.writer", "odps.tunnel.tabletunnel",
+    "odps.tunnel.instancetunnel",
+], _reloader)
+
+
+@pytest.fixture
+def setup(odps, tunnel):
+    random.seed(0)
+    return TunnelTestUtil(odps, tunnel)
+
+
+@py_and_c_deco
+def test_upload_and_download_by_raw_tunnel(setup):
+    test_table_name = tn('pyodps_test_raw_tunnel')
+    setup.create_table(test_table_name)
+    data = setup.gen_data()
+
+    setup.upload_data(test_table_name, data)
+    records = setup.download_data(test_table_name)
+    assert list(data) == list(records)
+
+    setup.delete_table(test_table_name)
+
+
+@py_and_c_deco
+def test_stream_upload_and_download_tunnel(setup):
+    test_table_name = tn('pyodps_test_stream_upload_' + get_code_mode())
+    setup.create_table(test_table_name)
+    data = setup.gen_data()
+
+    setup.stream_upload_data(test_table_name, data)
+    records = setup.download_data(test_table_name)
+    assert list(data) == list(records)
+
+    setup.delete_table(test_table_name)
+
+
+@py_and_c_deco
+def test_buffered_upload_and_download_by_raw_tunnel(setup):
+    table, data = setup.gen_table(size=10)
+    setup.buffered_upload_data(table, data)
+    records = setup.download_data(table)
+    setup.assert_reads_data_equal(records, data)
+    setup.delete_table(table)
+
+    table, data = setup.gen_table(size=10)
+    setup.buffered_upload_data(table, data, buffer_size=1024)
+    records = setup.download_data(table)
+    setup.assert_reads_data_equal(records, data)
+    setup.delete_table(table)
+
+
+@py_and_c_deco
+@pytest.mark.skipif(pytz is None, reason='pytz not installed')
+@pytest.mark.parametrize("zone", [False, True, 'Asia/Shanghai', 'America/Los_Angeles'])
+def test_buffered_upload_and_download_with_timezone(setup, zone):
+    from ...utils import MillisecondsConverter
+    try:
+        tz = MillisecondsConverter._get_tz(zone)
+        options.local_timezone = zone
+        table, data = setup.gen_table(size=10)
+        setup.buffered_upload_data(table, data)
+        records = setup.download_data(table, count=10)
+
+        if not isinstance(zone, bool):
+            for idx, rec in enumerate(records):
+                new_rec = []
+                for d in rec:
+                    if not isinstance(d, datetime):
+                        new_rec.append(d)
                         continue
-                    self.assertEqual(it1, it2)
+                    assert d.tzinfo.zone == tz.zone
+                    new_rec.append(d.replace(tzinfo=None))
+                records[idx] = tuple(new_rec)
 
-        table.drop()
+        setup.assert_reads_data_equal(records, data)
+        setup.delete_table(table)
+    finally:
+        options.local_timezone = None
 
-    @bothPyAndC
-    def testMultiTableUploadAndDownloadTunnel(self):
-        table, data = self._gen_table(size=10)
 
-        records = [table.new_record(values=d) for d in data]
+@py_and_c_deco
+def test_download_with_specified_columns(setup):
+    test_table_name = tn('pyodps_test_raw_tunnel_columns')
+    setup.create_table(test_table_name)
 
-        self.odps.write_table(table, 0, records[:5])
-        self.odps.write_table(table, 0, records[5:])
+    data = setup.gen_data()
+    setup.upload_data(test_table_name, data)
 
-        reads = list(self.odps.read_table(table, len(data)))
-        for val1, val2 in zip(sorted(data), sorted([r.values for r in reads])):
-            for it1, it2 in zip(val1, val2):
-                if isinstance(it1, dict):
-                    self.assertEqual(len(it1), len(it2))
-                    self.assertTrue(any(it1[k] == it2[k] for k in it1))
-                elif isinstance(it1, list):
-                    self.assertSequenceEqual(it1, it2)
-                elif isinstance(it1, float) and math.isnan(it1) and \
-                        isinstance(it2, float) and math.isnan(it2):
-                    continue
-                else:
-                    self.assertEqual(it1, it2)
+    records = setup.download_data(test_table_name, columns=['id'])
+    assert [r[0] for r in records] == [r[0] for r in data]
+    for r in records:
+        for i in range(1, len(r)):
+            assert r[i] is None
+    setup.delete_table(test_table_name)
 
-    @bothPyAndC
-    def testParallelTableUploadAndDownloadTunnel(self):
-        p = 'ds=test'
 
-        table, data = self._gen_table(partition=p.split('=', 1)[0], partition_type='string',
-                                      partition_val=p.split('=', 1)[1])
-        self.assertTrue(table.exist_partition(p))
-        records = [table.new_record(values=d) for d in data]
+@py_and_c_deco
+def test_download_limitation(odps, setup):
+    old_limit = options.table_read_limit
 
-        n_blocks = 5
-        blocks = list(range(n_blocks))
-        n_threads = 2
-        thread_pool = ThreadPool(n_threads)
+    test_table_name = tn('pyodps_test_tunnel_limit')
+    setup.create_table(test_table_name)
+    data = setup.gen_data()
+    setup.upload_data(test_table_name, data * 20)
 
-        def gen_block_records(block_id):
-            c = len(data)
-            st = int(c / n_blocks * block_id)
-            if block_id < n_blocks - 1:
-                ed = int(c / n_blocks * (block_id + 1))
+    options.table_read_limit = 10
+    with pytest.warns(RuntimeWarning):
+        records = setup.download_data(test_table_name, compress=True, count=20)
+    assert len(records) == 10
+
+    options.table_read_limit = None
+    with warnings.catch_warnings(record=True) as warning_records:
+        warnings.simplefilter("always")
+        records = setup.download_data(test_table_name, compress=True, count=20)
+        assert len(records) == 20
+    assert len(warning_records) == 0
+
+    options.table_read_limit = old_limit
+
+
+@py_and_c_deco
+def test_partition_upload_and_download_by_raw_tunnel(odps, setup):
+    test_table_name = tn('pyodps_test_raw_partition_tunnel')
+    test_table_partition = 'ds=test'
+    odps.delete_table(test_table_name, if_exists=True)
+
+    table = setup.create_partitioned_table(test_table_name)
+    table.create_partition(test_table_partition)
+    data = setup.gen_data()
+
+    setup.upload_data(test_table_name, data, partition_spec=test_table_partition)
+    records = setup.download_data(test_table_name, partition_spec=test_table_partition)
+    assert list(data) == [r[:-1] for r in records]
+
+    setup.delete_table(test_table_name)
+
+
+@py_and_c_deco
+def test_partition_download_with_specified_columns(odps, setup):
+    test_table_name = tn('pyodps_test_raw_tunnel_partition_columns')
+    test_table_partition = 'ds=test'
+    odps.delete_table(test_table_name, if_exists=True)
+
+    table = setup.create_partitioned_table(test_table_name)
+    table.create_partition(test_table_partition)
+    data = setup.gen_data()
+
+    setup.upload_data(test_table_name, data, partition_spec=test_table_partition)
+    records = setup.download_data(test_table_name, partition_spec=test_table_partition,
+                                  columns=['int_num'])
+    assert [r[1] for r in data] == [r[0] for r in records]
+
+    setup.delete_table(test_table_name)
+
+
+@py_and_c_deco
+@pytest.mark.parametrize(
+    "algo, module", [
+        (None, None), ("snappy", "snappy"), ("zstd", "zstandard"), ("lz4", "lz4.frame")
+    ]
+)
+def test_upload_and_download_with_compress(setup, algo, module):
+    raw_chunk_size = options.chunk_size
+    options.chunk_size = 16
+    if module:
+        pytest.importorskip(module)
+
+    try:
+        test_table_name = tn('pyodps_test_zlib_tunnel')
+        setup.create_table(test_table_name)
+        data = setup.gen_data()
+
+        setup.upload_data(test_table_name, data, compress=True, compress_algo=algo)
+        records = setup.download_data(
+            test_table_name, compress=True, compress_algo=algo
+        )
+        assert list(data) == list(records)
+
+        setup.delete_table(test_table_name)
+    finally:
+        options.chunk_size = raw_chunk_size
+
+
+@py_and_c_deco
+def test_buffered_upload_and_download_by_zlib_tunnel(setup):
+    table, data = setup.gen_table(size=10)
+    setup.buffered_upload_data(table, data, compress=True)
+    records = setup.download_data(table, compress=True)
+    setup.assert_reads_data_equal(records, data)
+    setup.delete_table(table)
+
+
+@py_and_c_deco
+def test_table_upload_and_download_tunnel(odps, setup):
+    table, data = setup.gen_table()
+
+    records = [table.new_record(values=d) for d in data]
+    odps.write_table(table, 0, records)
+
+    reads = list(odps.read_table(table, len(data)))
+    for val1, val2 in zip(data, [r.values for r in reads]):
+        for it1, it2 in zip(val1, val2):
+            if isinstance(it1, dict):
+                assert len(it1) == len(it2)
+                assert any(it1[k] == it2[k] for k in it1) is True
+            elif isinstance(it1, list):
+                assert it1 == list(it2)
             else:
-                ed = c
-            return records[st: ed]
+                if isinstance(it1, float) and math.isnan(it1) \
+                        and isinstance(it2, float) and math.isnan(it2):
+                    continue
+                assert it1 == it2
 
-        def write(w):
-            def inner(arg):
-                idx, r = arg
-                w.write(idx, r)
-            return inner
+    table.drop()
 
-        with table.open_writer(partition=p, blocks=blocks) as writer:
-            thread_pool.map(write(writer), [(i, gen_block_records(i)) for i in blocks])
 
-        for step in range(1, 4):
-            reads = []
-            expected = []
+@py_and_c_deco
+def test_multi_table_upload_and_download_tunnel(odps, setup):
+    table, data = setup.gen_table(size=10)
 
-            with table.open_reader(partition=p) as reader:
-                count = reader.count
+    records = [table.new_record(values=d) for d in data]
 
-                for i in range(n_blocks):
-                    start = int(count / n_blocks * i)
-                    if i < n_blocks - 1:
-                        end = int(count / n_blocks * (i + 1))
-                    else:
-                        end = count
-                    for record in reader[start:end:step]:
-                        reads.append(record)
-                    expected.extend(data[start:end:step])
+    odps.write_table(table, 0, records[:5])
+    odps.write_table(table, 0, records[5:])
 
-            self.assertEqual(len(expected), len(reads))
-            for val1, val2 in zip(expected, [r.values for r in reads]):
-                for it1, it2 in zip(val1[:-1], val2[:-1]):
-                    if isinstance(it1, dict):
-                        self.assertEqual(len(it1), len(it2))
-                        self.assertTrue(any(it1[k] == it2[k] for k in it1))
-                    elif isinstance(it1, list):
-                        self.assertSequenceEqual(it1, it2)
-                    elif isinstance(it1, float) and math.isnan(it1) and \
-                            isinstance(it2, float) and math.isnan(it2):
-                        continue
-                    else:
-                        self.assertEqual(it1, it2)
+    def to_sortable(key):
+        if isinstance(key, Iterable) and not isinstance(key, six.string_types):
+            return tuple(sorted(key))
+        return key
 
-        table.drop()
+    reads = list(odps.read_table(table, len(data)))
+    for val1, val2 in zip(
+        sorted(data, key=lambda x: to_sortable(x[0])),
+        sorted([r.values for r in reads], key=lambda x: to_sortable(x[0])),
+    ):
+        for it1, it2 in zip(val1, val2):
+            if isinstance(it1, dict):
+                assert len(it1) == len(it2)
+                assert any(it1[k] == it2[k] for k in it1) is True
+            elif isinstance(it1, list):
+                assert it1 == list(it2)
+            elif isinstance(it1, float) and math.isnan(it1) and \
+                    isinstance(it2, float) and math.isnan(it2):
+                continue
+            else:
+                assert it1 == it2
 
-    @odps2_typed_case
-    @bothPyAndC
-    def testPrimitiveTypes2(self):
-        table_name = tn('test_hivetunnel_singleton_types')
-        self.odps.delete_table(table_name, if_exists=True)
 
-        table = self.odps.create_table(table_name, 'col1 tinyint, col2 smallint, col3 int, col4 float, col5 binary',
-                                       lifecycle=1)
-        self.assertListEqual(table.table_schema.types,
-                             [types.tinyint, types.smallint, types.int_, types.float_, types.binary])
+@py_and_c_deco
+def test_parallel_table_upload_and_download_tunnel(odps, setup):
+    p = 'ds=test'
 
-        contents = [
-            [127, 32767, 1234321, 10.5432, b'Hello, world!'],
-            [-128, -32768, 4312324, 20.1234, b'Excited!'],
-            [-1, 10, 9875479, 20.1234, b'Bravo!'],
-        ]
-        self.odps.write_table(table_name, contents)
-        written = list(self.odps.read_table(table_name))
-        values = [list(v.values) for v in written]
-        self.assertListAlmostEqual(contents, values, only_float=False, places=4)
+    table, data = setup.gen_table(partition=p.split('=', 1)[0], partition_type='string',
+                                  partition_val=p.split('=', 1)[1])
+    assert table.exist_partition(p) is True
+    records = [table.new_record(values=d) for d in data]
 
-        table.drop(if_exists=True)
+    n_blocks = 5
+    blocks = list(range(n_blocks))
+    n_threads = 2
+    thread_pool = ThreadPool(n_threads)
 
-    @odps2_typed_case
-    @bothPyAndC
-    def testDate(self):
-        table_name = tn('test_hivetunnel_date_io')
-        self.odps.delete_table(table_name, if_exists=True)
+    def gen_block_records(block_id):
+        c = len(data)
+        st = int(c / n_blocks * block_id)
+        if block_id < n_blocks - 1:
+            ed = int(c / n_blocks * (block_id + 1))
+        else:
+            ed = c
+        return records[st: ed]
 
-        table = self.odps.create_table(table_name, 'col1 int, col2 date', lifecycle=1)
-        self.assertListEqual(table.table_schema.types, [types.int_, types.date])
+    def write(w):
+        def inner(arg):
+            idx, r = arg
+            w.write(idx, r)
+        return inner
 
-        contents = [
-            [0, date(2020, 2, 12)],
-            [1, date(1900, 1, 1)],
-            [2, date(2000, 3, 20)]
-        ]
-        self.odps.write_table(table_name, contents)
-        written = list(self.odps.read_table(table_name))
-        values = [list(v.values) for v in written]
-        self.assertListEqual(contents, values)
+    with table.open_writer(partition=p, blocks=blocks) as writer:
+        thread_pool.map(write(writer), [(i, gen_block_records(i)) for i in blocks])
 
-        table.drop(if_exists=True)
+    for step in range(1, 4):
+        reads = []
+        expected = []
 
-    @pandas_case
-    @odps2_typed_case
-    @bothPyAndC
-    def testTimestamp(self):
-        import pandas as pd
-        table_name = tn('test_hivetunnel_timestamp_io')
-        self.odps.delete_table(table_name, if_exists=True)
+        with table.open_reader(partition=p) as reader:
+            count = reader.count
 
-        table = self.odps.create_table(table_name, 'col1 int, col2 timestamp', lifecycle=1)
-        self.assertListEqual(table.table_schema.types, [types.int_, types.timestamp])
-
-        contents = [
-            [0, pd.Timestamp('2013-09-21 11:23:35.196045321')],
-            [1, pd.Timestamp('1998-02-15 23:59:21.943829154')],
-            [2, pd.Timestamp('2017-10-31 00:12:39.396583106')],
-        ]
-        self.odps.write_table(table_name, contents)
-        written = list(self.odps.read_table(table_name))
-        values = [list(v.values) for v in written]
-        self.assertListEqual(contents, values)
-
-        table.drop(if_exists=True)
-
-    @pandas_case
-    @bothPyAndC
-    def testPandasNA(self):
-        import pandas as pd
-        table_name = tn('test_pandas_na_io')
-        self.odps.delete_table(table_name, if_exists=True)
-
-        table = self.odps.create_table(table_name, 'col1 bigint, col2 string', lifecycle=1)
-        contents = [
-            [0, 'agdesfdr'],
-            [1, pd.NA],
-            [pd.NA, 'aetlkakls;dfj'],
-            [3, 'aetlkakls;dfj'],
-        ]
-        self.odps.write_table(table_name, contents)
-        written = list(self.odps.read_table(table_name))
-        values = [[x if x is not None else pd.NA for x in v.values] for v in written]
-        assert contents == values
-
-        table.drop(if_exists=True)
-
-    @odps2_typed_case
-    @bothPyAndC
-    def testLengthLimitTypes(self):
-        table_name = tn('test_hivetunnel_length_limit_io')
-        self.odps.delete_table(table_name, if_exists=True)
-
-        table = self.odps.create_table(table_name, 'col1 int, col2 varchar(20), col3 char(30)', lifecycle=1)
-        self.assertEqual(table.table_schema.types[0], types.int_)
-        self.assertIsInstance(table.table_schema.types[1], types.Varchar)
-        self.assertEqual(table.table_schema.types[1].size_limit, 20)
-        self.assertIsInstance(table.table_schema.types[2], types.Char)
-        self.assertEqual(table.table_schema.types[2].size_limit, 30)
-
-        contents = [
-            [0, 'agdesfdr', 'sadfklaslkjdvvn'],
-            [1, 'sda;fkd', 'asdlfjjls;admc'],
-            [2, 'aetlkakls;dfj', 'sadffafafsafsaf'],
-        ]
-        self.odps.write_table(table_name, contents)
-        written = list(self.odps.read_table(table_name))
-
-        contents = [r[:2] + [r[2] + ' ' * (30 - len(r[2]))] for r in contents]
-        values = [list(v.values) for v in written]
-        self.assertListEqual(contents, values)
-
-        table.drop(if_exists=True)
-
-    @odps2_typed_case
-    @bothPyAndC
-    def testDecimal2(self):
-        table_name = tn('test_hivetunnel_decimal_io')
-        self.odps.delete_table(table_name, if_exists=True)
-
-        table = self.odps.create_table(table_name, 'col1 int, col2 decimal(6,2), '
-                                                   'col3 decimal(10), col4 decimal(10,3)', lifecycle=1)
-        self.assertEqual(table.table_schema.types[0], types.int_)
-        self.assertIsInstance(table.table_schema.types[1], types.Decimal)
-        # comment out due to behavior change of ODPS SQL
-        # self.assertIsNone(table.table_schema.types[1].precision)
-        # self.assertIsNone(table.table_schema.types[1].scale)
-        self.assertIsInstance(table.table_schema.types[2], types.Decimal)
-        self.assertEqual(table.table_schema.types[2].precision, 10)
-        self.assertIsInstance(table.table_schema.types[3], types.Decimal)
-        self.assertEqual(table.table_schema.types[3].precision, 10)
-        self.assertEqual(table.table_schema.types[3].scale, 3)
-
-        contents = [
-            [0, Decimal('2.34'), Decimal('34567'), Decimal('56.789')],
-            [1, Decimal('11.76'), Decimal('9321'), Decimal('19.125')],
-            [2, Decimal('134.21'), Decimal('1642'), Decimal('999.214')],
-        ]
-        self.odps.write_table(table_name, contents)
-        written = list(self.odps.read_table(table_name))
-        values = [list(v.values) for v in written]
-        self.assertListEqual(contents, values)
-
-        table.drop(if_exists=True)
-
-    @pandas_case
-    @odps2_typed_case
-    @bothPyAndC
-    def testIntervals(self):
-        import pandas as pd
-        empty_table_name = tn('test_hivetunnel_interval_empty')
-        self.odps.delete_table(empty_table_name, if_exists=True)
-        empty_table = self.odps.create_table(empty_table_name, 'col1 int', if_not_exists=True)
-
-        table_name = tn('test_hivetunnel_interval_io')
-        self.odps.delete_table(table_name, if_exists=True)
-        self.odps.execute_sql("create table %s lifecycle 1 as\n"
-                              "select interval_day_time('2 1:2:3') as col1,"
-                              "  interval_year_month('10-11') as col2\n"
-                              "from %s" %
-                              (table_name, empty_table_name))
-        table = self.odps.get_table(table_name)
-        self.assertListEqual(table.table_schema.types, [types.interval_day_time, types.interval_year_month])
-
-        contents = [
-            [pd.Timedelta(seconds=1048576, nanoseconds=428571428), Monthdelta(13)],
-            [pd.Timedelta(seconds=934567126, nanoseconds=142857142), Monthdelta(-20)],
-            [pd.Timedelta(seconds=91230401, nanoseconds=285714285), Monthdelta(50)],
-        ]
-        self.odps.write_table(table_name, contents)
-        written = list(self.odps.read_table(table_name))
-        values = [list(v.values) for v in written]
-        self.assertListEqual(contents, values)
-
-        table.drop()
-        empty_table.drop()
-
-    @odps2_typed_case
-    @bothPyAndC
-    def testStruct(self):
-        table_name = tn('test_hivetunnel_struct_io')
-        self.odps.delete_table(table_name, if_exists=True)
-
-        col_def = 'col1 int, col2 struct<name:string,age:int,'\
-                  'parents:map<varchar(20),smallint>,hobbies:array<varchar(100)>>'
-        table = self.odps.create_table(table_name, col_def, lifecycle=1)
-        self.assertEqual(table.table_schema.types[0], types.int_)
-        self.assertIsInstance(table.table_schema.types[1], types.Struct)
-
-        contents = [
-            [0, {'name': 'user1', 'age': 20, 'parents': {'fa': 5, 'mo': 6},
-                 'hobbies': ['worship', 'yacht']}],
-            [1, {'name': 'user2', 'age': 65, 'parents': {'fa': 2, 'mo': 7},
-                 'hobbies': ['ukelele', 'chess']}],
-            [2, {'name': 'user3', 'age': 32, 'parents': {'fa': 1, 'mo': 3},
-                 'hobbies': ['poetry', 'calligraphy']}],
-        ]
-        self.odps.write_table(table_name, contents)
-        written = list(self.odps.read_table(table_name))
-        values = [list(v.values) for v in written]
-        self.assertListEqual(contents, values)
-
-        table.drop(if_exists=True)
-
-    @bothPyAndC
-    def testAsyncTableUploadAndDownload(self):
-        table, data = self._gen_table()
-
-        records = [table.new_record(values=d) for d in data]
-        self.odps.write_table(table, 0, records)
-
-        reads = list(self.odps.read_table(table, len(data), async_=True))
-        for val1, val2 in zip(data, [r.values for r in reads]):
-            for it1, it2 in zip(val1, val2):
-                if isinstance(it1, dict):
-                    self.assertEqual(len(it1), len(it2))
-                    self.assertTrue(any(it1[k] == it2[k] for k in it1))
-                elif isinstance(it1, list):
-                    self.assertSequenceEqual(it1, it2)
+            for i in range(n_blocks):
+                start = int(count / n_blocks * i)
+                if i < n_blocks - 1:
+                    end = int(count / n_blocks * (i + 1))
                 else:
-                    if isinstance(it1, float) and math.isnan(it1) \
-                            and isinstance(it2, float) and math.isnan(it2):
-                        continue
-                    self.assertEqual(it1, it2)
+                    end = count
+                for record in reader[start:end:step]:
+                    reads.append(record)
+                expected.extend(data[start:end:step])
 
+        assert len(expected) == len(reads)
+        for val1, val2 in zip(expected, [r.values for r in reads]):
+            for it1, it2 in zip(val1[:-1], val2[:-1]):
+                if isinstance(it1, dict):
+                    assert len(it1) == len(it2)
+                    assert any(it1[k] == it2[k] for k in it1) is True
+                elif isinstance(it1, list):
+                    assert it1 == list(it2)
+                elif isinstance(it1, float) and math.isnan(it1) and \
+                        isinstance(it2, float) and math.isnan(it2):
+                    continue
+                else:
+                    assert it1 == it2
+
+    table.drop()
+
+
+@odps2_typed_case
+@py_and_c_deco
+def test_primitive_types2(odps):
+    table_name = tn('test_hivetunnel_singleton_types')
+    odps.delete_table(table_name, if_exists=True)
+
+    table = odps.create_table(table_name, 'col1 tinyint, col2 smallint, col3 int, col4 float, col5 binary',
+                              lifecycle=1)
+    assert table.table_schema.types == [types.tinyint, types.smallint, types.int_, types.float_, types.binary]
+
+    contents = [
+        [127, 32767, 1234321, 10.5432, b'Hello, world!'],
+        [-128, -32768, 4312324, 20.1234, b'Excited!'],
+        [-1, 10, 9875479, 20.1234, b'Bravo!'],
+    ]
+    odps.write_table(table_name, contents)
+    written = list(odps.read_table(table_name))
+    values = [list(v.values) for v in written]
+    assert approx_list(contents) == values
+
+    table.drop(if_exists=True)
+
+
+@py_and_c_deco
+@odps2_typed_case
+def test_date(odps):
+    table_name = tn('test_hivetunnel_date_io')
+    odps.delete_table(table_name, if_exists=True)
+
+    table = odps.create_table(table_name, 'col1 int, col2 date', lifecycle=1)
+    assert table.table_schema.types == [types.int_, types.date]
+
+    contents = [
+        [0, date(2020, 2, 12)],
+        [1, date(1900, 1, 1)],
+        [2, date(2000, 3, 20)]
+    ]
+    odps.write_table(table_name, contents)
+    written = list(odps.read_table(table_name))
+    values = [list(v.values) for v in written]
+    assert contents == values
+
+    table.drop(if_exists=True)
+
+
+@py_and_c_deco
+@pandas_case
+@odps2_typed_case
+def test_timestamp(odps):
+    import pandas as pd
+    table_name = tn('test_hivetunnel_timestamp_io')
+    odps.delete_table(table_name, if_exists=True)
+
+    table = odps.create_table(table_name, 'col1 int, col2 timestamp', lifecycle=1)
+    assert table.table_schema.types == [types.int_, types.timestamp]
+
+    contents = [
+        [0, pd.Timestamp('2013-09-21 11:23:35.196045321')],
+        [1, pd.Timestamp('1998-02-15 23:59:21.943829154')],
+        [2, pd.Timestamp('2017-10-31 00:12:39.396583106')],
+    ]
+    odps.write_table(table_name, contents)
+    written = list(odps.read_table(table_name))
+    values = [list(v.values) for v in written]
+    assert contents == values
+
+    table.drop(if_exists=True)
+
+
+@py_and_c_deco
+@pandas_case
+def test_pandas_na(odps):
+    import pandas as pd
+
+    if not hasattr(pd, "NA"):
+        pytest.skip("Need pandas>1.0 to run this test")
+
+    table_name = tn('test_pandas_na_io')
+    odps.delete_table(table_name, if_exists=True)
+
+    table = odps.create_table(table_name, 'col1 bigint, col2 string', lifecycle=1)
+    contents = [
+        [0, 'agdesfdr'],
+        [1, pd.NA],
+        [pd.NA, 'aetlkakls;dfj'],
+        [3, 'aetlkakls;dfj'],
+    ]
+    odps.write_table(table_name, contents)
+    written = list(odps.read_table(table_name))
+    values = [[x if x is not None else pd.NA for x in v.values] for v in written]
+    assert contents == values
+
+    table.drop(if_exists=True)
+
+
+@py_and_c_deco
+@odps2_typed_case
+def test_length_limit_types(odps):
+    table_name = tn('test_hivetunnel_length_limit_io')
+    odps.delete_table(table_name, if_exists=True)
+
+    table = odps.create_table(table_name, 'col1 int, col2 varchar(20), col3 char(30)', lifecycle=1)
+    assert table.table_schema.types[0] == types.int_
+    assert isinstance(table.table_schema.types[1], types.Varchar)
+    assert table.table_schema.types[1].size_limit == 20
+    assert isinstance(table.table_schema.types[2], types.Char)
+    assert table.table_schema.types[2].size_limit == 30
+
+    contents = [
+        [0, 'agdesfdr', 'sadfklaslkjdvvn'],
+        [1, 'sda;fkd', 'asdlfjjls;admc'],
+        [2, 'aetlkakls;dfj', 'sadffafafsafsaf'],
+    ]
+    odps.write_table(table_name, contents)
+    written = list(odps.read_table(table_name))
+
+    contents = [r[:2] + [r[2] + ' ' * (30 - len(r[2]))] for r in contents]
+    values = [list(v.values) for v in written]
+    assert contents == values
+
+    table.drop(if_exists=True)
+
+
+@py_and_c_deco
+@odps2_typed_case
+def test_decimal2(odps):
+    table_name = tn('test_hivetunnel_decimal_io')
+    odps.delete_table(table_name, if_exists=True)
+
+    table = odps.create_table(table_name, 'col1 int, col2 decimal(6,2), '
+                              'col3 decimal(10), col4 decimal(10,3)', lifecycle=1)
+    assert table.table_schema.types[0] == types.int_
+    assert isinstance(table.table_schema.types[1], types.Decimal)
+    # comment out due to behavior change of ODPS SQL
+    # self.assertIsNone(table.table_schema.types[1].precision)
+    # self.assertIsNone(table.table_schema.types[1].scale)
+    assert isinstance(table.table_schema.types[2], types.Decimal)
+    assert table.table_schema.types[2].precision == 10
+    assert isinstance(table.table_schema.types[3], types.Decimal)
+    assert table.table_schema.types[3].precision == 10
+    assert table.table_schema.types[3].scale == 3
+
+    contents = [
+        [0, Decimal('2.34'), Decimal('34567'), Decimal('56.789')],
+        [1, Decimal('11.76'), Decimal('9321'), Decimal('19.125')],
+        [2, Decimal('134.21'), Decimal('1642'), Decimal('999.214')],
+    ]
+    odps.write_table(table_name, contents)
+    written = list(odps.read_table(table_name))
+    values = [list(v.values) for v in written]
+    assert contents == values
+
+    table.drop(if_exists=True)
+
+
+@py_and_c_deco
+@pandas_case
+@odps2_typed_case
+def test_intervals(odps):
+    import pandas as pd
+    empty_table_name = tn('test_hivetunnel_interval_empty')
+    odps.delete_table(empty_table_name, if_exists=True)
+    empty_table = odps.create_table(empty_table_name, 'col1 int', if_not_exists=True)
+
+    table_name = tn('test_hivetunnel_interval_io')
+    odps.delete_table(table_name, if_exists=True)
+    odps.execute_sql("create table %s lifecycle 1 as\n"
+                     "select interval_day_time('2 1:2:3') as col1,"
+                     "  interval_year_month('10-11') as col2\n"
+                     "from %s" %
+                     (table_name, empty_table_name))
+    table = odps.get_table(table_name)
+    assert table.table_schema.types == [types.interval_day_time, types.interval_year_month]
+
+    contents = [
+        [pd.Timedelta(seconds=1048576, nanoseconds=428571428), Monthdelta(13)],
+        [pd.Timedelta(seconds=934567126, nanoseconds=142857142), Monthdelta(-20)],
+        [pd.Timedelta(seconds=91230401, nanoseconds=285714285), Monthdelta(50)],
+    ]
+    odps.write_table(table_name, contents)
+    written = list(odps.read_table(table_name))
+    values = [list(v.values) for v in written]
+    assert contents == values
+
+    table.drop()
+    empty_table.drop()
+
+
+@py_and_c_deco
+@odps2_typed_case
+def test_struct(odps):
+    table_name = tn('test_hivetunnel_struct_io')
+    odps.delete_table(table_name, if_exists=True)
+
+    col_def = 'col1 int, col2 struct<name:string,age:int,'\
+              'parents:map<varchar(20),smallint>,hobbies:array<varchar(100)>>'
+    table = odps.create_table(table_name, col_def, lifecycle=1)
+    assert table.table_schema.types[0] == types.int_
+    assert isinstance(table.table_schema.types[1], types.Struct)
+
+    contents = [
+        [0, {'name': 'user1', 'age': 20, 'parents': {'fa': 5, 'mo': 6},
+             'hobbies': ['worship', 'yacht']}],
+        [1, {'name': 'user2', 'age': 65, 'parents': {'fa': 2, 'mo': 7},
+             'hobbies': ['ukelele', 'chess']}],
+        [2, {'name': 'user3', 'age': 32, 'parents': {'fa': 1, 'mo': 3},
+             'hobbies': ['poetry', 'calligraphy']}],
+    ]
+    odps.write_table(table_name, contents)
+    written = list(odps.read_table(table_name))
+    values = [list(v.values) for v in written]
+    assert contents == values
+
+    table.drop(if_exists=True)
+
+
+@py_and_c_deco
+def test_async_table_upload_and_download(odps, setup):
+    table, data = setup.gen_table()
+
+    records = [table.new_record(values=d) for d in data]
+    odps.write_table(table, 0, records)
+
+    reads = list(odps.read_table(table, len(data), async_mode=True))
+    for val1, val2 in zip(data, [r.values for r in reads]):
+        for it1, it2 in zip(val1, val2):
+            if isinstance(it1, dict):
+                assert len(it1) == len(it2)
+                assert any(it1[k] == it2[k] for k in it1) is True
+            elif isinstance(it1, list):
+                assert it1 == list(it2)
+            else:
+                if isinstance(it1, float) and math.isnan(it1) \
+                        and isinstance(it2, float) and math.isnan(it2):
+                    continue
+                assert it1 == it2
+
+    table.drop()
+
+
+def test_write_timeout(odps, setup):
+    table, data = setup.gen_table()
+
+    def _patched(*_, **__):
+        raise requests.ConnectionError("timed out")
+
+    with mock.patch("odps.rest.RestClient.put", new=_patched):
+        with pytest.raises(TunnelWriteTimeout) as ex_info:
+            records = [table.new_record(values=d) for d in data]
+            odps.write_table(table, 0, records)
+
+        assert isinstance(ex_info.value, requests.ConnectionError)
+
+    table.drop()
+
+
+@py_and_c_deco
+@odps2_typed_case
+def test_decimal_with_complex_types(odps):
+    table_name = tn("test_decimal_with_complex_types")
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(
+        table_name,
+        "col1 array<decimal(38, 18)>, col3 struct<d: decimal(38,18)>"
+    )
+
+    try:
+        data_to_write = [
+            [
+                [Decimal("12.345"), Decimal("18.41")], {"d": Decimal("514.321")}
+            ]
+        ]
+        with table.open_writer() as writer:
+            writer.write(data_to_write)
+
+        with table.open_reader() as reader:
+            records = [list(rec.values) for rec in reader]
+
+        assert data_to_write == records
+    finally:
         table.drop()
 
-    def testWriteTimeout(self):
-        table, data = self._gen_table()
 
-        def _patched(*_, **__):
-            raise requests.ConnectionError("timed out")
+@py_and_c_deco
+def test_antique_datetime(odps):
+    table_name = tn("test_datetime_overflow_table")
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(table_name, "col datetime", lifecycle=1)
 
-        with mock.patch("odps.rest.RestClient.put", new=_patched):
-            with pytest.raises(TunnelWriteTimeout) as ex_info:
-                records = [table.new_record(values=d) for d in data]
-                self.odps.write_table(table, 0, records)
+    options.allow_antique_date = False
+    options.tunnel.overflow_date_as_none = False
+    try:
+        odps.execute_sql("INSERT INTO %s(col) VALUES (cast('1900-01-01 00:00:00' as datetime))" % table_name)
+        with pytest.raises(DatetimeOverflowError):
+            with table.open_reader() as reader:
+                _ = next(reader)
 
-            assert isinstance(ex_info.value, requests.ConnectionError)
+        options.allow_antique_date = True
+        with table.open_reader(reopen=True) as reader:
+            rec = next(reader)
+            assert rec[0].year == 1900
+
+        table.truncate()
+        odps.execute_sql("INSERT INTO %s(col) VALUES (cast('0000-01-01 00:00:00' as datetime))" % table_name)
+        with pytest.raises(DatetimeOverflowError):
+            with table.open_reader() as reader:
+                _ = next(reader)
+
+        options.tunnel.overflow_date_as_none = True
+        with table.open_reader(reopen=True) as reader:
+            rec = next(reader)
+            assert rec[0] is None
+    finally:
+        options.allow_antique_date = False
+        options.tunnel.overflow_date_as_none = False
 
         table.drop()
-
-
-if __name__ == '__main__':
-    unittest.main()

@@ -17,87 +17,86 @@
 import shutil
 import tempfile
 
-from odps.compat import StringIO
-from odps.config import options
-from odps.errors import InteractiveError
-from odps.inter import Room, list_rooms
-from odps.lib import cloudpickle
-from odps.models import TableSchema
-from odps.tests.core import TestBase, tn
+import pytest
+
+from ..compat import StringIO
+from ..config import options
+from ..errors import InteractiveError
+from ..inter import Room, list_rooms
+from ..lib import cloudpickle
+from ..models import TableSchema
+from .core import tn
 
 
-class Test(TestBase):
-    def setUp(self):
-        super(Test, self).setUp()
-        # install CloudUnpickler
-        cloudpickle.CloudUnpickler(StringIO('abcdefg'))
+@pytest.fixture(autouse=True)
+def install_cloud_unpickler():
+    cloudpickle.CloudUnpickler(StringIO('abcdefg'))
 
-    def testRoom(self):
-        from odps.inter import enter, setup, teardown
 
-        access_id = 'test_access_id'
-        access_key = 'test_access_key'
-        project = 'test_default_project'
-        endpoint = 'test_endpoint'
+def test_room():
+    from ..inter import enter, setup, teardown
 
-        test_room = '__test'
+    access_id = 'test_access_id'
+    access_key = 'test_access_key'
+    project = 'test_default_project'
+    endpoint = 'test_endpoint'
 
-        teardown(test_room)
+    test_room = '__test'
 
-        setup(access_id, access_key, project, endpoint=endpoint, room=test_room)
-        enter(test_room)
+    teardown(test_room)
 
-        self.assertEqual(access_id, options.account.access_id)
-        self.assertEqual(access_key, options.account.secret_access_key)
-        self.assertEqual(project, options.default_project)
-        self.assertEqual(endpoint, options.endpoint)
-        self.assertIsNone(options.tunnel.endpoint)
+    setup(access_id, access_key, project, endpoint=endpoint, room=test_room)
+    enter(test_room)
 
-        self.assertRaises(
-            InteractiveError,
-            lambda: setup(access_id, access_key, project, room=test_room))
+    assert access_id == options.account.access_id
+    assert access_key == options.account.secret_access_key
+    assert project == options.default_project
+    assert endpoint == options.endpoint
+    assert options.tunnel.endpoint is None
 
-        self.assertIn(test_room, list_rooms())
+    pytest.raises(InteractiveError,
+        lambda: setup(access_id, access_key, project, room=test_room))
 
-        teardown(test_room)
-        self.assertRaises(
-            InteractiveError, lambda: enter(test_room)
-        )
+    assert test_room in list_rooms()
 
-    def testRoomStores(self):
-        class FakeRoom(Room):
-            def _init(self):
-                return
+    teardown(test_room)
+    pytest.raises(InteractiveError, lambda: enter(test_room))
 
-        room = FakeRoom('__test')
-        room._room_dir = tempfile.mkdtemp()
+
+def test_room_stores(odps):
+    class FakeRoom(Room):
+        def _init(self):
+            return
+
+    room = FakeRoom('__test')
+    room._room_dir = tempfile.mkdtemp()
+
+    try:
+        s = TableSchema.from_lists(['name', 'id'], ['string', 'bigint'])
+        table_name = tn('pyodps_test_room_stores')
+        odps.delete_table(table_name, if_exists=True)
+        t = odps.create_table(table_name, s)
+        data = [['name1', 1], ['name2', 2]]
+        with t.open_writer() as writer:
+            writer.write(data)
+
+        del t
+
+        t = odps.get_table(table_name)
+        assert t.table_schema.names == ['name', 'id']
 
         try:
-            s = TableSchema.from_lists(['name', 'id'], ['string', 'bigint'])
-            table_name = tn('pyodps_test_room_stores')
-            self.odps.delete_table(table_name, if_exists=True)
-            t = self.odps.create_table(table_name, s)
-            data = [['name1', 1], ['name2', 2]]
-            with t.open_writer() as writer:
-                writer.write(data)
+            room.store('table', t)
 
-            del t
+            t2 = room['table']
+            assert t2.name == table_name
 
-            t = self.odps.get_table(table_name)
-            self.assertEqual(t.table_schema.names, ['name', 'id'])
+            with t2.open_reader() as reader:
+                values = [r.values for r in reader]
+                assert data == values
 
-            try:
-                room.store('table', t)
-
-                t2 = room['table']
-                self.assertEqual(t2.name, table_name)
-
-                with t2.open_reader() as reader:
-                    values = [r.values for r in reader]
-                    self.assertEqual(data, values)
-
-                self.assertEqual(room.list_stores(), [['table', None]])
-            finally:
-                t.drop()
+            assert room.list_stores() == [['table', None]]
         finally:
-            shutil.rmtree(room._room_dir)
+            t.drop()
+    finally:
+        shutil.rmtree(room._room_dir)

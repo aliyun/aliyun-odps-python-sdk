@@ -15,197 +15,171 @@
 # limitations under the License.
 
 import math
+from collections import OrderedDict
 from datetime import datetime
 from decimal import Decimal
+
+import pytest
 
 try:
     from string import letters
 except ImportError:
     from string import ascii_letters as letters  # noqa: F401
 
-from odps.compat import reload_module
-from odps.tests.core import TestBase, tn, snappy_case
-from odps.compat import OrderedDict
-from odps.models import TableSchema
-from odps import options
-from odps.tunnel import TableTunnel, InstanceTunnel
+from ... import options
+from ...models import TableSchema
+from ...tests.core import tn, get_code_mode, py_and_c
+from .. import TableTunnel, InstanceTunnel
 
 
-def bothPyAndC(func):
-    def inner(self, *args, **kwargs):
-        try:
-            import cython  # noqa: F401
+def _reloader():
+    from ...conftest import get_config
 
-            ts = 'py', 'c'
-        except ImportError:
-            ts = 'py',
-            import warnings
-            warnings.warn('No c code tests for table tunnel')
-        for t in ts:
-            old_config = getattr(options, 'force_{0}'.format(t))
-            setattr(options, 'force_{0}'.format(t), True)
-            try:
-                from odps.models import record
-                reload_module(record)
-
-                from odps import models
-                reload_module(models)
-
-                from odps.tunnel.io import writer
-                reload_module(writer)
-
-                from odps.tunnel.io import reader
-                reload_module(reader)
-
-                from odps.tunnel import tabletunnel
-                reload_module(tabletunnel)
-
-                from odps.tunnel import instancetunnel
-                reload_module(instancetunnel)
-
-                self.tunnel = TableTunnel(self.odps, endpoint=self.odps._tunnel_endpoint)
-                self.mode = t
-
-                func(self, *args, **kwargs)
-            finally:
-                setattr(options, 'force_{0}'.format(t), old_config)
-
-    return inner
+    cfg = get_config()
+    cfg.tunnel = TableTunnel(cfg.odps, endpoint=cfg.odps._tunnel_endpoint)
 
 
-class Test(TestBase):
-    def setUp(self):
-        super(Test, self).setUp()
-        self.instance_tunnel = InstanceTunnel(self.odps)
+py_and_c_deco = py_and_c([
+    "odps.models.record", "odps.models", "odps.tunnel.io.reader",
+    "odps.tunnel.io.writer", "odps.tunnel.tabletunnel",
+    "odps.tunnel.instancetunnel",
+], _reloader)
 
-    def _upload_data(self, test_table, records, compress=False, **kw):
-        upload_ss = self.tunnel.create_upload_session(test_table, **kw)
-        # make sure session reprs work well
-        repr(upload_ss)
-        writer = upload_ss.open_record_writer(0, compress=compress)
 
+@pytest.fixture
+def instance_tunnel(odps):
+    return InstanceTunnel(odps)
+
+
+def _upload_data(tunnel, test_table, records, compress=False, **kw):
+    upload_ss = tunnel.create_upload_session(test_table, **kw)
+    # make sure session reprs work well
+    repr(upload_ss)
+    writer = upload_ss.open_record_writer(0, compress=compress)
+
+    # test use right py or c writer
+    assert get_code_mode() == writer._mode()
+
+    for r in records:
+        record = upload_ss.new_record()
+        # test record
+        assert get_code_mode() == record._mode()
+        for i, it in enumerate(r):
+            record[i] = it
+        writer.write(record)
+    writer.close()
+    upload_ss.commit([0, ])
+
+
+def _download_instance_data(instance_tunnel, test_instance, compress=False, columns=None, **kw):
+    count = kw.pop('count', 3)
+    download_ss = instance_tunnel.create_download_session(test_instance, **kw)
+    # make sure session reprs work well
+    repr(download_ss)
+    with download_ss.open_record_reader(0, count, compress=compress, columns=columns) as reader:
         # test use right py or c writer
-        self.assertEqual(self.mode, writer._mode())
+        assert get_code_mode() == reader._mode()
 
-        for r in records:
-            record = upload_ss.new_record()
-            # test record
-            self.assertEqual(self.mode, record._mode())
-            for i, it in enumerate(r):
-                record[i] = it
-            writer.write(record)
-        writer.close()
-        upload_ss.commit([0, ])
+        records = []
 
-    def _download_instance_data(self, test_instance, compress=False, columns=None, **kw):
-        count = kw.pop('count', 3)
-        download_ss = self.instance_tunnel.create_download_session(test_instance, **kw)
-        # make sure session reprs work well
-        repr(download_ss)
-        with download_ss.open_record_reader(0, count, compress=compress, columns=columns) as reader:
-            # test use right py or c writer
-            self.assertEqual(self.mode, reader._mode())
+        for record in reader:
+            records.append(tuple(record.values))
+            assert get_code_mode() == record._mode()
 
-            records = []
+        return records
 
-            for record in reader:
-                records.append(tuple(record.values))
-                self.assertEqual(self.mode, record._mode())
 
-            return records
+def _gen_data():
+    return [
+        ('hello \x00\x00 world', 2**63-1, math.pi, datetime(2015, 9, 19, 2, 11, 25, 33000),
+         True, Decimal('3.14'), ['simple', 'easy'], OrderedDict({'s': 1})),
+        ('goodbye', 222222, math.e, datetime(2020, 3, 10), False, Decimal('2.555555'),
+         ['true', None], OrderedDict({'true': 1})),
+        ('c'*300, -2**63+1, -2.222, datetime(1990, 5, 25, 3, 10), True, Decimal(22222),
+         ['false'], OrderedDict({'false': 0})),
+    ]
 
-    def _gen_data(self):
-        return [
-            ('hello \x00\x00 world', 2**63-1, math.pi, datetime(2015, 9, 19, 2, 11, 25, 33000),
-             True, Decimal('3.14'), ['simple', 'easy'], OrderedDict({'s': 1})),
-            ('goodbye', 222222, math.e, datetime(2020, 3, 10), False, Decimal('2.555555'),
-             ['true', None], OrderedDict({'true': 1})),
-            ('c'*300, -2**63+1, -2.222, datetime(1990, 5, 25, 3, 10), True, Decimal(22222),
-             ['false'], OrderedDict({'false': 0})),
-        ]
 
-    def _create_table(self, table_name):
-        fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
-        types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
-                 'array<string>', 'map<string,bigint>']
+def _create_table(odps, table_name):
+    fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
+    types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
+             'array<string>', 'map<string,bigint>']
 
-        self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(
-            table_name, TableSchema.from_lists(fields, types), lifecycle=1
+    odps.delete_table(table_name, if_exists=True)
+    return odps.create_table(
+        table_name, TableSchema.from_lists(fields, types), lifecycle=1
+    )
+
+
+def _create_partitioned_table(odps, table_name):
+    fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
+    types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
+             'array<string>', 'map<string,bigint>']
+
+    odps.delete_table(table_name, if_exists=True)
+    return odps.create_table(
+        table_name, TableSchema.from_lists(fields, types, ['ds'], ['string']), lifecycle=1
+    )
+
+
+def _delete_table(odps, table_name):
+    odps.delete_table(table_name)
+
+
+@py_and_c_deco
+def test_download_by_raw_tunnel(config, instance_tunnel):
+    test_table_name = tn('pyodps_test_raw_inst_tunnel')
+    _create_table(config.odps, test_table_name)
+    data = _gen_data()
+
+    _upload_data(config.tunnel, test_table_name, data)
+    inst = config.odps.execute_sql('select * from %s' % test_table_name)
+    records = _download_instance_data(instance_tunnel, inst)
+    assert list(data) == list(records)
+
+    _delete_table(config.odps, test_table_name)
+
+
+@py_and_c_deco
+@pytest.mark.parametrize("algo, module", [(None, None), ("snappy", "snappy")])
+def test_upload_and_download_with_compress(config, instance_tunnel, algo, module):
+    raw_chunk_size = options.chunk_size
+    options.chunk_size = 16
+    if module:
+        pytest.importorskip(module)
+
+    try:
+        test_table_name = tn('pyodps_test_zlib_inst_tunnel')
+        _create_table(config.odps, test_table_name)
+        data = _gen_data()
+
+        _upload_data(
+            config.tunnel, test_table_name, data, compress=True, compress_algo=algo
         )
-
-    def _create_partitioned_table(self, table_name):
-        fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
-        types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
-                 'array<string>', 'map<string,bigint>']
-
-        self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(
-            table_name, TableSchema.from_lists(fields, types, ['ds'], ['string']), lifecycle=1
+        inst = config.odps.execute_sql('select * from %s' % test_table_name)
+        records = _download_instance_data(
+            instance_tunnel, inst, compress=True, compress_algo=algo
         )
+        assert data == records
 
-    def _delete_table(self, table_name):
-        self.odps.delete_table(table_name)
+        _delete_table(config.odps, test_table_name)
+    finally:
+        options.chunk_size = raw_chunk_size
 
-    @bothPyAndC
-    def testDownloadByRawTunnel(self):
-        test_table_name = tn('pyodps_test_raw_inst_tunnel')
-        self._create_table(test_table_name)
-        data = self._gen_data()
 
-        self._upload_data(test_table_name, data)
-        inst = self.odps.execute_sql('select * from %s' % test_table_name)
-        records = self._download_instance_data(inst)
-        self.assertSequenceEqual(data, records)
+@py_and_c_deco
+def test_partition_upload_and_download_by_raw_tunnel(config, instance_tunnel):
+    test_table_name = tn('pyodps_test_raw_partition_tunnel')
+    test_table_partition = 'ds=test'
+    config.odps.delete_table(test_table_name, if_exists=True)
 
-        self._delete_table(test_table_name)
+    table = _create_partitioned_table(config.odps, test_table_name)
+    table.create_partition(test_table_partition)
+    data = _gen_data()
 
-    @bothPyAndC
-    def testUploadAndDownloadByZlibTunnel(self):
-        raw_chunk_size = options.chunk_size
-        options.chunk_size = 16
+    _upload_data(config.tunnel, test_table_name, data, partition_spec=test_table_partition)
+    inst = config.odps.execute_sql("select * from %s where ds='test'" % test_table_name)
+    records = _download_instance_data(instance_tunnel, inst)
+    assert data == [r[:-1] for r in records]
 
-        try:
-            test_table_name = tn('pyodps_test_zlib_inst_tunnel')
-            self._create_table(test_table_name)
-            data = self._gen_data()
-
-            self._upload_data(test_table_name, data, compress=True)
-            inst = self.odps.execute_sql('select * from %s' % test_table_name)
-            records = self._download_instance_data(inst, compress=True)
-            self.assertSequenceEqual(data, records)
-
-            self._delete_table(test_table_name)
-        finally:
-            options.chunk_size = raw_chunk_size
-
-    @snappy_case
-    @bothPyAndC
-    def testUploadAndDownloadBySnappyTunnel(self):
-        test_table_name = tn('pyodps_test_snappy_inst_tunnel')
-        self._create_table(test_table_name)
-        data = self._gen_data()
-
-        self._upload_data(test_table_name, data, compress=True, compress_algo='snappy')
-        inst = self.odps.execute_sql('select * from %s' % test_table_name)
-        records = self._download_instance_data(inst, compress=True, compress_algo='snappy')
-        self.assertSequenceEqual(data, records)
-
-        self._delete_table(test_table_name)
-
-    @bothPyAndC
-    def testPartitionUploadAndDownloadByRawTunnel(self):
-        test_table_name = tn('pyodps_test_raw_partition_tunnel')
-        test_table_partition = 'ds=test'
-        self.odps.delete_table(test_table_name, if_exists=True)
-
-        table = self._create_partitioned_table(test_table_name)
-        table.create_partition(test_table_partition)
-        data = self._gen_data()
-
-        self._upload_data(test_table_name, data, partition_spec=test_table_partition)
-        inst = self.odps.execute_sql("select * from %s where ds='test'" % test_table_name)
-        records = self._download_instance_data(inst)
-        self.assertSequenceEqual(data, [r[:-1] for r in records])
-
-        self._delete_table(test_table_name)
+    _delete_table(config.odps, test_table_name)

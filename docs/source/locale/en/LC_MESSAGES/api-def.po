@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-01-20 13:56+0800\n"
+"POT-Creation-Date: 2023-05-18 11:20+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -94,9 +94,11 @@ msgstr ""
 #: odps.core.ODPS.run_xflow odps.core.ODPS.set_project_policy
 #: odps.core.ODPS.set_role_policy odps.core.ODPS.set_security_option
 #: odps.core.ODPS.stop_instance odps.core.ODPS.write_table
+#: odps.internal.core.InternalODPSMixin.execute_kube_task
 #: odps.internal.core.InternalODPSMixin.execute_ps
 #: odps.internal.core.InternalODPSMixin.execute_ps_extract_model
 #: odps.internal.core.InternalODPSMixin.execute_ps_train
+#: odps.internal.core.InternalODPSMixin.run_kube_task
 #: odps.internal.core.InternalODPSMixin.run_ps
 #: odps.internal.core.InternalODPSMixin.run_ps_extract_model
 #: odps.internal.core.InternalODPSMixin.run_ps_train
@@ -120,7 +122,7 @@ msgstr ""
 #: odps.models.instance.Instance.wait_for_completion
 #: odps.models.instance.Instance.wait_for_success
 #: odps.models.ml.offlinemodel.OfflineModel.copy
-#: odps.models.partition.Partition.drop
+#: odps.models.partition.Partition.drop odps.models.partition.Partition.head
 #: odps.models.partition.Partition.open_reader
 #: odps.models.resource.FileResource.open
 #: odps.models.resource.FileResource.read
@@ -179,15 +181,16 @@ msgstr ""
 #: odps.core.ODPS.list_volume_files odps.core.ODPS.open_resource
 #: odps.core.ODPS.open_volume_reader odps.core.ODPS.open_volume_writer
 #: odps.core.ODPS.read_table odps.core.ODPS.write_table
+#: odps.internal.core.InternalODPSMixin.execute_kube_task
 #: odps.models.instance.Instance
 #: odps.models.instance.Instance.Task.TaskProgress
 #: odps.models.instance.Instance.get_task_cost
 #: odps.models.instance.Instance.open_reader
 #: odps.models.partition.Partition.open_reader odps.models.project.Project
-#: odps.models.record.Record odps.models.resource.FileResource.open
-#: odps.models.table.Table odps.models.table.Table.new_record
-#: odps.models.table.Table.open_reader odps.models.table.Table.open_writer
-#: odps.models.table.TableSchema of
+#: odps.models.resource.FileResource.open odps.models.table.Table
+#: odps.models.table.Table.new_record odps.models.table.Table.open_reader
+#: odps.models.table.Table.open_writer odps.models.table.TableSchema
+#: odps.types.Record of
 msgid "Example"
 msgstr ""
 
@@ -248,9 +251,11 @@ msgstr ""
 #: odps.core.ODPS.run_security_query odps.core.ODPS.run_sql
 #: odps.core.ODPS.run_xflow odps.core.ODPS.set_project_policy
 #: odps.core.ODPS.stop_instance odps.core.ODPS.write_table
+#: odps.internal.core.InternalODPSMixin.execute_kube_task
 #: odps.internal.core.InternalODPSMixin.execute_ps
 #: odps.internal.core.InternalODPSMixin.execute_ps_extract_model
 #: odps.internal.core.InternalODPSMixin.execute_ps_train
+#: odps.internal.core.InternalODPSMixin.run_kube_task
 #: odps.internal.core.InternalODPSMixin.run_ps
 #: odps.internal.core.InternalODPSMixin.run_ps_extract_model
 #: odps.internal.core.InternalODPSMixin.run_ps_train
@@ -281,7 +286,7 @@ msgstr ""
 #: odps.models.instance.Instance.open_reader odps.models.instance.Instance.stop
 #: odps.models.instance.Instance.wait_for_completion
 #: odps.models.instance.Instance.wait_for_success
-#: odps.models.partition.Partition.drop
+#: odps.models.partition.Partition.drop odps.models.partition.Partition.head
 #: odps.models.partition.Partition.open_reader
 #: odps.models.partition.Partition.to_df
 #: odps.models.resource.FileResource.close
@@ -402,9 +407,11 @@ msgstr ""
 #: odps.core.ODPS.run_sql:5 odps.core.ODPS.run_xflow:9
 #: odps.core.ODPS.set_project_policy:4 odps.core.ODPS.set_role_policy:5
 #: odps.core.ODPS.stop_instance:4 odps.core.ODPS.write_table:6
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:4
 #: odps.internal.core.InternalODPSMixin.execute_ps:7
 #: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:11
 #: odps.internal.core.InternalODPSMixin.execute_ps_train:20
+#: odps.internal.core.InternalODPSMixin.run_kube_task:4
 #: odps.internal.core.InternalODPSMixin.run_ps:7
 #: odps.internal.core.InternalODPSMixin.run_ps_extract_model:11
 #: odps.internal.core.InternalODPSMixin.run_ps_train:20 of
@@ -415,21 +422,22 @@ msgstr ""
 #: odps.core.ODPS.create_function:5 odps.core.ODPS.create_parted_volume:5
 #: odps.core.ODPS.create_resource:14 odps.core.ODPS.create_table:8
 #: odps.core.ODPS.create_volume_directory:6 odps.core.ODPS.delete_function:5
-#: odps.core.ODPS.delete_resource:5 odps.core.ODPS.delete_table:8
+#: odps.core.ODPS.delete_resource:5 odps.core.ODPS.delete_table:6
 #: odps.core.ODPS.delete_volume:5 odps.core.ODPS.delete_volume_file:7
 #: odps.core.ODPS.delete_volume_partition:6
-#: odps.core.ODPS.execute_security_query:6 odps.core.ODPS.exist_function:5
-#: odps.core.ODPS.exist_resource:4 odps.core.ODPS.exist_table:5
-#: odps.core.ODPS.exist_volume:5 odps.core.ODPS.exist_volume_partition:6
-#: odps.core.ODPS.get_function:5 odps.core.ODPS.get_resource:5
-#: odps.core.ODPS.get_schema:3 odps.core.ODPS.get_table:5
-#: odps.core.ODPS.get_volume:5 odps.core.ODPS.get_volume_file:6
-#: odps.core.ODPS.get_volume_partition:6 odps.core.ODPS.list_functions:4
-#: odps.core.ODPS.list_resources:4 odps.core.ODPS.list_tables:10
-#: odps.core.ODPS.list_volume_files:7 odps.core.ODPS.list_volume_partitions:5
-#: odps.core.ODPS.list_volumes:4 odps.core.ODPS.move_volume_file:7
-#: odps.core.ODPS.open_resource:24 odps.core.ODPS.open_volume_reader:8
-#: odps.core.ODPS.open_volume_writer:12 odps.core.ODPS.read_table:9
+#: odps.core.ODPS.execute_merge_files:6 odps.core.ODPS.execute_security_query:6
+#: odps.core.ODPS.exist_function:5 odps.core.ODPS.exist_resource:4
+#: odps.core.ODPS.exist_table:5 odps.core.ODPS.exist_volume:5
+#: odps.core.ODPS.exist_volume_partition:6 odps.core.ODPS.get_function:5
+#: odps.core.ODPS.get_resource:5 odps.core.ODPS.get_schema:3
+#: odps.core.ODPS.get_table:5 odps.core.ODPS.get_volume:5
+#: odps.core.ODPS.get_volume_file:6 odps.core.ODPS.get_volume_partition:6
+#: odps.core.ODPS.list_functions:4 odps.core.ODPS.list_resources:4
+#: odps.core.ODPS.list_tables:10 odps.core.ODPS.list_volume_files:7
+#: odps.core.ODPS.list_volume_partitions:5 odps.core.ODPS.list_volumes:4
+#: odps.core.ODPS.move_volume_file:7 odps.core.ODPS.open_resource:24
+#: odps.core.ODPS.open_volume_reader:8 odps.core.ODPS.open_volume_writer:12
+#: odps.core.ODPS.read_table:9 odps.core.ODPS.run_merge_files:6
 #: odps.core.ODPS.run_security_query:7 odps.core.ODPS.write_table:7 of
 msgid "schema name, if not provided, will be the default schema"
 msgstr ""
@@ -462,9 +470,11 @@ msgstr ""
 #: odps.core.ODPS.list_xflows odps.core.ODPS.read_table
 #: odps.core.ODPS.run_archive_table odps.core.ODPS.run_merge_files
 #: odps.core.ODPS.run_sql odps.core.ODPS.run_xflow
+#: odps.internal.core.InternalODPSMixin.execute_kube_task
 #: odps.internal.core.InternalODPSMixin.execute_ps
 #: odps.internal.core.InternalODPSMixin.execute_ps_extract_model
 #: odps.internal.core.InternalODPSMixin.execute_ps_train
+#: odps.internal.core.InternalODPSMixin.run_kube_task
 #: odps.internal.core.InternalODPSMixin.run_ps
 #: odps.internal.core.InternalODPSMixin.run_ps_extract_model
 #: odps.internal.core.InternalODPSMixin.run_ps_train
@@ -483,7 +493,7 @@ msgstr ""
 #: odps.models.instance.Instance.is_running
 #: odps.models.instance.Instance.is_successful
 #: odps.models.instance.Instance.is_terminated
-#: odps.models.resource.FileResource.read
+#: odps.models.partition.Partition.head odps.models.resource.FileResource.read
 #: odps.models.resource.FileResource.readline
 #: odps.models.resource.FileResource.readlines
 #: odps.models.table.Table.create_partition
@@ -511,19 +521,19 @@ msgstr ""
 msgid "function name"
 msgstr ""
 
-#: odps.core.ODPS.create_function:7 of
+#: odps.core.ODPS.create_function:6 of
 msgid "main class"
 msgstr ""
 
-#: odps.core.ODPS.create_function:9 of
+#: odps.core.ODPS.create_function:7 of
 msgid "the resources that function needs to use"
 msgstr ""
 
-#: odps.core.ODPS.create_function:11 of
+#: odps.core.ODPS.create_function:8 of
 msgid "the created function"
 msgstr ""
 
-#: odps.core.ODPS.create_function:12 odps.core.ODPS.create_function:19
+#: odps.core.ODPS.create_function:9 odps.core.ODPS.create_function:16
 #: odps.core.ODPS.get_function:10 of
 msgid ":class:`odps.models.Function`"
 msgstr ""
@@ -684,8 +694,8 @@ msgstr ""
 msgid "schema name"
 msgstr ""
 
-#: odps.core.ODPS.create_schema:5 odps.core.ODPS.create_table:18
-#: odps.core.ODPS.delete_schema:5 odps.core.ODPS.delete_table:6 of
+#: odps.core.ODPS.create_schema:5 odps.core.ODPS.create_table:14
+#: odps.core.ODPS.delete_schema:5 odps.core.ODPS.delete_table:8 of
 msgid "if True, will run asynchronously"
 msgstr ""
 
@@ -741,31 +751,35 @@ msgstr ""
 msgid "table comment"
 msgstr ""
 
-#: odps.core.ODPS.create_table:10 of
+#: odps.core.ODPS.create_table:9 of
 msgid "will not create if this table already exists, default False"
 msgstr ""
 
-#: odps.core.ODPS.create_table:12 of
+#: odps.core.ODPS.create_table:10 of
 msgid "table's lifecycle. If absent, `options.lifecycle` will be used."
 msgstr ""
 
-#: odps.core.ODPS.create_table:14 of
+#: odps.core.ODPS.create_table:11 of
 msgid "table's shard num"
 msgstr ""
 
-#: odps.core.ODPS.create_table:16 of
+#: odps.core.ODPS.create_table:12 of
 msgid "hub lifecycle"
 msgstr ""
 
-#: odps.core.ODPS.create_table:20 of
+#: odps.core.ODPS.create_table:13 odps.core.ODPS.delete_table:7 of
+msgid "hints for the task"
+msgstr ""
+
+#: odps.core.ODPS.create_table:15 of
 msgid "the created Table if not async else odps instance"
 msgstr ""
 
-#: odps.core.ODPS.create_table:21 of
+#: odps.core.ODPS.create_table:16 of
 msgid ":class:`odps.models.Table` or :class:`odps.models.Instance`"
 msgstr ""
 
-#: odps.core.ODPS.create_table:23 of
+#: odps.core.ODPS.create_table:18 of
 msgid ":class:`odps.models.Table`, :class:`odps.models.TableSchema`"
 msgstr ""
 
@@ -824,14 +838,14 @@ msgstr ""
 #: odps.models.instance.Instance.stop:3
 #: odps.models.instance.Instance.wait_for_completion:5
 #: odps.models.instance.Instance.wait_for_success:4
-#: odps.models.partition.Partition.drop:4
+#: odps.models.partition.Partition.drop:5
 #: odps.models.resource.FileResource.close:3
 #: odps.models.resource.FileResource.flush:4
 #: odps.models.resource.FileResource.seek:5
 #: odps.models.resource.FileResource.truncate:6
 #: odps.models.resource.FileResource.write:4
 #: odps.models.resource.FileResource.writelines:4
-#: odps.models.table.Table.drop:4 odps.models.table.Table.truncate:5 of
+#: odps.models.table.Table.drop:6 odps.models.table.Table.truncate:6 of
 msgid "None"
 msgstr ""
 
@@ -872,7 +886,7 @@ msgstr ""
 msgid "will not raise errors when the table does not exist, default False"
 msgstr ""
 
-#: odps.core.ODPS.delete_table:10 of
+#: odps.core.ODPS.delete_table:9 of
 msgid "None if not async else odps instance"
 msgstr ""
 
@@ -927,46 +941,71 @@ msgstr ""
 msgid "settings for table archive task."
 msgstr ""
 
-#: odps.core.ODPS.execute_archive_table:7 odps.core.ODPS.execute_merge_files:7
+#: odps.core.ODPS.execute_archive_table:7 odps.core.ODPS.execute_merge_files:8
 #: odps.core.ODPS.execute_sql:6 odps.core.ODPS.execute_xflow:12
-#: odps.core.ODPS.run_archive_table:7 odps.core.ODPS.run_merge_files:7
+#: odps.core.ODPS.run_archive_table:7 odps.core.ODPS.run_merge_files:8
 #: odps.core.ODPS.run_sql:6 odps.core.ODPS.run_xflow:12
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:6
 #: odps.internal.core.InternalODPSMixin.execute_ps:9
 #: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:13
 #: odps.internal.core.InternalODPSMixin.execute_ps_train:22
+#: odps.internal.core.InternalODPSMixin.run_kube_task:6
 #: odps.internal.core.InternalODPSMixin.run_ps:9
 #: odps.internal.core.InternalODPSMixin.run_ps_extract_model:13
 #: odps.internal.core.InternalODPSMixin.run_ps_train:22 of
 msgid "instance priority, 9 as default"
 msgstr ""
 
-#: odps.core.ODPS.execute_archive_table:8 odps.core.ODPS.execute_merge_files:8
+#: odps.core.ODPS.execute_archive_table:8 odps.core.ODPS.execute_merge_files:9
 #: odps.core.ODPS.execute_sql:11 odps.core.ODPS.execute_xflow:14
-#: odps.core.ODPS.run_archive_table:8 odps.core.ODPS.run_merge_files:8
+#: odps.core.ODPS.run_archive_table:8 odps.core.ODPS.run_merge_files:9
 #: odps.core.ODPS.run_sql:13 odps.core.ODPS.run_xflow:14
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:8
 #: odps.internal.core.InternalODPSMixin.execute_ps:10
 #: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:14
 #: odps.internal.core.InternalODPSMixin.execute_ps_train:24
+#: odps.internal.core.InternalODPSMixin.run_kube_task:8
 #: odps.internal.core.InternalODPSMixin.run_ps:10
 #: odps.internal.core.InternalODPSMixin.run_ps_extract_model:14
 #: odps.internal.core.InternalODPSMixin.run_ps_train:24 of
 msgid "instance"
 msgstr ""
 
-#: odps.core.ODPS.execute_archive_table:9 odps.core.ODPS.execute_merge_files:9
+#: odps.core.ODPS.execute_archive_table:9 odps.core.ODPS.execute_merge_files:10
 #: odps.core.ODPS.execute_sql:12 odps.core.ODPS.execute_sql:25
 #: odps.core.ODPS.execute_xflow:15 odps.core.ODPS.execute_xflow:17
 #: odps.core.ODPS.get_instance:6 odps.core.ODPS.get_instance:9
-#: odps.core.ODPS.run_archive_table:9 odps.core.ODPS.run_merge_files:9
+#: odps.core.ODPS.run_archive_table:9 odps.core.ODPS.run_merge_files:10
 #: odps.core.ODPS.run_sql:14 odps.core.ODPS.run_sql:16
 #: odps.core.ODPS.run_xflow:15 odps.core.ODPS.run_xflow:17
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:9
 #: odps.internal.core.InternalODPSMixin.execute_ps:11
 #: odps.internal.core.InternalODPSMixin.execute_ps_extract_model:15
 #: odps.internal.core.InternalODPSMixin.execute_ps_train:25
+#: odps.internal.core.InternalODPSMixin.run_kube_task:9
 #: odps.internal.core.InternalODPSMixin.run_ps:11
 #: odps.internal.core.InternalODPSMixin.run_ps_extract_model:15
 #: odps.internal.core.InternalODPSMixin.run_ps_train:25 of
 msgid ":class:`odps.models.Instance`"
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:1 of
+msgid "Submit the kube task contains yaml file to odps cluster."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:3 of
+msgid "yaml string or json object."
+msgstr ""
+
+#: odps.core.ODPS.execute_merge_files:7 odps.core.ODPS.run_merge_files:7
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:5
+#: odps.internal.core.InternalODPSMixin.run_kube_task:5 of
+msgid "settings for merge task."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.execute_kube_task:7
+#: odps.internal.core.InternalODPSMixin.run_kube_task:7 of
+msgid "task name."
 msgstr ""
 
 #: odps.core.ODPS.execute_merge_files:1 of
@@ -979,10 +1018,6 @@ msgstr ""
 
 #: odps.core.ODPS.execute_merge_files:4 odps.core.ODPS.run_merge_files:4 of
 msgid "partition to optimize"
-msgstr ""
-
-#: odps.core.ODPS.execute_merge_files:6 odps.core.ODPS.run_merge_files:6 of
-msgid "settings for merge task."
 msgstr ""
 
 #: odps.internal.core.InternalODPSMixin.execute_ps:1 of
@@ -1208,7 +1243,7 @@ msgstr ""
 msgid "If the function with given name exists or not."
 msgstr ""
 
-#: odps.core.ODPS.exist_function:7 of
+#: odps.core.ODPS.exist_function:6 of
 msgid "True if the function exists or False"
 msgstr ""
 
@@ -1487,7 +1522,7 @@ msgid "The result iterates the sub instance of xflow"
 msgstr ""
 
 #: odps.core.ODPS.get_xflow_sub_instances:6
-#: odps.core.ODPS.iter_xflow_sub_instances:7 of
+#: odps.core.ODPS.iter_xflow_sub_instances:8 of
 msgid "sub instances dictionary"
 msgstr ""
 
@@ -1501,6 +1536,10 @@ msgstr ""
 #: odps.models.instance.Instance.wait_for_completion:3
 #: odps.models.instance.Instance.wait_for_success:3 of
 msgid "time interval to check"
+msgstr ""
+
+#: odps.core.ODPS.iter_xflow_sub_instances:7 of
+msgid "check if the instance is successful"
 msgstr ""
 
 #: odps.core.ODPS.list_functions:1 of
@@ -1962,18 +2001,28 @@ msgid ""
 "to True will open a new download session, default as False"
 msgstr ""
 
-#: odps.core.ODPS.read_table:21 odps.models.table.Table.head:7 of
+#: odps.core.ODPS.read_table:21 odps.models.partition.Partition.head:5
+#: odps.models.table.Table.head:6 of
 msgid "records"
 msgstr ""
 
 #: odps.core.ODPS.read_table:31 odps.core.ODPS.write_table:30
-#: odps.models.table.Table.head:10 odps.models.table.Table.new_record:6
-#: odps.models.table.Table.new_record:16 of
+#: odps.models.partition.Partition.head:8 odps.models.table.Table.head:9
+#: odps.models.table.Table.new_record:6 odps.models.table.Table.new_record:16
+#: of
 msgid ":class:`odps.models.Record`"
 msgstr ""
 
 #: odps.core.ODPS.run_archive_table:1 of
 msgid "Start running a task to archive tables."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_kube_task:1 of
+msgid "Start running the kube_task based on the yaml file."
+msgstr ""
+
+#: odps.internal.core.InternalODPSMixin.run_kube_task:3 of
+msgid "specs of kubernetes objects"
 msgstr ""
 
 #: odps.core.ODPS.run_merge_files:1 of
@@ -2203,7 +2252,7 @@ msgstr ""
 msgid "specification of the partition."
 msgstr ""
 
-#: odps.models.table.Table.create_partition:6
+#: odps.models.table.Table.create_partition:7
 #: odps.models.table.Table.get_partition:4 of
 msgid "partition object"
 msgstr ""
@@ -2217,7 +2266,7 @@ msgid "Drop this table."
 msgstr ""
 
 #: odps.models.partition.Partition.drop:3 odps.models.table.Table.drop:3
-#: odps.models.table.Table.truncate:4 of
+#: odps.models.table.Table.truncate:5 of
 msgid "run asynchronously if True"
 msgstr ""
 
@@ -2279,7 +2328,7 @@ msgstr ""
 msgid "Get the head records of a table or its partition."
 msgstr ""
 
-#: odps.models.table.Table.head:3 of
+#: odps.models.partition.Partition.head:3 odps.models.table.Table.head:3 of
 msgid "records' size, 10000 at most"
 msgstr ""
 
@@ -2288,7 +2337,7 @@ msgstr ""
 msgid "partition of this table"
 msgstr ""
 
-#: odps.models.table.Table.head:5 of
+#: odps.models.partition.Partition.head:4 odps.models.table.Table.head:5 of
 msgid "the columns which is subset of the table columns"
 msgstr ""
 
@@ -2451,6 +2500,10 @@ msgstr ""
 msgid "Drop this partition."
 msgstr ""
 
+#: odps.models.partition.Partition.head:1 of
+msgid "Get the head records of a partition"
+msgstr ""
+
 #: odps.models.partition.Partition.open_reader:1 of
 msgid "Open the reader to read the entire records from this partition."
 msgstr ""
@@ -2459,7 +2512,7 @@ msgstr ""
 msgid "Create a PyODPS DataFrame from this partition."
 msgstr ""
 
-#: odps.models.record.Record:1 of
+#: odps.types.Record:1 of
 msgid "A record generally means the data of a single line in a table."
 msgstr ""
 
@@ -2693,7 +2746,7 @@ msgid ""
 "Open the reader to read records from the result of the instance. If "
 "`tunnel` is `True`, instance tunnel will be used. Otherwise conventional "
 "routine will be used. If instance tunnel is not available and `tunnel` is"
-" not specified,, the method will fall back to the conventional routine. "
+" not specified, the method will fall back to the conventional routine. "
 "Note that the number of records returned is limited unless "
 "`options.limited_instance_tunnel` is set to `True` or `limit=True` is "
 "configured under instance tunnel mode. Otherwise the number of records "

@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime as _datetime, timedelta as _timedelta, date as _date
 import decimal as _builtin_decimal
+from collections import OrderedDict
+from datetime import datetime as _datetime, timedelta as _timedelta, date as _date
 
 from . import utils
 from . import compat
-from .compat import six, DECIMAL_TYPES, decimal as _decimal, east_asian_len, OrderedDict, Monthdelta
+from .compat import six, DECIMAL_TYPES, decimal as _decimal, east_asian_len, Monthdelta
 from .config import options
 
 try:
@@ -59,7 +60,7 @@ class _CallableList(list):
 
 class PartitionSpec(object):
     def __init__(self, spec=None):
-        self.kv = compat.OrderedDict()
+        self.kv = OrderedDict()
 
         if spec is not None:
             splits = spec.split(',')
@@ -130,7 +131,7 @@ class Schema(object):
         self.names = names
         self.types = [validate_data_type(t) for t in types]
 
-        self._name_indexes = dict((n, i) for i, n in enumerate(self.names))
+        self._name_indexes = {n: i for i, n in enumerate(self.names)}
 
         if len(self._name_indexes) < len(self.names):
             duplicates = [n for n in self._name_indexes if self.names.count(n) > 1]
@@ -404,8 +405,19 @@ class OdpsSchema(Schema):
 
 
 class RecordMeta(type):
+    record_types = set()
+
+    def __new__(mcs, name, bases, dct):
+        inst = super(RecordMeta, mcs).__new__(mcs, name, bases, dct)
+        mcs.record_types.add(inst)
+        return inst
+
     def __instancecheck__(cls, instance):
         return isinstance(instance, RecordReprMixin)
+
+
+def is_record(obj):
+    return type(obj) in RecordMeta.record_types
 
 
 class BaseRecord(object):
@@ -416,7 +428,7 @@ class BaseRecord(object):
     def __init__(self, columns=None, schema=None, values=None):
         if columns is not None:
             self._columns = columns
-            self._name_indexes = dict((col.name, i) for i, col in enumerate(self._columns))
+            self._name_indexes = {col.name: i for i, col in enumerate(self._columns)}
         else:
             self._columns = schema.columns
             self._name_indexes = schema._name_indexes
@@ -528,7 +540,7 @@ class RecordReprMixin(object):
         return hash((type(self), tuple(self._columns), tuple(self._values)))
 
     def __eq__(self, other):
-        if not isinstance(other, Record):
+        if not is_record(other):
             return False
 
         return self._columns == other._columns and self._values == other._values
@@ -1148,7 +1160,7 @@ class Array(CompositeMixin):
     @classmethod
     def parse_composite(cls, args):
         if len(args) != 1:
-            raise ValueError('%s<> only accept one type.' % cls.__name__.upper())
+            raise ValueError('%s<> should be supplied with exactly one type.' % cls.__name__.upper())
         return cls(args[0])
 
     def validate_composite_values(self, value):
@@ -1219,7 +1231,7 @@ class Map(CompositeMixin):
 
         convert = lambda k, v: (validate_value(k, key_data_type),
                                 validate_value(v, value_data_type))
-        return compat.OrderedDict(convert(k, v) for k, v in six.iteritems(value))
+        return OrderedDict(convert(k, v) for k, v in six.iteritems(value))
 
 
 class Struct(CompositeMixin):
@@ -1286,7 +1298,7 @@ class Struct(CompositeMixin):
             raise ValueError('Struct data type requires `dict`, instead of %s' % value)
 
         convert = lambda k, v, tp: (validate_value(k, string), validate_value(v, tp))
-        return compat.OrderedDict(convert(k, value[k], tp) for k, tp in six.iteritems(self.field_types))
+        return OrderedDict(convert(k, value[k], tp) for k, tp in six.iteritems(self.field_types))
 
 
 tinyint = Tinyint()
@@ -1370,10 +1382,7 @@ def parse_composite_types(type_str, handlers=None):
                     token_stack.append(token)
                 token_start = idx + 1
     if len(token_stack) != 1:
-        try:
-            return _create_composite_type(type_str)
-        except ValueError:
-            return None
+        return _create_composite_type(type_str)
     return token_stack[0]
 
 
@@ -1381,15 +1390,19 @@ def validate_data_type(data_type):
     if isinstance(data_type, DataType):
         return data_type
 
+    composite_err_msg = None
     if isinstance(data_type, six.string_types):
         data_type = data_type.strip().lower()
         if data_type in _odps_primitive_data_types:
             return _odps_primitive_data_types[data_type]
 
-        composite_type = parse_composite_types(data_type)
-        if composite_type:
-            return composite_type
+        try:
+            return parse_composite_types(data_type)
+        except ValueError as ex:
+            composite_err_msg = str(ex)
 
+    if composite_err_msg is not None:
+        raise ValueError('Invalid data type: %s. %s' % (repr(data_type), composite_err_msg))
     raise ValueError('Invalid data type: %s' % repr(data_type))
 
 
@@ -1402,7 +1415,7 @@ try:
 except ImportError:
     pass
 
-_odps_primitive_to_builtin_types = compat.OrderedDict((
+_odps_primitive_to_builtin_types = OrderedDict((
     (bigint, integer_builtins),
     (tinyint, integer_builtins),
     (smallint, integer_builtins),

@@ -17,10 +17,9 @@ from datetime import datetime
 
 import pytest
 
-from odps.config import options
-from odps.errors import NoSuchObject, ODPSError, SecurityQueryError
-from odps.tests.core import TestBase, tn, global_locked
-from odps.compat import unittest
+from ...config import options
+from ...errors import NoSuchObject, ODPSError, SecurityQueryError
+from ...tests.core import tn, global_locked
 
 TEST_ROLE_NAME = tn('test_role_name')
 
@@ -92,170 +91,173 @@ TEST_ROLE_POLICY_STRING = """
 """
 
 
-class Test(TestBase):
-    def setUp(self):
-        super(Test, self).setUp()
-        self.project = self.odps.get_project()
+@pytest.fixture()
+def project(odps):
+    return odps.get_project()
 
-    def safe_delete_role(self, role):
-        try:
-            self.project.roles.delete(role)
-        except NoSuchObject:
-            pass
 
-    def safe_delete_user(self, user):
-        try:
-            user = self.project.users[user]
-            for r in user.roles:
-                try:
-                    r.revoke_from(user)
-                except ODPSError:
-                    pass
-            self.project.users.delete(user)
-        except NoSuchObject:
-            pass
+def safe_delete_role(project, role):
+    try:
+        project.roles.delete(role)
+    except NoSuchObject:
+        pass
 
-    @global_locked
-    def testProjectMethods(self):
-        cur_user = self.project.current_user
-        assert cur_user.id is not None and cur_user.display_name is not None
 
-        old_policy = self.project.policy
-        policy_json = json.loads(TEST_PROJECT_POLICY_STRING.replace('#project#', self.project.name))
-        self.project.policy = policy_json
-        self.project.reload()
-        assert json.dumps(self.project.policy) == json.dumps(policy_json)
-        self.project.policy = old_policy
+def safe_delete_user(project, user):
+    try:
+        user = project.users[user]
+        for r in user.roles:
+            try:
+                r.revoke_from(user)
+            except ODPSError:
+                pass
+        project.users.delete(user)
+    except NoSuchObject:
+        pass
 
-        sec_options = self.project.security_options
-        label_sec = sec_options.label_security
 
-        sec_options.label_security = True
-        sec_options.update()
-        sec_options.reload()
-        assert sec_options.label_security
+@global_locked
+def test_project_methods(project):
+    cur_user = project.current_user
+    assert cur_user.id is not None and cur_user.display_name is not None
 
-        sec_options.label_security = False
-        sec_options.update()
-        sec_options.reload()
-        assert not sec_options.label_security
+    old_policy = project.policy
+    policy_json = json.loads(TEST_PROJECT_POLICY_STRING.replace('#project#', project.name))
+    project.policy = policy_json
+    project.reload()
+    assert json.dumps(project.policy) == json.dumps(policy_json)
+    project.policy = old_policy
 
-        sec_options.label_security = label_sec
-        sec_options.update()
+    sec_options = project.security_options
+    label_sec = sec_options.label_security
 
-    def testRoles(self):
-        self.safe_delete_role(TEST_ROLE_NAME)
+    sec_options.label_security = True
+    sec_options.update()
+    sec_options.reload()
+    assert sec_options.label_security
 
-        role = self.project.roles.create(TEST_ROLE_NAME)
-        assert TEST_ROLE_NAME in [r.name for r in self.project.roles]
-        assert TEST_ROLE_NAME in self.project.roles
-        assert role in self.project.roles
-        assert 'non_exist_role_name' not in self.project.roles
+    sec_options.label_security = False
+    sec_options.update()
+    sec_options.reload()
+    assert not sec_options.label_security
 
-        policy_json = json.loads(TEST_ROLE_POLICY_STRING.replace('#project#', self.project.name))
-        role.policy = policy_json
-        role.reload()
-        assert json.dumps(role.policy) == json.dumps(policy_json)
+    sec_options.label_security = label_sec
+    sec_options.update()
 
-        self.project.roles.delete(TEST_ROLE_NAME)
-        assert TEST_ROLE_NAME not in self.project.roles
 
-    @global_locked('odps_project_user')
-    def testUsers(self):
-        secondary_user = self.config.get('test', 'secondary_user')
-        if not secondary_user:
-            return
+def test_roles(odps, project):
+    safe_delete_role(project, TEST_ROLE_NAME)
 
-        self.safe_delete_user(secondary_user)
+    role = project.roles.create(TEST_ROLE_NAME)
+    assert TEST_ROLE_NAME in [r.name for r in project.roles]
+    assert TEST_ROLE_NAME in project.roles
+    assert role in project.roles
+    assert 'non_exist_role_name' not in project.roles
 
-        self.project.users.create(secondary_user)
-        assert secondary_user in self.project.users
-        assert secondary_user in [user.display_name for user in self.project.users]
-        assert 'non_exist_user' not in self.project.users
+    policy_json = json.loads(TEST_ROLE_POLICY_STRING.replace('#project#', project.name))
+    role.policy = policy_json
+    role.reload()
+    assert json.dumps(role.policy) == json.dumps(policy_json)
 
-        self.project.users.delete(secondary_user)
-        assert secondary_user not in self.project.users
+    project.roles.delete(TEST_ROLE_NAME)
+    assert TEST_ROLE_NAME not in project.roles
 
-    @global_locked('odps_project_user')
-    def testUserRole(self):
-        secondary_user = self.config.get('test', 'secondary_user')
-        if not secondary_user:
-            return
 
-        self.safe_delete_user(secondary_user)
-        self.safe_delete_role(TEST_ROLE_NAME)
+@global_locked('odps_project_user')
+def test_users(config, project):
+    secondary_user = config.get('test', 'secondary_user')
+    if not secondary_user:
+        return
 
-        role = self.project.roles.create(TEST_ROLE_NAME)
-        user = self.project.users.create(secondary_user)
+    safe_delete_user(project, secondary_user)
 
-        role.grant_to(user)
-        assert user in role.users
-        assert role in user.roles
-        role.revoke_from(user)
-        assert user not in role.users
-        assert role not in user.roles
+    project.users.create(secondary_user)
+    assert secondary_user in project.users
+    assert secondary_user in [user.display_name for user in project.users]
+    assert 'non_exist_user' not in project.users
 
-        user.grant_role(role)
-        assert user in role.users
-        assert role in user.roles
-        user.revoke_role(role)
-        assert user not in role.users
-        assert role not in user.roles
+    project.users.delete(secondary_user)
+    assert secondary_user not in project.users
 
-        self.project.users.delete(secondary_user)
-        self.project.roles.delete(role)
 
-    def testSecurityQuery(self):
-        assert 'ALIYUN' in self.odps.run_security_query('LIST ACCOUNTPROVIDERS')
-        assert 'ALIYUN' in self.odps.execute_security_query('LIST ACCOUNTPROVIDERS')
+@global_locked('odps_project_user')
+def test_user_role(config, project):
+    secondary_user = config.get('test', 'secondary_user')
+    if not secondary_user:
+        return
 
-        inst = self.odps.run_security_query(
-            'INSTALL PACKAGE %s.non_exist_package' % self.project.name
+    safe_delete_user(project, secondary_user)
+    safe_delete_role(project, TEST_ROLE_NAME)
+
+    role = project.roles.create(TEST_ROLE_NAME)
+    user = project.users.create(secondary_user)
+
+    role.grant_to(user)
+    assert user in role.users
+    assert role in user.roles
+    role.revoke_from(user)
+    assert user not in role.users
+    assert role not in user.roles
+
+    user.grant_role(role)
+    assert user in role.users
+    assert role in user.roles
+    user.revoke_role(role)
+    assert user not in role.users
+    assert role not in user.roles
+
+    project.users.delete(secondary_user)
+    project.roles.delete(role)
+
+
+def test_security_query(odps, project):
+    assert 'ALIYUN' in odps.run_security_query('LIST ACCOUNTPROVIDERS')
+    assert 'ALIYUN' in odps.execute_security_query('LIST ACCOUNTPROVIDERS')
+
+    inst = odps.run_security_query(
+        'INSTALL PACKAGE %s.non_exist_package' % project.name
+    )
+    assert isinstance(inst, project.AuthQueryInstance)
+
+    with pytest.raises(SecurityQueryError):
+        inst.wait_for_success()
+    assert inst.is_terminated
+    assert not inst.is_successful
+
+    with pytest.raises(SecurityQueryError):
+        odps.execute_security_query(
+            'INSTALL PACKAGE %s.non_exist_package' % project.name
         )
-        assert isinstance(inst, self.project.AuthQueryInstance)
-
-        with self.assertRaises(SecurityQueryError):
-            inst.wait_for_success()
-        assert inst.is_terminated
-        assert not inst.is_successful
-
-        with self.assertRaises(SecurityQueryError):
-            self.odps.execute_security_query(
-                'INSTALL PACKAGE %s.non_exist_package' % self.project.name
-            )
-
-    def testGenerateAuthToken(self):
-        with pytest.raises(SecurityQueryError):
-            self.project.generate_auth_token(None, "not_supported", 1)
-
-        policy = {
-            "Version": "1",
-            "Statement": [
-                {
-                    "Action": ["odps:*"],
-                    "Resource": "acs:odps:*:*",
-                    "Effect": "Allow"
-                }
-            ]
-        }
-        token = self.project.generate_auth_token(policy, "bearer", 5)
-
-        try:
-            from odps import ODPS
-            from odps.accounts import BearerTokenAccount
-
-            account = BearerTokenAccount(token)
-            account._last_modified_time = datetime.now()
-            new_odps = ODPS(
-                project=self.odps.project,
-                endpoint=self.odps.endpoint,
-                account=account,
-            )
-            instance = new_odps.run_sql("select * from dual")
-            assert instance.get_logview_address()
-        finally:
-            options.account = options.default_project = options.endpoint = None
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_generate_auth_token(odps, project):
+    with pytest.raises(SecurityQueryError):
+        project.generate_auth_token(None, "not_supported", 1)
+
+    policy = {
+        "Version": "1",
+        "Statement": [
+            {
+                "Action": ["odps:*"],
+                "Resource": "acs:odps:*:*",
+                "Effect": "Allow"
+            }
+        ]
+    }
+    token = project.generate_auth_token(policy, "bearer", 5)
+
+    try:
+        from ... import ODPS
+        from ...accounts import BearerTokenAccount
+
+        account = BearerTokenAccount(token)
+        account._last_modified_time = datetime.now()
+        new_odps = ODPS(
+            project=odps.project,
+            endpoint=odps.endpoint,
+            account=account,
+        )
+        instance = new_odps.run_sql("select * from dual")
+        assert instance.get_logview_address()
+    finally:
+        options.account = options.default_project = options.endpoint = None

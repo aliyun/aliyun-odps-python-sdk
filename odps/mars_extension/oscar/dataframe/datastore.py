@@ -20,7 +20,6 @@ import time
 import uuid
 import logging
 
-import requests
 from typing import List
 from mars.core.context import get_context
 from mars.oscar.errors import ActorNotExist
@@ -33,9 +32,12 @@ from mars.serialization.serializables import (
     BoolField,
     DictField,
     Int64Field,
+    ListField,
+    FieldTypes,
 )
 
 from ....config import options
+from ....lib import requests
 from ....utils import to_str
 from ..cupid_service import CupidServiceClient
 
@@ -52,6 +54,7 @@ class DataFrameWriteTable(DataFrameOperand, DataFrameOperandMixin):
     odps_params = DictField("odps_params", default=None)
     table_name = StringField("table_name", default=None)
     partition_spec = StringField("partition_spec", default=None)
+    partition_columns = ListField("partition_columns", FieldTypes.string, default=None)
     overwrite = BoolField("overwrite", default=None)
     write_batch_size = Int64Field("write_batch_size", default=None)
     unknown_as_string = BoolField("unknown_as_string", default=None)

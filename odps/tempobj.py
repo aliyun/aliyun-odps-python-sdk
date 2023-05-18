@@ -30,7 +30,7 @@ import time
 import uuid
 
 from .accounts import AliyunAccount
-from .compat import PY26, pickle, six, builtins, futures
+from .compat import pickle, six, builtins, futures
 from .config import options
 from .errors import NoSuchObject
 from . import utils
@@ -77,7 +77,7 @@ tempobj.host_pid = {host_pid}
 tempobj.ObjectRepositoryLib.biz_ids = set(biz_ids)
 
 for o_desc in temp_codes:
-    ODPS(**tempobj.compat_kwargs(o_desc))
+    ODPS(**o_desc)
 os._exit(0)
 """.lstrip()
 
@@ -153,7 +153,7 @@ class TempObject(object):
         return not self.__eq__(other)
 
     def __getstate__(self):
-        return dict((slot, getattr(self, slot)) for slot in self.__slots__ if hasattr(self, slot))
+        return {slot: getattr(self, slot) for slot in self.__slots__ if hasattr(self, slot)}
 
     def __setstate__(self, state):
         for slot, value in state.items():
@@ -471,13 +471,3 @@ def register_temp_volume_partition(odps, volume_partition_tuple, project=None, s
         TempVolumePartition(v, p, project if project else odps.project, schema=schema or odps.schema)
         for v, p in volume_partition_tuple
     ])
-
-
-def compat_kwargs(kwargs):
-    if PY26:
-        new_desc = dict()
-        for k, v in six.iteritems(kwargs):
-            new_desc[k.encode('utf-8') if isinstance(k, unicode) else k] = v.encode('utf-8')
-        return new_desc
-    else:
-        return kwargs

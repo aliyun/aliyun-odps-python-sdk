@@ -14,10 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.compat import irange
-from odps.tests.core import TestBase, tn
-from odps.tunnel import CompressOption
-from odps.tunnel.volumetunnel import VolumeTunnel
+from collections import namedtuple
+
+import pytest
+
+from ...compat import irange, six
+from ...tests.core import tn
+from .. import CompressOption
+from ..volumetunnel import VolumeTunnel
 
 TEST_PARTED_VOLUME_NAME = tn('pyodps_test_p_volume')
 TEST_FS_VOLUME_NAME = tn('pyodps_test_fs_volume')
@@ -28,123 +32,114 @@ TEST_BLOCK_SIZE = 1048500
 TEST_MODULUS = 251
 
 
-class Test(TestBase):
-    def setUp(self):
-        def wrap_fun(func):
-            def wrapped(self, *args, **kwargs):
-                ret = func(self, *args, **kwargs)
-                repr(ret)
-                return ret
-
-            wrapped.__name__ = func.__name__
-            wrapped.__doc__ = func.__doc__
-            return wrapped
-
-        self._old_create_download_session = VolumeTunnel.create_download_session
-        self._old_create_upload_session = VolumeTunnel.create_upload_session
-
-        VolumeTunnel.create_download_session = wrap_fun(
-            self._old_create_download_session
-        )
-        VolumeTunnel.create_upload_session = wrap_fun(self._old_create_upload_session)
-        super(Test, self).setUp()
-
-    def tearDown(self):
-        if self.odps.exist_volume(TEST_PARTED_VOLUME_NAME):
-            self.odps.delete_volume(TEST_PARTED_VOLUME_NAME)
-        if self.odps.exist_volume(TEST_FS_VOLUME_NAME):
-            self.odps.delete_volume(TEST_FS_VOLUME_NAME)
-        VolumeTunnel.create_download_session = self._old_create_download_session
-        VolumeTunnel.create_upload_session = self._old_create_upload_session
-        super(Test, self).tearDown()
-
-    @staticmethod
-    def _gen_byte_block():
+@pytest.fixture
+def setup(odps):
+    def gen_byte_block():
         return bytes(bytearray([iid % TEST_MODULUS for iid in irange(TEST_BLOCK_SIZE)]))
 
-    def _get_test_partition(self):
-        if self.odps.exist_volume(TEST_PARTED_VOLUME_NAME):
-            self.odps.delete_volume(TEST_PARTED_VOLUME_NAME)
-        self.odps.create_parted_volume(TEST_PARTED_VOLUME_NAME)
-        return self.odps.get_volume_partition(TEST_PARTED_VOLUME_NAME, TEST_PARTITION_NAME)
+    def get_test_partition():
+        if odps.exist_volume(TEST_PARTED_VOLUME_NAME):
+            odps.delete_volume(TEST_PARTED_VOLUME_NAME)
+        odps.create_parted_volume(TEST_PARTED_VOLUME_NAME)
+        return odps.get_volume_partition(TEST_PARTED_VOLUME_NAME, TEST_PARTITION_NAME)
 
-    def _get_test_fs(self):
-        if self.odps.exist_volume(TEST_FS_VOLUME_NAME):
-            self.odps.delete_volume(TEST_FS_VOLUME_NAME)
-        self.odps.create_fs_volume(TEST_FS_VOLUME_NAME)
-        return self.odps.get_volume(TEST_FS_VOLUME_NAME)
+    def get_test_fs():
+        if odps.exist_volume(TEST_FS_VOLUME_NAME):
+            odps.delete_volume(TEST_FS_VOLUME_NAME)
+        odps.create_fs_volume(TEST_FS_VOLUME_NAME)
+        return odps.get_volume(TEST_FS_VOLUME_NAME)
 
-    def testTextUploadDownload(self):
-        text_content = 'Life is short, \r\n Java is tedious.    \n\n\r\nI use PyODPS. \n\n'
-        expect_lines = ['Life is short, \n', ' Java is tedious.    \n', '\n', '\n', 'I use PyODPS. \n', '\n']
+    def wrap_fun(func):
+        @six.wraps(func)
+        def wrapped(self, *args, **kwargs):
+            ret = func(self, *args, **kwargs)
+            repr(ret)
+            return ret
 
-        partition = self._get_test_partition()
-        with partition.open_writer() as writer:
-            writer.write(TEST_FILE_NAME, text_content)
+        return wrapped
 
-        with partition.open_reader(TEST_FILE_NAME) as reader:
-            actual_lines = [line for line in reader]
-            assert expect_lines == actual_lines
+    _old_create_download_session = VolumeTunnel.create_download_session
+    _old_create_upload_session = VolumeTunnel.create_upload_session
 
-    def testRawUploadDownloadGreenlet(self):
-        block = self._gen_byte_block()
+    VolumeTunnel.create_download_session = wrap_fun(
+        _old_create_download_session
+    )
+    VolumeTunnel.create_upload_session = wrap_fun(_old_create_upload_session)
 
-        partition = self._get_test_partition()
-        with partition.open_writer() as writer:
-            writer.write(TEST_FILE_NAME, block)
+    tn = namedtuple("TN", "gen_byte_block, get_test_partition, get_test_fs")
+    try:
+        yield tn(gen_byte_block, get_test_partition, get_test_fs)
+    finally:
+        if odps.exist_volume(TEST_PARTED_VOLUME_NAME):
+            odps.delete_volume(TEST_PARTED_VOLUME_NAME)
+        if odps.exist_volume(TEST_FS_VOLUME_NAME):
+            odps.delete_volume(TEST_FS_VOLUME_NAME)
+        VolumeTunnel.create_download_session = _old_create_download_session
+        VolumeTunnel.create_upload_session = _old_create_upload_session
 
-        with partition.open_reader(TEST_FILE_NAME) as reader:
-            assert reader.read() == block
 
-    def testRawUploadDownloadThread(self):
-        from odps.tunnel import io
-        io._FORCE_THREAD = True
+def test_text_upload_download(odps, setup):
+    text_content = 'Life is short, \r\n Java is tedious.    \n\n\r\nI use PyODPS. \n\n'
+    expect_lines = ['Life is short, \n', ' Java is tedious.    \n', '\n', '\n', 'I use PyODPS. \n', '\n']
 
-        block = self._gen_byte_block()
+    partition = setup.get_test_partition()
+    with partition.open_writer() as writer:
+        writer.write(TEST_FILE_NAME, text_content)
 
-        partition = self._get_test_partition()
-        with partition.open_writer() as writer:
-            writer.write(TEST_FILE_NAME, block)
+    with partition.open_reader(TEST_FILE_NAME) as reader:
+        actual_lines = [line for line in reader]
+        assert expect_lines == actual_lines
 
-        with partition.open_reader(TEST_FILE_NAME) as reader:
-            assert reader.read() == block
 
-    def testZLibUploadDownload(self):
-        block = self._gen_byte_block()
+def test_raw_upload_download(odps, setup):
+    block = setup.gen_byte_block()
 
-        comp_option = CompressOption(level=9)
+    partition = setup.get_test_partition()
+    with partition.open_writer() as writer:
+        writer.write(TEST_FILE_NAME, block)
 
-        partition = self._get_test_partition()
-        with partition.open_writer(compress_option=comp_option) as writer:
-            writer.write(TEST_FILE_NAME, block, compress=True)
+    with partition.open_reader(TEST_FILE_NAME) as reader:
+        assert reader.read() == block
 
-        with partition.open_reader(TEST_FILE_NAME, compress_option=comp_option) as reader:
-            assert reader.read() == block
 
-    def testFSRawUploadDownload(self):
-        block = self._gen_byte_block()
+def test_z_lib_upload_download(odps, setup):
+    block = setup.gen_byte_block()
 
-        vol = self._get_test_fs()
-        with vol.open_writer(TEST_FILE_NAME) as writer:
-            writer.write(block)
+    comp_option = CompressOption(level=9)
 
-        with vol.open_reader(TEST_FILE_NAME) as reader:
-            assert reader.read() == block
+    partition = setup.get_test_partition()
+    with partition.open_writer(compress_option=comp_option) as writer:
+        writer.write(TEST_FILE_NAME, block, compress=True)
 
-    def testFSZLibUploadDownload(self):
-        block = self._gen_byte_block()
+    with partition.open_reader(TEST_FILE_NAME, compress_option=comp_option) as reader:
+        assert reader.read() == block
 
-        comp_option = CompressOption(level=9)
 
-        vol = self._get_test_fs()
-        with vol.open_writer(TEST_FILE_NAME, compress_option=comp_option) as writer:
-            writer.write(block)
+def test_fs_raw_upload_download(odps, setup):
+    block = setup.gen_byte_block()
 
-        with vol.open_reader(TEST_FILE_NAME, compress_option=comp_option) as reader:
-            parts = []
-            while True:
-                b = reader.read(10003)
-                if not b:
-                    break
-                parts.append(b)
-            self.assertEqual(bytes().join(parts), block)
+    vol = setup.get_test_fs()
+    with vol.open_writer(TEST_FILE_NAME) as writer:
+        writer.write(block)
+
+    with vol.open_reader(TEST_FILE_NAME) as reader:
+        assert reader.read() == block
+
+
+def test_fsz_lib_upload_download(odps, setup):
+    block = setup.gen_byte_block()
+
+    comp_option = CompressOption(level=9)
+
+    vol = setup.get_test_fs()
+    with vol.open_writer(TEST_FILE_NAME, compress_option=comp_option) as writer:
+        writer.write(block)
+
+    with vol.open_reader(TEST_FILE_NAME, compress_option=comp_option) as reader:
+        parts = []
+        while True:
+            b = reader.read(10003)
+            if not b:
+                break
+            parts.append(b)
+        assert bytes().join(parts) == block

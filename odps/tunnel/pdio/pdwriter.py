@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..io.stream import RequestsIO, get_compress_stream
+from ..io.stream import get_compress_stream
 from ... import options
 from ...compat import six
 
@@ -26,20 +26,18 @@ except ImportError:
 if BasePandasWriter:
     class TunnelPandasWriter(BasePandasWriter):
         def __init__(self, schema, request_callback, compress_option=None):
-            self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
+            self._req_io = request_callback(options.chunk_size)
             out = get_compress_stream(self._req_io, compress_option)
             super(TunnelPandasWriter, self).__init__(schema, out)
-            self._req_io.start()
+            self._req_io.open()
 
         def write(self, data, columns=None, limit=-1, dim_offsets=None):
-            if self._req_io._async_err:
-                ex_type, ex_value, tb = self._req_io._async_err
-                six.reraise(ex_type, ex_value, tb)
-            super(TunnelPandasWriter, self).write(data, columns=columns, limit=limit,
-                                                  dim_offsets=dim_offsets)
+            super(TunnelPandasWriter, self).write(
+                data, columns=columns, limit=limit, dim_offsets=dim_offsets
+            )
 
         write.__doc__ = BasePandasWriter.write.__doc__
 
         def close(self):
             super(TunnelPandasWriter, self).close()
-            self._req_io.finish()
+            self._req_io.close()

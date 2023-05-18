@@ -16,10 +16,9 @@
 
 import json
 
-import requests
-
 from ..compat import ElementTree as ET, TimeoutError
 from ..errors import ODPSError
+from ..lib import requests
 
 
 class TunnelError(ODPSError):

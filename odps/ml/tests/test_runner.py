@@ -13,17 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.ml.tests.base import MLTestBase
-from odps.ml.runners import BaseNodeRunner
+from ..runners import BaseNodeRunner
 
 
-class Test(MLTestBase):
-    def testParamFormat(self):
-        self.assertEqual(BaseNodeRunner._format_value(None), None)
-        self.assertEqual(BaseNodeRunner._format_value(True), 'true')
-        self.assertEqual(BaseNodeRunner._format_value(False), 'false')
-        self.assertEqual(BaseNodeRunner._format_value(''), '')
-        self.assertEqual(BaseNodeRunner._format_value([]), None)
-        self.assertEqual(BaseNodeRunner._format_value([1, 2, 3, 4]), '1,2,3,4')
-        self.assertEqual(BaseNodeRunner._format_value(set([1, 2, 3, 4])), '1,2,3,4')
-        self.assertEqual(BaseNodeRunner._format_value(12), '12')
+def test_param_format():
+    assert BaseNodeRunner._format_value(None) == None
+    assert BaseNodeRunner._format_value(True) == 'true'
+    assert BaseNodeRunner._format_value(False) == 'false'
+    assert BaseNodeRunner._format_value('') == ''
+    assert BaseNodeRunner._format_value([]) == None
+    assert BaseNodeRunner._format_value([1, 2, 3, 4]) == '1,2,3,4'
+    assert BaseNodeRunner._format_value(set([1, 2, 3, 4])) == '1,2,3,4'
+    assert BaseNodeRunner._format_value(12) == '12'

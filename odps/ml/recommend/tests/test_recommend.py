@@ -15,10 +15,12 @@
 
 from __future__ import print_function
 
-from odps.config import options
-from odps.df import DataFrame
-from odps.ml.recommend import *
-from odps.ml.tests.base import MLTestBase, tn
+import pytest
+
+from ....config import options
+from ....df import DataFrame
+from ...recommend import *
+from ...tests.base import MLTestUtil, tn
 
 USER_ITEM_TABLE = tn('pyodps_test_ml_user_item_table')
 USER_ITEM_PAYLOAD_TABLE = tn('pyodps_test_ml_user_item_payload_table')
@@ -30,18 +32,20 @@ SVDCF_RESULT_TABLE = tn('pyodps_test_ml_svd_cf_result')
 SVDCF_RECOMMEND_TABLE = tn('pyodps_test_ml_svd_cf_rec')
 
 
-class TestRecommend(MLTestBase):
-    def setUp(self):
-        super(TestRecommend, self).setUp()
-        options.ml.dry_run = True
+@pytest.fixture
+def utils(odps, tunnel):
+    util = MLTestUtil(odps, tunnel)
+    options.ml.dry_run = True
+    return util
 
-    def test_etrec(self):
-        self.create_user_item_table(USER_ITEM_PAYLOAD_TABLE, mode='agg')
-        ds = DataFrame(self.odps.get_table(USER_ITEM_PAYLOAD_TABLE)) \
-            .roles(rec_user_id='user', rec_item='item', rec_payload='payload')
-        result = Etrec().transform(ds)._add_case(self.gen_check_params_case(
-            {'itemDelimiter': ',', 'maxUserBehavior': '500', 'weight': '1.0',
-             'inputTableName': USER_ITEM_PAYLOAD_TABLE, 'minUserBehavior': '2', 'topN': '2000',
-             'outputTableName': ETREC_RESULT_TABLE, 'kvDelimiter': ':', 'inputTableFormat': 'user-item',
-             'operator': 'add', 'alpha': '0.5', 'similarityType': 'wbcosine', 'selectedColNames': 'user,item,payload'}))
-        result.persist(ETREC_RESULT_TABLE)
+
+def test_etrec(odps, utils):
+    utils.create_user_item_table(USER_ITEM_PAYLOAD_TABLE, mode='agg')
+    ds = DataFrame(odps.get_table(USER_ITEM_PAYLOAD_TABLE)) \
+        .roles(rec_user_id='user', rec_item='item', rec_payload='payload')
+    result = Etrec().transform(ds)._add_case(utils.gen_check_params_case(
+        {'itemDelimiter': ',', 'maxUserBehavior': '500', 'weight': '1.0',
+         'inputTableName': USER_ITEM_PAYLOAD_TABLE, 'minUserBehavior': '2', 'topN': '2000',
+         'outputTableName': ETREC_RESULT_TABLE, 'kvDelimiter': ':', 'inputTableFormat': 'user-item',
+         'operator': 'add', 'alpha': '0.5', 'similarityType': 'wbcosine', 'selectedColNames': 'user,item,payload'}))
+    result.persist(ETREC_RESULT_TABLE)

@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.models.tenant import Tenant
-from odps.tests.core import TestBase
+from ..tenant import Tenant
 
 
-class Test(TestBase):
-    def testTenantProps(self):
-        tenant = Tenant(client=self.odps_with_schema.rest)
-        assert not tenant._getattr("_loaded")
-        assert tenant.name is not None
-        assert tenant._getattr("_loaded")
-        assert tenant.get_parameter("prop-key") is None
+def test_tenant_props(odps_with_schema):
+    tenant = Tenant(client=odps_with_schema.rest)
+    assert not tenant._getattr("_loaded")
+    assert tenant.name is not None
+    assert tenant._getattr("_loaded")
+    assert tenant.get_parameter("prop-key") is None

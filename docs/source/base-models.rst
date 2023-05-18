@@ -40,14 +40,29 @@ XFlow 的一个 Instance 包含若干个子 Instance，需要使用下面的方�
 
 需要注意的是，``get_xflow_sub_instances`` 返回的是 Instance 当前的子 Instance，可能会随时间变化，因而可能需要定时查询。
 为简化这一步骤，可以使用 ``iter_xflow_sub_instances 方法``。该方法返回一个迭代器，会阻塞执行直至发现新的子 Instance
-或者主 Instance 结束：
+或者主 Instance 结束。同时需要注意的是， ``iter_xflow_sub_instances`` 默认不会检查 Instance 是否报错，建议在循环结束时手动检查
+Instance 是否报错，以免遗漏可能的问题，或者增加 ``check=True`` 参数在 ``iter_xflow_sub_instances`` 退出时自动检查：
 
 .. code-block:: python
 
     >>> # 此处建议使用异步调用
     >>> inst = o.run_xflow('AlgoName', 'algo_public',
                            parameters={'param1': 'param_value1', 'param2': 'param_value2', ...})
-    >>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):  # 此处将等待
+    >>> # 如果循环中没有 break，该循环会执行到 instance 退出
+    >>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst):
+    >>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))
+    >>> # 手动检查 instance 是否成功，以避免遗漏 instance 报错
+    >>> instance.wait_for_success()
+
+或者
+
+.. code-block:: python
+
+    >>> # 此处建议使用异步调用
+    >>> inst = o.run_xflow('AlgoName', 'algo_public',
+                           parameters={'param1': 'param_value1', 'param2': 'param_value2', ...})
+    >>> # 增加 check=True，在循环结束时自动检查报错。如果循环中 break，instance 错误不会被抛出
+    >>> for sub_inst_name, sub_inst in o.iter_xflow_sub_instances(inst, check=True):
     >>>     print('%s: %s' % (sub_inst_name, sub_inst.get_logview_address()))
 
 在调用 run_xflow 或者 execute_xflow 时，也可以指定运行参数，指定的方法与 SQL 类似：

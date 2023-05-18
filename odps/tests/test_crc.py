@@ -14,48 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps.compat import unittest, reload_module
-from odps import crc as _crc
-from odps.config import option_context
+from .. import crc
+from ..tests.core import py_and_c
 
 
-def bothPyAndC(func):
-    def inner(self, *args, **kwargs):
-        try:
-            import cython  # noqa: F401
-
-            ts = 'py', 'c'
-        except ImportError:
-            ts = 'py',
-            import warnings
-            warnings.warn('No c code tests for crc32c')
-        for t in ts:
-            with option_context() as options:
-                setattr(options, 'force_{0}'.format(t), True)
-
-                reload_module(_crc)
-
-                if t == 'py':
-                    self.assertEqual(_crc.Crc32c._method, t)
-                else:
-                    self.assertFalse(hasattr(_crc.Crc32c, '_method'))
-                func(self, *args, **kwargs)
-    return inner
-
-
-class Test(TestBase):
-    @bothPyAndC
-    def testCrc32c(self):
-        crc = _crc.Crc32c()
-        self.assertEqual(0, crc.getvalue())
-        buf = bytearray(b'abc')
-        crc.update(buf)
-        self.assertEqual(910901175, crc.getvalue())
-        buf = bytearray(b'1111111111111111111')
-        crc.update(buf)
-        self.assertEqual(2917307201, crc.getvalue())
-
-
-if __name__ == '__main__':
-    unittest.main()
+@py_and_c("odps.crc")
+def test_crc32c():
+    crc_obj = crc.Crc32c()
+    assert 0 == crc_obj.getvalue()
+    buf = bytearray(b'abc')
+    crc_obj.update(buf)
+    assert 910901175 == crc_obj.getvalue()
+    buf = bytearray(b'1111111111111111111')
+    crc_obj.update(buf)
+    assert 2917307201 == crc_obj.getvalue()

@@ -13,12 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
+import cython
+from cpython.datetime cimport import_datetime
 from libc.stdint cimport *
 from libc.string cimport *
+from libcpp.vector cimport vector
 
 from ...src.types_c cimport BaseRecord, SchemaSnapshot
 from ..checksum_c cimport Checksum
-from ..pb.encoder_c cimport Encoder
+from ..pb.encoder_c cimport CEncoder
 
 from ... import types, compat, utils
 from ...compat import six
@@ -54,30 +59,55 @@ cdef:
     int64_t INTERVAL_YEAR_MONTH_TYPE_ID = types.interval_year_month._type_id
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
 
+import_datetime()
+
+cdef vector[int] data_type_to_wired_type
+
+data_type_to_wired_type.resize(128, -1)
+data_type_to_wired_type[BOOL_TYPE_ID] = WIRETYPE_VARINT
+data_type_to_wired_type[DATETIME_TYPE_ID] = WIRETYPE_VARINT
+data_type_to_wired_type[DATE_TYPE_ID] = WIRETYPE_VARINT
+data_type_to_wired_type[BIGINT_TYPE_ID] = WIRETYPE_VARINT
+data_type_to_wired_type[INTERVAL_YEAR_MONTH_TYPE_ID] = WIRETYPE_VARINT
+data_type_to_wired_type[FLOAT_TYPE_ID] = WIRETYPE_FIXED32
+data_type_to_wired_type[DOUBLE_TYPE_ID] = WIRETYPE_FIXED64
+data_type_to_wired_type[STRING_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[BINARY_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[DECIMAL_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[TIMESTAMP_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[INTERVAL_DAY_TIME_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+
 
 cdef class ProtobufRecordWriter:
 
     def __init__(self, object output, buffer_size=None):
         self.DEFAULT_BUFFER_SIZE = 4096
-        self._encoder = Encoder()
         self._output = output
         self._n_total = 0
         self._buffer_size = buffer_size or self.DEFAULT_BUFFER_SIZE
+        self._encoder = CEncoder(self._buffer_size)
+        self._last_flush_time = int(time.time())
 
     cpdef _re_init(self, output):
-        self._encoder = Encoder()
+        self._encoder = CEncoder(self._buffer_size)
         self._output = output
         self._n_total = 0
+        self._last_flush_time = int(time.time())
 
     def _mode(self):
         return 'c'
 
+    @property
+    def last_flush_time(self):
+        return self._last_flush_time
+
     cpdef flush(self):
-        if len(self._encoder) > 0:
+        if self._encoder.position() > 0:
             data = self._encoder.tostring()
             self._output.write(data)
-            self._n_total += len(self._encoder)
-            self._encoder = Encoder()
+            self._n_total += self._encoder.position()
+            self._encoder = CEncoder(self._buffer_size)
+            self._last_flush_time = int(time.time())
 
     cpdef close(self):
         self.flush_all()
@@ -93,49 +123,41 @@ cdef class ProtobufRecordWriter:
 
     @property
     def n_bytes(self):
-        return self._n_total + len(self._encoder)
+        return self._n_total + self._encoder.position()
 
     def __len__(self):
         return self.n_bytes
 
-    cpdef int _write_tag(self, int field_num, int wire_type) except -1:
-        self._encoder.append_tag(field_num, wire_type)
-        self._refresh_buffer()
+    cdef int _write_tag(self, int field_num, int wire_type) nogil except +:
+        return self._encoder.append_tag(field_num, wire_type)
 
-    cpdef int _write_raw_long(self, int64_t val) except -1:
-        self._encoder.append_sint64(val)
-        self._refresh_buffer()
+    cdef int _write_raw_long(self, int64_t val) nogil except +:
+        return self._encoder.append_sint64(val)
 
-    cpdef int _write_raw_int(self, int32_t val) except -1:
-        self._encoder.append_sint32(val)
-        self._refresh_buffer()
+    cdef int _write_raw_int(self, int32_t val) nogil except +:
+        return self._encoder.append_sint32(val)
 
-    cpdef int _write_raw_uint(self, uint32_t val) except -1:
-        self._encoder.append_uint32(val)
-        self._refresh_buffer()
+    cdef int _write_raw_uint(self, uint32_t val) nogil except +:
+        return self._encoder.append_uint32(val)
 
-    cpdef int _write_raw_bool(self, bint val) except -1:
-        self._encoder.append_bool(val)
-        self._refresh_buffer()
+    cdef int _write_raw_bool(self, bint val) nogil except +:
+        return self._encoder.append_bool(val)
 
-    cpdef int _write_raw_float(self, float val) except -1:
-        self._encoder.append_float(val)
-        self._refresh_buffer()
+    cdef int _write_raw_float(self, float val) nogil except +:
+        return self._encoder.append_float(val)
 
-    cpdef int _write_raw_double(self, double val) except -1:
-        self._encoder.append_double(val)
-        self._refresh_buffer()
+    cdef int _write_raw_double(self, double val) nogil except +:
+        return self._encoder.append_double(val)
 
-    cpdef int _write_raw_string(self, bytes val) except -1:
-        self._encoder.append_string(val)
-        self._refresh_buffer()
+    cdef int _write_raw_string(self, const char *ptr, uint32_t size) nogil except +:
+        return self._encoder.append_string(ptr, size)
 
 
 cdef class BaseRecordWriter(ProtobufRecordWriter):
 
     def __init__(self, object schema, object out, encoding='utf-8'):
-
         self._encoding = encoding
+        self._is_utf8 = encoding == "utf-8"
         self._schema = schema
         self._columns = self._schema.columns
         self._schema_snapshot = self._schema.build_snapshot()
@@ -185,20 +207,8 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
 
             data_type_id = self._schema_snapshot._col_type_ids[i]
             data_type = None
-            if data_type_id == BOOL_TYPE_ID or data_type_id == DATETIME_TYPE_ID \
-                    or data_type_id == DATE_TYPE_ID or data_type_id == BIGINT_TYPE_ID or \
-                    data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
-                self._write_tag(pb_index, WIRETYPE_VARINT)
-            elif data_type_id == FLOAT_TYPE_ID:
-                self._write_tag(pb_index, WIRETYPE_FIXED32)
-            elif data_type_id == DOUBLE_TYPE_ID:
-                self._write_tag(pb_index, WIRETYPE_FIXED64)
-            elif data_type_id == STRING_TYPE_ID or data_type_id == BINARY_TYPE_ID:
-                self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
-            elif data_type_id == DECIMAL_TYPE_ID:
-                self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
-            elif data_type_id == TIMESTAMP_TYPE_ID or data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
-                self._write_tag(pb_index, WIRETYPE_LENGTH_DELIMITED)
+            if data_type_id >= 0 and data_type_to_wired_type[data_type_id] != -1:
+                self._write_tag(pb_index, data_type_to_wired_type[data_type_id])
             else:
                 data_type = self._schema_snapshot._col_types[i]
                 if isinstance(data_type, (types.Array, types.Map, types.Struct)):
@@ -208,49 +218,59 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
 
             self._write_field(val, data_type_id, data_type)
 
+        self._refresh_buffer()
+
         checksum = <int32_t>self._crc_c.getvalue()
         self._write_tag(WIRE_TUNNEL_END_RECORD, WIRETYPE_VARINT)
         self._write_raw_uint(<uint32_t>checksum)
-        self._crc_c.reset()
+        self._crc_c.c_reset()
         self._crccrc_c.c_update_int(checksum)
         self._curr_cursor_c += 1
 
-    cpdef _write_bool(self, bint data):
+    cdef void _write_bool(self, bint data) nogil except +:
         self._crc_c.c_update_bool(data)
         self._write_raw_bool(data)
 
-    cpdef _write_long(self, int64_t data):
+    cdef void _write_long(self, int64_t data) nogil except +:
         self._crc_c.c_update_long(data)
         self._write_raw_long(data)
 
-    cpdef _write_float(self, float data):
+    cdef void _write_float(self, float data) nogil except +:
         self._crc_c.c_update_float(data)
         self._write_raw_float(data)
 
-    cpdef _write_double(self, double data):
+    cdef void _write_double(self, double data) nogil except +:
         self._crc_c.c_update_double(data)
         self._write_raw_double(data)
 
-    cpdef _write_string(self, object data):
-        if isinstance(data, unicode):
-            data = data.encode(self._encoding)
-        self._crc_c.update(data)
-        self._write_raw_string(data)
+    @cython.nonecheck(False)
+    cdef _write_string(self, object data):
+        cdef bytes bdata
+        if type(data) is bytes:
+            bdata = data
+        elif self._is_utf8 and type(data) is unicode:
+            bdata = (<unicode> data).encode("utf-8")
+        elif isinstance(data, unicode):
+            bdata = data.encode(self._encoding)
+        else:
+            bdata = bytes(data)
+        self._crc_c.c_update(bdata, len(bdata))
+        self._write_raw_string(bdata, len(bdata))
 
-    cpdef _write_timestamp(self, object data):
+    cdef _write_timestamp(self, object data):
         cdef:
             object py_datetime = data.to_pydatetime(warn=False)
             long l_val
             int nanosecs
 
-        l_val = self._mills_converter.to_milliseconds(py_datetime) / 1000
+        l_val = self._mills_converter.to_milliseconds(py_datetime) // 1000
         nanosecs = data.microsecond * 1000 + data.nanosecond
         self._crc_c.c_update_long(l_val)
         self._write_raw_long(l_val)
         self._crc_c.c_update_int(nanosecs)
         self._write_raw_int(nanosecs)
 
-    cpdef _write_interval_day_time(self, object data):
+    cdef _write_interval_day_time(self, object data):
         cdef:
             long l_val
             int nanosecs
@@ -262,28 +282,28 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._crc_c.c_update_int(nanosecs)
         self._write_raw_int(nanosecs)
 
-    cpdef _write_field(self, object val, int data_type_id, object data_type):
+    cdef _write_field(self, object val, int data_type_id, object data_type):
         cdef int64_t l_val
 
-        if data_type_id == BOOL_TYPE_ID:
+        if data_type_id == BIGINT_TYPE_ID:
+            self._write_long(val)
+        elif data_type_id == STRING_TYPE_ID:
+            self._write_string(val)
+        elif data_type_id == DOUBLE_TYPE_ID:
+            self._write_double(val)
+        elif data_type_id == FLOAT_TYPE_ID:
+            self._write_float(val)
+        elif data_type_id == DECIMAL_TYPE_ID:
+            self._write_string(str(val))
+        elif data_type_id == BINARY_TYPE_ID:
+            self._write_string(val)
+        elif data_type_id == BOOL_TYPE_ID:
             self._write_bool(val)
         elif data_type_id == DATETIME_TYPE_ID:
             l_val = self._mills_converter.to_milliseconds(val)
             self._write_long(l_val)
         elif data_type_id == DATE_TYPE_ID:
             self._write_long(self._to_days(val))
-        elif data_type_id == STRING_TYPE_ID:
-            self._write_string(val)
-        elif data_type_id == FLOAT_TYPE_ID:
-            self._write_float(val)
-        elif data_type_id == DOUBLE_TYPE_ID:
-            self._write_double(val)
-        elif data_type_id == BIGINT_TYPE_ID:
-            self._write_long(val)
-        elif data_type_id == DECIMAL_TYPE_ID:
-            self._write_string(str(val))
-        elif data_type_id == BINARY_TYPE_ID:
-            self._write_string(val)
         elif data_type_id == TIMESTAMP_TYPE_ID:
             self._write_timestamp(val)
         elif data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
@@ -304,7 +324,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             else:
                 raise IOError('Invalid data type: %s' % data_type)
 
-    cpdef _write_array(self, object data, object data_type):
+    cdef _write_array(self, object data, object data_type):
         cdef int data_type_id = data_type._type_id
         for value in data:
             if value is None:
@@ -313,7 +333,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
                 self._write_raw_bool(False)
                 self._write_field(value, data_type_id, data_type)
 
-    cpdef _write_struct(self, object data, object data_type):
+    cdef _write_struct(self, object data, object data_type):
         for key, value in six.iteritems(data):
             if value is None:
                 self._write_raw_bool(True)
@@ -334,11 +354,14 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     def _curr_cursor(self, value):
         self._curr_cursor_c = value
 
-    cpdef close(self):
+    cpdef _write_finish_tags(self):
         self._write_tag(WIRE_TUNNEL_META_COUNT, WIRETYPE_VARINT)
-        self._write_raw_long(self.count)
+        self._write_raw_long(self._curr_cursor_c)
         self._write_tag(WIRE_TUNNEL_META_CHECKSUM, WIRETYPE_VARINT)
-        self._write_raw_uint(<uint32_t>self._crccrc_c.getvalue())
+        self._write_raw_uint(<uint32_t>self._crccrc_c.c_getvalue())
+
+    cpdef close(self):
+        self._write_finish_tags()
         super(BaseRecordWriter, self).close()
         self._curr_cursor_c = 0
 

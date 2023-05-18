@@ -14,109 +14,112 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import random
 try:
     from string import letters
 except ImportError:
     from string import ascii_letters as letters
-import itertools
+
+import pytest
 try:
     import pandas
 except ImportError:
     pandas = None
 
-from odps.tests.core import to_str
-from odps.compat import unittest, Version
-from odps.df.backends.tests.core import TestBase
-from odps.df.backends.frame import ResultFrame
-from odps.df.types import validate_data_type, int64
-from odps.df.backends.odpssql.types import df_schema_to_odps_schema
-from odps.df.expr.expressions import CollectionExpr
-from odps.df.expr.tests.core import MockTable
-from odps.df.expr.groupby import GroupByCollectionExpr
-from odps.df.backends.engine import MixedEngine
-from odps.df.backends.formatter import ExprExecutionGraphFormatter
-from odps.models import TableSchema, Record
+from ....compat import Version
+from ....models import TableSchema, Record
+from ....utils import to_text
+from ...expr.expressions import CollectionExpr
+from ...expr.tests.core import MockTable
+from ...expr.groupby import GroupByCollectionExpr
+from ...types import validate_data_type
+from ..tests.core import NumGenerators
+from ..frame import ResultFrame
+from ..odpssql.types import df_schema_to_odps_schema
+from ..engine import MixedEngine
+from ..formatter import ExprExecutionGraphFormatter
 
 
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        self.schema = TableSchema.from_lists(['name', 'id', 'fid', 'dt'],
-                                        datatypes('string', 'int64', 'float64', 'datetime'))
-
-    def _random_values(self):
-        values = [self._gen_random_string() if random.random() >= 0.05 else None,
-                  self._gen_random_bigint(),
-                  self._gen_random_double() if random.random() >= 0.05 else None,
-                  self._gen_random_datetime() if random.random() >= 0.05 else None]
-        schema = df_schema_to_odps_schema(self.schema)
-        return Record(schema=schema, values=values)
-
-    @unittest.skipIf(not pandas, 'Pandas not installed')
-    def testSmallRowsFormatter(self):
-        data = [self._random_values() for _ in range(10)]
-        data[-1][0] = None
-        pd = ResultFrame(data=data, schema=self.schema, pandas=True)
-        result = ResultFrame(data=data, schema=self.schema, pandas=False)
-        self.assertEqual(to_str(repr(pd)), to_str(repr(result)))
-        self.assertEqual(to_str(pd._repr_html_()), to_str(result._repr_html_()))
-
-        self.assertEqual(result._values, [r for r in result])
-
-    @unittest.skipIf(not pandas or Version(pandas.__version__) >= Version('0.20'),
-                     'Pandas not installed or version too new')
-    def testLargeRowsFormatter(self):
-        data = [self._random_values() for _ in range(1000)]
-        pd = ResultFrame(data=data, schema=self.schema, pandas=True)
-        result = ResultFrame(data=data, schema=self.schema, pandas=False)
-        self.assertEqual(to_str(repr(pd)), to_str(repr(result)))
-        self.assertEqual(to_str(pd._repr_html_()), to_str(result._repr_html_()))
-
-    @unittest.skipIf(not pandas or Version(pandas.__version__) >= Version('0.20'),
-                     'Pandas not installed or version too new')
-    def testLargeColumnsFormatter(self):
-        names = list(itertools.chain(*[[name + str(i) for name in self.schema.names] for i in range(10)]))
-        types = self.schema.types * 10
-
-        schema = TableSchema.from_lists(names, types)
-        gen_row = lambda: list(itertools.chain(*(self._random_values().values for _ in range(10))))
-        data = [Record(schema=df_schema_to_odps_schema(schema), values=gen_row()) for _ in range(10)]
-
-        pd = ResultFrame(data=data, schema=schema, pandas=True)
-        result = ResultFrame(data=data, schema=schema, pandas=False)
-
-        self.assertEqual(to_str(repr(pd)), to_str(repr(result)))
-        self.assertEqual(to_str(pd._repr_html_()), to_str(result._repr_html_()))
-
-    def testSVGFormatter(self):
-        t = MockTable(
-            name='pyodps_test_svg', table_schema=self.schema, _client=self.odps.rest
-        )
-        expr = CollectionExpr(_source_data=t, _schema=self.schema)
-
-        expr1 = expr.groupby('name').agg(id=expr['id'].sum())
-        expr2 = expr1['name', expr1.id + 3]
-
-        engine = MixedEngine(self.odps)
-        dag = engine.compile(expr2)
-        nodes = dag.nodes()
-        self.assertEqual(len(nodes), 1)
-        expr3 = nodes[0].expr
-        self.assertIsInstance(expr3, GroupByCollectionExpr)
-        dot = ExprExecutionGraphFormatter(dag)._to_dot()
-        self.assertNotIn('Projection', dot)
-
-        expr1 = expr.groupby('name').agg(id=expr['id'].sum()).cache()
-        expr2 = expr1['name', expr1.id + 3]
-
-        engine = MixedEngine(self.odps)
-        dag = engine.compile(expr2)
-        nodes = dag.nodes()
-        self.assertEqual(len(nodes), 2)
-        dot = ExprExecutionGraphFormatter(dag)._to_dot()
-        self.assertIn('Projection', dot)
+@pytest.fixture
+def schema():
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    return TableSchema.from_lists(['name', 'id', 'fid', 'dt'],
+                                  datatypes('string', 'int64', 'float64', 'datetime'))
 
 
-if __name__ == '__main__':
-    unittest.main()
+def _random_values(schema):
+    values = [NumGenerators.gen_random_string() if random.random() >= 0.05 else None,
+              NumGenerators.gen_random_bigint(),
+              NumGenerators.gen_random_double() if random.random() >= 0.05 else None,
+              NumGenerators.gen_random_datetime() if random.random() >= 0.05 else None]
+    schema = df_schema_to_odps_schema(schema)
+    return Record(schema=schema, values=values)
+
+
+@pytest.mark.skipif(not pandas, reason='Pandas not installed')
+def test_small_rows_formatter(odps, schema):
+    data = [_random_values(schema) for _ in range(10)]
+    data[-1][0] = None
+    pd = ResultFrame(data=data, schema=schema, pandas=True)
+    result = ResultFrame(data=data, schema=schema, pandas=False)
+    assert to_text(repr(pd)) == to_text(repr(result))
+    assert to_text(pd._repr_html_()) == to_text(result._repr_html_())
+
+    assert result._values == [r for r in result]
+
+
+@pytest.mark.skipif(not pandas or Version(pandas.__version__) >= Version('0.20'),
+                    reason='Pandas not installed or version too new')
+def test_large_rows_formatter(schema):
+    data = [_random_values(schema) for _ in range(1000)]
+    pd = ResultFrame(data=data, schema=schema, pandas=True)
+    result = ResultFrame(data=data, schema=schema, pandas=False)
+    assert to_text(repr(pd)) == to_text(repr(result))
+    assert to_text(pd._repr_html_()) == to_text(result._repr_html_())
+
+
+@pytest.mark.skipif(not pandas or Version(pandas.__version__) >= Version('0.20'),
+                    reason='Pandas not installed or version too new')
+def test_large_columns_formatter(schema):
+    names = list(itertools.chain(*[[name + str(i) for name in schema.names] for i in range(10)]))
+    types = schema.types * 10
+
+    schema = TableSchema.from_lists(names, types)
+    gen_row = lambda: list(itertools.chain(*(_random_values(schema).values for _ in range(10))))
+    data = [Record(schema=df_schema_to_odps_schema(schema), values=gen_row()) for _ in range(10)]
+
+    pd = ResultFrame(data=data, schema=schema, pandas=True)
+    result = ResultFrame(data=data, schema=schema, pandas=False)
+
+    assert to_text(repr(pd)) == to_text(repr(result))
+    assert to_text(pd._repr_html_()) == to_text(result._repr_html_())
+
+
+def test_svg_formatter(odps, schema):
+    t = MockTable(
+        name='pyodps_test_svg', table_schema=schema, _client=odps.rest
+    )
+    expr = CollectionExpr(_source_data=t, _schema=schema)
+
+    expr1 = expr.groupby('name').agg(id=expr['id'].sum())
+    expr2 = expr1['name', expr1.id + 3]
+
+    engine = MixedEngine(odps)
+    dag = engine.compile(expr2)
+    nodes = dag.nodes()
+    assert len(nodes) == 1
+    expr3 = nodes[0].expr
+    assert isinstance(expr3, GroupByCollectionExpr)
+    dot = ExprExecutionGraphFormatter(dag)._to_dot()
+    assert 'Projection' not in dot
+
+    expr1 = expr.groupby('name').agg(id=expr['id'].sum()).cache()
+    expr2 = expr1['name', expr1.id + 3]
+
+    engine = MixedEngine(odps)
+    dag = engine.compile(expr2)
+    nodes = dag.nodes()
+    assert len(nodes) == 2
+    dot = ExprExecutionGraphFormatter(dag)._to_dot()
+    assert 'Projection' in dot

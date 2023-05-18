@@ -15,13 +15,14 @@
 import mmap
 import os
 import tempfile
+from collections import OrderedDict
 from urllib.parse import urlparse
 
 import numpy as np
 from mars.lib.filesystem import FileSystem
 
 from ...core import ODPS
-from ...compat import futures, BytesIO, OrderedDict
+from ...compat import futures, BytesIO
 from ...errors import NoSuchObject
 from ...tunnel.volumetunnel import VolumeTunnel
 from ...utils import to_binary, to_str

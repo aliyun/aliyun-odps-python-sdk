@@ -18,9 +18,8 @@ from __future__ import absolute_import
 
 import itertools
 import weakref
-from collections import deque, defaultdict
+from collections import deque, defaultdict, OrderedDict
 
-from ... import compat
 from ...compat import six, Iterable
 from ...dag import DAG, Queue
 from . import utils
@@ -37,7 +36,7 @@ class NodeMetaclass(type):
                     list(kv.get('_slots', []))
             args = kv.get('_args', [])
             slots.extend(args)
-            slots = compat.OrderedDict.fromkeys(slots)
+            slots = OrderedDict.fromkeys(slots)
 
             kv['__slots__'] = tuple(slot for slot in slots if slot not in kv)
 

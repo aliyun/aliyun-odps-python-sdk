@@ -22,18 +22,9 @@ from ... import errors, compat, options
 from ...compat import Enum, six
 from ..errors import TunnelError
 
-try:
-    from urllib3.exceptions import ReadTimeoutError
-except ImportError:
-    from requests import ReadTimeout as ReadTimeoutError
+from urllib3.exceptions import ReadTimeoutError
 
-# used for test case to force thread io
-_FORCE_THREAD = False
-
-if compat.PY26:
-    memoryview = bytearray
-    mv_to_bytes = bytes
-elif compat.LESS_PY32:
+if compat.LESS_PY32:
     mv_to_bytes = lambda v: bytes(bytearray(v))
 else:
     mv_to_bytes = bytes
@@ -49,118 +40,6 @@ else:
         if not isinstance(v, memoryview):
             v = memoryview(v)
         return v
-
-
-class RequestsIO(object):
-    CHUNK_SIZE = 64 * 1024
-
-    def __new__(cls, *args, **kwargs):
-        if cls is RequestsIO:
-            if not isinstance(threading.current_thread(), threading._MainThread) or _FORCE_THREAD:
-                return object.__new__(ThreadRequestsIO)
-            elif GreenletRequestsIO is not None:
-                return object.__new__(GreenletRequestsIO)
-            else:
-                return object.__new__(ThreadRequestsIO)
-        else:
-            return object.__new__(cls)
-
-    def __init__(self, post_call, chunk_size=None):
-        self._queue = None
-        self._resp = None
-        self._async_err = None
-        self._chunk_size = chunk_size or self.CHUNK_SIZE
-
-        def async_func():
-            try:
-                self._resp = post_call(self.data_generator())
-            except:
-                self._async_err = sys.exc_info()
-            self._wait_obj = None
-
-        self._async_func = async_func
-        self._wait_obj = None
-
-    def data_generator(self):
-        while True:
-            data = self.get()
-            if data is not None:
-                while data:
-                    to_send = data[:self._chunk_size]
-                    data = data[self._chunk_size:]
-                    yield to_send
-            else:
-                break
-
-    def start(self):
-        pass
-
-    def get(self):
-        return self._queue.get()
-
-    def put(self, data):
-        self._queue.put(data)
-
-    def write(self, data):
-        if self._async_err is not None:
-            ex_type, ex_value, tb = self._async_err
-            six.reraise(ex_type, ex_value, tb)
-        self.put(data)
-
-    def flush(self):
-        pass
-
-    def finish(self):
-        self.put(None)
-        if self._wait_obj and self._wait_obj.is_alive():
-            self._wait_obj.join()
-        if self._async_err is None:
-            return self._resp
-        else:
-            ex_type, ex_value, tb = self._async_err
-            six.reraise(ex_type, ex_value, tb)
-
-
-class ThreadRequestsIO(RequestsIO):
-    def __init__(self, post_call, chunk_size=None):
-        super(ThreadRequestsIO, self).__init__(post_call, chunk_size)
-        from ...compat import Queue
-        self._queue = Queue()
-        self._wait_obj = threading.Thread(target=self._async_func)
-        self._wait_obj.daemon = True
-
-    def start(self):
-        self._wait_obj.start()
-
-    if bytearray is not memoryview:
-        def write(self, data):
-            # copy in case data is memoryview
-            data_view = memoryview(bytearray(data))
-            return super(ThreadRequestsIO, self).write(data_view)
-
-
-try:
-    from greenlet import greenlet
-
-    class GreenletRequestsIO(RequestsIO):
-        def __init__(self, post_call, chunk_size=None):
-            super(GreenletRequestsIO, self).__init__(post_call, chunk_size)
-            self._cur_greenlet = greenlet.getcurrent()
-            self._writer_greenlet = greenlet(self._async_func)
-            self._last_data = None
-            self._writer_greenlet.switch()
-
-        def get(self):
-            self._cur_greenlet.switch()
-            return self._last_data
-
-        def put(self, data):
-            self._last_data = data
-            # handover control
-            self._writer_greenlet.switch()
-
-except ImportError:
-    GreenletRequestsIO = None
 
 
 class CompressOption(object):

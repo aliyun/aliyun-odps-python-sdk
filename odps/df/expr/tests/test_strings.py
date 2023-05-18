@@ -14,186 +14,182 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.tests.core import TestBase
-from odps.compat import unittest
-from odps.models import TableSchema
-from odps.df.types import validate_data_type
-from odps.df.expr.tests.core import MockTable
-from odps.df.expr.expressions import *
-from odps.df.expr.strings import *
+import pytest
+
+from ....models import TableSchema
+from ...types import validate_data_type
+from ..tests.core import MockTable
+from ..expressions import *
+from ..strings import *
 
 
-class Test(TestBase):
-    def setup(self):
-        datatypes = lambda *types: [validate_data_type(t) for t in types]
-        schema = TableSchema.from_lists(
-            ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-            datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
-        )
-        table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+@pytest.fixture
+def src_expr():
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
 
-        self.expr = CollectionExpr(_source_data=table, _schema=schema)
-
-    def testStrings(self):
-        self.assertRaises(AttributeError, lambda: self.expr.id.strip())
-        self.assertRaises(AttributeError, lambda: self.expr.fid.upper())
-        self.assertRaises(AttributeError, lambda: self.expr.isMale.lower())
-        self.assertRaises(AttributeError, lambda: self.expr.scale.repeat(3))
-        self.assertRaises(AttributeError, lambda: self.expr.birth.len())
-
-        self.assertIsInstance(self.expr.name.capitalize(), Capitalize)
-        self.assertIsInstance(self.expr.name.capitalize(), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().capitalize(), StringScalar)
-
-        expr = self.expr.name.cat(self.expr.id.astype('string'), sep=',')
-        self.assertIsInstance(expr, CatStr)
-        self.assertIsInstance(expr, StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().cat(self.expr.id.sum().astype('string')), StringScalar)
-
-        self.assertRaises(ValueError, lambda: self.expr.name.cat(','))
-
-        self.assertIsInstance(self.expr.name.contains('test'), Contains)
-        self.assertIsInstance(self.expr.name.contains('test'), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().contains('test'), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.count('test'), Count)
-        self.assertIsInstance(self.expr.name.count('test'), Int64SequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().count('test'), Int64Scalar)
-
-        self.assertIsInstance(self.expr.name.endswith('test'), Endswith)
-        self.assertIsInstance(self.expr.name.endswith('test'), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().endswith('test'), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.startswith('test'), Startswith)
-        self.assertIsInstance(self.expr.name.startswith('test'), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().startswith('test'), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.extract(r'[ab](\d)'), Extract)
-        self.assertIsInstance(self.expr.name.extract(r'[ab](\d)'), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().extract(r'[ab](\d)'), StringScalar)
-
-        self.assertIsInstance(self.expr.name.find('test'), Find)
-        self.assertIsInstance(self.expr.name.find('test'), Int64SequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().find('test'), Int64Scalar)
-
-        self.assertIsInstance(self.expr.name.rfind('test'), RFind)
-        self.assertIsInstance(self.expr.name.rfind('test'), Int64SequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().rfind('test'), Int64Scalar)
-
-        self.assertIsInstance(self.expr.name.replace('test', 'test2'), Replace)
-        self.assertIsInstance(self.expr.name.replace('test', 'test2'), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().replace('test', 'test2'), StringScalar)
-
-        self.assertIsInstance(self.expr.name.get(1), Get)
-        self.assertIsInstance(self.expr.name.get(1), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().get(1), StringScalar)
-        self.assertIsInstance(self.expr.name[1], Get)
-        self.assertIsInstance(self.expr.name[1], StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum()[1], StringScalar)
-        self.assertIsInstance(self.expr.name[self.expr.id], Get)
-        self.assertIsInstance(self.expr.name[self.expr.id], StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum()[self.expr.id], StringScalar)
-
-        self.assertIsInstance(self.expr.name.len(), Len)
-        self.assertIsInstance(self.expr.name.len(), Int64SequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().len(), Int64Scalar)
-
-        self.assertIsInstance(self.expr.name.ljust(3), Ljust)
-        self.assertIsInstance(self.expr.name.ljust(3), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().ljust(3), StringScalar)
-
-        self.assertIsInstance(self.expr.name.rjust(3), Rjust)
-        self.assertIsInstance(self.expr.name.rjust(3), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().rjust(3), StringScalar)
-
-        self.assertIsInstance(self.expr.name.lower(), Lower)
-        self.assertIsInstance(self.expr.name.lower(), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().lower(), StringScalar)
-
-        self.assertIsInstance(self.expr.name.upper(), Upper)
-        self.assertIsInstance(self.expr.name.upper(), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().upper(), StringScalar)
-
-        self.assertIsInstance(self.expr.name.lstrip(), Lstrip)
-        self.assertIsInstance(self.expr.name.lstrip(), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().lstrip(), StringScalar)
-
-        self.assertIsInstance(self.expr.name.strip(), Strip)
-        self.assertIsInstance(self.expr.name.strip(), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().strip(), StringScalar)
-
-        self.assertIsInstance(self.expr.name.pad(4), Pad)
-        self.assertIsInstance(self.expr.name.pad(4), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().pad(4), StringScalar)
-
-        self.assertIsInstance(self.expr.name.repeat(4), Repeat)
-        self.assertIsInstance(self.expr.name.repeat(4), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().repeat(4), StringScalar)
-
-        self.assertIsInstance(self.expr.name.slice(0, 4), Slice)
-        self.assertIsInstance(self.expr.name.slice(0, 4), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().slice(0, 4), StringScalar)
-        self.assertIsInstance(self.expr.name[0: 4], Slice)
-        self.assertIsInstance(self.expr.name[0: 4], StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum()[0: 4], StringScalar)
-
-        self.assertIsInstance(self.expr.name.split(','), Split)
-        self.assertIsInstance(self.expr.name.split(','), ListSequenceExpr)
-        self.assertEqual(self.expr.name.split(',').dtype, types.validate_data_type('list<string>'))
-
-        self.assertIsInstance(self.expr.name.swapcase(), Swapcase)
-        self.assertIsInstance(self.expr.name.swapcase(), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().swapcase(), StringScalar)
-
-        self.assertIsInstance(self.expr.name.title(), Title)
-        self.assertIsInstance(self.expr.name.title(), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().title(), StringScalar)
-
-        self.assertIsInstance(self.expr.name.zfill(5), Zfill)
-        self.assertIsInstance(self.expr.name.zfill(5), StringSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().zfill(5), StringScalar)
-
-        self.assertIsInstance(self.expr.name.isalnum(), Isalnum)
-        self.assertIsInstance(self.expr.name.isalnum(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().isalnum(), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.isalpha(), Isalpha)
-        self.assertIsInstance(self.expr.name.isalpha(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().isalpha(), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.isdigit(), Isdigit)
-        self.assertIsInstance(self.expr.name.isdigit(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().isdigit(), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.isspace(), Isspace)
-        self.assertIsInstance(self.expr.name.isspace(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().isspace(), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.islower(), Islower)
-        self.assertIsInstance(self.expr.name.islower(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().islower(), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.isupper(), Isupper)
-        self.assertIsInstance(self.expr.name.isupper(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().isupper(), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.istitle(), Istitle)
-        self.assertIsInstance(self.expr.name.istitle(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().istitle(), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.isnumeric(), Isnumeric)
-        self.assertIsInstance(self.expr.name.isnumeric(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().isnumeric(), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.isdecimal(), Isdecimal)
-        self.assertIsInstance(self.expr.name.isdecimal(), BooleanSequenceExpr)
-        self.assertIsInstance(self.expr.name.sum().isdecimal(), BooleanScalar)
-
-        self.assertIsInstance(self.expr.name.todict(), StringToDict)
-        self.assertIsInstance(self.expr.name.todict(), DictSequenceExpr)
-        self.assertEqual(self.expr.name.todict().dtype,
-                         types.validate_data_type('dict<string, string>'))
+    return CollectionExpr(_source_data=table, _schema=schema)
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_strings(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.id.strip())
+    pytest.raises(AttributeError, lambda: src_expr.fid.upper())
+    pytest.raises(AttributeError, lambda: src_expr.isMale.lower())
+    pytest.raises(AttributeError, lambda: src_expr.scale.repeat(3))
+    pytest.raises(AttributeError, lambda: src_expr.birth.len())
+
+    assert isinstance(src_expr.name.capitalize(), Capitalize)
+    assert isinstance(src_expr.name.capitalize(), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().capitalize(), StringScalar)
+
+    expr = src_expr.name.cat(src_expr.id.astype('string'), sep=',')
+    assert isinstance(expr, CatStr)
+    assert isinstance(expr, StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().cat(src_expr.id.sum().astype('string')), StringScalar)
+
+    pytest.raises(ValueError, lambda: src_expr.name.cat(','))
+
+    assert isinstance(src_expr.name.contains('test'), Contains)
+    assert isinstance(src_expr.name.contains('test'), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().contains('test'), BooleanScalar)
+
+    assert isinstance(src_expr.name.count('test'), Count)
+    assert isinstance(src_expr.name.count('test'), Int64SequenceExpr)
+    assert isinstance(src_expr.name.sum().count('test'), Int64Scalar)
+
+    assert isinstance(src_expr.name.endswith('test'), Endswith)
+    assert isinstance(src_expr.name.endswith('test'), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().endswith('test'), BooleanScalar)
+
+    assert isinstance(src_expr.name.startswith('test'), Startswith)
+    assert isinstance(src_expr.name.startswith('test'), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().startswith('test'), BooleanScalar)
+
+    assert isinstance(src_expr.name.extract(r'[ab](\d)'), Extract)
+    assert isinstance(src_expr.name.extract(r'[ab](\d)'), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().extract(r'[ab](\d)'), StringScalar)
+
+    assert isinstance(src_expr.name.find('test'), Find)
+    assert isinstance(src_expr.name.find('test'), Int64SequenceExpr)
+    assert isinstance(src_expr.name.sum().find('test'), Int64Scalar)
+
+    assert isinstance(src_expr.name.rfind('test'), RFind)
+    assert isinstance(src_expr.name.rfind('test'), Int64SequenceExpr)
+    assert isinstance(src_expr.name.sum().rfind('test'), Int64Scalar)
+
+    assert isinstance(src_expr.name.replace('test', 'test2'), Replace)
+    assert isinstance(src_expr.name.replace('test', 'test2'), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().replace('test', 'test2'), StringScalar)
+
+    assert isinstance(src_expr.name.get(1), Get)
+    assert isinstance(src_expr.name.get(1), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().get(1), StringScalar)
+    assert isinstance(src_expr.name[1], Get)
+    assert isinstance(src_expr.name[1], StringSequenceExpr)
+    assert isinstance(src_expr.name.sum()[1], StringScalar)
+    assert isinstance(src_expr.name[src_expr.id], Get)
+    assert isinstance(src_expr.name[src_expr.id], StringSequenceExpr)
+    assert isinstance(src_expr.name.sum()[src_expr.id], StringScalar)
+
+    assert isinstance(src_expr.name.len(), Len)
+    assert isinstance(src_expr.name.len(), Int64SequenceExpr)
+    assert isinstance(src_expr.name.sum().len(), Int64Scalar)
+
+    assert isinstance(src_expr.name.ljust(3), Ljust)
+    assert isinstance(src_expr.name.ljust(3), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().ljust(3), StringScalar)
+
+    assert isinstance(src_expr.name.rjust(3), Rjust)
+    assert isinstance(src_expr.name.rjust(3), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().rjust(3), StringScalar)
+
+    assert isinstance(src_expr.name.lower(), Lower)
+    assert isinstance(src_expr.name.lower(), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().lower(), StringScalar)
+
+    assert isinstance(src_expr.name.upper(), Upper)
+    assert isinstance(src_expr.name.upper(), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().upper(), StringScalar)
+
+    assert isinstance(src_expr.name.lstrip(), Lstrip)
+    assert isinstance(src_expr.name.lstrip(), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().lstrip(), StringScalar)
+
+    assert isinstance(src_expr.name.strip(), Strip)
+    assert isinstance(src_expr.name.strip(), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().strip(), StringScalar)
+
+    assert isinstance(src_expr.name.pad(4), Pad)
+    assert isinstance(src_expr.name.pad(4), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().pad(4), StringScalar)
+
+    assert isinstance(src_expr.name.repeat(4), Repeat)
+    assert isinstance(src_expr.name.repeat(4), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().repeat(4), StringScalar)
+
+    assert isinstance(src_expr.name.slice(0, 4), Slice)
+    assert isinstance(src_expr.name.slice(0, 4), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().slice(0, 4), StringScalar)
+    assert isinstance(src_expr.name[0: 4], Slice)
+    assert isinstance(src_expr.name[0: 4], StringSequenceExpr)
+    assert isinstance(src_expr.name.sum()[0: 4], StringScalar)
+
+    assert isinstance(src_expr.name.split(','), Split)
+    assert isinstance(src_expr.name.split(','), ListSequenceExpr)
+    assert src_expr.name.split(',').dtype == types.validate_data_type('list<string>')
+
+    assert isinstance(src_expr.name.swapcase(), Swapcase)
+    assert isinstance(src_expr.name.swapcase(), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().swapcase(), StringScalar)
+
+    assert isinstance(src_expr.name.title(), Title)
+    assert isinstance(src_expr.name.title(), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().title(), StringScalar)
+
+    assert isinstance(src_expr.name.zfill(5), Zfill)
+    assert isinstance(src_expr.name.zfill(5), StringSequenceExpr)
+    assert isinstance(src_expr.name.sum().zfill(5), StringScalar)
+
+    assert isinstance(src_expr.name.isalnum(), Isalnum)
+    assert isinstance(src_expr.name.isalnum(), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().isalnum(), BooleanScalar)
+
+    assert isinstance(src_expr.name.isalpha(), Isalpha)
+    assert isinstance(src_expr.name.isalpha(), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().isalpha(), BooleanScalar)
+
+    assert isinstance(src_expr.name.isdigit(), Isdigit)
+    assert isinstance(src_expr.name.isdigit(), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().isdigit(), BooleanScalar)
+
+    assert isinstance(src_expr.name.isspace(), Isspace)
+    assert isinstance(src_expr.name.isspace(), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().isspace(), BooleanScalar)
+
+    assert isinstance(src_expr.name.islower(), Islower)
+    assert isinstance(src_expr.name.islower(), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().islower(), BooleanScalar)
+
+    assert isinstance(src_expr.name.isupper(), Isupper)
+    assert isinstance(src_expr.name.isupper(), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().isupper(), BooleanScalar)
+
+    assert isinstance(src_expr.name.istitle(), Istitle)
+    assert isinstance(src_expr.name.istitle(), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().istitle(), BooleanScalar)
+
+    assert isinstance(src_expr.name.isnumeric(), Isnumeric)
+    assert isinstance(src_expr.name.isnumeric(), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().isnumeric(), BooleanScalar)
+
+    assert isinstance(src_expr.name.isdecimal(), Isdecimal)
+    assert isinstance(src_expr.name.isdecimal(), BooleanSequenceExpr)
+    assert isinstance(src_expr.name.sum().isdecimal(), BooleanScalar)
+
+    assert isinstance(src_expr.name.todict(), StringToDict)
+    assert isinstance(src_expr.name.todict(), DictSequenceExpr)
+    assert src_expr.name.todict().dtype == types.validate_data_type('dict<string, string>')

@@ -24,12 +24,17 @@ try:
 except ImportError:
     np = None
 try:
+    import pandas as pd
+except ImportError:
+    pd = None
+try:
     import pyarrow as pa
 except (AttributeError, ImportError):
     pa = None
 
 
 from ... import utils, types, compat
+from ...errors import DatetimeOverflowError
 from ...models import Record
 from ...readers import AbstractRecordReader
 from ...config import options
@@ -99,7 +104,12 @@ if TunnelRecordReader is None:
             elif data_type == types.datetime:
                 val = self._reader.read_sint64()
                 self._crc.update_long(val)
-                val = self._to_datetime(val)
+                try:
+                    val = self._to_datetime(val)
+                except DatetimeOverflowError:
+                    if not options.tunnel.overflow_date_as_none:
+                        raise
+                    val = None
             elif data_type == types.date:
                 val = self._reader.read_sint64()
                 self._crc.update_long(val)
@@ -109,19 +119,20 @@ if TunnelRecordReader is None:
                 self._crc.update_long(l_val)
                 nano_secs = self._reader.read_sint32()
                 self._crc.update_int(nano_secs)
-                try:
-                    import pandas as pd
-                except ImportError:
+                if pd is None:
                     raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
-                val = pd.Timestamp(self._to_datetime(l_val * 1000)) + pd.Timedelta(nanoseconds=nano_secs)
+                try:
+                    val = pd.Timestamp(self._to_datetime(l_val * 1000)) + pd.Timedelta(nanoseconds=nano_secs)
+                except DatetimeOverflowError:
+                    if not options.tunnel.overflow_date_as_none:
+                        raise
+                    val = None
             elif data_type == types.interval_day_time:
                 l_val = self._reader.read_sint64()
                 self._crc.update_long(l_val)
                 nano_secs = self._reader.read_sint32()
                 self._crc.update_int(nano_secs)
-                try:
-                    import pandas as pd
-                except ImportError:
+                if pd is None:
                     raise ImportError('To use INTERVAL_DAY_TIME in pyodps, you need to install pandas.')
                 val = pd.Timedelta(seconds=l_val, nanoseconds=nano_secs)
             elif data_type == types.interval_year_month:
@@ -139,7 +150,7 @@ if TunnelRecordReader is None:
             elif isinstance(data_type, types.Map):
                 keys = self._read_array(data_type.key_type)
                 values = self._read_array(data_type.value_type)
-                val = compat.OrderedDict(zip(keys, values))
+                val = collections.OrderedDict(zip(keys, values))
             elif isinstance(data_type, types.Struct):
                 val = self._read_struct(data_type)
             else:
@@ -159,7 +170,7 @@ if TunnelRecordReader is None:
             return res
 
         def _read_struct(self, value_type):
-            res = compat.OrderedDict()
+            res = collections.OrderedDict()
             for k in value_type.field_types:
                 if self._reader.read_bool():
                     res[k] = None
@@ -169,7 +180,10 @@ if TunnelRecordReader is None:
 
         def read(self):
             if self._read_limit is not None and self.count >= self._read_limit:
-                warnings.warn('Number of lines read via tunnel already reaches the limitation.')
+                warnings.warn(
+                    'Number of lines read via tunnel already reaches the limitation.',
+                    RuntimeWarning,
+                )
                 return None
 
             record = Record(self._columns)
@@ -195,8 +209,6 @@ if TunnelRecordReader is None:
                         raise IOError('Invalid stream data.')
                     if int(self._crccrc.getvalue()) != self._reader.read_uint32():
                         raise IOError('Checksum invalid.')
-                    # if not self._reader.at_end():
-                    #     raise IOError('Expect at the end of stream, but not.')
 
                     return
 
@@ -225,7 +237,7 @@ if TunnelRecordReader is None:
 
         @property
         def n_bytes(self):
-            return self._reader.position()
+            return len(self._reader)
 
         def get_total_bytes(self):
             return self.n_bytes
@@ -361,7 +373,10 @@ class TunnelArrowReader(object):
             self._arrow_stream = pa.ipc.open_stream(self._reader)
 
         if self._read_limit is not None and self._pos >= self._read_limit:
-            warnings.warn('Number of lines read via tunnel already reaches the limitation.')
+            warnings.warn(
+                'Number of lines read via tunnel already reaches the limitation.',
+                RuntimeWarning,
+            )
             return None
 
         try:

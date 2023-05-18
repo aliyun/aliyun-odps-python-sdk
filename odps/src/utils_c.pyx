@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+cimport cython
 import sys
 import time
-cimport cython
 from cpython.datetime cimport (
     PyDateTime_DateTime,
     datetime,
@@ -29,9 +29,9 @@ from cpython.datetime cimport (
     timedelta_new,
     import_datetime,
 )
+from datetime import datetime
 from libc.stdint cimport int64_t
 from libc.time cimport time_t, tm, mktime, localtime, gmtime
-from datetime import datetime
 
 try:
     import pytz
@@ -48,8 +48,13 @@ cdef bint _is_windows = sys.platform.lower().startswith("win")
 
 import_datetime()
 
-cdef int64_t _antique_mills
-cdef object _py_local_epoch = datetime.fromtimestamp(0)
+cdef int64_t _antique_mills, _min_datetime_mills
+cdef object _py_local_epoch
+
+try:
+    _py_local_epoch = datetime.fromtimestamp(0)
+except OSError:  # workaround for bpo-29097  # pragma: no cover
+    _py_local_epoch = datetime(*time.localtime(0)[:6])
 
 try:
     _antique_mills = time.mktime(
@@ -59,9 +64,14 @@ except OverflowError:
     _antique_mills = int(
         (datetime(1928, 1, 1) - datetime.utcfromtimestamp(0)).total_seconds()
     ) * 1000
+_min_datetime_mills = int(
+    (datetime.min - datetime.utcfromtimestamp(0)).total_seconds() * 1000
+)
 _antique_errmsg = 'Date older than 1928/01/01 and may contain errors. ' \
                   'Ignore this error by configuring `options.allow_antique_date` to True.'
-
+_min_datetime_errmsg = 'Date exceed range Python can handle. If you are reading data with tunnel, read '\
+                       'the value as None by setting options.tunnel.overflow_date_as_none to True, ' \
+                       'or convert the value into strings with SQL before processing them with Python.'
 
 cdef inline bint datetime_hastzinfo(object o):
     return (<PyDateTime_DateTime*>o).hastzinfo
@@ -79,6 +89,9 @@ cdef class CMillisecondsConverter:
             return tz
 
     def __init__(self, local_tz=None, is_dst=False):
+        # due to cython implementations, make sure the line below is always invoked
+        import_datetime()
+
         self._local_tz = local_tz if local_tz is not None else options.local_timezone
         if self._local_tz is None:
             self._local_tz = True
@@ -142,7 +155,9 @@ cdef class CMillisecondsConverter:
         mills = unix_ts * 1000 + datetime_microsecond(dt) / 1000
 
         if not self._allow_antique and mills < _antique_mills:
-            raise OverflowError(_antique_errmsg)
+            from ..errors import DatetimeOverflowError
+
+            raise DatetimeOverflowError(_antique_errmsg)
         return mills
 
     @cython.cdivision(True)
@@ -152,7 +167,13 @@ cdef class CMillisecondsConverter:
         cdef tm* p_tm
 
         if not self._allow_antique and milliseconds < _antique_mills:
-            raise OverflowError(_antique_errmsg)
+            from ..errors import DatetimeOverflowError
+
+            raise DatetimeOverflowError(_antique_errmsg)
+        if milliseconds < _min_datetime_mills:
+            from ..errors import DatetimeOverflowError
+
+            raise DatetimeOverflowError(_min_datetime_errmsg)
 
         if milliseconds >= 0:
             seconds = milliseconds / 1000

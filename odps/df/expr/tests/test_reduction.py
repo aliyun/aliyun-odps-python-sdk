@@ -16,167 +16,201 @@
 
 import textwrap
 
-from odps.tests.core import TestBase
-from odps.compat import unittest, six, LESS_PY35
-from odps.df.expr.reduction import *
-from odps.df import types
+import pytest
+
+from ....compat import six, LESS_PY35
+from ..reduction import *
+from ... import types
 
 
-class Test(TestBase):
-    def setup(self):
-        schema = TableSchema.from_lists(types._data_types.keys(), types._data_types.values())
-        self.expr = CollectionExpr(_source_data=None, _schema=schema)
+@pytest.fixture
+def src_expr():
+    schema = TableSchema.from_lists(types._data_types.keys(), types._data_types.values())
+    return CollectionExpr(_source_data=None, _schema=schema)
 
-    def testMin(self):
-        min_ = self.expr.string.min()
-        self.assertIsInstance(min_, StringScalar)
 
-        min_ = self.expr.boolean.min()
-        self.assertIsInstance(min_, BooleanScalar)
+def test_min(src_expr):
+    min_ = src_expr.string.min()
+    assert isinstance(min_, StringScalar)
 
-        min_ = self.expr.int16.min()
-        self.assertIsInstance(min_, Int16Scalar)
+    min_ = src_expr.boolean.min()
+    assert isinstance(min_, BooleanScalar)
 
-        expr = self.expr.min()
-        self.assertIsInstance(expr, Summary)
-        self.assertEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, Min) for node in expr.fields))
+    min_ = src_expr.int16.min()
+    assert isinstance(min_, Int16Scalar)
 
-    def testMax(self):
-        max_ = self.expr.string.max()
-        self.assertIsInstance(max_, StringScalar)
+    expr = src_expr.min()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) == len(types._data_types)
+    assert all(isinstance(node, Min) for node in expr.fields) is True
 
-        max_ = self.expr.boolean.max()
-        self.assertIsInstance(max_, BooleanScalar)
 
-        max_ = self.expr.int32.max()
-        self.assertIsInstance(max_, Int32Scalar)
+def test_max(src_expr):
+    max_ = src_expr.string.max()
+    assert isinstance(max_, StringScalar)
 
-        expr = self.expr.max()
-        self.assertIsInstance(expr, Summary)
-        self.assertLessEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, Max) for node in expr.fields))
+    max_ = src_expr.boolean.max()
+    assert isinstance(max_, BooleanScalar)
 
-    def testCount(self):
-        count = self.expr.string.count()
-        self.assertIsInstance(count, Int64Scalar)
+    max_ = src_expr.int32.max()
+    assert isinstance(max_, Int32Scalar)
 
-        count = self.expr.string.unique().count()
-        self.assertIsInstance(count, Int64Scalar)
+    expr = src_expr.max()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) <= len(types._data_types)
+    assert all(isinstance(node, Max) for node in expr.fields) is True
 
-        expr = self.expr.count()
-        self.assertIsInstance(expr, Int64Scalar)
 
-    def testSum(self):
-        sum = self.expr.string.sum()
-        self.assertIsInstance(sum, StringScalar)
+def test_count(src_expr):
+    count = src_expr.string.count()
+    assert isinstance(count, Int64Scalar)
 
-        sum = self.expr.string.unique().sum()
-        self.assertIsInstance(sum, StringScalar)
+    count = src_expr.string.unique().count()
+    assert isinstance(count, Int64Scalar)
 
-        sum = self.expr.boolean.sum()
-        self.assertIsInstance(sum, Int64Scalar)
+    expr = src_expr.count()
+    assert isinstance(expr, Int64Scalar)
 
-        sum = self.expr.int32.sum()
-        self.assertIsInstance(sum, Int32Scalar)
 
-        sum = self.expr.decimal.sum()
-        self.assertIsInstance(sum, DecimalScalar)
+def test_sum(src_expr):
+    sum = src_expr.string.sum()
+    assert isinstance(sum, StringScalar)
 
-        expr = self.expr.sum()
-        self.assertIsInstance(expr, Summary)
-        self.assertLessEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, Sum) for node in expr.fields))
+    sum = src_expr.string.unique().sum()
+    assert isinstance(sum, StringScalar)
 
-    def testVar(self):
-        self.assertRaises(AttributeError, lambda: self.expr.string.var())
+    sum = src_expr.boolean.sum()
+    assert isinstance(sum, Int64Scalar)
 
-        var = self.expr.int8.var()
-        self.assertIsInstance(var, Float64Scalar)
+    sum = src_expr.int32.sum()
+    assert isinstance(sum, Int32Scalar)
 
-        var = self.expr.decimal.var()
-        self.assertIsInstance(var, DecimalScalar)
+    sum = src_expr.decimal.sum()
+    assert isinstance(sum, DecimalScalar)
 
-        expr = self.expr.var()
-        self.assertIsInstance(expr, Summary)
-        self.assertLessEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, Var) for node in expr.fields))
+    expr = src_expr.sum()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) <= len(types._data_types)
+    assert all(isinstance(node, Sum) for node in expr.fields) is True
 
-    def testStd(self):
-        self.assertRaises(AttributeError, lambda: self.expr.boolean.var())
 
-        std = self.expr.int64.std()
-        self.assertIsInstance(std, Float64Scalar)
+def test_var(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.string.var())
 
-        std = self.expr.decimal.std()
-        self.assertIsInstance(std, DecimalScalar)
+    var = src_expr.int8.var()
+    assert isinstance(var, Float64Scalar)
 
-        expr = self.expr.std()
-        self.assertIsInstance(expr, Summary)
-        self.assertLessEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, Std) for node in expr.fields))
+    var = src_expr.decimal.var()
+    assert isinstance(var, DecimalScalar)
 
-    def testMean(self):
-        self.assertRaises(AttributeError, lambda: self.expr.datetime.mean())
+    expr = src_expr.var()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) <= len(types._data_types)
+    assert all(isinstance(node, Var) for node in expr.fields) is True
 
-        mean = self.expr.float32.mean()
-        self.assertIsInstance(mean, Float64Scalar)
 
-        mean = self.expr.decimal.std()
-        self.assertIsInstance(mean, DecimalScalar)
+def test_std(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.boolean.var())
 
-        expr = self.expr.mean()
-        self.assertIsInstance(expr, Summary)
-        self.assertLessEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, Mean) for node in expr.fields))
+    std = src_expr.int64.std()
+    assert isinstance(std, Float64Scalar)
 
-    def testMedian(self):
-        self.assertRaises(AttributeError, lambda: self.expr.string.median())
+    std = src_expr.decimal.std()
+    assert isinstance(std, DecimalScalar)
 
-        median = self.expr.float64.median()
-        self.assertIsInstance(median, Float64Scalar)
+    expr = src_expr.std()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) <= len(types._data_types)
+    assert all(isinstance(node, Std) for node in expr.fields) is True
 
-        median = self.expr.decimal.median()
-        self.assertIsInstance(median, DecimalScalar)
 
-        expr = self.expr.median()
-        self.assertIsInstance(expr, Summary)
-        self.assertLessEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, Median) for node in expr.fields))
+def test_mean(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.datetime.mean())
 
-    def testAny(self):
-        self.assertRaises(AttributeError, lambda: self.expr.string.any())
-        self.assertRaises(AttributeError, lambda: self.expr.int64.any())
+    mean = src_expr.float32.mean()
+    assert isinstance(mean, Float64Scalar)
 
-        any_ = self.expr.boolean.any()
-        self.assertIsInstance(any_, BooleanScalar)
+    mean = src_expr.decimal.std()
+    assert isinstance(mean, DecimalScalar)
 
-        expr = self.expr.any()
-        self.assertIsInstance(expr, Summary)
-        self.assertLessEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, Any) for node in expr.fields))
+    expr = src_expr.mean()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) <= len(types._data_types)
+    assert all(isinstance(node, Mean) for node in expr.fields) is True
 
-    def testAll(self):
-        self.assertRaises(AttributeError, lambda: self.expr.string.all())
-        self.assertRaises(AttributeError, lambda: self.expr.int64.all())
 
-        any_ = self.expr.boolean.all()
-        self.assertIsInstance(any_, BooleanScalar)
+def test_median(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.string.median())
 
-        expr = self.expr.all()
-        self.assertIsInstance(expr, Summary)
-        self.assertLessEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, All) for node in expr.fields))
+    median = src_expr.float64.median()
+    assert isinstance(median, Float64Scalar)
 
-    def testCat(self):
-        self.assertRaises(AttributeError, lambda: self.expr.int64.cat(sep=','))
-        self.assertRaises(AttributeError, lambda: self.expr.float.cat(sep=','))
-        self.assertRaises(AttributeError, lambda: self.expr.cat(sep=','))
+    median = src_expr.decimal.median()
+    assert isinstance(median, DecimalScalar)
 
-        cat = self.expr.string.cat(sep=',')
-        self.assertIsInstance(cat, StringScalar)
+    expr = src_expr.median()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) <= len(types._data_types)
+    assert all(isinstance(node, Median) for node in expr.fields) is True
 
-    def testAgg(self):
+
+def test_any(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.string.any())
+    pytest.raises(AttributeError, lambda: src_expr.int64.any())
+
+    any_ = src_expr.boolean.any()
+    assert isinstance(any_, BooleanScalar)
+
+    expr = src_expr.any()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) <= len(types._data_types)
+    assert all(isinstance(node, Any) for node in expr.fields) is True
+
+
+def test_all(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.string.all())
+    pytest.raises(AttributeError, lambda: src_expr.int64.all())
+
+    any_ = src_expr.boolean.all()
+    assert isinstance(any_, BooleanScalar)
+
+    expr = src_expr.all()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) <= len(types._data_types)
+    assert all(isinstance(node, All) for node in expr.fields) is True
+
+
+def test_cat(src_expr):
+    pytest.raises(AttributeError, lambda: src_expr.int64.cat(sep=','))
+    pytest.raises(AttributeError, lambda: src_expr.float.cat(sep=','))
+    pytest.raises(AttributeError, lambda: src_expr.cat(sep=','))
+
+    cat = src_expr.string.cat(sep=',')
+    assert isinstance(cat, StringScalar)
+
+
+def test_agg(src_expr):
+    class Agg(object):
+        def buffer(self):
+            return [0]
+
+        def __call__(self, buffer, val):
+            buffer[0] += val
+
+        def merge(self, buffer, pbuffer):
+            buffer[0] += pbuffer[0]
+
+        def getvalue(self, buffer):
+            return buffer[0]
+
+    expr = src_expr.int64.agg(Agg)
+
+    assert isinstance(expr, Aggregation)
+    assert expr.dtype == types.int64
+
+    if not LESS_PY35:
+        l = locals().copy()
+        six.exec_(textwrap.dedent("""
         class Agg(object):
             def buffer(self):
                 return [0]
@@ -187,46 +221,22 @@ class Test(TestBase):
             def merge(self, buffer, pbuffer):
                 buffer[0] += pbuffer[0]
 
-            def getvalue(self, buffer):
+            def getvalue(self, buffer) -> float:
                 return buffer[0]
 
-        expr = self.expr.int64.agg(Agg)
-
-        self.assertIsInstance(expr, Aggregation)
-        self.assertEqual(expr.dtype, types.int64)
-
-        if not LESS_PY35:
-            l = locals().copy()
-            six.exec_(textwrap.dedent("""
-            class Agg(object):
-                def buffer(self):
-                    return [0]
-    
-                def __call__(self, buffer, val):
-                    buffer[0] += val
-    
-                def merge(self, buffer, pbuffer):
-                    buffer[0] += pbuffer[0]
-    
-                def getvalue(self, buffer) -> float:
-                    return buffer[0]
-    
-            expr = self.expr.int64.agg(Agg)
-            """), globals(), l)
-            expr = l['expr']
-            self.assertIsInstance(expr, Aggregation)
-            self.assertIsInstance(expr.dtype, types.Float)
-
-    def testToList(self):
-        expr = self.expr.int64.tolist()
-        self.assertIsInstance(expr, ListScalar)
-        self.assertEqual(expr.dtype, types.validate_data_type('list<int64>'))
-
-        expr = self.expr.tolist()
-        self.assertIsInstance(expr, Summary)
-        self.assertLessEqual(len(expr.fields), len(types._data_types))
-        self.assertTrue(all(isinstance(node, ToList) for node in expr.fields))
+        expr = src_expr.int64.agg(Agg)
+        """), globals(), l)
+        expr = l['expr']
+        assert isinstance(expr, Aggregation)
+        assert isinstance(expr.dtype, types.Float)
 
 
-if __name__ == '__main__':
-    unittest.main()
+def test_to_list(src_expr):
+    expr = src_expr.int64.tolist()
+    assert isinstance(expr, ListScalar)
+    assert expr.dtype == types.validate_data_type('list<int64>')
+
+    expr = src_expr.tolist()
+    assert isinstance(expr, Summary)
+    assert len(expr.fields) <= len(types._data_types)
+    assert all(isinstance(node, ToList) for node in expr.fields) is True

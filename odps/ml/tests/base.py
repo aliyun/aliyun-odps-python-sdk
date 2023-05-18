@@ -29,7 +29,7 @@ from odps.ml.expr.core import AlgoExprMixin, AlgoCollectionExpr
 from odps.ml.expr.models import ODPSModelExpr
 from odps.ml.runners import BaseNodeRunner
 from odps.ml.utils import TEMP_TABLE_PREFIX, TABLE_MODEL_PREFIX, TABLE_MODEL_SEPARATOR, ML_ARG_PREFIX
-from odps.tests.core import tn, ci_skip_case, TestBase
+from odps.tests.core import tn, ci_skip_case
 
 IONOSPHERE_TABLE = tn('pyodps_test_ml_ionosphere')
 
@@ -75,9 +75,10 @@ def tmp_otm(s):
     return TEMP_TABLE_PREFIX + TABLE_MODEL_PREFIX + s
 
 
-class MLTestBase(TestDataMixIn, TestBase):
-    def setUp(self):
-        super(MLTestBase, self).setUp()
+class MLTestUtil(TestDataMixIn):
+    def __init__(self, odps, tunnel):
+        self.odps = odps
+        self.tunnel = tunnel
 
         # Force to false
         options.ml.dry_run = False
@@ -135,7 +136,7 @@ class MLTestBase(TestDataMixIn, TestBase):
                 if k.startswith('input') and k.endswith('TableName') and '.' not in v:
                     v = self.odps.project + '.' + v
                 targets[k] = v
-            self.assertDictEqual(targets, gen_params)
+            assert targets == gen_params
 
         return _case
 
@@ -182,4 +183,4 @@ def _add_case(self, case):
 AlgoExprMixin._add_case = _add_case
 
 
-__all__ = ['tn', 'otm', 'MLTestBase', 'ci_skip_case']
+__all__ = ['tn', 'otm', 'MLTestUtil', 'ci_skip_case']

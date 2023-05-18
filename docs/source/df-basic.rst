@@ -167,7 +167,7 @@ Timestamp 及 Struct 类型，未来的版本会支持。
 可以看到，\ ``sepalwidth``\ 取最大值后被命名为\ ``sepalwidth_max``\ 。还有一些操作，比如一个 Sequence
 做加法，加上一个 Scalar，这时，会被命名为这个 Sequence 的名字。其它情况下，需要用户去自己命名。
 
-Sequence 提供 rename 方法对一列进行重命名，用法示例如下：
+Sequence 提供 rename 方法为一列设置名字，用法示例如下：
 
 .. code:: python
 
@@ -178,6 +178,18 @@ Sequence 提供 rename 方法对一列进行重命名，用法示例如下：
     2          3.2
     3          3.1
     4          3.6
+
+需要注意的是，rename 操作并不是就地重命名。如果要在 Collection 上应用新的列名，需要重新做列选择，例如
+
+.. code:: python
+
+    >>> iris[iris.exclude("sepalwidth"), iris.sepalwidth.rename('sepal_width')].head(5)
+       sepallength  petallength  petalwidth         name  sepal_width
+    0          5.1          1.4         0.2  Iris-setosa          3.5
+    1          4.9          1.4         0.2  Iris-setosa          3.0
+    2          4.7          1.3         0.2  Iris-setosa          3.2
+    3          4.6          1.5         0.2  Iris-setosa          3.1
+    4          5.0          1.4         0.2  Iris-setosa          3.6
 
 
 简单的列变换

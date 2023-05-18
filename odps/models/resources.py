@@ -42,8 +42,7 @@ class Resources(Iterable):
             else:
                 project_name, schema_name = project_schema_name.split(_SCHEMA_SPLITTER, 1)
 
-            from .projects import Projects
-            parent = Projects(client=self._client)[project_name]
+            parent = self.parent.project.parent[project_name]
             if schema_name is not None:
                 parent = parent.schemas[schema_name]
             return parent.resources[name]

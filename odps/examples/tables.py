@@ -20,10 +20,11 @@ import shutil
 import tarfile
 import gzip
 import warnings
+from collections import OrderedDict
 
 from itertools import groupby, product
 
-from ..compat import pickle, urlretrieve, six, OrderedDict
+from ..compat import pickle, urlretrieve, six
 from ..tunnel import TableTunnel
 from ..utils import load_static_text_file, build_pyodps_dir
 
@@ -39,9 +40,13 @@ def table_creator(func):
     """
     Decorator for table creating method
     """
+    @six.wraps(func)
     def method(self, table_name, **kwargs):
         if self.odps.exist_table(table_name):
-            return
+            table = self.odps.get_table(table_name)
+            if list(table.head(1)):
+                return
+            self.odps.delete_table(table_name)
         if kwargs.get('project', self.odps.project) != self.odps.project:
             tunnel = TableTunnel(self.odps, project=kwargs['project'])
         else:
@@ -49,9 +54,7 @@ def table_creator(func):
         func(self.odps, table_name, tunnel=tunnel, **kwargs)
         self.after_create_test_data(table_name)
 
-    method.__name__ = func.__name__
     setattr(TestDataMixIn, func.__name__, method)
-
     return func
 
 
@@ -344,7 +347,7 @@ def create_user_item_table(odps, table_name, tunnel=None, mode=None, project=Non
     elif mode == 'exist':
         items = dict()
         for k, g1 in groupby(sorted(data_rows, key=lambda it: it[0]), key=lambda it: it[0]):
-            items[k] = dict((k2, 1) for k2 in set(it2[1] for it2 in g1))
+            items[k] = {k2: 1 for k2 in set(it2[1] for it2 in g1)}
         products = set(it[1] for it in data_rows)
         for k, g in six.iteritems(items):
             unexist_set = products - set(six.iterkeys(g))

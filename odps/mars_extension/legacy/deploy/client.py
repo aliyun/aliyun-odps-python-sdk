@@ -18,7 +18,6 @@ import base64
 import json
 import logging
 import time
-import requests
 import warnings
 
 from cupid import CupidSession
@@ -27,6 +26,7 @@ from mars.session import new_session
 from ....utils import write_log
 from ....models import Instance
 from ....config import options
+from ....lib import requests
 from .... import errors
 from ...utils import get_default_resource_files, build_mars_image_name
 
@@ -249,7 +249,9 @@ class MarsCupidClient(object):
         from ....rest import RestClient
 
         if options.mars.use_common_proxy:
-            return RestClient(self._odps.account, self._endpoint, self._odps.project)
+            return RestClient(
+                self._odps.account, self._endpoint, self._odps.project, tag="MARS"
+            )
         else:
             return requests.Session()
 

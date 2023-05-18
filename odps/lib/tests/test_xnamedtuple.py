@@ -16,12 +16,9 @@ import sys
 
 import pytest
 
-from odps.lib.xnamedtuple import xnamedtuple
+from ..xnamedtuple import xnamedtuple
 
 
-@pytest.mark.skipif(
-    sys.version_info < (2, 7), reason="Not runnable under Python 2.6"
-)
 def test_xnamedtuple():
     # test normal use
     tp_cls = xnamedtuple("TPCls", "field1 field2")

@@ -28,4 +28,3 @@ except (ImportError, AttributeError):
     if options.force_c:
         raise
     Record = _types.Record
-

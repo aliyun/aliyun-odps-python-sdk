@@ -15,12 +15,14 @@
 
 from __future__ import print_function
 
-from odps.df import DataFrame
-from odps.df.backends.odpssql.types import df_schema_to_odps_schema
-from odps.tests.core import tn
-from odps.ml.tests.base import MLTestBase
-from odps.models import Partition, TableSchema
-from odps import types as odps_types
+import pytest
+
+from ... import types as odps_types
+from ...df import DataFrame
+from ...df.backends.odpssql.types import df_schema_to_odps_schema
+from ...models import Partition, TableSchema
+from ...tests.core import tn
+from .base import MLTestUtil
 
 IRIS_TABLE = tn('pyodps_test_ml_iris_persist')
 SIMPLE_PERSIST_TABLE = tn('pyodps_test_ml_simple_persist_table')
@@ -29,47 +31,54 @@ STATIC_PART_TABLE = tn('pyodps_test_ml_static_part_table')
 DYNAMIC_PART_TABLE = tn('pyodps_test_ml_dynamic_part_table')
 
 
-class Test(MLTestBase):
-    def testSimplePersist(self):
-        self.create_iris(IRIS_TABLE)
-        df = DataFrame(self.odps.get_table(IRIS_TABLE))
-        df.append_id().persist(SIMPLE_PERSIST_TABLE, lifecycle=1, drop_table=True)
-        self.assertTrue(self.odps.exist_table(SIMPLE_PERSIST_TABLE))
+@pytest.fixture
+def utils(odps, tunnel):
+    return MLTestUtil(odps, tunnel)
 
-    def testExistingPersist(self):
-        self.create_iris(IRIS_TABLE)
-        df = DataFrame(self.odps.get_table(IRIS_TABLE)).append_id()
 
-        odps_schema = df_schema_to_odps_schema(df.schema)
-        cols = list(reversed(odps_schema.columns))
-        odps_schema = TableSchema.from_lists([c.name for c in cols], [c.type for c in cols])
+def test_simple_persist(odps, utils):
+    utils.create_iris(IRIS_TABLE)
+    df = DataFrame(odps.get_table(IRIS_TABLE))
+    df.append_id().persist(SIMPLE_PERSIST_TABLE, lifecycle=1, drop_table=True)
+    assert odps.exist_table(SIMPLE_PERSIST_TABLE) is True
 
-        self.odps.delete_table(EXISTING_PERSIST_TABLE, if_exists=True)
-        self.odps.create_table(EXISTING_PERSIST_TABLE, odps_schema)
-        df.persist(EXISTING_PERSIST_TABLE)
 
-    def testStaticPartition(self):
-        self.create_iris(IRIS_TABLE)
-        df = DataFrame(self.odps.get_table(IRIS_TABLE))
-        id_df = df.append_id()
+def test_existing_persist(odps, utils):
+    utils.create_iris(IRIS_TABLE)
+    df = DataFrame(odps.get_table(IRIS_TABLE)).append_id()
 
-        src_schema = df_schema_to_odps_schema(id_df.schema)
-        schema = TableSchema(
-            columns=src_schema.simple_columns, partitions=[Partition(name='ds', type=odps_types.string)]
-        )
-        self.odps.delete_table(STATIC_PART_TABLE, if_exists=True)
-        dest_table = self.odps.create_table(STATIC_PART_TABLE, schema, lifecycle=1)
+    odps_schema = df_schema_to_odps_schema(df.schema)
+    cols = list(reversed(odps_schema.columns))
+    odps_schema = TableSchema.from_lists([c.name for c in cols], [c.type for c in cols])
 
-        id_df.persist(STATIC_PART_TABLE, partition='ds=20170314', lifecycle=1)
-        self.assertTrue(dest_table.exist_partition('ds=20170314'))
+    odps.delete_table(EXISTING_PERSIST_TABLE, if_exists=True)
+    odps.create_table(EXISTING_PERSIST_TABLE, odps_schema)
+    df.persist(EXISTING_PERSIST_TABLE)
 
-    def testDynamicPartition(self):
-        self.create_iris(IRIS_TABLE)
-        df = DataFrame(self.odps.get_table(IRIS_TABLE))
-        id_df = df.append_id()
-        self.odps.delete_table(DYNAMIC_PART_TABLE, if_exists=True)
-        id_df.persist(DYNAMIC_PART_TABLE, partitions='category', lifecycle=1, drop_table=True)
 
-        self.assertTrue(self.odps.exist_table(DYNAMIC_PART_TABLE))
-        t = self.odps.get_table(DYNAMIC_PART_TABLE)
-        self.assertIn('category', [pt.name for pt in t.table_schema.partitions])
+def test_static_partition(odps, utils):
+    utils.create_iris(IRIS_TABLE)
+    df = DataFrame(odps.get_table(IRIS_TABLE))
+    id_df = df.append_id()
+
+    src_schema = df_schema_to_odps_schema(id_df.schema)
+    schema = TableSchema(
+        columns=src_schema.simple_columns, partitions=[Partition(name='ds', type=odps_types.string)]
+    )
+    odps.delete_table(STATIC_PART_TABLE, if_exists=True)
+    dest_table = odps.create_table(STATIC_PART_TABLE, schema, lifecycle=1)
+
+    id_df.persist(STATIC_PART_TABLE, partition='ds=20170314', lifecycle=1)
+    assert dest_table.exist_partition('ds=20170314') is True
+
+
+def test_dynamic_partition(odps, utils):
+    utils.create_iris(IRIS_TABLE)
+    df = DataFrame(odps.get_table(IRIS_TABLE))
+    id_df = df.append_id()
+    odps.delete_table(DYNAMIC_PART_TABLE, if_exists=True)
+    id_df.persist(DYNAMIC_PART_TABLE, partitions='category', lifecycle=1, drop_table=True)
+
+    assert odps.exist_table(DYNAMIC_PART_TABLE) is True
+    t = odps.get_table(DYNAMIC_PART_TABLE)
+    assert 'category' in [pt.name for pt in t.table_schema.partitions]

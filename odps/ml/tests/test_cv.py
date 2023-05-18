@@ -15,24 +15,25 @@
 
 from __future__ import print_function
 
-from odps.df import DataFrame
-from odps.ml.classifiers import LogisticRegression
-from odps.ml.cross_validation import cross_val_score
-from odps.ml.tests.base import MLTestBase, tn, ci_skip_case
+import pytest
+
+from ...df import DataFrame
+from ..classifiers import LogisticRegression
+from ..cross_validation import cross_val_score
+from ..tests.base import MLTestUtil, tn, ci_skip_case
 
 IONOSPHERE_TABLE = tn('pyodps_test_ml_ionosphere')
 
 
-class TestCrossValidation(MLTestBase):
-    def setUp(self):
-        super(TestCrossValidation, self).setUp()
-        self.create_ionosphere(IONOSPHERE_TABLE)
-        self.df = DataFrame(self.odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
+@pytest.fixture
+def utils(odps, tunnel):
+    util = MLTestUtil(odps, tunnel)
+    util.create_ionosphere(IONOSPHERE_TABLE)
+    util.df = DataFrame(odps.get_table(IONOSPHERE_TABLE)).roles(label='class')
+    return util
 
-    def tearDown(self):
-        super(TestCrossValidation, self).tearDown()
 
-    @ci_skip_case
-    def test_logistic_regression(self):
-        lr = LogisticRegression(epsilon=0.001).set_max_iter(50)
-        print(cross_val_score(lr, self.df))
+@ci_skip_case
+def test_logistic_regression(utils):
+    lr = LogisticRegression(epsilon=0.001).set_max_iter(50)
+    print(cross_val_score(lr, utils.df))

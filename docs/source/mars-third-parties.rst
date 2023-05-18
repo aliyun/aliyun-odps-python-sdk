@@ -132,8 +132,8 @@ Mars 的基础镜像中安装了一些常见的三方库，可以直接在 remot
 使用 extended 镜像
 ------------------
 
-目前 Mars 的基础镜像中是不含 XGBoost 与 LightGBM 等这些库，所以如果想使用到 Mars 集成 `XGBoost <https://docs.pymars.org/zh_CN/latest/user_guide/learn/xgboost.html>`__ 与
-`LightGBM <https://docs.pymars.org/zh_CN/latest/user_guide/learn/lightgbm.html>`__\ 的能力，
+目前 Mars 的基础镜像中是不含 XGBoost 与 LightGBM 等这些库，所以如果想使用到 Mars 集成 `XGBoost <https://mars-project.readthedocs.io/zh_CN/latest/user_guide/learn/xgboost.html>`__ 与
+`LightGBM <https://mars-project.readthedocs.io/zh_CN/latest/user_guide/learn/lightgbm.html>`__\ 的能力，
 我们需要在创建集群时指定镜像类型为 ``extended``：
 
 .. code:: python
@@ -309,7 +309,7 @@ extended 镜像中的三方库以及版本如下：
 使用 tensorflow 镜像
 --------------------
 
-除了 extended 镜像，我们也提供了 tensorflow 镜像，可以使用到 `Mars 集成 TensorFlow 的能力 <https://docs.pymars.org/en/latest/user_guide/learn/tensorflow.html>`__
+除了 extended 镜像，我们也提供了 tensorflow 镜像，可以使用到 `Mars 集成 TensorFlow 的能力 <https://mars-project.readthedocs.io/en/latest/user_guide/learn/tensorflow.html>`__
 
 我们需要在创建集群时指定镜像类型为 ``tensorflow``：
 

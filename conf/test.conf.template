@@ -13,6 +13,5 @@ endpoint=
 [test]
 logging_level=INFO
 secondary_user=
-py26_executable=
 py37_executable=
 py310_executable=
