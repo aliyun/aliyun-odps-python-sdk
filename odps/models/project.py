@@ -272,7 +272,10 @@ class Project(LazyLoad):
 
         def get_odps_ref(obj):
             if obj and obj._getattr("_odps_ref") is not None and obj._odps_ref() is not None:
-                return obj._odps_ref()
+                try:
+                    return obj._odps_ref()
+                except AttributeError:
+                    return None
 
         if get_odps_ref(self):
             return get_odps_ref(self)
@@ -289,6 +292,7 @@ class Project(LazyLoad):
             tunnel_endpoint=self._tunnel_endpoint,
             logview_host=self._logview_host,
             app_account=getattr(client, 'app_account', None),
+            overwrite_global=False,
         )
         self._odps_ref = weakref.ref(odps)
         return odps
