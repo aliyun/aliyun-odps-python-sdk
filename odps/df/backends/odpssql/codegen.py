@@ -63,11 +63,14 @@ try:
 except:
     pass
 
+import sys
+# avoid conflict between protobuf binaries
+sys.setdlopenflags(10)
+
 import base64
 import inspect
 import time
 import os
-import sys
 try:
     import faulthandler
     faulthandler.enable(all_threads=True)
@@ -123,8 +126,8 @@ except ImportError:
                     raise DistributedCacheError("Invalid relative path, relative path contains symlink: " + relativename)
                 ret_files.append(filename)
         return ret_files
-        
-    
+
+
 def get_cache_archive_data(name, relative_path='.'):
     try:
         return [os.path.normpath(f) for f in get_cache_archive_filenames(name, relative_path)]
@@ -240,7 +243,7 @@ class %(func_cls_name)s(object):
                 if fields:
                     tb = gen_resource_data(fields, tb)
                 resources.append(tb)
-                
+
         libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
         files = []
         for lib in libraries:
@@ -507,7 +510,7 @@ class %(func_cls_name)s(BaseUDAF):
                 if fields:
                     tb = gen_resource_data(fields, tb)
                 resources.append(tb)
-                
+
         libraries = (l for l in '%(libraries)s'.split(',') if len(l) > 0)
         files = []
         for lib in libraries:
@@ -518,7 +521,7 @@ class %(func_cls_name)s(BaseUDAF):
                 f = get_cache_file(lib)
             files.append(read_lib(lib, f))
         sys.meta_path.append(CompressImporter(*files, supersede=%(supersede_libraries)r))
-        
+
         load_np_generic()
 
         encoded_func_args = '%(func_args_str)s'

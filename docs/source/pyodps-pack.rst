@@ -403,6 +403,8 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
     @annotate("double->double")
     class MyPsi(object):
         def __init__(self):
+            # 如果依赖中包含 protobuf，需要添加下面这行语句，否则不需要
+            sys.setdlopenflags(10)
             # 将路径增加到引用路径
             sys.path.insert(0, "work/scipy-bundle.tar.gz/packages")
 
@@ -412,10 +414,17 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
             return float(psi(arg0))
 
-对上面的代码做一些解释。``__init__`` 函数中将 ``work/scipy-bundle.tar.gz/packages`` 添加到 ``sys.path``，
-因为 MaxCompute 会将所有 UDF 引用的 Archive 资源以资源名称为目录解压到 ``work`` 目录下，而 ``packages`` 则是
-``pyodps-pack`` 生成包的子目录。而将对 scipy 的 import 放在 evaluate 函数体内部的原因是三方包仅在执行时可用，当
-UDF 在 MaxCompute 服务端被解析时，解析环境不包含三方包，函数体外的三方包 import 会导致报错。
+对上面的代码做一些解释。
+
+1. 当依赖中包含 protobuf 时，需要为 ``__init__`` 函数增加 ``sys.setdlopenflags(10)`` （ ``pyodps-pack``
+   打包过程中会提示），该设置可以避免三方包和 MaxCompute 间相关的版本冲突。
+
+2. ``__init__`` 函数中将 ``work/scipy-bundle.tar.gz/packages`` 添加到 ``sys.path``，
+   因为 MaxCompute 会将所有 UDF 引用的 Archive 资源以资源名称为目录解压到 ``work`` 目录下，而 ``packages`` 则是
+   ``pyodps-pack`` 生成包的子目录。
+
+3. 将对 scipy 的 import 放在 evaluate 函数体内部的原因是三方包仅在执行时可用，当
+   UDF 在 MaxCompute 服务端被解析时，解析环境不包含三方包，函数体外的三方包 import 会导致报错。
 
 随后需要将 ``test_psi_udf.py`` 上传为 MaxCompute Python 资源，以及将 ``scipy-bundle.tar.gz`` 上传为 Archive
 资源。此后，创建 UDF 名为 ``test_psi_udf``，引用上面两个资源文件，并指定类名为 ``test_psi_udf.MyPsi``。

@@ -265,6 +265,10 @@ fi
 
 export PYTHONPATH="$OLDPYTHONPATH"
 
+if ls "$WHEELS_PATH"/protobuf*.whl 1> /dev/null 2>&1; then
+  HAS_PROTOBUF="1"
+fi
+
 if [[ -n "$WITHOUT_MERGE" ]]; then
   # move all wheels into wheelhouse
   if [[ -n "$NON_DOCKER_MODE" ]]; then
@@ -332,6 +336,12 @@ else
     pack_path="$WHEELHOUSE_PATH/{_DEFAULT_OUTPUT_FILE}"
   fi
   tar --exclude="*.pyc" --exclude="__pycache__" -czf "$pack_path" "{package_site}"
+
+  if [[ -n "$HAS_PROTOBUF" ]]; then
+    echo ""
+    echo "NOTE: Protobuf detected. You may add \"sys.setdlopenflags(10)\" before using this package in UDFs."
+    echo ""
+  fi
 fi
 """
 
