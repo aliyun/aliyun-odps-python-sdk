@@ -86,6 +86,7 @@ tunnel.endpoint                  Tunnel Endpoint                              No
 tunnel.use_instance_tunnel       使用 Instance Tunnel 获取执行结果            True
 tunnel.limit_instance_tunnel     是否限制 Instance Tunnel 获取结果的条数      None
 tunnel.string_as_binary          在 string 类型中使用 bytes 而非 unicode      False
+tunnel.quota_name                配置 Tunnel Quota 的名称                     False
 ================================ ============================================ ========
 
 DataFrame 配置

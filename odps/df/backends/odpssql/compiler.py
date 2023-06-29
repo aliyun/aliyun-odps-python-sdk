@@ -134,6 +134,7 @@ class OdpsSQLCompiler(Backend):
         self._group_by_clause = None
         self._having_clause = None
         self._order_by_clause = None
+        self._table_sample_clause = None
         self._limit = None
 
     def _cleanup(self):
@@ -371,6 +372,8 @@ class OdpsSQLCompiler(Backend):
                 # for `sort by`, limit is unnecessary
                 self._limit = options.df.odps.sort.limit
             lines.append(self._order_by_clause)
+        if self._table_sample_clause:
+            lines.append('TABLESAMPLE {0}'.format(self._table_sample_clause))
         if self._limit is not None:
             lines.append('LIMIT {0}'.format(self._limit))
 
@@ -532,6 +535,11 @@ class OdpsSQLCompiler(Backend):
             self.sub_sql_to_from_clause(expr.input)
 
         self._order_by_clause = order_by_clause
+
+    def add_table_sample_clause(self, expr, table_sample_clause):
+        if self._table_sample_clause is not None:
+            self.sub_sql_to_from_clause(expr.input)
+        self._table_sample_clause = table_sample_clause
 
     def set_limit(self, expr, limit):
         if self._limit is not None:
@@ -1062,6 +1070,13 @@ class OdpsSQLCompiler(Backend):
             [self._ctx.get_expr_compiled(field) for field in keys_fields]))
 
         self.add_order_by_clause(expr, order_by_clause)
+
+    def visit_sample(self, expr):
+        assert expr._parts is None and not expr._replace.value
+        if expr._frac is not None:
+            self.add_table_sample_clause(expr, "({0} PERCENT)".format(int(expr._frac.value * 100)))
+        elif expr._n is not None:
+            self.add_table_sample_clause(expr, "({0} ROWS)".format(expr._n.value))
 
     def visit_distinct(self, expr):
         distinct_fields = expr.args[1]

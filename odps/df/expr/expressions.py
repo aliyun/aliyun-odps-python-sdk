@@ -1574,16 +1574,6 @@ class BinarySequenceExpr(SequenceExpr):
         self._data_type = types.binary
 
 
-class ListSequenceExpr(SequenceExpr):
-    def _init(self, *args, **kwargs):
-        super(ListSequenceExpr, self)._init(*args, **kwargs)
-
-
-class DictSequenceExpr(SequenceExpr):
-    def _init(self, *args, **kwargs):
-        super(DictSequenceExpr, self)._init(*args, **kwargs)
-
-
 class DateSequenceExpr(SequenceExpr):
     def _init(self, *args, **kwargs):
         super(DateSequenceExpr, self)._init(*args, **kwargs)
@@ -1594,6 +1584,27 @@ class TimestampSequenceExpr(SequenceExpr):
     def _init(self, *args, **kwargs):
         super(TimestampSequenceExpr, self)._init(*args, **kwargs)
         self._data_type = types.timestamp
+
+
+class JsonSequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(JsonSequenceExpr, self)._init(*args, **kwargs)
+        self._data_type = types.json
+
+
+class ListSequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(ListSequenceExpr, self)._init(*args, **kwargs)
+
+
+class DictSequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(DictSequenceExpr, self)._init(*args, **kwargs)
+
+
+class StructSequenceExpr(SequenceExpr):
+    def _init(self, *args, **kwargs):
+        super(StructSequenceExpr, self)._init(*args, **kwargs)
 
 
 class UnknownSequenceExpr(SequenceExpr):
@@ -1917,11 +1928,21 @@ class BinaryScalar(Scalar):
         self._value_type = types.binary
 
 
+class JsonScalar(Scalar):
+    def _init(self, *args, **kwargs):
+        super(JsonScalar, self)._init(*args, **kwargs)
+        self._value_type = types.json
+
+
 class ListScalar(Scalar):
     pass
 
 
 class DictScalar(Scalar):
+    pass
+
+
+class StructScalar(Scalar):
     pass
 
 

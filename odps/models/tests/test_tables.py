@@ -737,8 +737,8 @@ def test_read_with_retry(odps):
         table.drop()
 
 
-def test_write_with_interval(odps):
-    test_table_name = tn('pyodps_t_tmp_write_interval')
+def test_write_record_with_interval(odps):
+    test_table_name = tn('pyodps_t_tmp_write_rec_interval')
     odps.delete_table(test_table_name, if_exists=True)
 
     table = odps.create_table(test_table_name, "col string")
@@ -750,6 +750,28 @@ def test_write_with_interval(odps):
             # as auto_flush_time arrives, a new block should be generated
             assert len(writer._id_to_blocks) == 2
             writer.write([["str3"], ["str4"]], block_id=0)
+        strs = [rec[0] for rec in table.head(4)]
+        assert sorted(strs) == ["str1", "str2", "str3", "str4"]
+        assert not writer._daemon_thread.is_alive()
+    finally:
+        options.table_auto_flush_time = 150
+        table.drop()
+
+
+@pytest.mark.skipif(pa is None, reason="Need pyarrow to run this test")
+def test_write_arrow_with_interval(odps):
+    test_table_name = tn('pyodps_t_tmp_write_arrow_interval')
+    odps.delete_table(test_table_name, if_exists=True)
+
+    table = odps.create_table(test_table_name, "col string")
+    try:
+        options.table_auto_flush_time = 2
+        with table.open_writer(arrow=True) as writer:
+            writer.write(pd.DataFrame({"col": ["str1", "str2"]}))
+            time.sleep(4.5)
+            # as auto_flush_time arrives, a new block should be generated
+            assert len(writer._id_to_blocks) == 2
+            writer.write(pd.DataFrame({"col": ["str3", "str4"]}))
         strs = [rec[0] for rec in table.head(4)]
         assert sorted(strs) == ["str1", "str2", "str3", "str4"]
         assert not writer._daemon_thread.is_alive()

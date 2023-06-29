@@ -30,8 +30,10 @@ except ImportError:
 
 
 class InstanceDownloadSession(serializers.JSONSerializableModel):
-    __slots__ = '_client', '_instance', '_limit_enabled', '_compress_option', '_sessional', \
-                '_session_task_name', '_session_subquery_id'
+    __slots__ = (
+        '_client', '_instance', '_limit_enabled', '_compress_option', '_sessional',
+        '_session_task_name', '_session_subquery_id', '_quota_name'
+    )
 
     class Status(Enum):
         Unknown = 'UNKNOWN'
@@ -46,14 +48,16 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         'Status', parse_callback=lambda s: InstanceDownloadSession.Status(s.upper()))
     count = serializers.JSONNodeField('RecordCount')
     schema = serializers.JSONNodeReferenceField(TableSchema, 'Schema')
+    quota_name = serializers.JSONNodeField('QuotaName')
 
     def __init__(self, client, instance, download_id=None, limit=None,
-                 compress_option=None, **kw):
+                 compress_option=None, quota_name=None, **kw):
         super(InstanceDownloadSession, self).__init__()
 
         self._client = client
         self._instance = instance
         self._limit_enabled = limit if limit is not None else kw.get('limit_enabled', False)
+        self._quota_name = quota_name
         self._sessional = kw.pop("sessional", False)
         self._session_task_name = kw.pop("session_task_name", "")
         self._session_subquery_id = int(kw.pop("session_subquery_id", -1))
@@ -85,6 +89,10 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             'Content-Length': 0,
             'x-odps-tunnel-version': TUNNEL_VERSION,
         }
+
+        if self._quota_name is not None:
+            params['quotaName'] = self._quota_name
+
         # Now we use DirectDownloadMode to fetch session results(any other method is removed)
         # This mode, only one request needed. So we don't have to send request here ..
         if not self._sessional:
@@ -205,5 +213,12 @@ class InstanceTunnel(BaseTunnel):
 
         if limit is None:
             limit = kw.get('limit_enabled', False)
-        return InstanceDownloadSession(self.tunnel_rest, instance, download_id=download_id,
-                                       limit=limit, compress_option=compress_option, **kw)
+        return InstanceDownloadSession(
+            self.tunnel_rest,
+            instance,
+            download_id=download_id,
+            limit=limit,
+            compress_option=compress_option,
+            quota_name=self._quota_name,
+            **kw
+        )

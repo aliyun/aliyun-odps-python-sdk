@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.8.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-04-22 23:31+0800\n"
+"POT-Creation-Date: 2023-05-25 13:58+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -56,17 +56,17 @@ msgid "通用配置"
 msgstr "General configurations"
 
 #: ../../source/options.rst:25 ../../source/options.rst:83
-#: ../../source/options.rst:95
+#: ../../source/options.rst:96
 msgid "选项"
 msgstr "Option"
 
 #: ../../source/options.rst:25 ../../source/options.rst:83
-#: ../../source/options.rst:95
+#: ../../source/options.rst:96
 msgid "说明"
 msgstr "Description"
 
 #: ../../source/options.rst:25 ../../source/options.rst:83
-#: ../../source/options.rst:95
+#: ../../source/options.rst:96
 msgid "默认值"
 msgstr "Default value"
 
@@ -85,7 +85,7 @@ msgstr "MaxCompute Endpoint"
 #: ../../source/options.rst:64 ../../source/options.rst:72
 #: ../../source/options.rst:74 ../../source/options.rst:76
 #: ../../source/options.rst:85 ../../source/options.rst:87
-#: ../../source/options.rst:104
+#: ../../source/options.rst:105
 msgid "None"
 msgstr ""
 
@@ -145,10 +145,10 @@ msgid "验证服务端 SSL 证书"
 msgstr "Verify SSL certificate of the server end"
 
 #: ../../source/options.rst:40 ../../source/options.rst:70
-#: ../../source/options.rst:86 ../../source/options.rst:98
-#: ../../source/options.rst:99 ../../source/options.rst:100
-#: ../../source/options.rst:101 ../../source/options.rst:102
-#: ../../source/options.rst:103 ../../source/options.rst:105
+#: ../../source/options.rst:86 ../../source/options.rst:99
+#: ../../source/options.rst:100 ../../source/options.rst:101
+#: ../../source/options.rst:102 ../../source/options.rst:103
+#: ../../source/options.rst:104 ../../source/options.rst:106
 msgid "True"
 msgstr ""
 
@@ -181,6 +181,7 @@ msgid "是否打印日志"
 msgstr "Whether to print logs"
 
 #: ../../source/options.rst:46 ../../source/options.rst:88
+#: ../../source/options.rst:89
 msgid "False"
 msgstr ""
 
@@ -287,8 +288,7 @@ msgstr ""
 
 #: ../../source/options.rst:68
 msgid "使用 ``table.open_writer`` 时的定时提交间隔"
-msgstr ""
-"Data submission interval when uploading data with ``table.open_writer``"
+msgstr "Data submission interval when uploading data with ``table.open_writer``"
 
 #: ../../source/options.rst:68
 msgid "150"
@@ -362,99 +362,107 @@ msgstr ""
 msgid "在 string 类型中使用 bytes 而非 unicode"
 msgstr "Use bytes instead of unicode in the string type"
 
-#: ../../source/options.rst:92
+#: ../../source/options.rst:89
+msgid "tunnel.quota_name"
+msgstr ""
+
+#: ../../source/options.rst:89
+msgid "配置 Tunnel Quota 的名称"
+msgstr "Name of the tunnel quota to use"
+
+#: ../../source/options.rst:93
 msgid "DataFrame 配置"
 msgstr "DataFrame configurations"
 
-#: ../../source/options.rst:97
+#: ../../source/options.rst:98
 msgid "interactive"
 msgstr ""
 
-#: ../../source/options.rst:97
+#: ../../source/options.rst:98
 msgid "是否在交互式环境"
 msgstr "Whether in an interactive environment"
 
-#: ../../source/options.rst:97
+#: ../../source/options.rst:98
 msgid "根据检测值"
 msgstr "Depend on the detection value"
 
-#: ../../source/options.rst:98
+#: ../../source/options.rst:99
 msgid "df.analyze"
 msgstr ""
 
-#: ../../source/options.rst:98
+#: ../../source/options.rst:99
 msgid "是否启用非 ODPS 内置函数"
 msgstr "Whether to enable non-MaxCompute built-in functions"
 
-#: ../../source/options.rst:99
+#: ../../source/options.rst:100
 msgid "df.optimize"
 msgstr ""
 
-#: ../../source/options.rst:99
+#: ../../source/options.rst:100
 msgid "是否开启DataFrame全部优化"
 msgstr "Whether to enable DataFrame overall optimization"
 
-#: ../../source/options.rst:100
+#: ../../source/options.rst:101
 msgid "df.optimizes.pp"
 msgstr ""
 
-#: ../../source/options.rst:100
+#: ../../source/options.rst:101
 msgid "是否开启DataFrame谓词下推优化"
 msgstr "Whether to enable DataFrame predicate push down optimization"
 
-#: ../../source/options.rst:101
+#: ../../source/options.rst:102
 msgid "df.optimizes.cp"
 msgstr ""
 
-#: ../../source/options.rst:101
+#: ../../source/options.rst:102
 msgid "是否开启DataFrame列剪裁优化"
 msgstr "Whether to enable DataFrame column tailoring optimization"
 
-#: ../../source/options.rst:102
+#: ../../source/options.rst:103
 msgid "df.optimizes.tunnel"
 msgstr ""
 
-#: ../../source/options.rst:102
+#: ../../source/options.rst:103
 msgid "是否开启DataFrame使用tunnel优化执行"
 msgstr "Whether to enable DataFrame tunnel optimization"
 
-#: ../../source/options.rst:103
+#: ../../source/options.rst:104
 msgid "df.quote"
 msgstr ""
 
-#: ../../source/options.rst:103
+#: ../../source/options.rst:104
 msgid "ODPS SQL后端是否用``来标记字段和表名"
 msgstr ""
 "Whether to use `` to mark fields and table names at the end of MaxCompute"
 " SQL"
 
-#: ../../source/options.rst:104
+#: ../../source/options.rst:105
 msgid "df.libraries"
 msgstr ""
 
-#: ../../source/options.rst:104
+#: ../../source/options.rst:105
 msgid "DataFrame运行使用的第三方库（资源名）"
 msgstr "Third-party library (resource name) that is used for DataFrame running"
 
-#: ../../source/options.rst:105
+#: ../../source/options.rst:106
 msgid "df.supersede_libraries"
 msgstr ""
 
-#: ../../source/options.rst:105
+#: ../../source/options.rst:106
 msgid "使用自行上传的包替换服务中的版本"
 msgstr ""
 "Use uploaded package resource to supersede the version provided by "
 "MaxCompute"
 
-#: ../../source/options.rst:106
+#: ../../source/options.rst:107
 msgid "df.odps.sort.limit"
 msgstr ""
 
-#: ../../source/options.rst:106
+#: ../../source/options.rst:107
 msgid "DataFrame有排序操作时，默认添加的limit条数"
 msgstr "Limit count when ``sort`` is performed"
 
-#: ../../source/options.rst:106
+#: ../../source/options.rst:107
 msgid "10000"
 msgstr ""
 

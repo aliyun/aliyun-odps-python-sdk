@@ -634,11 +634,13 @@ class Instance(LazyLoad):
     def is_sync(self):
         return self._is_sync
 
-    def wait_for_completion(self, interval=1, timeout=None):
+    def wait_for_completion(self, interval=1, timeout=None, max_interval=None):
         """
         Wait for the instance to complete, and neglect the consequence.
 
         :param interval: time interval to check
+        :param max_interval: if specified, next check interval will be
+            multiplied by 2 till max_interval is reached.
         :param timeout: time
         :return: None
         """
@@ -647,21 +649,26 @@ class Instance(LazyLoad):
         while not self.is_terminated(retry=True):
             try:
                 time.sleep(interval)
+                if max_interval is not None:
+                    interval = min(interval * 2, max_interval)
                 if timeout is not None and time.time() - start_time > timeout:
                     raise errors.WaitTimeoutError(instance_id=self.id)
             except KeyboardInterrupt:
                 break
 
-    def wait_for_success(self, interval=1, timeout=None):
+    def wait_for_success(self, interval=1, timeout=None, max_interval=None):
         """
         Wait for instance to complete, and check if the instance is successful.
 
         :param interval: time interval to check
+        :param max_interval: if specified, next check interval will be
+            multiplied by 2 till max_interval is reached.
+        :param timeout: time
         :return: None
         :raise: :class:`odps.errors.ODPSError` if the instance failed
         """
 
-        self.wait_for_completion(interval=interval, timeout=timeout)
+        self.wait_for_completion(interval=interval, max_interval=max_interval, timeout=timeout)
 
         if not self.is_successful(retry=True):
             for task_name, task in six.iteritems(self.get_task_statuses()):

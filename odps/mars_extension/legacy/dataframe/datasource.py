@@ -973,7 +973,7 @@ def read_odps_table(
         string_as_binary=string_as_binary,
         memory_scale=memory_scale,
         append_partitions=append_partitions,
-        last_modified_time=to_timestamp(table.last_modified_time),
+        last_modified_time=to_timestamp(table.last_data_modified_time),
         with_split_meta_on_tile=with_split_meta_on_tile,
     )
     return op(shape, chunk_bytes=chunk_bytes, chunk_size=chunk_size)

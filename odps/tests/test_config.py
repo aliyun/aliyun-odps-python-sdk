@@ -126,11 +126,31 @@ def test_set_display_option():
 
 def test_dump_and_load():
     with option_context() as local_options:
-        local_options.register_option('test.value', 50,
-                                      validator=any_validator(is_null, is_integer))
+        local_options.register_option(
+            'test.value', 50, validator=any_validator(is_null, is_integer)
+        )
         d = local_options.dumps()
         assert d['test.value'] == 50
 
         d['test.value'] = 100
         local_options.loads(d)
         assert local_options.test.value == 100
+
+
+def test_add_validator():
+    with option_context() as local_options:
+        local_options.register_option(
+            'test.value', 50, validator=any_validator(is_null, is_integer)
+        )
+        with pytest.raises(ValueError):
+            local_options.test.value = "abcd"
+
+        values = []
+
+        def _validator(val):
+            values.append(val)
+            return True
+
+        local_options.add_validator("test.value", _validator)
+        local_options.test.value = 1234
+        assert values == [1234]

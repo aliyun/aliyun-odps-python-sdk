@@ -191,6 +191,14 @@ DataWorks 限制下载的包总大小为 100MB。如果你需要跳过预装包�
 
     new_odps = o.as_account('**new_access_id**', '**new_secret_access_key**')
 
+问题诊断
+=========
+如果你的代码在执行中卡死且没有任何输出，你可以在代码头部增加以下注释，DataWorks 每隔 30 秒将输出所有线程的堆栈：
+
+.. code-block:: python
+
+    # -*- dump_traceback: true -*-
+
 受限功能
 =========
 

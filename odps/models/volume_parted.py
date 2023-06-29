@@ -187,7 +187,7 @@ class VolumePartition(LazyLoad):
         """
         return self.files.iterate()
 
-    def _create_volume_tunnel(self, endpoint=None):
+    def _create_volume_tunnel(self, endpoint=None, quota_name=None):
         if self._volume_tunnel is not None:
             return self._volume_tunnel
 
@@ -197,10 +197,13 @@ class VolumePartition(LazyLoad):
             client=self._client,
             project=self.project,
             endpoint=endpoint or self.project._tunnel_endpoint,
+            quota_name=quota_name,
         )
         return self._volume_tunnel
 
-    def open_reader(self, file_name, reopen=False, endpoint=None, start=None, length=None, **kwargs):
+    def open_reader(
+        self, file_name, reopen=False, endpoint=None, start=None, length=None, quota_name=None, **kwargs
+    ):
         """
         Open a volume file for read. A file-like object will be returned which can be used to read contents from
         volume files.
@@ -210,6 +213,7 @@ class VolumePartition(LazyLoad):
         :param str endpoint: tunnel service URL
         :param start: start position
         :param length: length limit
+        :param quota_name: name of tunnel quota
         :param compress_option: the compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
 
@@ -217,7 +221,7 @@ class VolumePartition(LazyLoad):
         >>> with partition.open_reader('file') as reader:
         >>>     [print(line) for line in reader]
         """
-        tunnel = self._create_volume_tunnel(endpoint=endpoint)
+        tunnel = self._create_volume_tunnel(endpoint=endpoint, quota_name=quota_name)
         download_id = self._download_id if not reopen else None
         download_session = tunnel.create_download_session(volume=self.volume.name, partition_spec=self.name,
                                                           file_name=file_name, download_id=download_id, **kwargs)
@@ -230,13 +234,14 @@ class VolumePartition(LazyLoad):
             open_args['length'] = length
         return download_session.open(**open_args)
 
-    def open_writer(self, reopen=False, endpoint=None, **kwargs):
+    def open_writer(self, reopen=False, endpoint=None, quota_name=None, **kwargs):
         """
         Open a volume partition to write to. You can use `open` method to open a file inside the volume and write to it,
         or use `write` method to write to specific files.
 
         :param bool reopen: whether we need to open an existing write session
         :param str endpoint: tunnel service URL
+        :param quota_name: name of tunnel quota
         :param compress_option: the compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :Example:
@@ -244,7 +249,7 @@ class VolumePartition(LazyLoad):
         >>>     writer.open('file1').write('some content')
         >>>     writer.write('file2', 'some content')
         """
-        tunnel = self._create_volume_tunnel(endpoint=endpoint)
+        tunnel = self._create_volume_tunnel(endpoint=endpoint, quota_name=quota_name)
         upload_id = self._upload_id if not reopen else None
         upload_session = tunnel.create_upload_session(volume=self.volume.name, partition_spec=self.name,
                                                       upload_id=upload_id, **kwargs)

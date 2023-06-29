@@ -32,6 +32,7 @@ _EXCLUDE_FILE_NAME = "excludes.txt"
 _BEFORE_SCRIPT_FILE_NAME = "before-script.sh"
 _VCS_FILE_NAME = "requirements-vcs.txt"
 _PACK_SCRIPT_FILE_NAME = "pack.sh"
+_DYNLIB_PYPROJECT_TOML_FILE_NAME = "dynlib.toml"
 _DEFAULT_MINIKUBE_USER_ROOT = "/pypack_user_home"
 
 _SEGFAULT_ERR_CODE = 139
@@ -42,6 +43,7 @@ cmd_after_build = os.getenv("AFTER_BUILD") or ""
 docker_image_env = os.getenv("DOCKER_IMAGE")
 package_site = os.getenv("PACKAGE_SITE") or _DEFAULT_PACKAGE_SITE
 minikube_user_root = os.getenv("MINIKUBE_USER_ROOT") or _DEFAULT_MINIKUBE_USER_ROOT
+pack_in_cluster = os.getenv("PACK_IN_CLUSTER")
 
 docker_path = os.getenv("DOCKER_PATH")
 if docker_path and os.path.isfile(docker_path):
@@ -54,12 +56,22 @@ _vcs_prefixes = [prefix + "+" for prefix in "git hg svn bzr".split()]
 logger = logging.getLogger(__name__)
 
 
+dynlibs_pyproject_toml = """
+[project]
+name = "dynlibs"
+version = "0.0.1"
+
+[tool.setuptools.package-data]
+dynlibs = ["*.so"]
+""".strip()
+
+
 script_template = r"""
 #!/bin/bash
 if [[ -n "$NON_DOCKER_MODE" ]]; then
   PYBIN="$(dirname "$PYEXECUTABLE")"
   PIP_PLATFORM_ARGS="--platform=$PYPLATFORM --abi=$PYABI --python-version=$PYVERSION --only-binary=:all:"
-  MACHINE_TAG=$($PYBIN/python -c "import platform; print(platform.machine())")
+  MACHINE_TAG=$("$PYBIN/python" -c "import platform; print(platform.machine())")
   if [[ $(uname) != "Linux" || "$MACHINE_TAG" != "$TARGET_ARCH" ]]; then
     # does not allow compiling under non-linux or different arch
     echo "WARNING: target ($TARGET_ARCH-Linux) not matching host ($MACHINE_TAG-$(uname)), may encounter errors when compiling binary packages."
@@ -67,7 +79,7 @@ if [[ -n "$NON_DOCKER_MODE" ]]; then
   fi
 else
   PYBIN="/opt/python/{python_abi_version}/bin"
-  MACHINE_TAG=$($PYBIN/python -c "import platform; print(platform.machine())")
+  MACHINE_TAG=$("$PYBIN/python" -c "import platform; print(platform.machine())")
 fi
 export PATH="$PYBIN:$PATH"
 
@@ -173,10 +185,10 @@ function build_package_at_staging () {{
     "$PYBIN/python" -m pip wheel --no-deps --wheel-dir "$WHEELS_PATH/staging" $PYPI_EXTRA_ARG "$1"
   fi
 
-  cd "$WHEELS_PATH/staging"
+  pushd "$WHEELS_PATH/staging" > /dev/null
   for dep_wheel in $(ls *.whl); do
     WHEEL_NAMES="$WHEEL_NAMES $dep_wheel"
-    dep_name="$(echo $dep_wheel | sed -E 's/-[0-9]/ /' | awk '{{print $1}}')"
+    dep_name="$(echo $dep_wheel | sed -E 's/-/ /g' | awk '{{ print $1"=="$2 }}')"
     USER_PACK_NAMES="$USER_PACK_NAMES $dep_name "
     echo "$dep_name" >> "$TEMP_SCRIPT_PATH/requirements-user.txt"
     if [[ -z "$NON_DOCKER_MODE" || "$dep_wheel" == *"-none-"* ]]; then
@@ -189,10 +201,10 @@ function build_package_at_staging () {{
     if [[ -z "$NON_DOCKER_MODE" ]]; then
       "$PYBIN/python" -m pip wheel --wheel-dir "$WHEELS_PATH" $PYPI_EXTRA_ARG $WHEEL_NAMES
     else
-      "$PYBIN/python" -m pip wheel --wheel-dir "$WHEELS_PATH/staging" $PYPI_EXTRA_ARG $WHEEL_NAMES
+      "$PYBIN/python" -m pip wheel --wheel-dir "$WHEELS_PATH/staging" $PYPI_EXTRA_ARG --find-links "file://$WHEELS_PATH" $WHEEL_NAMES
       cd "$WHEELS_PATH/staging"
       for dep_wheel in $(ls *.whl); do
-        dep_name="$(echo $dep_wheel | sed -E 's/-[0-9]/ /' | awk '{{print $1}}')"
+        dep_name="$(echo $dep_wheel | sed -E 's/-/ /g' | awk '{{ print $1"=="$2 }}')"
         if [[ "$USER_PACK_NAMES" != *"$dep_name"* ]]; then
           echo "$dep_name" >> "$TEMP_SCRIPT_PATH/requirements-dep-wheels.txt"
           if [[ "$dep_wheel" == *"-none-"* ]]; then
@@ -202,6 +214,7 @@ function build_package_at_staging () {{
       done
     fi
   fi
+  popd > /dev/null
 }}
 
 echo "Building user-defined packages..."
@@ -233,11 +246,31 @@ cd "$WHEELS_PATH"
 # download and build all requirements as wheels
 if [[ -f "$TEMP_SCRIPT_PATH/requirements-extra.txt" ]]; then
   if [[ -n "$NON_DOCKER_MODE" ]]; then
-    "$PYBIN/python" -m pip download -r "$TEMP_SCRIPT_PATH/requirements-extra.txt" \
-      $PIP_PLATFORM_ARGS $PYPI_EXTRA_ARG $PYPI_NO_DEPS_ARG || export BINARY_FAILED=1
-    if [[ -n "$BINARY_FAILED" ]]; then
-      build_package_at_staging -r "$TEMP_SCRIPT_PATH/requirements-extra.txt"
-    fi
+    last_err_packs=""
+    while true; do
+      unset BINARY_FAILED
+      "$PYBIN/python" -m pip download -r "$TEMP_SCRIPT_PATH/requirements-extra.txt" \
+        $PIP_PLATFORM_ARGS $PYPI_EXTRA_ARG $PYPI_NO_DEPS_ARG --find-links "file://$WHEELS_PATH" \
+        2> >(tee "$TEMP_SCRIPT_PATH/pip_download_err.log") || export BINARY_FAILED=1
+      if [[ -n "$BINARY_FAILED" ]]; then
+        # grab malfunctioning dependencies from error message
+        err_req_file="$TEMP_SCRIPT_PATH/requirements-downerr.txt"
+        cat "$TEMP_SCRIPT_PATH/pip_download_err.log" | grep "matching distribution" \
+          | awk '{{print $NF}}' > "$err_req_file"
+        err_packs="$(tr '\n' ' ' < "$err_req_file" )"
+
+        # seems we are in an infinite loop
+        if [ ! -s "$err_req_file" ] || [[ "$last_err_packs" == "$err_packs" ]]; then
+          exit 1
+        fi
+        last_err_packs="$err_packs"
+
+        echo "Try building pure python wheels $err_packs ..."
+        build_package_at_staging -r "$err_req_file"
+      else
+        break
+      fi
+    done
   else
     "$PYBIN/python" -m pip wheel -r "$TEMP_SCRIPT_PATH/requirements-extra.txt" $PYPI_EXTRA_ARG $PYPI_NO_DEPS_ARG
   fi
@@ -249,9 +282,38 @@ if [[ -f "$TEMP_SCRIPT_PATH/requirements-dep-wheels.txt" ]]; then
     $PIP_PLATFORM_ARGS $PYPI_EXTRA_ARG $PYPI_NO_DEPS_ARG
 fi
 
+if [[ -n "{dynlibs}" ]] && [[ -z "$PYPI_NO_DEPS_ARG" ]]; then
+  echo "Packing configured dynamic binary libraries..."
+
+  mkdir -p "$TEMP_SCRIPT_PATH/dynlibs/dynlibs"
+  pushd "$TEMP_SCRIPT_PATH/dynlibs" > /dev/null
+
+  cp "$SCRIPT_PATH/{_DYNLIB_PYPROJECT_TOML_FILE_NAME}" pyproject.toml
+  for dynlib in `echo "{dynlibs}"`; do
+    if [[ -f "$dynlib" ]]; then
+      cp "$dynlib" ./dynlibs 2> /dev/null || true
+    else
+      for prefix in `echo "/lib /lib64 /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 /usr/share/lib /usr/share/lib64"`; do
+        cp "$prefix/lib$dynlib"*".so" ./dynlibs 2> /dev/null || true
+        cp "$prefix/$dynlib"*".so" ./dynlibs 2> /dev/null || true
+      done
+    fi
+  done
+
+  "$PYBIN/python" -m pip wheel $PYPI_EXTRA_ARG .
+  if ls *.whl 1> /dev/null 2>&1; then
+    mv *.whl "$WHEELS_PATH/"
+    echo "dynlibs" >> "$TEMP_SCRIPT_PATH/requirements-extra.txt"
+  fi
+  popd > /dev/null
+fi
+
 if [[ -n "$(which auditwheel)" ]]; then
   # make sure newly-built binary wheels fixed by auditwheel utility
   for fn in `ls *-linux_$MACHINE_TAG.whl 2>/dev/null`; do
+    auditwheel repair "$fn" && rm -f "$fn"
+  done
+  for fn in `ls dynlibs-*.whl 2>/dev/null`; do
     auditwheel repair "$fn" && rm -f "$fn"
   done
   if [[ -d wheelhouse ]]; then
@@ -322,6 +384,7 @@ else
 
   echo ""
   echo "Packages will be included in your archive:"
+  rm -rf "$INSTALL_PATH/{package_site}/dynlibs-0.0.1"* || true  # remove dynlibs package info
   PACKAGE_LIST_FILE="$INSTALL_PATH/{package_site}/.pyodps-pack-meta"
   "$PYBIN/python" -m pip list --path "$INSTALL_PATH/{package_site}" > "$PACKAGE_LIST_FILE"
   cat "$PACKAGE_LIST_FILE"
@@ -536,6 +599,9 @@ def _create_temp_work_dir(
             if logger.getEffectiveLevel() <= logging.DEBUG:
                 with open(os.path.join(script_path, _BEFORE_SCRIPT_FILE_NAME), "r") as before_script_file:
                     _log_indent("Content of before-script.sh:", before_script_file.read())
+
+        with open(os.path.join(script_path, _DYNLIB_PYPROJECT_TOML_FILE_NAME), "wb") as toml_file:
+            toml_file.write(_to_unix(dynlibs_pyproject_toml.encode()))
 
         with open(os.path.join(script_path, _PACK_SCRIPT_FILE_NAME), "wb") as pack_file:
             build_script = _create_build_script(**script_kwargs)
@@ -825,6 +891,7 @@ def _main(parsed_args):
     timeout_str = parsed_args.timeout or _first_or_none(file_cfg.get("timeout")) or ""
     proxy_str = parsed_args.proxy or _first_or_none(file_cfg.get("proxy")) or ""
     retries_str = parsed_args.retries or _first_or_none(file_cfg.get("retries")) or ""
+    dynlibs_str = " ".join(parsed_args.dynlib)
 
     python_abi_version = _get_python_abi_version(
         parsed_args.python_version, parsed_args.mcpy27, parsed_args.dwpy27
@@ -857,6 +924,7 @@ def _main(parsed_args):
         without_merge=without_merge_str,
         python_abi_version=python_abi_version,
         pypi_trusted_hosts=trusted_hosts_str,
+        dynlibs=dynlibs_str,
         debug=debug_str,
     ) as work_dir:
         container_name = "pack-cnt-%d" % int(time.time())
@@ -866,21 +934,27 @@ def _main(parsed_args):
         docker_image = docker_image_env or default_image
 
         minikube_mount_proc = None
-        if parsed_args.without_docker:
+        if pack_in_cluster or parsed_args.without_docker:
             _copy_package_paths(parsed_args.package_path, work_dir, skip_user_path=False)
 
             pyversion, pyabi = python_abi_version.split("-", 1)
             pyversion = pyversion[2:]
             build_cmd = [_get_bash_path(), os.path.join(work_dir, "scripts", _PACK_SCRIPT_FILE_NAME)]
             build_env = {
-                "NON_DOCKER_MODE": "true",
                 "PACK_ROOT": work_dir,
-                "PYEXECUTABLE": _get_local_pack_executable(work_dir),
                 "PYPLATFORM": default_image.replace("quay.io/pypa/", ""),
                 "PYVERSION": pyversion,
                 "PYABI": pyabi,
                 "TARGET_ARCH": _get_arch(parsed_args.arch),
             }
+            if parsed_args.without_docker:
+                build_env["NON_DOCKER_MODE"] = "true"
+                build_env["PYEXECUTABLE"] = _get_local_pack_executable(work_dir)
+            else:
+                temp_env = build_env
+                build_env = os.environ.copy()
+                build_env.update(temp_env)
+                build_env["PACK_IN_CLUSTER"] = "true"
             logger.debug("Command: %r", build_cmd)
             logger.debug("Environment variables: %r", build_cmd)
         else:
@@ -902,7 +976,7 @@ def _main(parsed_args):
                 raise
 
             logger.error("Failed to execute command %r, the error message is %s.", build_cmd, ex)
-            if parsed_args.without_docker:
+            if pack_in_cluster or parsed_args.without_docker:
                 if _is_windows:
                     raise PackException(
                         "Cannot locate git bash. Please install Git for Windows or "
@@ -923,7 +997,7 @@ def _main(parsed_args):
             proc.wait()
         except KeyboardInterrupt:
             cancelled = True
-            if not parsed_args.without_docker:
+            if not parsed_args.without_docker and not pack_in_cluster:
                 docker_rm_cmd = _build_docker_rm_command(container_name)
                 logger.debug("Docker rm command: %r", docker_rm_cmd)
                 subprocess.Popen(docker_rm_cmd, stdout=subprocess.PIPE)
@@ -1064,6 +1138,11 @@ def main():
     )
     parser.add_argument(
         "--output", "-o", default="packages.tar.gz", help="Target archive file name to store"
+    )
+    parser.add_argument(
+        "--dynlib", action="append", default=[],
+        help="Dynamic library to include. Can be an absolute path to a .so library "
+             "or library name with or without 'lib' prefix."
     )
     parser.add_argument(
         "--pack-env", action="store_true", default=False, help="Pack full environment"

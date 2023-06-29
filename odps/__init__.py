@@ -24,7 +24,7 @@ from .config import options
 from .core import ODPS
 from .df import DataFrame, Scalar, RandomScalar, NullScalar
 from .inter import setup, enter, teardown, list_rooms
-from .utils import write_log as log
+from .utils import show_versions, write_log as log
 try:
     from .ipython import load_ipython_extension
 except ImportError:

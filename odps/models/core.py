@@ -140,6 +140,7 @@ class LazyLoad(RestModel):
     def __getattribute__(self, attr):
         if (
             attr.endswith("_time")
+            and attr != "_logview_address_time"
             and type(self).__name__ not in ("Table", "Partition")
             and options.use_legacy_parsedate
         ):

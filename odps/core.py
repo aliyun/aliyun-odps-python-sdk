@@ -2172,17 +2172,21 @@ class ODPS(object):
             Mostly doesn't matter, default works.
         :return: A SessionInstance you may execute select tasks within.
         """
-        if not taskname:
-            taskname = models.session.DEFAULT_TASK_NAME
-        task = models.tasks.SQLRTTask(name=taskname)
-        task.update_settings(hints)
-        task.update_settings(
+        return self._attach_mcqa_session(session_name, task_name=taskname, hints=hints)
+
+    def _attach_mcqa_session(self, session_name=None, task_name=None, hints=None):
+        session_name = session_name or models.session.PUBLIC_SESSION_NAME
+        task_name = task_name or models.session.DEFAULT_TASK_NAME
+
+        task = models.tasks.SQLRTTask(name=task_name)
+        task.update_sql_rt_settings(hints)
+        task.update_sql_rt_settings(
             {"odps.sql.session.share.id": session_name, "odps.sql.submit.mode": "script"}
         )
         project = self.get_project()
-        return project.instances.create(task=task,
-                                        session_project=project,
-                                        session_name=session_name)
+        return project.instances.create(
+            task=task, session_project=project, session_name=session_name
+        )
 
     @utils.deprecated(
         'You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. '
@@ -2194,7 +2198,20 @@ class ODPS(object):
 
         :return: A SessionInstance you may execute select tasks within.
         """
-        return self.attach_session(models.session.PUBLIC_SESSION_NAME)
+        return self._get_default_mcqa_session(wait=False)
+
+    def _get_default_mcqa_session(
+        self, session_name=None, hints=None, wait=True, service_startup_timeout=60
+    ):
+        session_name = session_name or models.session.PUBLIC_SESSION_NAME
+        if self._default_session is None:
+            self._default_session = self._attach_mcqa_session(session_name, hints=hints)
+            self._default_session_name = session_name
+            if wait:
+                self._default_session.wait_for_startup(
+                    0.1, service_startup_timeout, max_interval=1
+                )
+        return self._default_session
 
     @utils.deprecated(
         'You no longer have to manipulate session instances to use MaxCompute QueryAcceleration. '
@@ -2218,8 +2235,17 @@ class ODPS(object):
             certain hints.
         :return: A SessionInstance you may execute select tasks within.
         """
-        if not taskname:
-            taskname = models.session.DEFAULT_TASK_NAME
+        return self._create_mcqa_session(
+            session_worker_count, session_worker_memory, session_name,
+            worker_spare_span, taskname, hints
+        )
+
+    def _create_mcqa_session(
+        self, session_worker_count, session_worker_memory, session_name=None,
+        worker_spare_span=None, task_name=None, hints=None
+    ):
+        if not task_name:
+            task_name = models.session.DEFAULT_TASK_NAME
 
         session_hints = {
             "odps.sql.session.worker.count": str(session_worker_count),
@@ -2230,13 +2256,13 @@ class ODPS(object):
             session_hints["odps.sql.session.name"] = session_name
         if worker_spare_span:
             session_hints["odps.sql.session.worker.sparespan"] = worker_spare_span
-        task = models.tasks.SQLRTTask(name=taskname)
-        task.update_settings(hints)
-        task.update_settings(session_hints)
+        task = models.tasks.SQLRTTask(name=task_name)
+        task.update_sql_rt_settings(hints)
+        task.update_sql_rt_settings(session_hints)
         project = self.get_project()
-        return project.instances.create(task=task,
-                                        session_project=project,
-                                        session_name=session_name)
+        return project.instances.create(
+            task=task, session_project=project, session_name=session_name
+        )
 
     def run_sql_interactive(self, sql, hints=None, **kwargs):
         """
@@ -2248,6 +2274,7 @@ class ODPS(object):
         """
         cached_is_running = False
         service_name = kwargs.pop('service_name', models.session.PUBLIC_SESSION_NAME)
+        task_name = kwargs.pop('task_name', None)
         service_startup_timeout = kwargs.pop('service_startup_timeout', 60)
         force_reattach = kwargs.pop('force_reattach', False)
         if self._default_session != None:
@@ -2255,34 +2282,97 @@ class ODPS(object):
                 cached_is_running = self._default_session.is_running()
             except BaseException:
                 pass
-        if force_reattach or not cached_is_running or self._default_session_name != service_name:
+        if (
+            force_reattach
+            or not cached_is_running
+            or self._default_session_name != service_name
+        ):
             # should reattach, for whatever reason (timed out, terminated, never created,
             # forced using another session)
-            self._default_session = self.attach_session(service_name)
-            self._default_session.wait_for_startup(0.1, service_startup_timeout)
+            self._default_session = self._attach_mcqa_session(service_name, task_name=task_name)
+            self._default_session.wait_for_startup(0.1, service_startup_timeout, max_interval=1)
             self._default_session_name = service_name
         return self._default_session.run_sql(sql, hints, **kwargs)
 
+    @utils.deprecated(
+        'The method `run_sql_interactive_with_fallback` is deprecated. '
+        'Try `execute_sql_interactive` with fallback=True argument instead.'
+    )
     def run_sql_interactive_with_fallback(self, sql, hints=None, **kwargs):
+        return self.execute_sql_interactive(
+            sql, hints=hints, fallback='all', wait_fallback=False, **kwargs
+        )
+
+    def execute_sql_interactive(
+        self, sql, hints=None, fallback=True, wait_fallback=True, **kwargs
+    ):
         """
         Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration).
-        If query is not supported or fails, will fallback to offline mode automatically
+        If query is not supported or fails, and fallback is True,
+        will fallback to offline mode automatically
+
         :param sql: the sql query.
         :param hints: settings for sql query.
+        :param fallback: fallback query to non-interactive mode, True by default.
+            Both boolean type and policy names separated by commas are acceptable.
+        :param bool wait_fallback: wait fallback instance to finish, True by default.
         :return: instance.
         """
+        from .models.session import FallbackMode, FallbackPolicy
+
+        if isinstance(fallback, (six.string_types, set, list, tuple)):
+            fallback_policy = FallbackPolicy(fallback)
+        elif fallback is False:
+            fallback_policy = None
+        elif fallback is True:
+            fallback_policy = FallbackPolicy("default")
+        else:
+            assert isinstance(fallback, FallbackPolicy)
+            fallback_policy = fallback
+
         inst = None
+        use_tunnel = kwargs.pop("tunnel", True)
+        fallback_callback = kwargs.pop("fallback_callback", None)
         try:
-            if inst is None:
-                inst = self.run_sql_interactive(self, sql, hints=hints, **kwargs)
-            else:
-                inst.wait_for_success(interval=0.2)
-            rd = inst.open_reader(tunnel=True, limit=False)
-            if not rd:
-                raise ODPSError('Get sql result fail')
+            inst = self.run_sql_interactive(sql, hints=hints, **kwargs)
+            inst.wait_for_success(interval=0.1, max_interval=1)
+            try:
+                rd = inst.open_reader(tunnel=use_tunnel, limit=True)
+                if not rd:
+                    raise ODPSError('Get sql result fail')
+            except errors.InstanceTypeNotSupported:
+                # sql is not a select, just skip creating reader
+                pass
             return inst
-        except:
-            return self.execute_sql(sql, hints=hints)
+        except BaseException as ex:
+            if fallback_policy is None:
+                raise
+            fallback_mode = fallback_policy.get_mode_from_exception(ex)
+            if fallback_mode is None:
+                raise
+            elif fallback_mode == FallbackMode.INTERACTIVE:
+                kwargs["force_reattach"] = True
+                return self.execute_sql_interactive(
+                    sql, hints=hints, fallback=fallback, wait_fallback=wait_fallback, **kwargs
+                )
+            else:
+                kwargs.pop("service_name", None)
+                kwargs.pop("force_reattach", None)
+                kwargs.pop("service_startup_timeout", None)
+                hints = hints or {}
+                hints["odps.task.sql.sqa.enable"] = "false"
+
+                if fallback_callback is not None:
+                    fallback_callback(inst, ex)
+
+                if inst is not None:
+                    hints["odps.sql.session.fallback.instance"] = "%s_%s" % (inst.id, inst.subquery_id)
+                else:
+                    hints["odps.sql.session.fallback.instance"] = "fallback4AttachFailed"
+                inst = self.execute_sql(sql, hints=hints, **kwargs)
+                if wait_fallback:
+                    inst.wait_for_success()
+                return inst
 
     @classmethod
     def _build_account(cls, access_id, secret_access_key):

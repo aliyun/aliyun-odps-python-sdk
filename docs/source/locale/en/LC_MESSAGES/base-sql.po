@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-08-22 09:56+0800\n"
+"POT-Creation-Date: 2023-06-06 14:57+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,12 +23,13 @@ msgstr "SQL"
 
 #: ../../source/base-sql.rst:6
 msgid ""
-"PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 ``execute_sql`` 或者 ``run_sql`` 方法的返回值是 "
-":ref:`运行实例 <instances>` 。"
+"PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 ``execute_sql`` / "
+"``execute_sql_interactive`` / ``run_sql`` / ``run_sql_interactive`` "
+"方法的返回值是 :ref:`运行实例 <instances>` 。"
 msgstr ""
 "PyODPS supports MaxCompute SQL queries and provides methods to read SQL "
-"results. The ``execute_sql`` and ``run_sql`` methods return "
-":ref:`instances <instances>` ."
+"results. All ``execute_sql`` , ``execute_sql_interactive`` , ``run_sql`` "
+"and ``run_sql_interactive`` methods return :ref:`instances <instances>` ."
 
 #: ../../source/base-sql.rst:11
 msgid ""
@@ -43,47 +44,175 @@ msgstr ""
 "method to execute PAI commands."
 
 #: ../../source/base-sql.rst:18
-msgid "执行SQL"
+msgid "执行 SQL"
 msgstr "Execute SQL statements"
 
 #: ../../source/base-sql.rst:20
+msgid "你可以使用 ``execute_sql`` 方法以同步方式执行 SQL。调用时，该方法会阻塞直至 SQL 执行完成。"
+msgstr ""
+"You can use ``execute_sql`` to run SQL and wait for finish. The method "
+"will block until execution is finished."
+
+#: ../../source/base-sql.rst:22
+msgid ">>> o.execute_sql('select * from dual')  # 同步的方式执行，会阻塞直到SQL执行完成"
+msgstr ""
+">>> o.execute_sql('select * from dual')  # synchronous way, will block "
+"till SQL statement finishes execution\n"
+
+#: ../../source/base-sql.rst:26
 msgid ""
-">>> o.execute_sql('select * from dual')  #  同步的方式执行，会阻塞直到SQL执行完成\n"
-">>>\n"
+"你也可以使用非阻塞方式异步执行 SQL。调用时，该方法在将 SQL 提交到 MaxCompute 后即返回 Instance 对象。你需要使用 "
+"``wait_for_success`` 方法等待该 SQL 执行完成。"
+msgstr ""
+"You can also use non-blocking method to run SQL. The method will submit "
+"your SQL statement to MaxCompute and return the corresponding Instance "
+"object. You need to call ``wait_for_success`` method to wait till "
+"execution finishes."
+
+#: ../../source/base-sql.rst:29
+msgid ""
 ">>> instance = o.run_sql('select * from dual')  # 异步的方式执行\n"
 ">>> print(instance.get_logview_address())  # 获取logview地址\n"
 ">>> instance.wait_for_success()  # 阻塞直到完成"
 msgstr ""
-">>> o.execute_sql('select * from dual')  #  synchronous way, will block "
-"till SQL statement finishes execution\n"
-">>>\n"
 ">>> instance = o.run_sql('select * from dual')  # asynchronous way\n"
 ">>> print(instance.get_logview_address())  # obtain LogView address\n"
 ">>> instance.wait_for_success()  # block till the statement finishes"
 
-#: ../../source/base-sql.rst:31
+#: ../../source/base-sql.rst:37
+msgid "使用 MCQA 执行 SQL"
+msgstr "Execute SQL with MCQA acceleration"
+
+#: ../../source/base-sql.rst:38
+msgid ""
+"`MCQA <https://help.aliyun.com/document_detail/180701.html>`_ 是 "
+"MaxCompute 提供的查询加速功能， 支持使用独立资源池对中小规模数据进行加速。PyODPS 从 0.11.4.1 开始支持以下列方式通过 "
+"MCQA 执行 SQL ，同时需要 MaxCompute 具备 MCQA 的支持。"
+msgstr ""
+"`MCQA <https://help.aliyun.com/document_detail/180701.html>`_ is the "
+"query acceleration service provided by MaxCompute, which supports "
+"accelerating queries on small-sized data sets with standalone resource "
+"pools. PyODPS supports methods below to execute SQL with MCQA since "
+"0.11.4.1. You need to use these methods under a MaxCompute service with "
+"MCQA."
+
+#: ../../source/base-sql.rst:42
+msgid ""
+"你可以使用 ``execute_sql_interactive`` 通过 MCQA 执行 SQL 并返回 MCQA Instance。如果 "
+"MCQA 无法执行相应的 SQL ，会自动回退到传统模式。此时，函数返回的 Instance 为回退后的 Instance。"
+msgstr ""
+"You can use ``execute_sql_interactive`` to execute SQL with MCQA and "
+"return MCQA Instance object. If MCQA does not support your SQL statement,"
+" it will fallback to traditional mode and return traditional Instance "
+"object after fallback."
+
+#: ../../source/base-sql.rst:45
+msgid ">>> o.execute_sql_interactive('select * from dual')"
+msgstr ""
+
+#: ../../source/base-sql.rst:49
+msgid ""
+"如果不希望回退，可以指定参数 ``fallback=False``。也可以指定为回退策略（或回退策略的组合，使用逗号分隔的字符串）。 "
+"可用的策略名如下。默认策略为 ``unsupported,upgrading,noresource,timeout`` 。"
+msgstr ""
+"If you don't want the method to fallback automatically, you can specify "
+"``fallback=False``. You can also specify a fallback policy or combination"
+" of fallback policies with a comma-separated string. Available policy "
+"names are listed below. The default policy is a combination of "
+"``unsupported,upgrading,noresource,timeout``."
+
+#: ../../source/base-sql.rst:52
+msgid "``generic`` ：指定时，表示发生未知错误时回退到传统模式。"
+msgstr ""
+"``generic`` : once specified, will fallback to traditional mode when "
+"unknown error happens."
+
+#: ../../source/base-sql.rst:53
+msgid "``noresource`` ：指定时，表示发生资源不足问题时回退到传统模式。"
+msgstr ""
+"``noresource`` : once specified, will fallback to traditional mode when "
+"resource is not sufficient."
+
+#: ../../source/base-sql.rst:54
+msgid "``upgrading`` ：指定时，表示升级期间回退到传统模式。"
+msgstr ""
+"``upgrading`` : once specified, will fallback to traditional mode when "
+"the service is upgrading."
+
+#: ../../source/base-sql.rst:55
+msgid "``timeout`` ：指定时，表示执行超时时回退到传统模式。"
+msgstr ""
+"``timeout`` : once specified, will fallback to traditional mode when "
+"execution timed out."
+
+#: ../../source/base-sql.rst:56
+msgid "``unsupported`` ：指定时，表示遇到 MCQA 不支持的场景时回退到传统模式。"
+msgstr ""
+"``unsupported`` : once specified, will fallback to traditional mode when "
+"MCQA does not support certain SQL statement."
+
+#: ../../source/base-sql.rst:58
+msgid "例如，下面的代码要求在 MCQA 不支持和资源不足时回退："
+msgstr ""
+"For instance, code below requires fallback when resource is not "
+"sufficient or MCQA does not support certain statements:"
+
+#: ../../source/base-sql.rst:60
+msgid ""
+">>> o.execute_sql_interactive('select * from dual', "
+"fallback=\"noresource,unsupported\")"
+msgstr ""
+
+#: ../../source/base-sql.rst:64
+msgid ""
+"你也可以使用 ``run_sql_interactive`` 通过 MCQA 异步执行 SQL。类似 "
+"``run_sql``，该方法会在提交任务后即返回 MCQA Instance，你需要自行等待 Instance "
+"完成。需要注意的是，该方法不会自动回退。当执行失败时，你需要自行重试或执行 ``execute_sql``。"
+msgstr ""
+"You can also use ``run_sql_interactive`` to run SQL with MCQA. The method"
+" returns MCQA Instance once your SQL is submitted to the cluster, and "
+"you need to wait till Instance finishes like what is needed for ``run_sql"
+"``. Note that this method will NOT fallback automatically when it fails."
+" You need to retry or call ``execute_sql`` yourself."
+
+#: ../../source/base-sql.rst:68
+msgid ""
+">>> instance = o.run_sql_interactive('select * from dual')  # 异步的方式执行\n"
+">>> print(instance.get_logview_address())  # 获取logview地址\n"
+">>> instance.wait_for_success()  # 阻塞直到完成"
+msgstr ""
+">>> instance = o.run_sql_interactive('select * from dual')  # "
+"asynchronous way\n"
+">>> print(instance.get_logview_address())  # obtain LogView address\n"
+">>> instance.wait_for_success()  # block till the statement finishes"
+
+#: ../../source/base-sql.rst:77
 msgid "设置运行参数"
 msgstr "Set runtime parameters"
 
-#: ../../source/base-sql.rst:33
-msgid "有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，参数类型是dict。"
+#: ../../source/base-sql.rst:79
+msgid ""
+"有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，参数类型是 dict。该参数对 ``execute_sql``"
+" / ``execute_sql_interactive`` / ``run_sql`` / ``run_sql_interactive`` "
+"均有效。"
 msgstr ""
-"You can use the ``hints`` parameter to set runtime parameters. This "
-"parameter is a dict type."
+"You can use the ``hints`` parameter to set runtime parameters. The "
+"parameter is a dict type which is supported for ``execute_sql``, "
+"``execute_sql_interactive``, ``run_sql`` and ``run_sql_interactive``."
 
-#: ../../source/base-sql.rst:35
+#: ../../source/base-sql.rst:82
 msgid ""
 ">>> o.execute_sql('select * from pyodps_iris', "
 "hints={'odps.sql.mapper.split.size': 16})"
 msgstr ""
 
-#: ../../source/base-sql.rst:39
+#: ../../source/base-sql.rst:86
 msgid "我们可以对于全局配置设置sql.settings后，每次运行时则都会添加相关的运行时参数。"
 msgstr ""
 "You can set sql.settings globally. The relevant runtime parameters are "
 "automatically added during each execution."
 
-#: ../../source/base-sql.rst:41
+#: ../../source/base-sql.rst:88
 msgid ""
 ">>> from odps import options\n"
 ">>> options.sql.settings = {'odps.sql.mapper.split.size': 16}\n"
@@ -94,17 +223,17 @@ msgstr ""
 ">>> o.execute_sql('select * from pyodps_iris')  # global hints configured"
 " in options.sql.settings will be added"
 
-#: ../../source/base-sql.rst:50
+#: ../../source/base-sql.rst:97
 msgid "读取SQL执行结果"
 msgstr "View SQL results"
 
-#: ../../source/base-sql.rst:52
+#: ../../source/base-sql.rst:99
 msgid "运行 SQL 的 instance 能够直接执行 ``open_reader`` 的操作，一种情况是SQL返回了结构化的数据。"
 msgstr ""
 "You can execute the ``open_reader`` method to retrieve SQL execution "
 "results. In the following example, structured data is returned. "
 
-#: ../../source/base-sql.rst:54
+#: ../../source/base-sql.rst:101
 msgid ""
 ">>> with o.execute_sql('select * from dual').open_reader() as reader:\n"
 ">>>     for record in reader:\n"
@@ -114,19 +243,19 @@ msgstr ""
 ">>>     for record in reader:\n"
 ">>>         # process every record"
 
-#: ../../source/base-sql.rst:60
+#: ../../source/base-sql.rst:107
 msgid "另一种情况是 SQL 可能执行的比如 ``desc``，这时通过 ``reader.raw`` 属性取到原始的SQL执行结果。"
 msgstr ""
 "When commands such as ``desc`` are executed, you can use the "
 "``reader.raw`` attribute to get the original execution results. "
 
-#: ../../source/base-sql.rst:62
+#: ../../source/base-sql.rst:109
 msgid ""
 ">>> with o.execute_sql('desc dual').open_reader() as reader:\n"
 ">>>     print(reader.raw)"
 msgstr ""
 
-#: ../../source/base-sql.rst:67
+#: ../../source/base-sql.rst:114
 msgid ""
 "如果 `options.tunnel.use_instance_tunnel == True`，在调用 open_reader 时，PyODPS "
 "会默认调用 Instance Tunnel， 否则会调用旧的 Result 接口。如果你使用了版本较低的 MaxCompute 服务，或者调用 "
@@ -145,7 +274,7 @@ msgstr ""
 "open_reader, you can also use the ``tunnel`` parameter to specify which "
 "result interface to use. For example:"
 
-#: ../../source/base-sql.rst:72
+#: ../../source/base-sql.rst:119
 msgid ""
 ">>> # 使用 Instance Tunnel\n"
 ">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
@@ -169,7 +298,7 @@ msgstr ""
 ">>>     for record in reader:\n"
 ">>>         # process every record"
 
-#: ../../source/base-sql.rst:83
+#: ../../source/base-sql.rst:130
 msgid ""
 "PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护的 Project，通过 Tunnel 下载数据受限。此时， 如果 "
 "`options.tunnel.limit_instance_tunnel` 未设置，会自动打开数据量限制。此时，可下载的数据条数受到 "
@@ -185,7 +314,7 @@ msgstr ""
 "option in open_reader, or set `options.tunnel.limit_instance_tunnel` to "
 "`True`."
 
-#: ../../source/base-sql.rst:88
+#: ../../source/base-sql.rst:135
 msgid ""
 "如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取 "
 "（可能受到 Project 安全设置的限制）。"
@@ -195,11 +324,11 @@ msgstr ""
 "to another table and use these methods to read data. This may be limited "
 "by project security settings."
 
-#: ../../source/base-sql.rst:91
+#: ../../source/base-sql.rst:138
 msgid "同时，PyODPS 支持直接将运行结果数据读成 pandas DataFrame。"
 msgstr "PyODPS also supports reading data as pandas DataFrames."
 
-#: ../../source/base-sql.rst:93
+#: ../../source/base-sql.rst:140
 msgid ""
 ">>> # 直接使用 reader 的 to_pandas 方法\n"
 ">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
@@ -213,17 +342,17 @@ msgstr ""
 ">>>     # type of pd_df is pandas DataFrame\n"
 ">>>     pd_df = reader.to_pandas()"
 
-#: ../../source/base-sql.rst:102
+#: ../../source/base-sql.rst:149
 msgid "如果需要使用多核加速读取速度，可以通过 `n_process` 指定使用进程数:"
 msgstr ""
 "If you want to accelerate data reading with multiple cores, you can "
 "specify `n_process` with number of cores you want to use:"
 
-#: ../../source/base-sql.rst:106
+#: ../../source/base-sql.rst:153
 msgid "目前多进程加速在 Windows 下无法使用。"
 msgstr "Currently multiple process acceleration is not available under Windows."
 
-#: ../../source/base-sql.rst:109
+#: ../../source/base-sql.rst:156
 msgid ""
 ">>> import multiprocessing\n"
 ">>> n_process = multiprocessing.cpu_count()\n"
@@ -239,22 +368,22 @@ msgstr ""
 ">>>     # n_process should be number of processes to use\n"
 ">>>     pd_df = reader.to_pandas(n_process=n_process)"
 
-#: ../../source/base-sql.rst:119
+#: ../../source/base-sql.rst:166
 msgid "目前 Instance 结果暂不支持使用 Arrow 格式读取。"
 msgstr "Currently Arrow format is not supported for instance results yet."
 
-#: ../../source/base-sql.rst:122
+#: ../../source/base-sql.rst:169
 msgid "设置alias"
 msgstr "Set alias"
 
-#: ../../source/base-sql.rst:124
+#: ../../source/base-sql.rst:171
 msgid "有时在运行时，比如某个UDF引用的资源是动态变化的，我们可以alias旧的资源名到新的资源，这样免去了重新删除并重新创建UDF的麻烦。"
 msgstr ""
 "Some resources referenced by a UDF are dynamically changing at runtime. "
 "You can create an alias for the old resource and use it as a new "
 "resource."
 
-#: ../../source/base-sql.rst:126
+#: ../../source/base-sql.rst:173
 msgid ""
 "from odps.models import TableSchema\n"
 "\n"
@@ -326,11 +455,11 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:162
+#: ../../source/base-sql.rst:209
 msgid "2"
 msgstr ""
 
-#: ../../source/base-sql.rst:166
+#: ../../source/base-sql.rst:213
 msgid ""
 "res2 = o.create_resource('test_alias_res2', 'file', file_obj='2')\n"
 "# 把内容为1的资源alias成内容为2的资源，我们不需要修改UDF或资源\n"
@@ -351,15 +480,15 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:175
+#: ../../source/base-sql.rst:222
 msgid "3"
 msgstr ""
 
-#: ../../source/base-sql.rst:181
+#: ../../source/base-sql.rst:228
 msgid "在交互式环境执行 SQL"
 msgstr "Execute SQL statements in an interactive environment"
 
-#: ../../source/base-sql.rst:183
+#: ../../source/base-sql.rst:230
 msgid ""
 "在 ipython 和 jupyter 里支持 :ref:`使用 SQL 插件的方式运行 SQL <sqlinter>`，且支持 "
 ":ref:`参数化查询 <sqlparam>`， 详情参阅 :ref:`文档 <sqlinter>`。"
@@ -368,18 +497,18 @@ msgstr ""
 "statements<sqlinter>`. Besides, :ref:`parameterized query<sqlparam>` is "
 "also supported. For details, see :ref:`Documentation<sqlinter>`."
 
-#: ../../source/base-sql.rst:189
+#: ../../source/base-sql.rst:236
 msgid "设置 biz_id"
 msgstr "Set biz_id"
 
-#: ../../source/base-sql.rst:191
+#: ../../source/base-sql.rst:238
 msgid "在少数情形下，可能在提交 SQL 时，需要同时提交 biz_id，否则执行会报错。此时，你可以设置全局 options 里的 biz_id。"
 msgstr ""
 "In a few cases, it may be necessary to submit biz_id when submitting SQL "
 "statements. Otherwise an error occurs during execution. You can set the "
 "biz_id in options globally."
 
-#: ../../source/base-sql.rst:193
+#: ../../source/base-sql.rst:240
 msgid ""
 "from odps import options\n"
 "\n"

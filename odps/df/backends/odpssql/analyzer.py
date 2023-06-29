@@ -82,7 +82,9 @@ class Analyzer(BaseAnalyzer):
 
         handler = options.df.odps.nan_handler.lower()
         if handler == "py":
-            handle_fun = functools.partial(lambda x: x.map(pymath.isnan, rtype=bool))
+            func = lambda x: pymath.isnan(x)
+            func._identifier = "isnan"
+            handle_fun = lambda x: x.map(func, rtype=bool)
         else:
             handle_fun = functools.partial(func.ISNAN, rtype=bool)
 
@@ -117,8 +119,10 @@ class Analyzer(BaseAnalyzer):
             raise NotImplementedError
 
     def visit_sample(self, expr):
-        if expr._parts is None:
-            raise CompileError('ODPS SQL only support sampling by specifying `parts` arg')
+        if expr._replace.value or expr._weights is not None or expr._strata is not None:
+            raise CompileError('ODPS SQL does not support specified sample method')
+        if not expr._parts:
+            raise NotImplementedError
 
         idxes = [None, ] if expr._i is None else expr._i
 
@@ -293,6 +297,7 @@ class Analyzer(BaseAnalyzer):
                     return int(res.total_seconds() * 1000)
                 return res
 
+            func._identifier = "dt_add_sub"
             inputs = expr.lhs, expr.rhs, Scalar('+') if isinstance(expr, Add) else Scalar('-')
             sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
             self._sub(expr, sub)
@@ -336,6 +341,7 @@ class Analyzer(BaseAnalyzer):
             else:
                 raise NotImplementedError
 
+            func._identifier = "m_" + type(expr).__name__.lower()
             sub = expr.input.map(func, expr.dtype)
             self._sub(expr, sub)
             return
@@ -347,12 +353,15 @@ class Analyzer(BaseAnalyzer):
             if not options.df.analyze:
                 raise NotImplementedError
 
-            date_format = expr.date_format
+            def func(x, fmt):
+                return x.strftime(fmt)
 
-            def func(x):
-                return x.strftime(date_format)
-
-            sub = expr.input.map(func, expr.dtype)
+            func._identifier = "strftime"
+            date_fmt = expr._date_format \
+                if not isinstance(expr._date_format, StringScalar) or expr._date_format._value is None \
+                else Scalar(to_text(expr.date_format).replace("%", "%%"))
+            inputs = expr.input, date_fmt
+            sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
             self._sub(expr, sub)
             return
 
@@ -361,8 +370,7 @@ class Analyzer(BaseAnalyzer):
     def visit_string_op(self, expr):
         if isinstance(expr, Ljust):
             rest = expr.width - expr.input.len()
-            sub = expr.input + \
-                     (rest >= 0).ifelse(expr._fillchar.repeat(rest), '')
+            sub = expr.input + (rest >= 0).ifelse(expr._fillchar.repeat(rest), '')
             self._sub(expr, sub.rename(expr.name))
             return
         elif isinstance(expr, Rjust):
@@ -409,6 +417,7 @@ class Analyzer(BaseAnalyzer):
                 r = re.compile(pat, flgs)
                 return r.search(x) is not None
 
+            func._identifier = "str_contains"
             pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._pat._value is None \
                 else Scalar(re.escape(to_text(expr.pat)))
             inputs = expr.input, pat, expr._case, expr._flags
@@ -424,11 +433,11 @@ class Analyzer(BaseAnalyzer):
                 regex = re.compile(pat, flags=flags)
                 return len(regex.findall(x))
 
+            func._identifier = "str_count"
             pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._pat._value is None \
                 else Scalar(re.escape(to_text(expr.pat)))
             inputs = expr.input, pat, expr._flags
-            sub = self._gen_mapped_expr(expr, inputs, func,
-                                        expr.name, multiple=False)
+            sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
             self._sub(expr, sub)
             return
         elif isinstance(expr, Find) and expr.end is not None:
@@ -441,6 +450,8 @@ class Analyzer(BaseAnalyzer):
                     return None
 
                 return x.find(substr, start, end)
+
+            func._identifier = "str_find"
         elif isinstance(expr, RFind):
             start = expr.start
             end = expr.end
@@ -451,6 +462,8 @@ class Analyzer(BaseAnalyzer):
                     return None
 
                 return x.rfind(substr, start, end)
+
+            func._identifier = "str_rfind"
         elif isinstance(expr, Extract):
             def func(x, pat, flags, group):
                 if x is None:
@@ -463,21 +476,19 @@ class Analyzer(BaseAnalyzer):
                         return m.group()
                     return m.group(group)
 
+            func._identifier = "str_extract"
             pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._pat._value is None \
                 else Scalar(re.escape(to_text(expr.pat)))
             inputs = expr.input, pat, expr._flags, expr._group
-            sub = self._gen_mapped_expr(expr, inputs, func,
-                                        expr.name, multiple=False)
+            sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
             self._sub(expr, sub)
             return
         elif isinstance(expr, Replace):
-            use_regex = [expr.regex]
-
-            def func(x, pat, repl, n, case, flags):
+            def func(x, pat, repl, n, case, flags, use_regex):
                 if x is None:
                     return None
 
-                use_re = use_regex[0] and (not case or len(pat) > 1 or flags)
+                use_re = use_regex and (not case or len(pat) > 1 or flags)
 
                 if use_re:
                     if not case:
@@ -489,10 +500,11 @@ class Analyzer(BaseAnalyzer):
                 else:
                     return x.replace(pat, repl, n)
 
-            pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._value is None \
+            func._identifier = "str_replace"
+            pat = expr._pat if not isinstance(expr._pat, StringScalar) or expr._pat._value is None \
                 else Scalar(re.escape(to_text(expr.pat)))
             inputs = expr.input, pat, expr._repl, expr._n, \
-                     expr._case, expr._flags
+                     expr._case, expr._flags, expr._regex
             sub = self._gen_mapped_expr(expr, inputs, func,
                                         expr.name, multiple=False)
             self._sub(expr, sub)
@@ -506,31 +518,46 @@ class Analyzer(BaseAnalyzer):
                         return None
 
                     return x.lstrip(to_strip)
+
+                func._identifier = "str_lstrip"
             elif isinstance(expr, Strip):
                 def func(x):
                     if x is None:
                         return None
 
                     return x.strip(to_strip)
+
+                func._identifier = "str_strip"
             elif isinstance(expr, Rstrip):
                 def func(x):
                     if x is None:
                         return None
 
                     return x.rstrip(to_strip)
+
+                func._identifier = "str_rstrip"
         elif isinstance(expr, Pad):
             side = expr.side
             fillchar = expr.fillchar
             width = expr.width
 
-            if side == 'left':
-                func = lambda x: x.rjust(width, fillchar) if x is not None else None
-            elif side == 'right':
-                func = lambda x: x.ljust(width, fillchar) if x is not None else None
-            elif side == 'both':
-                func = lambda x: x.center(width, fillchar) if x is not None else None
-            else:
+            def func(x, width, fillchar, side):
+                if x is None:
+                    return None
+                if side == 'left':
+                    return x.rjust(width, fillchar)
+                elif side == 'right':
+                    return x.ljust(width, fillchar)
+                else:
+                    return x.center(width, fillchar)
+
+            func._identifier = "str_pad"
+            if side not in ('left', 'right', 'both'):
                 raise NotImplementedError
+            inputs = expr.input, Scalar(width), Scalar(fillchar), Scalar(side)
+            sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
+            self._sub(expr, sub)
+            return
         elif isinstance(expr, Slice):
             start, end, step = expr.start, expr.end, expr.step
 
@@ -541,58 +568,76 @@ class Analyzer(BaseAnalyzer):
                 if start >= 0 and end >= 0:
                     raise NotImplementedError
 
-            has_start = start is not None
-            has_end = end is not None
-            has_step = step is not None
+            flag = 0x4 if start is not None else 0
+            flag |= 0x2 if end is not None else 0
+            flag |= 0x1 if step is not None else 0
 
-            def func(x, *args):
+            def func(x, flag, *args):
                 if x is None:
                     return None
 
                 idx = 0
                 s, e, t = None, None, None
                 for i in range(3):
-                    if i == 0 and has_start:
+                    if i == 0 and (flag & 0x4):
                         s = args[idx]
                         idx += 1
-                    if i == 1 and has_end:
+                    if i == 1 and (flag & 0x2):
                         e = args[idx]
                         idx += 1
-                    if i == 2 and has_step:
+                    if i == 2 and (flag & 0x1):
                         t = args[idx]
                         idx += 1
                 return x[s: e: t]
 
-            inputs = expr.input, expr._start, expr._end, expr._step
+            func._identifier = "str_slice"
+            inputs = expr.input, Scalar(flag), expr._start, expr._end, expr._step
             sub = self._gen_mapped_expr(expr, tuple(i for i in inputs if i is not None),
                                         func, expr.name, multiple=False)
             self._sub(expr, sub)
             return
         elif isinstance(expr, Swapcase):
             func = lambda x: x.swapcase() if x is not None else None
+            func._identifier = "str_swapcase"
         elif isinstance(expr, Title):
             func = lambda x: x.title() if x is not None else None
+            func._identifier = "str_title"
         elif isinstance(expr, Strptime):
-            date_format = expr.date_format
-
-            def func(x):
+            def func(x, date_fmt):
                 from datetime import datetime
-                return datetime.strptime(x, date_format) if x is not None else None
+
+                return datetime.strptime(x, date_fmt) if x is not None else None
+
+            func._identifier = "strptime"
+            date_fmt = expr._date_format \
+                if not isinstance(expr._date_format, StringScalar) or expr._date_format._value is None \
+                else Scalar(to_text(expr.date_format).replace("%", "%%"))
+            inputs = expr.input, date_fmt
+            sub = self._gen_mapped_expr(expr, inputs, func, expr.name, multiple=False)
+            self._sub(expr, sub)
+            return
         else:
             if isinstance(expr, Isalnum):
                 func = lambda x: x.isalnum() if x is not None else None
+                func._identifier = "str_isalnum"
             elif isinstance(expr, Isalpha):
                 func = lambda x: x.isalpha() if x is not None else None
+                func._identifier = "str_isalpha"
             elif isinstance(expr, Isdigit):
                 func = lambda x: x.isdigit() if x is not None else None
+                func._identifier = "str_isdigit"
             elif isinstance(expr, Isspace):
                 func = lambda x: x.isspace() if x is not None else None
+                func._identifier = "str_isspace"
             elif isinstance(expr, Islower):
                 func = lambda x: x.islower() if x is not None else None
+                func._identifier = "str_islower"
             elif isinstance(expr, Isupper):
                 func = lambda x: x.isupper() if x is not None else None
+                func._identifier = "str_isupper"
             elif isinstance(expr, Istitle):
                 func = lambda x: x.istitle() if x is not None else None
+                func._identifier = "str_istitle"
             elif isinstance(expr, (Isnumeric, Isdecimal)):
                 def u_safe(s):
                     try:
@@ -602,8 +647,10 @@ class Analyzer(BaseAnalyzer):
 
                 if isinstance(expr, Isnumeric):
                     func = lambda x: u_safe(x).isnumeric() if x is not None else None
+                    func._identifier = "str_isnumeric"
                 else:
                     func = lambda x: u_safe(x).isdecimal() if x is not None else None
+                    func._identifier = "str_isdecimal"
 
         if func is not None:
             sub = expr.input.map(func, expr.dtype)

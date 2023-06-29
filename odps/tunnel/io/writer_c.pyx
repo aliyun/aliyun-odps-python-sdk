@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import time
 
 import cython
@@ -55,9 +56,11 @@ cdef:
     int64_t BIGINT_TYPE_ID = types.bigint._type_id
     int64_t BINARY_TYPE_ID = types.binary._type_id
     int64_t TIMESTAMP_TYPE_ID = types.timestamp._type_id
+    int64_t TIMESTAMP_NTZ_TYPE_ID = types.timestamp_ntz._type_id
     int64_t INTERVAL_DAY_TIME_TYPE_ID = types.interval_day_time._type_id
     int64_t INTERVAL_YEAR_MONTH_TYPE_ID = types.interval_year_month._type_id
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
+    int64_t JSON_TYPE_ID = types.Json._type_id
 
 import_datetime()
 
@@ -75,7 +78,9 @@ data_type_to_wired_type[STRING_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[BINARY_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[DECIMAL_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[TIMESTAMP_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[TIMESTAMP_NTZ_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[INTERVAL_DAY_TIME_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[JSON_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 
 
 cdef class ProtobufRecordWriter:
@@ -304,12 +309,14 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             self._write_long(l_val)
         elif data_type_id == DATE_TYPE_ID:
             self._write_long(self._to_days(val))
-        elif data_type_id == TIMESTAMP_TYPE_ID:
+        elif data_type_id == TIMESTAMP_TYPE_ID or data_type_id == TIMESTAMP_NTZ_TYPE_ID:
             self._write_timestamp(val)
         elif data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
             self._write_interval_day_time(val)
         elif data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
             self._write_long(val.total_months())
+        elif data_type_id == JSON_TYPE_ID:
+            self._write_string(json.dumps(val))
         else:
             if isinstance(data_type, types.Array):
                 self._write_raw_uint(len(val))

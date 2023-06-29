@@ -883,6 +883,24 @@ def test_decimal_with_complex_types(odps):
 
 
 @py_and_c_deco
+def test_json_types(odps):
+    table_name = tn("test_json_types")
+    odps.delete_table(table_name, if_exists=True)
+    hints = {"odps.sql.type.json.enable": "true"}
+    table = odps.create_table(table_name, "col1 json, col2 bigint, col3 string", hints=hints)
+
+    try:
+        data_to_write = [[{"root": {"key": "value"}}, 1, "hello"]]
+        with table.open_writer() as writer:
+            writer.write(data_to_write)
+        with table.open_reader() as reader:
+            records = [list(rec.values) for rec in reader]
+        assert data_to_write == records
+    finally:
+        table.drop()
+
+
+@py_and_c_deco
 def test_antique_datetime(odps):
     table_name = tn("test_datetime_overflow_table")
     odps.delete_table(table_name, if_exists=True)

@@ -34,17 +34,15 @@ class TunnelError(ODPSError):
                 request_id = request_id.text
             else:
                 request_id = resp.headers.get('x-odps-request-id')
-
-            error = TunnelError(msg, code=code, request_id=request_id)
+            exc_type = globals().get(code, TunnelError)
         except:
             request_id = resp.headers['x-odps-request-id']
             obj = json.loads(resp.content)
             msg = obj['Message']
             code = obj['InvalidArgument']
+            exc_type = globals().get(code, TunnelError)
 
-            error = TunnelError(msg, code=code, request_id=request_id)
-
-        return error
+        return exc_type(msg, code=code, request_id=request_id)
 
 
 class TunnelReadTimeout(TunnelError, TimeoutError, requests.ReadTimeout):

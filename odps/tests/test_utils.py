@@ -18,6 +18,7 @@ import calendar
 import datetime
 import functools
 import os
+import textwrap
 import time
 from collections import namedtuple
 
@@ -84,6 +85,51 @@ def test_replace_sql_parameters():
     ]
     for case in cases:
         assert utils.replace_sql_parameters(case['sql'], case['ns']) in case['expected']
+
+
+def test_split_sql():
+    cases = [
+        {
+            'sql': " select * from pyodps_iris",
+            'parts': ["select * from pyodps_iris"],
+        },
+        {
+            'sql': """
+            @val1 = select *
+            from pyodps_iris; ; -- first stmt;
+            select *, ';' as semicolon from @val1;
+            """,
+            'parts': [
+                """
+                @val1 = select *
+                from pyodps_iris;
+                """,
+                "select *, ';' as semicolon from @val1;"
+            ],
+        },
+        {
+            'sql': r"""
+            @val1 = (select category as `category;`, /* omitting
+            stuff; */ 
+            from pyodps_iris) union
+            (select category2 as `category;` from pyodps_iris2);
+            select *, '\';' as semicolon from @val1;
+            /* blank line */ ;
+            """,
+            'parts': [
+                """
+                @val1 = (select category as `category;`,
+                from pyodps_iris) union
+                (select category2 as `category;` from pyodps_iris2);
+                """,
+                r"select *, '\';' as semicolon from @val1;"
+            ],
+        },
+    ]
+    for case in cases:
+        sql = textwrap.dedent(case['sql'])
+        parts = [textwrap.dedent(p).strip() for p in case['parts']]
+        assert utils.split_sql_by_semicolon(sql) == parts
 
 
 def test_experimental():

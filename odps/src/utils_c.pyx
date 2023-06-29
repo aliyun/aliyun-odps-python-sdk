@@ -14,6 +14,7 @@
 
 cimport cython
 import sys
+import threading
 import time
 from cpython.datetime cimport (
     PyDateTime_DateTime,
@@ -45,6 +46,9 @@ cdef extern from "timegm.c":
     time_t timegm(tm* t) nogil
 
 cdef bint _is_windows = sys.platform.lower().startswith("win")
+cdef bint _is_py3 = sys.version_info[0] == 3
+cdef bint _datetime_inited = False
+cdef object _time_init_lock = threading.Lock()
 
 import_datetime()
 
@@ -89,8 +93,14 @@ cdef class CMillisecondsConverter:
             return tz
 
     def __init__(self, local_tz=None, is_dst=False):
-        # due to cython implementations, make sure the line below is always invoked
-        import_datetime()
+        global _datetime_inited
+
+        if not _is_py3 and not _datetime_inited:
+            # due to cython implementations, make sure the line below is always invoked
+            with _time_init_lock:
+                if not _datetime_inited:
+                    import_datetime()
+                    _datetime_inited = True
 
         self._local_tz = local_tz if local_tz is not None else options.local_timezone
         if self._local_tz is None:

@@ -282,6 +282,10 @@ class SQLCostTask(Task):
 class SQLRTTask(Task):
     _root = "SQLRT"
 
+    def update_sql_rt_settings(self, value=None, glob=True):
+        settings = collect_sql_settings(value, glob)
+        self.update_settings(settings)
+
 
 try:
     from ..internal.models.tasks import *  # noqa: F401

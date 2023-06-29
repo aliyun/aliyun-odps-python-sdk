@@ -779,7 +779,7 @@ class Table(LazyLoad):
         arrow=False,
         columns=None,
         quota_name=None,
-        async_mode=False,
+        async_mode=True,
         **kw
     ):
         """

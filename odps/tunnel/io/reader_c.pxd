@@ -65,4 +65,5 @@ cdef class BaseTunnelRecordReader:
     cdef int _set_timestamp(self, list record, int i) except? -1
     cdef int _set_interval_day_time(self, list record, int i) except? -1
     cdef int _set_interval_year_month(self, list record, int i) except? -1
+    cdef int _set_json(self, list record, int i) except? -1
     cpdef read(self)

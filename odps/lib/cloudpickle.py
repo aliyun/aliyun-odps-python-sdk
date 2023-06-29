@@ -1642,7 +1642,7 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
     _translator = dict()
     _hasjabs = None
     _hasjrel = None
-    _always_reassign = False
+    _double_jump_index = False
 
     CO_NLOCALS_POS = None
     CO_CODE_POS = None
@@ -1677,7 +1677,7 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
             self.code_args[offset] += tuple(patches)
         return tuple(poses) if len(poses) != 1 else poses[0]
 
-    def reassign_targets(self, code, new_to_old, old_to_new):
+    def reassign_targets(self, code, new_to_old, old_to_new, first_pass=True):
         code_len = len(code)
         hasjabs = set(self._hasjabs or opcode.hasjabs)
         hasjrel = set(self._hasjrel or opcode.hasjrel)
@@ -1688,40 +1688,50 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
                 end += 1
             return end
 
-        i = 0
+        remapped = False
+        succ_new_to_old = [0] * (2 + 2 * code_len)
+        succ_old_to_new = [0] * (1 + code_len)
+
         gstart = 0
         gend = get_group_end(0)
         sio = StringIO()
-        while i < code_len:
-            op = _ord_code(code[i])
-            if new_to_old[i]:
-                gstart = i
-                gend = get_group_end(i)
+        for i, op, op_data, inst_size in self.iter_code(
+            code, with_instruction_size=True, target=True
+        ):
+            if new_to_old[i - inst_size]:
+                gstart = i - inst_size
+                gend = get_group_end(i - inst_size)
             if op >= HAVE_ARGUMENT:
-                op_data = _ord_code(code[i + 1]) + (_ord_code(code[i + 2]) << 8)
                 if op in hasjrel:
+                    if first_pass and self._double_jump_index:
+                        op_data *= 2
                     # relocate to new relative address
-                    if gstart <= i + 3 + op_data < gend:
+                    if gstart <= i + op_data < gend:
                         new_rel = op_data
                     else:
-                        old_abs = new_to_old[gend] + op_data - (gend - i - 3)
-                        new_rel = old_to_new[old_abs] - i - 3
-                    self.write_instruction(code[i], new_rel, sio)
+                        old_abs = new_to_old[gend] + op_data - (gend - i)
+                        new_rel = old_to_new[old_abs] - i
+                    new_inst_size = self.write_instruction(op, new_rel, stream=sio)
                 elif op in hasjabs:
+                    if first_pass and self._double_jump_index:
+                        op_data *= 2
                     # relocate to new absolute address
                     old_rel = op_data - new_to_old[gstart]
                     if gstart <= old_rel + gstart < gend:
                         new_abs = old_rel + gstart
                     else:
-                        new_abs = old_to_new[op_data - (i - gstart)]
-                    self.write_instruction(code[i], new_abs, sio)
+                        new_abs = old_to_new[op_data]
+                    new_inst_size = self.write_instruction(op, new_abs, stream=sio)
                 else:
-                    sio.write(code[i:i + 3])
-                i += 3
+                    new_inst_size = self.write_instruction(op, op_data, stream=sio)
             else:
-                sio.write(code[i])
-                i += 1
-        return sio.getvalue()
+                new_inst_size = self.write_instruction(op, stream=sio)
+
+            succ_new_to_old[sio.tell()] = i
+            succ_old_to_new[i] = sio.tell()
+            if new_inst_size != inst_size:
+                remapped = True
+        return sio.getvalue(), succ_new_to_old, succ_old_to_new, remapped
 
     @staticmethod
     def _reassign_lnotab(lnotab, old_to_new):
@@ -1825,31 +1835,40 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
             finally:
                 self.code_writer = old_writer
 
-    def iter_code(self, bytecode=None):
+    def iter_code(self, bytecode=None, with_instruction_size=False, target=False):
         idx = 0
         extended_arg = 0
+        instruction_size = 0
         bytecode = bytecode or self.code_args[self.CO_CODE_POS]
         while idx < len(bytecode):
             opcode = _ord_code(bytecode[idx])
             if opcode < HAVE_ARGUMENT:
                 idx += 1
                 extended_arg = 0
-                yield idx, opcode, None
+                if with_instruction_size:
+                    yield idx, opcode, None, 1
+                else:
+                    yield idx, opcode, None
             else:
                 arg = (extended_arg << 16) + _ord_code(bytecode[idx + 1]) + (_ord_code(bytecode[idx + 2]) << 8)
                 idx += 3
+                instruction_size += 3
                 if opcode == self.OP_EXTENDED_ARG:
                     extended_arg = arg
                 else:
                     extended_arg = 0
-                    yield idx, opcode, arg
+                    if with_instruction_size:
+                        yield idx, opcode, arg, instruction_size
+                    else:
+                        yield idx, opcode, arg
+                    instruction_size = 0
 
     def translate_code(self):
         # translate byte codes
         byte_code = self.code_args[self.CO_CODE_POS]
         # build line mappings, extra space for new_to_old mapping, as code could be longer
-        new_to_old = [0, ] * (2 + 2 * len(byte_code))
-        old_to_new = [0, ] * (1 + len(byte_code))
+        new_to_old = [0] * (2 + 2 * len(byte_code))
+        old_to_new = [0] * (1 + len(byte_code))
         remapped = False
         ni = 0
 
@@ -1865,11 +1884,37 @@ class CodeRewriter(_with_metaclass(CodeRewriterMeta)):
             if ni != pc:
                 remapped = True
 
+        if self._double_jump_index:
+            remapped = True
+
         byte_code = self.code_writer.getvalue()
-        if not remapped and not self._always_reassign:
+        if not remapped:
             self.code_args[self.CO_CODE_POS] = self.code_writer.getvalue()
         else:
-            self.code_args[self.CO_CODE_POS] = self.reassign_targets(byte_code, new_to_old, old_to_new)
+            old_to_new_list = []
+            reassign_pass = 0
+            stage_old_to_new, stage_new_to_old = old_to_new, new_to_old
+            while remapped:
+                byte_code, stage_new_to_old, stage_old_to_new, remapped = self.reassign_targets(
+                    byte_code, stage_new_to_old, stage_old_to_new, first_pass=reassign_pass == 0
+                )
+                if remapped:
+                    old_to_new_list.append(stage_old_to_new)
+                reassign_pass += 1
+                # prevent infinite loop
+                if reassign_pass > 10:
+                    raise RuntimeError(
+                        "Too many iterations. Try using Python %s.%s at client."
+                        % tuple(sys.version_info[:2])
+                    )
+
+            for stage_old_to_new in old_to_new_list:
+                for idx, val in enumerate(old_to_new):
+                    if not val:
+                        continue
+                    old_to_new[idx] = stage_old_to_new[old_to_new[idx]]
+
+            self.code_args[self.CO_CODE_POS] = byte_code
             lnotab = self.code_args[self.CO_LNOTAB_POS]
             self.code_args[self.CO_LNOTAB_POS] = self._reassign_lnotab(lnotab, old_to_new)
 
@@ -1906,59 +1951,8 @@ class Py3CodeRewriter(CodeRewriter):
 
 class Py36CodeRewriter(Py3CodeRewriter):
     _write_py35_instruction = False
-    _double_jump_index = False
 
     instruction_aligned = True
-
-    def reassign_targets(self, code, new_to_old, old_to_new):
-        if self._write_py35_instruction:
-            return super(Py36CodeRewriter, self).reassign_targets(
-                code, new_to_old, old_to_new
-            )
-
-        code_len = len(code)
-        hasjabs = set(self._hasjabs or opcode.hasjabs)
-        hasjrel = set(self._hasjrel or opcode.hasjrel)
-
-        def get_group_end(start):
-            end = start + 1
-            while end < code_len and new_to_old[end] == 0:
-                end += 1
-            return end
-
-        gstart = 0
-        gend = get_group_end(0)
-        sio = StringIO()
-        for i, op, op_data in self.iter_code(code):
-            if new_to_old[i]:
-                gstart = i
-                gend = get_group_end(i)
-            if op >= HAVE_ARGUMENT:
-                if op in hasjrel:
-                    if self._double_jump_index:
-                        op_data *= 2
-                    # relocate to new relative address
-                    if gstart <= i + 2 + op_data < gend:
-                        new_rel = op_data
-                    else:
-                        old_abs = new_to_old[gend] + op_data - (gend - i - 2)
-                        new_rel = old_to_new[old_abs] - i - 2
-                    self.write_instruction(op, new_rel, stream=sio)
-                elif op in hasjabs:
-                    if self._double_jump_index:
-                        op_data *= 2
-                    # relocate to new absolute address
-                    old_rel = op_data - new_to_old[gstart]
-                    if gstart <= old_rel + gstart < gend:
-                        new_abs = old_rel + gstart
-                    else:
-                        new_abs = old_to_new[op_data - (i - gstart)]
-                    self.write_instruction(op, new_abs, stream=sio)
-                else:
-                    self.write_instruction(op, op_data, stream=sio)
-            else:
-                self.write_instruction(op, stream=sio)
-        return sio.getvalue()
 
     def write_instruction(self, opcode, arg=None, stream=None):
         if self._write_py35_instruction:
@@ -1982,21 +1976,37 @@ class Py36CodeRewriter(Py3CodeRewriter):
             stream.write(bytes(bytearray([opcode, arg_bytes[-1]])))
             return inst_size + 2
 
-    def iter_code(self, bytecode=None):
+    def iter_code(self, bytecode=None, with_instruction_size=False, target=False):
+        if target and self._write_py35_instruction:
+            for tp in super(Py36CodeRewriter, self).iter_code(
+                bytecode, with_instruction_size=with_instruction_size, target=target
+            ):
+                yield tp
+            return
+
         extended_arg = 0
+        instruction_size = 0
         bytecode = bytecode or self.code_args[self.CO_CODE_POS]
         for idx in irange(0, len(bytecode), 2):
             opcode = _ord_code(bytecode[idx])
             if opcode < HAVE_ARGUMENT:
                 extended_arg = 0
-                yield idx + 2, opcode, None
+                if with_instruction_size:
+                    yield idx + 2, opcode, None, 2
+                else:
+                    yield idx + 2, opcode, None
             else:
                 arg = (extended_arg << 8) + _ord_code(bytecode[idx + 1])
+                instruction_size += 2
                 if opcode == self.OP_EXTENDED_ARG:
                     extended_arg = arg
                 else:
                     extended_arg = 0
-                    yield idx + 2, opcode, arg
+                    if with_instruction_size:
+                        yield idx + 2, opcode, arg, instruction_size
+                    else:
+                        yield idx + 2, opcode, arg
+                    instruction_size = 0
 
 
 class Py38CodeRewriter(Py36CodeRewriter):
@@ -2572,7 +2582,6 @@ class Cp39_Cp37(Cp38_Cp37):
 
 class Cp310_Cp39(Py38CodeRewriter):
     _double_jump_index = True
-    _always_reassign = True
     _hasjabs = [111, 112, 113, 114, 115, 121]
     _hasjrel = [93, 110, 122, 143, 154]
 

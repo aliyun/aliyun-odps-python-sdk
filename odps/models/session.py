@@ -18,6 +18,7 @@ import sys
 import json
 import re
 import time
+import warnings
 
 from .. import errors, readers, utils
 from ..compat import six, enum
@@ -26,9 +27,75 @@ from ..serializers import XMLSerializableModel, XMLNodeField
 from .instance import Instance
 
 
-DEFAULT_TASK_NAME = "PyOdpsSQLRTTask"
-
+DEFAULT_TASK_NAME = "AnonymousSQLRTTask"
 PUBLIC_SESSION_NAME = "public.default"
+
+
+class FallbackMode(enum.Enum):
+    OFFLINE = 0
+    INTERACTIVE = 1
+
+
+class FallbackPolicy:
+    def __init__(
+        self,
+        policy=None,
+        always=False,
+        noresource=False,
+        unsupported=False,
+        timeout=False,
+        upgrading=False,
+        generic=False,
+    ):
+        policies = set()
+        if policy:
+            if isinstance(policy, (set, list, tuple)):
+                policies = set(policy)
+            else:
+                policy = policy.lower().strip()
+                if policy == "default":
+                    policy = "unsupported,upgrading,noresource,timeout"
+                elif policy == "all":
+                    always = True
+                policies = set(s.strip() for s in policy.split(","))
+        self.always = always
+        self.noresource = noresource or always or "noresource" in policies
+        self.unsupported = unsupported or always or "unsupported" in policies
+        self.timeout = timeout or always or "timeout" in policies
+        self.upgrading = upgrading or always or "upgrading" in policies
+        self.generic = generic or always or "generic" in policies
+
+    def get_mode_from_exception(self, exc_value):
+        err_msg = str(exc_value)
+        if isinstance(exc_value, errors.SQARetryError):
+            return FallbackMode.INTERACTIVE
+        elif "OdpsJobCancelledException" in err_msg or "Job is cancelled" in err_msg:
+            return None
+        elif self.always:
+            return FallbackMode.OFFLINE
+        elif self.unsupported and isinstance(exc_value, errors.SQAUnsupportedFeature):
+            return FallbackMode.OFFLINE
+        elif self.upgrading and isinstance(exc_value, (errors.SQAServiceUnavailable, errors.SQAAccessDenied)):
+            return FallbackMode.OFFLINE
+        elif self.noresource and isinstance(exc_value, errors.SQAResourceNotEnough):
+            return FallbackMode.OFFLINE
+        elif self.timeout and (
+            isinstance(exc_value, errors.SQAQueryTimedout)
+            or "Wait for cache data timeout" in err_msg
+            or "Get select desc from SQLRTTask timeout" in err_msg
+        ):
+            return FallbackMode.OFFLINE
+        elif self.generic and isinstance(exc_value, errors.SQAGenericError):
+            return FallbackMode.OFFLINE
+        return None
+
+    def __repr__(self):
+        policies = [
+            s for s in ["generic", "unsupported", "upgrading", "noresource", "timeout"]
+            if getattr(self, s, None)
+        ]
+        return "<FallbackPolicy %s>" % ",".join(policies)
+
 
 @enum.unique
 class SessionTaskStatus(enum.Enum):
@@ -41,15 +108,18 @@ class SessionTaskStatus(enum.Enum):
     Cancelled = 6
     Unknown = -1
 
+
 TASK_STATUS_VALUES = {
     2: SessionTaskStatus.Running,
     4: SessionTaskStatus.Failed,
     5: SessionTaskStatus.Terminated,
     6: SessionTaskStatus.Cancelled
-    }
+}
+
 
 def _task_status_value_to_enum(task_status):
     return TASK_STATUS_VALUES.get(task_status, SessionTaskStatus.Unknown)
+
 
 def _get_session_failure_info(task_results):
     try:
@@ -69,14 +139,14 @@ class SessionInstance(Instance):
     __slots__ = ('_project', '_task_name', '_session_name')
 
     def __init__(self, **kw):
-        if ('session_task_name' not in kw) or ('session_project' not in kw):
+        if 'session_task_name' not in kw or 'session_project' not in kw:
             raise errors.InvalidArgument("Creating InSessionInstance without enough information.")
         self._task_name = kw.pop("session_task_name", "")
         self._project = kw.pop("session_project", None)
         self._session_name = kw.pop("session_name", "")
         super(SessionInstance, self).__init__(**kw)
 
-    def wait_for_startup(self, interval=1, timeout=-1, retry=True):
+    def wait_for_startup(self, interval=1, timeout=-1, retry=True, max_interval=None):
         """
         Wait for the session to startup(status changed to RUNNING).
 
@@ -93,6 +163,8 @@ class SessionInstance(Instance):
                     raise errors.WaitTimeoutError("Waited " + waited + " seconds, but session is not started.")
             try:
                 time.sleep(interval)
+                if max_interval:
+                    interval = min(interval * 2, max_interval)
                 waited += interval
             except KeyboardInterrupt:
                 return
@@ -108,20 +180,31 @@ class SessionInstance(Instance):
         task.update_sql_settings(hints)
         return self._create_internal_instance(task=task)
 
+    @staticmethod
+    def _check_is_select(sql_statement):
+        try:
+            splited = utils.split_sql_by_semicolon(sql_statement)
+        except Exception as ex:
+            warnings.warn(
+                "Cannot split sql statement %s: %s" % (sql_statement, str(ex)), RuntimeWarning
+            )
+            return False
+        return splited[-1].lower().strip(' \t\r\n(').startswith("select")
+
     def _create_internal_instance(self, task=None, headers=None, encoding=None):
         proj_insts = self._project.instances
         session_inst = self
         project_name = self._project.name
-        is_select = True
-        if not task.query.strip().lower().startswith("select"):
-            is_select = False
+        is_select = self._check_is_select(task.query.strip())
 
         _job = proj_insts._create_job(task=task)  # noqa: F841
         rquery = task.query
         if not rquery.endswith(";"):
             rquery = rquery + ";"
-        query_object = {"query": rquery,
-                        "settings": json.loads(task.properties['settings'])}
+        query_object = {
+            "query": rquery,
+            "settings": json.loads(task.properties['settings'])
+        }
         query_json = json.dumps(query_object)
 
         class CreateInstanceQuery(XMLSerializableModel):
@@ -140,9 +223,11 @@ class SessionInstance(Instance):
         headers = headers or dict()
         headers['Content-Type'] = 'application/xml'
         url = session_inst.resource() + "?info"
-        resp = proj_insts._client.put(url, xml, headers=headers,
-                params={"curr_project": project_name,
-                        "taskname": self._task_name})
+        params = {
+            "curr_project": project_name,
+            "taskname": self._task_name,
+        }
+        resp = proj_insts._client.put(url, xml, headers=headers, params=params)
 
         location = resp.headers.get('Location')
         if location is None or len(location) == 0:
@@ -150,22 +235,30 @@ class SessionInstance(Instance):
 
         created_subquery_id = -1
         try:
-            query_reslt = json.loads(resp.text)
-            query_status = query_reslt["status"]
+            query_result = json.loads(resp.text)
+            query_status = query_result["status"]
             if query_status != "ok":
-                raise errors.ODPSError('Failed to run subquery: [' + query_status + "]: " + query_reslt["result"])
-            query_subresult = json.loads(query_reslt["result"])
+                raise errors.ODPSError(
+                    'Failed to run subquery: [' + query_status + "]: " + query_result["result"]
+                )
+            query_subresult = json.loads(query_result["result"])
             created_subquery_id = query_subresult["queryId"]
             if created_subquery_id == -1:
                 raise errors.parse_instance_error(query_subresult)
         except KeyError as ex:
-            raise errors.ODPSError("Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), resp.text))
+            six.raise_from(
+                errors.ODPSError(
+                    "Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), resp.text)
+                ), None
+            )
         instance_id = location.rsplit('/', 1)[1]
 
-        instance = InSessionInstance(session_project_name=project_name, session_task_name=self._task_name,
-                                     name=instance_id, session_subquery_id=created_subquery_id,
-                                     session_instance=self, parent=proj_insts,
-                                     session_is_select = is_select, client=self._client)
+        instance = InSessionInstance(
+            session_project_name=project_name, session_task_name=self._task_name,
+            name=instance_id, session_subquery_id=created_subquery_id,
+            session_instance=self, parent=proj_insts, session_is_select=is_select,
+            client=self._client,
+        )
         return instance
 
     def reload(self):
@@ -185,7 +278,7 @@ class SessionInstance(Instance):
             error_string = _get_session_failure_info(self.get_task_results())
             if error_string:
                 self._status = Instance.Status.TERMINATED
-                raise errors.parse_instance_error(error_string)
+                six.raise_from(errors.parse_instance_error(error_string), None)
             else:
                 # this is a task meta info update problem. Just retry.
                 self._status = Instance.Status.SUSPENDED
@@ -214,15 +307,19 @@ class InSessionInstance(Instance):
         when fetching results.
     """
 
-    __slots__ = '_project_name', '_session_task_name', '_session', \
-            '_session_instance', '_is_select', '_subquery_id', \
-            '_report_result', '_report_warning', '_session_task_status'
+    __slots__ = (
+        '_project_name', '_session_task_name', '_session', '_session_instance',
+        '_is_select', '_subquery_id', '_report_result', '_report_warning',
+        '_session_task_status',
+    )
 
     def __init__(self, **kw):
-        if ('session_task_name' not in kw) \
-                or ('session_project_name' not in kw) \
-                or ('session_instance' not in kw) \
-                or ('session_subquery_id' not in kw):
+        if (
+            'session_task_name' not in kw
+            or 'session_project_name' not in kw
+            or 'session_instance' not in kw
+            or 'session_subquery_id' not in kw
+        ):
             raise errors.InvalidArgument("Creating InSessionInstance without enough information.")
         self._session_task_name = kw.pop("session_task_name", "")
         self._project_name = kw.pop("session_project_name", "")
@@ -235,6 +332,10 @@ class InSessionInstance(Instance):
         if self._subquery_id < 0:
             raise errors.InternalServerError("Subquery id not legal: " + str(self._subquery_id))
         super(InSessionInstance, self).__init__(**kw)
+
+    @property
+    def subquery_id(self):
+        return self._subquery_id
 
     @utils.survey
     def _open_result_reader(self, schema=None, task_name=None, **kwargs):
@@ -252,7 +353,9 @@ class InSessionInstance(Instance):
 
     def _open_tunnel_reader(self, **kw):
         if not self._is_select:
-            raise errors.InstanceTypeNotSupported("InstanceTunnel cannot be opened at a non-select SQL Task.")
+            raise errors.InstanceTypeNotSupported(
+                "InstanceTunnel cannot be opened at a non-select SQL Task."
+            )
 
         while (self._subquery_id == -1) and (self._status != Instance.Status.TERMINATED):
             self.reload()
@@ -337,26 +440,29 @@ class InSessionInstance(Instance):
 
     def reload(self):
         url = self._session_instance.resource() + "?info"
-        st_resp = self._client.get(url, params={"curr_project": self._project_name,
-                                                "taskname": self._session_task_name,
-                                                "key": "result_" + str(self._subquery_id)})
+        params = {
+            "curr_project": self._project_name,
+            "taskname": self._session_task_name,
+            "key": "result_" + str(self._subquery_id)
+        }
+        st_resp = self._client.get(url, params=params)
         if not st_resp.ok:
             raise errors.ODPSError("HTTP " + str(st_resp.status_code))
         try:
-            query_reslt = json.loads(st_resp.text)
-            query_status = query_reslt["status"]
-            self._report_result = query_reslt["result"]
-            self._report_warning = query_reslt["warnings"]
+            query_result = json.loads(st_resp.text)
+            query_status = query_result["status"]
+            self._report_result = query_result["result"]
+            self._report_warning = query_result["warnings"]
             self._session_task_status = _task_status_value_to_enum(query_status)
-            if self._session_task_status == SessionTaskStatus.Terminated \
-                    or self._session_task_status == SessionTaskStatus.Failed \
-                    or self._session_task_status == SessionTaskStatus.Cancelled:
+            if self._session_task_status in (
+                SessionTaskStatus.Terminated, SessionTaskStatus.Failed, SessionTaskStatus.Cancelled
+            ):
                 self._status = Instance.Status.TERMINATED
             elif self._session_task_status == SessionTaskStatus.Running:
                 self._status = Instance.Status.RUNNING
             else:
                 self._status = Instance.Status.SUSPENDED
-            self._subquery_id = int(query_reslt.get("subQueryId", -1))
+            self._subquery_id = int(query_result.get("subQueryId", -1))
         except BaseException as ex:
             raise errors.ODPSError("Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), st_resp.text))
 
@@ -370,21 +476,23 @@ class InSessionInstance(Instance):
 
         if not self.is_terminated(retry=retry):
             return False
-        if self._session_task_status == SessionTaskStatus.Failed or \
-            self._session_task_status == SessionTaskStatus.Cancelled:
+        if self._session_task_status in (SessionTaskStatus.Failed, SessionTaskStatus.Cancelled):
             return False
         return True
 
-    def wait_for_success(self, interval=1):
+    def wait_for_success(self, interval=1, timeout=None, max_interval=None):
         """
         Wait for instance to complete, and check if the instance is successful.
 
         :param interval: time interval to check
+        :param max_interval: if specified, next check interval will be
+            multiplied by 2 till max_interval is reached.
+        :param timeout: time
         :return: None
         :raise: :class:`odps.errors.ODPSError` if the instance failed
         """
 
-        self.wait_for_completion(interval=interval)
+        self.wait_for_completion(interval=interval, max_interval=max_interval, timeout=timeout)
 
         if not self.is_successful(retry=True):
             raise errors.parse_instance_error(self._report_result)

@@ -204,7 +204,7 @@ class FSVolumeObject(LazyLoad):
         self.path = new_path
         self.reload()
 
-    def _create_volume_fs_tunnel(self, endpoint=None):
+    def _create_volume_fs_tunnel(self, endpoint=None, quota_name=None):
         if self._volume_fs_tunnel is not None:
             return self._volume_fs_tunnel
 
@@ -214,6 +214,7 @@ class FSVolumeObject(LazyLoad):
             client=self._client,
             project=self.project,
             endpoint=endpoint or self.project._tunnel_endpoint,
+            quota_name=quota_name,
         )
         return self._volume_fs_tunnel
 
@@ -294,6 +295,7 @@ class FSVolumeDir(FSVolumeObject):
         :param str path: file name to be opened
         :param start: start position
         :param length: length limit
+        :param quota_name: name of tunnel quota
         :param compress_option: the compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :return: file reader
@@ -303,7 +305,8 @@ class FSVolumeDir(FSVolumeObject):
         >>>     [print(line) for line in reader]
         """
         endpoint = kw.pop('endpoint', None)
-        tunnel = self._create_volume_fs_tunnel(endpoint=endpoint)
+        quota_name = kw.pop('quota_name', None)
+        tunnel = self._create_volume_fs_tunnel(endpoint=endpoint, quota_name=quota_name)
         path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/') + '/' + path.lstrip('/')
         return tunnel.open_reader(self.parent, path, **kw)
 
@@ -312,6 +315,7 @@ class FSVolumeDir(FSVolumeObject):
         Open a volume file and write contents into it.
 
         :param str path: file name to be opened
+        :param quota_name: name of tunnel quota
         :param compress_option: the compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :return: file reader
@@ -321,7 +325,8 @@ class FSVolumeDir(FSVolumeObject):
         >>>     writer.write('some content')
         """
         endpoint = kw.pop('endpoint', None)
-        tunnel = self._create_volume_fs_tunnel(endpoint=endpoint)
+        quota_name = kw.pop('quota_name', None)
+        tunnel = self._create_volume_fs_tunnel(endpoint=endpoint, quota_name=quota_name)
         vol_path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/') + '/' + path.lstrip('/')
         return tunnel.open_writer(self.parent, vol_path, replication=replication, **kw)
 
@@ -377,6 +382,7 @@ class FSVolumeFile(FSVolumeObject):
 
         :param start: start position
         :param length: length limit
+        :param quota_name: name of tunnel quota
         :param compress_option: the compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
         :return: file reader
@@ -386,13 +392,15 @@ class FSVolumeFile(FSVolumeObject):
         >>>     [print(line) for line in reader]
         """
         endpoint = kw.pop('endpoint', None)
-        tunnel = self._create_volume_fs_tunnel(endpoint=endpoint)
+        quota_name = kw.pop('quota_name', None)
+        tunnel = self._create_volume_fs_tunnel(endpoint=endpoint, quota_name=quota_name)
         path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/')
         return tunnel.open_reader(self.parent, path, **kw)
 
     def open_writer(self, replication=None, **kw):
         endpoint = kw.pop('endpoint', None)
-        tunnel = self._create_volume_fs_tunnel(endpoint=endpoint)
+        quota_name = kw.pop('quota_name', None)
+        tunnel = self._create_volume_fs_tunnel(endpoint=endpoint, quota_name=quota_name)
         path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/')
         return tunnel.open_writer(self.parent, path, replication=replication, **kw)
 

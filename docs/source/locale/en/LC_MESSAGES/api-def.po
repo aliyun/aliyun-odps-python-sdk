@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-05-18 11:20+0800\n"
+"POT-Creation-Date: 2023-06-06 14:29+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -62,22 +62,22 @@ msgstr ""
 #: odps.core.ODPS.delete_xflow odps.core.ODPS.execute_archive_table
 #: odps.core.ODPS.execute_merge_files odps.core.ODPS.execute_security_query
 #: odps.core.ODPS.execute_sql odps.core.ODPS.execute_sql_cost
-#: odps.core.ODPS.execute_xflow odps.core.ODPS.exist_function
-#: odps.core.ODPS.exist_instance odps.core.ODPS.exist_offline_model
-#: odps.core.ODPS.exist_project odps.core.ODPS.exist_resource
-#: odps.core.ODPS.exist_role odps.core.ODPS.exist_schema
-#: odps.core.ODPS.exist_table odps.core.ODPS.exist_user
-#: odps.core.ODPS.exist_volume odps.core.ODPS.exist_volume_partition
-#: odps.core.ODPS.exist_xflow odps.core.ODPS.get_function
-#: odps.core.ODPS.get_instance odps.core.ODPS.get_logview_address
-#: odps.core.ODPS.get_offline_model odps.core.ODPS.get_project
-#: odps.core.ODPS.get_project_policy odps.core.ODPS.get_resource
-#: odps.core.ODPS.get_role_policy odps.core.ODPS.get_schema
-#: odps.core.ODPS.get_security_option odps.core.ODPS.get_security_options
-#: odps.core.ODPS.get_table odps.core.ODPS.get_volume
-#: odps.core.ODPS.get_volume_file odps.core.ODPS.get_volume_partition
-#: odps.core.ODPS.get_xflow odps.core.ODPS.get_xflow_results
-#: odps.core.ODPS.get_xflow_sub_instances
+#: odps.core.ODPS.execute_sql_interactive odps.core.ODPS.execute_xflow
+#: odps.core.ODPS.exist_function odps.core.ODPS.exist_instance
+#: odps.core.ODPS.exist_offline_model odps.core.ODPS.exist_project
+#: odps.core.ODPS.exist_resource odps.core.ODPS.exist_role
+#: odps.core.ODPS.exist_schema odps.core.ODPS.exist_table
+#: odps.core.ODPS.exist_user odps.core.ODPS.exist_volume
+#: odps.core.ODPS.exist_volume_partition odps.core.ODPS.exist_xflow
+#: odps.core.ODPS.get_function odps.core.ODPS.get_instance
+#: odps.core.ODPS.get_logview_address odps.core.ODPS.get_offline_model
+#: odps.core.ODPS.get_project odps.core.ODPS.get_project_policy
+#: odps.core.ODPS.get_resource odps.core.ODPS.get_role_policy
+#: odps.core.ODPS.get_schema odps.core.ODPS.get_security_option
+#: odps.core.ODPS.get_security_options odps.core.ODPS.get_table
+#: odps.core.ODPS.get_volume odps.core.ODPS.get_volume_file
+#: odps.core.ODPS.get_volume_partition odps.core.ODPS.get_xflow
+#: odps.core.ODPS.get_xflow_results odps.core.ODPS.get_xflow_sub_instances
 #: odps.core.ODPS.iter_xflow_sub_instances odps.core.ODPS.list_functions
 #: odps.core.ODPS.list_instance_queueing_infos odps.core.ODPS.list_instances
 #: odps.core.ODPS.list_offline_models odps.core.ODPS.list_projects
@@ -223,20 +223,21 @@ msgstr ""
 #: odps.core.ODPS.delete_xflow odps.core.ODPS.execute_archive_table
 #: odps.core.ODPS.execute_merge_files odps.core.ODPS.execute_security_query
 #: odps.core.ODPS.execute_sql odps.core.ODPS.execute_sql_cost
-#: odps.core.ODPS.execute_xflow odps.core.ODPS.exist_function
-#: odps.core.ODPS.exist_instance odps.core.ODPS.exist_offline_model
-#: odps.core.ODPS.exist_project odps.core.ODPS.exist_resource
-#: odps.core.ODPS.exist_schema odps.core.ODPS.exist_table
-#: odps.core.ODPS.exist_volume odps.core.ODPS.exist_xflow
-#: odps.core.ODPS.get_function odps.core.ODPS.get_instance
-#: odps.core.ODPS.get_logview_address odps.core.ODPS.get_offline_model
-#: odps.core.ODPS.get_project odps.core.ODPS.get_project_policy
-#: odps.core.ODPS.get_resource odps.core.ODPS.get_role_policy
-#: odps.core.ODPS.get_schema odps.core.ODPS.get_security_option
-#: odps.core.ODPS.get_security_options odps.core.ODPS.get_table
-#: odps.core.ODPS.get_volume odps.core.ODPS.get_volume_file
-#: odps.core.ODPS.get_volume_partition odps.core.ODPS.get_xflow
-#: odps.core.ODPS.get_xflow_results odps.core.ODPS.get_xflow_sub_instances
+#: odps.core.ODPS.execute_sql_interactive odps.core.ODPS.execute_xflow
+#: odps.core.ODPS.exist_function odps.core.ODPS.exist_instance
+#: odps.core.ODPS.exist_offline_model odps.core.ODPS.exist_project
+#: odps.core.ODPS.exist_resource odps.core.ODPS.exist_schema
+#: odps.core.ODPS.exist_table odps.core.ODPS.exist_volume
+#: odps.core.ODPS.exist_xflow odps.core.ODPS.get_function
+#: odps.core.ODPS.get_instance odps.core.ODPS.get_logview_address
+#: odps.core.ODPS.get_offline_model odps.core.ODPS.get_project
+#: odps.core.ODPS.get_project_policy odps.core.ODPS.get_resource
+#: odps.core.ODPS.get_role_policy odps.core.ODPS.get_schema
+#: odps.core.ODPS.get_security_option odps.core.ODPS.get_security_options
+#: odps.core.ODPS.get_table odps.core.ODPS.get_volume
+#: odps.core.ODPS.get_volume_file odps.core.ODPS.get_volume_partition
+#: odps.core.ODPS.get_xflow odps.core.ODPS.get_xflow_results
+#: odps.core.ODPS.get_xflow_sub_instances
 #: odps.core.ODPS.iter_xflow_sub_instances odps.core.ODPS.list_functions
 #: odps.core.ODPS.list_instance_queueing_infos odps.core.ODPS.list_instances
 #: odps.core.ODPS.list_offline_models odps.core.ODPS.list_projects
@@ -836,8 +837,8 @@ msgstr ""
 #: odps.mars_extension.oscar.core.persist_mars_dataframe:17
 #: odps.models.function.Function.drop:3 odps.models.function.Function.update:3
 #: odps.models.instance.Instance.stop:3
-#: odps.models.instance.Instance.wait_for_completion:5
-#: odps.models.instance.Instance.wait_for_success:4
+#: odps.models.instance.Instance.wait_for_completion:7
+#: odps.models.instance.Instance.wait_for_success:7
 #: odps.models.partition.Partition.drop:5
 #: odps.models.resource.FileResource.close:3
 #: odps.models.resource.FileResource.flush:4
@@ -1215,6 +1216,35 @@ msgstr ""
 #: odps.core.ODPS.execute_sql_cost:6
 #: odps.models.instance.Instance.get_sql_task_cost:7 of
 msgid "cost info in dict format"
+msgstr ""
+
+#: odps.core.ODPS.execute_sql_interactive:1 of
+msgid ""
+"Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration). "
+"If query is not supported or fails, and fallback is True, will fallback "
+"to offline mode automatically"
+msgstr ""
+
+#: odps.core.ODPS.execute_sql_interactive:5 of
+msgid "the sql query."
+msgstr ""
+
+#: odps.core.ODPS.execute_sql_interactive:6 of
+msgid "settings for sql query."
+msgstr ""
+
+#: odps.core.ODPS.execute_sql_interactive:7 of
+msgid ""
+"fallback query to non-interactive mode, True by default. Both boolean "
+"type and policy names separated by commas are acceptable."
+msgstr ""
+
+#: odps.core.ODPS.execute_sql_interactive:9 of
+msgid "wait fallback instance to finish, True by default."
+msgstr ""
+
+#: odps.core.ODPS.execute_sql_interactive:10 of
+msgid "instance."
 msgstr ""
 
 #: odps.core.ODPS.execute_xflow:1 of
@@ -2065,14 +2095,6 @@ msgid ""
 ":return: instance."
 msgstr ""
 
-#: odps.core.ODPS.run_sql_interactive_with_fallback:1 of
-msgid ""
-"Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration). "
-"If query is not supported or fails, will fallback to offline mode "
-"automatically :param sql: the sql query. :param hints: settings for sql "
-"query. :return: instance."
-msgstr ""
-
 #: odps.core.ODPS.run_xflow:1 of
 msgid "Run xflow by given name, xflow project, paremeters asynchronously."
 msgstr ""
@@ -2214,6 +2236,8 @@ msgstr ""
 #: odps.models.instance.Instance.Status:1
 #: odps.models.instance.Instance.Task.TaskStatus:1
 #: odps.models.project.Project.AuthQueryStatus:1
+#: odps.models.project.Project.ProjectStatus:1
+#: odps.models.project.Project.ProjectType:1
 #: odps.models.resource.FileResource.Mode:1
 #: odps.models.resource.Resource.Type:1 of
 msgid "An enumeration."
@@ -2780,7 +2804,15 @@ msgstr ""
 msgid "Wait for the instance to complete, and neglect the consequence."
 msgstr ""
 
-#: odps.models.instance.Instance.wait_for_completion:4 of
+#: odps.models.instance.Instance.wait_for_completion:4
+#: odps.models.instance.Instance.wait_for_success:4 of
+msgid ""
+"if specified, next check interval will be multiplied by 2 till "
+"max_interval is reached."
+msgstr ""
+
+#: odps.models.instance.Instance.wait_for_completion:6
+#: odps.models.instance.Instance.wait_for_success:6 of
 msgid "time"
 msgstr ""
 
@@ -2788,7 +2820,7 @@ msgstr ""
 msgid "Wait for instance to complete, and check if the instance is successful."
 msgstr ""
 
-#: odps.models.instance.Instance.wait_for_success:5 of
+#: odps.models.instance.Instance.wait_for_success:8 of
 msgid ":class:`odps.errors.ODPSError` if the instance failed"
 msgstr ""
 
@@ -3004,4 +3036,14 @@ msgid ""
 "Get PMML text of the current model. Note that model file obtained via "
 "this method might be incomplete due to size limitations."
 msgstr ""
+
+#~ msgid ""
+#~ "Run SQL query in interactive mode "
+#~ "(a.k.a MaxCompute QueryAcceleration). If query"
+#~ " is not supported or fails, will "
+#~ "fallback to offline mode automatically "
+#~ ":param sql: the sql query. :param "
+#~ "hints: settings for sql query. :return:"
+#~ " instance."
+#~ msgstr ""
 

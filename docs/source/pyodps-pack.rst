@@ -226,6 +226,44 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
     pyodps-pack --install-requires oldest-supported-numpy --run-before install-gdal.sh gdal==3.6.0.1
 
+在某些情况下，二进制依赖被通过动态链接（例如使用 ``ctypes.cdll.LoadLibrary`` ）引入到 Python
+中。此时，你可以使用 ``--dynlib`` 参数指定需要包含在包中的二进制依赖路径（或者 /lib
+下的包名），该依赖将被打包到 ``packages/dynlibs`` 路径下。例如，Python 库 ``unrar``
+动态链接了 ``libunrar`` 这个二进制库，我们使用下面的 ``install-libunrar.sh``
+代码编译和安装：
+
+.. code-block:: bash
+
+    #!/bin/bash
+    curl -o unrar.tar.gz https://www.rarlab.com/rar/unrarsrc-6.0.3.tar.gz
+    tar xzf unrar.tar.gz
+    cd unrar
+    make -j4 lib
+    # 该步骤设置输出包 SONAME 为 libunrar.so，为 LoadLibrary 所必需
+    # 对于大部分二进制包，此步骤可能并非必需
+    patchelf --set-soname libunrar.so libunrar.so
+    make install-lib
+
+此后，使用 ``pyodps-pack`` 进行打包：
+
+.. code-block:: bash
+
+    pyodps-pack --run-before install-libunrar.sh --dynlib unrar unrar
+
+在上述命令中， ``--dynlib`` 的值 ``unrar`` 省略了 lib 前缀， ``pyodps-pack`` 实际找到的是
+``/lib/libunrar.so`` 。如果有多个动态链接库， ``--dynlib`` 可被指定多次。
+
+由于动态链接库的复杂性，你可能需要在 import 你的三方库前手动加载动态链接库，例如
+
+.. code-block:: python
+
+   import ctypes
+   ctypes.cdll.LoadLibrary("work/packages.tar.gz/packages/dynlibs/libunrar.so")
+   import unrar
+
+对 ``LoadLibrary`` 路径的具体说明请参考 :ref:`Python UDF 使用三方包 <pyodps_pack_udf>`
+中的说明。
+
 命令详情
 ~~~~~~~~~
 下面给出 ``pyodps-pack`` 命令的可用参数，可用于控制打包过程：
@@ -313,6 +351,12 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
   指定目标面向的 Python 版本，可使用 3.6 或者 36 表示 Python 3.6。如果你并不在专有云使用
   MaxCompute 或 DataWorks，**不要指定这个参数**。
 
+- ``--dynlib <lib-name>``
+
+  指定后，将引入 .so 动态链接库，可以指定具体路径，也可以指定库名（包含或不包含 lib 前缀均可）。 ``pyodps-pack``
+  将在/lib、/lib64、/usr/lib、/usr/lib64中查找对应库，并置入包中 packages/dynlibs 下。你可能需要手动调用
+  ``ctypes.cdll.LoadLibrary`` 在相应包路径引用这些库。
+
 - ``--docker-args <args>``
 
   指定在执行 Docker 命令时需要额外附加的参数。如有多个参数需用引号包裹，例如 ``--docker-args "--ip 192.168.1.10"``。
@@ -381,6 +425,8 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 更详细的细节请参考 `这篇文章 <https://help.aliyun.com/document_detail/136928.html>`_ 。
 
+.. _pyodps_pack_udf:
+
 在 Python UDF 中使用三方包
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 你需要对你的 UDF 进行修改以使用上传的三方包。具体地，你需要在 UDF 类的 ``__init__`` 方法中添加对三方包的引用，
@@ -421,7 +467,8 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 2. ``__init__`` 函数中将 ``work/scipy-bundle.tar.gz/packages`` 添加到 ``sys.path``，
    因为 MaxCompute 会将所有 UDF 引用的 Archive 资源以资源名称为目录解压到 ``work`` 目录下，而 ``packages`` 则是
-   ``pyodps-pack`` 生成包的子目录。
+   ``pyodps-pack`` 生成包的子目录。如果你需要通过 ``LoadLibrary`` 引入 ``--dynlib``
+   参数引入的动态链接库，也可以在此处引用。
 
 3. 将对 scipy 的 import 放在 evaluate 函数体内部的原因是三方包仅在执行时可用，当
    UDF 在 MaxCompute 服务端被解析时，解析环境不包含三方包，函数体外的三方包 import 会导致报错。

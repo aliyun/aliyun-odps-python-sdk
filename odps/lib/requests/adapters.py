@@ -10,6 +10,7 @@ and maintain connections.
 
 import os.path
 import socket
+import sys
 from contextlib import contextmanager
 
 from urllib3.poolmanager import PoolManager, proxy_from_url
@@ -48,6 +49,7 @@ except ImportError:
     def SOCKSProxyManager(*args, **kwargs):
         raise InvalidSchema("Missing dependencies for SOCKS support.")
 
+IS_PY2 = sys.version_info[0] == 2
 DEFAULT_POOLBLOCK = False
 DEFAULT_POOLSIZE = 10
 DEFAULT_RETRIES = 0
@@ -546,10 +548,10 @@ class HTTPAdapter(BaseAdapter):
                     low_conn.send(b"0\r\n\r\n")
 
                     # Receive the response from the server
-                    try:
+                    if IS_PY2:
                         # For Python 2.7, use buffering of HTTP responses
                         r = low_conn.getresponse(buffering=True)
-                    except TypeError:
+                    else:
                         # For compatibility with Python 3.3+
                         r = low_conn.getresponse()
 

@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import struct
 import time
 
@@ -66,7 +67,9 @@ length_delim_tag_types = (
     types.string,
     types.binary,
     types.timestamp,
+    types.timestamp_ntz,
     types.interval_day_time,
+    types.json,
 )
 
 
@@ -295,7 +298,7 @@ if BaseRecordWriter is None:
                 self._write_string(val)
             elif data_type == types.binary:
                 self._write_string(val)
-            elif data_type == types.timestamp:
+            elif data_type == types.timestamp or data_type == types.timestamp_ntz:
                 self._write_timestamp(val)
             elif data_type == types.interval_day_time:
                 self._write_interval_day_time(val)
@@ -305,6 +308,8 @@ if BaseRecordWriter is None:
                 self._write_string(val)
             elif isinstance(data_type, types.Decimal):
                 self._write_string(str(val))
+            elif isinstance(data_type, types.Json):
+                self._write_string(json.dumps(val))
             elif isinstance(data_type, types.Array):
                 self._write_raw_uint(len(val))
                 self._write_array(val, data_type.value_type)
@@ -401,21 +406,7 @@ class BufferedRecordWriter(BaseRecordWriter):
         self.flush_all()
         self._buffer.close()
 
-    def _flush(self):
-        self._write_finish_tags()
-        self._n_bytes_written += self._n_raw_bytes
-        self.flush_all()
-
-        def gen():  # synchronize chunk upload
-            data = self._buffer.getvalue()
-            while data:
-                to_send = data[:options.chunk_size]
-                data = data[options.chunk_size:]
-                yield to_send
-
-        self._request_callback(self._block_id, gen())
-        self._blocks_written.append(self._block_id)
-        self._block_id += 1
+    def _reset_writer(self, write_response):
         self._buffer = compat.BytesIO()
 
         out = get_compress_stream(self._buffer, self._compress_option)
@@ -423,6 +414,27 @@ class BufferedRecordWriter(BaseRecordWriter):
         self._curr_cursor = 0
         self._crccrc.reset()
         self._crc.reset()
+
+    def _send_buffer(self):
+        def gen():  # synchronize chunk upload
+            data = self._buffer.getvalue()
+            while data:
+                to_send = data[:options.chunk_size]
+                data = data[options.chunk_size:]
+                yield to_send
+
+        return self._request_callback(self._block_id, gen())
+
+    def _flush(self):
+        self._write_finish_tags()
+        self._n_bytes_written += self._n_raw_bytes
+        self.flush_all()
+
+        resp = self._send_buffer()
+        self._blocks_written.append(self._block_id)
+        self._block_id += 1
+
+        self._reset_writer(resp)
 
     @property
     def _n_raw_bytes(self):
@@ -443,7 +455,7 @@ class BufferedRecordWriter(BaseRecordWriter):
 BufferredRecordWriter = BufferedRecordWriter
 
 
-class StreamRecordWriter(BaseRecordWriter):
+class StreamRecordWriter(BufferedRecordWriter):
     def __init__(
         self,
         schema,
@@ -452,25 +464,40 @@ class StreamRecordWriter(BaseRecordWriter):
         slot,
         compress_option=None,
         encoding="utf-8",
+        buffer_size=None,
     ):
         self.session = session
         self.slot = slot
-        self._req_io = request_callback(options.chunk_size)
-        out = get_compress_stream(self._req_io, compress_option)
-        super(StreamRecordWriter, self).__init__(schema, out, encoding=encoding)
-        self._req_io.open()
+        self._record_count = 0
 
-    def close(self):
-        super(StreamRecordWriter, self).close()
-        self.flush_all()
-        self._req_io.close()
-        resp = self._req_io.result
-        slot_server = resp.headers['odps-tunnel-routed-server']
-        slot_num = int(resp.headers['odps-tunnel-slot-num'])
+        super(StreamRecordWriter, self).__init__(
+            schema,
+            request_callback,
+            compress_option=compress_option,
+            encoding=encoding,
+            buffer_size=buffer_size,
+        )
+
+    def write(self, record):
+        super(StreamRecordWriter, self).write(record)
+        self._record_count += 1
+
+    def _reset_writer(self, write_response):
+        self._record_count = 0
+        slot_server = write_response.headers['odps-tunnel-routed-server']
+        slot_num = int(write_response.headers['odps-tunnel-slot-num'])
         self.session.reload_slots(self.slot, slot_server, slot_num)
+        super(StreamRecordWriter, self)._reset_writer(write_response)
 
-    def get_total_bytes(self):
-        return self.n_bytes
+    def _send_buffer(self):
+        def gen():  # synchronize chunk upload
+            data = self._buffer.getvalue()
+            while data:
+                to_send = data[:options.chunk_size]
+                data = data[options.chunk_size:]
+                yield to_send
+
+        return self._request_callback(gen())
 
 
 class ArrowWriter(object):
@@ -486,12 +513,17 @@ class ArrowWriter(object):
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._cur_chunk_size = 0
+        self._last_flush_time = int(time.time())
 
         self._req_io = request_callback(chunk_size)
         self._req_io.open()
 
         self._output = get_compress_stream(self._req_io, compress_option)
         self._write_chunk_size()
+
+    @property
+    def last_flush_time(self):
+        return self._last_flush_time
 
     def _write_chunk_size(self):
         self._write_unint32(self._chunk_size)
@@ -561,6 +593,10 @@ class ArrowWriter(object):
                 chunk_data = data[written_bytes: written_bytes + length]
                 self._write_chunk(chunk_data)
                 written_bytes += length
+
+    def flush(self):
+        self._output.flush()
+        self._last_flush_time = int(time.time())
 
     def _finish(self):
         checksum = self._crccrc.getvalue()

@@ -16,6 +16,7 @@
 
 import json
 import time
+import warnings
 import weakref
 
 from .. import serializers, utils
@@ -101,6 +102,31 @@ class Project(LazyLoad):
         RUNNING = "RUNNING"
         FAILED = "FAILED"
 
+    class ProjectStatus(Enum):
+        AVAILABLE = "AVAILABLE"
+        READONLY = "READONLY"
+        DELETING = "DELETING"
+        FROZEN = "FROZEN"
+        UNKNOWN = "UNKNOWN"
+
+        @classmethod
+        def from_str(cls, s):
+            try:
+                return cls(s) if s is not None else None
+            except ValueError:
+                return cls.UNKNOWN
+
+    class ProjectType(Enum):
+        MANAGED = "managed"
+        EXTERNAL = "external"
+
+        @classmethod
+        def from_str(cls, s):
+            try:
+                return cls(s) if s is not None else None
+            except ValueError:
+                return cls.MANAGED
+
     class AuthQueryStatusResponse(serializers.XMLSerializableModel):
         _root = "AuthorizationQuery"
         result = serializers.XMLNodeField('Result')
@@ -142,8 +168,10 @@ class Project(LazyLoad):
             return status.status == Project.AuthQueryStatus.TERMINATED
 
     name = serializers.XMLNodeField('Name')
-    owner = serializers.XMLNodeField('Owner')
+    type = serializers.XMLNodeField('Type', parse_callback=ProjectType.from_str)
     comment = serializers.XMLNodeField('Comment')
+    owner = serializers.XMLNodeField('Owner')
+    super_administrator = serializers.XMLNodeField('SuperAdministrator')
     creation_time = serializers.XMLNodeField(
         'CreationTime', parse_callback=utils.parse_rfc822
     )
@@ -157,10 +185,12 @@ class Project(LazyLoad):
     _extended_properties = serializers.XMLNodePropertiesField(
         'ExtendedProperties', 'Property', key_tag='Name', value_tag='Value'
     )
-    state = serializers.XMLNodeField('State')
+    _state = serializers.XMLNodeField('State')
     clusters = serializers.XMLNodesReferencesField(Cluster, 'Clusters', 'Cluster')
     region_id = serializers.XMLNodeField('Region')
     tenant_id = serializers.XMLNodeField('TenantId')
+    default_quota_nickname = serializers.XMLNodeField('DefaultQuotaNickname')
+    default_quota_region = serializers.XMLNodeField('DefaultQuotaRegion')
 
     def __init__(self, *args, **kwargs):
         self._tunnel_endpoint = None
@@ -204,6 +234,20 @@ class Project(LazyLoad):
     @property
     def schemas(self):
         return Schemas(client=self._client, parent=self)
+
+    @property
+    def state(self):
+        warnings.warn(
+            'Project.state is deprecated and will be replaced by Project.status.',
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        utils.add_survey_call(".".join([type(self).__module__, type(self).__name__, "state"]))
+        return self._state
+
+    @property
+    def status(self):
+        return self.ProjectStatus.from_str(self._state)
 
     def _get_collection_with_schema(self, iter_cls):
         schema = self._default_schema

@@ -195,11 +195,12 @@ def test_merge(odps, utils):
 
 def test_sample_class(odps, utils):
     from ..core import AlgoExprMixin
-    num_sampled = utils.df.sample(n=20)
+
+    num_sampled = utils.df.sample(n=20, replace=True)
     assert isinstance(num_sampled, AlgoExprMixin)
     assert num_sampled._algo == 'RandomSample'
 
-    frac_sampled = utils.df.sample(frac=0.5)
+    frac_sampled = utils.df.sample(frac=0.5, replace=True)
     assert isinstance(frac_sampled, AlgoExprMixin)
     assert frac_sampled._algo == 'RandomSample'
 
