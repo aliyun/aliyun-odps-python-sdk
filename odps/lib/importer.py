@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import zipfile
-import tarfile
 import os
 import random
 import sys
+import tarfile
 import types
+import warnings
+import zipfile
 from collections import defaultdict
 
 
@@ -193,6 +194,13 @@ class CompressImporter(BASE):
                     sys.path = path_patch + sys.path
                 else:
                     sys.path = sys.path + path_patch
+
+                try:
+                    self._load_dynlibs(path_patch)
+                except:
+                    warnings.warn(
+                        "Failed to call _load_dynlibs. Dynamic libraries might not be loaded properly."
+                    )
             else:
                 self._files.append(f)
                 if path_patch:
@@ -229,6 +237,39 @@ class CompressImporter(BASE):
                 full_name = os.path.join(root, name)
                 mock_archive.append(full_name)
         return mock_archive
+
+    @classmethod
+    def _load_dynlibs(cls, path_patch):
+        import ctypes
+        import glob
+
+        # put dynlibs dir into LD_LIBRARY_PATH env
+        library_paths = []
+        for path in path_patch:
+            dynlib_path = os.path.join(path, "dynlibs")
+            if not os.path.isdir(dynlib_path):
+                continue
+
+            library_paths.append(dynlib_path)
+            cwd = os.getcwd()
+            try:
+                os.chdir(dynlib_path)
+                for so_file in glob.glob("*.so"):
+                    try:
+                        ctypes.cdll.LoadLibrary(so_file)
+                    except:
+                        warnings.warn(
+                            "Failed to load dynamic library %s" % so_file, ImportWarning
+                        )
+            finally:
+                os.chdir(cwd)
+        if library_paths:
+            if "LD_LIBRARY_PATH" in os.environ:
+                os.environ["LD_LIBRARY_PATH"] = (
+                    os.environ["LD_LIBRARY_PATH"] + ":" + ":".join(library_paths)
+                )
+            else:
+                os.environ["LD_LIBRARY_PATH"] = ":".join(library_paths)
 
     def _get_info(self, fullmodname):
         """

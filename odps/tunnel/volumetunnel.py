@@ -44,8 +44,10 @@ class VolumeTunnel(BaseTunnel):
             compress_option = io.CompressOption(
                 compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
 
-        return VolumeDownloadSession(self.tunnel_rest, volume, partition_spec, file_name, download_id=download_id,
-                                     compress_option=compress_option)
+        return VolumeDownloadSession(
+            self.tunnel_rest, volume, partition_spec, file_name, download_id=download_id,
+            compress_option=compress_option, quota_name=self._quota_name
+        )
 
     def create_upload_session(self, volume, partition_spec, upload_id=None, compress_option=None,
                               compress_algo=None, compress_level=None, compress_strategy=None):
@@ -56,8 +58,10 @@ class VolumeTunnel(BaseTunnel):
             compress_option = io.CompressOption(
                 compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
 
-        return VolumeUploadSession(self.tunnel_rest, volume, partition_spec, upload_id=upload_id,
-                                   compress_option=compress_option)
+        return VolumeUploadSession(
+            self.tunnel_rest, volume, partition_spec, upload_id=upload_id,
+            compress_option=compress_option, quota_name=self._quota_name
+        )
 
 
 class VolumeFSTunnel(BaseTunnel):
@@ -140,7 +144,9 @@ class VolumeFSTunnel(BaseTunnel):
 
 
 class VolumeDownloadSession(serializers.JSONSerializableModel):
-    __slots__ = 'id', '_client', 'project_name', 'volume_name', 'partition_spec', 'file_name', '_compress_option'
+    __slots__ = (
+        '_client', 'project_name', '_compress_option', '_quota_name',
+    )
 
     class Status(Enum):
         UNKNOWN = 'UNKNOWN'
@@ -149,18 +155,23 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
         EXPIRED = 'EXPIRED'
 
     id = serializers.JSONNodeField('DownloadID')
-    status = serializers.JSONNodeField('Status',
-                                       parse_callback=lambda v: VolumeDownloadSession.Status(v.upper()))
+    status = serializers.JSONNodeField(
+        'Status', parse_callback=lambda v: VolumeDownloadSession.Status(v.upper())
+    )
     file_name = serializers.JSONNodeField('File', 'FileName')
     file_length = serializers.JSONNodeField('File', 'FileLength')
     volume_name = serializers.JSONNodeField('Partition', 'Volume')
     partition_spec = serializers.JSONNodeField('Partition', 'Partition')
 
-    def __init__(self, client, volume, partition_spec, file_name=None, download_id=None, compress_option=None):
+    def __init__(
+        self, client, volume, partition_spec, file_name=None, download_id=None,
+            compress_option=None, quota_name=None
+    ):
         super(VolumeDownloadSession, self).__init__()
 
         self._client = client
         self._compress_option = compress_option
+        self._quota_name = quota_name
         self.project_name = volume.project.name
         self.volume_name = volume.name
         self.partition_spec = partition_spec
@@ -186,8 +197,11 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
 
     def _init(self):
         headers = {'Content-Length': '0'}
-        params = dict(type='volumefile', target='/'.join([self.project_name, self.volume_name,
-                                                          self.partition_spec, self.file_name]))
+        params = dict(type='volumefile', target='/'.join(
+            [self.project_name, self.volume_name, self.partition_spec, self.file_name]
+        ))
+        if self._quota_name is not None:
+            params['quotaName'] = self._quota_name
 
         url = self.resource()
         resp = self._client.post(url, {}, params=params, headers=headers)
@@ -418,7 +432,10 @@ class VolumeReader(object):
 
 
 class VolumeUploadSession(serializers.JSONSerializableModel):
-    __slots__ = 'id', '_client', '_compress_option', 'project_name', 'volume_name', 'partition_spec'
+    __slots__ = (
+        '_client', '_compress_option', 'project_name', 'volume_name',
+        'partition_spec', '_quota_name',
+    )
 
     class Status(Enum):
         UNKNOWN = 'UNKNOWN'
@@ -438,11 +455,15 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
                                        parse_callback=lambda v: VolumeUploadSession.Status(v.upper()))
     file_list = serializers.JSONNodesReferencesField(UploadFile, 'FileList')
 
-    def __init__(self, client, volume, partition_spec, upload_id=None, compress_option=None):
+    def __init__(
+        self, client, volume, partition_spec, upload_id=None,
+        compress_option=None, quota_name=None
+    ):
         super(VolumeUploadSession, self).__init__()
 
         self._client = client
         self._compress_option = compress_option
+        self._quota_name = quota_name
         self.project_name = volume.project.name
         self.volume_name = volume.name
         self.partition_spec = partition_spec
@@ -468,8 +489,12 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
 
     def _init(self):
         headers = {'Content-Length': '0'}
-        params = dict(type='volumefile', target='/'.join([self.project_name, self.volume_name,
-                                                          self.partition_spec]) + '/')
+        params = dict(
+            type='volumefile',
+            target='/'.join([self.project_name, self.volume_name, self.partition_spec]) + '/'
+        )
+        if self._quota_name is not None:
+            params['quotaName'] = self._quota_name
 
         url = self.resource()
         resp = self._client.post(url, {}, params=params, headers=headers)

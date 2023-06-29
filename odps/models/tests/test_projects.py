@@ -37,25 +37,29 @@ def test_project(odps):
     assert project.name == odps.project
 
     assert project._getattr("owner") is None
+    assert project._getattr("type") is None
     assert project._getattr("comment") is None
     assert project._getattr("creation_time") is None
     assert project._getattr("last_modified_time") is None
     assert project._getattr("project_group_name") is None
     assert project._getattr("properties") is None
     assert project._getattr("_extended_properties") is None
-    assert project._getattr("state") is None
+    assert project._getattr("_state") is None
     assert project._getattr("clusters") is None
 
     assert project.is_loaded is False
 
     assert isinstance(project.extended_properties, dict)
     assert isinstance(project.owner, six.string_types)
+    assert project.type == Project.ProjectType.MANAGED
     assert isinstance(project.creation_time, datetime)
     assert isinstance(project.last_modified_time, datetime)
     assert isinstance(project.properties, dict)
     assert len(project.properties) > 0
     assert len(project.extended_properties) > 0
     assert isinstance(project.state, six.string_types)
+    assert isinstance(project.status, Project.ProjectStatus)
+    assert project.status == Project.ProjectStatus.AVAILABLE
 
     assert project.is_loaded is True
 

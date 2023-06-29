@@ -298,8 +298,8 @@ def sample(expr, parts=None, columns=None, i=None, n=None, frac=None, replace=Fa
     Sampling with fraction or weights, replacement option can be specified:
 
     >>> df.sample(n=100)
-    >>> df.sample(frac=100)
-    >>> df.sample(frac=100, replace=True)
+    >>> df.sample(frac=0.1)
+    >>> df.sample(frac=0.1, replace=True)
 
     Sampling with weight column:
 
@@ -355,6 +355,8 @@ def sample(expr, parts=None, columns=None, i=None, n=None, frac=None, replace=Fa
             for it in i:
                 if it >= parts or it < 0:
                     raise ExpressionError('`i` should be positive numbers that less than `parts`')
+        elif not replace and weights is None and strata is None:
+            pass
         elif hasattr(expr, '_xflow_sample'):
             return expr._xflow_sample(n=n, frac=frac, replace=replace, weights=weights, strata=strata,
                                       random_state=random_state)

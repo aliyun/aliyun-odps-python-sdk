@@ -16,9 +16,14 @@
 
 import copy
 import decimal as _decimal
-from collections import OrderedDict
+from collections import OrderedDict  # noqa: F401
 
 import pytest
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 from ..types import *
 from ..tests.core import py_and_c
@@ -39,21 +44,26 @@ py_and_c_deco = py_and_c(["odps.models.record", "odps.models"], reloader=_reload
 
 @py_and_c_deco
 def test_nullable_record():
-    s = TableSchema.from_lists(
-        ['col%s' % i for i in range(8)],
-        ['tinyint', 'smallint', 'int', 'bigint', 'float', 'double',
+    col_types = ['tinyint', 'smallint', 'int', 'bigint', 'float', 'double',
          'string', 'datetime', 'boolean', 'decimal', 'binary', 'decimal(10, 2)',
-         'interval_day_time', 'interval_year_month', 'char(20)', 'varchar(20)',
-         'array<string>', 'map<string,bigint>', 'struct<a:string,b:array<int>>'])
-    r = Record(schema=s, values=[None] * 8)
-    assert list(r.values) == [None] * 8
+         'interval_year_month', 'json', 'char(20)', 'varchar(20)',
+         'array<string>', 'map<string,bigint>', 'struct<a:string,b:array<int>>']
+    if pd is not None:
+        col_types.extend(['interval_day_time', 'timestamp', 'timestamp_ntz'])
+
+    s = TableSchema.from_lists(
+        ['col%s' % i for i in range(len(col_types))],
+        col_types,
+    )
+    r = Record(schema=s, values=[None] * len(col_types))
+    assert list(r.values) == [None] * len(col_types)
 
 
 @py_and_c_deco
 def test_record_set_and_get_by_index():
     s = TableSchema.from_lists(
-        ['col%s' % i for i in range(8)],
-        ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal',
+        ['col%s' % i for i in range(9)],
+        ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal', 'json',
          'array<string>', 'map<string,bigint>'])
     s.build_snapshot()
     if options.force_py:
@@ -68,26 +78,30 @@ def test_record_set_and_get_by_index():
     r[3] = datetime(2016, 1, 1)
     r[4] = True
     r[5] = _decimal.Decimal('1.111')
-    r[6] = ['a', 'b']
-    r[7] = OrderedDict({'a': 1})
-    assert list(r.values) == [1, 1.2, 'abc', datetime(2016, 1, 1), True,
-                              _decimal.Decimal('1.111'), ['a', 'b'], OrderedDict({'a': 1})]
+    r[6] = {"root": {"key": "value"}}
+    r[7] = ['a', 'b']
+    r[8] = OrderedDict({'a': 1})
+    assert list(r.values) == [
+        1, 1.2, 'abc', datetime(2016, 1, 1), True, _decimal.Decimal('1.111'),
+        {"root": {"key": "value"}}, ['a', 'b'], OrderedDict({'a': 1}),
+    ]
     assert 1 == r[0]
     assert 1.2 == r[1]
     assert 'abc' == r[2]
     assert datetime(2016, 1, 1) == r[3]
     assert r[4] is True
     assert _decimal.Decimal('1.111') == r[5]
-    assert ['a', 'b'] == r[6]
-    assert OrderedDict({'a': 1}) == r[7]
+    assert {"root": {"key": "value"}} == r[6]
+    assert ['a', 'b'] == r[7]
+    assert OrderedDict({'a': 1}) == r[8]
     assert [1, 1.2] == r[:2]
 
 
 @py_and_c_deco
 def test_record_set_and_get_by_name():
     s = TableSchema.from_lists(
-        ['col%s' % i for i in range(8)],
-        ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal',
+        ['col%s' % i for i in range(9)],
+        ['bigint', 'double', 'string', 'datetime', 'boolean', 'decimal', 'json',
          'array<string>', 'map<string,bigint>'])
     r = Record(schema=s)
     r['col0'] = 1
@@ -96,18 +110,22 @@ def test_record_set_and_get_by_name():
     r['col3'] = datetime(2016, 1, 1)
     r['col4'] = True
     r['col5'] = _decimal.Decimal('1.111')
-    r['col6'] = ['a', 'b']
-    r['col7'] = OrderedDict({'a': 1})
-    assert list(r.values) == [1, 1.2, 'abc', datetime(2016, 1, 1), True,
-                              _decimal.Decimal('1.111'), ['a', 'b'], OrderedDict({'a': 1})]
+    r['col6'] = {"root": {"key": "value"}}
+    r['col7'] = ['a', 'b']
+    r['col8'] = OrderedDict({'a': 1})
+    assert list(r.values) == [
+        1, 1.2, 'abc', datetime(2016, 1, 1), True, _decimal.Decimal('1.111'),
+        {"root": {"key": "value"}}, ['a', 'b'], OrderedDict({'a': 1})
+    ]
     assert 1 == r['col0']
     assert 1.2 == r['col1']
     assert 'abc' == r['col2']
     assert datetime(2016, 1, 1) == r['col3']
     assert r['col4'] is True
     assert _decimal.Decimal('1.111') == r['col5']
-    assert ['a', 'b'] == r['col6']
-    assert OrderedDict({'a': 1}) == r['col7']
+    assert {"root": {"key": "value"}} == r['col6']
+    assert ['a', 'b'] == r['col7']
+    assert OrderedDict({'a': 1}) == r['col8']
 
 
 def test_implicit_cast():
@@ -121,35 +139,39 @@ def test_implicit_cast():
     bool = Boolean()
     decimal = Decimal()
     string = String()
+    json = Json()
 
-    assert double.can_implicit_cast(bigint) is True
-    assert string.can_implicit_cast(bigint) is True
-    assert decimal.can_implicit_cast(bigint) is True
-    assert bool.can_implicit_cast(bigint) is False
-    assert datetime.can_implicit_cast(bigint) is False
+    assert double.can_implicit_cast(bigint)
+    assert string.can_implicit_cast(bigint)
+    assert decimal.can_implicit_cast(bigint)
+    assert not bool.can_implicit_cast(bigint)
+    assert not datetime.can_implicit_cast(bigint)
 
-    assert bigint.can_implicit_cast(double) is True
-    assert string.can_implicit_cast(double) is True
-    assert decimal.can_implicit_cast(double) is True
-    assert bool.can_implicit_cast(double) is False
-    assert datetime.can_implicit_cast(double) is False
+    assert bigint.can_implicit_cast(double)
+    assert string.can_implicit_cast(double)
+    assert decimal.can_implicit_cast(double)
+    assert not bool.can_implicit_cast(double)
+    assert not datetime.can_implicit_cast(double)
 
-    assert smallint.can_implicit_cast(tinyint) is True
-    assert int_.can_implicit_cast(tinyint) is True
-    assert bigint.can_implicit_cast(tinyint) is True
-    assert int_.can_implicit_cast(smallint) is True
-    assert bigint.can_implicit_cast(smallint) is True
-    assert bigint.can_implicit_cast(int_) is True
+    assert smallint.can_implicit_cast(tinyint)
+    assert int_.can_implicit_cast(tinyint)
+    assert bigint.can_implicit_cast(tinyint)
+    assert int_.can_implicit_cast(smallint)
+    assert bigint.can_implicit_cast(smallint)
+    assert bigint.can_implicit_cast(int_)
 
-    assert tinyint.can_implicit_cast(smallint) is False
-    assert tinyint.can_implicit_cast(int_) is False
-    assert tinyint.can_implicit_cast(bigint) is False
-    assert smallint.can_implicit_cast(int_) is False
-    assert smallint.can_implicit_cast(bigint) is False
-    assert int_.can_implicit_cast(bigint) is False
+    assert not tinyint.can_implicit_cast(smallint)
+    assert not tinyint.can_implicit_cast(int_)
+    assert not tinyint.can_implicit_cast(bigint)
+    assert not smallint.can_implicit_cast(int_)
+    assert not smallint.can_implicit_cast(bigint)
+    assert not int_.can_implicit_cast(bigint)
 
-    assert double.can_implicit_cast(float) is True
-    assert float.can_implicit_cast(double) is False
+    assert double.can_implicit_cast(float)
+    assert not float.can_implicit_cast(double)
+
+    assert json.can_implicit_cast(string)
+    assert string.can_implicit_cast(json)
 
 
 def test_composite_types():

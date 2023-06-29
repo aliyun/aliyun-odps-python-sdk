@@ -41,7 +41,7 @@ class BaseTunnel(object):
         else:
             self._project = project
 
-        self._quota_name = quota_name
+        self._quota_name = quota_name or options.tunnel.quota_name
         if quota_name is not None:
             self._endpoint = endpoint
         else:

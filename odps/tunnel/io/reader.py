@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import collections
+import json
 import struct
 import warnings
 from io import IOBase, BytesIO
@@ -114,7 +115,7 @@ if TunnelRecordReader is None:
                 val = self._reader.read_sint64()
                 self._crc.update_long(val)
                 val = self._to_date(val)
-            elif data_type == types.timestamp:
+            elif data_type == types.timestamp or data_type == types.timestamp_ntz:
                 l_val = self._reader.read_sint64()
                 self._crc.update_long(l_val)
                 nano_secs = self._reader.read_sint32()
@@ -139,6 +140,10 @@ if TunnelRecordReader is None:
                 l_val = self._reader.read_sint64()
                 self._crc.update_long(l_val)
                 return compat.Monthdelta(l_val)
+            elif data_type == types.json:
+                sval = self._reader.read_string()
+                val = json.loads(sval)
+                self._crc.update(sval)
             elif isinstance(data_type, (types.Char, types.Varchar)):
                 val = self._reader.read_string()
                 self._crc.update(val)

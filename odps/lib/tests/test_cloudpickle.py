@@ -290,6 +290,21 @@ else:
     six.exec_(py36_code, globals(), my_locs)
     _gen_matmul_func = my_locs.get('_gen_matmul_func')
 
+py36_code = """
+def _gen_large_if_chain_func():
+
+    def _if_chain_func(i):
+{func_body}
+
+    return _if_chain_func
+""".format(func_body="".join(["""
+        i += 1
+        if i > 300:
+            return i"""] * 350))
+my_locs = locals().copy()
+six.exec_(py36_code, globals(), my_locs)
+_gen_large_if_chain_func = my_locs.get("_gen_large_if_chain_func")
+
 
 def _gen_try_except_func():
     out_closure = dict(k=12.0)
@@ -452,6 +467,20 @@ def test_cross_nested_yield_obj(config):
     func = _gen_nested_yield_obj()
     py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_nested_yield_obj))
     assert run_pickled(py3_serial, 20, wrapper=lambda fun, a, kw: sum(fun()(*a, **kw))) == sum(func()(20))
+
+
+@pytest.mark.skipif(not PY27 and not PY37, reason='Ignored under Python other than 2.7 or 3.7')
+def test_large_if_chain(config):
+    try:
+        executable_key = PY37_EXECUTABLE_KEY if PY27 else PY310_EXECUTABLE_KEY
+        executable = config.get('test', executable_key)
+        if not executable:
+            return
+    except:
+        return
+    func = _gen_large_if_chain_func()
+    py3_serial = to_binary(_invoke_other_python_pickle(executable, _gen_large_if_chain_func))
+    assert run_pickled(py3_serial, 0) == func(0)
 
 
 @pytest.mark.skipif(not PY27 and not PY37, reason='Ignored under Python other than 2.7 or 3.7')

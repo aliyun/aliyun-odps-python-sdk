@@ -59,8 +59,10 @@ class ODPSEngine(ODPSSQLEngine):
 @pytest.fixture
 def exprs():
     datatypes = lambda *types: [validate_data_type(t) for t in types]
-    schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                               datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
+    )
     table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
     expr = CollectionExpr(_source_data=table, _schema=schema)
 
@@ -70,13 +72,17 @@ def exprs():
     table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema)
     expr2 = CollectionExpr(_source_data=table2, _schema=schema)
 
-    schema2 = TableSchema.from_lists(['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'),
-                                ['part1', 'part2'], datatypes('string', 'int64'))
+    schema2 = TableSchema.from_lists(
+        ['name', 'id', 'fid'], datatypes('string', 'int64', 'float64'),
+        ['part1', 'part2'], datatypes('string', 'int64'),
+    )
     table3 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
     expr3 = CollectionExpr(_source_data=table3, _schema=schema2)
 
-    schema3 = TableSchema.from_lists(['id', 'name', 'relatives', 'hobbies'],
-                                datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
+    schema3 = TableSchema.from_lists(
+        ['id', 'name', 'relatives', 'hobbies'],
+        datatypes('int64', 'string', 'dict<string, string>', 'list<string>'),
+    )
     table4 = MockTable(name='pyodps_test_expr_table', table_schema=schema3)
     expr4 = CollectionExpr(_source_data=table4, _schema=schema3)
 
@@ -222,18 +228,6 @@ def test_base_compilation(odps, exprs):
     expr = exprs.expr[exprs.expr, RandomScalar(1).rename('random')]
     expected = "SELECT t1.`name`, t1.`id`, t1.`fid`, t1.`isMale`, t1.`scale`, t1.`birth`, rand(1) AS `random` \n" \
                "FROM mocked_project.`pyodps_test_expr_table` t1"
-    assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
-
-    expr = exprs.expr.sample(10, columns='name')
-    expected = 'SELECT * \n' \
-               'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
-               'WHERE SAMPLE(10, 1, t1.`name`)'
-    assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
-
-    expr = exprs.expr.sample(parts=10, i=(2, 3, 4), columns=exprs.expr.id)
-    expected = 'SELECT * \n' \
-               'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
-               'WHERE (SAMPLE(10, 3, t1.`id`) OR SAMPLE(10, 4, t1.`id`)) OR SAMPLE(10, 5, t1.`id`)'
     assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
 
     expr = exprs.expr['name', exprs.expr.id + 1][lambda x: x.id < 1]
@@ -835,7 +829,7 @@ def test_string_compilation(odps, exprs):
     engine.compile(exprs.expr.name.replace('test', 'test2'))
     data = ['test1', ]
     _testify_udf([d.replace('test', 'test2') for d in data],
-                      [(d, 'test', 'test2', -1, True, 0) for d in data], engine)
+                 [(d, 'test', 'test2', -1, True, 0, False) for d in data], engine)
 
     expect = 'SELECT SUBSTR(t1.`name`, 3, 1) AS `name` \n' \
              'FROM mocked_project.`pyodps_test_expr_table` t1'
@@ -886,7 +880,7 @@ def test_string_compilation(odps, exprs):
     engine = ODPSEngine(odps)
     engine.compile(exprs.expr.name.pad(10))
     data = ['ab', 'a' * 12]
-    _testify_udf([d.rjust(10) for d in data], [(d,) for d in data], engine)
+    _testify_udf([d.rjust(10) for d in data], [(d, 10, ' ', 'left') for d in data], engine)
 
     expect = 'SELECT REPEAT(t1.`name`, 4) AS `name` \n' \
              'FROM mocked_project.`pyodps_test_expr_table` t1'
@@ -895,17 +889,17 @@ def test_string_compilation(odps, exprs):
     engine = ODPSEngine(odps)
     engine.compile(exprs.expr.name.slice(0, 10, 2))
     data = ['ab' * 15, 'def']
-    _testify_udf([d[0: 10: 2] for d in data], [(d, 0, 10, 2) for d in data], engine)
+    _testify_udf([d[0: 10: 2] for d in data], [(d, 7, 0, 10, 2) for d in data], engine)
 
     engine = ODPSEngine(odps)
     engine.compile(exprs.expr.name.slice(-5, -1))
     data = ['ab' * 15, 'def']
-    _testify_udf([d[-5: -1] for d in data], [(d, -5, -1) for d in data], engine)
+    _testify_udf([d[-5: -1] for d in data], [(d, 6, -5, -1) for d in data], engine)
 
     engine = ODPSEngine(odps)
     engine.compile(exprs.expr.name.slice(-5, step=1).value_counts(sort=False))
     data = ['ab' * 15, 'def']
-    _testify_udf([d[-5:] for d in data], [(d, -5, 1) for d in data], engine)
+    _testify_udf([d[-5:] for d in data], [(d, 4, -5, 1) for d in data], engine)
 
     expect = 'SELECT SPLIT(t1.`name`, \'x\') AS `name` \n' \
              'FROM mocked_project.`pyodps_test_expr_table` t1'
@@ -1029,8 +1023,8 @@ def test_value_counts(odps, exprs):
 
 
 def test_datetime_compilation(odps, exprs):
-    pytest.raises(NotImplementedError,
-                      lambda: ODPSEngine(odps).compile(exprs.expr.birth.time))
+    with pytest.raises(NotImplementedError):
+        ODPSEngine(odps).compile(exprs.expr.birth.time)
 
     for clz, date_part in DATE_PARTS_DIC.items():
         expect = 'SELECT DATEPART(t1.`birth`, \'%s\') AS `birth` \n' \
@@ -1038,11 +1032,11 @@ def test_datetime_compilation(odps, exprs):
         attr = getattr(exprs.expr.birth, clz.lower())
         assert to_text(expect) == to_text(ODPSEngine(odps).compile(attr, prettify=False))
 
-    pytest.raises(NotImplementedError,
-                      lambda: ODPSEngine(odps).compile(exprs.expr.birth.microsecond))
+    with pytest.raises(NotImplementedError):
+        ODPSEngine(odps).compile(exprs.expr.birth.microsecond)
 
-    pytest.raises(NotImplementedError,
-                      lambda: ODPSEngine(odps).compile(exprs.expr.birth.week))
+    with pytest.raises(NotImplementedError):
+        ODPSEngine(odps).compile(exprs.expr.birth.week)
 
     expect = 'SELECT WEEKOFYEAR(t1.`birth`) AS `birth` \n' \
              'FROM mocked_project.`pyodps_test_expr_table` t1'
@@ -1057,26 +1051,26 @@ def test_datetime_compilation(odps, exprs):
              'FROM mocked_project.`pyodps_test_expr_table` t1'
     assert to_text(expect) == to_text(ODPSEngine(odps).compile(exprs.expr.birth.unix_timestamp, prettify=False))
 
-    pytest.raises(NotImplementedError,
-                      lambda: ODPSEngine(odps).compile(exprs.expr.birth.dayofyear))
+    with pytest.raises(NotImplementedError):
+        ODPSEngine(odps).compile(exprs.expr.birth.dayofyear)
 
-    pytest.raises(NotImplementedError,
-                      lambda: ODPSEngine(odps).compile(exprs.expr.birth.is_month_start))
+    with pytest.raises(NotImplementedError):
+        ODPSEngine(odps).compile(exprs.expr.birth.is_month_start)
 
-    pytest.raises(NotImplementedError,
-                      lambda: ODPSEngine(odps).compile(exprs.expr.birth.is_month_end))
+    with pytest.raises(NotImplementedError):
+        ODPSEngine(odps).compile(exprs.expr.birth.is_month_end)
 
-    pytest.raises(NotImplementedError,
-                      lambda: ODPSEngine(odps).compile(exprs.expr.birth.is_year_start))
+    with pytest.raises(NotImplementedError):
+        ODPSEngine(odps).compile(exprs.expr.birth.is_year_start)
 
-    pytest.raises(NotImplementedError,
-                      lambda: ODPSEngine(odps).compile(exprs.expr.birth.is_year_end))
+    with pytest.raises(NotImplementedError):
+        ODPSEngine(odps).compile(exprs.expr.birth.is_year_end)
 
     data = [datetime.now()]
 
     engine = ODPSEngine(odps)
     engine.compile(exprs.expr.birth.strftime('%Y'))
-    _testify_udf([d.strftime('%Y') for d in data], [(d,) for d in data], engine)
+    _testify_udf([d.strftime('%Y') for d in data], [(d, '%Y') for d in data], engine)
 
 
 def test_composite_compilation(odps, exprs):
@@ -1156,6 +1150,32 @@ def test_composite_compilation(odps, exprs):
              'LATERAL VIEW EXPLODE(t1.`relatives`) t2 AS `relatives_key`, `relatives_value`'
     expr = exprs.expr4[exprs.expr4.id, exprs.expr4.name, exprs.expr4.relatives.explode()]
     assert to_text(expect) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
+
+
+def test_sample_compiliation(odps, exprs):
+    expr = exprs.expr.sample(10, columns='name')
+    expected = 'SELECT * \n' \
+               'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+               'WHERE SAMPLE(10, 1, t1.`name`)'
+    assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
+
+    expr = exprs.expr.sample(parts=10, i=(2, 3, 4), columns=exprs.expr.id)
+    expected = 'SELECT * \n' \
+               'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+               'WHERE (SAMPLE(10, 3, t1.`id`) OR SAMPLE(10, 4, t1.`id`)) OR SAMPLE(10, 5, t1.`id`)'
+    assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
+
+    expr = exprs.expr.sample(frac=0.1)
+    expected = 'SELECT * \n' \
+               'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+               'TABLESAMPLE (10 PERCENT)'
+    assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
+
+    expr = exprs.expr.sample(n=100)
+    expected = 'SELECT * \n' \
+               'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+               'TABLESAMPLE (100 ROWS)'
+    assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
 
 
 def test_sort_compilation(odps, exprs):
@@ -2505,7 +2525,8 @@ def test_as_type(odps, exprs):
 
     assert to_text(expected) == to_text(ODPSEngine(odps).compile(new_e, prettify=False))
 
-    pytest.raises(CompileError, lambda: ODPSEngine(odps).compile(exprs.expr.id.astype('boolean')))
+    with pytest.raises(CompileError):
+        ODPSEngine(odps).compile(exprs.expr.id.astype('boolean'))
 
 
 def test_odps2_scalar(odps, exprs):
@@ -2745,9 +2766,11 @@ def test_lateral_view(odps, exprs):
         for _ in range(10):
             yield row
 
-    pytest.raises(ExpressionError, lambda: exprs.expr[
-        exprs.expr['name', exprs.expr.id].apply(mapper, axis=1).apply(mapper, axis=1),
-        exprs.expr.exclude('name', 'id')])
+    with pytest.raises(ExpressionError):
+        _ = exprs.expr[
+            exprs.expr['name', exprs.expr.id].apply(mapper, axis=1).apply(mapper, axis=1),
+            exprs.expr.exclude('name', 'id'),
+        ]
 
     expected = 'SELECT t1.`id` AS `r_id`, t1.`id` * 2 AS `r_id2`, t2.`name`, t2.`id`, ' \
                't1.`fid`, t1.`isMale`, t1.`scale`, t1.`birth`, 5 AS `five` \n' \

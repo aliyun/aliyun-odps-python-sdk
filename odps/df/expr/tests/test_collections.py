@@ -25,7 +25,7 @@ from ..collections import SampledCollectionExpr, AppendIDCollectionExpr, SplitCo
 
 
 @pytest.fixture
-def test_exprs(odps):
+def exprs(odps):
     from .core import MockTable
 
     schema = TableSchema.from_lists(types._data_types.keys(), types._data_types.values())
@@ -34,8 +34,8 @@ def test_exprs(odps):
     return (expr, sourced_expr)
 
 
-def test_sort(test_exprs):
-    test_expr, sourced_expr = test_exprs
+def test_sort(exprs):
+    test_expr, sourced_expr = exprs
     sorted_expr = test_expr.sort(test_expr.int64)
     assert isinstance(sorted_expr, CollectionExpr)
     assert sorted_expr._schema == test_expr._schema
@@ -63,8 +63,8 @@ def test_sort(test_exprs):
     assert list(sorted_expr._ascending) == [False, True, True]
 
 
-def test_distinct(test_exprs):
-    test_expr, sourced_expr = test_exprs
+def test_distinct(exprs):
+    test_expr, sourced_expr = exprs
     distinct = test_expr.distinct()
     assert isinstance(distinct, CollectionExpr)
     assert distinct._schema == test_expr._schema
@@ -80,8 +80,8 @@ def test_distinct(test_exprs):
     pytest.raises(ExpressionError, lambda: test_expr['boolean', test_expr.string.unique()])
 
 
-def test_map_reduce(test_exprs):
-    test_expr, sourced_expr = test_exprs
+def test_map_reduce(exprs):
+    test_expr, sourced_expr = exprs
 
     @output(['id', 'name', 'rating'], ['int', 'string', 'int'])
     def mapper(row):
@@ -135,21 +135,23 @@ def test_map_reduce(test_exprs):
     assert expr.input._sort_fields[2]._ascending is False
 
 
-def test_sample(test_exprs):
+def test_sample(exprs):
     from ....ml.expr import AlgoCollectionExpr
 
-    test_expr, sourced_expr = test_exprs
+    test_expr, sourced_expr = exprs
     assert isinstance(test_expr.sample(100), SampledCollectionExpr)
     assert isinstance(test_expr.sample(parts=10), SampledCollectionExpr)
+    assert isinstance(test_expr.sample(frac=0.5), SampledCollectionExpr)
+    assert isinstance(test_expr.sample(n=100), SampledCollectionExpr)
     try:
         import pandas
     except ImportError:
         # No pandas: go for XFlow
-        assert isinstance(test_expr.sample(frac=0.5), AlgoCollectionExpr)
+        assert isinstance(test_expr.sample(frac=0.5, weights="float64"), AlgoCollectionExpr)
     else:
         # Otherwise: go for Pandas
-        assert isinstance(test_expr.sample(frac=0.5), SampledCollectionExpr)
-    assert isinstance(sourced_expr.sample(frac=0.5), AlgoCollectionExpr)
+        assert isinstance(test_expr.sample(frac=0.5, weights="float64"), SampledCollectionExpr)
+    assert isinstance(sourced_expr.sample(frac=0.5, weights="float64"), AlgoCollectionExpr)
 
     pytest.raises(ExpressionError, lambda: test_expr.sample())
     pytest.raises(ExpressionError, lambda: test_expr.sample(i=-1))
@@ -168,10 +170,10 @@ def test_sample(test_exprs):
     pytest.raises(ExpressionError, lambda: test_expr.sample(n=set(), strata='strata'))
 
 
-def test_pivot(test_exprs):
+def test_pivot(exprs):
     from ..dynamic import DynamicMixin
 
-    test_expr, sourced_expr = test_exprs
+    test_expr, sourced_expr = exprs
     expr = test_expr.pivot('string', 'int8', 'float32')
 
     assert 'string' in expr._schema._name_indexes
@@ -192,10 +194,10 @@ def test_pivot(test_exprs):
         ['string', 'int8'], ['datetime', 'string'], 'int16'))
 
 
-def test_pivot_table(test_exprs):
+def test_pivot_table(exprs):
     from ..dynamic import DynamicMixin
 
-    test_expr, sourced_expr = test_exprs
+    test_expr, sourced_expr = exprs
     expr = test_expr.pivot_table(values='int8', rows='float32')
     assert not isinstance(expr, DynamicMixin)
     assert expr.schema.names == ['float32', 'int8_mean']
@@ -242,8 +244,8 @@ def test_pivot_table(test_exprs):
     assert isinstance(expr, DynamicMixin)
 
 
-def test_scale_value(test_exprs):
-    test_expr, sourced_expr = test_exprs
+def test_scale_value(exprs):
+    test_expr, sourced_expr = exprs
     expr = test_expr.min_max_scale()
     assert isinstance(expr, CollectionExpr)
     assert expr.dtypes.names == test_expr.dtypes.names
@@ -322,10 +324,10 @@ def test_callable_column():
     assert 'id_col' in appended.schema
 
 
-def test_append_id(test_exprs):
+def test_append_id(exprs):
     from ....ml.expr import AlgoCollectionExpr
 
-    test_expr, sourced_expr = test_exprs
+    test_expr, sourced_expr = exprs
     expr = test_expr.append_id(id_col='id_col')
     try:
         import pandas
@@ -340,10 +342,10 @@ def test_append_id(test_exprs):
     assert isinstance(sourced_expr.append_id(), AlgoCollectionExpr)
 
 
-def test_split(test_exprs):
+def test_split(exprs):
     from ....ml.expr import AlgoCollectionExpr
 
-    test_expr, sourced_expr = test_exprs
+    test_expr, sourced_expr = exprs
     expr1, expr2 = test_expr.split(0.6)
     try:
         import pandas

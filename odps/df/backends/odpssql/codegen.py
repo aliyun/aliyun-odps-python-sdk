@@ -15,9 +15,10 @@
 # limitations under the License.
 
 import base64
+import inspect
 import os
-import sys
 import platform
+import sys
 import uuid
 from collections import OrderedDict
 
@@ -612,15 +613,21 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
     func_kwargs_str = to_str(
         base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf)))
 
-    key = (from_type, to_type, func, tuple(resources), names_str, func_args_str, func_kwargs_str)
+    if inspect.isfunction(func) and not func.__closure__:
+        func_sig = id(func.__code__)
+    else:
+        func_sig = func
+
+    key = (from_type, to_type, func_sig, tuple(resources), names_str, func_args_str, func_kwargs_str)
     if key in func_params:
+        node.func = func_params[key]
         return
     else:
         if func in func_to_udfs:
             func = make_copy(func)
             node.func = func
 
-        func_params.add(key)
+        func_params[key] = func
 
     func_to_udfs[func] = UDF_TMPL_HEADER + UDF_TMPL % {
         'raw_from_type': raw_from_type,
@@ -662,7 +669,7 @@ def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
             func = make_copy(func)
             node.func = func
 
-        func_params.add(key)
+        func_params[key] = func
 
     func_to_udfs[func] = UDF_TMPL_HEADER + UDTF_TMPL % {
         'raw_from_type': raw_from_type,
@@ -704,7 +711,7 @@ def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
             func = make_copy(func)
             node.func = func
 
-        func_params.add(key)
+        func_params[key] = func
 
     func_to_udfs[func] = UDF_TMPL_HEADER + UDAF_TMPL % {
         'raw_from_type': raw_from_type,
@@ -729,7 +736,7 @@ def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
 def gen_udf(expr, func_cls_name=None, libraries=None):
     func_to_udfs = OrderedDict()
     func_to_resources = OrderedDict()
-    func_params = set()
+    func_params = dict()
     if libraries is not None:
         def _get_library_name(res):
             if isinstance(res, six.string_types):

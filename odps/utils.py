@@ -25,6 +25,7 @@ import hmac
 import math
 import multiprocessing
 import os
+import random
 import re
 import shutil
 import struct
@@ -33,14 +34,13 @@ import threading
 import time
 import traceback
 import types
-import warnings
 import uuid
+import warnings
 import xml.dom.minidom
-import random
-from hashlib import sha1, md5
 from base64 import b64encode
 from datetime import datetime, date, timedelta
 from email.utils import parsedate_tz, formatdate
+from hashlib import sha1, md5
 
 try:
     from collections.abc import Hashable, Mapping, Iterable
@@ -756,6 +756,8 @@ def survey(func):
 
 
 def add_survey_call(group):
+    if any(r.search(group) is not None for r in options.skipped_survey_regexes):
+        return
     if group not in survey_calls:
         survey_calls[group] = 1
     else:
@@ -959,3 +961,139 @@ def with_wait_argument(func):
         return func(*args, **kwargs)
 
     return wrapped
+
+
+def split_sql_by_semicolon(sql_statement):
+    sql_statement = sql_statement.replace("\r\n", "\n").replace("\r", "\n")
+    left_brackets = {'}': '{', ']': '[', ')': '('}
+
+    def cut_statement(stmt_start, stmt_end=None):
+        stmt_end = stmt_end or len(sql_statement)
+        parts = []
+        left = stmt_start
+        for comm_start, comm_end in comment_blocks:
+            if comm_end <= stmt_start:
+                continue
+            if comm_start > stmt_end:
+                break
+            parts.append(sql_statement[left: comm_start])
+            left = comm_end
+        parts.append(sql_statement[left: stmt_end])
+        combined_lines = "".join(parts).splitlines()
+        return "\n".join(line.rstrip() for line in combined_lines).strip()
+
+    start, pos = 0, 0
+    statements = []
+    comment_sign = None
+    comment_pos = None
+    comment_blocks = []
+    quote_sign = None
+    bracket_stack = []
+    while pos < len(sql_statement):
+        ch = sql_statement[pos]
+        dch = sql_statement[pos: pos + 2] if pos + 1 < len(sql_statement) else None
+        if quote_sign is None and comment_sign is None:
+            if ch in ('{', '[', '('):
+                # start of brackets
+                bracket_stack.append(ch)
+                pos += 1
+            elif ch in ('}', ']', ')'):
+                # end of brackets
+                assert bracket_stack[-1] == left_brackets[ch]
+                bracket_stack.pop()
+                pos += 1
+            elif ch in ('"', "'", '`'):
+                # start of quote
+                quote_sign = ch
+                pos += 1
+            elif dch in ("--", "/*"):
+                # start of line or block comments
+                comment_sign = dch
+                comment_pos = pos
+                pos += 2
+            elif ch == ';' and not bracket_stack:
+                # semicolon without brackets, quotes and comments
+                part_statement = cut_statement(start, pos + 1)
+                if part_statement and part_statement != ';':
+                    statements.append(part_statement)
+                pos += 1
+                start = pos
+            else:
+                pos += 1
+        elif quote_sign is not None and ch == quote_sign:
+            quote_sign = None
+            pos += 1
+        elif quote_sign is not None and ch == '\\':
+            # skip escape char
+            pos += 2
+        elif comment_sign == "--" and ch == "\n":
+            # line comment ends
+            comment_sign = None
+            comment_blocks.append((comment_pos, pos))
+            pos += 1
+        elif comment_sign == "/*" and dch == "*/":
+            # block comment ends
+            comment_sign = None
+            comment_blocks.append((comment_pos, pos + 2))
+            pos += 2
+        else:
+            pos += 1
+    part_statement = cut_statement(start)
+    if part_statement and part_statement != ';':
+        statements.append(part_statement)
+    return statements
+
+
+def show_versions():  # pragma: no cover
+    import locale
+    import platform
+
+    uname_result = platform.uname()
+    language_code, encoding = locale.getlocale()
+
+    results = {
+        "python": ".".join([str(i) for i in sys.version_info]),
+        "python-bits": struct.calcsize("P") * 8,
+        "OS": uname_result.system,
+        "OS-release": uname_result.release,
+        "Version": uname_result.version,
+        "machine": uname_result.machine,
+        "processor": uname_result.processor,
+        "byteorder": sys.byteorder,
+        "LC_ALL": os.environ.get("LC_ALL"),
+        "LANG": os.environ.get("LANG"),
+        "LOCALE": {"language-code": language_code, "encoding": encoding},
+    }
+
+    try:
+        from .src import crc32c_c  # noqa: F401
+
+        results["USE_CLIB"] = True
+    except ImportError:
+        results["USE_CLIB"] = False
+
+    packages = {
+        "pyodps": "odps",
+        "urllib3": "urllib3",
+        "charset_normalizer": "charset_normalizer",
+        "chardet": "chardet",
+        "idna": "idna",
+        "certifi": "certifi",
+        "numpy": "numpy",
+        "scipy": "scipy",
+        "pandas": "pandas",
+        "matplotlib": "matplotlib",
+        "sqlalchemy": "sqlalchemy",
+        "pytz": "pytz",
+        "dateutil": "dateutil",
+        "IPython": "IPython",
+    }
+    for pack_name, pack_imp in packages.items():
+        try:
+            mod = __import__(pack_imp)
+            results[pack_name] = mod.__version__
+        except (ImportError, AttributeError):
+            pass
+    key_size = 1 + max(len(key) for key in results.keys())
+    for key, val in results.items():
+        print(key + " " * (key_size - len(key)) + ": " + str(val))

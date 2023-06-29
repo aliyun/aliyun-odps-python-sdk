@@ -101,8 +101,11 @@ class ODPSContext(object):
     def get_expr_compiled(self, expr):
         return self._compiled_exprs[id(expr)]
 
-    def _gen_udf_name(self):
-        return 'pyodps_udf_%s_%s' % (int(time.time()), str(uuid.uuid4()).replace('-', '_'))
+    def _gen_udf_name(self, func):
+        identifier = getattr(func, "_identifier", None) or "udf"
+        return 'pyodps_%s_%s_%s' % (
+            identifier, int(time.time()), str(uuid.uuid4()).replace('-', '_')
+        )
 
     def _gen_resource_name(self):
         return 'pyodps_res_%s_%s' % (int(time.time()), str(uuid.uuid4()).replace('-', '_'))
@@ -114,7 +117,7 @@ class ODPSContext(object):
     def register_udfs(self, func_to_udfs, func_to_resources):
         self._func_to_udfs = func_to_udfs
         for func in func_to_udfs.keys():
-            self._registered_funcs[func] = self._gen_udf_name()
+            self._registered_funcs[func] = self._gen_udf_name(func)
         self._func_to_resources = func_to_resources
 
     def get_udf(self, func):

@@ -3,8 +3,8 @@
 SQL
 =====
 
-PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
-``execute_sql`` 或者 ``run_sql`` 方法的返回值是 :ref:`运行实例 <instances>` 。
+PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 ``execute_sql`` / ``execute_sql_interactive`` /
+``run_sql`` / ``run_sql_interactive`` 方法的返回值是 :ref:`运行实例 <instances>` 。
 
 .. note::
 
@@ -14,14 +14,60 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 
 .. _execute_sql:
 
-执行SQL
--------
+执行 SQL
+--------
+
+你可以使用 ``execute_sql`` 方法以同步方式执行 SQL。调用时，该方法会阻塞直至 SQL 执行完成。
 
 .. code-block:: python
 
-   >>> o.execute_sql('select * from dual')  #  同步的方式执行，会阻塞直到SQL执行完成
-   >>>
+   >>> o.execute_sql('select * from dual')  # 同步的方式执行，会阻塞直到SQL执行完成
+
+你也可以使用非阻塞方式异步执行 SQL。调用时，该方法在将 SQL 提交到 MaxCompute 后即返回 Instance
+对象。你需要使用 ``wait_for_success`` 方法等待该 SQL 执行完成。
+
+.. code-block:: python
+
    >>> instance = o.run_sql('select * from dual')  # 异步的方式执行
+   >>> print(instance.get_logview_address())  # 获取logview地址
+   >>> instance.wait_for_success()  # 阻塞直到完成
+
+
+使用 MCQA 执行 SQL
+-------------------
+`MCQA <https://help.aliyun.com/document_detail/180701.html>`_ 是 MaxCompute 提供的查询加速功能，
+支持使用独立资源池对中小规模数据进行加速。PyODPS 从 0.11.4.1 开始支持以下列方式通过 MCQA 执行 SQL
+，同时需要 MaxCompute 具备 MCQA 的支持。
+
+你可以使用 ``execute_sql_interactive`` 通过 MCQA 执行 SQL 并返回 MCQA Instance。如果
+MCQA 无法执行相应的 SQL ，会自动回退到传统模式。此时，函数返回的 Instance 为回退后的 Instance。
+
+.. code-block:: python
+
+    >>> o.execute_sql_interactive('select * from dual')
+
+如果不希望回退，可以指定参数 ``fallback=False``。也可以指定为回退策略（或回退策略的组合，使用逗号分隔的字符串）。
+可用的策略名如下。默认策略为 ``unsupported,upgrading,noresource,timeout`` 。
+
+* ``generic`` ：指定时，表示发生未知错误时回退到传统模式。
+* ``noresource`` ：指定时，表示发生资源不足问题时回退到传统模式。
+* ``upgrading`` ：指定时，表示升级期间回退到传统模式。
+* ``timeout`` ：指定时，表示执行超时时回退到传统模式。
+* ``unsupported`` ：指定时，表示遇到 MCQA 不支持的场景时回退到传统模式。
+
+例如，下面的代码要求在 MCQA 不支持和资源不足时回退：
+
+.. code-block:: python
+
+    >>> o.execute_sql_interactive('select * from dual', fallback="noresource,unsupported")
+
+你也可以使用 ``run_sql_interactive`` 通过 MCQA 异步执行 SQL。类似 ``run_sql``，该方法会在提交任务后即返回
+MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该方法不会自动回退。当执行失败时，你需要自行重试或执行
+``execute_sql``。
+
+.. code-block:: python
+
+   >>> instance = o.run_sql_interactive('select * from dual')  # 异步的方式执行
    >>> print(instance.get_logview_address())  # 获取logview地址
    >>> instance.wait_for_success()  # 阻塞直到完成
 
@@ -30,7 +76,8 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。
 设置运行参数
 ------------
 
-有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，参数类型是dict。
+有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，参数类型是 dict。该参数对 ``execute_sql`` /
+``execute_sql_interactive`` / ``run_sql`` / ``run_sql_interactive`` 均有效。
 
 .. code-block:: python
 

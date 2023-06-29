@@ -36,7 +36,9 @@ _odps_to_df_types = {
     odps_types.boolean: df_types.boolean,
     odps_types.binary: df_types.binary,
     odps_types.timestamp: df_types.timestamp,
-    odps_types.date: df_types.date
+    odps_types.timestamp_ntz: df_types.timestamp,
+    odps_types.date: df_types.date,
+    odps_types.json: df_types.json,
 }
 
 _df_to_odps_types = {
@@ -52,6 +54,7 @@ _df_to_odps_types = {
     df_types.binary: odps_types.string,
     df_types.timestamp: odps_types.timestamp,
     df_types.date: odps_types.date,
+    df_types.json: odps_types.json,
 }
 
 _df_to_odps_types2 = {
@@ -67,6 +70,7 @@ _df_to_odps_types2 = {
     df_types.binary: odps_types.binary,
     df_types.timestamp: odps_types.timestamp,
     df_types.date: odps_types.date,
+    df_types.json: odps_types.json,
 }
 
 

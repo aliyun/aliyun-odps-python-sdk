@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import decimal as _builtin_decimal
+import json as _json
 from collections import OrderedDict
 from datetime import datetime as _datetime, timedelta as _timedelta, date as _date
 
@@ -751,7 +752,7 @@ class String(OdpsPrimitive):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
-        if isinstance(other, (BaseInteger, BaseFloat, Datetime, Decimal, Binary)):
+        if isinstance(other, (BaseInteger, BaseFloat, Datetime, Decimal, Binary, Json)):
             return True
         return super(String, self).can_implicit_cast(other)
 
@@ -784,7 +785,7 @@ class Datetime(OdpsPrimitive):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
-        if isinstance(other, (Timestamp, Datetime, String)):
+        if isinstance(other, (BaseTimestamp, Datetime, String)):
             return True
         return super(Datetime, self).can_implicit_cast(other)
 
@@ -793,7 +794,7 @@ class Datetime(OdpsPrimitive):
 
         if isinstance(data_type, String):
             return _datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
-        elif isinstance(data_type, Timestamp):
+        elif isinstance(data_type, BaseTimestamp):
             return value.to_pydatetime()
         return value
 
@@ -806,7 +807,7 @@ class Date(OdpsPrimitive):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
-        if isinstance(other, (Timestamp, Datetime, String)):
+        if isinstance(other, (BaseTimestamp, Datetime, String)):
             return True
         return super(Date, self).can_implicit_cast(other)
 
@@ -816,7 +817,7 @@ class Date(OdpsPrimitive):
         if isinstance(data_type, String):
             datetime = _datetime.strptime(value, '%Y-%m-%d')
             return _date(datetime.year, datetime.month, datetime.day)
-        elif isinstance(data_type, Timestamp):
+        elif isinstance(data_type, BaseTimestamp):
             return value.to_pydatetime().date()
         return value
 
@@ -860,17 +861,16 @@ class Binary(OdpsPrimitive):
         return utils.to_binary(value)
 
 
-class Timestamp(OdpsPrimitive):
+class BaseTimestamp(OdpsPrimitive):
     __slots__ = ()
-    _type_id = 8
 
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
-        if isinstance(other, (Timestamp, Datetime, String)):
+        if isinstance(other, (BaseTimestamp, Datetime, String)):
             return True
-        return super(Timestamp, self).can_implicit_cast(other)
+        return super(BaseTimestamp, self).can_implicit_cast(other)
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
@@ -886,6 +886,18 @@ class Timestamp(OdpsPrimitive):
         return value
 
 
+class Timestamp(BaseTimestamp):
+    _type_id = 8
+
+
+class TimestampNTZ(BaseTimestamp):
+    _type_id = 13
+
+    @property
+    def name(self):
+        return "timestamp_ntz"
+
+
 class IntervalDayTime(OdpsPrimitive):
     __slots__ = ()
     _type_id = 9
@@ -894,7 +906,7 @@ class IntervalDayTime(OdpsPrimitive):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
-        if isinstance(other, (Timestamp, Datetime, String)):
+        if isinstance(other, (BaseTimestamp, Datetime, String)):
             return True
         return super(IntervalDayTime, self).can_implicit_cast(other)
 
@@ -1301,6 +1313,38 @@ class Struct(CompositeMixin):
         return OrderedDict(convert(k, value[k], tp) for k, tp in six.iteritems(self.field_types))
 
 
+class Json(DataType):
+    _type_id = 12
+
+    _max_length = 8 * 1024 * 1024  # 8M
+
+    def can_implicit_cast(self, other):
+        if isinstance(other, six.string_types):
+            other = validate_data_type(other)
+
+        if isinstance(other, (String, Binary)):
+            return True
+        return super(Json, self).can_implicit_cast(other)
+
+    def validate_value(self, val):
+        if val is None and self.nullable:
+            return True
+        if len(val) > self._max_length:
+            raise ValueError(
+                "InvalidData: Length of string(%s) is more than %sM.'" %
+                (val, self._max_length / (1024 ** 2)))
+        if not isinstance(val, (six.string_types, list, dict, six.integer_types, float)):
+            raise ValueError("InvalidData: cannot accept %r as json", val)
+        return True
+
+    def cast_value(self, value, data_type):
+        self._can_cast_or_throw(value, data_type)
+
+        if isinstance(data_type, String):
+            return _json.loads(utils.to_text(value))
+        return value
+
+
 tinyint = Tinyint()
 smallint = Smallint()
 int_ = Int()
@@ -1312,14 +1356,16 @@ datetime = Datetime()
 boolean = Boolean()
 binary = Binary()
 timestamp = Timestamp()
+timestamp_ntz = TimestampNTZ()
 interval_day_time = IntervalDayTime()
 interval_year_month = IntervalYearMonth()
 date = Date()
+json = Json()
 
 _odps_primitive_data_types = dict(
     [(t.name, t) for t in (
-        tinyint, smallint, int_, bigint, float_, double, string, datetime, date,
-        boolean, binary, timestamp, interval_day_time, interval_year_month,
+        tinyint, smallint, int_, bigint, float_, double, string, datetime, date, boolean,
+        binary, timestamp, timestamp_ntz, interval_day_time, interval_year_month, json,
     )]
 )
 
@@ -1428,6 +1474,7 @@ _odps_primitive_to_builtin_types = OrderedDict((
     (boolean, bool),
     (interval_year_month, Monthdelta),
     (date, _date),
+    (json, (list, dict, six.string_types, six.integer_types, float)),
 ))
 
 
@@ -1441,18 +1488,20 @@ def infer_primitive_data_type(value):
 
 
 def _patch_pd_types(data_type):
-    if timestamp not in _odps_primitive_to_builtin_types and isinstance(data_type, Timestamp):
+    if (
+        timestamp not in _odps_primitive_to_builtin_types
+        or timestamp_ntz not in _odps_primitive_to_builtin_types
+        or interval_day_time not in _odps_primitive_to_builtin_types
+    ) and isinstance(data_type, (BaseTimestamp, IntervalDayTime)):
         try:
             import pandas as pd
             _odps_primitive_to_builtin_types[timestamp] = pd.Timestamp
-        except ImportError:
-            raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
-    if interval_day_time not in _odps_primitive_to_builtin_types and isinstance(data_type, IntervalDayTime):
-        try:
-            import pandas as pd
+            _odps_primitive_to_builtin_types[timestamp_ntz] = pd.Timestamp
             _odps_primitive_to_builtin_types[interval_day_time] = pd.Timedelta
         except ImportError:
-            raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
+            raise ImportError(
+                'To use %s in pyodps, you need to install pandas.', data_type.name.upper()
+            )
 
 
 def _validate_primitive_value(value, data_type):

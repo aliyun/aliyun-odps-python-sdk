@@ -146,6 +146,10 @@ class Timestamp(Primitive):
         return False
 
 
+class Json(Primitive):
+    __slots__ = ()
+
+
 class Boolean(Primitive):
     __slots__ = ()
 
@@ -268,6 +272,7 @@ datetime = Datetime()
 date = Date()
 timestamp = Timestamp()
 binary = Binary()
+json = Json()
 
 
 _data_types = dict(
@@ -280,6 +285,7 @@ _data_types = dict(
 _composite_handlers = dict(
     list=List,
     dict=Dict,
+    struct=Struct,
 )
 
 

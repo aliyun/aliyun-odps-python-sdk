@@ -118,6 +118,31 @@ def test_nest_function(setup):
     assert [-2, 0, 2] == list(runners.simple_run(udf, [(-3, ), (0, ), (5, )]))
 
 
+def test_duplicate_function(setup):
+    def gen_no_closure_func():
+        def inner(x):
+            return x + 1
+
+        return inner
+
+    def gen_func_with_closure():
+        incr = 0
+
+        def inner(x):
+            return x + incr
+
+        return inner
+
+    expr = setup.expr[
+        setup.expr.id.map(gen_no_closure_func()).rename("id1"),
+        setup.expr.id.map(gen_no_closure_func()).rename("id2"),
+        setup.expr.id.map(gen_func_with_closure()).rename("id3"),
+        setup.expr.id.map(gen_func_with_closure()).rename("id4"),
+    ]
+    setup.engine.compile(expr)
+    assert 3 == len(setup.engine._ctx._func_to_udfs.values())
+
+
 def test_global_var_function(setup):
     global_val = 10
 

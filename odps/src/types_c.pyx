@@ -41,7 +41,9 @@ cdef:
     int64_t BIGINT_TYPE_ID = types.bigint._type_id
     int64_t BINARY_TYPE_ID = types.binary._type_id
     int64_t TIMESTAMP_TYPE_ID = types.timestamp._type_id
+    int64_t TIMESTAMP_NTZ_TYPE_ID = types.timestamp_ntz._type_id
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
+    int64_t JSON_TYPE_ID = types.Json._type_id
 
 
 import_datetime()
@@ -154,6 +156,17 @@ cdef object _validate_decimal(object val):
     return decimal.Decimal(str(val))
 
 
+cdef object _validate_json(object val):
+    if not isinstance(val, (list, dict, unicode, bytes, float, int, long)):
+        raise ValueError("Invalid data type: cannot accept %r for json type" % val)
+
+    if is_py3 and type(val) is bytes:
+        val = (<bytes> val).decode("utf-8")
+    elif not is_py3 and type(val) is unicode:
+        val = (<unicode> val).encode("utf-8")
+    return val
+
+
 cdef object _validate_float(object val):
     cdef float flt_val = val
     return flt_val
@@ -196,8 +209,10 @@ cdef object validate_value(object val, object value_type):
             return _validate_decimal(val)
         elif type_id == BINARY_TYPE_ID:
             return _validate_binary(val)
-        elif type_id == TIMESTAMP_TYPE_ID:
+        elif type_id == TIMESTAMP_TYPE_ID or type_id == TIMESTAMP_NTZ_TYPE_ID:
             return _validate_timestamp(val)
+        elif type_id == JSON_TYPE_ID:
+            return _validate_json(val)
     except TypeError:
         pass
 
@@ -244,8 +259,10 @@ cdef class SchemaSnapshot:
                 self._col_validators[i] = _validate_decimal
             elif type_id == BINARY_TYPE_ID:
                 self._col_validators[i] = _validate_binary
-            elif type_id == TIMESTAMP_TYPE_ID:
+            elif type_id == TIMESTAMP_TYPE_ID or type_id == TIMESTAMP_NTZ_TYPE_ID:
                 self._col_validators[i] = _validate_timestamp
+            elif type_id == JSON_TYPE_ID:
+                self._col_validators[i] = _validate_json
             else:
                 self._col_validators[i] = NULL
 

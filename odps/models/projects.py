@@ -53,7 +53,8 @@ class Projects(Container):
 
     def iterate(
         self, owner=None, user=None, group=None, max_items=None, name=None,
-        region_id=None, tenant_id=None
+        region_id=None, tenant_id=None, quota_nick_name=None, quota_type=None,
+        quota_name=None,
     ):
         params = {
             'expectmarker': 'true',
@@ -64,6 +65,9 @@ class Projects(Container):
             'maxitems': max_items,
             'region': region_id,
             'tenant': tenant_id,
+            'quotanickname': quota_nick_name,
+            'quota_name': quota_name,
+            'quota_type': quota_type,
         }
         params = dict(
             (k, v) for k, v in params.items() if v is not None

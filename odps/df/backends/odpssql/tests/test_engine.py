@@ -489,6 +489,14 @@ def test_base(odps, setup):
     res = setup.engine.execute(expr)
     assert len(res) >= 0
 
+    expr = setup.expr.sample(frac=0.5)
+    res = setup.engine.execute(expr)
+    assert len(res) >= 1
+
+    expr = setup.expr.sample(n=5)
+    res = setup.engine.execute(expr)
+    assert len(res) >= 1
+
     expr = setup.expr[:1].filter(lambda x: x.name == data[1][0])
     res = setup.engine.execute(expr)
     assert len(res) == 0

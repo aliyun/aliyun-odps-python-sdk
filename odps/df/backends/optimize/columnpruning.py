@@ -227,7 +227,8 @@ class ColumnPruning(Backend):
         return
 
     def visit_sample(self, expr):
-        self._remain_columns[ExprProxy(expr)] = expr.input.schema.names
+        if expr._parts is not None:
+            self._remain_columns[ExprProxy(expr)] = expr.input.schema.names
 
     def visit_join(self, expr):
         prune, columns = self._need_prune(expr)

@@ -53,8 +53,40 @@ def _wrap_upload_call(request_id):
     return wrapper
 
 
-class TableDownloadSession(serializers.JSONSerializableModel):
-    __slots__ = '_client', '_table', '_partition_spec', '_compress_option'
+class BaseTableTunnelSession(serializers.JSONSerializableModel):
+    @staticmethod
+    def get_common_headers(content_length=None, chunked=False):
+        header = {
+            "odps-tunnel-date-transform": TUNNEL_DATA_TRANSFORM_VERSION,
+            "x-odps-tunnel-version": TUNNEL_VERSION,
+        }
+        if content_length is not None:
+            header["Content-Length"] = content_length
+        if chunked:
+            header.update(
+                {
+                    "Transfer-Encoding": "chunked",
+                    "Content-Type": "application/octet-stream",
+                }
+            )
+        return header
+
+    def get_common_params(self, **kwargs):
+        params = kwargs.copy()
+        if self._partition_spec is not None and len(self._partition_spec) > 0:
+            params['partition'] = self._partition_spec
+        return params
+
+    def check_tunnel_response(self, resp):
+        if not self._client.is_ok(resp):
+            e = TunnelError.parse(resp)
+            raise e
+
+
+class TableDownloadSession(BaseTableTunnelSession):
+    __slots__ = (
+        '_client', '_table', '_partition_spec', '_compress_option', '_quota_name'
+    )
 
     class Status(Enum):
         Unknown = 'UNKNOWN'
@@ -65,12 +97,15 @@ class TableDownloadSession(serializers.JSONSerializableModel):
 
     id = serializers.JSONNodeField('DownloadID')
     status = serializers.JSONNodeField(
-        'Status', parse_callback=lambda s: TableDownloadSession.Status(s.upper()))
+        'Status', parse_callback=lambda s: TableDownloadSession.Status(s.upper())
+    )
     count = serializers.JSONNodeField('RecordCount')
     schema = serializers.JSONNodeReferenceField(TableSchema, 'Schema')
+    quota_name = serializers.JSONNodeField('QuotaName')
 
     def __init__(self, client, table, partition_spec, download_id=None,
-                 compress_option=None, async_mode=True, timeout=None, **kw):
+                 compress_option=None, async_mode=True, timeout=None,
+                 quota_name=None, **kw):
         super(TableDownloadSession, self).__init__()
 
         self._client = client
@@ -81,6 +116,8 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         if isinstance(partition_spec, types.PartitionSpec):
             partition_spec = str(partition_spec).replace("'", '')
         self._partition_spec = partition_spec
+
+        self._quota_name = quota_name
 
         if "async_" in kw:
             async_mode = kw.pop("async_")
@@ -104,63 +141,51 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         )
 
     def _init(self, async_mode, timeout):
-        params = {'downloads': ''}
-        headers = {'Content-Length': 0, 'x-odps-tunnel-version': TUNNEL_VERSION}
-        if self._partition_spec is not None and \
-                len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
+        params = self.get_common_params(downloads='')
+        headers = self.get_common_headers(content_length=0)
+        if self._quota_name:
+            params['quotaName'] = self._quota_name
         if async_mode:
             params['asyncmode'] = 'true'
 
         url = self._table.table_resource()
         resp = self._client.post(url, {}, params=params, headers=headers, timeout=timeout)
-        delay_time = 0.5
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            while self.status == self.Status.Initiating:
-                time.sleep(delay_time)
-                delay_time = min(delay_time + 0.1, 30)
-                self.reload()
-            if self.schema is not None:
-                self.schema.build_snapshot()
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        self.check_tunnel_response(resp)
+
+        delay_time = 0.1
+        self.parse(resp, obj=self)
+        while self.status == self.Status.Initiating:
+            time.sleep(delay_time)
+            delay_time = min(delay_time * 2, 5)
+            self.reload()
+        if self.schema is not None:
+            self.schema.build_snapshot()
 
     def reload(self):
-        params = {'downloadid': self.id}
-        headers = {'Content-Length': 0, 'x-odps-tunnel-version': TUNNEL_VERSION}
-        if self._partition_spec is not None and \
-                        len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
+        params = self.get_common_params(downloadid=self.id)
+        headers = self.get_common_headers(content_length=0)
 
         url = self._table.table_resource()
         resp = self._client.get(url, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            if self.schema is not None:
-                self.schema.build_snapshot()
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        self.check_tunnel_response(resp)
+
+        self.parse(resp, obj=self)
+        if self.schema is not None:
+            self.schema.build_snapshot()
 
     def _open_reader(
         self, start, count, compress=False, columns=None, arrow=False, reader_cls=None
     ):
         compress_option = self._compress_option or CompressOption()
 
-        params = {}
-        headers = {'Content-Length': 0, 'x-odps-tunnel-version': TUNNEL_VERSION}
+        params = self.get_common_params(downloadid=self.id, data='')
+        headers = self.get_common_headers(content_length=0)
         if compress:
             encoding = compress_option.algorithm.get_encoding()
             if encoding:
                 headers['Accept-Encoding'] = encoding
 
-        params['downloadid'] = self.id
-        params['data'] = ''
         params['rowrange'] = '(%s,%s)' % (start, count)
-        if self._partition_spec is not None and len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
         if columns is not None and len(columns) > 0:
             col_name = lambda col: col.name if isinstance(col, types.Column) else col
             params['columns'] = ','.join(col_name(col) for col in columns)
@@ -170,9 +195,7 @@ class TableDownloadSession(serializers.JSONSerializableModel):
 
         url = self._table.table_resource()
         resp = self._client.get(url, stream=True, params=params, headers=headers)
-        if not self._client.is_ok(resp):
-            e = TunnelError.parse(resp)
-            raise e
+        self.check_tunnel_response(resp)
 
         content_encoding = resp.headers.get('Content-Encoding')
         if content_encoding is not None:
@@ -204,8 +227,11 @@ class TableDownloadSession(serializers.JSONSerializableModel):
         )
 
 
-class TableUploadSession(serializers.JSONSerializableModel):
-    __slots__ = '_client', '_table', '_partition_spec', '_compress_option', '_overwrite'
+class TableUploadSession(BaseTableTunnelSession):
+    __slots__ = (
+        '_client', '_table', '_partition_spec', '_compress_option',
+        '_overwrite', '_quota_name',
+    )
 
     class Status(Enum):
         Unknown = 'UNKNOWN'
@@ -218,12 +244,14 @@ class TableUploadSession(serializers.JSONSerializableModel):
 
     id = serializers.JSONNodeField('UploadID')
     status = serializers.JSONNodeField(
-        'Status', parse_callback=lambda s: TableUploadSession.Status(s.upper()))
+        'Status', parse_callback=lambda s: TableUploadSession.Status(s.upper())
+    )
     blocks = serializers.JSONNodesField('UploadedBlockList', 'BlockID')
     schema = serializers.JSONNodeReferenceField(TableSchema, 'Schema')
+    quota_name = serializers.JSONNodeField('QuotaName')
 
-    def __init__(self, client, table, partition_spec,
-                 upload_id=None, compress_option=None, overwrite=False):
+    def __init__(self, client, table, partition_spec, upload_id=None,
+                 compress_option=None, overwrite=False, quota_name=None):
         super(TableUploadSession, self).__init__()
 
         self._client = client
@@ -235,6 +263,7 @@ class TableUploadSession(serializers.JSONSerializableModel):
             partition_spec = str(partition_spec).replace("'", '')
         self._partition_spec = partition_spec
 
+        self._quota_name = quota_name
         self._overwrite = overwrite
 
         if upload_id is None:
@@ -255,12 +284,12 @@ class TableUploadSession(serializers.JSONSerializableModel):
         )
 
     def _create_or_reload_session(self, reload=False):
-        headers = {'Content-Length': 0, 'x-odps-tunnel-version': TUNNEL_VERSION}
-        params = {}
-        if self._partition_spec is not None and len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
+        headers = self.get_common_headers(content_length=0)
+        params = self.get_common_params(reload=reload)
         if not reload and self._overwrite:
             params["overwrite"] = "true"
+        if not reload and self._quota_name:
+            params['quotaName'] = self._quota_name
 
         if reload:
             params['uploadid'] = self.id
@@ -275,14 +304,11 @@ class TableUploadSession(serializers.JSONSerializableModel):
                     resp = self._client.get(url, params=params, headers=headers)
                 else:
                     resp = self._client.post(url, {}, params=params, headers=headers)
+                self.check_tunnel_response(resp)
 
-                if self._client.is_ok(resp):
-                    self.parse(resp, obj=self)
-                    if self.schema is not None:
-                        self.schema.build_snapshot()
-                else:
-                    e = TunnelError.parse(resp)
-                    raise e
+                self.parse(resp, obj=self)
+                if self.schema is not None:
+                    self.schema.build_snapshot()
                 break
             except MetaTransactionFailed:
                 time.sleep(0.1)
@@ -303,12 +329,8 @@ class TableUploadSession(serializers.JSONSerializableModel):
     def _open_writer(self, block_id=None, compress=False, buffer_size=None, writer_cls=None):
         compress_option = self._compress_option or CompressOption()
 
-        params = {}
-        headers = {
-            'Transfer-Encoding': 'chunked',
-            'Content-Type': 'application/octet-stream',
-            'x-odps-tunnel-version': TUNNEL_VERSION,
-        }
+        params = self.get_common_params(uploadid=self.id)
+        headers = self.get_common_headers(chunked=True)
         if compress:
             # special: rewrite LZ4 to ARROW_LZ4 for arrow tunnels
             if (
@@ -321,9 +343,6 @@ class TableUploadSession(serializers.JSONSerializableModel):
             if encoding:
                 headers['Content-Encoding'] = encoding
 
-        params['uploadid'] = self.id
-        if self._partition_spec is not None and len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
         url = self._table.table_resource()
         option = compress_option if compress else None
 
@@ -397,10 +416,8 @@ class TableUploadSession(serializers.JSONSerializableModel):
         self._complete_upload()
 
     def _complete_upload(self):
-        headers = {'x-odps-tunnel-version': TUNNEL_VERSION}
-        params = {'uploadid': self.id}
-        if self._partition_spec is not None and len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
+        headers = self.get_common_headers()
+        params = self.get_common_params(uploadid=self.id)
         url = self._table.table_resource()
 
         retries = options.retry_times
@@ -416,14 +433,48 @@ class TableUploadSession(serializers.JSONSerializableModel):
         self.parse(resp, obj=self)
 
 
-class TableStreamUploadSession(serializers.JSONSerializableModel):
-    __slots__ = '_client', '_table', '_partition_spec', '_compress_option',
+class Slot(object):
+    def __init__(self, slot, server):
+        self._slot = slot
+        self._ip = None
+        self._port = None
+        self.set_server(server, True)
 
-    schema = serializers.JSONNodeReferenceField(TableSchema, 'schema')
-    id = serializers.JSONNodeField('session_name')
-    status = serializers.JSONNodeField('status')
-    slots = serializers.JSONNodeField(
-        'slots', parse_callback=lambda val: TableStreamUploadSession.Slots(val))
+    @property
+    def slot(self):
+        return self._slot
+
+    @property
+    def ip(self):
+        return self._ip
+
+    @property
+    def port(self):
+        return self._port
+
+    @property
+    def server(self):
+        return str(self._ip) + ':' + str(self._port)
+
+    def set_server(self, server, check_empty=False):
+        if len(server.split(':')) != 2:
+            raise TunnelError('Invalid slot format: {}'.format(server))
+
+        ip, port = server.split(':')
+
+        if check_empty:
+            if (not ip) or (not port):
+                raise TunnelError('Empty server ip or port')
+        if ip:
+            self._ip = ip
+        if port:
+            self._port = int(port)
+
+
+class TableStreamUploadSession(BaseTableTunnelSession):
+    __slots__ = (
+        '_client', '_table', '_partition_spec', '_compress_option', '_quota_name'
+    )
 
     class Slots(object):
         def __init__(self, slot_elements):
@@ -432,7 +483,7 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
             for value in slot_elements:
                 if len(value) != 2:
                     raise TunnelError('Invalid slot routes')
-                self._slots.append(TableStreamUploadSession.Slot(value[0], value[1]))
+                self._slots.append(Slot(value[0], value[1]))
 
             if len(self._slots) > 0:
                 self._cur_index = random.randint(0, len(self._slots))
@@ -454,44 +505,16 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
                         self._cur_index = 0
                     yield self._slots[self._cur_index]
 
-    class Slot(object):
-        def __init__(self, slot, server):
-            self._slot = slot
-            self._ip = None
-            self._port = None
-            self.set_server(server, True)
+    schema = serializers.JSONNodeReferenceField(TableSchema, 'schema')
+    id = serializers.JSONNodeField('session_name')
+    status = serializers.JSONNodeField('status')
+    slots = serializers.JSONNodeField(
+        'slots', parse_callback=lambda val: TableStreamUploadSession.Slots(val))
+    quota_name = serializers.JSONNodeField('QuotaName')
 
-        @property
-        def slot(self):
-            return self._slot
-
-        @property
-        def ip(self):
-            return self._ip
-
-        @property
-        def port(self):
-            return self._port
-
-        @property
-        def server(self):
-            return str(self._ip) + ':' + str(self._port)
-
-        def set_server(self, server, check_empty=False):
-            if len(server.split(':')) != 2:
-                raise TunnelError('Invalid slot format: {}'.format(server))
-
-            ip, port = server.split(':')
-
-            if check_empty:
-                if (not ip) or (not port):
-                    raise TunnelError('Empty server ip or port')
-            if ip:
-                self._ip = ip
-            if port:
-                self._port = int(port)
-
-    def __init__(self, client, table, partition_spec, compress_option=None):
+    def __init__(
+        self, client, table, partition_spec, compress_option=None, quota_name=None
+    ):
         super(TableStreamUploadSession, self).__init__()
 
         self._client = client
@@ -502,6 +525,8 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
         if isinstance(partition_spec, types.PartitionSpec):
             partition_spec = str(partition_spec).replace("'", '')
         self._partition_spec = partition_spec
+
+        self._quota_name = quota_name
 
         self._init()
         self._compress_option = compress_option
@@ -520,70 +545,45 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
         )
 
     def _init(self):
-        params = dict()
-        headers = {
-            "Content-Length": 0,
-            "odps-tunnel-date-transform": TUNNEL_DATA_TRANSFORM_VERSION,
-            "x-odps-tunnel-version": TUNNEL_VERSION,
-        }
-        if self._partition_spec is not None and \
-                len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
+        params = self.get_common_params()
+        headers = self.get_common_headers(content_length=0)
+
+        if self._quota_name:
+            params['quotaName'] = self._quota_name
 
         url = self._get_resource()
         resp = self._client.post(url, {}, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            if self.schema is not None:
-                self.schema.build_snapshot()
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        self.check_tunnel_response(resp)
+
+        self.parse(resp, obj=self)
+        if self.schema is not None:
+            self.schema.build_snapshot()
 
     def _get_resource(self):
         return self._table.table_resource() + '/streams'
 
     def reload(self):
-        params = {'uploadid': self.id}
-        if self._partition_spec is not None and \
-                len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
-
-        headers = {
-            "Content-Length": 0,
-            "odps-tunnel-date-transform": TUNNEL_DATA_TRANSFORM_VERSION,
-            "x-odps-tunnel-version": str(TUNNEL_VERSION),
-        }
+        params = self.get_common_params(uploadid=self.id)
+        headers = self.get_common_headers(content_length=0)
 
         url = self._get_resource()
         resp = self._client.get(url, params=params, headers=headers)
-        if self._client.is_ok(resp):
-            self.parse(resp, obj=self)
-            if self.schema is not None:
-                self.schema.build_snapshot()
-        else:
-            e = TunnelError.parse(resp)
-            raise e
+        self.check_tunnel_response(resp)
+
+        self.parse(resp, obj=self)
+        if self.schema is not None:
+            self.schema.build_snapshot()
 
     def abort(self):
-        params = {'uploadid': self.id}
-        if self._partition_spec is not None and \
-                len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
+        params = self.get_common_params(uploadid=self.id)
 
         slot = next(iter(self.slots))
-        headers = {
-            "Content-Length": 0,
-            "odps-tunnel-date-transform": TUNNEL_DATA_TRANSFORM_VERSION,
-            "x-odps-tunnel-version": str(TUNNEL_VERSION),
-            "odps-tunnel-routed-server": slot.server,
-        }
+        headers = self.get_common_headers(content_length=0)
+        headers["odps-tunnel-routed-server"] = slot.server
 
         url = self._get_resource()
         resp = self._client.post(url, {}, params=params, headers=headers)
-        if not self._client.is_ok(resp):
-            e = TunnelError.parse(resp)
-            raise e
+        self.check_tunnel_response(resp)
 
     def reload_slots(self, slot, server, slot_num):
         if len(self.slots) != slot_num:
@@ -599,33 +599,27 @@ class TableStreamUploadSession(serializers.JSONSerializableModel):
 
         slot = next(iter(self.slots))
 
-        headers = {
-            'Transfer-Encoding': 'chunked',
-            "Content-Type": "application/octet-stream",
-            "x-odps-tunnel-version": TUNNEL_VERSION,
+        headers = self.get_common_headers(chunked=True)
+        headers.update({
             "odps-tunnel-slot-num": str(len(self.slots)),
             "odps-tunnel-routed-server": slot.server,
-        }
+        })
 
         if compress:
             encoding = compress_option.algorithm.get_encoding()
             if encoding:
                 headers['Content-Encoding'] = encoding
 
-        params = dict(uploadid=self.id, slotid=slot.slot)
-        if self._partition_spec is not None and len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
-
+        params = self.get_common_params(uploadid=self.id, slotid=slot.slot)
         url = self._get_resource()
         option = compress_option if compress else None
 
-        def upload(chunk_size):
-            return self._client.put(
-                url, file_upload=True, params=params, headers=headers, chunk_size=chunk_size
-            )
+        @_wrap_upload_call(self.id)
+        def upload_block(data):
+            return self._client.put(url, data=data, params=params, headers=headers)
 
         writer = StreamRecordWriter(
-            self.schema, upload, session=self, slot=slot, compress_option=option
+            self.schema, upload_block, session=self, slot=slot, compress_option=option
         )
 
         return writer
@@ -669,6 +663,7 @@ class TableTunnel(BaseTunnel):
             compress_option=compress_option,
             async_mode=async_mode,
             timeout=timeout,
+            quota_name=self._quota_name,
         )
 
     def create_upload_session(
@@ -696,6 +691,7 @@ class TableTunnel(BaseTunnel):
             upload_id=upload_id,
             compress_option=compress_option,
             overwrite=overwrite,
+            quota_name=self._quota_name,
         )
 
     def create_stream_upload_session(
@@ -715,5 +711,9 @@ class TableTunnel(BaseTunnel):
                 compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
 
         return TableStreamUploadSession(
-            self.tunnel_rest, table, partition_spec, compress_option=compress_option
+            self.tunnel_rest,
+            table,
+            partition_spec,
+            compress_option=compress_option,
+            quota_name=self._quota_name,
         )

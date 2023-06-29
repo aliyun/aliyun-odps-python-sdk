@@ -141,6 +141,14 @@ class AttributeDict(dict):
     def unregister(self, key):
         del self[key]
 
+    def add_validator(self, key, validator):
+        value, old_validator = self[key]
+        validators = getattr(
+            old_validator, "validators", [old_validator] if callable(old_validator) else []
+        )
+        validators.append(validator)
+        self[key] = (value, all_validator(*validators))
+
     def _setattr(self, key, value, silent=False):
         if not silent and key not in self:
             raise OptionError("Cannot identify configuration name '%s'." % str(key))
@@ -229,7 +237,7 @@ class Config(object):
         splits = option.split('.')
         conf = self._config
 
-        for i, name in enumerate(splits[:-1]):
+        for name in splits[:-1]:
             config = conf.get(name)
             if config is None:
                 val = AttributeDict(_parent=conf)
@@ -274,6 +282,22 @@ class Config(object):
             raise AttributeError('Option %s not configured, thus failed to unregister.' % option)
         conf.unregister(key)
 
+    def add_validator(self, option, validator):
+        splits = option.split('.')
+        conf = self._config
+        for name in splits[:-1]:
+            config = conf.get(name)
+            if not isinstance(config, dict):
+                raise AttributeError(
+                    'Fail to add validator: %s, conflict has encountered' % option)
+            else:
+                conf = config
+
+        key = splits[-1]
+        if key not in conf:
+            raise AttributeError('Option %s not configured, thus failed to set validator.' % option)
+        conf.add_validator(key, validator)
+
     def loads(self, d):
         return self._config.loads(d)
 
@@ -312,6 +336,8 @@ def any_validator(*validators):
 def all_validator(*validators):
     def validate(x):
         return all(validator(x) for validator in validators)
+
+    validate.validators = validators
     return validate
 
 
@@ -371,6 +397,7 @@ options.register_option('instance_create_callback', None)
 options.register_option("tunnel_session_create_callback", None)
 options.register_option("result_reader_create_callback", None)
 options.register_option('tunnel_read_timeout_callback', None)
+options.register_option("skipped_survey_regexes", [])
 
 # network connections
 options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
@@ -390,6 +417,7 @@ options.register_option('tunnel.pd_row_cache_size', 1024 * 16, validator=is_inte
 options.register_option('tunnel.read_row_batch_size', 1024, validator=is_integer)
 options.register_option('tunnel.batch_merge_threshold', 128, validator=is_integer)
 options.register_option('tunnel.overflow_date_as_none', False, validator=is_bool)
+options.register_option('tunnel.quota_name', None, validator=any_validator(is_null, is_string))
 
 options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
 options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')

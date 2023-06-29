@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import warnings
 from collections import OrderedDict
 from cpython.datetime cimport import_datetime
@@ -46,9 +47,11 @@ cdef:
     int64_t BIGINT_TYPE_ID = types.bigint._type_id
     int64_t BINARY_TYPE_ID = types.binary._type_id
     int64_t TIMESTAMP_TYPE_ID = types.timestamp._type_id
+    int64_t TIMESTAMP_NTZ_TYPE_ID = types.timestamp_ntz._type_id
     int64_t INTERVAL_DAY_TIME_TYPE_ID = types.interval_day_time._type_id
     int64_t INTERVAL_YEAR_MONTH_TYPE_ID = types.interval_year_month._type_id
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
+    int64_t JSON_TYPE_ID = types.Json._type_id
 
 cdef:
     object pd_timestamp = None
@@ -87,12 +90,14 @@ cdef class BaseTunnelRecordReader:
                 self._column_setters[i] = self._set_bigint
             elif data_type == types.binary:
                 self._column_setters[i] = self._set_string
-            elif data_type == types.timestamp:
+            elif data_type == types.timestamp or data_type == types.timestamp_ntz:
                 self._column_setters[i] = self._set_timestamp
             elif data_type == types.interval_day_time:
                 self._column_setters[i] = self._set_interval_day_time
             elif data_type == types.interval_year_month:
                 self._column_setters[i] = self._set_interval_year_month
+            elif data_type == types.json:
+                self._column_setters[i] = self._set_json
             elif isinstance(data_type, types.Decimal):
                 self._column_setters[i] = self._set_decimal
             elif isinstance(data_type, (types.Char, types.Varchar)):
@@ -139,15 +144,17 @@ cdef class BaseTunnelRecordReader:
             val = self._read_datetime()
         elif data_type_id == BINARY_TYPE_ID:
             val = self._read_string()
-        elif data_type_id == TIMESTAMP_TYPE_ID:
+        elif data_type_id == TIMESTAMP_TYPE_ID or data_type_id == TIMESTAMP_NTZ_TYPE_ID:
             val = self._read_timestamp()
         elif data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
             val = self._read_interval_day_time()
         elif data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
             val = compat.Monthdelta(self._read_bigint())
-        elif isinstance(data_type, (types.Char, types.Varchar)):
+        elif data_type_id == JSON_TYPE_ID:
+            val = json.loads(self._read_string())
+        elif data_type_id == DECIMAL_TYPE_ID:
             val = self._read_string()
-        elif isinstance(data_type, types.Decimal):
+        elif isinstance(data_type, (types.Char, types.Varchar)):
             val = self._read_string()
         elif isinstance(data_type, types.Array):
             val = self._read_array(data_type.value_type)
@@ -290,8 +297,7 @@ cdef class BaseTunnelRecordReader:
         return 0
 
     cdef int _set_decimal(self, list record, int i) except? -1:
-        cdef bytes val
-        val = self._reader.read_string()
+        cdef bytes val = self._reader.read_string()
         self._crc.c_update(val, len(val))
         self._set_record_list_value(record, i, val)
         return 0
@@ -307,6 +313,11 @@ cdef class BaseTunnelRecordReader:
     cdef int _set_interval_year_month(self, list record, int i) except? -1:
         cdef int64_t val = self._read_bigint()
         self._set_record_list_value(record, i, compat.Monthdelta(val))
+        return 0
+
+    cdef int _set_json(self, list record, int i) except? -1:
+        cdef bytes val = self._read_string()
+        self._set_record_list_value(record, i, json.loads(val))
         return 0
 
     cpdef read(self):
