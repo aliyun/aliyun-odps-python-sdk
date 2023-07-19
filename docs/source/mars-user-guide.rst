@@ -57,7 +57,7 @@ Job 模式
 
 .. code:: python
 
-    o.run_mars_job(lr, args=('lr_train', 'lr_predict', 'lr_result')
+    o.run_mars_job(lr, args=('lr_train', 'lr_predict', 'lr_result'))
 
 这时候通过 PyODPS 查看下写入表的数据。
 
@@ -76,7 +76,7 @@ Job 模式
 
 .. code:: python
 
-    o.run_mars_job(lr, args=('lr_train', 'lr_predict', 'lr_result', worker_cpu=8, worker_mem=32)
+    o.run_mars_job(lr, args=('lr_train', 'lr_predict', 'lr_result'), worker_cpu=8, worker_mem=32)
 
 传入以上参数时，服务端会使用8核32G的资源完成计算。
 
