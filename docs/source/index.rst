@@ -35,10 +35,17 @@ PyODPS 的相关依赖会自动安装。
 
 .. code-block:: python
 
-   from odps import ODPS
-
-   o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-default-project**',
-            endpoint='**your-end-point**')
+    import os
+    from odps import ODPS
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    o = ODPS(
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+        project='**your-project**',
+        endpoint='**your-endpoint**',
+    )
 
 这样就已经初始化，就可以对表、资源、函数等进行操作了。
 
@@ -47,11 +54,23 @@ ODPS，可以使用下面的语句初始化 ODPS 入口对象：
 
 .. code-block:: python
 
-   from odps import ODPS
-   from odps.accounts import StsAccount
-
-   account = StsAccount('**your-access-id**', '**your-secret-access-key**', '**your-sts-token**')
-   o = ODPS(account=account, project='**your-default-project**', endpoint='**your-end-point**')
+    import os
+    from odps import ODPS
+    from odps.accounts import StsAccount
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为 Access Key Secret，
+    # ALIBABA_CLOUD_STS_TOKEN 环境变量设置为 STS Token，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    account = StsAccount(
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+        os.getenv('ALIBABA_CLOUD_STS_TOKEN'),
+    )
+    o = ODPS(
+        account=account,
+        project='**your-default-project**',
+        endpoint='**your-end-point**',
+    )
 
 在主入口，我们对于主要的ODPS对象都提供了最基本的几个操作，包括 ``list``、``get``、``exist``、``create``、``delete``。
 

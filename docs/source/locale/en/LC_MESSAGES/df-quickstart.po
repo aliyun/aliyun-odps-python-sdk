@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-09-10 23:47+0800\n"
+"POT-Creation-Date: 2023-07-19 13:45+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/df-quickstart.rst:5
 msgid "快速开始"
@@ -38,32 +38,54 @@ msgstr ""
 msgid "如果你的运行环境没有提供 ODPS 对象，你需要自己创建该对象："
 msgstr "Create a MaxCompute object before starting the following steps:"
 
-#: ../../source/df-quickstart.rst:17
+#: ../../source/df-quickstart.rst:12
 msgid ""
+">>> import os\n"
 ">>> from odps import ODPS\n"
-">>> o = ODPS('**your-access-id**', '**your-secret-access-key**',\n"
-">>>          project='**your-project**', endpoint='**your-end-point**'))"
+">>> # 保证 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，\n"
+">>> # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret\n"
+">>> # 不建议直接使用 Access Key ID / Access Key Secret 字符串\n"
+">>> o = ODPS(\n"
+"...     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
+"...     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
+"...     project='**your-project**',\n"
+"...     endpoint='**your-endpoint**',\n"
+"... )"
 msgstr ""
+">>> import os\n"
+">>> from odps import ODPS\n"
+"# Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID "
+"already set to Access Key ID of user\n"
+"# while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET "
+"set to Access Key Secret of user.\n"
+"# Not recommended to hardcode Access Key ID or Access Key Secret"
+" in your code.\n"
+">>> o = ODPS(\n"
+"...     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
+"...     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
+"...     project='**your-project**',\n"
+"...     endpoint='**your-endpoint**',\n"
+"... )"
 
-#: ../../source/df-quickstart.rst:18
+#: ../../source/df-quickstart.rst:26
 msgid "创建一个DataFrame对象十分容易，只需传入Table对象即可。"
 msgstr ""
 "You only need to input a Table object to create a DataFrame object. For "
 "example:"
 
-#: ../../source/df-quickstart.rst:24
+#: ../../source/df-quickstart.rst:28
 msgid ""
 ">>> from odps.df import DataFrame\n"
 ">>> users = DataFrame(o.get_table('pyodps_ml_100k_users'))"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:25
+#: ../../source/df-quickstart.rst:33
 msgid "我们可以通过dtypes属性来查看这个DataFrame有哪些字段，分别是什么类型"
 msgstr ""
 "View fields of DataFrame and the types of the fields through the dtypes "
 "attribute, as shown in the following code: "
 
-#: ../../source/df-quickstart.rst:38
+#: ../../source/df-quickstart.rst:35
 msgid ""
 ">>> users.dtypes\n"
 "odps.Schema {\n"
@@ -75,13 +97,13 @@ msgid ""
 "}"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:39
+#: ../../source/df-quickstart.rst:47
 msgid "通过head方法，我们能取前N条数据，这让我们能快速预览数据。"
 msgstr ""
 "You can use the head method to obtain the first N data records for easy "
 "and quick data preview. For example:"
 
-#: ../../source/df-quickstart.rst:55
+#: ../../source/df-quickstart.rst:49
 msgid ""
 ">>> users.head(10)\n"
 "   user_id  age  sex     occupation  zip_code\n"
@@ -97,13 +119,13 @@ msgid ""
 "9       10   53    M         lawyer     90703"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:56
+#: ../../source/df-quickstart.rst:64
 msgid "有时候，我们并不需要都看到所有字段，我们可以从中筛选出一部分。"
 msgstr ""
 "You can add a filter on the fields if you do not want to view all of "
 "them. For example:"
 
-#: ../../source/df-quickstart.rst:67
+#: ../../source/df-quickstart.rst:66
 msgid ""
 ">>> users[['user_id', 'age']].head(5)\n"
 "   user_id  age\n"
@@ -114,11 +136,11 @@ msgid ""
 "4        5   33"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:68
+#: ../../source/df-quickstart.rst:76
 msgid "有时候我们只是排除个别字段。"
 msgstr "You can also exclude several fields. For example:"
 
-#: ../../source/df-quickstart.rst:79
+#: ../../source/df-quickstart.rst:78
 msgid ""
 ">>> users.exclude('zip_code', 'age').head(5)\n"
 "   user_id  sex  occupation\n"
@@ -129,14 +151,14 @@ msgid ""
 "4        5    F       other"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:80
+#: ../../source/df-quickstart.rst:88
 msgid "又或者，排除掉一些字段的同时，得通过计算得到一些新的列，比如我想将sex为M的置为True，否则为False，并取名叫sex\\_bool。"
 msgstr ""
 "When excluding some fields, you may want to obtain new columns through "
 "computation. For example, add the sex\\_bool attribute and set it to True"
 " if sex is Male. Otherwise, set it to False. For example:"
 
-#: ../../source/df-quickstart.rst:91
+#: ../../source/df-quickstart.rst:90
 msgid ""
 ">>> users.select(users.exclude('zip_code', 'sex'), sex_bool=users.sex == "
 "'M').head(5)\n"
@@ -148,25 +170,25 @@ msgid ""
 "4        5   33       other     False"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:92
+#: ../../source/df-quickstart.rst:100
 msgid "现在，让我们看看年龄在20到25岁之间的人有多少个"
 msgstr ""
 "Obtain the number of persons at age of 20 to 25, as shown in the "
 "following code:"
 
-#: ../../source/df-quickstart.rst:98
+#: ../../source/df-quickstart.rst:102
 msgid ""
 ">>> users[users.age.between(20, 25)].count()\n"
 "195"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:99
+#: ../../source/df-quickstart.rst:107
 msgid "接下来，我们看看男女用户分别有多少。"
 msgstr ""
 "Obtain the numbers of male and female users, as shown in the following "
 "code:"
 
-#: ../../source/df-quickstart.rst:107
+#: ../../source/df-quickstart.rst:109
 msgid ""
 ">>> users.groupby(users.sex).agg(count=users.count())\n"
 "   sex  count\n"
@@ -174,14 +196,14 @@ msgid ""
 "1    M    670"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:108
+#: ../../source/df-quickstart.rst:116
 msgid "用户按职业划分，从高到底，人数最多的前10职业是哪些呢？"
 msgstr ""
 "To divide users by job, obtain the first 10 jobs that have the largest "
 "population, and sort the jobs in the descending order of population. See "
 "the following:"
 
-#: ../../source/df-quickstart.rst:125
+#: ../../source/df-quickstart.rst:118
 msgid ""
 ">>> df = "
 "users.groupby('occupation').agg(count=users['occupation'].count())\n"
@@ -199,7 +221,7 @@ msgid ""
 "9      scientist     31"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:126
+#: ../../source/df-quickstart.rst:134
 msgid ""
 "DataFrame API提供了value\\_counts这个方法来快速达到同样的目的。注意该方法返回的行数受到 "
 "``options.df.odps.sort.limit`` 的限制，详见 :ref:`配置选项 <options>` 。"
@@ -210,7 +232,7 @@ msgstr ""
 "whose default value is 10,000. More information can be found in "
 ":ref:`configuration section <options>`."
 
-#: ../../source/df-quickstart.rst:143
+#: ../../source/df-quickstart.rst:137
 msgid ""
 ">>> uses.occupation.value_counts()[:10]\n"
 "      occupation  count\n"
@@ -226,55 +248,55 @@ msgid ""
 "9      scientist     31"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:144
+#: ../../source/df-quickstart.rst:152
 msgid "让我们用更直观的图来看这份数据。"
 msgstr "Show data in a more intuitive graph, as shown in the following code:"
 
-#: ../../source/df-quickstart.rst:149
+#: ../../source/df-quickstart.rst:154
 msgid ">>> %matplotlib inline"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:150
+#: ../../source/df-quickstart.rst:158
 msgid "我们可以用个横向的柱状图来可视化"
 msgstr ""
 "Use a horizontal bar chart to visualize data, as shown in the following "
 "code:"
 
-#: ../../source/df-quickstart.rst:156
+#: ../../source/df-quickstart.rst:160
 msgid ""
 ">>> users['occupation'].value_counts().plot(kind='barh', x='occupation', "
 "ylabel='prefession')\n"
 "<matplotlib.axes._subplots.AxesSubplot at 0x10653cfd0>"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:159
+#: ../../source/df-quickstart.rst:167
 msgid ".. image:: _static/df-value-count-plot.png"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:160
+#: ../../source/df-quickstart.rst:168
 msgid "我们将年龄分成30组，来看个年龄分布的直方图"
 msgstr ""
 "Divide ages into 30 groups and view the histogram of age distribution, as"
 " shown in the following code:"
 
-#: ../../source/df-quickstart.rst:166
+#: ../../source/df-quickstart.rst:170
 msgid ""
 ">>> users.age.hist(bins=30, title=\"Distribution of users' ages\", "
 "xlabel='age', ylabel='count of users')\n"
 "<matplotlib.axes._subplots.AxesSubplot at 0x10667a510>"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:169
+#: ../../source/df-quickstart.rst:177
 msgid ".. image:: _static/df-age-hist.png"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:170
+#: ../../source/df-quickstart.rst:178
 msgid "好了，现在我们把这三张表联合起来，只需要使用join就可以了。join完成后我们把它保存成一张新的表。"
 msgstr ""
 "Use join to join the three tables and save the joined tables as a new "
 "table. For example:"
 
-#: ../../source/df-quickstart.rst:195
+#: ../../source/df-quickstart.rst:180
 msgid ""
 ">>> movies = DataFrame(o.get_table('pyodps_ml_100k_movies'))\n"
 ">>> ratings = DataFrame(o.get_table('pyodps_ml_100k_ratings'))\n"
@@ -300,11 +322,11 @@ msgid ""
 "}"
 msgstr ""
 
-#: ../../source/df-quickstart.rst:196
+#: ../../source/df-quickstart.rst:204
 msgid "现在我们把年龄分成从0到80岁，分成8个年龄段，"
 msgstr "Divide ages of 0 to 80 into eight groups, as shown in the following code:"
 
-#: ../../source/df-quickstart.rst:202
+#: ../../source/df-quickstart.rst:206
 msgid ""
 ">>> labels = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', "
 "'60-69', '70-79']\n"
@@ -316,13 +338,13 @@ msgstr ""
 ">>> cut_lens = lens[lens, lens.age.cut(range(0, 81, 10), right=False, "
 "labels=labels).rename('age_group')]"
 
-#: ../../source/df-quickstart.rst:203
+#: ../../source/df-quickstart.rst:211
 msgid "我们取分组和年龄唯一的前10条看看。"
 msgstr ""
 "View the first 10 data records of a single age in a group, as shown in "
 "the following code:"
 
-#: ../../source/df-quickstart.rst:219
+#: ../../source/df-quickstart.rst:213
 msgid ""
 ">>> cut_lens['年龄分组', 'age'].distinct()[:10]\n"
 "   年龄分组  age\n"
@@ -350,13 +372,13 @@ msgstr ""
 "8      10-19   18\n"
 "9      10-19   19"
 
-#: ../../source/df-quickstart.rst:220
+#: ../../source/df-quickstart.rst:228
 msgid "最后，我们来看看在各个年龄分组下，用户的评分总数和评分均值分别是多少。"
 msgstr ""
 "View users’ total rating and average rating of each age group, as shown "
 "in the following code:"
 
-#: ../../source/df-quickstart.rst:233
+#: ../../source/df-quickstart.rst:230
 msgid ""
 ">>> cut_lens.groupby('年龄分组').agg(cut_lens.rating.count().rename('评分总数'), "
 "cut_lens.rating.mean().rename('评分均值'))\n"

@@ -189,7 +189,14 @@ DataWorks 限制下载的包总大小为 100MB。如果你需要跳过预装包�
 
 .. code-block:: python
 
-    new_odps = o.as_account('**new_access_id**', '**new_secret_access_key**')
+    import os
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    new_odps = o.as_account(
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+    )
 
 问题诊断
 =========

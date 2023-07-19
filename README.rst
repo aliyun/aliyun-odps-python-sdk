@@ -50,9 +50,17 @@ Usage
 
 .. code:: python
 
+   >>> import os
    >>> from odps import ODPS
-   >>> o = ODPS('**your-access-id**', '**your-secret-access-key**',
-   ...          project='**your-project**', endpoint='**your-end-point**')
+   >>> # Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID already set to Access Key ID of user
+   >>> # while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET set to Access Key Secret of user.
+   >>> # Not recommended to hardcode Access Key ID or Access Key Secret in your code.
+   >>> o = ODPS(
+   >>>     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+   >>>     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+   >>>     project='**your-project**',
+   >>>     endpoint='**your-endpoint**',
+   >>> )
    >>> dual = o.get_table('dual')
    >>> dual.name
    'dual'

@@ -17,7 +17,16 @@ PyODPS 提供了命令行下的增强工具。首先，用户可以在任何地�
 
 .. code:: python
 
-    setup('**your-access_id**', '**your-access-key**', '**your-project**', endpoint='**your-endpoint**')
+    import os
+    # 保证 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    setup(
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+        '**your-project**',
+        endpoint='**your-endpoint**',
+    )
 
 在不指定\ ``room``\ 这个参数时，会被配置到叫做\ ``default``\ 的room里。
 
