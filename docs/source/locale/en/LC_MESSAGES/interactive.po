@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-10-10 11:41+0800\n"
+"POT-Creation-Date: 2023-07-19 13:45+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/interactive.rst:5
 msgid "交互体验增强"
@@ -42,40 +42,61 @@ msgstr "Configure your account as follows:"
 
 #: ../../source/interactive.rst:18
 msgid ""
-"setup('**your-access_id**', '**your-access-key**', '**your-project**', "
-"endpoint='**your-endpoint**')"
+"import os\n"
+"# 保证 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，\n"
+"# ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret\n"
+"# 不建议直接使用 Access Key ID / Access Key Secret 字符串\n"
+"setup(\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
+"    '**your-project**',\n"
+"    endpoint='**your-endpoint**',\n"
+")"
 msgstr ""
+"import os\n"
+"# Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID already set "
+"to Access Key ID of user\n"
+"# while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET set to "
+"Access Key Secret of user.\n"
+"# Not recommended to hardcode Access Key ID or Access Key Secret in your "
+"code.\n"
+"setup(\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
+"    '**your-project**',\n"
+"    endpoint='**your-endpoint**',\n"
+")"
 
-#: ../../source/interactive.rst:22
+#: ../../source/interactive.rst:31
 msgid "在不指定\\ ``room``\\ 这个参数时，会被配置到叫做\\ ``default``\\ 的room里。"
 msgstr ""
 "When the \\``room``\\ parameter has not been specified, the "
 "\\``default``\\ room is set."
 
-#: ../../source/interactive.rst:24
+#: ../../source/interactive.rst:33
 msgid "以后，在任何命令行打开的地方，都可以直接调用："
 msgstr ""
 "You can then call the enter method to create a Room object in any Python "
 "interactive interface, as follows:"
 
-#: ../../source/interactive.rst:26
+#: ../../source/interactive.rst:35
 msgid "room = enter()"
 msgstr ""
 
-#: ../../source/interactive.rst:30
+#: ../../source/interactive.rst:39
 msgid "我们可以拿到ODPS的入口："
 msgstr "You can retrieve the ODPS object as follows:"
 
-#: ../../source/interactive.rst:32
+#: ../../source/interactive.rst:41
 msgid "o = room.odps"
 msgstr ""
 
-#: ../../source/interactive.rst:36
+#: ../../source/interactive.rst:45
 msgid "o.get_table('dual')"
 msgstr ""
 
-#: ../../source/interactive.rst:42 ../../source/interactive.rst:107
-#: ../../source/interactive.rst:201
+#: ../../source/interactive.rst:51 ../../source/interactive.rst:116
+#: ../../source/interactive.rst:210
 msgid ""
 "odps.Table\n"
 "  name: odps_test_sqltask_finance.`dual`\n"
@@ -92,34 +113,34 @@ msgid ""
 "    c_datetime_b            : datetime"
 msgstr ""
 
-#: ../../source/interactive.rst:58
+#: ../../source/interactive.rst:67
 msgid "**注意**\\ ：在重新 setup room 后，ODPS 入口对象并不会自动替换，需要再次调用 enter() 以获得新的 Room 对象。"
 msgstr ""
 "**Note**\\: The ODPS object is not automatically updated when you change "
 "the setup of the room. You need to call enter() again to retrieve the new"
 " Room object."
 
-#: ../../source/interactive.rst:60
+#: ../../source/interactive.rst:69
 msgid "我们可以把常用的ODPS表或者资源都可以存放在room里。"
 msgstr "You can store commonly used MaxCompute tables or resources in the room."
 
-#: ../../source/interactive.rst:62
+#: ../../source/interactive.rst:71
 msgid "room.store('存储表示例', o.get_table('dual'), desc='简单的表存储示例')"
 msgstr ""
 "room.store('stored-table', o.get_table('dual'), desc='Simple Table Store "
 "Example')"
 
-#: ../../source/interactive.rst:66
+#: ../../source/interactive.rst:75
 msgid "我们可以调用\\ ``display``\\ 方法，来把已经存储的对象以表格的形式打印出来："
 msgstr ""
 "You can call the \\ ``display``\\ method to print the stored objects in a"
 " table format:"
 
-#: ../../source/interactive.rst:68 ../../source/interactive.rst:127
+#: ../../source/interactive.rst:77 ../../source/interactive.rst:136
 msgid "room.display()"
 msgstr ""
 
-#: ../../source/interactive.rst:72
+#: ../../source/interactive.rst:81
 msgid ""
 "<div style='padding-bottom: 30px'>\n"
 "<table border=\"1\" class=\"dataframe\">\n"
@@ -171,25 +192,25 @@ msgstr ""
 "</table>\n"
 "</div>"
 
-#: ../../source/interactive.rst:99
+#: ../../source/interactive.rst:108
 msgid "我们通过\\ ``room['存储表示例']``\\ ，或者像\\ ``room.iris``\\ ，就可以取出来存储的对象了。"
 msgstr ""
 "You can use \\ ``room['stored-table']``\\ or \\ ``room.iris``\\ to "
 "retrieve the stored objects."
 
-#: ../../source/interactive.rst:101
+#: ../../source/interactive.rst:110
 msgid "room['存储表示例']"
 msgstr "room['stored-table']"
 
-#: ../../source/interactive.rst:121
+#: ../../source/interactive.rst:130
 msgid "删除也很容易，只需要调用drop方法"
 msgstr "You can call the drop method to delete objects."
 
-#: ../../source/interactive.rst:123
+#: ../../source/interactive.rst:132
 msgid "room.drop('存储表示例')"
 msgstr "room.drop('stored-table')"
 
-#: ../../source/interactive.rst:131 ../../source/interactive.rst:224
+#: ../../source/interactive.rst:140 ../../source/interactive.rst:233
 msgid ""
 "<div style='padding-bottom: 30px'>\n"
 "<table border=\"1\" class=\"dataframe\">\n"
@@ -233,129 +254,129 @@ msgstr ""
 "</table>\n"
 "</div>"
 
-#: ../../source/interactive.rst:156
+#: ../../source/interactive.rst:165
 msgid "要删除某个room，只需要调用teardown就可以了，不传参数时删除默认room。"
 msgstr ""
 "You can delete a room by calling teardown. When no parameter has been "
 "specified, the default room is deleted."
 
-#: ../../source/interactive.rst:160
+#: ../../source/interactive.rst:169
 msgid "teardown()"
 msgstr ""
 
-#: ../../source/interactive.rst:163
+#: ../../source/interactive.rst:172
 msgid "IPython增强"
 msgstr "IPython"
 
-#: ../../source/interactive.rst:165
+#: ../../source/interactive.rst:174
 msgid "PyODPS 还提供了 IPython 的插件，来更方便得操作 ODPS。"
 msgstr ""
 "PyODPS provides IPython plugins to make it easy to perform MaxCompute "
 "operations."
 
-#: ../../source/interactive.rst:167
+#: ../../source/interactive.rst:176
 msgid "首先，针对命令行增强，也有相应的命令。让我们先加载插件："
 msgstr ""
 "Some commands are provided for command line enhancement. You can load the"
 " plugins as follows:"
 
-#: ../../source/interactive.rst:169
+#: ../../source/interactive.rst:178
 #, python-format
 msgid "%load_ext odps"
 msgstr ""
 
-#: ../../source/interactive.rst:176
+#: ../../source/interactive.rst:185
 #, python-format
 msgid "%enter"
 msgstr ""
 
-#: ../../source/interactive.rst:185
+#: ../../source/interactive.rst:194
 msgid "<odps.inter.Room at 0x11341df10>"
 msgstr ""
 
-#: ../../source/interactive.rst:188
+#: ../../source/interactive.rst:197
 msgid "此时全局会包含o和odps变量，即ODPS入口。"
 msgstr "Now the global o and odps variables can be retrieved, as follows:"
 
-#: ../../source/interactive.rst:191
+#: ../../source/interactive.rst:200
 msgid ""
 "o.get_table('dual')\n"
 "odps.get_table('dual')"
 msgstr ""
 
-#: ../../source/interactive.rst:217
+#: ../../source/interactive.rst:226
 #, python-format
 msgid "%stores"
 msgstr ""
 
-#: ../../source/interactive.rst:249
+#: ../../source/interactive.rst:258
 msgid "对象名补全"
 msgstr "Object name completion"
 
-#: ../../source/interactive.rst:250
+#: ../../source/interactive.rst:259
 msgid "PyODPS 拓展了 IPython 原有的代码补全功能，支持在书写 ``o.get_xxx`` 这样的语句时，自动补全对象名。"
 msgstr ""
 "PyODPS enhances the code completion feature that is provided by IPython. "
 "When you are writing statements such as ``o.get_xxx``, the object name is"
 " automatically completed."
 
-#: ../../source/interactive.rst:252
+#: ../../source/interactive.rst:261
 msgid "例如，在 IPython 中输入下列语句（<tab>不是实际输入的字符，而是当所有输入完成后，将光标移动到相应位置， 并按 Tab 键）："
 msgstr ""
 "For example, enter the following statement in IPython. Note that <tab> is"
 " not the actual input character. When the entry is complete, move the "
 "cursor to the end of the statement and click the Tab button."
 
-#: ../../source/interactive.rst:255
+#: ../../source/interactive.rst:264
 msgid "o.get_table(<tab>"
 msgstr ""
 
-#: ../../source/interactive.rst:259
+#: ../../source/interactive.rst:268
 msgid "如果已知需要补全对象的前缀，也可以使用"
 msgstr "If you know the first few characters of the object name, for example:"
 
-#: ../../source/interactive.rst:261
+#: ../../source/interactive.rst:270
 msgid "o.get_table('tabl<tab>"
 msgstr ""
 
-#: ../../source/interactive.rst:265
+#: ../../source/interactive.rst:274
 msgid "IPython 会自动补全前缀为 tabl 的表。"
 msgstr "IPython automatically enters a table name starting with tabl."
 
-#: ../../source/interactive.rst:267
+#: ../../source/interactive.rst:276
 msgid "对象名补全也支持补全不同 Project 下的对象名。下列用法都被支持："
 msgstr ""
 "This feature can also complete the names of objects from different "
 "projects."
 
-#: ../../source/interactive.rst:269
+#: ../../source/interactive.rst:278
 msgid ""
 "o.get_table(project='project_name', name='tabl<tab>\n"
 "o.get_table('tabl<tab>', project='project_name')"
 msgstr ""
 
-#: ../../source/interactive.rst:274
+#: ../../source/interactive.rst:283
 msgid "如果匹配的对象有多个，IPython 会给出一个列表，其最大长度由 ``options.completion_size`` 给出， 默认为 10。"
 msgstr ""
 "A list is given when multiple matching objects exist. The maximum length "
 "of the list is set by ``options.completion_size``. The default is 10."
 
-#: ../../source/interactive.rst:279
+#: ../../source/interactive.rst:288
 msgid "SQL命令"
 msgstr "SQL statements"
 
-#: ../../source/interactive.rst:283
+#: ../../source/interactive.rst:292
 msgid "PyODPS 还提供了 SQL 插件，来执行 ODPS SQL。下面是单行 SQL："
 msgstr ""
 "PyODPS provides SQL plugins to execute MaxCompute SQL statements. The "
 "following is a single-line SQL statement."
 
-#: ../../source/interactive.rst:285
+#: ../../source/interactive.rst:294
 #, python-format
 msgid "%sql select * from pyodps_iris limit 5"
 msgstr ""
 
-#: ../../source/interactive.rst:292
+#: ../../source/interactive.rst:301
 msgid ""
 "<div style='padding-bottom: 30px'>\n"
 "<table border=\"1\" class=\"dataframe\">\n"
@@ -415,12 +436,12 @@ msgid ""
 "</div>"
 msgstr ""
 
-#: ../../source/interactive.rst:353
+#: ../../source/interactive.rst:362
 #, python-format
 msgid "多行SQL可以使用\\ ``%%sql``\\ 的命令"
 msgstr "You can use \\ ``%%sql``\\  to execute multi-line SQL statements."
 
-#: ../../source/interactive.rst:355
+#: ../../source/interactive.rst:364
 #, python-format
 msgid ""
 "%%sql\n"
@@ -430,7 +451,7 @@ msgid ""
 "limit 5"
 msgstr ""
 
-#: ../../source/interactive.rst:366
+#: ../../source/interactive.rst:375
 msgid ""
 "<div style='padding-bottom: 30px'>\n"
 "<table border=\"1\" class=\"dataframe\">\n"
@@ -490,13 +511,13 @@ msgid ""
 "</div>"
 msgstr ""
 
-#: ../../source/interactive.rst:427
+#: ../../source/interactive.rst:436
 msgid "如果想执行参数化SQL查询，则需要替换的参数可以使用\\ ``:参数``\\ 的方式。"
 msgstr ""
 "To execute parameterized SQL statements, you can use \\ ``:parameter``\\ "
 "to specify the parameter."
 
-#: ../../source/interactive.rst:430
+#: ../../source/interactive.rst:439
 #, python-format
 msgid ""
 "In [1]: %load_ext odps\n"
@@ -516,14 +537,14 @@ msgid ""
 "0    False  2012-03-30 23:59:58  2012-03-30 23:59:59"
 msgstr ""
 
-#: ../../source/interactive.rst:445
+#: ../../source/interactive.rst:454
 #, python-format
 msgid "设置SQL运行时参数，可以通过 ``%set`` 设置到全局，或者在sql的cell里用SET进行局部设置。"
 msgstr ""
 "For SQL runtime parameters, you can use ``%set`` to set a global "
 "parameter, or use set within a SQL Cell to set a local parameter."
 
-#: ../../source/interactive.rst:447
+#: ../../source/interactive.rst:456
 #, python-format
 msgid ""
 "In [17]: %%sql\n"
@@ -531,30 +552,30 @@ msgid ""
 "         select * from pyodps_iris;"
 msgstr ""
 
-#: ../../source/interactive.rst:453
+#: ../../source/interactive.rst:462
 msgid "这个会局部设置，不会影响全局的配置。"
 msgstr "The example above sets a local parameter."
 
-#: ../../source/interactive.rst:455
+#: ../../source/interactive.rst:464
 #, python-format
 msgid "In [18]: %set odps.sql.mapper.split.size = 16"
 msgstr ""
 
-#: ../../source/interactive.rst:459
+#: ../../source/interactive.rst:468
 msgid "这样设置后，后续运行的SQL都会使用这个设置。"
 msgstr "The example above sets a global parameter."
 
-#: ../../source/interactive.rst:463
+#: ../../source/interactive.rst:472
 msgid "持久化 pandas DataFrame 到 ODPS 表"
 msgstr "Upload pandas DataFrame to MaxCompute tables"
 
-#: ../../source/interactive.rst:466
+#: ../../source/interactive.rst:475
 msgid "PyODPS 还提供把 pandas DataFrame 上传到 ODPS 表的命令:"
 msgstr ""
 "PyODPS provides the following command to upload pandas DataFrame objects "
 "to MaxCompute tables:"
 
-#: ../../source/interactive.rst:468
+#: ../../source/interactive.rst:477
 msgid ""
 "import pandas as pd\n"
 "import numpy as np\n"
@@ -562,11 +583,11 @@ msgid ""
 "df = pd.DataFrame(np.arange(9).reshape(3, 3), columns=list('abc'))"
 msgstr ""
 
-#: ../../source/interactive.rst:475
+#: ../../source/interactive.rst:484
 msgid "%persist df pyodps_pandas_df"
 msgstr ""
 
-#: ../../source/interactive.rst:479
+#: ../../source/interactive.rst:488
 msgid "这里的第0个参数\\ ``df``\\ 是前面的变量名，\\ ``pyodps_pandas_df``\\ 是ODPS表名。"
 msgstr ""
 "The first parameter \\ ``df``\\ is the variable name. \\ "

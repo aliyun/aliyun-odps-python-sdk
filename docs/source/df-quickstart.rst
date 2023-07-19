@@ -11,9 +11,17 @@
 
 .. code:: python
 
+    >>> import os
     >>> from odps import ODPS
-    >>> o = ODPS('**your-access-id**', '**your-secret-access-key**',
-    >>>          project='**your-project**', endpoint='**your-end-point**'))
+    >>> # 保证 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    >>> # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret
+    >>> # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    >>> o = ODPS(
+    ...     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+    ...     os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+    ...     project='**your-project**',
+    ...     endpoint='**your-endpoint**',
+    ... )
 
 创建一个DataFrame对象十分容易，只需传入Table对象即可。
 

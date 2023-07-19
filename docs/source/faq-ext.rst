@@ -15,7 +15,15 @@ Endpoint配置不对，详细配置参考
 
 .. code-block:: python
 
-   from odps import ODPS
-
-   o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-default-project**',
-            endpoint='**your-end-point**', tunnel_endpoint='**your-tunnel-endpoint**')
+    import os
+    from odps import ODPS
+    # 保证 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    o = ODPS(
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+        project='**your-project**',
+        endpoint='**your-endpoint**',
+        tunnel_endpoint='**your-tunnel-endpoint**',
+    )

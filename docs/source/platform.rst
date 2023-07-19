@@ -13,5 +13,3 @@ PyODPS 可在 DataWorks 等数据开发平台中作为节点调用。这些平�
 
    platform-d2
    platform-pai-studio-int
-   platform-migrate-ext
-   platform-migrate-int

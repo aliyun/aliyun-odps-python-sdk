@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-05-15 14:16+0800\n"
+"POT-Creation-Date: 2023-07-19 13:45+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/platform-d2.rst:5
 msgid "DataWorks 用户使用指南"
@@ -466,39 +466,58 @@ msgstr ""
 "instance,"
 
 #: ../../source/platform-d2.rst:190
-msgid "new_odps = o.as_account('**new_access_id**', '**new_secret_access_key**')"
+msgid ""
+"import os\n"
+"# 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为 Access Key ID，\n"
+"# ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为 Access Key Secret，\n"
+"# 不建议直接使用 Access Key ID / Access Key Secret 字符串\n"
+"new_odps = o.as_account(\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
+")"
 msgstr ""
+"import os\n"
+"# Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID already set "
+"to Access Key ID of user\n"
+"# while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET set to "
+"Access Key Secret of user.\n"
+"# Not recommended to hardcode Access Key ID or Access Key Secret in your "
+"code.\n"
+"new_odps = o.as_account(\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
+")"
 
-#: ../../source/platform-d2.rst:195
+#: ../../source/platform-d2.rst:202
 msgid "问题诊断"
 msgstr ""
 
-#: ../../source/platform-d2.rst:196
+#: ../../source/platform-d2.rst:203
 msgid "如果你的代码在执行中卡死且没有任何输出，你可以在代码头部增加以下注释，DataWorks 每隔 30 秒将输出所有线程的堆栈："
 msgstr ""
 "If your code stuck on execution and no outputs emitted, you can add "
-"comment shown below to let DataWorks dump stack trace of all threads"
-" every 30 seconds."
+"comment shown below to let DataWorks dump stack trace of all threads "
+"every 30 seconds."
 
-#: ../../source/platform-d2.rst:198
+#: ../../source/platform-d2.rst:205
 msgid "# -*- dump_traceback: true -*-"
 msgstr ""
 
-#: ../../source/platform-d2.rst:209
+#: ../../source/platform-d2.rst:210
 msgid "受限功能"
 msgstr "Feature restriction"
 
-#: ../../source/platform-d2.rst:211
+#: ../../source/platform-d2.rst:212
 msgid "由于缺少 matplotlib 等包，所以如下功能可能会受限。"
 msgstr ""
 "DataWorks does not have the ``matplotlib`` library. Therefore, the "
 "following features may be restricted:"
 
-#: ../../source/platform-d2.rst:213
+#: ../../source/platform-d2.rst:214
 msgid "DataFrame的plot函数"
 msgstr "DataFrame plot function"
 
-#: ../../source/platform-d2.rst:215
+#: ../../source/platform-d2.rst:216
 msgid ""
 "DataFrame 自定义函数需要提交到 MaxCompute 执行。由于 Python 沙箱的原因，第三方库只支持所有的纯 Python 库以及"
 " Numpy， 因此不能直接使用 Pandas，可参考 :ref:`第三方库支持 <third_party_library>` "
@@ -514,7 +533,7 @@ msgstr ""
 "can use pre-installed Numpy and Pandas in DataWorks. Other third-party "
 "libraries with binary codes are not supported currently."
 
-#: ../../source/platform-d2.rst:219
+#: ../../source/platform-d2.rst:220
 msgid ""
 "由于兼容性的原因，在 DataWorks 中，`options.tunnel.use_instance_tunnel` 默认设置为 "
 "False。如果需要全局开启 Instance Tunnel， 需要手动将该值设置为 True。"
@@ -523,18 +542,18 @@ msgstr ""
 "DataWorks is set to False by default. To enable Instance Tunnel globally,"
 " you need to manually set `options.tunnel.use_instance_tunnel` to True."
 
-#: ../../source/platform-d2.rst:222
+#: ../../source/platform-d2.rst:223
 msgid "由于实现的原因，Python 的 atexit 包不被支持，请使用 try - finally 结构实现相关功能。"
 msgstr ""
 "For implementation reasons, the Python atexit package is not supported. "
 "You need to use the try - finally structure to implement related "
 "features."
 
-#: ../../source/platform-d2.rst:225
+#: ../../source/platform-d2.rst:226
 msgid "使用限制"
 msgstr "Usage restrictions"
 
-#: ../../source/platform-d2.rst:227
+#: ../../source/platform-d2.rst:228
 msgid ""
 "在 DataWorks 上使用 PyODPS，为了防止对 DataWorks 的 gateway 造成压力，对内存和 CPU 都有限制。这个限制由"
 " DataWorks 统一管理。"
@@ -543,14 +562,14 @@ msgstr ""
 "DataWorks, the CPU and memory usage is restricted. DataWorks provides "
 "central management for this restriction."
 
-#: ../../source/platform-d2.rst:229
+#: ../../source/platform-d2.rst:230
 msgid "如果看到 **Got killed** ，即内存使用超限，进程被 kill。因此，尽量避免本地的数据操作。"
 msgstr ""
 "If the system displays **Got killed**, this indicates an out-of-memory "
 "error and that the process has been terminated. Therefore, we do not "
 "recommend starting local data operations."
 
-#: ../../source/platform-d2.rst:231
+#: ../../source/platform-d2.rst:232
 msgid "通过 PyODPS 起的 SQL 和 DataFrame 任务（除 to_pandas) 不受此限制。"
 msgstr ""
 "However, the preceding restriction does not work on SQL and DataFrame "
