@@ -16,7 +16,13 @@ import threading
 import contextlib
 
 from sqlalchemy import types as sa_types
-from sqlalchemy.databases import mysql
+try:
+    from sqlalchemy.databases import mysql
+    MSTinyInteger = mysql.MSTinyInteger
+except ImportError:
+    # Required for SQLAlchemy>2.0
+    from sqlalchemy.dialects import mysql
+    MSTinyInteger = mysql.base.MSTinyInteger
 from sqlalchemy.engine import default, Engine
 from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.sql import compiler, sqltypes
@@ -52,7 +58,7 @@ def update_test_setting(**kw):
 
 _odps_type_to_sqlalchemy_type = {
     types.Boolean: sa_types.Boolean,
-    types.Tinyint: mysql.MSTinyInteger,
+    types.Tinyint: MSTinyInteger,
     types.Smallint: sa_types.SmallInteger,
     types.Int: sa_types.Integer,
     types.Bigint: sa_types.BigInteger,
