@@ -31,21 +31,26 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v1.11.1
         env:
-          CIBW_BUILD_VERBOSITY: "1"
           CIBW_BEFORE_BUILD: pip install -r requirements-wheel.txt
           CIBW_ARCHS: ${{ matrix.arch }}
           CIBW_SKIP: pp* *-musllinux* *i686 cp35-manylinux_aarch64 cp36-manylinux_aarch64
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
 
-      - name: Build wheels (Python 3.10)
-        uses: pypa/cibuildwheel@v2.3.1
+      - name: "Build wheels (Python >= 3.10)"
+        uses: pypa/cibuildwheel@v2.14.1
         env:
           CIBW_BEFORE_BUILD: pip install -r requirements-wheel.txt
           CIBW_ARCHS: ${{ matrix.arch }}
           CIBW_SKIP: pp* *-musllinux* *i686 cp36-* cp37-* cp38-* cp39-*
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        if: ${{ matrix.os == 'macos-latest'}}
+        with:
+          python-version: '3.7'
 
       - name: Build source
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.arch == 'auto'}}
@@ -56,7 +61,8 @@ jobs:
       - name: Release to pypi
         shell: bash
         env:
-          PYPI_PWD: ${{ secrets.PYPI_PASSWORD }}
+          TWINE_USERNAME: ${{ secrets.PYPI_USER }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
           if [[ "$GITHUB_REPOSITORY" == "aliyun/aliyun-odps-python-sdk" ]]; then
             PYPI_REPO="https://upload.pypi.org/legacy/"
@@ -68,8 +74,6 @@ jobs:
           echo "    pypi"               >> ~/.pypirc
           echo "[pypi]"                 >> ~/.pypirc
           echo "repository=$PYPI_REPO"  >> ~/.pypirc
-          echo "username=pyodps"        >> ~/.pypirc
-          echo "password=$PYPI_PWD"     >> ~/.pypirc
           python -m pip install twine
           python -m twine upload -r pypi --skip-existing wheelhouse/*
 
