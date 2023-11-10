@@ -132,12 +132,10 @@ class Partitions(Iterable):
         )
         spec = condition.partition_spec
 
-        params = {
-            'partitions': '',
-            'expectmarker': 'true'
-        }
+        actions = ['partitions']
+        params = {'expectmarker': 'true'}
         if reverse:
-            params['reverse'] = ''
+            actions.append('reverse')
         if spec is not None and not spec.is_empty:
             params['partition'] = str(spec)
         schema_name = self._get_schema_name()
@@ -151,7 +149,7 @@ class Partitions(Iterable):
                 return
 
             url = self.resource()
-            resp = self._client.get(url, params=params)
+            resp = self._client.get(url, actions=actions, params=params)
 
             t = self.parse(self._client, resp, obj=self)
             params['marker'] = t.marker

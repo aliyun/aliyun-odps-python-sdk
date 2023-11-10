@@ -13,10 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import json
+import logging
 import time
 import uuid
-import logging
 from collections import OrderedDict
 
 from ..config import options
@@ -57,6 +58,24 @@ class _TaskProgressJSON(JSONSerializableModel):
     status = JSONNodeField('status', parse_callback=lambda v: Instance.Task.TaskStatus(v.upper()),
                            serialize_callback=lambda v: v.value)
     stages = JSONNodesReferencesField(_StageProgressJSON, 'stages')
+
+    def get_stage_progress_formatted_string(self):
+        buf = six.StringIO()
+
+        buf.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        buf.write(' ')
+
+        for stage in self.stages:
+            buf.write('{0}:{1}/{2}/{3}{4}[{5}%]\t'.format(
+                stage.name,
+                stage.running_workers,
+                stage.terminated_workers,
+                stage.total_workers,
+                '(+%s backups)' % stage.backup_workers if stage.backup_workers > 0 else '',
+                stage.finished_percentage
+            ))
+
+        return buf.getvalue()
 
 
 class _InstanceProgressJSON(JSONSerializableModel):

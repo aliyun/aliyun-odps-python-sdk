@@ -32,6 +32,11 @@ class Function(LazyLoad):
     creation_time = serializers.XMLNodeField('CreationTime', parse_callback=utils.parse_rfc822)
     class_type = serializers.XMLNodeField('ClassType')
     _resources = serializers.XMLNodesField('Resources', 'ResourceName')
+    is_sql_function = serializers.XMLNodeField('IsSqlFunction')
+    is_embedded_function = serializers.XMLNodeField('IsEmbeddedFunction')
+    program_language = serializers.XMLNodeField('ProgramLanguage')
+    code = serializers.XMLNodeField('Code')
+    file_name = serializers.XMLNodeField('FileName')
 
     def __init__(self, **kwargs):
         self._resources_objects = None
@@ -108,9 +113,7 @@ class Function(LazyLoad):
         return self.parent.update(self)
 
     def update_owner(self, new_owner):
-        params = {
-            'updateowner': ''
-        }
+        params = {}
         schema_name = self._get_schema_name()
         if schema_name:
             params['curr_schema'] = schema_name
@@ -119,7 +122,7 @@ class Function(LazyLoad):
             'x-odps-owner': new_owner
         }
         self._client.put(
-            self.resource(), None, params=params, headers=headers
+            self.resource(), None, action="updateowner", params=params, headers=headers
         )
 
     def drop(self):

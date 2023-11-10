@@ -605,7 +605,7 @@ Collection 提供了数据过滤的功能，
 .. code:: python
 
     >>> var = 4
-    >>> iris.query("(iris.sepalwidth < 2.5) | (sepalwidth > @var)").head(5)
+    >>> iris.query("(sepalwidth < 2.5) | (sepalwidth > @var)").head(5)
        sepallength  sepalwidth  petallength  petalwidth             name
     0          5.7         4.4          1.5         0.4      Iris-setosa
     1          5.2         4.1          1.5         0.1      Iris-setosa
@@ -978,8 +978,8 @@ DataFrame的计算过程中，一些Collection被多处使用，或者用户需�
 
 .. code:: python
 
-    >>> cached = iris[iris.sepalwidth < 3.5].cache()
-    >>> df = cached['sepallength', 'name'].head(3)
+    >>> cached = iris[iris.sepalwidth < 3.5]['sepallength', 'name'].cache()
+    >>> df = cached.head(3)
     >>> df
        sepallength         name
     0          4.9  Iris-setosa
@@ -998,14 +998,12 @@ DataFrame的计算过程中，一些Collection被多处使用，或者用户需�
 ~~~~~~~~~~~~~~~
 
 DataFrame 支持异步操作，对于立即执行的方法，包括 ``execute``、``persist``、``head``、``tail``、``to_pandas`` （其他方法不支持），
-传入 ``async`` 参数，即可以将一个操作异步执行，``timeout`` 参数指定超时时间，
+传入 ``async_`` 参数，即可以将一个操作异步执行，``timeout`` 参数指定超时时间，
 异步返回的是 `Future <https://docs.python.org/3/library/concurrent.futures.html#future-objects>`_ 对象。
 
 .. code-block:: python
 
-    >>> future = iris[iris.sepal_width < 10].head(10, async=True)
-    >>> future.done()
-    True
+    >>> future = iris[iris.sepal_width < 10].head(10, async_=True)
     >>> future.result()
        sepal_length  sepal_width  petal_length  petal_width     category
     0           5.1          3.5           1.4          0.2  Iris-setosa
@@ -1029,7 +1027,7 @@ DataFrame 的并行执行可以使用多线程来并行，单个 expr 的执行�
     >>> expr2 = iris.groupby('category').agg(value=iris.sepal_length.mean()).cache()
     >>> expr3 = iris.groupby('category').agg(value=iris.petal_length.min()).cache()
     >>> expr = expr1.union(expr2).union(expr3)
-    >>> future = expr.execute(n_parallel=3, async=True, timeout=2)  # 并行和异步执行，2秒超时，返回Future对象
+    >>> future = expr.execute(n_parallel=3, async_=True, timeout=2)  # 并行和异步执行，2秒超时，返回Future对象
     >>> future.result()
               category    value
     0      Iris-setosa    5.006
@@ -1071,4 +1069,4 @@ DataFrame 的并行执行可以使用多线程来并行，单个 expr 的执行�
 可以看到上面的例子里，共同依赖的对象会先执行，然后再以并发度为3分别执行future1到future3。
 当 ``n_parallel`` 为1时，执行时间会达到37s。
 
-``delay.execute`` 也接受 ``async`` 操作来指定是否异步执行，当异步的时候，也可以指定 ``timeout`` 参数来指定超时时间。
+``delay.execute`` 也接受 ``async_`` 操作来指定是否异步执行，当异步的时候，也可以指定 ``timeout`` 参数来指定超时时间。

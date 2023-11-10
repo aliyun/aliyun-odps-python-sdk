@@ -29,7 +29,7 @@ from ...accounts import AliyunAccount
 from ...config import options as odps_options
 from ...models import TableSchema
 from ...types import PartitionSpec
-from ...utils import to_binary, write_log
+from ...utils import to_binary
 from ..utils import (
     use_odps2_type,
     pd_type_to_odps_type,
@@ -165,7 +165,7 @@ def create_mars_cluster(
                 # found a instance with the same task name
                 if if_exists in ("reuse", "restart"):
                     if if_exists == "reuse":
-                        write_log(
+                        logger.info(
                             "Reusing existing Mars cluster({}), logview address: \n{}".format(
                                 name, prev_instance.get_logview_address()
                             )

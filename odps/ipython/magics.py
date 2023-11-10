@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import time
 
 from ..inter import enter, setup, teardown, list_rooms
 from ..compat import six, StringIO
 from .. import types as odps_types
-from .. import options, ODPS, log
+from .. import options, ODPS
 from ..utils import replace_sql_parameters, init_progress_ui
 from ..df import DataFrame, Scalar, NullScalar, Delay
 from ..df.backends.frame import ResultFrame
@@ -27,6 +28,8 @@ from ..df.backends.odpssql.types import odps_schema_to_df_schema, odps_type_to_d
 from ..models import TableSchema
 from ..ui.common import html_notify
 from ..ui.progress import create_instance_group, reload_instance_status, fetch_instance_group
+
+logger = logging.getLogger(__name__)
 
 try:
     import numpy as np
@@ -167,9 +170,8 @@ else:
                 progress_ui.add_keys(group_id)
 
                 instance = self._odps.run_sql(sql, hints=hints)
-                if options.verbose:
-                    log('Instance ID: ' + instance.id)
-                    log('  Log view: ' + instance.get_logview_address())
+                if logger.getEffectiveLevel() <= logging.INFO:
+                    logger.info('Instance ID: %s\n  Log view: %s', instance.id, instance.get_logview_address())
                 reload_instance_status(self._odps, group_id, instance.id)
                 progress_ui.status('Executing')
 

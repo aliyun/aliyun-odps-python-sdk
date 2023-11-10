@@ -33,6 +33,7 @@ from .volumes import Volumes
 from .xflows import XFlows
 from .security.users import Users, User
 from .security.roles import Roles
+from .storage_tier import StorageTierInfo
 
 
 _notset = object()
@@ -223,9 +224,7 @@ class Project(LazyLoad):
             return self._getattr("_extended_properties")
 
         url = self.resource()
-        params = {"extended": ""}
-
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, action='extended')
         Project.ExtendedProperties.parse(self._client, resp, parent=self)
 
         self._extended_props_loaded = True
@@ -248,6 +247,10 @@ class Project(LazyLoad):
     @property
     def status(self):
         return self.ProjectStatus.from_str(self._state)
+
+    @property
+    def storage_tier_info(self):
+        return StorageTierInfo.deserial(self.extended_properties)
 
     def _get_collection_with_schema(self, iter_cls):
         schema = self._default_schema
@@ -403,7 +406,6 @@ class Project(LazyLoad):
 
         url = self.auth_resource()
         headers = {'Content-Type': 'application/json'}
-        params = {'sign_bearer_token': ''}
 
         policy_dict = {
             'expires_in_hours': expire_hours,
@@ -411,7 +413,9 @@ class Project(LazyLoad):
         }
         data = json.dumps(policy_dict)
 
-        query_resp = self._client.post(url, data, headers=headers, params=params)
+        query_resp = self._client.post(
+            url, data, action='sign_bearer_token', headers=headers
+        )
         resp = self.AuthQueryResponse.parse(query_resp)
         return resp.result
 

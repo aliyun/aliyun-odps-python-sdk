@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 
 import copy
+import logging
 import sys
 import threading
 import time
@@ -26,8 +27,8 @@ import warnings
 
 from ....compat import six
 from ....config import options
-from ....errors import ODPSError, NoPermission, ConnectTimeout
-from ....utils import write_log as log, TEMP_TABLE_PREFIX
+from ....errors import ODPSError, NoPermission, ConnectTimeout, ParseError
+from ....utils import TEMP_TABLE_PREFIX
 from ....models import Table, TableSchema
 from ....models.partition import Partition
 from ....tempobj import register_temp_table
@@ -51,6 +52,8 @@ from .compiler import OdpsSQLCompiler
 from .codegen import gen_udf
 from .tunnel import TunnelEngine
 from .models import MemCacheReference
+
+logger = logging.getLogger(__name__)
 
 
 class SQLExecuteNode(ExecuteNode):
@@ -145,11 +148,14 @@ class ODPSSQLEngine(Engine):
                                       running_cluster=running_cluster, default_schema=schema)
 
         self._instances.append(instance.id)
-        log('Instance ID: ' + instance.id)
-        log('  Log view: ' + instance.get_logview_address())
+        logger.info(
+            'Instance ID: %s\n  Log view: %s', instance.id, instance.get_logview_address()
+        )
         ui.status('Executing', 'execution details')
 
         percent = 0
+        last_log_progress = 0
+        progress_time = start_time = time.time()
         while not instance.is_terminated(retry=True):
             inst_progress = self._reload_ui(group, instance, ui)
 
@@ -163,6 +169,30 @@ class ODPSSQLEngine(Engine):
                     percent = 0
                 percent = min(1, max(percent, last_percent))
                 ui.inc((percent - last_percent) * progress_proportion)
+
+            if logger.getEffectiveLevel() <= logging.INFO:
+                try:
+                    check_time = time.time()
+                    task_progresses = inst_progress.tasks
+                    total_progress = sum(
+                        stage.finished_percentage
+                        for progress in task_progresses.values()
+                        for stage in progress.stages
+                    )
+                    if check_time - start_time >= options.progress_time_interval and (
+                        total_progress - last_log_progress >= options.progress_percentage_gap
+                        or check_time - progress_time >= options.progress_time_interval
+                    ):
+                        output_parts = [instance.id] + [
+                            progress.get_stage_progress_formatted_string()
+                            for progress in task_progresses.values()
+                        ]
+                        logger.info(" ".join(output_parts))
+                        last_log_progress = total_progress
+                        progress_time = check_time
+                except:
+                    # make sure progress display does not affect execution
+                    pass
 
             time.sleep(1)
 
@@ -358,8 +388,7 @@ class ODPSSQLEngine(Engine):
 
             sql = self._join_sql(sql)
 
-            log('Sql compiled:')
-            log(sql)
+            logger.info('Sql compiled:\n' + sql)
 
             try:
                 instance = self._run(sql, ui, progress_proportion=progress_proportion * 0.9,
@@ -470,6 +499,8 @@ class ODPSSQLEngine(Engine):
             if table.get_schema():
                 schema = table.get_schema().name
             name = table.name
+
+        lifecycle = options.temp_lifecycle if name.startswith(TEMP_TABLE_PREFIX) else lifecycle
 
         self._ctx.default_schema = schema or self._ctx.default_schema
         if self._odps.is_schema_namespace_enabled(hints):
@@ -613,13 +644,15 @@ class ODPSSQLEngine(Engine):
 
         sql = self._join_sql(sql)
 
-        log('Sql compiled:')
-        log(sql)
+        logger.info('Sql compiled:\n' + sql)
 
         try:
             instance = self._run(sql, ui, progress_proportion=progress_proportion,
                                  hints=hints, priority=priority, running_cluster=running_cluster,
                                  group=group, libraries=libraries, schema=schema)
+        except ParseError as ex:
+            logger.error("Failed to run DF generated SQL: %s:\n%s", str(ex), sql)
+            raise
         finally:
             self._ctx.close()  # clear udfs and resources generated
 

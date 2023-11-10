@@ -27,7 +27,7 @@ try:
 except ImportError:
     _raw_flaky = None
 
-from .. import compat, options
+from .. import compat, errors, options
 from ..compat import six, ConfigParser
 
 LOCK_FILE_NAME = os.path.join(tempfile.gettempdir(), 'pyodps_test_lock_')
@@ -123,6 +123,7 @@ def get_config():
         config.read(config_path)
 
         _load_config_odps(config, "odps_daily", overwrite_global=False)
+        _load_config_odps(config, "odps_with_storage_tier", overwrite_global=False)
         _load_config_odps(config, "odps_with_schema", overwrite_global=False)
         _load_config_odps(config, "odps_with_schema_tenant", overwrite_global=False)
         # make sure main config overrides other configs
@@ -256,6 +257,7 @@ def module_depend_case(mod_names):
 
 numpy_case = module_depend_case('numpy')
 pandas_case = module_depend_case('pandas')
+pyarrow_case = module_depend_case('pyarrow')
 sqlalchemy_case = module_depend_case('sqlalchemy')
 
 
@@ -329,24 +331,39 @@ def run_sub_tests_in_parallel(n_parallel, sub_tests):
     futures = [
         test_pool.submit(sub_test) for idx, sub_test in enumerate(sub_tests)
     ]
-    for fut in futures:
-        fut.result()
-    test_pool.shutdown(wait=True)
+    try:
+        first_exc = None
+        for fut in futures:
+            try:
+                fut.result()
+            except:
+                if first_exc is None:
+                    first_exc = sys.exc_info()
+        if first_exc is not None:
+            six.reraise(*first_exc)
+    finally:
+        test_pool.shutdown(wait=True)
 
 
 def force_drop_schema(schema):
     insts = []
     if schema.name not in schema.project.schemas:
         return
-    for tb in schema.tables:
-        insts.append(tb.drop(async_=True))
-    for res in schema.resources:
-        res.drop()
-    for func in schema.functions:
-        func.drop()
-    for inst in insts:
-        inst.wait_for_completion()
-    schema.drop()
+    try:
+        for tb in schema.tables:
+            insts.append(tb.drop(async_=True))
+        for res in schema.resources:
+            res.drop()
+        for func in schema.functions:
+            func.drop()
+        for inst in insts:
+            inst.wait_for_completion()
+        schema.drop()
+    except errors.InternalServerError as ex:
+        if "Database not found" not in str(ex):
+            raise
+    except errors.NoSuchObject:
+        pass
 
 
 def get_result(res):

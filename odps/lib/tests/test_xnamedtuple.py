@@ -48,3 +48,6 @@ def test_xnamedtuple():
     # make sure reserved fields can also be obtained
     assert getattr(tp_val, "def") == "val2"
     assert tp_val.values == "val3"
+
+    assert tp_val == ("val1", "val2", "val3")
+    assert tp_val == {"abc": "val1", "def": "val2", "values": "val3"}

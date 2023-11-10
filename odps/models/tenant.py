@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from datetime import datetime
 
 from .. import serializers
@@ -36,7 +37,7 @@ class Tenant(JSONRemoteModel):
         tenant_state = serializers.JSONNodeField(
             "TenantState", parse_callback=lambda x: Tenant.State(x.upper()), set_to_parent=True
         )
-        create_time = serializers.JSONNodeField(
+        creation_time = serializers.JSONNodeField(
             "CreateTime", parse_callback=datetime.fromtimestamp, set_to_parent=True
         )
         last_modified_time = serializers.JSONNodeField(
@@ -56,7 +57,7 @@ class Tenant(JSONRemoteModel):
     tenant_state = serializers.JSONNodeField(
         "TenantState", parse_callback=lambda x: Tenant.State(x.upper())
     )
-    create_time = serializers.JSONNodeField(
+    creation_time = serializers.JSONNodeField(
         "CreateTime", parse_callback=datetime.fromtimestamp
     )
     last_modified_time = serializers.JSONNodeField(
@@ -79,6 +80,16 @@ class Tenant(JSONRemoteModel):
             if attr in fields:
                 self.reload()
         return object.__getattribute__(self, attr)
+
+    @property
+    def create_time(self):
+        warnings.warn(
+            'Tenant.create_time is deprecated and will be replaced '
+            'by Tenant.creation_time.',
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return self.creation_time
 
     def resource(self, client=None, endpoint=None):
         endpoint = endpoint if endpoint is not None else (client or self._client).endpoint

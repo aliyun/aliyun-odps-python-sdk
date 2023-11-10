@@ -27,10 +27,10 @@ from datetime import datetime, timedelta
 
 from .compat import six, cgi, urlparse, unquote, parse_qsl
 from .lib import requests
-from . import compat, utils, options
+from . import options, utils
 
 
-LOG = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 DEFAULT_BEARER_TOKEN_HOURS = 5
 
@@ -54,7 +54,7 @@ class BaseAccount(object):
             canonical_resource = '%s?%s' % (canonical_resource, params_str)
 
         headers = req.headers
-        LOG.debug('headers before signing: %s' % headers)
+        logger.debug('headers before signing: %s', headers)
         for k, v in six.iteritems(headers):
             k = k.lower()
             if k in ('content-type', 'content-md5') or k.startswith('x-odps'):
@@ -74,7 +74,7 @@ class BaseAccount(object):
 
         headers_to_sign = OrderedDict([(k, headers_to_sign[k])
                                        for k in sorted(headers_to_sign)])
-        LOG.debug('headers to sign: %s' % headers_to_sign)
+        logger.debug('headers to sign: %s', headers_to_sign)
         for k, v in six.iteritems(headers_to_sign):
             if k.startswith('x-odps-'):
                 lines.append('%s:%s' % (k, v))
@@ -101,14 +101,14 @@ class AliyunAccount(BaseAccount):
         url_components = urlparse(unquote(url), allow_fragments=False)
 
         canonical_str = self._build_canonical_str(url_components, req)
-        LOG.debug('canonical string: ' + canonical_str)
+        logger.debug('canonical string: %s', canonical_str)
 
         signature = base64.b64encode(hmac.new(
             utils.to_binary(self.secret_access_key), utils.to_binary(canonical_str),
             hashlib.sha1).digest())
         auth_str = 'ODPS %s:%s' % (self.access_id, utils.to_str(signature))
         req.headers['Authorization'] = auth_str
-        LOG.debug('headers after signing: ' + repr(req.headers))
+        logger.debug('headers after signing: %r', req.headers)
 
 
 class StsAccount(AliyunAccount):
@@ -140,7 +140,7 @@ class AppAccount(BaseAccount):
         app_auth_str = "account_provider:%s,signature_method:%s,access_id:%s,signature:%s" % (
             'aliyun', 'hmac-sha1', self.access_id, utils.to_str(signature))
         req.headers['application-authentication'] = app_auth_str
-        LOG.debug('headers after app signing: ' + repr(req.headers))
+        logger.debug('headers after app signing: %r', req.headers)
 
 
 class SignServer(object):
@@ -155,6 +155,7 @@ class SignServer(object):
             try:
                 self._do_POST()
             except:
+                logger.exception("Failed to sign request on SignServer.")
                 self.send_response(500)
                 self.end_headers()
 
@@ -255,9 +256,10 @@ class SignServer(object):
 
 
 class SignServerError(Exception):
-    def __init__(self, msg, code):
+    def __init__(self, msg, code, content):
         super(SignServerError, self).__init__(msg)
         self.code = code
+        self.content = content
 
 
 class SignServerAccount(BaseAccount):
@@ -291,7 +293,7 @@ class SignServerAccount(BaseAccount):
         url_components = urlparse(unquote(url), allow_fragments=False)
 
         canonical_str = self._build_canonical_str(url_components, req)
-        LOG.debug('canonical string: ' + canonical_str)
+        logger.debug('canonical string: %s', canonical_str)
 
         headers = dict()
         if self.token:
@@ -301,20 +303,30 @@ class SignServerAccount(BaseAccount):
                                     data=dict(access_id=self.access_id, canonical=canonical_str))
         if resp.status_code < 400:
             req.headers['Authorization'] = resp.text
-            LOG.debug('headers after signing: ' + repr(req.headers))
+            logger.debug('headers after signing: %r', req.headers)
         else:
-            raise SignServerError('Sign server returned error code: %d' % resp.status_code, resp.status_code)
+            try:
+                err_msg = resp_err = resp.text
+            except:
+                resp_err = resp.content
+                err_msg = repr(resp_err)
+
+            raise SignServerError(
+                'Sign server returned error code: %d\n%s' % (resp.status_code, err_msg),
+                resp.status_code,
+                resp_err,
+            )
 
 
 class BearerTokenAccount(BaseAccount):
     def __init__(
         self, token=None, expired_hours=DEFAULT_BEARER_TOKEN_HOURS, get_bearer_token_fun=None
     ):
-        self._token = token or self.get_bearer_token()
+        self._get_bearer_token = get_bearer_token_fun or self.get_default_bearer_token
+        self._token = token or self._get_bearer_token()
         self._reload_bearer_token_time()
 
         self._expired_time = timedelta(hours=expired_hours)
-        self._get_bearer_token = get_bearer_token_fun or self.get_bearer_token
 
     @classmethod
     def from_environments(cls):
@@ -327,7 +339,7 @@ class BearerTokenAccount(BaseAccount):
         return None
 
     @staticmethod
-    def get_bearer_token():
+    def get_default_bearer_token():
         token_file_name = os.getenv("ODPS_BEARER_TOKEN_FILE")
         if token_file_name and os.path.exists(token_file_name):
             with open(token_file_name, "r") as token_file:
@@ -339,6 +351,10 @@ class BearerTokenAccount(BaseAccount):
             return
         cupid_context = context()
         return cupid_context.get_bearer_token()
+
+    def get_bearer_token_and_timestamp(self):
+        self._check_bearer_token()
+        return self._token, self._last_modified_time.timestamp()
 
     def _reload_bearer_token_time(self):
         if "ODPS_BEARER_TOKEN_TIMESTAMP_FILE" in os.environ:
@@ -373,4 +389,4 @@ class BearerTokenAccount(BaseAccount):
         url_components = urlparse(unquote(url), allow_fragments=False)
         self._build_canonical_str(url_components, req)
         req.headers['x-odps-bearer-token'] = self._token
-        LOG.debug('headers after signing: ' + repr(req.headers))
+        logger.debug('headers after signing: %r', req.headers)

@@ -110,7 +110,7 @@ cdef int64_t get_signed_varint64(char** input, char* end, size_t* pos) nogil:
             return <int64_t>((value >> 1) ^ (-(value & 1))) # zigzag decoding
 
 
-cdef int set_varint32(int32_t varint, stringstream &buf) nogil except +:
+cdef int set_varint32(int32_t varint, stringstream &buf) except + nogil:
     """
     Serialize an integer into a protobuf varint; return the number of bytes
     serialized.
@@ -131,7 +131,7 @@ cdef int set_varint32(int32_t varint, stringstream &buf) nogil except +:
     return idx + 1
 
 
-cdef int set_varint64(int64_t varint, stringstream &buf) nogil except +:
+cdef int set_varint64(int64_t varint, stringstream &buf) except + nogil:
     """
     Serialize an integer into a protobuf varint; return the number of bytes
     serialized.
@@ -152,7 +152,7 @@ cdef int set_varint64(int64_t varint, stringstream &buf) nogil except +:
     return idx + 1
 
 
-cdef int set_signed_varint32(int32_t varint, stringstream &buf) nogil except +:
+cdef int set_signed_varint32(int32_t varint, stringstream &buf) except + nogil:
     """
     Serialize an integer into a signed protobuf varint; return the number of
     bytes serialized.
@@ -173,7 +173,7 @@ cdef int set_signed_varint32(int32_t varint, stringstream &buf) nogil except +:
     return idx + 1
 
 
-cdef int set_signed_varint64(int64_t varint, stringstream &buf) nogil except +:
+cdef int set_signed_varint64(int64_t varint, stringstream &buf) except + nogil:
     """
     Serialize an integer into a signed protobuf varint; return the number of
     bytes serialized.

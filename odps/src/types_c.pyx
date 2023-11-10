@@ -41,7 +41,6 @@ cdef:
     int64_t BIGINT_TYPE_ID = types.bigint._type_id
     int64_t BINARY_TYPE_ID = types.binary._type_id
     int64_t TIMESTAMP_TYPE_ID = types.timestamp._type_id
-    int64_t TIMESTAMP_NTZ_TYPE_ID = types.timestamp_ntz._type_id
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
     int64_t JSON_TYPE_ID = types.Json._type_id
 
@@ -49,17 +48,20 @@ cdef:
 import_datetime()
 
 
-cdef object _validate_bigint(object val):
+cdef object _validate_bigint(object val, int64_t max_field_size):
     cdef int64_t i_val = val
     if bigint_min <= i_val <= bigint_max:
         return i_val
     raise ValueError('InvalidData: Bigint(%s) out of range' % val)
 
 
-cdef object _validate_string(object val):
+cdef object _validate_string(object val, int64_t max_field_size):
     cdef:
         size_t s_size
         unicode u_val
+
+    if max_field_size == 0:
+        max_field_size = string_len_max
 
     if isinstance(val, bytes):
         s_size = len(<bytes> val)
@@ -67,24 +69,27 @@ cdef object _validate_string(object val):
     elif isinstance(val, unicode):
         u_val = <unicode> val
         s_size = 4 * len(u_val)
-        if s_size > string_len_max:
+        if s_size > max_field_size:
             # only encode when strings are long enough
             s_size = len(u_val.encode('utf-8'))
     else:
         raise TypeError("Invalid data type: expect bytes or unicode, got %s" % type(val))
 
-    if s_size <= string_len_max:
+    if s_size <= max_field_size:
         return u_val
     raise ValueError(
         "InvalidData: Length of string(%s) is more than %sM.'" %
-        (val, string_len_max / (1024 ** 2))
+        (val, max_field_size / (1024 ** 2))
     )
 
 
-cdef object _validate_binary(object val):
+cdef object _validate_binary(object val, int64_t max_field_size):
     cdef:
         size_t s_size
         bytes bytes_val
+
+    if max_field_size == 0:
+        max_field_size = string_len_max
 
     if isinstance(val, bytes):
         bytes_val = <bytes> val
@@ -94,16 +99,16 @@ cdef object _validate_binary(object val):
         raise TypeError("Invalid data type: expect bytes or unicode, got %s" % type(val))
 
     s_size = len(bytes_val)
-    if s_size <= string_len_max:
+    if s_size <= max_field_size:
         return bytes_val
     raise ValueError(
         "InvalidData: Length of string(%s) is more than %sM.'" %
-        (val, string_len_max / (1024 ** 2)))
+        (val, max_field_size / (1024 ** 2)))
 
 
 py_strptime = datetime.strptime
 
-cdef object _validate_datetime(object val):
+cdef object _validate_datetime(object val, int64_t max_field_size):
     if PyDateTime_Check(val):
         return val
     if isinstance(val, (bytes, unicode)):
@@ -114,7 +119,7 @@ cdef object _validate_datetime(object val):
 pd_ts = None
 pd_ts_strptime = None
 
-cdef object _validate_timestamp(object val):
+cdef object _validate_timestamp(object val, int64_t max_field_size):
     global pd_ts, pd_ts_strptime
     if pd_ts is None:
         try:
@@ -131,7 +136,7 @@ cdef object _validate_timestamp(object val):
     raise TypeError("Invalid data type: expect timestamp, got %s" % type(val))
 
 
-cdef object _validate_decimal(object val):
+cdef object _validate_decimal(object val, int64_t max_field_size):
     cdef:
         object scaled_val
         int int_len
@@ -156,7 +161,7 @@ cdef object _validate_decimal(object val):
     return decimal.Decimal(str(val))
 
 
-cdef object _validate_json(object val):
+cdef object _validate_json(object val, int64_t max_field_size):
     if not isinstance(val, (list, dict, unicode, bytes, float, int, long)):
         raise ValueError("Invalid data type: cannot accept %r for json type" % val)
 
@@ -167,23 +172,23 @@ cdef object _validate_json(object val):
     return val
 
 
-cdef object _validate_float(object val):
+cdef object _validate_float(object val, int64_t max_field_size):
     cdef float flt_val = val
     return flt_val
 
 
-cdef object _validate_double(object val):
+cdef object _validate_double(object val, int64_t max_field_size):
     cdef double dbl_val = val
     return dbl_val
 
 
-cdef object _validate_boolean(object val):
+cdef object _validate_boolean(object val, int64_t max_field_size):
     if PyBool_Check(val):
         return val
     raise TypeError("Invalid data type: expect bool, got %s" % type(val))
 
 
-cdef object validate_value(object val, object value_type):
+cdef object validate_value(object val, object value_type, int64_t max_field_size):
     if value_type.nullable and (val is None or type(val) is pd_na_type):
         return None
 
@@ -191,32 +196,32 @@ cdef object validate_value(object val, object value_type):
 
     try:
         if type_id == BIGINT_TYPE_ID:
-            return _validate_bigint(val)
+            return _validate_bigint(val, max_field_size)
         elif type_id == FLOAT_TYPE_ID:
-            return _validate_float(val)
+            return _validate_float(val, max_field_size)
         elif type_id == DOUBLE_TYPE_ID:
-            return _validate_double(val)
+            return _validate_double(val, max_field_size)
         elif type_id == STRING_TYPE_ID:
             if options.tunnel.string_as_binary:
-                return _validate_binary(val)
+                return _validate_binary(val, max_field_size)
             else:
-                return _validate_string(val)
+                return _validate_string(val, max_field_size)
         elif type_id == DATETIME_TYPE_ID:
-            return _validate_datetime(val)
+            return _validate_datetime(val, max_field_size)
         elif type_id == BOOL_TYPE_ID:
-            return _validate_boolean(val)
+            return _validate_boolean(val, max_field_size)
         elif type_id == DECIMAL_TYPE_ID:
-            return _validate_decimal(val)
+            return _validate_decimal(val, max_field_size)
         elif type_id == BINARY_TYPE_ID:
-            return _validate_binary(val)
-        elif type_id == TIMESTAMP_TYPE_ID or type_id == TIMESTAMP_NTZ_TYPE_ID:
-            return _validate_timestamp(val)
+            return _validate_binary(val, max_field_size)
+        elif type_id == TIMESTAMP_TYPE_ID:
+            return _validate_timestamp(val, max_field_size)
         elif type_id == JSON_TYPE_ID:
-            return _validate_json(val)
+            return _validate_json(val, max_field_size)
     except TypeError:
         pass
 
-    return types.validate_value(val, value_type)
+    return types.validate_value(val, value_type, max_field_size=max_field_size)
 
 
 cdef class SchemaSnapshot:
@@ -259,27 +264,27 @@ cdef class SchemaSnapshot:
                 self._col_validators[i] = _validate_decimal
             elif type_id == BINARY_TYPE_ID:
                 self._col_validators[i] = _validate_binary
-            elif type_id == TIMESTAMP_TYPE_ID or type_id == TIMESTAMP_NTZ_TYPE_ID:
+            elif type_id == TIMESTAMP_TYPE_ID:
                 self._col_validators[i] = _validate_timestamp
             elif type_id == JSON_TYPE_ID:
                 self._col_validators[i] = _validate_json
             else:
                 self._col_validators[i] = NULL
 
-    cdef object validate_value(self, int i, object val):
+    cdef object validate_value(self, int i, object val, int64_t max_field_size):
         cdef _VALIDATE_FUNC vfun = self._col_validators[i]
         if val is None and self._col_nullable[i]:
             return val
         if vfun != NULL:
             try:
-                return vfun(val)
+                return vfun(val, max_field_size)
             except TypeError:
                 pass
-        return types.validate_value(val, self._col_types[i])
+        return types.validate_value(val, self._col_types[i], max_field_size=max_field_size)
 
 
 cdef class BaseRecord:
-    def __cinit__(self, columns=None, schema=None, values=None):
+    def __cinit__(self, columns=None, schema=None, values=None, max_field_size=None):
         self._c_schema_snapshot = getattr(schema, '_snapshot', None)
         if columns is not None:
             self._c_columns = columns
@@ -287,6 +292,8 @@ cdef class BaseRecord:
         else:
             self._c_columns = schema.columns if self._c_schema_snapshot is None else self._c_schema_snapshot._columns
             self._c_name_indexes = schema._name_indexes
+
+        self._max_field_size = max_field_size or 0
 
         if self._c_columns is None:
             raise ValueError('Either columns or schema should not be provided')
@@ -342,13 +349,15 @@ cdef class BaseRecord:
     cpdef _set(self, int i, object value):
         cdef object t
         if self._c_schema_snapshot is not None:
-            value = self._c_schema_snapshot.validate_value(i, value)
+            value = self._c_schema_snapshot.validate_value(i, value, self._max_field_size)
         else:
             t = self._c_columns[i].type
             try:
-                value = validate_value(value, t)
+                value = validate_value(value, t, self._max_field_size)
             except TypeError:
-                value = types.validate_value(value, t)
+                value = types.validate_value(
+                    value, t, max_field_size=self._max_field_size
+                )
 
         self._c_values[i] = value
 

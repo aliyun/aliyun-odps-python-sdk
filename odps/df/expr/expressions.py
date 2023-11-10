@@ -1922,6 +1922,12 @@ class DatetimeScalar(Scalar):
         self._value_type = types.datetime
 
 
+class TimestampScalar(Scalar):
+    def _init(self, *args, **kwargs):
+        super(TimestampScalar, self)._init(*args, **kwargs)
+        self._value_type = types.timestamp
+
+
 class BinaryScalar(Scalar):
     def _init(self, *args, **kwargs):
         super(BinaryScalar, self)._init(*args, **kwargs)

@@ -22,6 +22,7 @@ import pytest
 from ...tests.core import tn
 from ... import types
 from .. import TableSchema
+from ..storage_tier import StorageTier
 
 
 def test_partitions(odps):
@@ -122,7 +123,7 @@ def test_partition(odps):
     assert table.exist_partition(partition) is True
     assert table.exist_partition('s=a_non_exist_partition') is False
 
-    row_contents = ['index', None]
+    row_contents = ['index', '1']
     with partition.open_writer() as writer:
         writer.write([row_contents])
     with partition.open_reader() as reader:
@@ -180,3 +181,21 @@ def test_iter_partition_condition(odps):
         assert [str(pt) for pt in parts] == ["pt1='1',pt2='2'", "pt1='2',pt2='2'"]
 
     tb.drop()
+
+
+def test_tiered_partition(odps_with_storage_tier):
+    odps = odps_with_storage_tier
+
+    test_table_name = tn('pyodps_t_tmp_parted_tiered')
+    odps.delete_table(test_table_name, if_exists=True)
+    assert odps.exist_table(test_table_name) is False
+
+    table = odps.create_table(
+        test_table_name, ("col string", "pt string"), lifecycle=1
+    )
+    part = table.create_partition("pt=20230711")
+    part.set_storage_tier("standard")
+    assert part.storage_tier_info.storage_tier == StorageTier.STANDARD
+    part.set_storage_tier("LowFrequency")
+    assert part.storage_tier_info.storage_tier == StorageTier.LOWFREQENCY
+    table.drop()

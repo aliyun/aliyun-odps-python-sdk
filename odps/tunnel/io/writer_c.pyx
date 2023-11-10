@@ -56,11 +56,11 @@ cdef:
     int64_t BIGINT_TYPE_ID = types.bigint._type_id
     int64_t BINARY_TYPE_ID = types.binary._type_id
     int64_t TIMESTAMP_TYPE_ID = types.timestamp._type_id
-    int64_t TIMESTAMP_NTZ_TYPE_ID = types.timestamp_ntz._type_id
     int64_t INTERVAL_DAY_TIME_TYPE_ID = types.interval_day_time._type_id
     int64_t INTERVAL_YEAR_MONTH_TYPE_ID = types.interval_year_month._type_id
     int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
     int64_t JSON_TYPE_ID = types.Json._type_id
+    int64_t TIMESTAMP_NTZ_TYPE_ID = types.timestamp_ntz._type_id
 
 import_datetime()
 
@@ -78,9 +78,9 @@ data_type_to_wired_type[STRING_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[BINARY_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[DECIMAL_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[TIMESTAMP_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
-data_type_to_wired_type[TIMESTAMP_NTZ_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[INTERVAL_DAY_TIME_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 data_type_to_wired_type[JSON_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
+data_type_to_wired_type[TIMESTAMP_NTZ_TYPE_ID] = WIRETYPE_LENGTH_DELIMITED
 
 
 cdef class ProtobufRecordWriter:
@@ -133,28 +133,28 @@ cdef class ProtobufRecordWriter:
     def __len__(self):
         return self.n_bytes
 
-    cdef int _write_tag(self, int field_num, int wire_type) nogil except +:
+    cdef int _write_tag(self, int field_num, int wire_type) except + nogil:
         return self._encoder.append_tag(field_num, wire_type)
 
-    cdef int _write_raw_long(self, int64_t val) nogil except +:
+    cdef int _write_raw_long(self, int64_t val) except + nogil:
         return self._encoder.append_sint64(val)
 
-    cdef int _write_raw_int(self, int32_t val) nogil except +:
+    cdef int _write_raw_int(self, int32_t val) except + nogil:
         return self._encoder.append_sint32(val)
 
-    cdef int _write_raw_uint(self, uint32_t val) nogil except +:
+    cdef int _write_raw_uint(self, uint32_t val) except + nogil:
         return self._encoder.append_uint32(val)
 
-    cdef int _write_raw_bool(self, bint val) nogil except +:
+    cdef int _write_raw_bool(self, bint val) except + nogil:
         return self._encoder.append_bool(val)
 
-    cdef int _write_raw_float(self, float val) nogil except +:
+    cdef int _write_raw_float(self, float val) except + nogil:
         return self._encoder.append_float(val)
 
-    cdef int _write_raw_double(self, double val) nogil except +:
+    cdef int _write_raw_double(self, double val) except + nogil:
         return self._encoder.append_double(val)
 
-    cdef int _write_raw_string(self, const char *ptr, uint32_t size) nogil except +:
+    cdef int _write_raw_string(self, const char *ptr, uint32_t size) except + nogil:
         return self._encoder.append_string(ptr, size)
 
 
@@ -172,6 +172,7 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._curr_cursor_c = 0
         self._n_columns = len(self._columns)
         self._mills_converter = CMillisecondsConverter()
+        self._mills_converter_utc = CMillisecondsConverter(local_tz=False)
         self._to_days = utils.to_days
 
         super(BaseRecordWriter, self).__init__(out)
@@ -232,19 +233,19 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._crccrc_c.c_update_int(checksum)
         self._curr_cursor_c += 1
 
-    cdef void _write_bool(self, bint data) nogil except +:
+    cdef void _write_bool(self, bint data) except + nogil:
         self._crc_c.c_update_bool(data)
         self._write_raw_bool(data)
 
-    cdef void _write_long(self, int64_t data) nogil except +:
+    cdef void _write_long(self, int64_t data) except + nogil:
         self._crc_c.c_update_long(data)
         self._write_raw_long(data)
 
-    cdef void _write_float(self, float data) nogil except +:
+    cdef void _write_float(self, float data) except + nogil:
         self._crc_c.c_update_float(data)
         self._write_raw_float(data)
 
-    cdef void _write_double(self, double data) nogil except +:
+    cdef void _write_double(self, double data) except + nogil:
         self._crc_c.c_update_double(data)
         self._write_raw_double(data)
 
@@ -262,18 +263,30 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
         self._crc_c.c_update(bdata, len(bdata))
         self._write_raw_string(bdata, len(bdata))
 
-    cdef _write_timestamp(self, object data):
+    cdef _write_timestamp_base(self, object data, bint ntz):
         cdef:
             object py_datetime = data.to_pydatetime(warn=False)
             long l_val
             int nanosecs
+            CMillisecondsConverter converter
 
-        l_val = self._mills_converter.to_milliseconds(py_datetime) // 1000
+        if ntz:
+            converter = self._mills_converter_utc
+        else:
+            converter = self._mills_converter
+
+        l_val = converter.to_milliseconds(py_datetime) // 1000
         nanosecs = data.microsecond * 1000 + data.nanosecond
         self._crc_c.c_update_long(l_val)
         self._write_raw_long(l_val)
         self._crc_c.c_update_int(nanosecs)
         self._write_raw_int(nanosecs)
+
+    cdef _write_timestamp(self, object data):
+        return self._write_timestamp_base(data, False)
+
+    cdef _write_timestamp_ntz(self, object data):
+        return self._write_timestamp_base(data, True)
 
     cdef _write_interval_day_time(self, object data):
         cdef:
@@ -309,8 +322,10 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
             self._write_long(l_val)
         elif data_type_id == DATE_TYPE_ID:
             self._write_long(self._to_days(val))
-        elif data_type_id == TIMESTAMP_TYPE_ID or data_type_id == TIMESTAMP_NTZ_TYPE_ID:
+        elif data_type_id == TIMESTAMP_TYPE_ID:
             self._write_timestamp(val)
+        elif data_type_id == TIMESTAMP_NTZ_TYPE_ID:
+            self._write_timestamp_ntz(val)
         elif data_type_id == INTERVAL_DAY_TIME_TYPE_ID:
             self._write_interval_day_time(val)
         elif data_type_id == INTERVAL_YEAR_MONTH_TYPE_ID:
@@ -341,12 +356,20 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
                 self._write_field(value, data_type_id, data_type)
 
     cdef _write_struct(self, object data, object data_type):
-        for key, value in six.iteritems(data):
+        cdef tuple tp_val
+        if isinstance(data, dict):
+            vals = [None] * len(data)
+            for idx, key in enumerate(data_type.field_types.keys()):
+                vals[idx] = data[key]
+            tp_val = tuple(vals)
+        else:
+            tp_val = <tuple>data
+
+        for value, field_type in zip(tp_val, data_type.field_types.values()):
             if value is None:
                 self._write_raw_bool(True)
             else:
                 self._write_raw_bool(False)
-                field_type = data_type.field_types[key]
                 self._write_field(value, field_type._type_id, field_type)
 
     @property

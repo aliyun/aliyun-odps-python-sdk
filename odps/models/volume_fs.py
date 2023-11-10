@@ -126,12 +126,13 @@ class FSVolumeObject(LazyLoad):
             return
 
         schema_name = self.parent._get_schema_name()
-        params = {'meta': ''}
+        params = {}
         if schema_name is not None:
             params["curr_schema"] = schema_name
 
         resp = self._client.get(
             self.parent.resource(),
+            action='meta',
             params=params,
             headers={'x-odps-volume-fs-path': self.path},
         )
@@ -192,12 +193,16 @@ class FSVolumeObject(LazyLoad):
         }
 
         schema_name = self.parent._get_schema_name()
-        params = {'meta': ''}
+        params = {}
         if schema_name is not None:
             params["curr_schema"] = schema_name
 
         self._client.put(
-            self.parent.resource(), params=params, headers=headers, data=update_def.serialize()
+            self.parent.resource(),
+            action='meta',
+            params=params,
+            headers=headers,
+            data=update_def.serialize(),
         )
 
         self._del_cache(self.path)
@@ -353,12 +358,16 @@ class FSVolumeFile(FSVolumeObject):
         }
 
         schema_name = self.parent._get_schema_name()
-        params = {'meta': ''}
+        params = {}
         if schema_name is not None:
             params["curr_schema"] = schema_name
 
         self._client.put(
-            self.parent.resource(), params=params, headers=headers, data=update_def.serialize()
+            self.parent.resource(),
+            action='meta',
+            params=params,
+            headers=headers,
+            data=update_def.serialize(),
         )
         self.reload()
 

@@ -19,6 +19,7 @@ from datetime import datetime
 
 from .. import serializers, types, utils
 from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
+from .storage_tier import StorageTierInfo
 
 
 class Partition(LazyLoad):
@@ -145,6 +146,10 @@ class Partition(LazyLoad):
     def project(self):
         return self.table.project
 
+    @property
+    def storage_tier_info(self):
+        return StorageTierInfo.deserial(self.reserved)
+
     def reload(self):
         url = self.resource()
         params = {'partition': str(self.partition_spec)}
@@ -156,8 +161,10 @@ class Partition(LazyLoad):
 
     def reload_extend_info(self):
         url = self.resource()
-        params = {'extended': '', 'partition': str(self.partition_spec)}
-        resp = self._client.get(url, params=params, curr_schema=self._get_schema_name())
+        params = {'partition': str(self.partition_spec)}
+        resp = self._client.get(
+            url, action='extended', params=params, curr_schema=self._get_schema_name()
+        )
 
         self.parse(self._client, resp, obj=self)
         self._is_extend_info_loaded = True
@@ -226,3 +233,10 @@ class Partition(LazyLoad):
     @utils.with_wait_argument
     def truncate(self, async_=False):
         return self.table.truncate(self.partition_spec, async_=async_)
+
+    @utils.with_wait_argument
+    def set_storage_tier(self, storage_tier, async_=False):
+        self._is_extend_info_loaded = False
+        return self.table.set_storage_tier(
+            storage_tier, partition_spec=self.partition_spec, async_=async_
+        )

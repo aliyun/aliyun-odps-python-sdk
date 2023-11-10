@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import deque
+from collections import deque, OrderedDict
 import itertools
 
 from ..expr.dynamic import DynamicMixin
@@ -24,7 +24,7 @@ from ..expr.arithmetic import Or, And, Equal
 from ..expr.errors import ExpressionError
 from ..utils import is_source_partition
 from ...errors import ODPSError
-from ... import compat
+from ... import compat, options
 
 
 def refresh_dynamic(executed, dag, func=None):
@@ -180,8 +180,27 @@ def _reorder_pd(frame, table, cast=False):
     return pd.DataFrame(data_dict, columns=[c.name for c in table.table_schema.columns])
 
 
-def _write_table_no_partitions(frame, table, ui, cast=False, overwrite=True, partition=None,
-                               progress_proportion=1):
+def _get_cached_writer(writer_cache, table, partition=None):
+    writer_key = (table.name, partition)
+    if writer_key not in writer_cache:
+        if len(writer_cache) >= options.df.writer_count_limit:
+            writer = writer_cache.popitem(last=False)
+            writer.close()
+
+        writer = writer_cache[writer_key] = table.open_writer(
+            partition=partition
+        )
+    else:
+        # manually put to end
+        writer = writer_cache.pop(writer_key)
+        writer_cache[writer_key] = writer
+    return writer
+
+
+def _write_table_no_partitions(
+    frame, table, ui, writer_cache, created_partitions, cast=False, overwrite=True,
+    partition=None, progress_proportion=1,
+):
     def gen():
         df = _reorder_pd(frame, table, cast=cast)
         size = len(df)
@@ -198,26 +217,31 @@ def _write_table_no_partitions(frame, table, ui, cast=False, overwrite=True, par
         if last_percent < progress_proportion:
             ui.inc(progress_proportion - last_percent)
 
-    if overwrite:
-        if partition is None:
-            table.truncate()
-        else:
-            table.delete_partition(partition, if_exists=True)
-            table.create_partition(partition)
+    if partition not in created_partitions:
+        created_partitions.add(partition)
+        if overwrite:
+            if partition is None:
+                table.truncate()
+            else:
+                table.delete_partition(partition, if_exists=True)
+                table.create_partition(partition)
 
-    with table.open_writer(partition=partition) as writer:
-        writer.write(gen())
+    _get_cached_writer(writer_cache, table, partition).write(gen())
 
 
-def _write_table_with_partitions(frame, table, partitions, ui, cast=False, overwrite=True,
-                                 progress_proportion=1):
+def _write_table_with_partitions(
+    frame, table, partitions, ui, writer_cache, created_partitions, cast=False,
+    overwrite=True, progress_proportion=1,
+):
     df = _reorder_pd(frame, table, cast=cast)
     vals_to_partitions = dict()
     for ps in df[partitions].drop_duplicates().values:
         p = ','.join('='.join([str(n), str(v)]) for n, v in zip(partitions, ps))
-        if overwrite:
-            table.delete_partition(p, if_exists=True)
-        table.create_partition(p, if_not_exists=True)
+        if p not in created_partitions:
+            if overwrite:
+                table.delete_partition(p, if_exists=True)
+            table.create_partition(p, if_not_exists=True)
+            created_partitions.add(p)
         vals_to_partitions[tuple(ps)] = p
 
     size = len(df)
@@ -237,22 +261,36 @@ def _write_table_with_partitions(frame, table, partitions, ui, cast=False, overw
 
                 yield table.new_record(_convert_pd_type(row, table))
 
-        with table.open_writer(partition=vals_to_partitions[name]) as writer:
-            writer.write(gen())
+        _get_cached_writer(writer_cache, table, vals_to_partitions[name]).write(gen())
 
     if last_percent[0] < progress_proportion:
         ui.inc(progress_proportion - last_percent[0])
 
 
-def write_table(frame, table, ui, cast=False, overwrite=True, partitions=None, partition=None,
-                progress_proportion=1):
+def write_table(frame, table, ui, cast=False, overwrite=True, partitions=None,
+                partition=None, progress_proportion=1):
+    from ..backends.frame import ResultFrame
+
     ui.status('Try to upload to ODPS with tunnel...')
-    if partitions is None:
-        _write_table_no_partitions(frame, table, ui, cast=cast, overwrite=overwrite, partition=partition,
-                                   progress_proportion=progress_proportion)
-    else:
-        _write_table_with_partitions(frame, table, partitions, ui, cast=cast, overwrite=overwrite,
-                                     progress_proportion=progress_proportion)
+    writers_cache = OrderedDict()
+    created_partitions = set()
+    for start in range(0, len(frame), options.tunnel.write_row_batch_size):
+        subframe = frame[start: start + options.tunnel.write_row_batch_size]
+        if not isinstance(subframe, ResultFrame):
+            subframe = ResultFrame(subframe, schema=frame.schema)
+        batch_proportion = 1.0 * progress_proportion * len(subframe) / len(frame)
+        if partitions is None:
+            _write_table_no_partitions(
+                subframe, table, ui, writers_cache, created_partitions, cast=cast,
+                overwrite=overwrite, partition=partition, progress_proportion=batch_proportion,
+            )
+        else:
+            _write_table_with_partitions(
+                subframe, table, partitions, ui, writers_cache, created_partitions,
+                cast=cast, overwrite=overwrite, progress_proportion=batch_proportion,
+            )
+    for writer in writers_cache.values():
+        writer.close()
 
 
 def process_persist_kwargs(kw):

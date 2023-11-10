@@ -28,6 +28,7 @@ from mars.serialize import (
     DictField,
     BoolField,
     ListField,
+    ValueType,
 )
 from mars.dataframe import ArrowStringDtype
 from mars.dataframe.operands import DataFrameOperandMixin, DataFrameOperand
@@ -89,6 +90,8 @@ class DataFrameReadTable(_Base):
     _append_partitions = BoolField("append_partitions")
     _last_modified_time = Int64Field("last_modified_time")
     _with_split_meta_on_tile = BoolField("with_split_meta_on_tile")
+    _index_columns = ListField("index_columns", ValueType.string)
+    _index_dtypes = SeriesField("index_dtypes")
 
     def __init__(
         self,
@@ -106,6 +109,8 @@ class DataFrameReadTable(_Base):
         append_partitions=None,
         last_modified_time=None,
         with_split_meta_on_tile=False,
+        index_columns=None,
+        index_dtypes=None,
         **kw
     ):
         kw.update(_output_type_kw)
@@ -124,6 +129,8 @@ class DataFrameReadTable(_Base):
             _last_modified_time=last_modified_time,
             _memory_scale=memory_scale,
             _with_split_meta_on_tile=with_split_meta_on_tile,
+            _index_columns=index_columns,
+            _index_dtypes=index_dtypes,
             **kw
         )
 
@@ -175,6 +182,14 @@ class DataFrameReadTable(_Base):
     def with_split_meta_on_tile(self):
         return self._with_split_meta_on_tile
 
+    @property
+    def index_columns(self):
+        return self._index_columns
+
+    @property
+    def index_dtypes(self):
+        return self._index_dtypes
+
     def get_columns(self):
         return self._columns
 
@@ -185,10 +200,19 @@ class DataFrameReadTable(_Base):
         import numpy as np
         import pandas as pd
 
-        if np.isnan(shape[0]):
-            index_value = parse_index(pd.RangeIndex(0))
+        if not self.index_columns:
+            if np.isnan(shape[0]):
+                index_value = parse_index(pd.RangeIndex(0))
+            else:
+                index_value = parse_index(pd.RangeIndex(shape[0]))
+        elif len(self.index_columns) == 1:
+            index_value = parse_index(pd.Index([]).astype(self.index_dtypes[0]))
         else:
-            index_value = parse_index(pd.RangeIndex(shape[0]))
+            idx = pd.MultiIndex.from_frame(
+                pd.DataFrame([], columns=self.index_columns).astype(self.index_dtypes)
+            )
+            index_value = parse_index(idx)
+
         columns_value = parse_index(self.dtypes.index, store_data=True)
         return self.new_dataframe(
             None,
@@ -364,6 +388,7 @@ class DataFrameReadTable(_Base):
                         meta_raw_size=split.meta_raw_size,
                         nrows=meta_chunk_rows[idx] or op.nrows,
                         memory_scale=op.memory_scale,
+                        index_columns=op.index_columns,
                     )
                     # the chunk shape is unknown
                     index_value = parse_index(pd.RangeIndex(0))
@@ -477,6 +502,7 @@ class DataFrameReadTable(_Base):
                     estimate_rows=row_size,
                     append_partitions=op.append_partitions,
                     memory_scale=op.memory_scale,
+                    index_columns=op.index_columns,
                 )
                 index_value = parse_index(pd.RangeIndex(start_index, end_index))
                 columns_value = parse_index(out_dtypes.index, store_data=True)
@@ -548,6 +574,7 @@ class DataFrameReadTableSplit(_Base):
     _append_partitions = BoolField("append_partitions")
     _estimate_rows = Int64Field("estimate_rows")
     _meta_raw_size = Int64Field("meta_raw_size")
+    _index_columns = ListField("index_columns", ValueType.string)
 
     def __init__(
         self,
@@ -573,6 +600,7 @@ class DataFrameReadTableSplit(_Base):
         meta_raw_size=None,
         append_partitions=None,
         sparse=None,
+        index_columns=None,
         **kw
     ):
         kw.update(_output_type_kw)
@@ -599,6 +627,7 @@ class DataFrameReadTableSplit(_Base):
             _sparse=sparse,
             _meta_raw_size=meta_raw_size,
             _memory_scale=memory_scale,
+            _index_columns=index_columns,
             **kw
         )
 
@@ -689,6 +718,10 @@ class DataFrameReadTableSplit(_Base):
     @property
     def meta_raw_size(self):
         return self._meta_raw_size
+
+    @property
+    def index_columns(self):
+        return self._index_columns
 
     @classmethod
     def estimate_size(cls, ctx, op):
@@ -816,6 +849,8 @@ class DataFrameReadTableSplit(_Base):
         data = arrow_table_to_pandas_dataframe(
             arrow_table, use_arrow_dtype=op.use_arrow_dtype
         )
+        if op.index_columns:
+            data = data.set_index(op.index_columns)
         if op.nrows is not None:
             data = data[: op.nrows]
 
@@ -868,8 +903,11 @@ class DataFrameReadTableSplit(_Base):
         else:
             count = op.nrows
 
+        columns = op.columns
+        if columns is not None:
+            columns = (op.index_columns or []) + op.columns
         with download_session.open_arrow_reader(
-            op.start_index, count, columns=op.columns
+            op.start_index, count, columns=columns
         ) as reader:
             table = reader.read()
 
@@ -879,6 +917,8 @@ class DataFrameReadTableSplit(_Base):
         data = arrow_table_to_pandas_dataframe(
             table, use_arrow_dtype=op.use_arrow_dtype
         )
+        if op.index_columns:
+            data = data.set_index(op.index_columns)
 
         data = cls._align_columns(data, op.outputs[0].dtypes)
 
@@ -933,6 +973,7 @@ def read_odps_table(
     memory_scale=None,
     append_partitions=False,
     with_split_meta_on_tile=False,
+    index_columns=None,
 ):
     import pandas as pd
 
@@ -952,7 +993,25 @@ def read_odps_table(
         for type in table_types
     ]
 
+    if isinstance(index_columns, str):
+        index_columns = [index_columns]
+    if index_columns and columns is None:
+        index_col_set = set(index_columns)
+        columns = [c for c in table_columns if c not in index_col_set]
+
+    if not index_columns:
+        index_dtypes = None
+    else:
+        table_index_types = [
+            df_types[table_columns.index(col)] for col in index_columns
+        ]
+        index_dtypes = pd.Series(table_index_types, index=index_columns)
+
     if columns is not None:
+        table_col_set = set(columns)
+        if any(col in table_col_set for col in index_columns):
+            raise ValueError("Index columns and columns shall not overlap.")
+
         # reorder columns
         new_columns = [c for c in table_columns if c in columns]
         df_types = [df_types[table_columns.index(col)] for col in new_columns]
@@ -975,6 +1034,8 @@ def read_odps_table(
         append_partitions=append_partitions,
         last_modified_time=to_timestamp(table.last_data_modified_time),
         with_split_meta_on_tile=with_split_meta_on_tile,
+        index_columns=index_columns,
+        index_dtypes=index_dtypes,
     )
     return op(shape, chunk_bytes=chunk_bytes, chunk_size=chunk_size)
 

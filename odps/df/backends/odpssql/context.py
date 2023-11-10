@@ -21,7 +21,7 @@ import uuid
 import time
 from collections import OrderedDict
 
-from .... import tempobj
+from .... import options, tempobj
 from ....compat import BytesIO, six
 from ....utils import TEMP_TABLE_PREFIX
 from ....errors import ODPSError
@@ -164,11 +164,12 @@ class ODPSContext(object):
             res = self._odps.create_resource(
                 res_name, 'archive', fileobj=tarbinary.getvalue(), schema=self._default_schema, temp=True
             )
-            tempobj.register_temp_resource(
-                self._odps, res_name, schema=self._default_schema
-            )
+            if options.df.delete_udfs:
+                tempobj.register_temp_resource(
+                    self._odps, res_name, schema=self._default_schema
+                )
+                self._to_drops.append(res)
             self._path_to_resources[lib] = res
-            self._to_drops.append(res)
             ret_libs.append(res)
         return ret_libs
 
@@ -180,10 +181,11 @@ class ODPSContext(object):
             py_resource = self._odps.create_resource(
                 udf_name + '.py', 'py', file_obj=udf, schema=self._default_schema, temp=True
             )
-            tempobj.register_temp_resource(
-                self._odps, udf_name + '.py', schema=self._default_schema
-            )
-            self._to_drops.append(py_resource)
+            if options.df.delete_udfs:
+                tempobj.register_temp_resource(
+                    self._odps, udf_name + '.py', schema=self._default_schema
+                )
+                self._to_drops.append(py_resource)
 
             resources = [py_resource, ]
             if func in self._func_to_resources:
@@ -194,9 +196,10 @@ class ODPSContext(object):
                         res = self._odps.create_resource(
                             name, 'table', table_name=table_name, schema=self._default_schema, temp=True
                         )
-                        tempobj.register_temp_resource(self._odps, name, schema=self._default_schema)
+                        if options.df.delete_udfs:
+                            tempobj.register_temp_resource(self._odps, name, schema=self._default_schema)
+                            self._to_drops.append(res)
                         resources.append(res)
-                        self._to_drops.append(res)
             if libraries is not None:
                 resources.extend(libraries)
 
@@ -204,10 +207,11 @@ class ODPSContext(object):
             function = self._odps.create_function(
                 udf_name, class_type=function_name, resources=resources, schema=self._default_schema
             )
-            tempobj.register_temp_function(self._odps, udf_name, schema=self._default_schema)
+            if options.df.delete_udfs:
+                tempobj.register_temp_function(self._odps, udf_name, schema=self._default_schema)
+                self._to_drops.append(function)
 
             self._func_to_functions[func] = function
-            self._to_drops.append(function)
 
     def add_need_alias_column(self, column):
         if id(column) in self._need_alias_column_indexes:

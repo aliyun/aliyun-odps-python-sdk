@@ -164,15 +164,13 @@ class XFlows(Iterable):
 
     def get_xflow_results(self, instance):
         url = instance.resource()
-        params = {'xresult': ''}
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, action='xresult')
 
         xflow_result = XFlows.XFlowResult.parse(self._client, resp)
         return {action.name: action for action in xflow_result.actions}
 
     def get_xflow_source(self, instance):
-        params = {'xsource': ''}
-        return self._client.get(instance.resource(), params=params).content
+        return self._client.get(instance.resource(), action='xsource').content
 
     def get_xflow_instance(self, instance):
         content = self.get_xflow_source(instance)

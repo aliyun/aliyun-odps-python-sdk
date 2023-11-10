@@ -13,7 +13,13 @@ Schema
 
 Schema 基本操作
 ----------------
-你可以使用 ``create_schema`` 创建一个 Schema 对象：
+你可以使用 ``exist_schema`` 判断 Schema 对象是否存在：
+
+.. code-block:: python
+
+    print(o.exist_schema("test_schema"))
+
+使用 ``create_schema`` 创建一个 Schema 对象：
 
 .. code-block:: python
 
@@ -26,12 +32,19 @@ Schema 基本操作
 
     schema = o.delete_schema("test_schema")
 
-使用 ``list_schema`` 列举所有 Schema 对象：
+使用 ``get_schema`` 获得一个 Schema 对象并打印 Schema Owner：
+
+.. code-block:: python
+
+    schema = o.get_schema("test_schema")
+    print(schema.owner)
+
+使用 ``list_schema`` 列举所有 Schema 对象并打印名称：
 
 .. code-block:: python
 
     for schema in o.list_schema():
-        print(schema)
+        print(schema.name)
 
 操作 Schema 中的对象
 -------------------
@@ -40,8 +53,18 @@ Schema 基本操作
 
 .. code-block:: python
 
-    o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-default-project**',
-             endpoint='**your-end-point**', schema='**your-schema-name**')
+    import os
+    from odps import ODPS
+    # 保证 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    o = ODPS(
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+        project='**your-project**',
+        endpoint='**your-endpoint**',
+        schema='**your-schema-name**',
+    )
 
 也可以为不同对象的操作方法指定 ``schema`` 参数。例如，下面的方法列举了 ``test_schema``
 下所有的表：

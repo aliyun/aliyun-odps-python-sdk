@@ -23,7 +23,6 @@ import warnings
 from cupid import CupidSession
 from mars.session import new_session
 
-from ....utils import write_log
 from ....models import Instance
 from ....config import options
 from ....lib import requests
@@ -33,7 +32,7 @@ from ...utils import get_default_resource_files, build_mars_image_name
 NOTEBOOK_NAME = "MarsNotebook"
 CUPID_APP_NAME = "MarsWeb"
 GS_COORDINATOR_NAME = "GSCoordinator"
-DEFAULT_RESOURCES = ["pymars-0.6.11", "pyodps-0.11.3", "pyarrow-4.0.0"]
+DEFAULT_RESOURCES = ["pymars-0.6.11", "pyodps-0.11.5", "pyarrow-4.0.0"]
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +189,7 @@ class MarsCupidClient(object):
                     task_name=task_name,
                     **kw
                 )
-                write_log(self._kube_instance.get_logview_address())
+                logger.info(self._kube_instance.get_logview_address())
             if async_:
                 return self
             else:
@@ -289,7 +288,7 @@ class MarsCupidClient(object):
                 try:
                     if self._endpoint is None:
                         self._endpoint = self.get_mars_endpoint()
-                        write_log("Mars UI: " + self._endpoint)
+                        logger.info("Mars UI: " + self._endpoint)
                         self._req_session = self.get_req_session()
 
                         self._post_pyodps_api(
@@ -298,7 +297,7 @@ class MarsCupidClient(object):
                         )
                     if self._with_notebook and self._notebook_endpoint is None:
                         self._notebook_endpoint = self.get_notebook_endpoint()
-                        write_log("Notebook UI: " + self._notebook_endpoint)
+                        logger.info("Notebook UI: " + self._notebook_endpoint)
 
                         self._post_pyodps_api(
                             action="write_log",
@@ -307,7 +306,7 @@ class MarsCupidClient(object):
                         )
                     if self._with_graphscope and self._graphscope_endpoint is None:
                         self._graphscope_endpoint = self.get_graphscope_endpoint()
-                        write_log("Graphscope endpoint: " + self._graphscope_endpoint)
+                        logger.info("Graphscope endpoint: " + self._graphscope_endpoint)
 
                         self._post_pyodps_api(
                             action="write_log",

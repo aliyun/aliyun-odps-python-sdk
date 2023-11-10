@@ -14,15 +14,33 @@ PyODPS 支持集成 SQLAlchemy，可以使用 SQLAlchemy 查询 MaxCompute 数�
 
 .. code-block:: python
 
-   from sqlalchemy import create_engine
-   engine = create_engine('odps://<access_id>:<access_key>@<project>')
+    import os
+    from sqlalchemy import create_engine
+
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    conn_string = 'odps://%s:%s@<project>' % (
+       os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+       os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+    )
+    engine = create_engine(conn_string)
 
 要在连接串中指定 ``endpoint``，可以按如下方式：
 
 .. code-block:: python
 
-   from sqlalchemy import create_engine
-   engine = create_engine('odps://<access_id>:<access_key>@<project>/?endpoint=<endpoint>')
+    import os
+    from sqlalchemy import create_engine
+
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    conn_string = 'odps://%s:%s@<project>/?endpoint=<endpoint>' % (
+       os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+       os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+    )
+    engine = create_engine(conn_string)
 
 这里把 ``<access_id>`` 等替换成相应的账号。
 
@@ -30,9 +48,9 @@ PyODPS 支持集成 SQLAlchemy，可以使用 SQLAlchemy 查询 MaxCompute 数�
 
 .. code-block:: python
 
-   from sqlalchemy import create_engine
-   o.to_global()  # set ODPS object as global one
-   engine = create_engine('odps://')
+    from sqlalchemy import create_engine
+    o.to_global()  # set ODPS object as global one
+    engine = create_engine('odps://')
 
 接着创建连接。
 
@@ -44,18 +62,35 @@ PyODPS 支持集成 SQLAlchemy，可以使用 SQLAlchemy 查询 MaxCompute 数�
 
 .. code-block:: python
 
+    import os
     from odps import options
     from sqlalchemy import create_engine
 
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    conn_string = 'odps://%s:%s@<project>/?endpoint=<endpoint>' % (
+       os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+       os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+    )
     options.sql.settings = {'odps.sql.hive.compatible': 'true'}
-    engine = create_engine('odps://<access_id>:<access_key>@<project>/?endpoint=<endpoint>')
+    engine = create_engine(conn_string)
 
 也可以直接配置在连接字符串中：
 
 .. code-block:: python
 
+    import os
     from sqlalchemy import create_engine
-    engine = create_engine('odps://<access_id>:<access_key>@<project>/?endpoint=<endpoint>&odps.sql.hive.compatible=true')
+
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    conn_string = 'odps://%s:%s@<project>/?endpoint=<endpoint>&odps.sql.hive.compatible=true' % (
+       os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+       os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+    )
+    engine = create_engine(conn_string)
 
 使用上述方式时，每个 engine 对象都会拥有不同的选项。
 

@@ -454,8 +454,9 @@ class OdpsAlgoEngine(Engine):
                     if drop_table:
                         self._odps.delete_table(expr_table, project=expr_project, if_exists=True)
                     if create_table:
+                        lifecycle = options.temp_lifecycle if is_temp_table(expr_table) else options.lifecycle
                         self._odps.create_table(expr_table, TableSchema(columns=columns, partitions=ps),
-                                                project=expr_project)
+                                                project=expr_project, lifecycle=lifecycle)
 
                     expr = t.to_df()
                     expr = self._reorder(expr, t, cast=cast, with_partitions=True)

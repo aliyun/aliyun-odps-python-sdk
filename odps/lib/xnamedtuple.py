@@ -49,6 +49,12 @@ class NamedTupleMixin(object):
 
         return self[self._name_map[item]]
 
+    def __eq__(self, other):
+        if isinstance(other, tuple):
+            return tuple(self) == other
+        else:
+            return self.asdict() == other
+
     def _NamedTupleMixin_get(self, item, default=None):
         try:
             return self[item]

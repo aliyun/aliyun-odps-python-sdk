@@ -19,12 +19,13 @@ import copy
 import glob
 import hashlib
 import json
+import logging
 import os
 import platform
+import stat
 import subprocess
 import sys
 import tempfile
-import stat
 import threading
 import time
 import uuid
@@ -60,7 +61,7 @@ if sys.version_info[0] < 3:
         import_paths = [p.encode('mbcs') for p in import_paths]
     else:
         import_paths = [p.encode() for p in import_paths]
-        
+
 normed_paths = set(os.path.normcase(os.path.normpath(p)) for p in sys.path)
 import_paths = [p for p in import_paths
                 if os.path.normcase(os.path.normpath(p)) not in normed_paths]
@@ -301,7 +302,7 @@ class ObjectRepositoryLib(dict):
             access_id=odps.account.access_id, secret_access_key=odps.account.secret_access_key,
             project=odps.project, endpoint=odps.endpoint
         )
-        cls.odps_info_json = json.dumps([v for v in six.itervalues(cls.odps_info)])
+        cls.odps_info_json = json.dumps([utils.to_str(v) for v in six.itervalues(cls.odps_info)])
 
     def _exec_cleanup_script(self):
         global cleanup_mode

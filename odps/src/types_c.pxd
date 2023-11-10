@@ -16,7 +16,7 @@
 from libc.stdint cimport *
 from libcpp.vector cimport vector
 
-ctypedef object (*_VALIDATE_FUNC)(object val)
+ctypedef object (*_VALIDATE_FUNC)(object val, int64_t max_field_size)
 
 cdef class SchemaSnapshot:
     cdef list _columns
@@ -28,12 +28,13 @@ cdef class SchemaSnapshot:
     cdef vector[int] _col_nullable
     cdef vector[_VALIDATE_FUNC] _col_validators
 
-    cdef object validate_value(self, int i, object val)
+    cdef object validate_value(self, int i, object val, int64_t max_field_size)
 
 cdef class BaseRecord:
     cdef list _c_columns, _c_values
     cdef dict _c_name_indexes
     cdef SchemaSnapshot _c_schema_snapshot
+    cdef int64_t _max_field_size
 
     cpdef object get_by_name(self, object name)
     cpdef set_by_name(self, object name, object value)

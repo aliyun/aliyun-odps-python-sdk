@@ -52,13 +52,13 @@ class VolumePartitionMeta(XMLRemoteModel):
 
     def load(self):
         url = self._parent.resource()
-        params = {'meta': ''}
+        params = {}
 
         schema_name = self._parent._get_schema_name()
         if schema_name is not None:
             params["curr_schema"] = schema_name
 
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, action='meta', params=params)
         self.parse(self._client, resp, obj=self)
 
 
@@ -222,9 +222,11 @@ class VolumePartition(LazyLoad):
         >>>     [print(line) for line in reader]
         """
         tunnel = self._create_volume_tunnel(endpoint=endpoint, quota_name=quota_name)
-        download_id = self._download_id if not reopen else None
-        download_session = tunnel.create_download_session(volume=self.volume.name, partition_spec=self.name,
-                                                          file_name=file_name, download_id=download_id, **kwargs)
+        download_id = self._download_id if reopen else None
+        download_session = tunnel.create_download_session(
+            volume=self.volume.name, partition_spec=self.name,
+            file_name=file_name, download_id=download_id, **kwargs
+        )
         self._download_id = download_session.id
 
         open_args = {}
@@ -250,9 +252,12 @@ class VolumePartition(LazyLoad):
         >>>     writer.write('file2', 'some content')
         """
         tunnel = self._create_volume_tunnel(endpoint=endpoint, quota_name=quota_name)
-        upload_id = self._upload_id if not reopen else None
-        upload_session = tunnel.create_upload_session(volume=self.volume.name, partition_spec=self.name,
-                                                      upload_id=upload_id, **kwargs)
+        upload_id = self._upload_id if reopen else None
+        upload_session = tunnel.create_upload_session(
+            volume=self.volume.name, partition_spec=self.name,
+            upload_id=upload_id, **kwargs
+        )
+        self._upload_id = upload_session.id
         file_dict = dict()
 
         class FilesWriter(object):
@@ -298,7 +303,9 @@ class PartedVolume(Volume):
         _root = 'Volume'
 
         marker = serializers.XMLNodeField('Marker')
-        partitions = serializers.XMLNodesReferencesField(VolumePartition, 'Partitions', 'Partition')
+        partitions = serializers.XMLNodesReferencesField(
+            VolumePartition, 'Partitions', 'Partition'
+        )
         max_items = serializers.XMLNodeField('MaxItems', parse_callback=int)
 
         def _get(self, item):

@@ -66,10 +66,10 @@ class BaseTunnel(object):
             return _endpoint_cache[ep_cache_key]
 
         url = '/'.join([project.resource().rstrip('/'), 'tunnel'])
-        params = {'service': ''}
+        params = {}
         if self._quota_name:
             params["quotaName"] = self._quota_name
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, action='service', params=params)
 
         if self._client.is_ok(resp):
             addr = resp.text

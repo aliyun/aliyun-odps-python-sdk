@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import sys
 import struct
 
@@ -26,6 +27,8 @@ from ..lib.requests.exceptions import StreamConsumedError
 from ..models import errors
 from ..compat import irange, Enum, six
 from ..utils import to_binary, to_text
+
+logger = logging.getLogger(__name__)
 
 MAX_CHUNK_SIZE = 256 * 1024 * 1024
 MIN_CHUNK_SIZE = 1
@@ -182,6 +185,8 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
         else:
             self.id = download_id
             self.reload()
+
+        logger.info("Tunnel session created: %r", self)
         if options.tunnel_session_create_callback:
             options.tunnel_session_create_callback(self)
 
@@ -215,8 +220,8 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
         headers = {'Content-Length': '0'}
         params = {}
 
-        if self._partition_spec is not None and len(self._partition_spec) > 0:
-            params['partition'] = self._partition_spec
+        if self.partition_spec is not None and len(self.partition_spec) > 0:
+            params['partition'] = self.partition_spec
 
         url = self.resource() + '/' + str(self.id)
         resp = self._client.get(url, params=params, headers=headers)
@@ -474,6 +479,8 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
             self.id = upload_id
             self.reload()
         self._compress_option = compress_option
+
+        logger.info("Tunnel session created: %r", self)
         if options.tunnel_session_create_callback:
             options.tunnel_session_create_callback(self)
 

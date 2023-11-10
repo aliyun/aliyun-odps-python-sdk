@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+import sys
+
 from .base import BaseTunnel, TUNNEL_VERSION
 from .io.reader import TunnelRecordReader, TunnelArrowReader
 from .io.stream import CompressOption, get_decompress_stream
@@ -21,12 +24,15 @@ from .errors import TunnelError
 from .. import serializers, types
 from ..compat import Enum, six
 from ..config import options
+from ..lib import requests
 from ..models import Projects, TableSchema
 
 try:
     import numpy as np
 except ImportError:
     np = None
+
+logger = logging.getLogger(__name__)
 
 
 class InstanceDownloadSession(serializers.JSONSerializableModel):
@@ -73,6 +79,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             self.id = download_id
             self.reload()
         self._compress_option = compress_option
+
+        logger.info("Tunnel session created: %r", self)
         if options.tunnel_session_create_callback:
             options.tunnel_session_create_callback(self)
 
@@ -84,7 +92,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         )
 
     def _init(self):
-        params = {'downloads': ''}
+        params = {}
         headers = {
             'Content-Length': 0,
             'x-odps-tunnel-version': TUNNEL_VERSION,
@@ -99,7 +107,12 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             if self._limit_enabled:
                 params['instance_tunnel_limit_enabled'] = ''
             url = self._instance.resource()
-            resp = self._client.post(url, {}, params=params, headers=headers)
+            try:
+                resp = self._client.post(url, {}, action='downloads', params=params, headers=headers)
+            except requests.exceptions.ReadTimeout:
+                if callable(options.tunnel_session_create_timeout_callback):
+                    options.tunnel_session_create_timeout_callback(*sys.exc_info())
+                raise
             if self._client.is_ok(resp):
                 self.parse(resp, obj=self)
                 if self.schema is not None:

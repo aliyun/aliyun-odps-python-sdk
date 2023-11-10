@@ -18,6 +18,7 @@ import os
 import re
 import time
 import uuid
+import warnings
 from collections import namedtuple
 from datetime import timedelta, datetime
 from decimal import Decimal
@@ -2584,6 +2585,12 @@ def test_persist(odps, setup):
             res = odps_engine.execute(df)
             result = get_result(res)
             assert len(result) == 5
+
+            df = setup.engine.persist(setup.expr, table_name, partition={'ds': 'today'}, overwrite=True)
+
+            res = odps_engine.execute(df)
+            result = get_result(res)
+            assert len(result) == 5
         finally:
             odps.delete_table(table_name, if_exists=True)
 
@@ -2599,8 +2606,10 @@ def test_persist(odps, setup):
             assert len(result) == 5
             assert data == [d[:-1] for d in result]
 
-            df2 = setup.engine.persist(setup.expr[setup.expr.id.astype('float'), 'name'], table_name,
-                                      partition='ds=today2', create_partition=True, cast=True)
+            df2 = setup.engine.persist(
+                setup.expr[setup.expr.id.astype('float'), 'name'], table_name,
+                partition='ds=today2', create_partition=True, cast=True
+            )
 
             res = odps_engine.execute(df2)
             result = get_result(res)
@@ -2624,18 +2633,21 @@ def test_persist(odps, setup):
             odps.delete_table(table_name, if_exists=True)
 
     def persist_with_dyna_part_test(table_name):
-        odps.delete_table(table_name, if_exists=True)
-        try:
-            setup.engine.persist(setup.expr, table_name, partitions=['name'])
-
-            t = odps.get_table(table_name)
-            assert 2 == len(list(t.partitions))
-            with t.open_reader(partition='name=name1', reopen=True) as r:
-                assert 4 == r.count
-            with t.open_reader(partition='name=name2', reopen=True) as r:
-                assert 1 == r.count
-        finally:
+        for overwrite in [False, True]:
             odps.delete_table(table_name, if_exists=True)
+            try:
+                setup.engine.persist(
+                    setup.expr, table_name, partitions=['name'], overwrite=overwrite
+                )
+
+                t = odps.get_table(table_name)
+                assert 2 == len(list(t.partitions))
+                with t.open_reader(partition='name=name1', reopen=True) as r:
+                    assert 4 == r.count
+                with t.open_reader(partition='name=name2', reopen=True) as r:
+                    assert 1 == r.count
+            finally:
+                odps.delete_table(table_name, if_exists=True)
 
     sub_tests = [
         simple_persist_test,
@@ -2646,13 +2658,17 @@ def test_persist(odps, setup):
         persist_with_dyna_part_test,
     ]
     base_table_name = tn('pyodps_test_pd_engine_persist_table')
-    run_sub_tests_in_parallel(
-        10,
-        [
-            functools.partial(sub_test, base_table_name + "_%d" % idx)
-            for idx, sub_test in enumerate(sub_tests)
-        ]
-    )
+    try:
+        options.tunnel.write_row_batch_size = 1
+        run_sub_tests_in_parallel(
+            10,
+            [
+                functools.partial(sub_test, base_table_name + "_%d" % idx)
+                for idx, sub_test in enumerate(sub_tests)
+            ]
+        )
+    finally:
+        options.tunnel.write_row_batch_size = 1024
 
 
 def test_append_id(odps, setup):
@@ -3255,4 +3271,23 @@ def test_df_reference_warnings(setup):
     expr = expr_in[expr_in.name.map(df_ref_func), expr_in.id]
     with pytest.warns(RuntimeWarning) as warn_info:
         setup.engine.execute(expr)
-    assert "df_ref_func" in str(warn_info[0].message)
+    assert any(info for info in warn_info if "df_ref_func" in str(info.message))
+
+    class NestedCls(object):
+        def nested_fun(self, x):
+            return x + ".abcd"
+
+    def df_nested_fun(x):
+        return NestedCls().nested_fun(x)
+
+    # make sure the class is in anotheer module
+    NestedCls.__module__ = "odps.df"
+
+    expr = expr_in[expr_in.name.map(df_nested_fun), expr_in.id]
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        setup.engine.execute(expr)
+    assert 0 == len([
+        info for info in record
+        if issubclass(info.category, RuntimeWarning) and "remotely" in str(info.message)
+    ])

@@ -71,6 +71,7 @@ class TunnelLimitedInstance(Instance):
     _exc = None
 
     def _open_tunnel_reader(self, **kw):
+        self.wait_for_success()
         cls = type(self)
         if cls._exc is not None:
             if not isinstance(cls._exc, errors.NoPermission) or not kw.get('limit'):
@@ -658,3 +659,28 @@ def test_sql_cost_instance(odps):
     assert sql_cost.udf_num == 0
     assert sql_cost.complexity == 1.0
     assert sql_cost.input_size >= 100
+
+
+def test_instance_progress_log(odps):
+    test_table = tn('pyodps_t_tmp_sql_cost_instance')
+    odps.delete_table(test_table, if_exists=True)
+    table = odps.create_table(
+        test_table, TableSchema.from_lists(['size'], ['bigint']), if_not_exists=True
+    )
+    odps.write_table(table, [[1], [2], [3]])
+
+    logs = []
+
+    try:
+        options.verbose = True
+        options.verbose_log = logs.append
+        options.progress_time_interval = 0.1
+
+        inst = odps.run_sql('select * from %s where size > 0' % test_table)
+        inst.wait_for_success(interval=0.1)
+        assert any("instance" in log.lower() for log in logs)
+        assert any("_job_" in log.lower() for log in logs)
+    finally:
+        options.verbose = False
+        options.verbose_log = None
+        options.progress_time_interval = 5 * 60

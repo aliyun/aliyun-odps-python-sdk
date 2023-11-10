@@ -26,15 +26,15 @@ cdef class CDecoder:
     cdef bint _is_source_eof
 
     cdef size_t position(self) nogil
-    cdef int32_t read_field_number(self) nogil except? -1
+    cdef int32_t read_field_number(self) except? -1 nogil
     cdef read_field_number_and_wire_type(self)
-    cdef int32_t read_sint32(self) nogil except? -1
-    cdef uint32_t read_uint32(self) nogil except? 0xffffffff
-    cdef int64_t read_sint64(self) nogil except? -1
-    cdef uint64_t read_uint64(self) nogil except? 0xffffffff
-    cdef bint read_bool(self) nogil except? False
-    cdef double read_double(self) nogil except? -1.0
-    cdef float read_float(self) nogil except? -1.0
+    cdef int32_t read_sint32(self) except? -1 nogil
+    cdef uint32_t read_uint32(self) except? 0xffffffff nogil
+    cdef int64_t read_sint64(self) except? -1 nogil
+    cdef uint64_t read_uint64(self) except? 0xffffffff nogil
+    cdef bint read_bool(self) except? False nogil
+    cdef double read_double(self) except? -1.0 nogil
+    cdef float read_float(self) except? -1.0 nogil
     cdef bytes read_string(self)
     cdef int _load_next_buffer(self) except -1 with gil
 

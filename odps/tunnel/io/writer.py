@@ -31,17 +31,6 @@ try:
 except ImportError:
     pd = None
 
-from ...config import options
-
-try:
-    if not options.force_py:
-        from .writer_c import BaseRecordWriter
-    else:
-        BaseRecordWriter = None
-except ImportError as e:
-    if options.force_c:
-        raise e
-    BaseRecordWriter = None
 from ..pb.encoder import Encoder
 from ..pb.wire_format import (
     WIRETYPE_VARINT,
@@ -49,12 +38,24 @@ from ..pb.wire_format import (
     WIRETYPE_FIXED64,
     WIRETYPE_LENGTH_DELIMITED,
 )
-from ... import types, compat, utils, options
-from ...compat import six
+from ... import compat, options, types, utils
+from ...compat import Enum, futures, six
 from ..checksum import Checksum
+from ..errors import TunnelError
 from ..wireconstants import ProtoWireConstants
 from .stream import get_compress_stream
 from .types import odps_schema_to_arrow_schema
+try:
+    if not options.force_py:
+        from ..hasher_c import RecordHasher
+        from .writer_c import BaseRecordWriter
+    else:
+        from ..hasher import RecordHasher
+        BaseRecordWriter = None
+except ImportError as e:
+    if options.force_c:
+        raise e
+    BaseRecordWriter = RecordHasher = None
 
 
 varint_tag_types = types.integer_types + (
@@ -171,6 +172,9 @@ if BaseRecordWriter is None:
             self._crccrc = Checksum()
             self._curr_cursor = 0
             self._to_milliseconds = utils.MillisecondsConverter().to_milliseconds
+            self._to_milliseconds_utc = utils.MillisecondsConverter(
+                local_tz=False
+            ).to_milliseconds
             self._to_days = utils.to_days
 
             super(BaseRecordWriter, self).__init__(out)
@@ -247,8 +251,9 @@ if BaseRecordWriter is None:
             self._crc.update(data)
             self._write_raw_string(data)
 
-        def _write_timestamp(self, data):
-            t_val = int(self._to_milliseconds(data.to_pydatetime(warn=False)) / 1000)
+        def _write_timestamp(self, data, ntz=False):
+            to_mills = self._to_milliseconds_utc if ntz else self._to_milliseconds
+            t_val = int(to_mills(data.to_pydatetime(warn=False)) / 1000)
             nano_val = data.microsecond * 1000 + data.nanosecond
             self._crc.update_long(t_val)
             self._write_raw_long(t_val)
@@ -272,12 +277,17 @@ if BaseRecordWriter is None:
                     self._write_field(value, data_type)
 
         def _write_struct(self, data, data_type):
-            for key, value in six.iteritems(data):
+            if isinstance(data, dict):
+                vals = [None] * len(data)
+                for idx, key in enumerate(data_type.field_types.keys()):
+                    vals[idx] = data[key]
+                data = tuple(vals)
+            for value, typ in zip(data, data_type.field_types.values()):
                 if value is None:
                     self._write_raw_bool(True)
                 else:
                     self._write_raw_bool(False)
-                    self._write_field(value, data_type.field_types[key])
+                    self._write_field(value, typ)
 
         def _write_field(self, val, data_type):
             if data_type == types.boolean:
@@ -299,7 +309,7 @@ if BaseRecordWriter is None:
             elif data_type == types.binary:
                 self._write_string(val)
             elif data_type == types.timestamp or data_type == types.timestamp_ntz:
-                self._write_timestamp(val)
+                self._write_timestamp(val, ntz=data_type == types.timestamp_ntz)
             elif data_type == types.interval_day_time:
                 self._write_interval_day_time(val)
             elif data_type == types.interval_year_month:
@@ -418,9 +428,10 @@ class BufferedRecordWriter(BaseRecordWriter):
     def _send_buffer(self):
         def gen():  # synchronize chunk upload
             data = self._buffer.getvalue()
+            chunk_size = options.chunk_size
             while data:
-                to_send = data[:options.chunk_size]
-                data = data[options.chunk_size:]
+                to_send = data[:chunk_size]
+                data = data[chunk_size:]
                 yield to_send
 
         return self._request_callback(self._block_id, gen())
@@ -492,17 +503,24 @@ class StreamRecordWriter(BufferedRecordWriter):
     def _send_buffer(self):
         def gen():  # synchronize chunk upload
             data = self._buffer.getvalue()
+            chunk_size = options.chunk_size
             while data:
-                to_send = data[:options.chunk_size]
-                data = data[options.chunk_size:]
+                to_send = data[:chunk_size]
+                data = data[chunk_size:]
                 yield to_send
 
         return self._request_callback(gen())
 
 
 class ArrowWriter(object):
-    def __init__(self, schema, request_callback, out=None, compress_option=None,
-                 chunk_size=None):
+    def __init__(
+        self,
+        schema,
+        request_callback,
+        out=None,
+        compress_option=None,
+        chunk_size=None,
+    ):
         if pa is None:
             raise ValueError("To use arrow writer you need to install pyarrow")
 
@@ -574,7 +592,7 @@ class ArrowWriter(object):
                 else:
                     try:
                         arrays.append(column_dict[name].cast(tp, safe=False))
-                    except pa.ArrowInvalid:
+                    except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
                         raise ValueError("Failed to cast column %s to type %s" % (name, tp))
             pa_type = type(arrow_data)
             arrow_data = pa_type.from_arrays(arrays, names=self._arrow_schema.names)
@@ -618,3 +636,156 @@ class ArrowWriter(object):
         if exc_val is not None:
             return
         self.close()
+
+
+class Upsert(object):
+    DEFAULT_MAX_BUFFER_SIZE = 64 * 1024 ** 2
+    DEFAULT_SLOT_BUFFER_SIZE = 1024 ** 2
+
+    class Operation(Enum):
+        UPSERT = "UPSERT"
+        DELETE = "DELETE"
+
+    class Status(Enum):
+        NORMAL = "NORMAL"
+        ERROR = "ERROR"
+        CLOSED = "CLOSED"
+
+    def __init__(
+        self,
+        schema,
+        request_callback,
+        session,
+        compress_option=None,
+        encoding="utf-8",
+        max_buffer_size=None,
+        slot_buffer_size=None,
+    ):
+        self._schema = schema
+        self._request_callback = request_callback
+        self._session = session
+        self._compress_option = compress_option
+
+        self._max_buffer_size = max_buffer_size or self.DEFAULT_MAX_BUFFER_SIZE
+        self._slot_buffer_size = slot_buffer_size or self.DEFAULT_SLOT_BUFFER_SIZE
+        self._total_n_bytes = 0
+
+        self._status = Upsert.Status.NORMAL
+
+        self._schema = session.schema
+        self._encoding = encoding
+        self._hash_keys = self._session.hash_keys
+        self._hasher = RecordHasher(schema, self._session.hasher, self._hash_keys)
+        self._buckets = self._session.buckets.copy()
+        self._bucket_buffers = {}
+        self._bucket_writers = {}
+
+        for slot in session.buckets.keys():
+            self._build_bucket_writer(slot)
+
+    @property
+    def status(self):
+        return self._status
+
+    @property
+    def n_bytes(self):
+        return self._total_n_bytes
+
+    def upsert(self, record):
+        return self._write(record, Upsert.Operation.UPSERT)
+
+    def delete(self, record):
+        return self._write(record, Upsert.Operation.DELETE)
+
+    def flush(self, flush_all=True):
+        if len(self._session.buckets) != len(self._bucket_writers):
+            raise TunnelError("session slot map is changed")
+        else:
+            self._buckets = self._session.buckets.copy()
+
+        bucket_written = dict()
+        bucket_to_count = dict()
+
+        def write_bucket(bucket_id):
+            slot = self._buckets[bucket_id]
+            sio = self._bucket_buffers[bucket_id]
+            rec_count = bucket_to_count[bucket_id]
+
+            self._request_callback(bucket_id, slot, rec_count, sio.getvalue())
+            self._build_bucket_writer(bucket_id)
+            bucket_written[bucket_id] = True
+
+        retry = 0
+        while True:
+            futs = []
+            pool = futures.ThreadPoolExecutor(len(self._bucket_writers))
+            try:
+                self._check_status()
+                for bucket, writer in self._bucket_writers.items():
+                    if writer.n_bytes == 0 or bucket_written.get(bucket):
+                        continue
+                    if not flush_all and writer.n_bytes <= self._slot_buffer_size:
+                        continue
+
+                    bucket_to_count[bucket] = writer.count
+                    writer.close()
+                    futs.append(pool.submit(write_bucket, bucket))
+                for fut in futs:
+                    fut.result()
+                break
+            except KeyboardInterrupt:
+                raise TunnelError("flush interrupted")
+            except:
+                retry += 1
+                if retry == 3:
+                    raise
+            finally:
+                pool.shutdown()
+
+    def close(self):
+        if self.status == Upsert.Status.NORMAL:
+            self.flush()
+            self._status = Upsert.Status.CLOSED
+
+    def _build_bucket_writer(self, slot):
+        self._bucket_buffers[slot] = compat.BytesIO()
+        self._bucket_writers[slot] = BaseRecordWriter(
+            self._schema,
+            get_compress_stream(self._bucket_buffers[slot], self._compress_option),
+            encoding=self._encoding,
+        )
+
+    def _check_status(self):
+        if self._status == Upsert.Status.CLOSED:
+            raise TunnelError("Stream is closed!")
+        elif self._status == Upsert.Status.ERROR:
+            raise TunnelError("Stream has error!")
+
+    def _write(self, record, op, valid_columns=None):
+        self._check_status()
+
+        bucket = self._hasher.hash(record) % len(self._bucket_writers)
+        if bucket not in self._bucket_writers:
+            raise TunnelError(
+                "Tunnel internal error! Do not have bucket for hash key " + bucket
+            )
+        record[self._session.UPSERT_OPERATION_KEY] = ord(
+            b"U" if op == Upsert.Operation.UPSERT else b"D"
+        )
+        if valid_columns is None:
+            record[self._session.UPSERT_VALUE_COLS_KEY] = []
+        else:
+            valid_cols_set = set(valid_columns)
+            col_idxes = [idx for idx, col in self._schema.columns if col in valid_cols_set]
+            record[self._session.UPSERT_VALUE_COLS_KEY] = col_idxes
+
+        writer = self._bucket_writers[bucket]
+        prev_written_size = writer.n_bytes
+        writer.write(record)
+        written_size = writer.n_bytes
+        self._total_n_bytes += written_size - prev_written_size
+
+        if writer.n_bytes > self._slot_buffer_size:
+            self.flush(False)
+        elif self._total_n_bytes > self._max_buffer_size:
+            self.flush(True)

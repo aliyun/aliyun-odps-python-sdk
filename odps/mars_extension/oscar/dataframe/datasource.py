@@ -26,10 +26,12 @@ from mars.utils import parse_readable_size, ceildiv
 from mars.serialization.serializables import (
     StringField,
     Int64Field,
+    ListField,
     SeriesField,
     DictField,
     BoolField,
     AnyField,
+    FieldTypes,
 )
 from mars.dataframe import ArrowStringDtype
 from mars.dataframe.core import DATAFRAME_CHUNK_TYPE
@@ -91,6 +93,8 @@ class DataFrameReadTable(*_BASE):
     with_split_meta_on_tile = BoolField("with_split_meta_on_tile", default=None)
     retry_times = Int64Field("retry_times", default=None)
     tunnel_quota_name = StringField("tunnel_quota_name", default=None)
+    index_columns = ListField("index_columns", FieldTypes.string, default=None)
+    index_dtypes = SeriesField("index_dtypes", default=None)
 
     def __init__(self, sparse=None, memory_scale=None, **kw):
         super(DataFrameReadTable, self).__init__(
@@ -125,10 +129,19 @@ class DataFrameReadTable(*_BASE):
         import numpy as np
         import pandas as pd
 
-        if np.isnan(shape[0]):
-            index_value = parse_index(pd.RangeIndex(0))
+        if not self.index_columns:
+            if np.isnan(shape[0]):
+                index_value = parse_index(pd.RangeIndex(0))
+            else:
+                index_value = parse_index(pd.RangeIndex(shape[0]))
+        elif len(self.index_columns) == 1:
+            index_value = parse_index(pd.Index([]).astype(self.index_dtypes[0]))
         else:
-            index_value = parse_index(pd.RangeIndex(shape[0]))
+            idx = pd.MultiIndex.from_frame(
+                pd.DataFrame([], columns=self.index_columns).astype(self.index_dtypes)
+            )
+            index_value = parse_index(idx)
+
         columns_value = parse_index(self.dtypes.index, store_data=True)
         return self.new_dataframe(
             None,
@@ -175,11 +188,14 @@ class DataFrameReadTable(*_BASE):
             chunk_idx = 0
 
             for partition_spec in parts:
+                columns = op.columns
+                if columns is not None:
+                    columns = (op.index_columns or []) + columns
                 splits, split_size = cupid_client.create_table_download_session(
                     op.odps_params,
                     op.table_name,
                     partition_spec,
-                    op.columns,
+                    columns,
                     worker_count,
                     split_size,
                     MAX_CHUNK_NUM,
@@ -241,6 +257,7 @@ class DataFrameReadTable(*_BASE):
                             meta_raw_size=split.meta_raw_size,
                             nrows=meta_chunk_rows[idx] or op.nrows,
                             memory_scale=op.memory_scale,
+                            index_columns=op.index_columns,
                             extra_params=op.extra_params,
                         )
                         # the chunk shape is unknown
@@ -401,6 +418,7 @@ class DataFrameReadTable(*_BASE):
                         memory_scale=op.memory_scale,
                         retry_times=op.retry_times,
                         tunnel_quota_name=op.tunnel_quota_name,
+                        index_columns=op.index_columns,
                         extra_params=op.extra_params,
                     )
                     index_value = parse_index(pd.RangeIndex(start_index, end_index))
@@ -471,6 +489,7 @@ class DataFrameReadTableSplit(*_BASE):
     estimate_rows = Int64Field("estimate_rows", default=None)
     meta_raw_size = Int64Field("meta_raw_size", default=None)
     retry_times = Int64Field("retry_times", default=None)
+    index_columns = ListField("index_columns", FieldTypes.string, default=None)
 
     def __init__(self, memory_scale=None, sparse=None, **kw):
         super(DataFrameReadTableSplit, self).__init__(
@@ -630,6 +649,8 @@ class DataFrameReadTableSplit(*_BASE):
         data = arrow_table_to_pandas_dataframe(
             pa_table, use_arrow_dtype=op.use_arrow_dtype
         )[: op.nrows]
+        if op.index_columns:
+            data = data.set_index(op.index_columns)
 
         data = cls._align_output_data(op, data)
         logger.info("Read split table finished, split index: %s", op.split_index)
@@ -715,8 +736,11 @@ class DataFrameReadTableSplit(*_BASE):
         retries = 0
         while True:
             try:
+                columns = op.columns
+                if columns is not None:
+                    columns = (op.index_columns or []) + op.columns
                 with download_session.open_arrow_reader(
-                    op.start_index, count, columns=op.columns
+                    op.start_index, count, columns=columns
                 ) as reader:
                     table = reader.read()
                 break
@@ -738,6 +762,8 @@ class DataFrameReadTableSplit(*_BASE):
         data = arrow_table_to_pandas_dataframe(
             table, use_arrow_dtype=op.use_arrow_dtype
         )
+        if op.index_columns:
+            data = data.set_index(op.index_columns)
         data = cls._align_output_data(op, data)
         logger.info(
             "Finish reading table %s(%s) split from %s to %s",
@@ -790,6 +816,7 @@ def read_odps_table(
     with_split_meta_on_tile=False,
     index_type="incremental",
     tunnel_quota_name=None,
+    index_columns=None,
     extra_params=None,
 ):
     import pandas as pd
@@ -818,7 +845,25 @@ def read_odps_table(
         for type in table_types
     ]
 
+    if isinstance(index_columns, str):
+        index_columns = [index_columns]
+    if index_columns and columns is None:
+        index_col_set = set(index_columns)
+        columns = [c for c in table_columns if c not in index_col_set]
+
+    if not index_columns:
+        index_dtypes = None
+    else:
+        table_index_types = [
+            df_types[table_columns.index(col)] for col in index_columns
+        ]
+        index_dtypes = pd.Series(table_index_types, index=index_columns)
+
     if columns is not None:
+        table_col_set = set(columns)
+        if any(col in table_col_set for col in index_columns):
+            raise ValueError("Index columns and columns shall not overlap.")
+
         # reorder columns
         new_columns = [c for c in table_columns if c in columns]
         df_types = [df_types[table_columns.index(col)] for col in new_columns]
@@ -843,6 +888,8 @@ def read_odps_table(
         with_split_meta_on_tile=with_split_meta_on_tile,
         retry_times=retry_times,
         tunnel_quota_name=tunnel_quota_name,
+        index_columns=index_columns,
+        index_dtypes=index_dtypes,
         extra_params=extra_params or dict(),
     )
     return op(shape, chunk_bytes=chunk_bytes, chunk_size=chunk_size)

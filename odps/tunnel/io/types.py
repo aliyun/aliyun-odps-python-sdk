@@ -35,7 +35,7 @@ if pa is not None:
         odps_types.double: pa.float64(),
         odps_types.date: pa.date32(),
         odps_types.datetime: pa.timestamp('ms'),
-        odps_types.timestamp: pa.timestamp('ns')
+        odps_types.timestamp: pa.timestamp('ns'),
     }
 else:
     _ODPS_ARROW_TYPE_MAPPING = {}
@@ -55,13 +55,17 @@ def odps_type_to_arrow_type(odps_type):
                 odps_type_to_arrow_type(odps_type.value_type),
             )
         elif isinstance(odps_type, types.Decimal):
-            col_type = pa.decimal128(odps_type.precision, odps_type.scale)
+            precision = odps_type.precision or types.Decimal._max_precision
+            scale = odps_type.scale or types.Decimal._max_scale
+            col_type = pa.decimal128(precision, scale)
         elif isinstance(odps_type, types.Struct):
             fields = [
                 (k, odps_type_to_arrow_type(v))
                 for k, v in odps_type.field_types.items()
             ]
             col_type = pa.struct(fields)
+        elif isinstance(odps_type, odps_types.IntervalDayTime):
+            col_type = pa.struct([("sec", pa.int64()), ("nano", pa.int32())])
         else:
             raise TypeError('Unsupported type: {}'.format(odps_type))
     return col_type

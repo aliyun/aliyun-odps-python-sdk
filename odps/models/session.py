@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
+import itertools
 import json
 import re
+import sys
 import time
 import warnings
 
@@ -24,7 +25,7 @@ from .. import errors, readers, utils
 from ..compat import six, enum
 from ..models import tasks
 from ..serializers import XMLSerializableModel, XMLNodeField
-from .instance import Instance
+from .instance import Instance, InstanceArrowReader, InstanceRecordReader
 
 
 DEFAULT_TASK_NAME = "AnonymousSQLRTTask"
@@ -160,7 +161,9 @@ class SessionInstance(Instance):
         while not self.is_running(retry):
             if timeout > 0:
                 if waited > timeout:
-                    raise errors.WaitTimeoutError("Waited " + waited + " seconds, but session is not started.")
+                    raise errors.WaitTimeoutError(
+                        "Waited %s seconds, but session is not started." % waited
+                    )
             try:
                 time.sleep(interval)
                 if max_interval:
@@ -300,6 +303,50 @@ class SessionInstance(Instance):
             self._status = Instance.Status.SUSPENDED
 
 
+class InSessionTunnelReaderMixin(object):
+    @property
+    def schema(self):
+        # is not available before open_reader().
+        if self._download_session.schema is None:
+            # open reader once to enforce schema fetched.
+            tmprd = self._download_session.open_record_reader(0, 1)
+            tmprd.close()
+        return self._download_session.schema
+
+    @property
+    def count(self):
+        # we can't count session results before it's
+        # fully retrieved.
+        return -1
+
+    @property
+    def status(self):
+        # force reload to update download session status
+        # this is for supporting the stream download of instance tunnel
+        # without the following line will not trigger reload
+        self._download_session.reload()
+        return self._download_session.status
+
+    def read(self, start=None, count=None, step=None,
+             compress=False, columns=None):
+        start = start or 0
+        step = step or 1
+        stop = None if count is None else start + step * count
+
+        with self._download_session.open_record_reader(
+                0, 1, compress=compress, columns=columns) as reader:
+            for record in itertools.islice(reader, start, stop, step):
+                yield record
+
+
+class InSessionInstanceArrowReader(InSessionTunnelReaderMixin, InstanceArrowReader):
+    pass
+
+
+class InSessionInstanceRecordReader(InSessionTunnelReaderMixin, InstanceRecordReader):
+    pass
+
+
 class InSessionInstance(Instance):
     """
         This represents the instance created
@@ -349,7 +396,7 @@ class InSessionInstance(Instance):
         if not self.is_successful(retry=True):
             raise errors.ODPSError(
                 'Cannot open reader, instance(%s) may fail or has not finished yet' % self.id)
-        return readers.RecordReader(schema, self._report_result)
+        return readers.CsvRecordReader(schema, self._report_result)
 
     def _open_tunnel_reader(self, **kw):
         if not self._is_select:
@@ -364,6 +411,7 @@ class InSessionInstance(Instance):
             raise errors.InternalServerError("SubQueryId not returned by the server.")
 
         kw.pop('reopen', False)
+        arrow = kw.pop("arrow", False)
         endpoint = kw.pop('endpoint', None)
         kw['sessional'] = True
         kw['session_subquery_id'] = self._subquery_id
@@ -381,62 +429,10 @@ class InSessionInstance(Instance):
 
         self._download_id = download_session.id
 
-        class RecordReader(readers.AbstractRecordReader):
-            def __init__(self):
-                self._it = iter(self)
-
-            @property
-            def schema(self):
-                # is not available before open_reader().
-                if download_session.schema is None:
-                    # open reader once to enforce schema fetched.
-                    tmprd = download_session.open_record_reader(0, 1)
-                    tmprd.close()
-                return download_session.schema
-
-            @property
-            def count(self):
-                # we can't count session results before it's
-                # fully retrieved.
-                return -1
-
-            @property
-            def status(self):
-                # force reload to update download session status
-                # this is for supporting the stream download of instance tunnel
-                # without the following line will not trigger reload
-                download_session.reload()
-                return download_session.status
-
-            def __iter__(self):
-                for record in self.read():
-                    yield record
-
-            def __next__(self):
-                return next(self._it)
-
-            next = __next__
-
-            # also, session results won't slice. but you may skip.
-            def _iter(self, step=None):
-                return self.read(step=step)
-
-            def read(self, step=None,
-                     compress=False, columns=None):
-                step = step or 1
-
-                with download_session.open_record_reader(
-                        0, 1, compress=compress, columns=columns) as reader:
-                    for record in reader[::step]:
-                        yield record
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc_val, exc_tb):
-                pass
-
-        return RecordReader()
+        if arrow:
+            return InSessionInstanceArrowReader(self, download_session)
+        else:
+            return InSessionInstanceRecordReader(self, download_session)
 
     def reload(self):
         url = self._session_instance.resource() + "?info"

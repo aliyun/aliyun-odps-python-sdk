@@ -16,8 +16,9 @@
 
 from __future__ import absolute_import
 
-from decimal import Decimal
+import logging
 import types as tps
+from decimal import Decimal
 
 from .compiler import SQLAlchemyCompiler
 from . import analyzer as ana
@@ -36,8 +37,10 @@ from ...expr.dynamic import DynamicMixin
 from ...types import DynamicSchema, Unknown
 from ...backends.odpssql.types import df_schema_to_odps_schema, df_type_to_odps_type
 from ....types import PartitionSpec
-from ....utils import write_log as log, gen_temp_table
+from ....utils import gen_temp_table
 from ....models import TableSchema, Partition
+
+logger = logging.getLogger(__name__)
 
 
 class SQLExecuteNode(ExecuteNode):
@@ -181,8 +184,7 @@ class SQLAlchemyEngine(Engine):
                 if tmp_table_name is None:
                     tmp_table_name = gen_temp_table()
                 to_execute = self._create_table(tmp_table_name, sa, expr_dag.root)
-                log('Sql compiled:')
-                log(self._sa_to_sql(to_execute))
+                logger.info('Sql compiled:\n' + self._sa_to_sql(to_execute))
                 conn = self._get_or_create_conn(sa.bind)
                 conn.execution_options(**execution_options).execute(to_execute)
 
@@ -193,8 +195,7 @@ class SQLAlchemyEngine(Engine):
                 else:
                     return tmp_table_name, None
             else:
-                log('Sql compiled:')
-                log(self._sa_to_sql(sa))
+                logger.info('Sql compiled:\n' + self._sa_to_sql(sa))
 
                 conn = self._get_or_create_conn(sa.bind)
                 res = conn.execution_options(**execution_options).execute(sa).scalar()

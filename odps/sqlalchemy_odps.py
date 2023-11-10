@@ -12,19 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import threading
 import contextlib
 
 from sqlalchemy import types as sa_types
-from sqlalchemy.databases import mysql
 from sqlalchemy.engine import default, Engine
 from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.sql import compiler, sqltypes
+try:
+    from sqlalchemy.dialects import mysql
+except ImportError:
+    # for low sqlalchemy versions
+    from sqlalchemy.databases import mysql
 
 from . import options
 from . import types
 from .compat import six
 from .core import ODPS, DEFAULT_ENDPOINT
+from .models import Table
 from .models.session import PUBLIC_SESSION_NAME
 from .errors import NoSuchObject
 from .utils import to_str, to_text
@@ -52,7 +58,7 @@ def update_test_setting(**kw):
 
 _odps_type_to_sqlalchemy_type = {
     types.Boolean: sa_types.Boolean,
-    types.Tinyint: mysql.MSTinyInteger,
+    types.Tinyint: mysql.TINYINT,
     types.Smallint: sa_types.SmallInteger,
     types.Int: sa_types.Integer,
     types.Bigint: sa_types.BigInteger,
@@ -73,6 +79,7 @@ _odps_type_to_sqlalchemy_type = {
 
 _sqlalchemy_global_reusable_odps = {}
 
+
 class ODPSIdentifierPreparer(compiler.IdentifierPreparer):
     # Just quote everything to make things simpler / easier to upgrade
     reserved_words = compiler.RESERVED_WORDS.copy()
@@ -84,7 +91,8 @@ class ODPSIdentifierPreparer(compiler.IdentifierPreparer):
         'LEFT', 'LIFECYCLE', 'LIKE', 'LIMIT', 'MAPJOIN', 'NOT', 'NULL',
         'ON', 'OR', 'ORDER', 'OUTER', 'OVERWRITE', 'PARTITION', 'RENAME',
         'REPLACE', 'RIGHT', 'RLIKE', 'SELECT', 'SORT', 'STRING', 'TABLE',
-        'THEN', 'TOUCH', 'TRUE', 'UNION', 'VIEW', 'WHEN', 'WHERE'
+        'TABLESAMPLE', 'TBLPROPERTIES', 'THEN', 'TOUCH', 'TRUE', 'UNION',
+        'VIEW', 'WHEN', 'WHERE'
     ]
     reserved_words.update(keywords)
     reserved_words.update([s.lower() for s in keywords])
@@ -93,6 +101,7 @@ class ODPSIdentifierPreparer(compiler.IdentifierPreparer):
         super(ODPSIdentifierPreparer, self).__init__(
             dialect,
             initial_quote='`',
+            escape_quote='`',
         )
 
     def quote(self, ident, force=None):
@@ -173,6 +182,7 @@ class ODPSDialect(default.DefaultDialect):
     supports_sane_rowcount = False
     supports_statement_cache = False
     _reused_odps = None
+    default_schema_name = "default"
 
     @classmethod
     def dbapi(cls):
@@ -260,21 +270,35 @@ class ODPSDialect(default.DefaultDialect):
 
         return [], kwargs
 
+    def get_odps_from_url(self, url):
+        _, kwargs = self.create_connect_args(url)
+        odps_kw = kwargs.copy()
+        odps_kw.pop("session_name", None)
+        odps_kw.pop("use_sqa", None)
+        odps_kw.pop("fallback_policy", None)
+        odps_kw.pop("hints", None)
+        odps_kw["overwrite_global"] = False
+        return ODPS(**odps_kw)
+
     def get_schema_names(self, connection, **kw):
         conn = self._get_dbapi_connection(connection)
-        fields = ['owner', 'user', 'group', 'prefix']
-        if (conn.odps.project is None) or (kw.pop('listall', None) is not None):
-            kwargs = {f: kw.get(f) for f in fields}
-            return [proj.name for proj in conn.odps.list_projects(**kwargs)]
+        if getattr(conn, "_project_as_schema", False):
+            fields = ['owner', 'user', 'group', 'prefix']
+            if (conn.odps.project is None) or (kw.pop('listall', None) is not None):
+                kwargs = {f: kw.get(f) for f in fields}
+                return [proj.name for proj in conn.odps.list_projects(**kwargs)]
+            else:
+                return [conn.odps.project]
         else:
-            return [conn.odps.project]
+            try:
+                return [schema.name for schema in conn.odps.list_schemas()]
+            except:
+                return ["default"]
 
-    def has_table(self, connection, table_name, schema=None):
-        full_table = table_name
-        if schema:
-            full_table = schema + '.' + table_name
+    def has_table(self, connection, table_name, schema=None, **kw):
         conn = self._get_dbapi_connection(connection)
-        return conn.odps.exist_table(full_table)
+        schema_kw = self._get_schema_kw(connection, schema=schema)
+        return conn.odps.exist_table(table_name, **schema_kw)
 
     @classmethod
     def _get_dbapi_connection(cls, sa_connection):
@@ -282,13 +306,18 @@ class ODPSDialect(default.DefaultDialect):
             sa_connection = sa_connection.connect()
         return sa_connection.connection.connection
 
-    def get_columns(self, connection, table_name, schema=None, **kw):
-        full_table = table_name
-        if schema:
-            full_table = schema + '.' + table_name
+    @classmethod
+    def _get_schema_kw(cls, connection, schema=None):
+        db_conn = cls._get_dbapi_connection(connection)
+        if getattr(db_conn, "_project_as_schema", False):
+            return dict(project=schema)
+        else:
+            return dict(schema=schema)
 
+    def get_columns(self, connection, table_name, schema=None, **kw):
         conn = self._get_dbapi_connection(connection)
-        table = conn.odps.get_table(full_table)
+        schema_kw = self._get_schema_kw(connection, schema=schema)
+        table = conn.odps.get_table(table_name, **schema_kw)
         result = []
         try:
             for col in table.table_schema.columns:
@@ -317,16 +346,45 @@ class ODPSDialect(default.DefaultDialect):
         # ODPS has no support for indexes
         return []
 
-    def get_table_names(self, connection, schema=None, **kw):
-        connection = self._get_dbapi_connection(connection)
+    def _iter_tables(self, connection, schema=None, types=None, **kw):
+        conn = self._get_dbapi_connection(connection)
         filter_ = getattr(test_setting, 'get_tables_filter', None)
         if filter_ is None:
             filter_ = lambda x: True
-        return [t.name for t in connection.odps.list_tables() if filter_(t.name)]
+        schema_kw = self._get_schema_kw(connection, schema=schema)
+
+        if not types:
+            it = conn.odps.list_tables(**schema_kw)
+        else:
+            its = []
+            for table_type in types:
+                list_kw = schema_kw.copy()
+                list_kw["type"] = table_type
+                its.append(conn.odps.list_tables(**list_kw))
+            it = itertools.chain(*its)
+
+        return [t.name for t in it if filter_(t.name)]
+
+    def get_table_names(self, connection, schema=None, **kw):
+        return self._iter_tables(
+            connection,
+            schema=schema,
+            types=[Table.Type.MANAGED_TABLE, Table.Type.EXTERNAL_TABLE],
+            **kw
+        )
+
+    def get_view_names(self, connection, schema=None, **kw):
+        return self._iter_tables(
+            connection,
+            schema=schema,
+            types=[Table.Type.VIRTUAL_VIEW, Table.Type.MATERIALIZED_VIEW],
+            **kw
+        )
 
     def get_table_comment(self, connection, table_name, schema=None, **kw):
-        connection = self._get_dbapi_connection(connection)
-        comment = connection.odps.get_table(table_name, project=schema).comment
+        conn = self._get_dbapi_connection(connection)
+        schema_kw = self._get_schema_kw(connection, schema=schema)
+        comment = conn.odps.get_table(table_name, **schema_kw).comment
         return {
             'text': comment
         }

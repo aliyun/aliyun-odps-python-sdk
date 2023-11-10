@@ -119,13 +119,13 @@ class Resource(LazyLoad):
         super(Resource, self).__init__(**kwargs)
 
     def reload(self):
-        params = {'meta': ''}
+        params = {}
         schema_name = self._get_schema_name()
         if schema_name is not None:
             params['curr_schema'] = schema_name
 
         url = self.resource()
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, action='meta', params=params)
 
         self.owner = resp.headers.get('x-odps-owner')
         resource_type = resp.headers.get('x-odps-resource-type')
@@ -148,13 +148,13 @@ class Resource(LazyLoad):
         self._loaded = True
 
     def _reload_size(self):
-        params = {'meta': ''}
+        params = {}
         schema_name = self._get_schema_name()
         if schema_name is not None:
             params['curr_schema'] = schema_name
 
         url = self.resource()
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, action='meta', params=params)
 
         size = resp.headers.get('x-odps-resource-size')
         self.size = None if size is None else int(size)

@@ -16,13 +16,14 @@
 
 import decimal as _builtin_decimal
 import json as _json
+import warnings
 from collections import OrderedDict
 from datetime import datetime as _datetime, timedelta as _timedelta, date as _date
 
-from . import utils
-from . import compat
+from . import compat, utils
 from .compat import six, DECIMAL_TYPES, decimal as _decimal, east_asian_len, Monthdelta
 from .config import options
+from .lib.xnamedtuple import xnamedtuple
 
 try:
     from pandas import NA as _pd_na
@@ -35,14 +36,18 @@ force_c = options.force_c
 
 
 class Column(object):
-    def __init__(self, name=None, typo=None, comment=None, label=None):
+    def __init__(self, name=None, typo=None, comment=None, label=None, nullable=True):
         self.name = utils.to_str(name)
         self.type = validate_data_type(typo)
         self.comment = comment
         self.label = label
+        self.nullable = nullable
 
     def __repr__(self):
-        return '<column {0}, type {1}>'.format(utils.to_str(self.name), self.type.name.lower())
+        not_null_str = ", not null" if not self.nullable else ""
+        return '<column {0}, type {1}{2}>'.format(
+            utils.to_str(self.name), self.type.name.lower(), not_null_str
+        )
 
     def __hash__(self):
         return hash((type(self), self.name, self.type, self.comment, self.label))
@@ -63,20 +68,32 @@ class PartitionSpec(object):
     def __init__(self, spec=None):
         self.kv = OrderedDict()
 
-        if spec is not None:
+        if isinstance(spec, PartitionSpec):
+            self.kv = spec.kv.copy()
+        elif isinstance(spec, dict):
+            self.kv = OrderedDict(spec)
+        elif isinstance(spec, six.string_types):
             splits = spec.split(',')
             for sp in splits:
                 kv = sp.split('=')
                 if len(kv) != 2:
-                    raise ValueError('Invalid partition spec')
+                    raise ValueError(
+                        'Invalid partition spec: a partition spec should '
+                        'look like "part1=v1,part2=v2"'
+                    )
 
-                k, v = kv[0].strip(), kv[1].strip()\
-                    .replace('"', '').replace("'", '')
+                k, v = kv[0].strip(), kv[1].strip().strip('\'"')
 
                 if len(k) == 0 or len(v) == 0:
                     raise ValueError('Invalid partition spec')
+                if k in self.kv:
+                    raise ValueError(
+                        'Invalid partition spec: found duplicate partition key ' + k
+                    )
 
                 self.kv[k] = v
+        elif spec is not None:
+            raise TypeError("Cannot accept spec %r" % spec)
 
     def __setitem__(self, key, value):
         self.kv[key] = value
@@ -171,7 +188,7 @@ class Schema(object):
 
     def append(self, name, typo):
         names = self.names + [name, ]
-        types = self.types + [typo, ]
+        types = self.types + [validate_data_type(typo), ]
         return Schema(names, types)
 
     def extend(self, schema):
@@ -259,6 +276,7 @@ class OdpsSchema(Schema):
                                   for k, v in six.iteritems(name_dict)])
         name_space = 2 * max(six.itervalues(name_display_lens))
         type_space = 2 * max(len(repr(col.type)) for col in self.columns)
+        has_not_null = any(not col.nullable for col in self.columns)
 
         not_empty = lambda field: field is not None and len(field.strip()) > 0
 
@@ -266,9 +284,11 @@ class OdpsSchema(Schema):
         cols_strs = []
         for col in self._columns:
             pad_spaces = name_space - name_display_lens[col.name]
-            cols_strs.append('{0}{1}{2}'.format(
+            not_null = "not null" if not col.nullable else " " * 8
+            cols_strs.append('{0}{1}{2}{3}'.format(
                 utils.to_str(name_dict[col.name] + ' ' * pad_spaces),
                 repr(col.type).ljust(type_space),
+                not_null + " " * 4 if has_not_null else "",
                 '# {0}'.format(utils.to_str(col.comment)) if not_empty(col.comment) else ''
             ))
         buf.write(utils.indent('\n'.join(cols_strs), 2))
@@ -367,6 +387,18 @@ class OdpsSchema(Schema):
         else:
             self._partition_schema = Schema([], [])
 
+    def extend(self, schema):
+        if isinstance(schema, Schema):
+            ext_cols = [Column(n, tp) for n, tp in zip(schema.names, schema.types)]
+            ext_parts = []
+        else:
+            ext_cols = schema.simple_columns
+            ext_parts = schema.partitions
+        return type(self)(
+            columns=self.simple_columns + ext_cols,
+            partitions=self.partitions + ext_parts,
+        )
+
     def to_ignorecase_schema(self):
         cols = [Column(col.name.lower(), col.type, col.comment, col.label)
                 for col in self._columns]
@@ -424,15 +456,17 @@ def is_record(obj):
 class BaseRecord(object):
 
     # set __slots__ to save memory in the situation that records' size may be quite large
-    __slots__ = '_values', '_columns', '_name_indexes'
+    __slots__ = '_values', '_columns', '_name_indexes', '_max_field_size'
 
-    def __init__(self, columns=None, schema=None, values=None):
+    def __init__(self, columns=None, schema=None, values=None, max_field_size=None):
         if columns is not None:
             self._columns = columns
             self._name_indexes = {col.name: i for i, col in enumerate(self._columns)}
         else:
             self._columns = schema.columns
             self._name_indexes = schema._name_indexes
+
+        self._max_field_size = max_field_size
 
         if self._columns is None:
             raise ValueError('Either columns or schema should not be provided')
@@ -452,7 +486,7 @@ class BaseRecord(object):
 
     def _set(self, i, value):
         data_type = self._columns[i].type
-        val = validate_value(value, data_type)
+        val = validate_value(value, data_type, max_field_size=self._max_field_size)
         self._values[i] = val
 
     get = _get  # to keep compatible
@@ -606,7 +640,10 @@ class DataType(object):
         return not (self == other)
 
     def __eq__(self, other):
-        return self._equals(other)
+        try:
+            return self._equals(other)
+        except (TypeError, ValueError):
+            return False
 
     def _equals(self, other):
         if self is other:
@@ -644,7 +681,7 @@ class DataType(object):
     def can_explicit_cast(self, other):
         return self.can_implicit_cast(other)
 
-    def validate_value(self, val):
+    def validate_value(self, val, max_field_size=None):
         # directly return True means without checking
         return True
 
@@ -678,7 +715,7 @@ class BaseInteger(OdpsPrimitive):
             return self._store_bytes >= other._store_bytes
         return super(BaseInteger, self).can_implicit_cast(other)
 
-    def validate_value(self, val):
+    def validate_value(self, val, max_field_size=None):
         if val is None and self.nullable:
             return True
         smallest, largest = self._bounds
@@ -756,14 +793,16 @@ class String(OdpsPrimitive):
             return True
         return super(String, self).can_implicit_cast(other)
 
-    def validate_value(self, val):
+    def validate_value(self, val, max_field_size=None):
         if val is None and self.nullable:
             return True
-        if len(val) <= self._max_length:
+        max_field_size = max_field_size or self._max_length
+        if len(val) <= max_field_size:
             return True
         raise ValueError(
             "InvalidData: Length of string(%s) is more than %sM.'" %
-            (val, self._max_length / (1024 ** 2)))
+            (val, max_field_size / (1024 ** 2))
+        )
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
@@ -844,14 +883,16 @@ class Binary(OdpsPrimitive):
             return True
         return super(Binary, self).can_implicit_cast(other)
 
-    def validate_value(self, val):
+    def validate_value(self, val, max_field_size=None):
         if val is None and self.nullable:
             return True
-        if len(val) <= self._max_length:
+        max_field_size = max_field_size or self._max_length
+        if len(val) <= max_field_size:
             return True
         raise ValueError(
             "InvalidData: Length of binary(%s) is more than %sM.'" %
-            (val, self._max_length / (1024 ** 2)))
+            (val, max_field_size / (1024 ** 2))
+        )
 
     def cast_value(self, value, data_type):
         self._can_cast_or_throw(value, data_type)
@@ -863,6 +904,7 @@ class Binary(OdpsPrimitive):
 
 class BaseTimestamp(OdpsPrimitive):
     __slots__ = ()
+    _type_id = 8
 
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
@@ -992,7 +1034,7 @@ class SizeLimitedString(String, CompositeMixin):
             self._hash = hash((type(self), self.nullable, self.size_limit))
         return self._hash
 
-    def validate_value(self, val):
+    def validate_value(self, val, max_field_size=None):
         if val is None and self.nullable:
             return True
         if len(val) <= self.size_limit:
@@ -1092,7 +1134,7 @@ class Decimal(CompositeMixin):
             return True
         return super(Decimal, self).can_implicit_cast(other)
 
-    def validate_value(self, val):
+    def validate_value(self, val, max_field_size=None):
         if val is None and self.nullable:
             return True
 
@@ -1256,6 +1298,18 @@ class Struct(CompositeMixin):
             field_types = six.iteritems(field_types)
         for k, v in field_types:
             self.field_types[k] = validate_data_type(v)
+        self.namedtuple_type = xnamedtuple(
+            "StructNamedTuple", list(self.field_types.keys())
+        )
+
+        self._struct_as_dict = options.struct_as_dict
+        if self._struct_as_dict:
+            warnings.warn(
+                "Representing struct values as dicts is now deprecated. Try config "
+                "`options.struct_as_dict=False` and return structs as named tuples "
+                "instead.", DeprecationWarning
+            )
+            utils.add_survey_call("options.struct_as_dict")
 
     @property
     def name(self):
@@ -1297,20 +1351,36 @@ class Struct(CompositeMixin):
             if isinstance(type_tuple, tuple):
                 return type_tuple
             else:
-                return tuple(v.strip('`') for v in type_tuple.split(':', 1))
+                return tuple(v.strip().strip('`') for v in type_tuple.split(':', 1))
 
         return cls(conv_type_tuple(a) for a in args)
 
     def validate_composite_values(self, value):
         if value is None and self.nullable:
             return value
-        if isinstance(value, tuple) and hasattr(value, '_fields'):
-            value = OrderedDict(compat.izip(value._fields, value))
-        if not isinstance(value, dict):
-            raise ValueError('Struct data type requires `dict`, instead of %s' % value)
-
-        convert = lambda k, v, tp: (validate_value(k, string), validate_value(v, tp))
-        return OrderedDict(convert(k, value[k], tp) for k, tp in six.iteritems(self.field_types))
+        if self._struct_as_dict:
+            if isinstance(value, tuple):
+                fields = getattr(value, "_fields", None) or self.field_types.keys()
+                value = OrderedDict(compat.izip(fields, value))
+            if isinstance(value, dict):
+                return OrderedDict(
+                    (validate_value(k, string), validate_value(value[k], tp))
+                    for k, tp in six.iteritems(self.field_types)
+                )
+        else:
+            if isinstance(value, tuple):
+                return self.namedtuple_type(
+                    *(validate_value(v, t) for v, t in zip(value, self.field_types.values()))
+                )
+            elif isinstance(value, dict):
+                list_val = [
+                    validate_value(value.get(key), field_type)
+                    for key, field_type in self.field_types.items()
+                ]
+                return self.namedtuple_type(*list_val)
+        raise ValueError(
+            'Struct data type requires `tuple` or `dict`, instead of %s' % type(value)
+        )
 
 
 class Json(DataType):
@@ -1326,13 +1396,15 @@ class Json(DataType):
             return True
         return super(Json, self).can_implicit_cast(other)
 
-    def validate_value(self, val):
+    def validate_value(self, val, max_field_size=None):
         if val is None and self.nullable:
             return True
-        if len(val) > self._max_length:
+        max_field_size = max_field_size or self._max_length
+        if len(val) > max_field_size:
             raise ValueError(
                 "InvalidData: Length of string(%s) is more than %sM.'" %
-                (val, self._max_length / (1024 ** 2)))
+                (val, max_field_size / (1024 ** 2))
+            )
         if not isinstance(val, (six.string_types, list, dict, six.integer_types, float)):
             raise ValueError("InvalidData: cannot accept %r as json", val)
         return True
@@ -1527,7 +1599,7 @@ def _validate_primitive_value(value, data_type):
     return data_type.cast_value(value, inferred_data_type)
 
 
-def validate_value(value, data_type):
+def validate_value(value, data_type, max_field_size=None):
     _patch_pd_types(data_type)
 
     if data_type in _odps_primitive_to_builtin_types:
@@ -1537,5 +1609,5 @@ def validate_value(value, data_type):
     else:
         raise ValueError('Unknown data type: %s' % data_type)
 
-    data_type.validate_value(res)
+    data_type.validate_value(res, max_field_size=max_field_size)
     return res

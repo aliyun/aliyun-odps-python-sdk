@@ -29,7 +29,7 @@ from .compat import (
 )
 from .lib.requests import ConnectTimeout as RequestsConnectTimeout
 
-LOG = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class DatetimeOverflowError(OverflowError):
@@ -73,7 +73,7 @@ def parse_response(resp, endpoint=None, tag=None):
     except:
         # Error occurred during parsing the response. We ignore it and delegate
         # the situation to caller to handle.
-        LOG.debug(utils.stringify_expt())
+       logger.debug(utils.stringify_expt())
 
     if resp.status_code == 404:
         return NoSuchObject('No such object.', endpoint=endpoint, tag=tag)
@@ -178,6 +178,10 @@ class ODPSError(RuntimeError):
         return parse_response(resp)
 
 
+class ODPSClientError(ODPSError):
+    pass
+
+
 class ConnectTimeout(ODPSError, TimeoutError, RequestsConnectTimeout):
     pass
 
@@ -277,6 +281,10 @@ class InvalidParameter(ServerDefinedException):
 
 
 class StreamSessionNotFound(ServerDefinedException):
+    pass
+
+
+class UpsertSessionNotFound(ServerDefinedException):
     pass
 
 

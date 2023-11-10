@@ -24,6 +24,10 @@ import time
 import mock
 import pytest
 try:
+    import pandas as pd
+except ImportError:
+    pd = None
+try:
     from filelock import FileLock
 except ImportError:
     FileLock = None
@@ -64,6 +68,9 @@ def auto_stop():
             if not os.path.exists(lock_file):
                 try:
                     open(lock_file, "wb").close()
+                except OSError:
+                    pass
+                try:
                     os.chmod(lock_file, 0o777)
                 except OSError:
                     pass
@@ -183,6 +190,11 @@ def test_session_sql(odps):
     with _dump_instance_results(select_inst), select_inst.open_reader() as rd:
         for each_row in rd:
             rows.append(each_row.values)
+
+    if pd is not None:
+        with _dump_instance_results(select_inst), select_inst.open_reader(tunnel=True) as rd:
+            pd_result = rd.to_pandas()
+        pd.testing.assert_frame_equal(pd_result, pd.DataFrame(TEST_DATA, columns=["id"]))
 
     assert len(rows) == len(TEST_DATA)
     assert len(rows[0]) == len(TEST_DATA[0])

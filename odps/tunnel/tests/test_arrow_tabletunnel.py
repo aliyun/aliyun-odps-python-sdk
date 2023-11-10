@@ -16,7 +16,7 @@
 
 import datetime
 import math
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 try:
     from string import letters
 except ImportError:
@@ -69,7 +69,7 @@ def setup(odps, tunnel):
     def gen_data(repeat=1):
         from ...lib import tzlocal
 
-        data = dict()
+        data = OrderedDict()
         data['id'] = ['hello \x00\x00 world', 'goodbye', 'c' * 2, 'c' * 20] * repeat
         data['int_num'] = [2 ** 63 - 1, 222222, -2 ** 63 + 1, -2 ** 11 + 1] * repeat
         data['float_num'] = [math.pi, math.e, -2.222, 2.222] * repeat
@@ -132,7 +132,7 @@ def test_upload_and_download_by_raw_tunnel(odps, setup):
     pd_df = setup.download_data(test_table_name)
     pd.testing.assert_frame_equal(data.to_pandas(), pd_df)
 
-    data_dict = dict(zip(data.schema.names, data.columns))
+    data_dict = OrderedDict(zip(data.schema.names, data.columns))
     data_dict["float_num"] = data_dict["float_num"].cast("float32")
     new_data = pa.RecordBatch.from_arrays(
         list(data_dict.values()), names=list(data_dict.keys())
@@ -142,7 +142,7 @@ def test_upload_and_download_by_raw_tunnel(odps, setup):
     new_data = pa.Table.from_batches([new_data])
     setup.upload_data(test_table_name, new_data)
 
-    data_dict['int_num'] = data['id']
+    data_dict['int_num'] = data.columns[data.schema.get_field_index('id')]
     new_data = pa.RecordBatch.from_arrays(
         list(data_dict.values()), names=list(data_dict.keys())
     )

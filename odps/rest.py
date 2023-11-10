@@ -43,7 +43,7 @@ else:
     mv_to_bytes = bytes
 
 
-LOG = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 _default_user_agent = None
 
@@ -187,11 +187,11 @@ class RestClient(object):
 
         file_upload = kwargs.get("file_upload", False)
 
-        LOG.debug('Start request.')
-        LOG.debug('url: ' + url)
-        if LOG.level == logging.DEBUG:
+        logger.debug('Start request.')
+        logger.debug('url: %s', url)
+        if logger.getEffectiveLevel() <= logging.DEBUG:
             for k, v in kwargs.items():
-                LOG.debug(k + ': ' + str(v))
+                logger.debug('%s: %s', k, v)
 
         # Construct user agent without handling the letter case.
         headers = kwargs.get('headers', {})
@@ -199,6 +199,13 @@ class RestClient(object):
         headers['User-Agent'] = self._user_agent
         kwargs['headers'] = headers
         params = kwargs.setdefault('params', {})
+
+        actions = kwargs.pop("actions", None) or kwargs.pop("action", None) or []
+        if isinstance(actions, six.string_types):
+            actions = [actions]
+        if actions:
+            separator = "?" if "?" not in url else "&"
+            url += separator + "&".join(actions)
 
         curr_project = kwargs.pop("curr_project", None) or self.project
         if 'curr_project' not in params and curr_project is not None:
@@ -211,7 +218,7 @@ class RestClient(object):
         timeout = kwargs.pop('timeout', None)
         req = requests.Request(method, url, **kwargs)
         prepared_req = req.prepare()
-        LOG.debug("request url + params %s" % prepared_req.path_url)
+        logger.debug("request url + params %s", prepared_req.path_url)
         self._account.sign_request(prepared_req, self._endpoint)
         if getattr(self, '_app_account', None) is not None:
             self._app_account.sign_request(prepared_req, self._endpoint)
@@ -235,10 +242,10 @@ class RestClient(object):
         except ConnectTimeout:
             raise errors.ConnectTimeout('Connecting to endpoint %s timeout.' % self._endpoint)
 
-        LOG.debug('response.status_code %d' % res.status_code)
-        LOG.debug('response.headers: \n%s' % res.headers)
+        logger.debug('response.status_code %d', res.status_code)
+        logger.debug('response.headers: \n%s', res.headers)
         if not stream:
-            LOG.debug('response.content: %s\n' % res.content)
+            logger.debug('response.content: %s\n', res.content)
         # Automatically detect error
         if not self.is_ok(res):
             errors.throw_if_parsable(res, self._endpoint, self._tag)

@@ -69,8 +69,9 @@ class ResultFrame(six.Iterator):
             if isinstance(data, pd.DataFrame):
                 self._values = data
             else:
-                self._values = pd.DataFrame([self._get_values(r) for r in data],
-                                            columns=self._names, index=index)
+                self._values = pd.DataFrame(
+                    [self._get_values(r) for r in data], columns=self._names, index=index
+                )
             self._index = self._values.index
             self._pandas = True
         else:

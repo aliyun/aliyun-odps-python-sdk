@@ -80,7 +80,9 @@ def setup(odps):
 
 def test_text_upload_download(odps, setup):
     text_content = 'Life is short, \r\n Java is tedious.    \n\n\r\nI use PyODPS. \n\n'
-    expect_lines = ['Life is short, \n', ' Java is tedious.    \n', '\n', '\n', 'I use PyODPS. \n', '\n']
+    expect_lines = [
+        'Life is short, \n', ' Java is tedious.    \n', '\n', '\n', 'I use PyODPS. \n', '\n'
+    ]
 
     partition = setup.get_test_partition()
     with partition.open_writer() as writer:
@@ -100,6 +102,8 @@ def test_raw_upload_download(odps, setup):
 
     with partition.open_reader(TEST_FILE_NAME) as reader:
         assert reader.read() == block
+    with partition.open_reader(TEST_FILE_NAME, reopen=True) as reader:
+        assert reader.read() == block
 
 
 def test_z_lib_upload_download(odps, setup):
@@ -111,7 +115,9 @@ def test_z_lib_upload_download(odps, setup):
     with partition.open_writer(compress_option=comp_option) as writer:
         writer.write(TEST_FILE_NAME, block, compress=True)
 
-    with partition.open_reader(TEST_FILE_NAME, compress_option=comp_option) as reader:
+    with partition.open_reader(
+        TEST_FILE_NAME, compress_option=comp_option
+    ) as reader:
         assert reader.read() == block
 
 

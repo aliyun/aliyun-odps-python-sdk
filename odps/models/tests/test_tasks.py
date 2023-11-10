@@ -180,9 +180,21 @@ def test_run_merge_task(odps):
     table = odps.create_table(table_name, ('col string', 'part1 string, part2 string'))
     table.create_partition('part1=1,part2=1', if_not_exists=True)
     odps.write_table(table_name, [('col_name', )], partition='part1=1,part2=1')
+
     inst = odps.run_merge_files(table_name, 'part1=1, part2="1"')
     wait_filled(lambda: inst.tasks)
+    task = inst.tasks[0]
+    assert isinstance(task, MergeTask)
 
+    try:
+        inst.stop()
+    except:
+        pass
+
+    inst = odps.run_sql(
+        'alter table %s partition (part1=1,part2=1) merge smallfiles;' % table_name
+    )
+    wait_filled(lambda: inst.tasks)
     task = inst.tasks[0]
     assert isinstance(task, MergeTask)
 

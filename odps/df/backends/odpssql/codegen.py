@@ -605,13 +605,17 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
     if isinstance(node, MappedExpr) and node._multiple and \
             all(f.name is not None for f in node.inputs):
         names_str = ','.join(f.name for f in node.inputs)
-    from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
-    to_type = df_type_to_odps_type(node.dtype).name
-    raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
+    from_type = ','.join(df_type_to_odps_type(t).name.replace('`', '') for t in node.input_types)
+    to_type = df_type_to_odps_type(node.dtype).name.replace('`', '')
+    raw_from_type = ','.join(
+        df_type_to_odps_type(t).name.replace('`', '') for t in node.raw_input_types
+    )
     func_args_str = to_str(
-        base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf)))
+        base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf))
+    )
     func_kwargs_str = to_str(
-        base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf)))
+        base64.b64encode(cloudpickle.dumps(node._func_kwargs, dump_code=options.df.dump_udf))
+    )
 
     if inspect.isfunction(func) and not func.__closure__:
         func_sig = id(func.__code__)
@@ -653,9 +657,11 @@ def _gen_map_udf(node, func_cls_name, libraries, func, resources,
 def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
                    func_to_udfs, func_to_resources, func_params):
     names_str = ','.join(f.name for f in node.fields)
-    from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
-    raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
-    to_type = ','.join(df_type_to_odps_type(t).name for t in node.schema.types)
+    from_type = ','.join(df_type_to_odps_type(t).name.replace('`', '') for t in node.input_types)
+    raw_from_type = ','.join(
+        df_type_to_odps_type(t).name.replace('`', '') for t in node.raw_input_types
+    )
+    to_type = ','.join(df_type_to_odps_type(t).name.replace('`', '') for t in node.schema.types)
     func_args_str = to_str(
         base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf)))
     func_kwargs_str = to_str(
@@ -695,9 +701,11 @@ def _gen_apply_udf(node, func_cls_name, libraries, func, resources,
 
 def _gen_agg_udf(node, func_cls_name, libraries, func, resources,
                  func_to_udfs, func_to_resources, func_params):
-    from_type = ','.join(df_type_to_odps_type(t).name for t in node.input_types)
-    raw_from_type = ','.join(df_type_to_odps_type(t).name for t in node.raw_input_types)
-    to_type = df_type_to_odps_type(node.dtype).name
+    from_type = ','.join(df_type_to_odps_type(t).name.replace('`', '') for t in node.input_types)
+    raw_from_type = ','.join(
+        df_type_to_odps_type(t).name.replace('`', '') for t in node.raw_input_types
+    )
+    to_type = df_type_to_odps_type(node.dtype).name.replace('`', '')
     func_args_str = to_str(
         base64.b64encode(cloudpickle.dumps(node._func_args, dump_code=options.df.dump_udf)))
     func_kwargs_str = to_str(

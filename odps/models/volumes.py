@@ -113,11 +113,11 @@ class Volume(LazyLoad):
         super(Volume, self).__init__(**kwargs)
 
     def reload(self):
-        params = {'meta': ''}
+        params = {}
         schema_name = self._get_schema_name()
         if schema_name is not None:
             params['curr_schema'] = schema_name
-        resp = self._client.get(self.resource(), params=params)
+        resp = self._client.get(self.resource(), action='meta', params=params)
         self.parse(self._client, resp, obj=self)
 
     def drop(self):

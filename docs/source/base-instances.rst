@@ -9,17 +9,26 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
 基本操作
 --------
 
-可以调用 ``list_instances`` 来获取项目空间下的所有instance，``exist_instance`` 能判断是否存在某instance，
+可以调用 ``list_instances`` 来获取项目空间下的所有instance， ``exist_instance`` 能判断是否存在某instance，
 ``get_instance`` 能获取实例。
 
 .. code-block:: python
 
    >>> for instance in o.list_instances():
    >>>     print(instance.id)
-   >>> o.exist_instance('my_instance_id')
+   >>> if o.exist_instance('<my_instance_id>'):
+   >>>     print("Instance <my_instance_id> exists!")
 
 
-停止一个instance可以在odps入口使用 ``stop_instance``，或者对instance对象调用 ``stop`` 方法。
+停止一个instance可以在odps入口使用 ``stop_instance``，或者对 instance 对象调用 ``stop`` 方法：
+
+.. code-block:: python
+
+   >>> # 方法1：使用 stop_instance
+   >>> o.exist_instance('<my_instance_id>')
+   >>> # 方法2：使用 instance 的 stop 方法
+   >>> instance = o.get_instance('<my_instance_id>')
+   >>> instance.stop()
 
 .. _logview:
 
@@ -37,7 +46,7 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
    >>> instance = o.get_instance('2016042605520945g9k5pvyi2')
    >>> print(instance.get_logview_address())
 
-对于 XFlow 任务，需要枚举其子任务，再获取子任务的 LogView：
+对于 XFlow 任务，需要枚举其子任务，再获取子任务的 LogView。更多细节可以参考 :ref:`XFlow 和模型 <models>` 。
 
 .. code-block:: python
 
@@ -65,7 +74,7 @@ Task如SQLTask是ODPS的基本计算单元，当一个Task在执行时会被实�
    'Terminated'
 
 
-调用 ``wait_for_completion`` 方法会阻塞直到instance执行完成，``wait_for_success`` 方法同样会阻塞，不同的是，
+调用 ``wait_for_completion`` 方法会阻塞直到instance执行完成。 ``wait_for_success`` 方法同样会阻塞，不同的是，
 如果最终任务执行失败，则会抛出相关异常。
 
 子任务操作

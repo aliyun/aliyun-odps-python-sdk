@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.11.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-03-22 14:28+0800\n"
+"POT-Creation-Date: 2023-08-02 20:29+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/base-schemas.rst:4
 msgid "Schema"
@@ -46,38 +46,59 @@ msgid "Schema 基本操作"
 msgstr "Basic operations"
 
 #: ../../source/base-schemas.rst:16
-msgid "你可以使用 ``create_schema`` 创建一个 Schema 对象："
-msgstr "You may use ``create_schema`` to create a schema object."
+msgid "你可以使用 ``exist_schema`` 判断 Schema 对象是否存在："
+msgstr ""
+"You may use ``exist_schema`` to check if the schema with specific name exists."
 
 #: ../../source/base-schemas.rst:18
+msgid "print(o.exist_schema(\"test_schema\"))"
+msgstr ""
+
+#: ../../source/base-schemas.rst:22
+msgid "使用 ``create_schema`` 创建一个 Schema 对象："
+msgstr "Use ``create_schema`` to create a schema object."
+
+#: ../../source/base-schemas.rst:24
 msgid ""
 "schema = o.create_schema(\"test_schema\")\n"
 "print(schema)"
 msgstr ""
 
-#: ../../source/base-schemas.rst:23
+#: ../../source/base-schemas.rst:29
 msgid "使用 ``delete_schema`` 删除一个 Schema 对象："
 msgstr "Use ``delete_schema`` to delete a schema object."
 
-#: ../../source/base-schemas.rst:25
+#: ../../source/base-schemas.rst:31
 msgid "schema = o.delete_schema(\"test_schema\")"
 msgstr ""
 
-#: ../../source/base-schemas.rst:29
-msgid "使用 ``list_schema`` 列举所有 Schema 对象："
-msgstr "Use ``list_schema`` to list all schemas in s project."
-
-#: ../../source/base-schemas.rst:31
-msgid ""
-"for schema in o.list_schema():\n"
-"    print(schema)"
+#: ../../source/base-schemas.rst:35
+msgid "使用 ``get_schema`` 获得一个 Schema 对象并打印 Schema Owner："
 msgstr ""
+"Use ``get_schema`` to obtain a schema object and print its owner."
 
 #: ../../source/base-schemas.rst:37
+msgid ""
+"schema = o.get_schema(\"test_schema\")\n"
+"print(schema.owner)"
+msgstr ""
+
+#: ../../source/base-schemas.rst:42
+msgid "使用 ``list_schema`` 列举所有 Schema 对象并打印名称："
+msgstr ""
+"Use ``list_schema`` to list all schemas in s project and print their names."
+
+#: ../../source/base-schemas.rst:44
+msgid ""
+"for schema in o.list_schema():\n"
+"    print(schema.name)"
+msgstr ""
+
+#: ../../source/base-schemas.rst:50
 msgid "操作 Schema 中的对象"
 msgstr "Handling objects in Schema"
 
-#: ../../source/base-schemas.rst:38
+#: ../../source/base-schemas.rst:51
 msgid ""
 "在开启 Schema 后，MaxCompute 入口对象默认操作的 MaxCompute 对象都位于名为 ``DEFAULT`` 的 Schema"
 " 下。为操作其他 Schema 下的对象，需要在创建入口对象时指定 Schema，例如："
@@ -86,37 +107,61 @@ msgstr ""
 " objects in the schema named ``DEFAULT`` by default. To handle objects in"
 " other schemas, you need to provide the name of the schema. For instance,"
 
-#: ../../source/base-schemas.rst:41
+#: ../../source/base-schemas.rst:54
 msgid ""
-"o = ODPS('**your-access-id**', '**your-secret-access-key**', '**your-"
-"default-project**',\n"
-"         endpoint='**your-end-point**', schema='**your-schema-name**')"
+"import os\n"
+"from odps import ODPS\n"
+"# 保证 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，\n"
+"# ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret\n"
+"# 不建议直接使用 Access Key ID / Access Key Secret 字符串\n"
+"o = ODPS(\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
+"    project='**your-project**',\n"
+"    endpoint='**your-endpoint**',\n"
+"    schema='**your-schema-name**',\n"
+")"
 msgstr ""
+"import os\n"
+"from odps import ODPS\n"
+"# Make sure environment variable ALIBABA_CLOUD_ACCESS_KEY_ID already set "
+"to Access Key ID of user\n"
+"# while environment variable ALIBABA_CLOUD_ACCESS_KEY_SECRET set to "
+"Access Key Secret of user.\n"
+"# Not recommended to hardcode Access Key ID or Access Key Secret in your "
+"code.\n"
+"o = ODPS(\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),\n"
+"    os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),\n"
+"    project='**your-project**',\n"
+"    endpoint='**your-endpoint**',\n"
+"    schema='**your-schema-name**',\n"
+")"
 
-#: ../../source/base-schemas.rst:46
+#: ../../source/base-schemas.rst:69
 msgid "也可以为不同对象的操作方法指定 ``schema`` 参数。例如，下面的方法列举了 ``test_schema`` 下所有的表："
 msgstr ""
 "You can also specify names of schemas when handling MaxCompute objects. "
 "For instance, the code below lists all tables under the schema "
 "``test_schema``."
 
-#: ../../source/base-schemas.rst:49
+#: ../../source/base-schemas.rst:72
 msgid ""
 "for table in o.list_tables(schema='test_schema'):\n"
 "    print(table)"
 msgstr ""
 
-#: ../../source/base-schemas.rst:54
+#: ../../source/base-schemas.rst:77
 msgid "在执行 SQL 时，可以指定默认 Schema："
 msgstr ""
 "You can also specify name of the default schema when executing SQL "
 "statements."
 
-#: ../../source/base-schemas.rst:56
+#: ../../source/base-schemas.rst:79
 msgid "o.execute_sql(\"SELECT * FROM dual\", default_schema=\"test_schema\")"
 msgstr ""
 
-#: ../../source/base-schemas.rst:60
+#: ../../source/base-schemas.rst:83
 msgid ""
 "对于表而言，如果项目空间没有启用 Schema，``get_table`` 方法对于 ``x.y`` 形式的表名，默认按照 "
 "``project.table`` 处理。如果当前租户开启了 ``odps.namespace.schema`` 配置，``get_table``"
@@ -125,14 +170,14 @@ msgid ""
 "``schema.table`` 处理："
 msgstr ""
 "For tables, if schema is not enabled in project, ``get_table`` will "
-"handle ``x.y`` as ``project.table``. When ``odps.namespace.schema`` "
-"is enabled for current tenant, ``get_table`` will handle ``x.y`` as "
-"``schema.table``, or it will be still handled as ``project.table``. "
-"If the option is not specified, you may configure "
-"``options.always_enable_schema = True`` in your Python code and then"
-" all table names like ``x.y`` will be handled as ``schema.table``."
+"handle ``x.y`` as ``project.table``. When ``odps.namespace.schema`` is "
+"enabled for current tenant, ``get_table`` will handle ``x.y`` as "
+"``schema.table``, or it will be still handled as ``project.table``. If "
+"the option is not specified, you may configure "
+"``options.always_enable_schema = True`` in your Python code and then all "
+"table names like ``x.y`` will be handled as ``schema.table``."
 
-#: ../../source/base-schemas.rst:66
+#: ../../source/base-schemas.rst:89
 msgid ""
 "from odps import options\n"
 "options.always_enable_schema = True\n"

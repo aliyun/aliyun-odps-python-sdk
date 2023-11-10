@@ -12,27 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps import options
+from odps.config import default_options, options
 
+DEFAULT_PROXY_ENDPOINT = 'open.maxcompute.aliyun.com'
+options = options
 
-options.register_option('cupid.major_task_version', 'cupid_v2')
-options.register_option('cupid.wait_am_start_time', 600)
-options.register_option('cupid.use_bearer_token', None)
-options.register_option('cupid.settings', None)
-options.register_option('cupid.mp_buffer_size', 1024 * 64)
+if not hasattr(default_options, "cupid"):
+    default_options.register_option('cupid.major_task_version', 'cupid_v2')
+    default_options.register_option('cupid.wait_am_start_time', 600)
+    default_options.register_option('cupid.use_bearer_token', None)
+    default_options.register_option('cupid.settings', None)
+    default_options.register_option('cupid.mp_buffer_size', 1024 * 64)
 
-options.register_option('cupid.proxy_endpoint', 'open.maxcompute.aliyun.com')
-options.register_option('cupid.worker.virtual_resource', None)
-options.register_option('cupid.master.virtual_resource', None)
-options.register_option('cupid.master_type', 'kubernetes')
-options.register_option('cupid.application_type', 'mars')
-options.register_option('cupid.engine_running_type', 'default')
-options.register_option('cupid.container_node_label', None)
-options.register_option('cupid.job_duration_hours', 25920)
-options.register_option('cupid.channel_init_timeout_seconds', 120)
-options.register_option('cupid.kube.master_mode', 'cupid')
-options.register_option('cupid.runtime.endpoint', None)
+    default_options.register_option('cupid.proxy_endpoint', DEFAULT_PROXY_ENDPOINT)
+    default_options.register_option('cupid.worker.virtual_resource', None)
+    default_options.register_option('cupid.master.virtual_resource', None)
+    default_options.register_option('cupid.master_type', 'kubernetes')
+    default_options.register_option('cupid.application_type', 'mars')
+    default_options.register_option('cupid.engine_running_type', 'default')
+    default_options.register_option('cupid.container_node_label', None)
+    default_options.register_option('cupid.job_duration_hours', 25920)
+    default_options.register_option('cupid.channel_init_timeout_seconds', 120)
+    default_options.register_option('cupid.kube.master_mode', 'cupid')
+    default_options.register_option('cupid.runtime.endpoint', None)
 
-# mars app config
-options.register_option('cupid.image_prefix', None)
-options.register_option('cupid.image_version', 'v0.11.1')
+    # mars app config
+    default_options.register_option('cupid.image_prefix', None)
+    default_options.register_option('cupid.image_version', 'v0.11.1')

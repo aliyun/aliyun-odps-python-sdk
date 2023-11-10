@@ -105,7 +105,6 @@ else:
         get_ipython().events.register('pre_execute', _ignore_deprecated_warnings)
 
 from .compat import six
-from .config import options
 
 
 _DEFAULT_ENCODING = 'utf-8'
@@ -230,6 +229,7 @@ def get_notebook_backend():
 
 def is_widgets_available():
     from .config import options
+
     if not options.display.notebook_widget or widgets is None:
         return False
 
@@ -267,6 +267,8 @@ def get_console_size():
 
     Returns (None,None) in non-interactive session.
     """
+    from .config import options
+
     display_width = options.display.width
     # deprecated.
     display_height = options.display.max_rows
@@ -448,6 +450,7 @@ def _terminal_size(file=None):
     before falling back on the width and height in astropy's
     configuration.
     """
+    from .config import options
 
     if file is None:
         file = _get_stdout()
@@ -617,6 +620,7 @@ def color_print(*args, **kwargs):
         The ending of the message.  Defaults to ``\\n``.  The end will
         be printed after resetting any color or font state.
     """
+    from .config import options
 
     file = kwargs.get('file', _get_stdout())
 

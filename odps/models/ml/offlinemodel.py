@@ -57,8 +57,7 @@ class OfflineModel(LazyLoad):
         via this method might be incomplete due to size limitations.
         """
         url = self.resource()
-        params = {'data': ''}
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, action='data')
 
         return resp.text
 

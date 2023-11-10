@@ -38,10 +38,10 @@ import pytest
 
 from ... import types, options
 from ...lib import requests
-from ...tests.core import py_and_c, tn, pandas_case, odps2_typed_case, \
-    get_code_mode, approx_list
+from ...tests.core import py_and_c, tn, pandas_case, pyarrow_case, \
+    odps2_typed_case, get_code_mode, approx_list, flaky
 from ...utils import to_text
-from ...compat import Decimal, Monthdelta, Iterable
+from ...compat import Decimal, Monthdelta, Iterable, Version
 from ...errors import DatetimeOverflowError
 from ...models import TableSchema
 from .. import TableTunnel
@@ -108,7 +108,9 @@ class TunnelTestUtil(object):
         m = OrderedDict(zip(key_arrays, value_arrays))
         return m
 
-    def gen_table(self, partition=None, partition_type=None, partition_val=None, size=100):
+    def gen_table(
+        self, partition=None, partition_type=None, partition_val=None, size=100, odps=None
+    ):
         def gen_name(name):
             if '<' in name:
                 name = name.split('<', 1)[0]
@@ -118,6 +120,7 @@ class TunnelTestUtil(object):
                 name = name[:2]
             return name
 
+        odps = odps or self.odps
         test_table_name = tn('pyodps_test_tunnel')
         types = ['bigint', 'string', 'double', 'datetime', 'boolean', 'decimal']
         types.append(self.gen_random_array_type().name)
@@ -125,10 +128,10 @@ class TunnelTestUtil(object):
         random.shuffle(types)
         names = [gen_name(t) for t in types]
 
-        self.odps.delete_table(test_table_name, if_exists=True)
+        odps.delete_table(test_table_name, if_exists=True)
         partition_names = [partition, ] if partition else None
         partition_types = [partition_type, ] if partition_type else None
-        table = self.odps.create_table(
+        table = odps.create_table(
             test_table_name,
             TableSchema.from_lists(
                 names, types, partition_names=partition_names, partition_types=partition_types
@@ -170,7 +173,8 @@ class TunnelTestUtil(object):
                     assert it1 == it2
 
     def upload_data(self, test_table, records, compress=False, **kw):
-        upload_ss = self.tunnel.create_upload_session(test_table, **kw)
+        tunnel = kw.pop("tunnel", self.tunnel)
+        upload_ss = tunnel.create_upload_session(test_table, **kw)
         # make sure session reprs work well
         repr(upload_ss)
         writer = upload_ss.open_record_writer(0, compress=compress)
@@ -250,23 +254,25 @@ class TunnelTestUtil(object):
              ['true'], OrderedDict({'false': 0})),
         ]
 
-    def create_table(self, table_name):
+    def create_table(self, table_name, odps=None):
         fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
         types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
                  'array<string>', 'map<string,bigint>']
 
-        self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(
+        odps = odps or self.odps
+        odps.delete_table(table_name, if_exists=True)
+        return odps.create_table(
             table_name, TableSchema.from_lists(fields, types), lifecycle=1
         )
 
-    def create_partitioned_table(self, table_name):
+    def create_partitioned_table(self, table_name, odps=None):
         fields = ['id', 'int_num', 'float_num', 'dt', 'bool', 'dec', 'arr', 'm']
         types = ['string', 'bigint', 'double', 'datetime', 'boolean', 'decimal',
                  'array<string>', 'map<string,bigint>']
 
-        self.odps.delete_table(table_name, if_exists=True)
-        return self.odps.create_table(
+        odps = odps or self.odps
+        odps.delete_table(table_name, if_exists=True)
+        return odps.create_table(
             table_name,
             TableSchema.from_lists(fields, types, ['ds'], ['string']),
         )
@@ -789,30 +795,40 @@ def test_intervals(odps):
 
 @py_and_c_deco
 @odps2_typed_case
-def test_struct(odps):
+@pytest.mark.parametrize("struct_as_dict", [False, True])
+def test_struct(odps, struct_as_dict):
     table_name = tn('test_hivetunnel_struct_io')
     odps.delete_table(table_name, if_exists=True)
 
-    col_def = 'col1 int, col2 struct<name:string,age:int,'\
-              'parents:map<varchar(20),smallint>,hobbies:array<varchar(100)>>'
-    table = odps.create_table(table_name, col_def, lifecycle=1)
-    assert table.table_schema.types[0] == types.int_
-    assert isinstance(table.table_schema.types[1], types.Struct)
+    try:
+        options.struct_as_dict = struct_as_dict
 
-    contents = [
-        [0, {'name': 'user1', 'age': 20, 'parents': {'fa': 5, 'mo': 6},
-             'hobbies': ['worship', 'yacht']}],
-        [1, {'name': 'user2', 'age': 65, 'parents': {'fa': 2, 'mo': 7},
-             'hobbies': ['ukelele', 'chess']}],
-        [2, {'name': 'user3', 'age': 32, 'parents': {'fa': 1, 'mo': 3},
-             'hobbies': ['poetry', 'calligraphy']}],
-    ]
-    odps.write_table(table_name, contents)
-    written = list(odps.read_table(table_name))
-    values = [list(v.values) for v in written]
-    assert contents == values
+        col_def = 'col1 int, col2 struct<name:string,age:int,'\
+                  'parents:map<varchar(20),smallint>,hobbies:array<varchar(100)>>'
+        table = odps.create_table(table_name, col_def, lifecycle=1)
+        assert table.table_schema.types[0] == types.int_
+        struct_type = table.table_schema.types[1]
+        assert isinstance(struct_type, types.Struct)
 
-    table.drop(if_exists=True)
+        contents = [
+            [0, ('user1', 20, {'fa': 5, 'mo': 6}, ['worship', 'yacht'])],
+            [1, ('user2', 65, {'fa': 2, 'mo': 7}, ['ukelele', 'chess'])],
+            [2, ('user3', 32, {'fa': 1, 'mo': 3}, ['poetry', 'calligraphy'])],
+        ]
+        if struct_as_dict:
+            for c in contents:
+                c[1] = OrderedDict(zip(struct_type.field_types.keys(), c[1]))
+        else:
+            contents[-1][1] = struct_type.namedtuple_type(*contents[-1][1])
+
+        odps.write_table(table_name, contents)
+        written = list(odps.read_table(table_name))
+        values = [list(v.values) for v in written]
+        assert contents == values
+
+        table.drop(if_exists=True)
+    finally:
+        options.struct_as_dict = False
 
 
 @py_and_c_deco
@@ -868,7 +884,7 @@ def test_decimal_with_complex_types(odps):
     try:
         data_to_write = [
             [
-                [Decimal("12.345"), Decimal("18.41")], {"d": Decimal("514.321")}
+                [Decimal("12.345"), Decimal("18.41")], (Decimal("514.321"),)
             ]
         ]
         with table.open_writer() as writer:
@@ -883,14 +899,21 @@ def test_decimal_with_complex_types(odps):
 
 
 @py_and_c_deco
-def test_json_types(odps):
+@odps2_typed_case
+@pandas_case
+def test_json_timestamp_types(odps_daily):
+    import pandas as pd
+
     table_name = tn("test_json_types")
-    odps.delete_table(table_name, if_exists=True)
+    odps_daily.delete_table(table_name, if_exists=True)
     hints = {"odps.sql.type.json.enable": "true"}
-    table = odps.create_table(table_name, "col1 json, col2 bigint, col3 string", hints=hints)
+    table = odps_daily.create_table(
+        table_name, "col1 json, col2 timestamp_ntz, col3 string", hints=hints
+    )
 
     try:
-        data_to_write = [[{"root": {"key": "value"}}, 1, "hello"]]
+        ts_value = pd.Timestamp("2023-07-16 12:10:11.234156231")
+        data_to_write = [[{"root": {"key": "value"}}, ts_value, "hello"]]
         with table.open_writer() as writer:
             writer.write(data_to_write)
         with table.open_reader() as reader:
@@ -933,4 +956,197 @@ def test_antique_datetime(odps):
         options.allow_antique_date = False
         options.tunnel.overflow_date_as_none = False
 
+        table.drop()
+
+
+@pyarrow_case
+def test_tunnel_preview_table_simple_types(odps_daily, setup):
+    import pyarrow as pa
+
+    odps = odps_daily
+    tunnel = TableTunnel(odps)
+    test_table_name = tn('pyodps_test_tunnel_preview_table_simple_types')
+
+    odps.delete_table(test_table_name, if_exists=True)
+    table = setup.create_partitioned_table(test_table_name, odps=odps)
+    with tunnel.open_preview_reader(table, limit=3, arrow=False) as reader:
+        records = list(reader)
+        assert len(records) == 0
+
+    data = setup.gen_data()
+    table.create_partition("ds=test")
+    setup.upload_data(test_table_name, data, tunnel=tunnel, partition_spec="ds=test")
+
+    try:
+        options.struct_as_dict = True
+
+        # test arrow result on limited column types
+        if Version(pa.__version__) < Version("1.0"):
+            # pyarrow < 1.0 crashes under compression
+            kw = {}
+        else:
+            kw = {"compress_algo": "zstd"}
+
+        with tunnel.open_preview_reader(
+            table, limit=2, columns=['id', 'int_num', 'float_num'], arrow=True, **kw
+        ) as reader:
+            arrow_table = reader.read()
+        result_rows = [tuple(x.as_py() for x in tp) for tp in zip(*arrow_table.columns)]
+        assert result_rows == [tp[:3] for tp in data[:2]]
+
+        with tunnel.open_preview_reader(table, limit=3, arrow=False) as reader:
+            records = list(reader)
+        result_rows = [tuple(rec.values) for rec in records]
+        assert result_rows == [tp + ("test",) for tp in data[:3]]
+    finally:
+        options.struct_as_dict = False
+
+    odps.delete_table(test_table_name)
+
+
+@pandas_case
+@pyarrow_case
+@odps2_typed_case
+def test_tunnel_preview_odps_extended_datetime(odps):
+    import pandas as pd
+
+    tunnel = TableTunnel(odps)
+
+    test_table_name = tn('pyodps_test_tunnel_preview_odps_extended_types')
+    odps.delete_table(test_table_name, if_exists=True)
+    odps.execute_sql(
+        "create table " + test_table_name + " as "
+        "select cast('2023-10-12 11:05:11.123451231' as timestamp) as ts_col, "
+        "interval '3 12:30:11.134512345' day to second as intv_col"
+    )
+    table = odps.get_table(test_table_name)
+
+    try:
+        with tunnel.open_preview_reader(table, arrow=False) as reader:
+            record = list(reader)[0]
+        assert record["ts_col"] == pd.Timestamp("2023-10-12 11:05:11.123451231")
+        assert record["intv_col"] == pd.Timedelta(
+            days=3, hours=12, minutes=30, seconds=11, microseconds=134512, nanoseconds=345
+        )
+    finally:
+        odps.delete_table(test_table_name)
+
+
+@pyarrow_case
+def test_tunnel_preview_legacy_decimal(odps):
+    tunnel = TableTunnel(odps)
+
+    test_table_name = tn('pyodps_test_tunnel_preview_odps_legacy_decimal')
+    odps.delete_table(test_table_name, if_exists=True)
+
+    values = [
+        None,
+        Decimal("0.0"),
+        Decimal("0.571428"),
+        Decimal("21.3456"),
+        Decimal("-5678"),
+        Decimal("134567234121.561345671892"),
+    ]
+
+    try:
+        options.sql.settings = {"odps.sql.decimal.odps2": "false"}
+        table = odps.create_table(test_table_name, "col decimal")
+
+        with table.open_writer() as writer:
+            writer.write([[v] for v in values])
+        with tunnel.open_preview_reader(table, arrow=False) as reader:
+            written = [rec[0] for rec in reader]
+        assert values == written
+    finally:
+        options.sql.settings = {}
+        odps.delete_table(test_table_name)
+
+
+@pandas_case
+@pyarrow_case
+@odps2_typed_case
+@pytest.mark.parametrize("struct_as_dict", [False, True])
+def test_tunnel_preview_table_complex_types(odps, struct_as_dict):
+    import pandas as pd
+
+    tunnel = TableTunnel(odps)
+    test_table_name = tn('pyodps_test_tunnel_preview_table_complex_types')
+    odps.delete_table(test_table_name, if_exists=True)
+
+    table = odps.create_table(
+        test_table_name,
+        "col1 decimal(10, 2), col2 timestamp, col3 map<string, array<bigint>>, "
+        "col4 array<map<string, bigint>>, col5 struct<key: string, value: map<string, bigint>>",
+        lifecycle=1
+    )
+    data = [
+        [
+            Decimal("1234.52"),
+            pd.Timestamp("2023-07-15 23:08:12.134567123"),
+            {"abcd": [1234, None], "egh": [5472]},
+            [{"uvw": 123, "xyz": 567}, {"abcd": 345}],
+            ("this_key", {"pqr": 47, "st": 56}),
+        ],
+        [
+            Decimal("5473.12"),
+            pd.Timestamp("2023-07-16 10:01:23.345673214"),
+            {"uvw": [9876, None], "tre": [3421]},
+            [{"mrp": 342, "vcs": 165}],
+            ("other_key", {"df": 12, "das": 27}),
+        ],
+    ]
+    with table.open_writer() as writer:
+        writer.write(data)
+
+    try:
+        options.struct_as_dict = struct_as_dict
+
+        with tunnel.open_preview_reader(table, arrow=False) as reader:
+            records = list(reader)
+        result_rows = [tuple(rec.values) for rec in records]
+        if struct_as_dict:
+            for r in data:
+                r[-1] = OrderedDict(zip(["key", "value"], r[-1]))
+        assert [tuple(r) for r in data] == result_rows
+    finally:
+        options.struct_as_dict = False
+    table.drop()
+
+
+@flaky(max_runs=3)
+@py_and_c_deco
+def test_upsert_table(odps_daily):
+    table_name = tn("test_upsert_table")
+    odps_daily.delete_table(table_name, if_exists=True)
+    table = odps_daily.create_table(
+        table_name, "key string not null, value string",
+        transactional=True, primary_key="key", lifecycle=1,
+    )
+
+    tunnel = TableTunnel(odps_daily, endpoint=odps_daily._tunnel_endpoint)
+
+    try:
+        upsert_session = tunnel.create_upsert_session(table)
+        stream = upsert_session.open_upsert_stream(compress=True)
+        rec = upsert_session.new_record(["0", "v1"])
+        stream.upsert(rec)
+        rec = upsert_session.new_record(["0", "v2"])
+        stream.upsert(rec)
+        rec = upsert_session.new_record(["0", "v3"])
+        stream.upsert(rec)
+        rec = upsert_session.new_record(["1", "v1"])
+        stream.upsert(rec)
+        rec = upsert_session.new_record(["2", "v1"])
+        stream.upsert(rec)
+        stream.delete(rec)
+        stream.flush()
+        stream.close()
+
+        upsert_session.commit()
+
+        inst = odps_daily.execute_sql("SELECT * FROM %s" % table_name)
+        with inst.open_reader() as reader:
+            records = [list(rec.values) for rec in reader]
+        assert sorted(records) == [["0", "v3"], ["1", "v1"]]
+    finally:
         table.drop()
