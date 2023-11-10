@@ -52,27 +52,37 @@ class CompressOption(object):
         ODPS_LZ4 = 'LZ4'
         ODPS_ARROW_LZ4 = 'ARROW_LZ4'
 
-        def get_encoding(self):
+        def get_encoding(self, legacy=True):
             cls = type(self)
-            if self == cls.ODPS_RAW:
-                return None
-            elif self == cls.ODPS_ZLIB:
-                return 'deflate'
-            elif self == cls.ODPS_ZSTD:
-                return 'zstd'
-            elif self == cls.ODPS_LZ4:
-                return 'x-lz4-frame'
-            elif self == cls.ODPS_SNAPPY:
-                return 'x-snappy-framed'
-            elif self == cls.ODPS_ARROW_LZ4:
-                return 'x-odps-lz4-frame'
+            if legacy:
+                if self == cls.ODPS_RAW:
+                    return None
+                elif self == cls.ODPS_ZLIB:
+                    return 'deflate'
+                elif self == cls.ODPS_ZSTD:
+                    return 'zstd'
+                elif self == cls.ODPS_LZ4:
+                    return 'x-lz4-frame'
+                elif self == cls.ODPS_SNAPPY:
+                    return 'x-snappy-framed'
+                elif self == cls.ODPS_ARROW_LZ4:
+                    return 'x-odps-lz4-frame'
+                else:
+                    raise TunnelError('invalid compression option')
             else:
-                raise TunnelError('invalid compression option')
+                if self == cls.ODPS_RAW:
+                    return None
+                elif self == cls.ODPS_ZSTD:
+                    return 'ZSTD'
+                elif self == cls.ODPS_LZ4 or self == cls.ODPS_ARROW_LZ4:
+                    return 'LZ4_FRAME'
+                else:
+                    raise TunnelError('invalid compression option')
 
         @classmethod
         def from_encoding(cls, encoding):
             encoding = encoding.lower() if encoding else None
-            if encoding is None:
+            if encoding is None or encoding == 'identity':
                 return cls.ODPS_RAW
             elif encoding == 'deflate':
                 return cls.ODPS_ZLIB
@@ -82,7 +92,7 @@ class CompressOption(object):
                 return cls.ODPS_LZ4
             elif encoding == 'x-snappy-framed':
                 return cls.ODPS_SNAPPY
-            elif encoding == 'x-odps-lz4-frame':
+            elif encoding == 'x-odps-lz4-frame' or encoding == "lz4_frame":
                 return cls.ODPS_ARROW_LZ4
             else:
                 raise TunnelError('invalid encoding name %s' % encoding)
@@ -216,8 +226,16 @@ class SimpleInputStream(object):
         self._internal_buffer = memoryview(b'')
         self._buffered_len = 0
         self._buffered_pos = 0
+        self._closed = False
+
+    @staticmethod
+    def readable():
+        return True
 
     def read(self, limit):
+        if self._closed:
+            raise IOError("closed")
+
         if limit <= self._buffered_len - self._buffered_pos:
             mv = self._internal_buffer[self._buffered_pos:self._buffered_pos + limit]
             self._buffered_pos += len(mv)
@@ -233,7 +251,19 @@ class SimpleInputStream(object):
             size_left -= len(content)
         return bytes().join(bufs)
 
+    def peek(self):
+        if self._buffered_pos == self._buffered_len:
+            self._refill_buffer()
+
+        if self._buffered_pos == self._buffered_len:
+            # still nothing can be read
+            return None
+        return self._internal_buffer[self._buffered_pos]
+
     def readinto(self, b):
+        if self._closed:
+            raise IOError("closed")
+
         b = cast_memoryview(b)
         limit = len(b)
         if limit <= self._buffered_len - self._buffered_pos:
@@ -293,6 +323,13 @@ class SimpleInputStream(object):
 
     def _buffer_next_chunk(self):
         return self._read_block()
+
+    @property
+    def closed(self):
+        return self._closed
+
+    def close(self):
+        self._closed = True
 
 
 class DecompressInputStream(SimpleInputStream):

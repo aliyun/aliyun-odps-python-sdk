@@ -37,7 +37,7 @@ cdef class CDecoder:
         self._end = self._begin + len(self._buffer)
         self._is_source_eof = False
 
-    cdef int32_t read_field_number(self) nogil except? -1:
+    cdef int32_t read_field_number(self) except? -1 nogil:
         if self._end - self._begin < _MIN_SERIALIZED_INT_SIZE:
             self._load_next_buffer()
 
@@ -56,32 +56,32 @@ cdef class CDecoder:
     cdef size_t position(self) nogil:
         return self._pos
 
-    cdef int32_t read_sint32(self) nogil except? -1:
+    cdef int32_t read_sint32(self) except? -1 nogil:
         if self._end - self._begin < _MIN_SERIALIZED_INT_SIZE:
             self._load_next_buffer()
         return get_signed_varint32(&self._begin, self._end, &self._pos)
 
-    cdef uint32_t read_uint32(self) nogil except? 0xffffffff:
+    cdef uint32_t read_uint32(self) except? 0xffffffff nogil:
         if self._end - self._begin < _MIN_SERIALIZED_INT_SIZE:
             self._load_next_buffer()
         return get_varint32(&self._begin, self._end, &self._pos)
 
-    cdef int64_t read_sint64(self) nogil except? -1:
+    cdef int64_t read_sint64(self) except? -1 nogil:
         if self._end - self._begin < _MIN_SERIALIZED_INT_SIZE:
             self._load_next_buffer()
         return get_signed_varint64(&self._begin, self._end, &self._pos)
 
-    cdef uint64_t read_uint64(self) nogil except? 0xffffffff:
+    cdef uint64_t read_uint64(self) except? 0xffffffff nogil:
         if self._end - self._begin < _MIN_SERIALIZED_INT_SIZE:
             self._load_next_buffer()
         return get_varint64(&self._begin, self._end, &self._pos)
 
-    cdef bint read_bool(self) nogil except? False:
+    cdef bint read_bool(self) except? False nogil:
         if self._end - self._begin < _MIN_SERIALIZED_INT_SIZE:
             self._load_next_buffer()
         return get_varint32(&self._begin, self._end, &self._pos)
 
-    cdef double read_double(self) nogil except? -1.0:
+    cdef double read_double(self) except? -1.0 nogil:
         cdef double retval
 
         if self._end - self._begin < sizeof(double):
@@ -92,7 +92,7 @@ cdef class CDecoder:
         self._pos += sizeof(double)
         return retval
 
-    cdef float read_float(self) nogil except? -1.0:
+    cdef float read_float(self) except? -1.0 nogil:
         cdef float retval
 
         if self._end - self._begin < sizeof(float):

@@ -319,6 +319,31 @@ def test_async(odps, setup):
     assert inst.priority == 4
 
 
+def test_dataframe_progress_log(odps, setup):
+    setup.gen_data(10, value_range=(-1000, 1000))
+
+    logs = []
+    try:
+        options.verbose = True
+        options.verbose_log = logs.append
+        options.progress_time_interval = 0.1
+
+        def func(x):
+            time.sleep(0.1)
+            return x
+
+        expr = setup.expr.id.map(func).sum()
+        setup.engine.execute(expr)
+
+        assert any("select" in log.lower() for log in logs)
+        assert any("instance" in log.lower() for log in logs)
+        assert any("_job_" in log.lower() for log in logs)
+    finally:
+        options.verbose = False
+        options.verbose_log = None
+        options.progress_time_interval = 5 * 60
+
+
 def test_no_permission(odps, setup):
     class NoPermissionEngine(ODPSEngine):
         def _handle_cases(self, *args, **kwargs):
@@ -3873,6 +3898,53 @@ def test_string_splits(odps, setup):
         expr = expr_in[expr_in.id, expr_in.name.todict(kv_delim=':')]
         res = setup.engine.execute(expr)
         result = get_result(res)
+        assert result == expected
+    finally:
+        table.drop()
+
+
+def test_map_complex_functions(odps, setup):
+    datatypes = lambda *types: [validate_data_type(t) for t in types]
+    table_name = tn("test_map_complex_functions_table")
+    odps.delete_table(table_name, if_exists=True)
+    table = odps.create_table(
+        table_name,
+        "col1 array<string>, col2 map<string, string>, col3 struct<attr: string, value: bigint>",
+    )
+    schema = TableSchema.from_lists(
+        ['col1', 'col2', 'col3'],
+        datatypes('list<string>', 'dict<string, string>', 'struct<attr: string, value: int64>'),
+    )
+
+    data = [
+        [["abcd", "efgh"], {"k1": "val1", "k2": "val2"}, ("uvw", 123)],
+        [["uvwx", "yz"], {"k3": "pt", "k4": "xyz"}, ("zyx", 456)],
+        [["mprz", "uw"], {"k5": "dz", "k6": "mvw"}, ("wez", 789)],
+        [[";lol", "te"], {"k7": "utz", "k8": "ore"}, ("exz", 191)],
+    ]
+    for row in data:
+        row[-1] = schema.types[-1].namedtuple_type(*row[-1])
+    odps.write_table(table, data)
+
+    def f1(value):
+        return ",".join(value)
+
+    def f2(value):
+        return ",".join(k + ":" + v for k, v in value.items())
+
+    def f3(value):
+        return "attr:" + value.attr + ",value:" + str(value.value)
+
+    try:
+        expr_in = CollectionExpr(_source_data=table, _schema=schema)
+        expr = expr_in[
+            expr_in.col1.map(f1, rtype="string"),
+            expr_in.col2.map(f2, rtype="string"),
+            expr_in.col3.map(f3, rtype="string"),
+        ]
+        res = setup.engine.execute(expr)
+        result = get_result(res)
+        expected = [[f1(v1), f2(v2), f3(v3)] for v1, v2, v3 in data]
         assert result == expected
     finally:
         table.drop()

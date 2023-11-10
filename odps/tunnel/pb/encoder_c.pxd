@@ -23,15 +23,15 @@ cdef class CEncoder:
 
     cdef size_t position(self) nogil
     cpdef bytes tostring(self)
-    cdef int append_tag(self, int field_num, int wire_type) nogil except +
-    cdef int append_sint32(self, int32_t value) nogil except +
-    cdef int append_uint32(self, uint32_t value) nogil except +
-    cdef int append_sint64(self, int64_t value) nogil except +
-    cdef int append_uint64(self, uint64_t value) nogil except +
-    cdef int append_bool(self, bint value) nogil except +
-    cdef int append_double(self, double value) nogil except +
-    cdef int append_float(self, float value) nogil except +
-    cdef int append_string(self, const char *ptr, size_t value_len) nogil except +
+    cdef int append_tag(self, int field_num, int wire_type) except + nogil
+    cdef int append_sint32(self, int32_t value) except + nogil
+    cdef int append_uint32(self, uint32_t value) except + nogil
+    cdef int append_sint64(self, int64_t value) except + nogil
+    cdef int append_uint64(self, uint64_t value) except + nogil
+    cdef int append_bool(self, bint value) except + nogil
+    cdef int append_double(self, double value) except + nogil
+    cdef int append_float(self, float value) except + nogil
+    cdef int append_string(self, const char *ptr, size_t value_len) except + nogil
 
 
 cdef class Encoder:

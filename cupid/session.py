@@ -114,7 +114,7 @@ class CupidSession(object):
     def start_kubernetes(self, async_=False, priority=None, running_cluster=None,
                          proxy_endpoint=None, major_task_version=None,
                          app_command=None, app_image=None, resources=None, **kw):
-        priority = priority or options.priority
+        priority = priority if priority is not None else options.priority
         if priority is None and options.get_priority is not None:
             priority = options.get_priority(self.odps)
         menginetype = options.cupid.engine_running_type

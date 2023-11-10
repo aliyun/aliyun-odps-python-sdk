@@ -45,7 +45,7 @@ class ExternalVolumeObject(FSVolumeObject):
     def get_sign_url(self, method, seconds=None):
         if isinstance(method, SignUrlMethod):
             method = method.value
-        params = {'sign_url': method.lower(), 'meta': ''}
+        params = {'sign_url': method.lower()}
         if seconds:
             params["expire_seconds"] = seconds
         headers = {'x-odps-volume-fs-path': self.path}
@@ -53,7 +53,9 @@ class ExternalVolumeObject(FSVolumeObject):
         schema_name = self.volume._get_schema_name()
         if schema_name is not None:
             params["curr_schema"] = schema_name
-        resp = self._client.get(self.parent.resource(), params=params, headers=headers)
+        resp = self._client.get(
+            self.parent.resource(), action='meta', params=params, headers=headers
+        )
         self.parse(self._client, resp, obj=self)
         return self.sign_url
 

@@ -355,8 +355,12 @@ def sample(expr, parts=None, columns=None, i=None, n=None, frac=None, replace=Fa
             for it in i:
                 if it >= parts or it < 0:
                     raise ExpressionError('`i` should be positive numbers that less than `parts`')
-        elif not replace and weights is None and strata is None:
-            pass
+        elif not options.df.use_xflow_sample and not replace and weights is None and strata is None:
+            if frac is not None and frac < 0.01:
+                raise ValueError(
+                    "Does not support sampling less than 1%. Try sampling by count or "
+                    "set options.df.use_xflow_sample to True."
+                )
         elif hasattr(expr, '_xflow_sample'):
             return expr._xflow_sample(n=n, frac=frac, replace=replace, weights=weights, strata=strata,
                                       random_state=random_state)

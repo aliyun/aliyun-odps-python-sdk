@@ -359,6 +359,9 @@ class OdpsSQLCompiler(Backend):
             # special case due to `union`
             lines = [self._from_clause]
 
+        # tablesample need to be placed right after from clause
+        if self._table_sample_clause:
+            lines.append('TABLESAMPLE {0}'.format(self._table_sample_clause))
         if self._where_clause:
             lines.append('WHERE {0} '.format(self._where_clause))
         if self._group_by_clause:
@@ -372,8 +375,6 @@ class OdpsSQLCompiler(Backend):
                 # for `sort by`, limit is unnecessary
                 self._limit = options.df.odps.sort.limit
             lines.append(self._order_by_clause)
-        if self._table_sample_clause:
-            lines.append('TABLESAMPLE {0}'.format(self._table_sample_clause))
         if self._limit is not None:
             lines.append('LIMIT {0}'.format(self._limit))
 
@@ -537,7 +538,9 @@ class OdpsSQLCompiler(Backend):
         self._order_by_clause = order_by_clause
 
     def add_table_sample_clause(self, expr, table_sample_clause):
-        if self._table_sample_clause is not None:
+        if any(clause is not None for clause in
+               (self._where_clause, self._table_sample_clause, self._group_by_clause,
+                self._having_clause, self._order_by_clause, self._limit)):
             self.sub_sql_to_from_clause(expr.input)
         self._table_sample_clause = table_sample_clause
 
@@ -1139,10 +1142,16 @@ class OdpsSQLCompiler(Backend):
                 probs_expr = expr._prob
             else:
                 probs_expr = 'ARRAY(' + ', '.join(str(p) for p in expr._prob) + ')'
-            if is_unique:
-                compiled = 'PERCENTILE(DISTINCT %s, %s)' % (self._ctx.get_expr_compiled(expr.input), probs_expr)
+
+            if expr.input.data_type in (df_types.float32, df_types.float64) and types.get_local_use_odps2_types():
+                func_name = 'PERCENTILE_APPROX'
             else:
-                compiled = 'PERCENTILE(%s, %s)' % (self._ctx.get_expr_compiled(expr.input), probs_expr)
+                func_name = 'PERCENTILE'
+
+            if is_unique:
+                compiled = '%s(DISTINCT %s, %s)' % (func_name, self._ctx.get_expr_compiled(expr.input), probs_expr)
+            else:
+                compiled = '%s(%s, %s)' % (func_name, self._ctx.get_expr_compiled(expr.input), probs_expr)
         elif isinstance(expr, (ToList, GroupedToList)):
             func_name = 'COLLECT_SET' if expr._unique else 'COLLECT_LIST'
             compiled = '%s(%s)' % (func_name, self._ctx.get_expr_compiled(expr.input))

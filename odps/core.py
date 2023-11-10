@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import functools
 import json  # noqa: F401
 import os
@@ -34,6 +35,12 @@ DEFAULT_ENDPOINT = 'http://service.odps.aliyun.com/api'
 LOGVIEW_HOST_DEFAULT = 'http://logview.odps.aliyun.com'
 
 _ALTER_TABLE_REGEX = re.compile(r'^\s*(drop|alter)\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
+_MERGE_SMALL_FILES_REGEX = re.compile(
+    r'^alter\s+table\s+(?P<table>[^\s;]+)\s+'
+    r'(|partition\s*\((?P<partition>[^)]+)\s*\))\s*'
+    r'(merge\s+smallfiles|compact\s+(?P<compact_type>[^\s;]+))[\s;]*$',
+    re.I,
+)
 
 
 @utils.attach_internal
@@ -130,8 +137,8 @@ class ODPS(object):
 
         self._logview_host = (
             kw.pop("logview_host", None)
-            or self.get_logview_host()
             or options.logview_host
+            or self.get_logview_host()
         )
 
         self._default_tenant = models.Tenant(client=self.rest)
@@ -232,7 +239,7 @@ class ODPS(object):
 
     def is_schema_namespace_enabled(self, settings=None):
         settings = settings or {}
-        setting = (
+        setting = str(
             settings.get("odps.namespace.schema")
             or (options.sql.settings or {}).get("odps.namespace.schema")
             or ("true" if options.always_enable_schema else None)
@@ -348,15 +355,17 @@ class ODPS(object):
 
         return name in self._projects
 
-    def list_schemas(self, project=None):
+    def list_schemas(self, project=None, prefix=None, owner=None):
         """
         List all schemas of a project.
 
         :param project: project name, if not provided, will be the default project
+        :param str prefix: the listed schemas start with this **prefix**
+        :param str owner: Aliyun account, the owner which listed tables belong to
         :return: schemas
         """
         project = self.get_project(name=project)
-        return project.schemas.iterate()
+        return project.schemas.iterate(name=prefix, owner=owner)
 
     def get_schema(self, name=None, project=None):
         """
@@ -432,34 +441,33 @@ class ODPS(object):
             name = name.strip("`")
         return project, schema, name
 
-    def list_tables(self, project=None, prefix=None, owner=None, schema=None):
+    def list_tables(
+        self, project=None, prefix=None, owner=None, schema=None, type=None, extended=False
+    ):
         """
         List all tables of a project.
         If prefix is provided, the listed tables will all start with this prefix.
         If owner is provided, the listed tables will belong to such owner.
 
-        :param project: project name, if not provided, will be the default project
-        :param prefix: the listed tables start with this **prefix**
-        :type prefix: str
-        :param owner: Aliyun account, the owner which listed tables belong to
-        :type owner: str
-        :param schema: schema name, if not provided, will be the default schema
-        :type schema: str
+        :param str project: project name, if not provided, will be the default project
+        :param str prefix: the listed tables start with this **prefix**
+        :param str owner: Aliyun account, the owner which listed tables belong to
+        :param str schema: schema name, if not provided, will be the default schema
+        :param str type: type of the table
+        :param bool extended: if True, load extended information for table
         :return: tables in this project, filtered by the optional prefix and owner.
         :rtype: generator
         """
-
         parent = self._get_project_or_schema(project, schema)
-        return parent.tables.iterate(name=prefix, owner=owner)
+        return parent.tables.iterate(name=prefix, owner=owner, type=type, extended=extended)
 
     def get_table(self, name, project=None, schema=None):
         """
         Get table by given name.
 
         :param name: table name
-        :param project: project name, if not provided, will be the default project
-        :param schema: schema name, if not provided, will be the default schema
-        :type schema: str
+        :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: the right table
         :rtype: :class:`odps.models.Table`
         :raise: :class:`odps.errors.NoSuchObject` if not exists
@@ -495,7 +503,8 @@ class ODPS(object):
     def create_table(
         self, name, table_schema=None, project=None, schema=None, comment=None,
         if_not_exists=False, lifecycle=None, shard_num=None, hub_lifecycle=None,
-        hints=None, async_=False, **kw
+        hints=None, transactional=False, primary_key=None, storage_tier=None,
+        async_=False, **kw
     ):
         """
         Create a table by given schema and other optional parameters.
@@ -511,6 +520,9 @@ class ODPS(object):
         :param int shard_num: table's shard num
         :param int hub_lifecycle: hub lifecycle
         :param dict hints: hints for the task
+        :param bool transactional: make table transactional
+        :param list primary_key: primary key of the table, only for transactional tables
+        :param str storage_tier: storage tier of the table
         :param bool async_: if True, will run asynchronously
         :return: the created Table if not async else odps instance
         :rtype: :class:`odps.models.Table` or :class:`odps.models.Instance`
@@ -547,8 +559,9 @@ class ODPS(object):
         parent = self._get_project_or_schema(project, schema)
         return parent.tables.create(
             name, table_schema, comment=comment, if_not_exists=if_not_exists,
-            lifecycle=lifecycle, shard_num=shard_num,
-            hub_lifecycle=hub_lifecycle, hints=hints, async_=async_, **kw
+            lifecycle=lifecycle, shard_num=shard_num, hub_lifecycle=hub_lifecycle,
+            hints=hints, transactional=transactional, primary_key=primary_key,
+            storage_tier=storage_tier, async_=async_, **kw
         )
 
     @utils.with_wait_argument
@@ -695,8 +708,9 @@ class ODPS(object):
         List all resources of a project.
 
         :param project: project name, if not provided, will be the default project
-        :param schema: schema name, if not provided, will be the default schema
-        :type schema: str
+        :param str prefix: the listed resources start with this **prefix**
+        :param str owner: Aliyun account, the owner which listed tables belong to
+        :param str schema: schema name, if not provided, will be the default schema
         :return: resources
         :rtype: generator
         """
@@ -862,9 +876,10 @@ class ODPS(object):
         """
         List all functions of a project.
 
-        :param project: project name, if not provided, will be the default project
-        :param schema: schema name, if not provided, will be the default schema
-        :type schema: str
+        :param str project: project name, if not provided, will be the default project
+        :param str prefix: the listed functions start with this **prefix**
+        :param str owner: Aliyun account, the owner which listed tables belong to
+        :param str schema: schema name, if not provided, will be the default schema
         :return: functions
         :rtype: generator
         """
@@ -878,9 +893,8 @@ class ODPS(object):
         Get the function by given name
 
         :param name: function name
-        :param project: project name, if not provided, will be the default project
-        :param schema: schema name, if not provided, will be the default schema
-        :type schema: str
+        :param str project: project name, if not provided, will be the default project
+        :param str schema: schema name, if not provided, will be the default schema
         :return: the right function
         :raise: :class:`odps.errors.NoSuchObject` if not exists
 
@@ -1094,13 +1108,25 @@ class ODPS(object):
 
         .. seealso:: :class:`odps.models.Instance`
         """
+        sql = utils.to_text(sql)
 
-        priority = priority or options.priority
+        merge_small_files_match = _MERGE_SMALL_FILES_REGEX.match(sql)
+        if merge_small_files_match:
+            kwargs = merge_small_files_match.groupdict().copy()
+            kwargs.update({
+                "project": project,
+                "schema": default_schema,
+                "hints": hints,
+                "running_cluster": running_cluster,
+                "priority": priority,
+            })
+            return self.run_merge_files(**kwargs)
+
+        priority = priority if priority is not None else options.priority
         if priority is None and options.get_priority is not None:
             priority = options.get_priority(self)
         on_instance_create = kwargs.pop('on_instance_create', None)
 
-        sql = utils.to_text(sql)
         alter_table_match = _ALTER_TABLE_REGEX.match(sql)
         if alter_table_match:
             drop_table_name = alter_table_match.group('table_name')
@@ -1124,9 +1150,10 @@ class ODPS(object):
             task.update_aliases(aliases)
 
         project = self.get_project(name=project)
-        return project.instances.create(task=task, priority=priority,
-                                        running_cluster=running_cluster,
-                                        create_callback=on_instance_create)
+        return project.instances.create(
+            task=task, priority=priority, running_cluster=running_cluster,
+            create_callback=on_instance_create
+        )
 
     def execute_sql_cost(self, sql, project=None, hints=None, **kwargs):
         """
@@ -1169,7 +1196,7 @@ class ODPS(object):
         return ','.join(parts)
 
     def execute_merge_files(self, table, partition=None, project=None, schema=None,
-                            hints=None, priority=None):
+                            hints=None, priority=None, running_cluster=None, compact_type=None):
         """
         Execute a task to merge multiple files in tables and wait for termination.
 
@@ -1179,16 +1206,21 @@ class ODPS(object):
         :param str schema: schema name, if not provided, will be the default schema
         :param hints: settings for merge task.
         :param priority: instance priority, 9 as default
+        :param running_cluster: cluster to run this instance
+        :param compact_type: compact option for transactional table, can be major or minor.
         :return: instance
         :rtype: :class:`odps.models.Instance`
         """
-        inst = self.run_merge_files(table, partition=partition, project=project, hints=hints,
-                                    schema=schema, priority=priority)
+        inst = self.run_merge_files(
+            table, partition=partition, project=project, hints=hints,
+            schema=schema, priority=priority, running_cluster=running_cluster,
+            compact_type=compact_type,
+        )
         inst.wait_for_success()
         return inst
 
     def run_merge_files(self, table, partition=None, project=None, schema=None, hints=None,
-                        priority=None):
+                        priority=None, running_cluster=None, compact_type=None):
         """
         Start running a task to merge multiple files in tables.
 
@@ -1198,6 +1230,8 @@ class ODPS(object):
         :param str schema: schema name, if not provided, will be the default schema
         :param hints: settings for merge task.
         :param priority: instance priority, 9 as default
+        :param running_cluster: cluster to run this instance
+        :param compact_type: compact option for transactional table, can be major or minor.
         :return: instance
         :rtype: :class:`odps.models.Instance`
         """
@@ -1215,13 +1249,19 @@ class ODPS(object):
         if partition:
             table_name += " partition(%s)" % (self._parse_partition_string(partition))
 
-        priority = priority or options.priority
+        priority = priority if priority is not None else options.priority
         if priority is None and options.get_priority is not None:
             priority = options.get_priority(self)
 
         hints = hints or dict()
         if options.default_task_settings:
             hints.update(options.default_task_settings)
+
+        if compact_type:
+            hints.update({
+                "odps.merge.txn.table.compact": compact_type,
+                "odps.merge.restructure.action": "hardlink",
+            })
         if schema is not None:
             hints.update({
                 "odps.sql.allow.namespace.schema": "true",
@@ -1233,7 +1273,9 @@ class ODPS(object):
         task.update_settings(hints)
 
         project = self.get_project(name=project)
-        return project.instances.create(task=task, priority=priority)
+        return project.instances.create(
+            task=task, running_cluster=running_cluster, priority=priority
+        )
 
     def execute_archive_table(self, table, partition=None, project=None, schema=None,
                               hints=None, priority=None):
@@ -1271,7 +1313,7 @@ class ODPS(object):
         if partition:
             table += " partition(%s)" % (self._parse_partition_string(partition))
 
-        priority = priority or options.priority
+        priority = priority if priority is not None else options.priority
         if priority is None and options.get_priority is not None:
             priority = options.get_priority(self)
 
@@ -1910,7 +1952,9 @@ class ODPS(object):
         :return: logview host address
         """
         try:
-            logview_host = self.rest.get(self.endpoint + '/logview/host').text
+            logview_host = utils.to_str(
+                self.rest.get(self.endpoint + '/logview/host').content
+            )
         except:
             logview_host = None
         if not logview_host:
@@ -2333,6 +2377,7 @@ class ODPS(object):
         inst = None
         use_tunnel = kwargs.pop("tunnel", True)
         fallback_callback = kwargs.pop("fallback_callback", None)
+        offline_hints = kwargs.pop("offline_hints", None) or {}
         try:
             inst = self.run_sql_interactive(sql, hints=hints, **kwargs)
             inst.wait_for_success(interval=0.1, max_interval=1)
@@ -2359,7 +2404,7 @@ class ODPS(object):
                 kwargs.pop("service_name", None)
                 kwargs.pop("force_reattach", None)
                 kwargs.pop("service_startup_timeout", None)
-                hints = hints or {}
+                hints = copy.copy(offline_hints or hints or {})
                 hints["odps.task.sql.sqa.enable"] = "false"
 
                 if fallback_callback is not None:

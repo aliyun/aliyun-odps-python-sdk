@@ -108,7 +108,7 @@ class BaseInstances(Iterable):
         job = job or Job()
         if priority is not None:
             if priority < 0:
-                raise errors.ODPSError('Priority must more than or equal to zero.')
+                raise errors.ODPSClientError('Priority must more than or equal to zero.')
             job.priority = priority
         if running_cluster is not None:
             job.running_cluster = running_cluster
@@ -126,7 +126,7 @@ class BaseInstances(Iterable):
         for t in job.tasks:
             t.set_property('uuid', guid)
             if t.name is None:
-                raise errors.ODPSError('Task name is required')
+                raise errors.ODPSClientError('Task name is required')
 
         return job
 
@@ -151,7 +151,11 @@ class BaseInstances(Iterable):
 
         location = resp.headers.get('Location')
         if location is None or len(location) == 0:
-            raise errors.ODPSError('Invalid response, Location header required.')
+            raise errors.ODPSClientError(
+                'Invalid response, Location header required. As it is a rare '
+                'condition, please check your network policies first.',
+                request_id=resp.headers.get('x-odps-request-id'),
+            )
 
         instance_id = location.rsplit('/', 1)[1]
 

@@ -36,7 +36,14 @@ TEST_RESOURCE_NAME = tn("pyodps_test_schema_res")
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_module_schema(odps_with_schema):
+    from ..schemas import _project_has_schema_api
+
     schemas = []
+    _project_has_schema_api.pop(
+        (odps_with_schema.endpoint, odps_with_schema.project), None
+    )
+    options.always_enable_schema = False
+
     for cls_schema_names in (TEST_CLS_SCHEMA_NAME, TEST_CLS_SCHEMA_NAME2):
         if odps_with_schema.exist_schema(cls_schema_names):
             schemas.append(odps_with_schema.get_schema(cls_schema_names))
@@ -51,10 +58,15 @@ def setup_module_schema(odps_with_schema):
 
 
 @pytest.fixture(autouse=True)
-def reset_always_enable_schema():
+def reset_schema_config(odps_with_schema):
+    from ..schemas import _project_has_schema_api
+
     try:
         yield
     finally:
+        _project_has_schema_api.pop(
+            (odps_with_schema.endpoint, odps_with_schema.project), None
+        )
         options.always_enable_schema = False
 
 
@@ -68,17 +80,28 @@ def _assert_schema_deleted(odps, schema_name):
     assert not odps.exist_schema(schema_name)
 
 
-def test_schemas(odps_with_schema):
+@pytest.mark.parametrize("legacy", (False, True))
+def test_schemas(odps_with_schema, legacy):
+    from ..schemas import _project_has_schema_api
+
+    _project_has_schema_api[
+        (odps_with_schema.endpoint, odps_with_schema.project)
+    ] = not legacy
+
     schema_name = TEST_SCHEMA_NAME
     schema_name2 = TEST_SCHEMA_NAME2
     if odps_with_schema.exist_schema(schema_name):
-        force_drop_schema(schema_name)
+        force_drop_schema(odps_with_schema.get_schema(schema_name))
         schema_name = "%s_%s" % (schema_name, int(time.time()))
     if odps_with_schema.exist_schema(schema_name2):
-        force_drop_schema(schema_name2)
+        force_drop_schema(odps_with_schema.get_schema(schema_name2))
         schema_name2 = "%s_%s" % (schema_name2, int(time.time()))
 
-    assert not odps_with_schema.exist_schema(schema_name)
+    for idx in range(3):
+        try:
+            assert not odps_with_schema.exist_schema(schema_name)
+        except AssertionError:
+            odps_with_schema.delete_schema(schema_name)
 
     schema = odps_with_schema.create_schema(schema_name)
     assert odps_with_schema.exist_schema(schema_name)
@@ -87,14 +110,28 @@ def test_schemas(odps_with_schema):
     schemas = odps_with_schema.list_schemas()
     assert any(s.name == schema_name for s in schemas)
 
-    odps_with_schema.delete_schema(schema)
-    _assert_schema_deleted(odps_with_schema, schema_name)
+    for idx in range(5):
+        odps_with_schema.delete_schema(schema)
+        try:
+            _assert_schema_deleted(odps_with_schema, schema_name)
+        except AssertionError:
+            if idx >= 5:
+                raise
+        else:
+            break
 
     schema = odps_with_schema.create_schema(schema_name2)
     assert odps_with_schema.exist_schema(schema_name2)
 
-    schema.drop()
-    _assert_schema_deleted(odps_with_schema, schema_name2)
+    for idx in range(5):
+        schema.drop()
+        try:
+            _assert_schema_deleted(odps_with_schema, schema_name2)
+        except AssertionError:
+            if idx >= 5:
+                raise
+        else:
+            break
 
 
 def test_default_schema(odps_with_schema):

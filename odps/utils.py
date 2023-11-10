@@ -22,6 +22,7 @@ import codecs
 import copy
 import glob
 import hmac
+import logging
 import math
 import multiprocessing
 import os
@@ -64,6 +65,8 @@ if six.PY3:  # make flake8 happy
     unicode = str
 
 _IS_WINDOWS = sys.platform.lower().startswith("win")
+
+logger = logging.getLogger(__name__)
 
 
 def deprecated(msg, cond=None):
@@ -258,8 +261,15 @@ def indent(text, n_spaces):
                      for it in text.split('\n'))
 
 
-def parse_rfc822(s):
-    if options.use_legacy_parsedate:
+def parse_rfc822(s, use_legacy_parsedate=None):
+    if s is None:
+        return None
+
+    use_legacy_parsedate = (
+        use_legacy_parsedate if use_legacy_parsedate is not None
+        else options.use_legacy_parsedate
+    )
+    if use_legacy_parsedate:
         date_tuple = parsedate_tz(s)
         return datetime(*date_tuple[:6])
 
@@ -838,18 +848,15 @@ def attach_internal(cls):
         return cls
 
 
-_main_thread_local = threading.local()
-_main_thread_local.is_main = True
-
-
 def is_main_thread():
-    return hasattr(_main_thread_local, 'is_main') and _main_thread_local.is_main
+    if hasattr(threading, "main_thread"):
+        return threading.current_thread() is threading.main_thread()
+    return threading.current_thread().__class__.__name__ == '_MainThread'
 
 
 def write_log(msg):
-    from . import options
-    if options.verbose:
-        (options.verbose_log or print)(msg)
+    """Legacy method to keep compatibility"""
+    logger.info(msg)
 
 
 def split_quoted(s, delimiter=',', maxsplit=0):
@@ -918,6 +925,8 @@ def get_id(n):
 
 
 def strip_if_str(s):
+    if isinstance(s, six.binary_type):
+        s = to_str(s)
     if isinstance(s, six.string_types):
         return s.strip()
     return s
@@ -1071,6 +1080,13 @@ def show_versions():  # pragma: no cover
         results["USE_CLIB"] = True
     except ImportError:
         results["USE_CLIB"] = False
+
+    try:
+        from . import internal
+
+        results["HAS_INTERNAL"] = True
+    except ImportError:
+        results["HAS_INTERNAL"] = False
 
     packages = {
         "pyodps": "odps",

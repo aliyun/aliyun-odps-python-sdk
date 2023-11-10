@@ -30,12 +30,13 @@ except (AttributeError, ImportError):
     pa = None
 
 from .. import types as odps_types, serializers, utils, readers
-from ..compat import six, dir2
+from ..compat import dir2, six, Enum
 from ..config import options
 from .core import LazyLoad, JSONRemoteModel
 from .readers import TunnelArrowReader, TunnelRecordReader
 from .record import Record
 from .partitions import Partitions
+from .storage_tier import StorageTier, StorageTierInfo
 
 
 class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
@@ -70,8 +71,10 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
         type = serializers.JSONNodeField('type', parse_callback=odps_types.validate_data_type)
         comment = serializers.JSONNodeField('comment')
         label = serializers.JSONNodeField('label')
+        nullable = serializers.JSONNodeField('isNullable')
 
         def __init__(self, **kwargs):
+            kwargs.setdefault("nullable", True)
             JSONRemoteModel.__init__(self, **kwargs)
             if self.type is not None:
                 self.type = odps_types.validate_data_type(self.type)
@@ -456,6 +459,12 @@ class Table(LazyLoad):
                 '_id_thread_local', 'record_num'
     __slots__ += _extend_args
 
+    class Type(Enum):
+        MANAGED_TABLE = "MANAGED_TABLE"
+        VIRTUAL_VIEW = "VIRTUAL_VIEW"
+        EXTERNAL_TABLE = "EXTERNAL_TABLE"
+        MATERIALIZED_VIEW = "MATERIALIZED_VIEW"
+
     name = serializers.XMLNodeField('Name')
     table_id = serializers.XMLNodeField('TableId')
     format = serializers.XMLNodeAttributeField(attr='format')
@@ -468,6 +477,12 @@ class Table(LazyLoad):
     )
     last_data_modified_time = serializers.XMLNodeField(
         'LastModifiedTime', parse_callback=utils.parse_rfc822
+    )
+    last_access_time = serializers.XMLNodeField(
+        'LastAccessTime', parse_callback=utils.parse_rfc822
+    )
+    type = serializers.XMLNodeField(
+        'Type', parse_callback=lambda s: Table.Type(s.upper()) if s is not None else None
     )
 
     _download_ids = utils.thread_local_attribute('_id_thread_local', dict)
@@ -549,12 +564,25 @@ class Table(LazyLoad):
         ))
         return self.last_data_modified_time
 
+    @property
+    def is_transactional(self):
+        val = self.reserved.get("Transactional")
+        return val is not None and val.lower() == "true"
+
+    @property
+    def primary_key(self):
+        return self.reserved.get("PrimaryKey")
+
+    @property
+    def storage_tier_info(self):
+        return StorageTierInfo.deserial(self.reserved)
+
     def reload_extend_info(self):
-        params = {'extended': ''}
+        params = {}
         schema_name = self._get_schema_name()
         if schema_name is not None:
             params['curr_schema'] = schema_name
-        resp = self._client.get(self.resource(), params=params)
+        resp = self._client.get(self.resource(), action='extended', params=params)
 
         self.parse(self._client, resp, obj=self)
         self._is_extend_info_loaded = True
@@ -617,9 +645,12 @@ class Table(LazyLoad):
         return (self.reserved or dict()).get('StoredAs')
 
     @staticmethod
-    def gen_create_table_sql(table_name, table_schema, comment=None, if_not_exists=False,
-                             lifecycle=None, shard_num=None, hub_lifecycle=None,
-                             with_column_comments=True, project=None, schema=None, **kw):
+    def gen_create_table_sql(
+        table_name, table_schema, comment=None, if_not_exists=False,
+        lifecycle=None, shard_num=None, hub_lifecycle=None,
+        with_column_comments=True, transactional=False, primary_key=None,
+        storage_tier=None, project=None, schema=None, **kw
+    ):
         from ..utils import escape_odps_string
 
         buf = six.StringIO()
@@ -627,10 +658,12 @@ class Table(LazyLoad):
         project = utils.to_text(project)
         schema = utils.to_text(schema)
         comment = utils.to_text(comment)
+        primary_key = [primary_key] if isinstance(primary_key, six.string_types) else primary_key
 
         stored_as = kw.get('stored_as')
         external_stored_as = kw.get('external_stored_as')
         storage_handler = kw.get('storage_handler')
+        table_properties = kw.get("table_properties") or {}
 
         buf.write(u'CREATE%s TABLE ' % (' EXTERNAL' if storage_handler or external_stored_as else ''))
         if if_not_exists:
@@ -641,15 +674,24 @@ class Table(LazyLoad):
             buf.write(u'%s.' % schema)
         buf.write(u'`%s` ' % table_name)
 
+        def _write_primary_key(prev=""):
+            if not primary_key:
+                return
+            if not prev.strip().endswith(","):
+                buf.write(u",\n")
+            buf.write(u"  PRIMARY KEY (%s)" % ", ".join("`%s`" % c for c in primary_key))
+
         if isinstance(table_schema, six.string_types):
             buf.write(u'(\n')
             buf.write(table_schema)
+            _write_primary_key(table_schema)
             buf.write(u'\n)\n')
             if comment:
                 buf.write(u"COMMENT '%s'\n" % escape_odps_string(comment))
         elif isinstance(table_schema, tuple):
             buf.write(u'(\n')
             buf.write(table_schema[0])
+            _write_primary_key(table_schema[0])
             buf.write(u'\n)\n')
             if comment:
                 buf.write(u"COMMENT '%s'\n" % escape_odps_string(comment))
@@ -658,23 +700,40 @@ class Table(LazyLoad):
             buf.write(table_schema[1])
             buf.write(u'\n)\n')
         else:
-            def write_columns(col_array):
+            def write_columns(col_array, with_pk=False):
                 size = len(col_array)
                 buf.write(u'(\n')
                 for idx, column in enumerate(col_array):
                     buf.write(u'  `%s` %s' % (utils.to_text(column.name), utils.to_text(column.type)))
                     if with_column_comments and column.comment:
                         buf.write(u" COMMENT '%s'" % utils.to_text(column.comment))
+                    if not column.nullable:
+                        buf.write(u" NOT NULL")
                     if idx < size - 1:
                         buf.write(u',\n')
+                if with_pk:
+                    _write_primary_key()
                 buf.write(u'\n)\n')
 
-            write_columns(table_schema.simple_columns)
+            write_columns(table_schema.simple_columns, with_pk=True)
             if comment:
                 buf.write(u"COMMENT '%s'\n" % comment)
             if table_schema.partitions:
                 buf.write(u'PARTITIONED BY ')
                 write_columns(table_schema.partitions)
+
+        if transactional:
+            table_properties["transactional"] = "true"
+        if storage_tier:
+            if isinstance(storage_tier, six.string_types):
+                storage_tier = StorageTier(utils.underline_to_camel(storage_tier).lower())
+            table_properties["storagetier"] = storage_tier.value
+
+        if table_properties:
+            buf.write(u"TBLPROPERTIES (\n")
+            for k, v in table_properties.items():
+                buf.write(u'  "%s"="%s"' % (k, v))
+            buf.write(u'\n)\n')
 
         serde_properties = kw.get('serde_properties')
         location = kw.get('location')
@@ -723,23 +782,12 @@ class Table(LazyLoad):
             location=self.location, resources=self.resources,
         )
 
-    def head(self, limit, partition=None, columns=None):
-        """
-        Get the head records of a table or its partition.
-
-        :param int limit: records' size, 10000 at most
-        :param partition: partition of this table
-        :param list columns: the columns which is subset of the table columns
-        :return: records
-        :rtype: list
-
-        .. seealso:: :class:`odps.models.Record`
-        """
-
+    @utils.survey
+    def _head_by_data(self, limit, partition=None, columns=None, timeout=None):
         if limit <= 0:
             raise ValueError('limit number should >= 0.')
 
-        params = {'data': '', 'linenum': limit}
+        params = {'linenum': limit}
         if partition is not None:
             if not isinstance(partition, odps_types.PartitionSpec):
                 partition = odps_types.PartitionSpec(partition)
@@ -752,8 +800,44 @@ class Table(LazyLoad):
         if schema_name is not None:
             params['schema_name'] = schema_name
 
-        resp = self._client.get(self.resource(), params=params, stream=True)
-        return readers.RecordReader(self.table_schema, resp)
+        resp = self._client.get(
+            self.resource(), action='data', params=params, stream=True, timeout=timeout
+        )
+        return readers.CsvRecordReader(self.table_schema, resp)
+
+    def _head_by_preview(self, limit, partition=None, columns=None, compress_algo=None, timeout=None):
+        table_tunnel = self._create_table_tunnel()
+        return table_tunnel.open_preview_reader(
+            self, partition_spec=partition, columns=columns, limit=limit,
+            compress_algo=compress_algo, arrow=False, timeout=timeout, read_all=True
+        )
+
+    def head(self, limit, partition=None, columns=None, use_legacy=True, timeout=None):
+        """
+        Get the head records of a table or its partition.
+
+        :param int limit: records' size, 10000 at most
+        :param partition: partition of this table
+        :param list columns: the columns which is subset of the table columns
+        :return: records
+        :rtype: list
+
+        .. seealso:: :class:`odps.models.Record`
+        """
+        try:
+            if pa is not None and not use_legacy:
+                timeout = timeout if timeout is not None else options.tunnel.legacy_fallback_timeout
+                return self._head_by_preview(
+                    limit, partition=partition, columns=columns, timeout=timeout
+                )
+        except:
+            # only raises when under tests and
+            # use_legacy specified explicitly as False
+            if use_legacy is False:
+                raise
+        return self._head_by_data(
+            limit, partition=partition, columns=columns, timeout=timeout
+        )
 
     def _create_table_tunnel(self, endpoint=None, quota_name=None):
         if self._table_tunnel is not None:
@@ -1067,6 +1151,55 @@ class Table(LazyLoad):
         :return: None
         """
         return self.parent.delete(self, async_=async_, if_exists=if_exists, hints=hints)
+
+    @utils.with_wait_argument
+    def set_storage_tier(self, storage_tier, partition_spec=None, async_=False, hints=None):
+        """
+        Set storage tier of
+        """
+        from .tasks import SQLTask
+
+        partition_expr = ""
+        if partition_spec is not None:
+            if not isinstance(partition_spec, (list, tuple)):
+                partition_spec = [partition_spec]
+            partition_expr = " " + ", ".join(
+                "PARTITION (%s)" % spec for spec in partition_spec
+            )
+
+        # as data of partition changed, remove existing download id to avoid TableModified error
+        for part in (partition_spec or [None]):
+            if isinstance(part, six.string_types):
+                part = odps_types.PartitionSpec(part)
+            self._download_ids.pop(part, None)
+
+        if isinstance(storage_tier, six.string_types):
+            storage_tier = StorageTier(utils.underline_to_camel(storage_tier).lower())
+
+        property_item = "TBLPROPERTIES" if not partition_spec else "PARTITIONPROPERTIES"
+        task = SQLTask(
+            name='SQLSetStorageTierTask',
+            query="ALTER TABLE %s%s SET %s('storagetier'='%s')" % (
+                self.full_table_name, partition_expr, property_item, storage_tier.value
+            )
+        )
+
+        hints = hints or {}
+        hints['odps.sql.submit.mode'] = ''
+        hints['odps.tiered.storage.enable'] = 'true'
+        schema_name = self._get_schema_name()
+        if schema_name is not None:
+            hints["odps.sql.allow.namespace.schema"] = "true"
+            hints["odps.namespace.schema"] = "true"
+        task.update_sql_settings(hints)
+
+        instance = self.project.parent[self._client.project].instances.create(task=task)
+        self._is_extend_info_loaded = False
+
+        if not async_:
+            instance.wait_for_success()
+        else:
+            return instance
 
     def new_record(self, values=None):
         """

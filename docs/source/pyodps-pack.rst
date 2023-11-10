@@ -14,7 +14,8 @@ PyODPS 自 0.11.3 起提供了 ``pyodps-pack`` 命令行工具，用于制作符
 ~~~~~~~~
 Docker 模式
 ^^^^^^^^^^^
-你需要安装 Docker 以顺利在 Docker 下运行 ``pyodps-pack``。对于 Linux 环境，可以参考 `Docker 官方文档
+你需要安装 Docker 以顺利使用 Docker 模式运行 ``pyodps-pack``。 ``pyodps-pack`` 会自动调用已安装的
+Docker，你不需要手动在 Docker 中运行 ``pyodps-pack``。对于 Linux 环境，可以参考 `Docker 官方文档
 <https://docs.docker.com/engine/install/>`_ 安装 Docker。对于 MacOS / Windows，个人开发者可以使用
 `Docker Desktop <https://www.docker.com/products/docker-desktop/>`_ 。对于没有购买过授权的企业用户，推荐使用开源的
 `Rancher Desktop <https://rancherdesktop.io/>`_ （
@@ -99,8 +100,8 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 并在当前目录中生成一个 ``packages.tar.gz`` 文件，其中包括上面列出的所有依赖项目。
 
 如果你希望为 Python 2.7 打包，请确定你的包要在 MaxCompute 还是 DataWorks 中使用。如果你不确定你的包将在哪个环境中使用，
-请参考 `这篇文章 <https://developer.aliyun.com/article/704713>`_ 。如果要在 MaxCompute 中使用 Python 2.7
-包，可以使用下面的打包命令：
+请参考 `这篇文章 <https://help.aliyun.com/zh/maxcompute/user-guide/pyodps-dataframe-code-running-environment>`_ 。
+如果要在 MaxCompute 中使用 Python 2.7 包，可以使用下面的打包命令：
 
 .. code-block:: bash
 
@@ -369,6 +370,10 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
   下载或生成 Wheel 包后不生成 ``.tar.gz`` 包而是保留 ``.whl`` 文件。
 
+- ``--skip-scan-pkg-resources``
+
+  在打包过程中不在包中扫描和解决 ``pkg_resources`` 的依赖，当依赖项较多时可加快打包速度。
+
 - ``--debug``
 
   指定后，将输出命令运行的详细信息，用于排查问题。
@@ -401,9 +406,18 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 .. code-block:: python
 
+    import os
     from odps import ODPS
 
-    o = ODPS("<access_id>", "<secret_access_key>", "<project_name>", "<endpoint>")
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    o = ODPS(
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+        project='**your-project**',
+        endpoint='**your-endpoint**',
+    )
     o.create_resource("test_packed.tar.gz", "archive", fileobj=open("packages.tar.gz", "rb"))
 
 也可以使用 DataWorks 上传。具体步骤为：
@@ -480,9 +494,18 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 .. code-block:: python
 
+    import os
     from odps import ODPS
 
-    o = ODPS("<access_id>", "<secret_access_key>", "<project_name>", "<endpoint>")
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    o = ODPS(
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+        project='**your-project**',
+        endpoint='**your-endpoint**',
+    )
     bundle_res = o.create_resource(
         "scipy-bundle.tar.gz", "archive", fileobj=open("scipy-bundle.tar.gz", "rb")
     )
@@ -532,6 +555,7 @@ PyODPS DataFrame 支持在 execute / persist 时使用 libraries 参数使用上
 
 .. code-block:: python
 
+    import os
     from odps import ODPS, options
 
     def psi(v):
@@ -542,7 +566,15 @@ PyODPS DataFrame 支持在 execute / persist 时使用 libraries 参数使用上
     # 如果 Project 开启了 Isolation，下面的选项不是必需的
     options.sql.settings = {"odps.isolation.session.enable": True}
 
-    o = ODPS("<access_id>", "<secret_access_key>", "<project_name>", "<endpoint>")
+    # 确保 ALIBABA_CLOUD_ACCESS_KEY_ID 环境变量设置为用户 Access Key ID，
+    # ALIBABA_CLOUD_ACCESS_KEY_SECRET 环境变量设置为用户 Access Key Secret，
+    # 不建议直接使用 Access Key ID / Access Key Secret 字符串
+    o = ODPS(
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_ID'),
+        os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET'),
+        project='**your-project**',
+        endpoint='**your-endpoint**',
+    )
     df = o.get_table("test_float_col").to_df()
     # 直接执行并取得结果
     df.col1.map(psi).execute(libraries=["scipy-bundle.tar.gz"])

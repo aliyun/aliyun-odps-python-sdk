@@ -46,17 +46,27 @@ class Tables(Iterable):
     def __iter__(self):
         return self.iterate()
 
-    def iterate(self, name=None, owner=None):
+    def iterate(self, name=None, owner=None, type=None, extended=False):
         """
         :param name: the prefix of table name
-        :param owner:
+        :param owner: owner of the table
+        :param type: type of the table
+        :param extended: load extended information for table
         :return:
         """
+        actions = []
         params = {'expectmarker': 'true'}
         if name is not None:
             params['name'] = name
         if owner is not None:
             params['owner'] = owner
+        if type is not None:
+            table_type = type.upper() if isinstance(type, str) else type
+            table_type = Table.Type(table_type)
+            params['type'] = table_type.value
+        if extended:
+            actions.append("extended")
+
         schema_name = self._get_schema_name()
         if schema_name is not None:
             params['curr_schema'] = schema_name
@@ -67,7 +77,7 @@ class Tables(Iterable):
                 return
 
             url = self.resource()
-            resp = self._client.get(url, params=params)
+            resp = self._client.get(url, actions=actions, params=params)
 
             t = Tables.parse(self._client, resp, obj=self)
             params['marker'] = t.marker
@@ -84,13 +94,14 @@ class Tables(Iterable):
     @utils.with_wait_argument
     def create(self, table_name, table_schema, comment=None, if_not_exists=False,
                lifecycle=None, shard_num=None, hub_lifecycle=None, hints=None,
-               async_=False, **kw):
+               transactional=False, storage_tier=None, async_=False, **kw):
         project_name = self._parent.project.name
         schema_name = self._get_schema_name()
         sql = Table.gen_create_table_sql(
             table_name, table_schema, comment=comment, if_not_exists=if_not_exists,
             lifecycle=lifecycle, shard_num=shard_num, hub_lifecycle=hub_lifecycle,
-            project=project_name, schema=schema_name, **kw)
+            transactional=transactional, project=project_name,
+            schema=schema_name, **kw)
 
         from .tasks import SQLTask
 
@@ -101,6 +112,8 @@ class Tables(Iterable):
             hints["odps.namespace.schema"] = "true"
         else:
             hints["odps.namespace.schema"] = "false"
+        if storage_tier:
+            hints['odps.tiered.storage.enable'] = 'true'
         task.update_sql_settings(hints)
         instance = self._parent.project.instances.create(task=task)
 

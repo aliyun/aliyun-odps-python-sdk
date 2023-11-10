@@ -20,6 +20,15 @@
    for table in o.list_tables():
        print(table.name)
 
+通过该方法获取的 Table 对象不会自动加载表名以外的属性，此时获取这些属性（例如 ``table_schema`` 或者
+``creation_time``）可能导致额外的请求并造成额外的时间开销。如果需要在列举表的同时读取这些属性，在
+PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=True`` 参数：
+
+.. code-block:: python
+
+   for table in o.list_tables(extended=True):
+       print(table.name, table.creation_time)
+
 通过调用 ``exist_table`` 来判断表是否存在。
 
 .. code-block:: python
@@ -409,7 +418,7 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 基本操作
 ~~~~~~~~~~~
 
-判断是否为分区表：
+判断表是否为分区表：
 
 .. code:: python
 
@@ -429,7 +438,7 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
    >>> # 表 table 的分区字段依次为 pt, sub
    >>> table.exist_partitions('pt=test')
 
-获取分区：
+获取一个分区的相关信息：
 
 .. code:: python
 
@@ -441,17 +450,29 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 
 .. note::
 
-    这里的"分区"指的不是分区字段而是所有分区字段均确定的分区定义对应的子表。如果某些分区未指定，那么这个分区定义可能对应多个子表，
-    ``get_partition`` 时则不被 PyODPS 支持。此时，需要使用 ``iterate_partitions`` 分别处理每个分区。
+    这里的"分区"指的不是分区字段而是所有分区字段均确定的分区定义对应的子表。如果某个分区字段对应多个值，
+    则相应地有多个子表，即多个分区。而 ``get_partition`` 只能获取一个分区的信息。因而，
+
+    1. 如果某些分区未指定，那么这个分区定义可能对应多个子表，``get_partition`` 时则不被 PyODPS 支持。此时，需要使用
+    ``iterate_partitions`` 分别处理每个分区。
+
+    2. 如果某个分区字段被定义多次，或者使用类似 ``pt>20210302`` 这样的非确定逻辑表达式，则无法使用
+    ``get_partition`` 获取分区。在此情况下，可以尝试使用 ``iterate_partitions`` 枚举每个分区。
 
 创建分区
 ~~~~~~~~
 
-下面的操作将创建一个分区：
+下面的操作将创建一个分区，如果分区存在将报错：
 
 .. code:: python
 
-   >>> t.create_partition('pt=test', if_not_exists=True)  # 不存在的时候才创建
+   >>> t.create_partition('pt=test')
+
+下面的操作将创建一个分区，如果分区存在则跳过：
+
+.. code:: python
+
+   >>> t.create_partition('pt=test', if_not_exists=True)
 
 .. _iterate_partitions:
 
@@ -471,7 +492,8 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
    >>> for partition in table.iterate_partitions(spec='pt=test'):
    >>>     print(partition.name)
 
-自 0.11.3 开始，支持为 ``iterate_partitions`` 指定逻辑表达式。
+自 PyODPS 0.11.3 开始，支持为 ``iterate_partitions`` 指定简单的逻辑表达式及通过逗号连接，
+每个子表达式均须满足的复合逻辑表达式。或运算符暂不支持。
 
 .. code:: python
 
@@ -550,6 +572,8 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
 上传
 ~~~~~~
 
+使用 Record 接口上传：
+
 .. code-block:: python
 
    from odps.tunnel import TableTunnel
@@ -568,6 +592,7 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
        record = table.new_record(['test2', 'id2'])
        writer.write(record)
 
+   # 需要在 with 代码块外 commit，否则数据未写入即 commit，会导致报错
    upload_session.commit([0])
 
 也可以使用流式上传的接口：
@@ -590,17 +615,32 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
        record = table.new_record(['test2', 'id2'])
        writer.write(record)
 
+以及使用 Arrow 格式上传：
+
+.. code-block:: python
+
    import pandas as pd
    import pyarrow as pa
+   from odps.tunnel import TableTunnel
 
-   with upload_session.open_arrow_writer() as writer:
+   table = o.get_table('my_table')
+
+   tunnel = TableTunnel(o)
+   upload_session = tunnel.create_upload_session(table.name, partition_spec='pt=test')
+
+   with upload_session.open_arrow_writer(0) as writer:
        df = pd.DataFrame({"name": ["test1", "test2"], "id": ["id1", "id2"]})
        batch = pa.RecordBatch.from_pandas(df)
        writer.write(batch)
 
+   # 需要在 with 代码块外 commit，否则数据未写入即 commit，会导致报错
+   upload_session.commit([0])
+
 
 下载
 ~~~~~~
+
+使用 Record 接口读取：
 
 .. code-block:: python
 
@@ -612,6 +652,15 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
    with download_session.open_record_reader(0, download_session.count) as reader:
        for record in reader:
            # 处理每条记录
+
+使用 Arrow 接口读取：
+
+.. code-block:: python
+
+   from odps.tunnel import TableTunnel
+
+   tunnel = TableTunnel(o)
+   download_session = tunnel.create_download_session('my_table', partition_spec='pt=test')
 
    with download_session.open_arrow_reader(0, download_session.count) as reader:
        for batch in reader:

@@ -253,9 +253,21 @@ class TunnelArrowReader(TunnelReaderMixin):
             return reader.read()
 
     def to_pandas(self, start=None, count=None, columns=None, n_process=1):
+        start = start or 0
+        count = count if count is not None else self.count - start
         columns = columns or self._column_names
+
         if n_process == 1:
-            return self.read_all(start=start, count=count, columns=columns).to_pandas()
+            if count == 0:
+                from ..tunnel.io.types import odps_schema_to_arrow_schema
+
+                arrow_schema = odps_schema_to_arrow_schema(self.schema)
+                return arrow_schema.empty_table().to_pandas()
+
+            with self._download_session.open_arrow_reader(
+                start, count, columns=columns
+            ) as reader:
+                return reader.to_pandas()
         else:
             return self._to_pandas_with_processes(
                 start=start, count=count, columns=columns, n_process=n_process

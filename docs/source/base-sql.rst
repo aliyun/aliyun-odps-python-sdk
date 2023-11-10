@@ -17,14 +17,16 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 ``execute_sql`
 执行 SQL
 --------
 
-你可以使用 ``execute_sql`` 方法以同步方式执行 SQL。调用时，该方法会阻塞直至 SQL 执行完成。
+你可以使用 ``execute_sql`` 方法以同步方式执行 SQL。调用时，该方法会阻塞直至 SQL 执行完成，并返回一个
+Instance 实例。如果 SQL 执行报错，该方法会抛出以 ``odps.errors.ODPSError`` 为基类的错误。
 
 .. code-block:: python
 
    >>> o.execute_sql('select * from dual')  # 同步的方式执行，会阻塞直到SQL执行完成
 
 你也可以使用非阻塞方式异步执行 SQL。调用时，该方法在将 SQL 提交到 MaxCompute 后即返回 Instance
-对象。你需要使用 ``wait_for_success`` 方法等待该 SQL 执行完成。
+实例。你需要使用 ``wait_for_success`` 方法等待该 SQL 执行完成。同样地，如果 instance 出现错误，
+``wait_for_success`` 会抛出以 ``odps.errors.ODPSError`` 为基类的错误。
 
 .. code-block:: python
 
@@ -32,6 +34,7 @@ PyODPS支持ODPS SQL的查询，并可以读取执行的结果。 ``execute_sql`
    >>> print(instance.get_logview_address())  # 获取logview地址
    >>> instance.wait_for_success()  # 阻塞直到完成
 
+关于如何操作 run_sql / execute_sql 返回的 Instance 实例，可以参考 :ref:`运行实例 <instances>` 。
 
 使用 MCQA 执行 SQL
 -------------------
@@ -72,6 +75,42 @@ MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该
    >>> instance.wait_for_success()  # 阻塞直到完成
 
 .. _sql_hints:
+
+设置时区
+---------
+有时我们希望对于查询出来的时间数据显示为特定时区下的时间，可以通过 ``options.local_timezone`` 设置客户端的时区。
+
+``options.local_timezone`` 可设置为以下三种类型：
+
+* ``False``：使用 UTC 时间（默认设置）。
+* ``True``：使用本地时区。
+* 时区字符串：使用指定的时区，例如 ``Asia/Shanghai``。
+
+例如，使用 UTC 时间：
+
+.. code-block:: python
+
+  >>> from odps import options
+  >>> options.local_timezone = False
+
+使用本地时区：
+
+.. code-block:: python
+
+  >>> from odps import options
+  >>> options.local_timezone = True
+
+使用 ``Asia/Shanghai``：
+
+.. code-block:: python
+
+  >>> from odps import options
+  >>> options.local_timezone = "Asia/Shanghai"
+
+.. note::
+
+  设置 ``options.local_timezone`` 后，PyODPS 会根据它的值自动设置 ``odps.sql.timezone``。
+  两者的值不同可能导致服务端和客户端时间不一致，因此不应再手动设置 ``odps.sql.timezone``。
 
 设置运行参数
 ------------
@@ -127,10 +166,15 @@ MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该
    >>>     for record in reader:
    >>>         # 处理每一个record
 
-PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护的 Project，通过 Tunnel 下载数据受限。此时，
-如果 `options.tunnel.limit_instance_tunnel` 未设置，会自动打开数据量限制。此时，可下载的数据条数受到 Project 配置限制，
-通常该限制为 10000 条。如果你想要手动限制下载数据的规模，可以为 open_reader 方法增加 `limit` 选项，
-或者设置 `options.tunnel.limit_instance_tunnel = True` 。
+PyODPS 默认不限制能够从 Instance 读取的数据规模，但 Project Owner 可能在 MaxCompute Project 上增加保护设置以限制对
+Instance 结果的读取，此时只能使用受限读取模式读取数据，在此模式下可读取的行数受到 Project 配置限制，通常为 10000 行。如果
+PyODPS 检测到读取 Instance 数据被限制，且 `options.tunnel.limit_instance_tunnel` 未设置，会自动启用受限读取模式。
+如果你的 Project 被保护，想要手动启用受限读取模式，可以为 `open_reader` 方法增加 `limit=True` 选项，或者设置
+`options.tunnel.limit_instance_tunnel = True` 。
+
+在部分环境中，例如 DataWorks，`options.tunnel.limit_instance_tunnel` 可能默认被置为 True。此时，如果需要读取所有数据，需要为
+`open_reader` 增加参数 `tunnel=True, limit=False` 。需要注意的是，如果 Project 本身被保护，这两个参数 **不能**
+解除保护，此时应联系 Project Owner 开放相应的读权限。
 
 如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取
 （可能受到 Project 安全设置的限制）。
@@ -147,11 +191,6 @@ PyODPS 默认不限制能够从 Instance 读取的数据规模。对于受保护
 .. _sql_to_pandas_mp:
 
 如果需要使用多核加速读取速度，可以通过 `n_process` 指定使用进程数:
-
-.. note::
-
-    目前多进程加速在 Windows 下无法使用。
-
 
 .. code-block:: python
 

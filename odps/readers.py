@@ -202,7 +202,7 @@ class AbstractRecordReader(object):
         return self.to_result_frame(start=start, count=count, **kw).values
 
 
-class RecordReader(AbstractRecordReader):
+class CsvRecordReader(AbstractRecordReader):
     NULL_TOKEN = '\\N'
     BACK_SLASH_ESCAPE = '\\x%02x' % ord('\\')
 
@@ -345,3 +345,7 @@ class RecordReader(AbstractRecordReader):
 
     def __exit__(self, *_):
         self.close()
+
+
+# make class name compatible
+RecordReader = CsvRecordReader

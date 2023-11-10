@@ -20,15 +20,16 @@ import logging
 from io import IOBase, BytesIO
 from enum import Enum
 from hashlib import md5
-from requests import codes
 try:
     import pyarrow as pa
 except ImportError:
     pa = None
-from odps import ODPS, serializers
-from odps.models import Table
-from odps.models.core import JSONRemoteModel
-from odps.utils import to_binary
+
+from ... import ODPS, serializers
+from ...lib.requests import codes
+from ...models import Table
+from ...models.core import JSONRemoteModel
+from ...utils import to_binary
 
 STORAGE_VERSION = "1"
 URL_PREFIX = "/api/storage/v" + STORAGE_VERSION
@@ -813,13 +814,6 @@ class StorageApiClient(object):
 
 class StorageApiArrowClient(StorageApiClient):
     """Arrow batch client to bundle configuration needed for API requests."""
-
-    def __init__(self, odps: ODPS, table: Table):
-        if isinstance(odps, ODPS) and isinstance(table, Table):
-            super().__init__(odps, table)
-        else:
-            raise ValueError("Please input odps configuration")
-
     def read_rows_arrow(self, request: ReadRowsRequest) -> ArrowReader:
         """Read one split of the read session.
 

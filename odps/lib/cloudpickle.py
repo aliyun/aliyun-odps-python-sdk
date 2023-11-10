@@ -777,21 +777,11 @@ class CloudPickler(Pickler):
         if obj.__module__ == "__main__":
             return self.save_dynamic_class(obj)
 
+        global_saved = True
         try:
-            if (
-                hasattr(obj, "__module__")
-                and hasattr(obj, "__name__")
-                and obj.__module__.startswith("odps.df")
-            ):
-                warnings.warn(
-                    "Found PyODPS DataFrame object %s.%s referenced in %s. "
-                    "Might get error when executed remotely." % (
-                        obj.__module__, obj.__name__, self._object_repr
-                    ),
-                    RuntimeWarning,
-                )
             return Pickler.save_global(self, obj, name=name)
         except Exception:
+            global_saved = False
             if obj.__module__ == "__builtin__" or obj.__module__ == "builtins":
                 if obj in _BUILTIN_TYPE_NAMES:
                     return self.save_reduce(
@@ -802,6 +792,20 @@ class CloudPickler(Pickler):
                 return self.save_dynamic_class(obj)
 
             raise
+        finally:
+            if (
+                global_saved
+                and hasattr(obj, "__module__")
+                and hasattr(obj, "__name__")
+                and obj.__module__.startswith("odps.df")
+            ):
+                warnings.warn(
+                    "Found PyODPS DataFrame object %s.%s referenced in %s. "
+                    "Might get error when executed remotely." % (
+                        obj.__module__, obj.__name__, self._object_repr
+                    ),
+                    RuntimeWarning,
+                )
 
     dispatch[type] = save_global
     dispatch[types.ClassType] = save_global

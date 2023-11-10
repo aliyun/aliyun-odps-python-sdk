@@ -18,6 +18,7 @@ import re
 import warnings
 
 from .compat import enum, six
+from .config import options
 from .core import ODPS
 from .errors import NotSupportedError, InstanceTypeNotSupported, ODPSError
 from .utils import to_str
@@ -83,6 +84,9 @@ class Connection(object):
             self._session_name = session_name
         self._use_sqa = (kw.pop('use_sqa', False) != False)
         self._fallback_policy = kw.pop('fallback_policy', '')
+        self._project_as_schema = kw.pop(
+            'project_as_schema', options.sqlalchemy.project_as_schema
+        )
         self._hints = hints
 
     @property
@@ -147,6 +151,10 @@ class Cursor(object):
     @property
     def arraysize(self):
         return self._arraysize
+
+    @property
+    def connection(self):
+        return self._connection
 
     @arraysize.setter
     def arraysize(self, value):
@@ -244,7 +252,9 @@ class Cursor(object):
             run_sql = self._run_sqa_with_fallback
         if async_:
             run_sql = odps.run_sql
-        self._instance = run_sql(sql, hints=self._hints)
+        hints = self._hints or {}
+        hints.update(kwargs.get("hints") or {})
+        self._instance = run_sql(sql, hints=hints)
 
     def executemany(self, operation, seq_of_parameters):
         for parameter in seq_of_parameters:

@@ -30,6 +30,7 @@ cdef class BaseTunnelRecordReader:
     cdef public object _schema
     cdef object _columns
     cdef CMillisecondsConverter _mills_converter
+    cdef CMillisecondsConverter _mills_converter_utc
     cdef object _to_date
     cdef CDecoder _reader
     cdef Checksum _crc
@@ -38,20 +39,24 @@ cdef class BaseTunnelRecordReader:
     cdef int _n_columns
     cdef int _read_limit
     cdef bint _overflow_date_as_none
+    cdef bint _struct_as_dict
     cdef vector[_SET_FUNCTION] _column_setters
     cdef SchemaSnapshot _schema_snapshot
+    cdef list _partition_vals
 
     cdef object _read_struct(self, object value_type)
     cdef object _read_element(self, int data_type_id, object data_type)
     cdef list _read_array(self, object value_type)
     cdef bytes _read_string(self)
-    cdef float _read_float(self) nogil except? -1.0
-    cdef double _read_double(self) nogil except? -1.0
-    cdef bint _read_bool(self) nogil except? False
-    cdef int64_t _read_bigint(self) nogil except? -1
+    cdef float _read_float(self) except? -1.0 nogil
+    cdef double _read_double(self) except? -1.0 nogil
+    cdef bint _read_bool(self) except? False nogil
+    cdef int64_t _read_bigint(self) except? -1 nogil
     cdef object _read_datetime(self)
     cdef object _read_date(self)
+    cdef object _read_timestamp_base(self, bint ntz)
     cdef object _read_timestamp(self)
+    cdef object _read_timestamp_ntz(self)
     cdef object _read_interval_day_time(self)
     cdef int _set_record_list_value(self, list record, int i, object value) except? -1
     cdef int _set_string(self, list record, int i) except? -1
@@ -63,6 +68,7 @@ cdef class BaseTunnelRecordReader:
     cdef int _set_date(self, list record, int i) except? -1
     cdef int _set_decimal(self, list record, int i) except? -1
     cdef int _set_timestamp(self, list record, int i) except? -1
+    cdef int _set_timestamp_ntz(self, list record, int i) except? -1
     cdef int _set_interval_day_time(self, list record, int i) except? -1
     cdef int _set_interval_year_month(self, list record, int i) except? -1
     cdef int _set_json(self, list record, int i) except? -1

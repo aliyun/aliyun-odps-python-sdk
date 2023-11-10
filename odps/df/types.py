@@ -18,9 +18,11 @@ from collections import OrderedDict
 from datetime import datetime as _datetime, date as _date
 from decimal import Decimal as _Decimal
 
-from ..types import DataType, Array, Map, Struct as _Struct, parse_composite_types
-from ..models import TableSchema, Column
 from ..compat import six
+from ..lib.xnamedtuple import xnamedtuple
+from ..models import TableSchema, Column
+from ..config import options
+from ..types import DataType, Array, Map, Struct as _Struct, parse_composite_types
 
 
 class Primitive(DataType):
@@ -47,7 +49,7 @@ class Integer(Primitive):
             return True
         return False
 
-    def validate_value(self, val):
+    def validate_value(self, val, max_field_size=None):
         if val is None and self.nullable:
             return True
         return self._bounds[0] <= val <= self._bounds[1]
@@ -173,14 +175,11 @@ class Binary(Primitive):
 
 class List(Array):
     __slots__ = ()
+    CLASS_NAME = "List"
 
     def __init__(self, value_type, nullable=True):
         DataType.__init__(self, nullable=nullable)
         self.value_type = validate_data_type(value_type)
-
-    @property
-    def CLASS_NAME(self):
-        return 'List'
 
     def _equals(self, other):
         if isinstance(other, six.string_types):
@@ -200,15 +199,12 @@ class List(Array):
 
 class Dict(Map):
     __slots__ = ()
+    CLASS_NAME = "Dict"
 
     def __init__(self, key_type, value_type, nullable=True):
         DataType.__init__(self, nullable=nullable)
         self.key_type = validate_data_type(key_type)
         self.value_type = validate_data_type(value_type)
-
-    @property
-    def CLASS_NAME(self):
-        return 'Dict'
 
     def _equals(self, other):
         if isinstance(other, six.string_types):
@@ -230,6 +226,7 @@ class Dict(Map):
 
 class Struct(_Struct):
     __slots__ = ()
+    CLASS_NAME = "Struct"
 
     def __init__(self, field_types, nullable=True):
         DataType.__init__(self, nullable=nullable)
@@ -238,10 +235,10 @@ class Struct(_Struct):
             field_types = six.iteritems(field_types)
         for k, v in field_types:
             self.field_types[k] = validate_data_type(v)
-
-    @property
-    def CLASS_NAME(self):
-        return 'Struct'
+        self.namedtuple_type = xnamedtuple(
+            "StructNamedTuple", list(self.field_types.keys())
+        )
+        self._struct_as_dict = options.struct_as_dict
 
     def _equals(self, other):
         if isinstance(other, six.string_types):

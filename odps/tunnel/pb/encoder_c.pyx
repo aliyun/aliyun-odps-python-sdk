@@ -37,36 +37,36 @@ cdef class CEncoder:
     cpdef bytes tostring(self):
         return bytes(self._buffer.to_string())
 
-    cdef int append_tag(self, int field_num, int wire_type) nogil except +:
+    cdef int append_tag(self, int field_num, int wire_type) except + nogil:
         cdef int key
         key = (field_num << 3) | wire_type
         cdef int size = set_varint64(key, self._buffer[0])
         return size
 
-    cdef int append_sint32(self, int32_t value) nogil except +:
+    cdef int append_sint32(self, int32_t value) except + nogil:
         return set_signed_varint32(value, self._buffer[0])
 
-    cdef int append_uint32(self, uint32_t value) nogil except +:
+    cdef int append_uint32(self, uint32_t value) except + nogil:
         return set_varint32(value, self._buffer[0])
 
-    cdef int append_sint64(self, int64_t value) nogil except +:
+    cdef int append_sint64(self, int64_t value) except + nogil:
         return set_signed_varint64(value, self._buffer[0])
 
-    cdef int append_uint64(self, uint64_t value) nogil except +:
+    cdef int append_uint64(self, uint64_t value) except + nogil:
         return set_varint64(value, self._buffer[0])
 
-    cdef int append_bool(self, bint value) nogil except +:
+    cdef int append_bool(self, bint value) except + nogil:
         return set_varint32(value, self._buffer[0])
 
-    cdef int append_float(self, float value) nogil except +:
+    cdef int append_float(self, float value) except + nogil:
         self._buffer.write(<const char *>&value, sizeof(float))
         return sizeof(float)
 
-    cdef int append_double(self, double value) nogil except +:
+    cdef int append_double(self, double value) except + nogil:
         self._buffer.write(<const char*>&value, sizeof(double))
         return sizeof(double)
 
-    cdef int append_string(self, const char *ptr, size_t value_len) nogil except +:
+    cdef int append_string(self, const char *ptr, size_t value_len) except + nogil:
         cdef int size = set_varint32(value_len, self._buffer[0])
         self._buffer.write(ptr, value_len)
         return size + value_len

@@ -215,10 +215,13 @@ setup_options = dict(
             'odps = odps.sqlalchemy_odps:ODPSDialect',
             'maxcompute = odps.sqlalchemy_odps:ODPSDialect',
         ],
+        'superset.db_engine_specs': [
+            'odps = odps.superset_odps:ODPSEngineSpec',
+        ],
         'console_scripts': [
             'pyou = odps_scripts.pyou:main',
             'pyodps-pack = odps_scripts.pyodps_pack:main',
-        ]
+        ],
     },
 )
 
@@ -257,6 +260,7 @@ if build_cmd != 'clean' and not PYPY:  # skip cython in pypy
             Extension('odps.tunnel.io.writer_c', ['odps/tunnel/io/writer_c.pyx'], **extension_kw),
             Extension('odps.tunnel.io.reader_c', ['odps/tunnel/io/reader_c.pyx'], **extension_kw),
             Extension('odps.tunnel.checksum_c', ['odps/tunnel/checksum_c.pyx'], **extension_kw),
+            Extension('odps.tunnel.hasher_c', ['odps/tunnel/hasher_c.pyx'], **extension_kw),
         ]
         try:
             import numpy as np

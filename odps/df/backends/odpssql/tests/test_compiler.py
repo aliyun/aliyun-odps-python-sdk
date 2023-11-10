@@ -36,8 +36,9 @@ from ....expr.expressions import CollectionExpr, BuiltinFunction, RandomScalar, 
 from ....expr.tests.core import MockTable
 from ....types import validate_data_type
 from ...errors import CompileError
-from ..engine import ODPSSQLEngine, UDF_CLASS_NAME
 from ..compiler import BINARY_OP_COMPILE_DIC, MATH_COMPILE_DIC, DATE_PARTS_DIC
+from ..engine import ODPSSQLEngine, UDF_CLASS_NAME
+from ..types import set_local_use_odps2_types
 
 
 ENABLE_PROFILE = False
@@ -976,12 +977,7 @@ def test_value_counts(odps, exprs):
                "WHEN (30 < t1.`id`) AND (t1.`id` <= 40) THEN '30-39' WHEN (40 < t1.`id`) AND (t1.`id` <= 50) " \
                "THEN '40-49' WHEN (50 < t1.`id`) AND (t1.`id` <= 60) THEN '50-59' " \
                "WHEN (60 < t1.`id`) AND (t1.`id` <= 70) THEN '60-69' WHEN (70 < t1.`id`) AND (t1.`id` <= 80) " \
-               "THEN '70-79' END AS `id_group`, COUNT(CASE WHEN (0 < t1.`id`) AND (t1.`id` <= 10) THEN '0-9' " \
-               "WHEN (10 < t1.`id`) AND (t1.`id` <= 20) THEN '10-19' WHEN (20 < t1.`id`) AND (t1.`id` <= 30) " \
-               "THEN '20-29' WHEN (30 < t1.`id`) AND (t1.`id` <= 40) THEN '30-39' " \
-               "WHEN (40 < t1.`id`) AND (t1.`id` <= 50) THEN '40-49' WHEN (50 < t1.`id`) AND (t1.`id` <= 60) " \
-               "THEN '50-59' WHEN (60 < t1.`id`) AND (t1.`id` <= 70) THEN '60-69' WHEN (70 < t1.`id`) " \
-               "AND (t1.`id` <= 80) THEN '70-79' END) AS `count` \n" \
+               "THEN '70-79' END AS `id_group`, COUNT(1) AS `count` \n" \
                "FROM mocked_project.`pyodps_test_expr_table` t1 \n" \
                "GROUP BY CASE WHEN (0 < t1.`id`) AND (t1.`id` <= 10) THEN '0-9' WHEN (10 < t1.`id`) " \
                "AND (t1.`id` <= 20) THEN '10-19' WHEN (20 < t1.`id`) AND (t1.`id` <= 30) " \
@@ -998,7 +994,7 @@ def test_value_counts(odps, exprs):
                'FROM (\n' \
                '  SELECT * \n' \
                '  FROM (\n' \
-               '    SELECT t1.`id`, COUNT(t1.`id`) AS `count` \n' \
+               '    SELECT t1.`id`, COUNT(1) AS `count` \n' \
                '    FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                '    GROUP BY t1.`id` \n' \
                '    ORDER BY count DESC \n' \
@@ -1012,7 +1008,7 @@ def test_value_counts(odps, exprs):
     expr = exprs.expr.id.value_counts(sort=True, ascending=True, dropna=True)
     expected = 'SELECT * \n' \
                'FROM (\n' \
-               '  SELECT t1.`id`, COUNT(t1.`id`) AS `count` \n' \
+               '  SELECT t1.`id`, COUNT(1) AS `count` \n' \
                '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                '  GROUP BY t1.`id` \n' \
                '  ORDER BY count \n' \
@@ -1177,6 +1173,18 @@ def test_sample_compiliation(odps, exprs):
                'TABLESAMPLE (100 ROWS)'
     assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
 
+    expr = exprs.expr[exprs.expr.id < 100].sample(frac=0.1)
+    expr = expr[expr.id > 1]
+    expected = 'SELECT * \n' \
+               'FROM (\n' \
+               '  SELECT * \n' \
+               '  FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+               '  WHERE t1.`id` < 100 \n' \
+               ') t2 \n' \
+               'TABLESAMPLE (10 PERCENT)\n' \
+               'WHERE t2.`id` > 1'
+    assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
+
 
 def test_sort_compilation(odps, exprs):
     expr = exprs.expr.sort(['name', -exprs.expr.id])[:50]
@@ -1267,7 +1275,7 @@ def test_groupby_compilation(odps, exprs):
     expr = exprs.expr.name.value_counts()[:25]
     expr2 = exprs.expr.name.topk(25)
 
-    expected = 'SELECT t1.`name`, COUNT(t1.`name`) AS `count` \n' \
+    expected = 'SELECT t1.`name`, COUNT(1) AS `count` \n' \
                'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
                'GROUP BY t1.`name` \n' \
                'ORDER BY count DESC \n' \
@@ -1655,6 +1663,29 @@ def test_reduction_compilation(odps, exprs):
     engine = ODPSEngine(odps)
     engine.compile(expr)
     _testify_udf(['9.6', ], [[str(r), ] for r in data], engine)
+
+
+def test_percentile_odps2_compiliation(odps, exprs):
+    try:
+        options.sql.use_odps2_extension = True
+        expr = exprs.expr.groupby(['id']).quantile(0.25)
+        expected = 'SELECT t1.`id`, PERCENTILE_APPROX(t1.`fid`, 0.25) AS `fid_quantile`, ' \
+                'PERCENTILE(t1.`id`, 0.25) AS `id_quantile`, ' \
+                'PERCENTILE(t1.`scale`, 0.25) AS `scale_quantile` \n' \
+                'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                'GROUP BY t1.`id`'
+        assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
+
+        expr = exprs.expr.groupby(['id']).quantile([0.25, 0.5, 0.75])
+        expected = 'SELECT t1.`id`, PERCENTILE_APPROX(t1.`fid`, ARRAY(0.25, 0.5, 0.75)) AS `fid_quantile`, ' \
+                'PERCENTILE(t1.`id`, ARRAY(0.25, 0.5, 0.75)) AS `id_quantile`, ' \
+                'PERCENTILE(t1.`scale`, ARRAY(0.25, 0.5, 0.75)) AS `scale_quantile` \n' \
+                'FROM mocked_project.`pyodps_test_expr_table` t1 \n' \
+                'GROUP BY t1.`id`'
+        assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
+    finally:
+        options.sql.use_odps2_extension = None
+        set_local_use_odps2_types(None)
 
 
 def test_projection_compact(odps, exprs):
@@ -2544,6 +2575,7 @@ def test_odps2_scalar(odps, exprs):
         assert to_text(expected) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
     finally:
         options.sql.use_odps2_extension = None
+        set_local_use_odps2_types(None)
 
 
 def test_union(odps, exprs):

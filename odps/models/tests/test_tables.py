@@ -37,7 +37,8 @@ from ...config import options
 from ...errors import NoSuchObject
 from ...tests.core import tn, pandas_case
 from ...utils import to_text
-from .. import TableSchema, Record, Column, Partition
+from .. import Table, TableSchema, Record, Column, Partition
+from ..storage_tier import StorageTier
 
 
 def test_tables(odps):
@@ -149,8 +150,6 @@ def test_table(odps):
 
 
 def test_create_table_ddl(odps):
-    from .. import Table
-
     test_table_name = tn('pyodps_t_tmp_table_ddl')
     schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
     odps.delete_table(test_table_name, if_exists=True)
@@ -204,6 +203,7 @@ def test_create_delete_table(odps):
     assert table.owner is not None
 
     assert table.name == test_table_name
+    assert table.type == Table.Type.MANAGED_TABLE
     assert table.table_schema == schema
     assert table.lifecycle == 10
 
@@ -254,6 +254,7 @@ def test_create_table_with_chinese_column(odps):
       ds2     string      # 分区注释2
     }
     """).strip()
+
     ddl_string_comment = textwrap.dedent(u"""
     CREATE TABLE `table_name` (
       `序列` BIGINT COMMENT '注释',
@@ -282,11 +283,67 @@ def test_create_table_with_chinese_column(odps):
     odps.delete_table(test_table_name, if_exists=True)
 
     table = odps.create_table(test_table_name, schema)
-    assert [to_text(col.name) for col in table.table_schema.columns] == [to_text(col.name) for col in schema.columns]
-    assert [to_text(col.comment) for col in table.table_schema.columns] == [to_text(col.comment) for col in schema.columns]
+    assert [to_text(col.name) for col in table.table_schema.columns] == [
+        to_text(col.name) for col in schema.columns
+    ]
+    assert [to_text(col.comment) for col in table.table_schema.columns] == [
+        to_text(col.comment) for col in schema.columns
+    ]
+
+    # test repr with not null columns
+    schema[u"序列"].nullable = False
+    columns_repr = "[<column 序列, type bigint, not null>, <column 值, type string>]"
+    schema_repr = textwrap.dedent("""
+    odps.Schema {
+      序列    bigint      not null    # 注释
+      值      string                  # 注释2
+    }
+    Partitions {
+      ds      string      # 分区注释
+      ds2     string      # 分区注释2
+    }
+    """).strip()
+    assert repr(columns) == columns_repr
+    assert repr(schema).strip() == schema_repr
 
 
-def test_record_read_write_table(odps):
+def test_create_transactional_table(odps_daily):
+    test_table_name = tn('pyodps_t_tmp_transactional')
+    schema = TableSchema.from_lists(['key', 'value'], ['string', 'string'])
+    schema["key"].nullable = False
+
+    odps_daily.delete_table(test_table_name, if_exists=True)
+    assert odps_daily.exist_table(test_table_name) is False
+
+    table = odps_daily.create_table(
+        test_table_name, schema, transactional=True, primary_key="key"
+    )
+    table.reload()
+    assert not table.table_schema["key"].nullable
+    assert table.is_transactional
+    assert table.primary_key == ["key"]
+
+    table.drop()
+
+
+def test_create_tier_table(odps_with_storage_tier):
+    odps = odps_with_storage_tier
+
+    test_table_name = tn('pyodps_t_tmp_tiered')
+    odps.delete_table(test_table_name, if_exists=True)
+    assert odps.exist_table(test_table_name) is False
+
+    table = odps.create_table(
+        test_table_name, "col string", storage_tier="standard", lifecycle=1
+    )
+    assert table.storage_tier_info.storage_tier == StorageTier.STANDARD
+    table.set_storage_tier("low_frequency")
+    assert table.storage_tier_info.storage_tier == StorageTier.LOWFREQENCY
+    table.drop()
+
+
+@pytest.mark.parametrize("use_legacy", [False, True])
+def test_record_read_write_table(odps, use_legacy):
     test_table_name = tn('pyodps_t_tmp_read_write_table')
     schema = TableSchema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
 
@@ -305,9 +362,13 @@ def test_record_read_write_table(odps):
 
     odps.write_table(table, 0, records)
     assert texted_data == [record.values for record in odps.read_table(table, length)]
-    assert texted_data[::2] == [record.values for record in odps.read_table(table, length, step=2)]
+    assert texted_data[::2] == [
+        record.values for record in odps.read_table(table, length, step=2)
+    ]
 
-    assert texted_data == [record.values for record in table.head(length)]
+    assert texted_data == [
+        record.values for record in table.head(length, use_legacy=use_legacy)
+    ]
 
     table.truncate()
     assert [] == list(odps.read_table(table))

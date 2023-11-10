@@ -18,7 +18,6 @@ import logging
 
 from ..config import options  ## don't remove
 from ..compat import six, Enum  ## don't remove
-from ..utils import write_log
 from ..ui import reload_instance_status, fetch_instance_group
 
 logger = logging.getLogger(__name__)
@@ -66,7 +65,7 @@ class BaseNodeRunner(object):
         self._output_models_only = kw.get('_output_models_only')
 
     def execute(self):
-        write_log('Executing {0}...'.format(self._algo_name))
+        logger.info('Executing {0}...'.format(self._algo_name))
         self.before_exec()
         if options.ml.dry_run:
             self.mock_exec()
@@ -98,10 +97,10 @@ class BaseNodeRunner(object):
     def add_instance(self, inst, show_log_view=True):
         self._engine._instances.append(inst)
         self._instances.append(inst)
-        if options.verbose:
-            write_log('Instance ID: ' + inst.id)
+        if logger.getEffectiveLevel() <= logging.INFO:
+            logger.info('Instance ID: ' + inst.id)
             if show_log_view:
-                write_log('  Log view: ' + inst.get_logview_address())
+                logger.info('  Log view: ' + inst.get_logview_address())
         self._ui.status('Executing', 'execution details')
 
     def refresh_progress(self):
@@ -162,7 +161,7 @@ class XFlowNodeRunner(BaseNodeRunner):
         param_args = ' '.join(['-D%s="%s"' % (k, v) for k, v in six.iteritems(params)
                                if self._is_param_valid(v)])
         self._last_cmd = 'PAI -name %s -project %s %s;' % (xflow_name, pai_project, param_args)
-        write_log('Command: ' + self._last_cmd)
+        logger.info('Command: ' + self._last_cmd)
 
         inst = self._engine._odps.run_xflow(xflow_name, pai_project, params)
         self.add_instance(inst, show_log_view=False)
@@ -177,8 +176,8 @@ class XFlowNodeRunner(BaseNodeRunner):
             for inst_name, sub_inst in six.iteritems(self._engine._odps.get_xflow_sub_instances(xflow_inst)):
                 if sub_inst.id not in self._sub_instance_set:
                     self._sub_instance_set.add(sub_inst.id)
-                    write_log('Sub Instance: {0} ({1})'.format(inst_name, sub_inst.id))
-                    write_log('  Log view: ' + sub_inst.get_logview_address())
+                    logger.info('Sub Instance: {0} ({1})'.format(inst_name, sub_inst.id))
+                    logger.info('  Log view: ' + sub_inst.get_logview_address())
                 reload_instance_status(self._engine._odps, self._progress_group, sub_inst.id)
         self._ui.update_group()
 
@@ -188,7 +187,7 @@ class SQLNodeRunner(BaseNodeRunner):
     def actual_exec(self):
         query = self._gen_params['sql']
         self._last_cmd = query
-        write_log('Command: ' + self._last_cmd)
+        logger.info('Command: ' + self._last_cmd)
 
         inst = self._engine._odps.run_sql(query)
         self.add_instance(inst)

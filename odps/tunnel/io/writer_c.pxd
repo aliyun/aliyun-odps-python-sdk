@@ -36,14 +36,14 @@ cdef class ProtobufRecordWriter:
     cpdef close(self)
     cpdef flush_all(self)
     cpdef int _refresh_buffer(self) except -1
-    cdef int _write_tag(self, int field_num, int wire_type) nogil except +
-    cdef int _write_raw_long(self, int64_t val) nogil except +
-    cdef int _write_raw_int(self, int32_t val) nogil except +
-    cdef int _write_raw_uint(self, uint32_t val) nogil except +
-    cdef int _write_raw_bool(self, bint val) nogil except +
-    cdef int _write_raw_float(self, float val) nogil except +
-    cdef int _write_raw_double(self, double val) nogil except +
-    cdef int _write_raw_string(self, const char *ptr, uint32_t size) nogil except +
+    cdef int _write_tag(self, int field_num, int wire_type) except + nogil
+    cdef int _write_raw_long(self, int64_t val) except + nogil
+    cdef int _write_raw_int(self, int32_t val) except + nogil
+    cdef int _write_raw_uint(self, uint32_t val) except + nogil
+    cdef int _write_raw_bool(self, bint val) except + nogil
+    cdef int _write_raw_float(self, float val) except + nogil
+    cdef int _write_raw_double(self, double val) except + nogil
+    cdef int _write_raw_string(self, const char *ptr, uint32_t size) except + nogil
 
 
 cdef class BaseRecordWriter(ProtobufRecordWriter):
@@ -55,17 +55,20 @@ cdef class BaseRecordWriter(ProtobufRecordWriter):
     cdef object _to_days
     cdef object _reader_schema
     cdef CMillisecondsConverter _mills_converter
+    cdef CMillisecondsConverter _mills_converter_utc
     cdef Checksum _crc_c
     cdef Checksum _crccrc_c
     cdef SchemaSnapshot _schema_snapshot
 
     cpdef write(self, BaseRecord record)
-    cdef void _write_bool(self, bint data) nogil except +
-    cdef void _write_long(self, int64_t data) nogil except +
-    cdef void _write_float(self, float data) nogil except +
-    cdef void _write_double(self, double data) nogil except +
+    cdef void _write_bool(self, bint data) except + nogil
+    cdef void _write_long(self, int64_t data) except + nogil
+    cdef void _write_float(self, float data) except + nogil
+    cdef void _write_double(self, double data) except + nogil
     cdef _write_string(self, object data)
+    cdef _write_timestamp_base(self, object data, bint ntz)
     cdef _write_timestamp(self, object data)
+    cdef _write_timestamp_ntz(self, object data)
     cdef _write_interval_day_time(self, object data)
     cdef _write_field(self, object val, int data_type_id, object data_type)
     cdef _write_array(self, object data, object data_type)

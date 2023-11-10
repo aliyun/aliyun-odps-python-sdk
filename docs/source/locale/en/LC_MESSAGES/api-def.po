@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-06-06 14:29+0800\n"
+"POT-Creation-Date: 2023-08-02 20:29+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/api-def.rst:4
 msgid "Definitions"
@@ -433,8 +433,8 @@ msgstr ""
 #: odps.core.ODPS.get_resource:5 odps.core.ODPS.get_schema:3
 #: odps.core.ODPS.get_table:5 odps.core.ODPS.get_volume:5
 #: odps.core.ODPS.get_volume_file:6 odps.core.ODPS.get_volume_partition:6
-#: odps.core.ODPS.list_functions:4 odps.core.ODPS.list_resources:4
-#: odps.core.ODPS.list_tables:10 odps.core.ODPS.list_volume_files:7
+#: odps.core.ODPS.list_functions:6 odps.core.ODPS.list_resources:6
+#: odps.core.ODPS.list_tables:8 odps.core.ODPS.list_volume_files:7
 #: odps.core.ODPS.list_volume_partitions:5 odps.core.ODPS.list_volumes:4
 #: odps.core.ODPS.move_volume_file:7 odps.core.ODPS.open_resource:24
 #: odps.core.ODPS.open_volume_reader:8 odps.core.ODPS.open_volume_writer:12
@@ -535,7 +535,7 @@ msgid "the created function"
 msgstr ""
 
 #: odps.core.ODPS.create_function:9 odps.core.ODPS.create_function:16
-#: odps.core.ODPS.get_function:10 of
+#: odps.core.ODPS.get_function:9 of
 msgid ":class:`odps.models.Function`"
 msgstr ""
 
@@ -695,7 +695,7 @@ msgstr ""
 msgid "schema name"
 msgstr ""
 
-#: odps.core.ODPS.create_schema:5 odps.core.ODPS.create_table:14
+#: odps.core.ODPS.create_schema:5 odps.core.ODPS.create_table:17
 #: odps.core.ODPS.delete_schema:5 odps.core.ODPS.delete_table:8 of
 msgid "if True, will run asynchronously"
 msgstr ""
@@ -772,15 +772,27 @@ msgstr ""
 msgid "hints for the task"
 msgstr ""
 
+#: odps.core.ODPS.create_table:14 of
+msgid "make table transactional"
+msgstr ""
+
 #: odps.core.ODPS.create_table:15 of
-msgid "the created Table if not async else odps instance"
+msgid "primary key of the table, only for transactional tables"
 msgstr ""
 
 #: odps.core.ODPS.create_table:16 of
-msgid ":class:`odps.models.Table` or :class:`odps.models.Instance`"
+msgid "storage tier of the table"
 msgstr ""
 
 #: odps.core.ODPS.create_table:18 of
+msgid "the created Table if not async else odps instance"
+msgstr ""
+
+#: odps.core.ODPS.create_table:19 of
+msgid ":class:`odps.models.Table` or :class:`odps.models.Instance`"
+msgstr ""
+
+#: odps.core.ODPS.create_table:21 of
 msgid ":class:`odps.models.Table`, :class:`odps.models.TableSchema`"
 msgstr ""
 
@@ -957,9 +969,9 @@ msgstr ""
 msgid "instance priority, 9 as default"
 msgstr ""
 
-#: odps.core.ODPS.execute_archive_table:8 odps.core.ODPS.execute_merge_files:9
+#: odps.core.ODPS.execute_archive_table:8 odps.core.ODPS.execute_merge_files:11
 #: odps.core.ODPS.execute_sql:11 odps.core.ODPS.execute_xflow:14
-#: odps.core.ODPS.run_archive_table:8 odps.core.ODPS.run_merge_files:9
+#: odps.core.ODPS.run_archive_table:8 odps.core.ODPS.run_merge_files:11
 #: odps.core.ODPS.run_sql:13 odps.core.ODPS.run_xflow:14
 #: odps.internal.core.InternalODPSMixin.execute_kube_task:8
 #: odps.internal.core.InternalODPSMixin.execute_ps:10
@@ -972,11 +984,11 @@ msgstr ""
 msgid "instance"
 msgstr ""
 
-#: odps.core.ODPS.execute_archive_table:9 odps.core.ODPS.execute_merge_files:10
+#: odps.core.ODPS.execute_archive_table:9 odps.core.ODPS.execute_merge_files:12
 #: odps.core.ODPS.execute_sql:12 odps.core.ODPS.execute_sql:25
 #: odps.core.ODPS.execute_xflow:15 odps.core.ODPS.execute_xflow:17
 #: odps.core.ODPS.get_instance:6 odps.core.ODPS.get_instance:9
-#: odps.core.ODPS.run_archive_table:9 odps.core.ODPS.run_merge_files:10
+#: odps.core.ODPS.run_archive_table:9 odps.core.ODPS.run_merge_files:12
 #: odps.core.ODPS.run_sql:14 odps.core.ODPS.run_sql:16
 #: odps.core.ODPS.run_xflow:15 odps.core.ODPS.run_xflow:17
 #: odps.internal.core.InternalODPSMixin.execute_kube_task:9
@@ -1019,6 +1031,15 @@ msgstr ""
 
 #: odps.core.ODPS.execute_merge_files:4 odps.core.ODPS.run_merge_files:4 of
 msgid "partition to optimize"
+msgstr ""
+
+#: odps.core.ODPS.execute_merge_files:9 odps.core.ODPS.execute_sql:8
+#: odps.core.ODPS.run_merge_files:9 odps.core.ODPS.run_sql:8 of
+msgid "cluster to run this instance"
+msgstr ""
+
+#: odps.core.ODPS.execute_merge_files:10 odps.core.ODPS.run_merge_files:10 of
+msgid "compact option for transactional table, can be major or minor."
 msgstr ""
 
 #: odps.internal.core.InternalODPSMixin.execute_ps:1 of
@@ -1204,10 +1225,6 @@ msgstr ""
 msgid "SQL statement"
 msgstr ""
 
-#: odps.core.ODPS.execute_sql:8 odps.core.ODPS.run_sql:8 of
-msgid "cluster to run this instance"
-msgstr ""
-
 #: odps.core.ODPS.execute_sql:9 odps.core.ODPS.execute_sql_cost:4
 #: odps.core.ODPS.run_sql:9 of
 msgid "settings for SQL, e.g. `odps.mapred.map.split.size`"
@@ -1349,7 +1366,7 @@ msgstr ""
 msgid "Get the function by given name"
 msgstr ""
 
-#: odps.core.ODPS.get_function:7 of
+#: odps.core.ODPS.get_function:6 of
 msgid "the right function"
 msgstr ""
 
@@ -1360,9 +1377,9 @@ msgstr ""
 msgid "raise"
 msgstr ""
 
-#: odps.core.ODPS.get_function:8 odps.core.ODPS.get_instance:7
+#: odps.core.ODPS.get_function:7 odps.core.ODPS.get_instance:7
 #: odps.core.ODPS.get_offline_model:7 odps.core.ODPS.get_project:8
-#: odps.core.ODPS.get_resource:8 odps.core.ODPS.get_table:9
+#: odps.core.ODPS.get_resource:8 odps.core.ODPS.get_table:8
 #: odps.core.ODPS.get_xflow:7 of
 msgid ":class:`odps.errors.NoSuchObject` if not exists"
 msgstr ""
@@ -1482,11 +1499,11 @@ msgstr ""
 msgid "Get table by given name."
 msgstr ""
 
-#: odps.core.ODPS.get_table:7 of
+#: odps.core.ODPS.get_table:6 of
 msgid "the right table"
 msgstr ""
 
-#: odps.core.ODPS.get_table:8 odps.core.ODPS.get_table:11
+#: odps.core.ODPS.get_table:7 odps.core.ODPS.get_table:10
 #: odps.models.TableResource.table:4 odps.models.TableResource.table:6 of
 msgid ":class:`odps.models.Table`"
 msgstr ""
@@ -1576,7 +1593,16 @@ msgstr ""
 msgid "List all functions of a project."
 msgstr ""
 
-#: odps.core.ODPS.list_functions:6 of
+#: odps.core.ODPS.list_functions:4 of
+msgid "the listed functions start with this **prefix**"
+msgstr ""
+
+#: odps.core.ODPS.list_functions:5 odps.core.ODPS.list_resources:5
+#: odps.core.ODPS.list_schemas:5 odps.core.ODPS.list_tables:7 of
+msgid "Aliyun account, the owner which listed tables belong to"
+msgstr ""
+
+#: odps.core.ODPS.list_functions:7 of
 msgid "functions"
 msgstr ""
 
@@ -1683,7 +1709,11 @@ msgstr ""
 msgid "List all resources of a project."
 msgstr ""
 
-#: odps.core.ODPS.list_resources:6 odps.models.Function.resources:3 of
+#: odps.core.ODPS.list_resources:4 of
+msgid "the listed resources start with this **prefix**"
+msgstr ""
+
+#: odps.core.ODPS.list_resources:7 odps.models.Function.resources:3 of
 msgid "resources"
 msgstr ""
 
@@ -1708,6 +1738,10 @@ msgid "List all schemas of a project."
 msgstr ""
 
 #: odps.core.ODPS.list_schemas:4 of
+msgid "the listed schemas start with this **prefix**"
+msgstr ""
+
+#: odps.core.ODPS.list_schemas:6 of
 msgid "schemas"
 msgstr ""
 
@@ -1722,11 +1756,15 @@ msgstr ""
 msgid "the listed tables start with this **prefix**"
 msgstr ""
 
-#: odps.core.ODPS.list_tables:8 of
-msgid "Aliyun account, the owner which listed tables belong to"
+#: odps.core.ODPS.list_tables:9 of
+msgid "type of the table"
 msgstr ""
 
-#: odps.core.ODPS.list_tables:12 of
+#: odps.core.ODPS.list_tables:10 of
+msgid "if True, load extended information for table"
+msgstr ""
+
+#: odps.core.ODPS.list_tables:11 of
 msgid "tables in this project, filtered by the optional prefix and owner."
 msgstr ""
 
@@ -2239,7 +2277,7 @@ msgstr ""
 #: odps.models.project.Project.ProjectStatus:1
 #: odps.models.project.Project.ProjectType:1
 #: odps.models.resource.FileResource.Mode:1
-#: odps.models.resource.Resource.Type:1 of
+#: odps.models.resource.Resource.Type:1 odps.models.table.Table.Type:1 of
 msgid "An enumeration."
 msgstr ""
 
@@ -2391,14 +2429,14 @@ msgid ""
 "partition."
 msgstr ""
 
-#: odps.models.instance.Instance.open_reader:15
+#: odps.models.instance.Instance.open_reader:14
 #: odps.models.partition.Partition.open_reader:3
 #: odps.models.table.Table.open_reader:4 odps.models.table.Table.open_writer:5
 #: of
 msgid "the reader will reuse last one, reopen is true means open a new reader."
 msgstr ""
 
-#: odps.models.instance.Instance.open_reader:17
+#: odps.models.instance.Instance.open_reader:15
 #: odps.models.partition.Partition.open_reader:5
 #: odps.models.table.Table.open_reader:6 odps.models.table.Table.open_writer:9
 #: of
@@ -2419,14 +2457,14 @@ msgid ""
 "takes a long time."
 msgstr ""
 
-#: odps.models.instance.Instance.open_reader:18
+#: odps.models.instance.Instance.open_reader:16
 #: odps.models.partition.Partition.open_reader:6
 #: odps.models.table.Table.open_reader:12
 #: odps.models.table.Table.open_writer:14 of
 msgid "compression algorithm, level and strategy"
 msgstr ""
 
-#: odps.models.instance.Instance.open_reader:20
+#: odps.models.instance.Instance.open_reader:18
 #: odps.models.partition.Partition.open_reader:8
 #: odps.models.table.Table.open_reader:14
 #: odps.models.table.Table.open_writer:16 of
@@ -2435,8 +2473,8 @@ msgid ""
 " be ``zlib``, ``snappy``"
 msgstr ""
 
-#: odps.models.instance.Instance.open_reader:22
-#: odps.models.instance.Instance.open_reader:23
+#: odps.models.instance.Instance.open_reader:20
+#: odps.models.instance.Instance.open_reader:21
 #: odps.models.partition.Partition.open_reader:10
 #: odps.models.partition.Partition.open_reader:11
 #: odps.models.table.Table.open_reader:16
@@ -2446,7 +2484,7 @@ msgstr ""
 msgid "used for ``zlib``, work when ``compress_option`` is not provided"
 msgstr ""
 
-#: odps.models.instance.Instance.open_reader:24
+#: odps.models.instance.Instance.open_reader:22
 #: odps.models.partition.Partition.open_reader:12
 #: odps.models.table.Table.open_reader:18 of
 msgid "reader, ``count`` means the full size, ``status`` means the tunnel status"
@@ -2474,6 +2512,10 @@ msgstr ""
 
 #: odps.models.table.Table.open_writer:20 of
 msgid "writer, status means the tunnel writer status"
+msgstr ""
+
+#: odps.models.table.Table.set_storage_tier:1 of
+msgid "Set storage tier of"
 msgstr ""
 
 #: odps.models.table.Table.to_df:1 of

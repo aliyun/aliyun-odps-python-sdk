@@ -60,6 +60,21 @@ def test_nullable_record():
 
 
 @py_and_c_deco
+def test_record_max_field_size():
+    s = TableSchema.from_lists(["col"], ["string"])
+    r = Record(schema=s, max_field_size=1024)
+
+    r["col"] = "e" * 1024
+    with pytest.raises(ValueError):
+        r["col"] = "e" * 1025
+
+    r = Record(schema=s)
+    r["col"] = "e" * String._max_length
+    with pytest.raises(ValueError):
+        r["col"] = "e" * (String._max_length + 1)
+
+
+@py_and_c_deco
 def test_record_set_and_get_by_index():
     s = TableSchema.from_lists(
         ['col%s' % i for i in range(9)],
@@ -328,3 +343,38 @@ def test_string_as_binary():
         assert isinstance(r[0], bytes)
     finally:
         options.tunnel.string_as_binary = False
+
+
+def test_validate_struct():
+    try:
+        options.struct_as_dict = True
+        struct_type = validate_data_type('struct<abc: int, def: string>')
+        assert validate_value(None, struct_type) is None
+
+        vl = validate_value((10, "uvwxyz"), struct_type)
+        assert isinstance(vl, dict)
+        assert vl["abc"] == 10
+        assert vl["def"] == "uvwxyz"
+
+        vl = validate_value({"abc": 10, "def": "uvwxyz"}, struct_type)
+        assert isinstance(vl, dict)
+        assert vl["abc"] == 10
+        assert vl["def"] == "uvwxyz"
+
+        with pytest.raises(ValueError):
+            validate_value({"abcd", "efgh"}, struct_type)
+
+        options.struct_as_dict = False
+        struct_type = validate_data_type('struct<abc: int, def: string>')
+        vl = validate_value((10, "uvwxyz"), struct_type)
+        assert isinstance(vl, tuple)
+        assert vl == (10, "uvwxyz")
+
+        vl = validate_value({"def": "uvwxyz", "abc": 10}, struct_type)
+        assert isinstance(vl, tuple)
+        assert vl == (10, "uvwxyz")
+
+        with pytest.raises(ValueError):
+            validate_value({"abcd", "efgh"}, struct_type)
+    finally:
+        options.struct_as_dict = False

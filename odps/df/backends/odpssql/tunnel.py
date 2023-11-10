@@ -15,10 +15,10 @@
 # limitations under the License.
 
 import itertools
+import logging
 from contextlib import contextmanager
 
 from ....errors import ODPSError, NoPermission
-from ....utils import write_log as log
 from ....types import PartitionSpec
 from ....compat import izip
 from ....models import Table
@@ -29,6 +29,8 @@ from ...expr.element import Func
 from ...utils import is_source_collection, is_source_partition
 from ..frame import ResultFrame
 from . import types
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -217,7 +219,7 @@ class TunnelEngine(object):
             except ODPSError:
                 return
         else:
-            log(
+            logger.info(
                 'Try fetching data from tunnel. If it takes a long time, please try running your code '
                 'with distributed capabilities, see related section in '
                 'https://www.alibabacloud.com/help/en/maxcompute/latest/platform-instructions-overview#section-wy0-8st-f60 '

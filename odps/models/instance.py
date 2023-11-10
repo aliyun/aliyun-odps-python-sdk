@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
 import base64
 import functools
 import json
+import logging
 import sys
 import threading
 import time
@@ -33,6 +35,8 @@ from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
 from .job import Job
 from .readers import TunnelRecordReader, TunnelArrowReader
 from .worker import WorkerDetail2, LOG_TYPES_MAPPING
+
+logger = logging.getLogger(__name__)
 
 
 _RESULT_LIMIT_HELPER_MSG = (
@@ -138,6 +142,7 @@ class Instance(LazyLoad):
         "_status_api_lock",
         "_logview_address",
         "_logview_address_time",
+        "_logview_logged",
     )
 
     _download_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
@@ -162,6 +167,7 @@ class Instance(LazyLoad):
 
         self._logview_address = None
         self._logview_address_time = None
+        self._logview_logged = False
 
     @property
     def id(self):
@@ -393,8 +399,7 @@ class Instance(LazyLoad):
         if self._is_sync:
             return self._task_results
 
-        params = {'result': ''}
-        resp = self._client.get(self.resource(), params=params)
+        resp = self._client.get(self.resource(), action="result")
 
         instance_result = Instance.InstanceResult.parse(self._client, resp)
         return OrderedDict([(r.name, r.result) for r in instance_result.task_results])
@@ -435,8 +440,10 @@ class Instance(LazyLoad):
         :rtype: dict
         """
 
-        params = {'instancesummary': '', 'taskname': task_name}
-        resp = self._client.get(self.resource(), params=params)
+        params = {'taskname': task_name}
+        resp = self._client.get(
+            self.resource(), action='instancesummary', params=params
+        )
 
         map_reduce = resp.json().get('Instance')
         if map_reduce:
@@ -456,10 +463,7 @@ class Instance(LazyLoad):
         :return: a dict which key is the task name and value is the :class:`odps.models.Instance.Task` object
         :rtype: dict
         """
-
-        params = {'taskstatus': ''}
-
-        resp = self._client.get(self.resource(), params=params)
+        resp = self._client.get(self.resource(), action="taskstatus")
         self.parse(self._client, resp, obj=self)
 
         return dict([(task.name, task) for task in self._tasks])
@@ -634,6 +638,12 @@ class Instance(LazyLoad):
     def is_sync(self):
         return self._is_sync
 
+    def get_all_task_progresses(self):
+        return {
+            task_name: self.get_task_progress(task_name)
+            for task_name in self.get_task_names()
+        }
+
     def wait_for_completion(self, interval=1, timeout=None, max_interval=None):
         """
         Wait for the instance to complete, and neglect the consequence.
@@ -646,13 +656,46 @@ class Instance(LazyLoad):
         """
 
         start_time = time.time()
+        progress_time = time.time()
+        last_progress = 0
         while not self.is_terminated(retry=True):
             try:
                 time.sleep(interval)
+                check_time = time.time()
                 if max_interval is not None:
                     interval = min(interval * 2, max_interval)
-                if timeout is not None and time.time() - start_time > timeout:
+                if timeout is not None and check_time - start_time > timeout:
                     raise errors.WaitTimeoutError(instance_id=self.id)
+
+                if logger.getEffectiveLevel() <= logging.INFO:
+                    try:
+                        task_progresses = self.get_all_task_progresses()
+                        total_progress = sum(
+                            stage.finished_percentage
+                            for progress in task_progresses.values()
+                            for stage in progress.stages
+                        )
+                        if check_time - start_time >= options.progress_time_interval and (
+                            total_progress - last_progress >= options.progress_percentage_gap
+                            or check_time - progress_time >= options.progress_time_interval
+                        ):
+                            if not self._logview_logged:
+                                self._logview_logged = True
+                                logger.info(
+                                    "Instance ID: %s\n  Log view: %s", self.id, self.get_logview_address()
+                                )
+
+                            output_parts = [str(self.id)] + [
+                                progress.get_stage_progress_formatted_string()
+                                for progress in task_progresses.values()
+                            ]
+                            if len(output_parts) > 1:
+                                logger.info(" ".join(output_parts))
+                            last_progress = total_progress
+                            progress_time = check_time
+                    except:
+                        # make sure progress display does not affect execution
+                        pass
             except KeyboardInterrupt:
                 break
 
@@ -708,10 +751,10 @@ class Instance(LazyLoad):
         def _get_detail():
             from ..compat import json  # fix object_pairs_hook parameter for Py2.6
 
-            params = {'instancedetail': '',
-                      'taskname': task_name}
-
-            resp = self._client.get(self.resource(), params=params)
+            params = {'taskname': task_name}
+            resp = self._client.get(
+                self.resource(), action='instancedetail', params=params
+            )
             return json.loads(
                 resp.content.decode() if six.PY3 else resp.content,
                 object_pairs_hook=OrderedDict
@@ -733,10 +776,9 @@ class Instance(LazyLoad):
         :return: the task's detail
         :rtype: list or dict according to the JSON
         """
-        params = {'detail': '',
-                  'taskname': task_name}
+        params = {'taskname': task_name}
 
-        resp = self._client.get(self.resource(), params=params)
+        resp = self._client.get(self.resource(), action='detail', params=params)
         res = resp.content.decode() if six.PY3 else resp.content
         try:
             return json.loads(res, object_pairs_hook=OrderedDict)
@@ -833,8 +875,7 @@ class Instance(LazyLoad):
 
     def _get_job(self):
         url = self.resource()
-        params = {'source': ''}
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, action='source')
 
         job = Job.parse(self._client, resp, parent=self)
         return job
@@ -854,8 +895,7 @@ class Instance(LazyLoad):
 
     def _get_queueing_info(self):
         url = self.resource()
-        params = {'cached': ''}
-        resp = self._client.get(url, params=params)
+        resp = self._client.get(url, action='cached')
         return Instance.InstanceQueueingInfo.parse(
             self._client, resp, parent=self.project.instance_queueing_infos), resp
 
@@ -893,11 +933,10 @@ class Instance(LazyLoad):
         elif len(sql_tasks) == 1:
             task_name = list(sql_tasks)[0]
         else:
-            raise errors.ODPSError(
-                'Cannot open reader, job has no sql task')
+            raise errors.ODPSError('Cannot open reader, job has no sql task')
 
         result = self.get_task_result(task_name)
-        reader = readers.RecordReader(schema, result)
+        reader = readers.CsvRecordReader(schema, result)
         if options.result_reader_create_callback:
             options.result_reader_create_callback(reader)
         return reader
@@ -943,10 +982,8 @@ class Instance(LazyLoad):
                        if false, use conventional routine.
                        if absent, `options.tunnel.use_instance_tunnel` will be used and automatic fallback
                        is enabled.
-        :param limit: if True, enable the limitation
-        :type limit: bool
-        :param reopen: the reader will reuse last one, reopen is true means open a new reader.
-        :type reopen: bool
+        :param bool limit: if True, enable the limitation
+        :param bool reopen: the reader will reuse last one, reopen is true means open a new reader.
         :param endpoint: the tunnel service URL
         :param compress_option: compression algorithm, level and strategy
         :type compress_option: :class:`odps.tunnel.CompressOption`
@@ -967,6 +1004,7 @@ class Instance(LazyLoad):
         auto_fallback_result = use_tunnel is None
         if use_tunnel is None:
             use_tunnel = options.tunnel.use_instance_tunnel
+
         result_fallback_errors = (errors.InvalidProjectTable, errors.InvalidArgument)
         if use_tunnel:
             # for compatibility

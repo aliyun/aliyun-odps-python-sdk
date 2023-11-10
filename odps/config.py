@@ -14,11 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from copy import deepcopy
 import collections
 import contextlib
+import logging
+import threading
 import traceback
 import warnings
+from copy import deepcopy
 
 from .compat import six
 
@@ -282,6 +284,15 @@ class Config(object):
             raise AttributeError('Option %s not configured, thus failed to unregister.' % option)
         conf.unregister(key)
 
+    def update(self, new_config):
+        if not isinstance(new_config, dict):
+            new_config = new_config._config
+        for option, value in new_config.items():
+            try:
+                self.register_option(option, value)
+            except AttributeError:
+                setattr(self, option, value)
+
     def add_validator(self, option, validator):
         splits = option.split('.')
         conf = self._config
@@ -307,18 +318,16 @@ class Config(object):
 
 @contextlib.contextmanager
 def option_context(config=None):
-    global options
-    global_options = options
+    global_options = get_global_options(copy=True)
 
     try:
         config = config or dict()
         local_options = Config(deepcopy(global_options._config))
-        for option, value in six.iteritems(config):
-            local_options.register_option(option, value)
-        options = local_options
-        yield options
+        local_options.update(config)
+        _options_local.default_options = local_options
+        yield local_options
     finally:
-        options = global_options
+        _options_local.default_options = global_options
 
 
 def is_interactive():
@@ -343,6 +352,7 @@ def all_validator(*validators):
 
 is_null = lambda x: x is None
 is_bool = lambda x: isinstance(x, bool)
+is_float = lambda x: isinstance(x, float)
 is_integer = lambda x: isinstance(x, six.integer_types)
 is_string = lambda x: isinstance(x, six.string_types)
 is_dict = lambda x: isinstance(x, dict)
@@ -354,144 +364,240 @@ def is_in(vals):
     return validate
 
 
-options = Config()
-options.register_option('is_global_account_overwritable', True, validator=is_bool)
-options.register_option('account', None)
-options.register_option('endpoint', None)
-options.redirect_option('end_point', 'endpoint')
-options.register_option('default_project', None)
-options.register_option('default_schema', None)
-options.register_option('app_account', None)
-options.register_option('local_timezone', None)
-options.register_option('use_legacy_parsedate', False)
-options.register_option('allow_antique_date', False)
-options.register_option('user_agent_pattern', '$pyodps_version $python_version $os_version')
-options.register_option('logview_host', None)
-options.register_option('logview_hours', 24 * 30, validator=is_integer)
-options.redirect_option('log_view_host', 'logview_host')
-options.redirect_option('log_view_hours', 'logview_hours')
-options.register_option('api_proxy', None)
-options.register_option('data_proxy', None)
-options.redirect_option('tunnel_proxy', 'data_proxy')
-options.register_option('seahawks_url', None)
-options.register_option('biz_id', None)
-options.register_option('priority', None, validator=any_validator(is_null, is_integer))
-options.register_option('get_priority', None)
-options.register_option('temp_lifecycle', 1, validator=is_integer)
-options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
-options.register_option('table_read_limit', None, validator=any_validator(is_null, is_integer))
-options.register_option('completion_size', 10, validator=is_integer)
-options.register_option('default_task_settings', None, validator=any_validator(is_null, is_dict))
-options.register_option('resource_chunk_size', 64 << 20, validator=is_integer)
-options.register_option('upload_resource_in_chunks', True, validator=is_bool)
-options.register_option('verify_ssl', True)
-options.register_option('always_enable_schema', False, validator=is_bool)
-options.register_option('table_auto_flush_time', 150, validator=is_integer)
+def verbose_log_validator(val):
+    if options.verbose == val:
+        # no flip, return directly
+        return True
+
+    logging.basicConfig()
+    odps_logger = logging.getLogger("odps")
+    odps_logger.propagate = False
+    if _stream_handler not in odps_logger.handlers:
+        odps_logger.addHandler(_stream_handler)
+
+    if val:
+        logging.basicConfig()
+        old_effective_level = odps_logger.getEffectiveLevel() or logging.WARNING
+        target_level = min(logging.INFO, old_effective_level)
+
+        odps_logger.oldLevel = odps_logger.level
+        odps_logger.setLevel(target_level)
+
+        _stream_handler.oldLevel = _stream_handler.level
+        _stream_handler.setLevel(target_level)
+        odps_logger.addHandler(_verbose_log_handler)
+    else:
+        old_level = getattr(odps_logger, "oldLevel", logging.NOTSET)
+        odps_logger.setLevel(old_level)
+
+        old_level = getattr(_stream_handler, "oldLevel", logging.NOTSET)
+        _stream_handler.setLevel(old_level)
+        odps_logger.removeHandler(_verbose_log_handler)
+    return True
+
+
+class VerboseLogHandler(logging.StreamHandler):
+    def emit(self, record):
+        try:
+            if options.verbose_log:
+                msg = self.format(record)
+                options.verbose_log(msg)
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
+
+
+_stream_handler = logging.StreamHandler()
+_verbose_log_handler = VerboseLogHandler()
+
+
+default_options = Config()
+default_options.register_option('is_global_account_overwritable', True, validator=is_bool)
+default_options.register_option('account', None)
+default_options.register_option('endpoint', None)
+default_options.redirect_option('end_point', 'endpoint')
+default_options.register_option('default_project', None)
+default_options.register_option('default_schema', None)
+default_options.register_option('app_account', None)
+default_options.register_option('local_timezone', None)
+default_options.register_option('use_legacy_parsedate', False)
+default_options.register_option('allow_antique_date', False)
+default_options.register_option('user_agent_pattern', '$pyodps_version $python_version $os_version')
+default_options.register_option('logview_host', None)
+default_options.register_option('logview_hours', 24 * 30, validator=is_integer)
+default_options.redirect_option('log_view_host', 'logview_host')
+default_options.redirect_option('log_view_hours', 'logview_hours')
+default_options.register_option('api_proxy', None)
+default_options.register_option('data_proxy', None)
+default_options.redirect_option('tunnel_proxy', 'data_proxy')
+default_options.register_option('seahawks_url', None)
+default_options.register_option('biz_id', None)
+default_options.register_option('priority', None, validator=any_validator(is_null, is_integer))
+default_options.register_option('get_priority', None)
+default_options.register_option('temp_lifecycle', 1, validator=is_integer)
+default_options.register_option('lifecycle', None, validator=any_validator(is_null, is_integer))
+default_options.register_option('table_read_limit', None, validator=any_validator(is_null, is_integer))
+default_options.register_option('completion_size', 10, validator=is_integer)
+default_options.register_option('default_task_settings', None, validator=any_validator(is_null, is_dict))
+default_options.register_option('resource_chunk_size', 64 << 20, validator=is_integer)
+default_options.register_option('upload_resource_in_chunks', True, validator=is_bool)
+default_options.register_option('verify_ssl', True)
+default_options.register_option('always_enable_schema', False, validator=is_bool)
+default_options.register_option('table_auto_flush_time', 150, validator=is_integer)
+default_options.register_option('struct_as_dict', False, validator=is_bool)
+default_options.register_option('progress_time_interval', 5 * 60, validator=any_validator(is_float, is_integer))
+default_options.register_option('progress_percentage_gap', 5, validator=is_integer)
 
 # c or python mode, use for UT, in other cases, please do not modify the value
-options.register_option('force_c', False, validator=is_integer)
-options.register_option('force_py', False, validator=is_integer)
+default_options.register_option('force_c', False, validator=is_integer)
+default_options.register_option('force_py', False, validator=is_integer)
 
 # callbacks for wrappers
-options.register_option('instance_create_callback', None)
-options.register_option("tunnel_session_create_callback", None)
-options.register_option("result_reader_create_callback", None)
-options.register_option('tunnel_read_timeout_callback', None)
-options.register_option("skipped_survey_regexes", [])
+default_options.register_option('instance_create_callback', None)
+default_options.register_option("tunnel_session_create_callback", None)
+default_options.register_option("tunnel_session_create_timeout_callback", None)
+default_options.register_option("result_reader_create_callback", None)
+default_options.register_option('tunnel_read_timeout_callback', None)
+default_options.register_option("skipped_survey_regexes", [])
 
 # network connections
-options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
-options.register_option('retry_times', DEFAULT_CONNECT_RETRY_TIMES, validator=is_integer)
-options.register_option('connect_timeout', DEFAULT_CONNECT_TIMEOUT, validator=is_integer)
-options.register_option('read_timeout', DEFAULT_READ_TIMEOUT, validator=is_integer)
-options.register_option('pool_connections', DEFAULT_POOL_CONNECTIONS, validator=is_integer)
-options.register_option('pool_maxsize', DEFAULT_POOL_MAXSIZE, validator=is_integer)
+default_options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
+default_options.register_option('retry_times', DEFAULT_CONNECT_RETRY_TIMES, validator=is_integer)
+default_options.register_option('connect_timeout', DEFAULT_CONNECT_TIMEOUT, validator=is_integer)
+default_options.register_option('read_timeout', DEFAULT_READ_TIMEOUT, validator=is_integer)
+default_options.register_option('pool_connections', DEFAULT_POOL_CONNECTIONS, validator=is_integer)
+default_options.register_option('pool_maxsize', DEFAULT_POOL_MAXSIZE, validator=is_integer)
 
 # Tunnel
-options.register_option('tunnel.endpoint', None)
-options.register_option('tunnel.string_as_binary', False, validator=is_bool)
-options.register_option('tunnel.use_instance_tunnel', True, validator=is_bool)
-options.register_option('tunnel.limit_instance_tunnel', None, validator=any_validator(is_null, is_bool))
-options.register_option('tunnel.pd_mem_cache_size', 1024 * 4, validator=is_integer)
-options.register_option('tunnel.pd_row_cache_size', 1024 * 16, validator=is_integer)
-options.register_option('tunnel.read_row_batch_size', 1024, validator=is_integer)
-options.register_option('tunnel.batch_merge_threshold', 128, validator=is_integer)
-options.register_option('tunnel.overflow_date_as_none', False, validator=is_bool)
-options.register_option('tunnel.quota_name', None, validator=any_validator(is_null, is_string))
+default_options.register_option('tunnel.endpoint', None)
+default_options.register_option('tunnel.string_as_binary', False, validator=is_bool)
+default_options.register_option('tunnel.use_instance_tunnel', True, validator=is_bool)
+default_options.register_option('tunnel.limit_instance_tunnel', None, validator=any_validator(is_null, is_bool))
+default_options.register_option('tunnel.pd_mem_cache_size', 1024 * 4, validator=is_integer)
+default_options.register_option('tunnel.pd_row_cache_size', 1024 * 16, validator=is_integer)
+default_options.register_option('tunnel.read_row_batch_size', 1024, validator=is_integer)
+default_options.register_option('tunnel.write_row_batch_size', 1024, validator=is_integer)
+default_options.register_option('tunnel.batch_merge_threshold', 128, validator=is_integer)
+default_options.register_option('tunnel.overflow_date_as_none', False, validator=is_bool)
+default_options.register_option('tunnel.quota_name', None, validator=any_validator(is_null, is_string))
 
-options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
-options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')
-options.redirect_option('limited_instance_tunnel', 'tunnel.limit_instance_tunnel')
-options.redirect_option('tunnel.limited_instance_tunnel', 'tunnel.limit_instance_tunnel')
+default_options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
+default_options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')
+default_options.redirect_option('limited_instance_tunnel', 'tunnel.limit_instance_tunnel')
+default_options.redirect_option('tunnel.limited_instance_tunnel', 'tunnel.limit_instance_tunnel')
 
 # terminal
-options.register_option('console.max_lines', None)
-options.register_option('console.max_width', None)
-options.register_option('console.use_color', False, validator=is_bool)
+default_options.register_option('console.max_lines', None)
+default_options.register_option('console.max_width', None)
+default_options.register_option('console.use_color', False, validator=is_bool)
 
 # SQL
-options.register_option('sql.settings', None, validator=any_validator(is_null, is_dict))
-options.register_option('sql.use_odps2_extension', None, validator=any_validator(is_null, is_bool))
+default_options.register_option('sql.settings', None, validator=any_validator(is_null, is_dict))
+default_options.register_option('sql.use_odps2_extension', None, validator=any_validator(is_null, is_bool))
+
+# sqlalchemy
+default_options.register_option('sqlalchemy.project_as_schema', False, validator=is_bool)
 
 # DataFrame
-options.register_option('interactive', is_interactive(), validator=is_bool)
-options.register_option('verbose', False, validator=is_bool)
-options.register_option('verbose_log', None)
-options.register_option('df.optimize', True, validator=is_bool)
-options.register_option('df.optimizes.cp', True, validator=is_bool)
-options.register_option('df.optimizes.pp', True, validator=is_bool)
-options.register_option('df.optimizes.tunnel', True, validator=is_bool)
-options.register_option('df.analyze', True, validator=is_bool)
-options.register_option('df.use_cache', True, validator=is_bool)
-options.register_option('df.quote', True, validator=is_bool)
-options.register_option('df.dump_udf', False, validator=is_bool)
-options.register_option('df.supersede_libraries', True, validator=is_bool)
-options.register_option('df.libraries', None)
-options.register_option('df.odps.sort.limit', 10000)
-options.register_option('df.odps.nan_handler', 'py')  # None for not handled, builtin for built-in ISNAN function
-options.register_option('df.sqlalchemy.execution_options', None, validator=any_validator(is_null, is_dict))
-options.register_option('df.seahawks.max_size', 10 * 1024 * 1024 * 1024)  # 10G
+default_options.register_option('interactive', is_interactive(), validator=is_bool)
+default_options.register_option('verbose', False, validator=all_validator(is_bool, verbose_log_validator))
+default_options.register_option('verbose_log', None)
+default_options.register_option('df.optimize', True, validator=is_bool)
+default_options.register_option('df.optimizes.cp', True, validator=is_bool)
+default_options.register_option('df.optimizes.pp', True, validator=is_bool)
+default_options.register_option('df.optimizes.tunnel', True, validator=is_bool)
+default_options.register_option('df.analyze', True, validator=is_bool)
+default_options.register_option('df.use_cache', True, validator=is_bool)
+default_options.register_option('df.quote', True, validator=is_bool)
+default_options.register_option('df.dump_udf', False, validator=is_bool)
+default_options.register_option('df.supersede_libraries', True, validator=is_bool)
+default_options.register_option('df.libraries', None)
+default_options.register_option('df.odps.sort.limit', 10000)
+default_options.register_option('df.odps.nan_handler', 'py')  # None for not handled, builtin for built-in ISNAN function
+default_options.register_option('df.sqlalchemy.execution_options', None, validator=any_validator(is_null, is_dict))
+default_options.register_option('df.seahawks.max_size', 10 * 1024 * 1024 * 1024)  # 10G
+default_options.register_option('df.delete_udfs', True, validator=is_bool)
+default_options.register_option('df.use_xflow_sample', False, validator=is_bool)
+default_options.register_option('df.writer_count_limit', 50, validator=is_integer)
 
 # PyODPS ML
-options.register_option('ml.xflow_project', 'algo_public', validator=is_string)
-options.register_option('ml.xflow_settings', None, validator=any_validator(is_null, is_dict))
-options.register_option('ml.dry_run', False, validator=is_bool)
-options.register_option('ml.use_model_transfer', False, validator=is_bool)
-options.register_option('ml.use_old_metrics', True, validator=is_bool)
-options.register_option('ml.model_volume', 'pyodps_volume', validator=is_string)
+default_options.register_option('ml.xflow_project', 'algo_public', validator=is_string)
+default_options.register_option('ml.xflow_settings', None, validator=any_validator(is_null, is_dict))
+default_options.register_option('ml.dry_run', False, validator=is_bool)
+default_options.register_option('ml.use_model_transfer', False, validator=is_bool)
+default_options.register_option('ml.use_old_metrics', True, validator=is_bool)
+default_options.register_option('ml.model_volume', 'pyodps_volume', validator=is_string)
 
 # Runner
-options.redirect_option('runner.dry_run', 'ml.dry_run')
+default_options.redirect_option('runner.dry_run', 'ml.dry_run')
 
 # display
 from .console import detect_console_encoding
 
-options.register_pandas('display.encoding', detect_console_encoding(), validator=is_string)
-options.register_pandas('display.max_rows', 60, validator=any_validator(is_null, is_integer))
-options.register_pandas('display.max_columns', 20, validator=any_validator(is_null, is_integer))
-options.register_pandas('display.large_repr', 'truncate', validator=is_in(['truncate', 'info']))
-options.register_pandas('display.notebook_repr_html', True, validator=is_bool)
-options.register_pandas('display.precision', 6, validator=is_integer)
-options.register_pandas('display.float_format', None)
-options.register_pandas('display.chop_threshold', None)
-options.register_pandas('display.column_space', 12, validator=is_integer)
-options.register_pandas('display.pprint_nest_depth', 3, validator=is_integer)
-options.register_pandas('display.max_seq_items', 100, validator=is_integer)
-options.register_pandas('display.max_colwidth', 50, validator=is_integer)
-options.register_pandas('display.multi_sparse', True, validator=is_bool)
-options.register_pandas('display.colheader_justify', 'right', validator=is_string)
-options.register_pandas('display.unicode.ambiguous_as_wide', False, validator=is_bool)
-options.register_pandas('display.unicode.east_asian_width', False, validator=is_bool)
-options.redirect_option('display.height', 'display.max_rows')
-options.register_pandas('display.width', 80, validator=any_validator(is_null, is_integer))
-options.register_pandas('display.expand_frame_repr', True)
-options.register_pandas('display.show_dimensions', 'truncate', validator=is_in([True, False, 'truncate']))
+default_options.register_pandas('display.encoding', detect_console_encoding(), validator=is_string)
+default_options.register_pandas('display.max_rows', 60, validator=any_validator(is_null, is_integer))
+default_options.register_pandas('display.max_columns', 20, validator=any_validator(is_null, is_integer))
+default_options.register_pandas('display.large_repr', 'truncate', validator=is_in(['truncate', 'info']))
+default_options.register_pandas('display.notebook_repr_html', True, validator=is_bool)
+default_options.register_pandas('display.precision', 6, validator=is_integer)
+default_options.register_pandas('display.float_format', None)
+default_options.register_pandas('display.chop_threshold', None)
+default_options.register_pandas('display.column_space', 12, validator=is_integer)
+default_options.register_pandas('display.pprint_nest_depth', 3, validator=is_integer)
+default_options.register_pandas('display.max_seq_items', 100, validator=is_integer)
+default_options.register_pandas('display.max_colwidth', 50, validator=is_integer)
+default_options.register_pandas('display.multi_sparse', True, validator=is_bool)
+default_options.register_pandas('display.colheader_justify', 'right', validator=is_string)
+default_options.register_pandas('display.unicode.ambiguous_as_wide', False, validator=is_bool)
+default_options.register_pandas('display.unicode.east_asian_width', False, validator=is_bool)
+default_options.redirect_option('display.height', 'display.max_rows')
+default_options.register_pandas('display.width', 80, validator=any_validator(is_null, is_integer))
+default_options.register_pandas('display.expand_frame_repr', True)
+default_options.register_pandas('display.show_dimensions', 'truncate', validator=is_in([True, False, 'truncate']))
 
-options.register_option('display.notebook_widget', True, validator=is_bool)
-options.redirect_option('display.notebook_repr_widget', 'display.notebook_widget')
+default_options.register_option('display.notebook_widget', True, validator=is_bool)
+default_options.redirect_option('display.notebook_repr_widget', 'display.notebook_widget')
 
 # Mars
-options.register_option('mars.use_common_proxy', True, validator=is_bool)
-options.register_option('mars.launch_notebook', False, validator=is_bool)
-options.register_option('mars.to_dataframe_memory_scale', None, validator=any_validator(is_null, is_integer))
-options.register_option('mars.container_status_timeout', 120, validator=is_integer)
+default_options.register_option('mars.use_common_proxy', True, validator=is_bool)
+default_options.register_option('mars.launch_notebook', False, validator=is_bool)
+default_options.register_option('mars.to_dataframe_memory_scale', None, validator=any_validator(is_null, is_integer))
+default_options.register_option('mars.container_status_timeout', 120, validator=is_integer)
+
+
+_options_local = threading.local()
+
+
+def reset_global_options():
+    global _options_local
+    _options_local = threading.local()
+    _options_local.default_options = default_options
+
+
+reset_global_options()
+
+
+def get_global_options(copy=False):
+    ret = getattr(_options_local, "default_options", None)
+    if ret is None:
+        if not copy:
+            ret = _options_local.default_options = default_options
+        else:
+            ret = _options_local.default_options = Config(deepcopy(default_options._config))
+
+    return ret
+
+
+class OptionsProxy(object):
+    def __dir__(self):
+        return dir(get_global_options())
+
+    def __getattribute__(self, attr):
+        return getattr(get_global_options(), attr)
+
+    def __setattr__(self, key, value):
+        setattr(get_global_options(), key, value)
+
+
+options = OptionsProxy()

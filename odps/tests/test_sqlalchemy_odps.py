@@ -20,6 +20,7 @@ import json
 import sys
 from collections import OrderedDict
 
+import mock
 import pytest
 
 from .. import options
@@ -34,7 +35,7 @@ try:
     from sqlalchemy.engine import create_engine, reflection
     from sqlalchemy.exc import NoSuchTableError
     from sqlalchemy.schema import Column, MetaData, Table
-    from sqlalchemy.sql import expression
+    from sqlalchemy.sql import expression, text
 
     from ..sqlalchemy_odps import update_test_setting
 
@@ -198,8 +199,19 @@ def setup(odps):
         options.sql.settings = None
 
 
+def _get_sa_table(table_name, engine, *args, **kw):
+    try:
+        # sqlalchemy 1.x
+        metadata = MetaData(bind=engine)
+    except TypeError:
+        metadata = MetaData()
+        if kw.pop("autoload", None):
+            kw["autoload_with"] = engine
+    return Table(table_name, metadata, *args, **kw)
+
+
 def test_basic_query(engine, connection):
-    result = connection.execute('SELECT * FROM one_row')
+    result = connection.execute(text('SELECT * FROM one_row'))
     instance = result.cursor._instance
 
     rows = result.fetchall()
@@ -212,8 +224,8 @@ def test_basic_query(engine, connection):
 
 
 def test_one_row_complex_null(engine, connection):
-    one_row_complex_null = Table('one_row_complex_null', MetaData(bind=engine), autoload=True)
-    rows = one_row_complex_null.select().execute().fetchall()
+    one_row_complex_null = _get_sa_table('one_row_complex_null', engine, autoload=True)
+    rows = connection.execute(one_row_complex_null.select()).fetchall()
     assert len(rows) == 1
     assert list(rows[0]) == [None] * len(rows[0])
 
@@ -221,15 +233,18 @@ def test_one_row_complex_null(engine, connection):
 def test_reflect_no_such_table(engine, connection):
     """reflecttable should throw an exception on an invalid table"""
     pytest.raises(NoSuchTableError,
-        lambda: Table('this_does_not_exist', MetaData(bind=engine), autoload=True))
+        lambda: _get_sa_table('this_does_not_exist', engine, autoload=True)
+    )
     pytest.raises(NoSuchTableError,
-        lambda: Table('this_does_not_exist', MetaData(bind=engine),
-                      schema='also_does_not_exist', autoload=True))
+        lambda: _get_sa_table(
+            'this_does_not_exist', engine, schema='also_does_not_exist', autoload=True
+        )
+    )
 
 
 def test_reflect_include_columns(engine, connection):
     """When passed include_columns, reflecttable should filter out other columns"""
-    one_row_complex = Table('one_row_complex', MetaData(bind=engine))
+    one_row_complex = _get_sa_table('one_row_complex', engine)
     insp = reflection.Inspector.from_engine(engine)
     insp.reflect_table(one_row_complex, include_columns=['int'], exclude_columns=[])
     assert len(one_row_complex.c) == 1
@@ -238,8 +253,9 @@ def test_reflect_include_columns(engine, connection):
 
 
 def test_reflect_with_schema(odps, engine, connection):
-    dummy = Table('dummy_table', MetaData(bind=engine), schema=odps.project,
-                  autoload=True)
+    dummy = _get_sa_table(
+        'dummy_table', engine, schema=odps.project, autoload=True
+    )
     assert len(dummy.c) == 1
     assert dummy.c.a is not None
 
@@ -251,16 +267,16 @@ def test_reflect_with_schema(odps, engine, connection):
 )
 def test_reflect_partitions(engine, connection):
     """reflecttable should get the partition column as an index"""
-    many_rows = Table('many_rows', MetaData(bind=engine), autoload=True)
+    many_rows = _get_sa_table('many_rows', engine, autoload=True)
     assert len(many_rows.c) == 2
 
     insp = reflection.Inspector.from_engine(engine)
 
-    many_rows = Table('many_rows', MetaData(bind=engine))
+    many_rows = _get_sa_table('many_rows', engine)
     insp.reflect_table(many_rows, include_columns=['a'], exclude_columns=[])
     assert len(many_rows.c) == 1
 
-    many_rows = Table('many_rows', MetaData(bind=engine))
+    many_rows = _get_sa_table('many_rows', engine)
     insp.reflect_table(many_rows, include_columns=['b'], exclude_columns=[])
     assert len(many_rows.c) == 1
 
@@ -269,22 +285,37 @@ def test_reflect_partitions(engine, connection):
 def test_unicode(engine, connection):
     """Verify that unicode strings make it through SQLAlchemy and the backend"""
     unicode_str = "中文"
-    one_row = Table('one_row', MetaData(bind=engine))
-    returned_str = sqlalchemy.select(
-        [expression.bindparam("好", unicode_str)],
-        from_obj=one_row,
-    ).scalar()
+    one_row = _get_sa_table('one_row', engine)
+    returned_str = connection.execute(sqlalchemy.select(
+        expression.bindparam("好", unicode_str)
+    ).select_from(one_row)).scalar()
     assert to_str(returned_str) == unicode_str
+
+
+def test_reflect_schemas_with_project(odps, engine, connection):
+    try:
+        options.sqlalchemy.project_as_schema = True
+        insp = sqlalchemy.inspect(engine)
+        schemas = insp.get_schema_names()
+        assert odps.project in schemas
+    finally:
+        options.sqlalchemy.project_as_schema = False
 
 
 def test_reflect_schemas(odps, engine, connection):
     insp = sqlalchemy.inspect(engine)
     schemas = insp.get_schema_names()
-    assert odps.project in schemas
+    assert 'default' in schemas
 
 
 def test_get_table_names(odps, engine, connection):
-    with update_test_setting(
+    def _new_list_tables(*_, **__):
+        yield odps.get_table('one_row')
+        yield odps.get_table('one_row_complex')
+        yield odps.get_table('dummy_table')
+
+    with mock.patch("odps.core.ODPS.list_tables", new=_new_list_tables), \
+        update_test_setting(
             get_tables_filter=lambda x: x.startswith('one_row') or
                                         x.startswith('dummy_table')):
         meta = MetaData()
@@ -297,24 +328,25 @@ def test_get_table_names(odps, engine, connection):
 
 
 def test_has_table(engine, connection):
-    assert Table('one_row', MetaData(bind=engine)).exists() is True
-    assert Table('this_table_does_not_exist', MetaData(bind=engine)).exists() is False
+    insp = reflection.Inspector.from_engine(engine)
+    assert insp.has_table('one_row') is True
+    assert insp.has_table('this_table_does_not_exist') is False
 
 
 def test_char_length(engine, connection):
-    one_row_complex = Table('one_row_complex', MetaData(bind=engine), autoload=True)
-    result = sqlalchemy.select([
-        sqlalchemy.func.char_length(one_row_complex.c.string)
-    ]).execute().scalar()
+    one_row_complex = _get_sa_table('one_row_complex', engine, autoload=True)
+    result = connection.execute(
+        sqlalchemy.select(sqlalchemy.func.char_length(one_row_complex.c.string))
+    ).scalar()
     assert result == len('a string')
 
 
 def test_reflect_select(engine, connection):
     """reflecttable should be able to fill in a table from the name"""
-    one_row_complex = Table('one_row_complex', MetaData(bind=engine), autoload=True)
+    one_row_complex = _get_sa_table('one_row_complex', engine, autoload=True)
     assert len(one_row_complex.c) == 14
     assert isinstance(one_row_complex.c.string, Column)
-    row = one_row_complex.select().execute().fetchone()
+    row = connection.execute(one_row_complex.select()).fetchone()
     assert list(row) == _ONE_ROW_COMPLEX_CONTENTS
 
     # TODO some of these types could be filled in better
@@ -336,15 +368,15 @@ def test_reflect_select(engine, connection):
 
 def test_type_map(engine, connection):
     """sqlalchemy should use the dbapi_type_map to infer types from raw queries"""
-    row = connection.execute('SELECT * FROM one_row_complex').fetchone()
+    row = connection.execute(text('SELECT * FROM one_row_complex')).fetchone()
     assert list(row) == _ONE_ROW_COMPLEX_CONTENTS
 
 
 def test_reserved_words(engine, connection):
     """odps uses backticks"""
     # Use keywords for the table/column name
-    fake_table = Table('select', MetaData(bind=engine), Column('sort', sqlalchemy.types.String))
-    query = str(fake_table.select(fake_table.c.sort == 'a'))
+    fake_table = _get_sa_table('select', engine, Column('sort', sqlalchemy.types.String))
+    query = str(fake_table.select().where(fake_table.c.sort == 'a').compile(bind=engine))
     assert '`select`' in query
     assert '`sort`' in query
     assert '"select"' not in query
@@ -364,34 +396,33 @@ def test_lots_of_types(engine, connection):
     cols = []
     for i, t in enumerate(types):
         cols.append(Column(str(i), getattr(sqlalchemy.types, t)))
-    table = Table('test_table', MetaData(bind=engine), *cols)
-    table.drop(checkfirst=True)
-    table.create()
-    table.drop()
+    table = _get_sa_table('test_table', engine, *cols)
+    table.drop(bind=engine, checkfirst=True)
+    table.create(bind=engine)
+    table.drop(bind=engine)
 
 
 def test_insert_select(engine, connection):
-    one_row = Table('one_row', MetaData(bind=engine), autoload=True)
-    table = Table('insert_test', MetaData(bind=engine),
-                  Column('a', sqlalchemy.types.Integer))
-    table.drop(checkfirst=True)
-    table.create()
+    one_row = _get_sa_table('one_row', engine, autoload=True)
+    table = _get_sa_table('insert_test', engine, Column('a', sqlalchemy.types.Integer))
+    table.drop(bind=engine, checkfirst=True)
+    table.create(bind=engine)
     connection.execute(table.insert().from_select(['a'], one_row.select()))
 
-    result = table.select().execute().fetchall()
+    result = connection.execute(table.select()).fetchall()
     expected = [(1,)]
     assert result == expected
 
 
 def test_insert_values(engine, connection):
-    table = Table(
-        'insert_test', MetaData(bind=engine), Column('a', sqlalchemy.types.Integer)
+    table = _get_sa_table(
+        'insert_test', engine, Column('a', sqlalchemy.types.Integer)
     )
-    table.drop(checkfirst=True)
-    table.create()
-    connection.execute(table.insert([{'a': 1}, {'a': 2}]))
+    table.drop(bind=engine, checkfirst=True)
+    table.create(bind=engine)
+    connection.execute(table.insert().values([{'a': 1}, {'a': 2}]))
 
-    result = table.select().execute().fetchall()
+    result = connection.execute(table.select()).fetchall()
     expected = [(1,), (2,)]
     assert result == expected
 
@@ -402,7 +433,7 @@ def test_supports_san_rowcount(engine, connection):
 
 def test_desc_sql(engine, connection):
     sql = 'desc one_row'
-    result = connection.execute(sql).fetchall()
+    result = connection.execute(text(sql)).fetchall()
     assert len(result) == 1
     assert len(result[0]) == 1
 

@@ -55,6 +55,8 @@ _vcs_prefixes = [prefix + "+" for prefix in "git hg svn bzr".split()]
 
 logger = logging.getLogger(__name__)
 
+if sys.version_info[0] == 3:
+    unicode = str
 
 dynlibs_pyproject_toml = """
 [project]
@@ -75,6 +77,7 @@ if [[ -n "$NON_DOCKER_MODE" ]]; then
   if [[ $(uname) != "Linux" || "$MACHINE_TAG" != "$TARGET_ARCH" ]]; then
     # does not allow compiling under non-linux or different arch
     echo "WARNING: target ($TARGET_ARCH-Linux) not matching host ($MACHINE_TAG-$(uname)), may encounter errors when compiling binary packages."
+    PYPI_PLATFORM_INSTALL_ARG="--ignore-requires-python"
     export CC=/dev/null
   fi
 else
@@ -114,6 +117,14 @@ else
 fi
 if [[ "{prefer_binary}" == "true" ]]; then
   PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --prefer-binary"
+fi
+if [[ "{use_pep517}" == "true" ]]; then
+  PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --use-pep517"
+elif [[ "{use_pep517}" == "false" ]]; then
+  PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --no-use-pep517"
+fi
+if [[ "{check_build_dependencies}" == "true" ]]; then
+  PYPI_EXTRA_ARG="$PYPI_EXTRA_ARG --check-build-dependencies"
 fi
 if [[ "{no_deps}" == "true" ]]; then
   PYPI_NO_DEPS_ARG="--no-deps"
@@ -348,7 +359,7 @@ if [[ -n "$WITHOUT_MERGE" ]]; then
 else
   # install with recently-built wheels
   "$PYBIN/python" -m pip install --target "$INSTALL_PATH/{package_site}" -r "$TEMP_SCRIPT_PATH/requirements-extra.txt" \
-    $PYPI_NO_DEPS_ARG $PIP_PLATFORM_ARGS --no-index --find-links "file://$WHEELS_PATH"
+    $PYPI_NO_DEPS_ARG $PIP_PLATFORM_ARGS $PYPI_PLATFORM_INSTALL_ARG --no-index --find-links "file://$WHEELS_PATH"
   rm -rf "$WHEELS_PATH/*"
 
   if [[ -f "$SCRIPT_PATH/{_EXCLUDE_FILE_NAME}" ]]; then
@@ -357,7 +368,10 @@ else
 
     cd "$INSTALL_PATH/packages"
     for dep in `cat "$SCRIPT_PATH/{_EXCLUDE_FILE_NAME}"`; do
-      dist_dir=`ls -d "$dep-"*".dist-info"`
+      dist_dir=`ls -d "$dep-"*".dist-info" || echo "non_exist"`
+      if [[ ! -f "$dist_dir/RECORD" ]]; then
+        continue
+      fi
       cat "$dist_dir/RECORD" | while read rec_line ; do
         fn="$(cut -d ',' -f 1 <<< "$rec_line" )"
         cur_root="$(cut -d '/' -f 1 <<< "$fn" )"
@@ -377,6 +391,17 @@ else
 
   # make sure the package is handled as a binary
   touch "$INSTALL_PATH/{package_site}/.pyodps-force-bin.so"
+
+  if [[ "{skip_scan_pkg_resources}" != "true" ]]; then
+    echo ""
+    echo "Scanning and installing dependency for pkg_resources if needed..."
+    if [[ $(egrep --include=\*.py -Rnw "$INSTALL_PATH/{package_site}" -m 1 -e '^\s*(from|import) +pkg_resources' | grep -n 1) ]]; then
+      "$PYBIN/python" -m pip install --target "$INSTALL_PATH/{package_site}" \
+          $PYPI_NO_DEPS_ARG $PIP_PLATFORM_ARGS setuptools
+    else
+      echo "No need to install pkg_resources"
+    fi
+  fi
 
   echo ""
   echo "Running after build command..."
@@ -467,6 +492,8 @@ def _makedirs(name, mode=0o777, exist_ok=False):
 
 
 def _to_unix(s):
+    if isinstance(s, unicode):
+        s = s.encode()
     return s.replace(b"\r\n", b"\n")
 
 
@@ -567,26 +594,26 @@ def _create_temp_work_dir(
         if requirement_list:
             req_text = "\n".join(requirement_list) + "\n"
             _log_indent("Content of requirements.txt:", req_text)
-            with open(os.path.join(script_path, _REQUIREMENT_FILE_NAME), "w") as res_file:
-                res_file.write(req_text)
+            with open(os.path.join(script_path, _REQUIREMENT_FILE_NAME), "wb") as res_file:
+                res_file.write(_to_unix(req_text))
 
         if vcs_list:
             vcs_text = "\n".join(vcs_list) + "\n"
             _log_indent("Content of requirements-vcs.txt:", vcs_text)
-            with open(os.path.join(script_path, _VCS_FILE_NAME), "w") as res_file:
-                res_file.write(vcs_text)
+            with open(os.path.join(script_path, _VCS_FILE_NAME), "wb") as res_file:
+                res_file.write(_to_unix(vcs_text))
 
         if install_requires:
             install_req_text = "\n".join(install_requires) + "\n"
             _log_indent("Content of install-requires.txt:", install_req_text)
-            with open(os.path.join(script_path, _INSTALL_REQ_FILE_NAME), "w") as install_req_file:
-                install_req_file.write(install_req_text)
+            with open(os.path.join(script_path, _INSTALL_REQ_FILE_NAME), "wb") as install_req_file:
+                install_req_file.write(_to_unix(install_req_text))
 
         if exclude_list:
             exclude_text = "\n".join(exclude_list) + "\n"
             _log_indent("Content of excludes.txt:", exclude_text)
-            with open(os.path.join(script_path, _EXCLUDE_FILE_NAME), "w") as exclude_file:
-                exclude_file.write(exclude_text)
+            with open(os.path.join(script_path, _EXCLUDE_FILE_NAME), "wb") as exclude_file:
+                exclude_file.write(_to_unix(exclude_text))
 
         if before_script or cmd_before_build:
             with open(os.path.join(script_path, _BEFORE_SCRIPT_FILE_NAME), "wb") as before_script_file:
@@ -887,6 +914,9 @@ def _main(parsed_args):
     no_deps_str = "true" if parsed_args.no_deps else ""
     debug_str = "true" if parsed_args.debug else ""
     without_merge_str = "true" if parsed_args.without_merge else ""
+    use_pep517_str = str(parsed_args.use_pep517).lower()
+    check_build_dependencies_str = "true" if parsed_args.check_build_dependencies else ""
+    skip_scan_pkg_resources_str = "true" if parsed_args.skip_scan_pkg_resources else ""
     pre_str = "true" if parsed_args.pre else ""
     timeout_str = parsed_args.timeout or _first_or_none(file_cfg.get("timeout")) or ""
     proxy_str = parsed_args.proxy or _first_or_none(file_cfg.get("proxy")) or ""
@@ -920,6 +950,9 @@ def _main(parsed_args):
         pypi_retries=retries_str,
         pypi_timeout=timeout_str,
         prefer_binary=prefer_binary_str,
+        use_pep517=use_pep517_str,
+        check_build_dependencies=check_build_dependencies_str,
+        skip_scan_pkg_resources=skip_scan_pkg_resources_str,
         no_deps=no_deps_str,
         without_merge=without_merge_str,
         python_abi_version=python_abi_version,
@@ -1152,6 +1185,17 @@ def main():
         help="Exclude editable packages when packing",
     )
     parser.add_argument(
+        "--use-pep517", action="store_true", default=None,
+        help="Use PEP 517 for building source distributions (use --no-use-pep517 to force legacy behaviour).",
+    )
+    parser.add_argument(
+        "--no-use-pep517", action="store_false", dest="use_pep517", default=None, help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--check-build-dependencies", action="store_true", default=None,
+        help="Check the build dependencies when PEP517 is used.",
+    )
+    parser.add_argument(
         "--arch", default="x86_64",
         help="Architecture of target package, x86_64 by default. Currently only x86_64 "
              "and aarch64 supported. Do not use this argument if you are not running "
@@ -1174,6 +1218,10 @@ def main():
     parser.add_argument(
         "--without-merge", action="store_true", default=False,
         help="Create or download wheels without merging them.",
+    )
+    parser.add_argument(
+        "--skip-scan-pkg-resources", action="store_true", default=False,
+        help="Skip scanning for usage of pkg-resources package.",
     )
     parser.add_argument(
         "--debug", action="store_true", default=False,

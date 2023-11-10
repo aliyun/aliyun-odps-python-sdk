@@ -14,15 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from collections import OrderedDict
 from datetime import datetime, date
 from decimal import Decimal
 
 try:
     import numpy as np
-    has_np = True
 except ImportError:
-    has_np = False
+    np = None
 try:
     import pandas as pd
 except ImportError:
@@ -35,7 +35,24 @@ from ....compat import six
 _np_to_df_types = dict()
 _df_to_np_types = dict()
 
-if has_np:
+
+def is_na_func(val):
+    try:
+        func = getattr(pd, "isna", np.isnan)
+        ret = func(val)
+        return bool(ret)
+    except (TypeError, ValueError):
+        return False
+    except AttributeError:
+        pass
+
+    try:
+        return val is None or math.isnan(val)
+    except TypeError:
+        return False
+
+
+if np is not None:
     _np_int_types = list(map(np.dtype, [np.int_, np.int8, np.int16, np.int32, np.int64]))
     _np_float_types = list(map(np.dtype, [np.float_, np.float32, np.float64]))
 
@@ -61,7 +78,7 @@ def np_type_to_df_type(dtype, arr=None, unknown_as_string=False, name=None):
         raise TypeError('Unknown dtype: %s%s' % (dtype, name))
 
     for it in arr:
-        if it is None:
+        if it is None or is_na_func(it):
             continue
         if isinstance(it, six.string_types):
             return types.string

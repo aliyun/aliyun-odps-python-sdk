@@ -18,6 +18,14 @@ def odps_daily():
 
 
 @pytest.fixture(scope="session")
+def odps_with_storage_tier():
+    try:
+        return get_config().odps_with_storage_tier
+    except AttributeError:
+        pytest.skip("ODPS project with schema not defined")
+
+
+@pytest.fixture(scope="session")
 def odps_with_schema():
     try:
         return get_config().odps_with_schema
