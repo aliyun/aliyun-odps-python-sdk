@@ -214,6 +214,11 @@ try:
     from pandas.core.internals import blocks as pd_blocks
     if not hasattr(pd_blocks, "new_block"):
         pd_blocks.new_block = pd_blocks.make_block
+
+    if not hasattr(pd.RangeIndex, 'start'):
+        pd.RangeIndex.start = property(fget=lambda x: x._start)
+        pd.RangeIndex.stop = property(fget=lambda x: x._stop)
+        pd.RangeIndex.step = property(fget=lambda x: x._step)
 except ImportError:
     pass
 

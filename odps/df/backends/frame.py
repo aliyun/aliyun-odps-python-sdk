@@ -24,7 +24,7 @@ try:
 except ImportError:
     has_pandas = False
 
-from ...compat import u, six, izip as zip
+from ...compat import u, six, izip as zip, Version
 from ...config import options
 from ...console import get_console_size, in_interactive_session, \
     in_ipython_frontend, in_qtconsole
@@ -67,7 +67,7 @@ class ResultFrame(six.Iterator):
 
         if has_pandas and pandas:
             if isinstance(data, pd.DataFrame):
-                self._values = data
+                self._values = self._reset_pd_axes(data)
             else:
                 self._values = pd.DataFrame(
                     [self._get_values(r) for r in data], columns=self._names, index=index
@@ -86,6 +86,33 @@ class ResultFrame(six.Iterator):
             self._pandas = False
 
         self._cursor = -1
+
+    def _reset_pd_axes(self, data):
+        if Version(pd.__version__) < Version("0.23.0"):
+            data = data.values
+            return pd.DataFrame(
+                [self._get_values(r) for r in data], columns=self._names, index=self._index
+            )
+
+        ret_data = data
+        if list(data.columns) != self._names:
+            # already copied
+            ret_data = ret_data.set_axis(self._names, axis="columns", inplace=False)
+
+        if self._index is not None and list(data.index) != list(self._index):
+            if data is ret_data:
+                ret_data = ret_data.set_axis(self._index, axis="index", inplace=False)
+            else:
+                ret_data.set_axis(self._index, axis="index", inplace=True)
+        elif self._index is None and (
+            not isinstance(data.index, pd.RangeIndex)
+            or data.index.start != 0
+        ):
+            if data is ret_data:
+                ret_data = ret_data.reset_index(drop=True, inplace=False)
+            else:
+                ret_data.reset_index(drop=True, inplace=True)
+        return ret_data
 
     def _get_values(self, r):
         if hasattr(r, 'values'):
