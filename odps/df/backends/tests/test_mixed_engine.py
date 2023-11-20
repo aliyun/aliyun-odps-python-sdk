@@ -21,6 +21,7 @@ from collections import namedtuple, OrderedDict
 
 import pytest
 
+from ..odpssql.types import set_local_use_odps2_types
 from .... import types as odps_types
 from ....config import options
 from ....models import TableSchema, Instance
@@ -71,6 +72,8 @@ def setup(odps):
     names = ['name', 'id']
     types = ['string', 'bigint']
 
+    set_local_use_odps2_types(None)
+
     table = tn('pyodps_df_mixed_%d' % os.getpid())
     if odps.exist_table(table):
         t = odps.get_table(table)
@@ -111,7 +114,7 @@ def test_join(odps, setup):
 
     df = DataFrame(setup.odps_df.to_pandas())
     expected = setup.pd_engine.execute(df.join(setup.pd_df, 'name').sort('id_x')).values
-    assert result.equals(expected) is True
+    assert result.equals(expected)
 
 
 def test_union(odps, setup):
@@ -120,7 +123,7 @@ def test_union(odps, setup):
 
     df = DataFrame(setup.odps_df.to_pandas())
     expected = setup.pd_engine.execute(df.union(setup.pd_df).sort(['id', 'name'])).values
-    assert result.equals(expected) is True
+    assert result.equals(expected)
 
     schema = TableSchema.from_lists(
         [c.name for c in setup.t.table_schema.columns if c.name != 'name'],
@@ -177,7 +180,7 @@ def test_mixed(odps, setup):
     test_expr = test_expr[test_expr['name'].isin(setup.pd_df['name'])]
     expected = setup.pd_engine.execute(test_expr).values
 
-    assert result.equals(expected) is True
+    assert result.equals(expected)
 
 
 def test_pandas_persist(odps, setup):

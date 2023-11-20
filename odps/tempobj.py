@@ -299,10 +299,12 @@ class ObjectRepositoryLib(dict):
     def add_odps_info(cls, odps):
         odps_key = _gen_repository_key(odps)
         cls.odps_info[odps_key] = dict(
-            access_id=odps.account.access_id, secret_access_key=odps.account.secret_access_key,
-            project=odps.project, endpoint=odps.endpoint
+            access_id=utils.to_str(odps.account.access_id),
+            secret_access_key=utils.to_str(odps.account.secret_access_key),
+            project=utils.to_str(odps.project),
+            endpoint=utils.to_str(odps.endpoint),
         )
-        cls.odps_info_json = json.dumps([utils.to_str(v) for v in six.itervalues(cls.odps_info)])
+        cls.odps_info_json = json.dumps([v for v in six.itervalues(cls.odps_info)])
 
     def _exec_cleanup_script(self):
         global cleanup_mode

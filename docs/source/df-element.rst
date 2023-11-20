@@ -526,10 +526,6 @@ UDF，则map函数无法使用。除此以外，所有 Python UDF 的限制在�
 
 目前，第三方库（包含C）只能使用\ ``numpy``\ ，第三方库使用参考 :ref:`使用第三方Python库 <third_party_library>`。
 
-除了调用自定义函数，DataFrame还提供了很多内置函数，这些函数中部分使用了map函数来实现，因此，如果\ **用户所在Project未开通Python
-UDF，则这些函数也就无法使用（注：阿里云公共服务暂不提供Python UDF支持）**\ 。
-
-
 .. warning::
 
     由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS

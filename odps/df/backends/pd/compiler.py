@@ -255,8 +255,15 @@ class PandasCompiler(Backend):
         if not isinstance(df, pd.DataFrame):
             raise ValueError('Expr data must be a pandas DataFrame.')
 
-        # make a copy to avoid modify
-        handle = lambda _: df.rename(columns=dict(zip(df.columns, expr.schema.names)))
+        def handle(_):
+            copy_data = len(self._expr_dag.descendants(expr)) > 0
+            if not copy_data and list(df.columns) == expr.schema.names:
+                # no need to copy when there is no descendants for the dataframe
+                return df
+            else:
+                # make a copy to avoid modify
+                return df.rename(columns=dict(zip(df.columns, expr.schema.names)))
+
         self._add_node(expr, handle)
 
     @classmethod

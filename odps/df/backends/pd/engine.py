@@ -233,7 +233,11 @@ class PandasEngine(Engine):
                        **kw)
 
         if not isinstance(src_expr, Scalar):
-            context.cache(src_expr, df)
+            need_cache = False
+            if not isinstance(src_expr, CollectionExpr) or getattr(src_expr, "_source_data", None) is None:
+                # only cache when expression is not data source
+                need_cache = True
+                context.cache(src_expr, df)
             # reset schema
             if isinstance(src_expr, CollectionExpr) and \
                     (isinstance(src_expr._schema, DynamicSchema) or
@@ -245,7 +249,10 @@ class PandasEngine(Engine):
                 df = df[-tail:]
             if ret_df:
                 return df
-            return ResultFrame(df.values, schema=expr_dag.root.schema)
+
+            if need_cache:
+                df = df.copy()
+            return ResultFrame(df, schema=expr_dag.root.schema)
         else:
             res = df.values[0][0]
             context.cache(src_expr, res)

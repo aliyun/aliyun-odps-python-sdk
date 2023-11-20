@@ -176,12 +176,14 @@ def set_local_use_odps2_types(val):
 
 
 def get_local_use_odps2_types(project=None):
-    if options.sql.use_odps2_extension is None and project is not None:
+    if options.sql.use_odps2_extension is not None:
+        ret = bool(options.sql.use_odps2_extension)
+    elif project is not None:
         project_prop = project.properties.get("odps.sql.type.system.odps2")
         ret = ("true" == (project_prop or "false").lower())
         set_local_use_odps2_types(ret)
     elif getattr(_use_odps2_types_local, "value", None) is not None:
         ret = _use_odps2_types_local.value
     else:
-        ret = bool(options.sql.use_odps2_extension)
+        ret = False
     return ret
