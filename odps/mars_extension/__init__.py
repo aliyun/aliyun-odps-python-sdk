@@ -20,33 +20,32 @@ from ..compat import Version
 
 try:
     mars_version = mars.__version__
-except AttributeError:
+    if Version(mars_version) >= Version("0.7"):
+        from .oscar import dataframe
+        from .oscar.core import (
+            create_mars_cluster,
+            to_mars_dataframe,
+            persist_mars_dataframe,
+            run_script_in_mars,
+            run_mars_job,
+            list_mars_instances,
+            sql_to_mars_dataframe,
+        )
+        from .oscar.deploy.client import MarsCupidClient, CUPID_APP_NAME, NOTEBOOK_NAME
+    else:
+        from .legacy import (
+            create_mars_cluster,
+            dataframe,
+            to_mars_dataframe,
+            persist_mars_dataframe,
+            run_script_in_mars,
+            run_mars_job,
+            list_mars_instances,
+            sql_to_mars_dataframe,
+        )
+        from .legacy.deploy.client import MarsCupidClient, CUPID_APP_NAME, NOTEBOOK_NAME
+except (AttributeError, TypeError):
     raise ImportError("Mars package broken")
-
-if Version(mars_version) >= Version("0.7"):
-    from .oscar import dataframe
-    from .oscar.core import (
-        create_mars_cluster,
-        to_mars_dataframe,
-        persist_mars_dataframe,
-        run_script_in_mars,
-        run_mars_job,
-        list_mars_instances,
-        sql_to_mars_dataframe,
-    )
-    from .oscar.deploy.client import MarsCupidClient, CUPID_APP_NAME, NOTEBOOK_NAME
-else:
-    from .legacy import (
-        create_mars_cluster,
-        dataframe,
-        to_mars_dataframe,
-        persist_mars_dataframe,
-        run_script_in_mars,
-        run_mars_job,
-        list_mars_instances,
-        sql_to_mars_dataframe,
-    )
-    from .legacy.deploy.client import MarsCupidClient, CUPID_APP_NAME, NOTEBOOK_NAME
 
 
 INTERNAL_PATTERN = r"\/[^\.]+\.[^\.-]+\.[^\.-]+\-[^\.-]+\."

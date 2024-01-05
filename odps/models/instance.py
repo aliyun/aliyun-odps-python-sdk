@@ -479,7 +479,6 @@ class Instance(LazyLoad):
 
         return compat.lkeys(self.get_task_statuses())
 
-    @_with_status_api_lock
     def get_task_cost(self, task_name):
         """
         Get task cost
@@ -511,7 +510,6 @@ class Instance(LazyLoad):
 
             return Instance.TaskCost(cpu_cost, memory, input_size)
 
-    @_with_status_api_lock
     def get_task_info(self, task_name, key):
         """
         Get task related information.
@@ -520,13 +518,13 @@ class Instance(LazyLoad):
         :param key: key of the information item
         :return: a string of the task information
         """
-        params = OrderedDict([('info', ''), ('taskname', task_name), ('key', key)])
+        actions = ["info"]
+        params = OrderedDict([('taskname', task_name), ('key', key)])
 
-        resp = self._client.get(self.resource(), params=params)
-        return resp.text
+        resp = self._client.get(self.resource(), actions=actions, params=params)
+        return resp.content.decode()
 
-    @_with_status_api_lock
-    def put_task_info(self, task_name, key, value):
+    def put_task_info(self, task_name, key, value, check_location=False):
         """
         Put information into a task.
 
@@ -534,13 +532,18 @@ class Instance(LazyLoad):
         :param key: key of the information item
         :param value: value of the information item
         """
-        params = OrderedDict([('info', ''), ('taskname', task_name)])
+        actions = ["info"]
+        params = {'taskname': task_name}
         headers = {'Content-Type': 'application/xml'}
         body = self.TaskInfo(key=key, value=value).serialize()
 
-        self._client.put(self.resource(), params=params, headers=headers, data=body)
+        resp = self._client.put(self.resource(), actions=actions, params=params, headers=headers, data=body)
 
-    @_with_status_api_lock
+        location = resp.headers.get('Location')
+        if check_location and (location is None or len(location) == 0):
+            raise errors.ODPSError('Invalid response, Location header required.')
+        return resp.content.decode()
+
     def get_task_quota(self, task_name):
         """
         Get queueing info of the task.
@@ -549,11 +552,11 @@ class Instance(LazyLoad):
         :param task_name: name of the task
         :return: quota info in dict format
         """
-        params = OrderedDict([('instancequota', ''), ('taskname', task_name)])
-        resp = self._client.get(self.resource(), params=params)
+        actions = ['instancequota']
+        params = {'taskname': task_name}
+        resp = self._client.get(self.resource(), actions=actions, params=params)
         return json.loads(resp.text)
 
-    @_with_status_api_lock
     def get_sql_task_cost(self):
         """
         Get cost information of the sql cost task, including input data size,

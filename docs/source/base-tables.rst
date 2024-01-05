@@ -20,6 +20,13 @@
    for table in o.list_tables():
        print(table.name)
 
+可以通过 ``prefix`` 参数只列举给定前缀的表：
+
+.. code-block:: python
+
+   for table in o.list_tables(prefix="table_prefix"):
+       print(table.name)
+
 通过该方法获取的 Table 对象不会自动加载表名以外的属性，此时获取这些属性（例如 ``table_schema`` 或者
 ``creation_time``）可能导致额外的请求并造成额外的时间开销。如果需要在列举表的同时读取这些属性，在
 PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=True`` 参数：
@@ -28,6 +35,15 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
 
    for table in o.list_tables(extended=True):
        print(table.name, table.creation_time)
+
+如果你需要按类型列举表，可以指定 ``type`` 参数。不同类型的表列举方法如下：
+
+.. code-block:: python
+
+   managed_tables = list(o.list_tables(type="managed_table"))  # 列举内置表
+   external_tables = list(o.list_tables(type="external_table"))  # 列举外表
+   virtual_views = list(o.list_tables(type="virtual_view"))  # 列举视图
+   materialized_views = list(o.list_tables(type="materialized_view"))  # 列举物化视图
 
 通过调用 ``exist_table`` 来判断表是否存在。
 

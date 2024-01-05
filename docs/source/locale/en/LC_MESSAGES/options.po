@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.8.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-05-25 13:58+0800\n"
+"POT-Creation-Date: 2024-01-03 10:06+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/options.rst:5
 msgid "配置选项"
@@ -85,7 +85,7 @@ msgstr "MaxCompute Endpoint"
 #: ../../source/options.rst:64 ../../source/options.rst:72
 #: ../../source/options.rst:74 ../../source/options.rst:76
 #: ../../source/options.rst:85 ../../source/options.rst:87
-#: ../../source/options.rst:105
+#: ../../source/options.rst:105 ../../source/options.rst:106
 msgid "None"
 msgstr ""
 
@@ -148,7 +148,7 @@ msgstr "Verify SSL certificate of the server end"
 #: ../../source/options.rst:86 ../../source/options.rst:99
 #: ../../source/options.rst:100 ../../source/options.rst:101
 #: ../../source/options.rst:102 ../../source/options.rst:103
-#: ../../source/options.rst:104 ../../source/options.rst:106
+#: ../../source/options.rst:104 ../../source/options.rst:107
 msgid "True"
 msgstr ""
 
@@ -437,32 +437,40 @@ msgstr ""
 " SQL"
 
 #: ../../source/options.rst:105
-msgid "df.libraries"
+msgid "df.image"
 msgstr ""
 
 #: ../../source/options.rst:105
-msgid "DataFrame运行使用的第三方库（资源名）"
-msgstr "Third-party library (resource name) that is used for DataFrame running"
+msgid "DataFrame运行使用的镜像名"
+msgstr "Image name that is used for DataFrame running"
 
 #: ../../source/options.rst:106
-msgid "df.supersede_libraries"
+msgid "df.libraries"
 msgstr ""
 
 #: ../../source/options.rst:106
+msgid "DataFrame运行使用的第三方库（资源名）"
+msgstr "Third-party library (resource name) that is used for DataFrame running"
+
+#: ../../source/options.rst:107
+msgid "df.supersede_libraries"
+msgstr ""
+
+#: ../../source/options.rst:107
 msgid "使用自行上传的包替换服务中的版本"
 msgstr ""
 "Use uploaded package resource to supersede the version provided by "
 "MaxCompute"
 
-#: ../../source/options.rst:107
+#: ../../source/options.rst:108
 msgid "df.odps.sort.limit"
 msgstr ""
 
-#: ../../source/options.rst:107
+#: ../../source/options.rst:108
 msgid "DataFrame有排序操作时，默认添加的limit条数"
 msgstr "Limit count when ``sort`` is performed"
 
-#: ../../source/options.rst:107
+#: ../../source/options.rst:108
 msgid "10000"
 msgstr ""
 

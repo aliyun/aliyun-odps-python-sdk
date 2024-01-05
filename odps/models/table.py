@@ -705,10 +705,10 @@ class Table(LazyLoad):
                 buf.write(u'(\n')
                 for idx, column in enumerate(col_array):
                     buf.write(u'  `%s` %s' % (utils.to_text(column.name), utils.to_text(column.type)))
+                    if not column.nullable and not options.sql.ignore_fields_not_null:
+                        buf.write(u" NOT NULL")
                     if with_column_comments and column.comment:
                         buf.write(u" COMMENT '%s'" % utils.to_text(column.comment))
-                    if not column.nullable:
-                        buf.write(u" NOT NULL")
                     if idx < size - 1:
                         buf.write(u',\n')
                 if with_pk:

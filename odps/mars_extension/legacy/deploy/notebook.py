@@ -45,9 +45,12 @@ def start_notebook(port):
             "--allow-root",
             "--port",
             str(port),
-            '--NotebookApp.token=""',
-            '--NotebookApp.password=""',
+            "--NotebookApp.token=",
+            "--NotebookApp.password=",
             "--NotebookApp.disable_check_xsrf=True",
+            "--ServerApp.token=",
+            "--ServerApp.password=",
+            "--ServerApp.disable_check_xsrf=True",
         ]
     )
     while True:

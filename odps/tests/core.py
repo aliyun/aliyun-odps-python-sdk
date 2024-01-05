@@ -126,6 +126,7 @@ def get_config():
         _load_config_odps(config, "odps_with_storage_tier", overwrite_global=False)
         _load_config_odps(config, "odps_with_schema", overwrite_global=False)
         _load_config_odps(config, "odps_with_schema_tenant", overwrite_global=False)
+        _load_config_odps(config, "odps_with_tunnel_quota", overwrite_global=False)
         # make sure main config overrides other configs
         _load_config_odps(config, "odps")
         config.tunnel = TableTunnel(config.odps, endpoint=config.odps._tunnel_endpoint)

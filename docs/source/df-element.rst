@@ -591,8 +591,10 @@ UDF，则map函数无法使用。除此以外，所有 Python UDF 的限制在�
 现在用户可以把第三方 Wheel 包作为资源上传到 MaxCompute。在全局或者在立即执行的方法时，指定需要使用的包文件，
 即可以在自定义函数中使用第三方库。值得注意的是，第三方库的依赖库也必须指定，否则依然会有导入错误。
 
-PyODPS 提供了 ``pyodps-pack`` 工具，可在安装完 PyODPS 后打包三方包及其依赖。同时，execute / persist / to_pandas
-方法支持增加 ``libraries`` 参数以使用这些资源。如何制作及使用三方包的说明请参考 :ref:`这里 <pyodps_pack>`。
+如果你的 MaxCompute 服务支持在执行 SQL 时使用镜像，可以在 execute / persist / to_pandas 方法指定 ``image``
+参数以使用镜像。与此同时，DataFrame 的 execute / persist / to_pandas 方法支持增加 ``libraries`` 参数以将资源作为三方包。
+PyODPS 提供了 ``pyodps-pack`` 工具，可在安装完 PyODPS 后打包三方包及其依赖。如何制作及使用三方包的说明请参考
+:ref:`这里 <pyodps_pack>`。
 
 .. warning::
     由于字节码定义的差异，Python 3 下使用新语言特性（例如 ``yield from`` ）时，代码在使用 Python 2.7 的 ODPS

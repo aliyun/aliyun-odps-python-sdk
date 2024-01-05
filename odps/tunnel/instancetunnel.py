@@ -97,7 +97,6 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             'Content-Length': 0,
             'x-odps-tunnel-version': TUNNEL_VERSION,
         }
-
         if self._quota_name is not None:
             params['quotaName'] = self._quota_name
 
@@ -124,6 +123,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     def reload(self):
         if not self._sessional:
             params = {'downloadid': self.id}
+            if self._quota_name is not None:
+                params['quotaName'] = self._quota_name
             headers = {
                 'Content-Length': 0,
                 'x-odps-tunnel-version': TUNNEL_VERSION,
@@ -149,6 +150,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
 
         params = {}
         headers = {'x-odps-tunnel-version': TUNNEL_VERSION}
+        if self._quota_name is not None:
+            params['quotaName'] = self._quota_name
         if self._sessional:
             params['cached'] = ''
             params['taskname'] = self._session_task_name

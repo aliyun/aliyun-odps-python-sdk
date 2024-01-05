@@ -31,6 +31,7 @@ DEFAULT_CONNECT_TIMEOUT = 120
 DEFAULT_READ_TIMEOUT = 120
 DEFAULT_POOL_CONNECTIONS = 10
 DEFAULT_POOL_MAXSIZE = 10
+DEFAULT_RETRY_DELAY = 0.1
 _DEFAULT_REDIRECT_WARN = 'Option {source} has been replaced by {target} and might be removed in a future release.'
 
 
@@ -464,6 +465,7 @@ default_options.register_option("skipped_survey_regexes", [])
 # network connections
 default_options.register_option('chunk_size', DEFAULT_CHUNK_SIZE, validator=is_integer)
 default_options.register_option('retry_times', DEFAULT_CONNECT_RETRY_TIMES, validator=is_integer)
+default_options.register_option('retry_delay', DEFAULT_RETRY_DELAY, validator=any_validator(is_integer, is_float))
 default_options.register_option('connect_timeout', DEFAULT_CONNECT_TIMEOUT, validator=is_integer)
 default_options.register_option('read_timeout', DEFAULT_READ_TIMEOUT, validator=is_integer)
 default_options.register_option('pool_connections', DEFAULT_POOL_CONNECTIONS, validator=is_integer)
@@ -494,6 +496,7 @@ default_options.register_option('console.use_color', False, validator=is_bool)
 
 # SQL
 default_options.register_option('sql.settings', None, validator=any_validator(is_null, is_dict))
+default_options.register_option('sql.ignore_fields_not_null', False, validator=is_bool)
 default_options.register_option('sql.use_odps2_extension', None, validator=any_validator(is_null, is_bool))
 
 # sqlalchemy
@@ -513,6 +516,7 @@ default_options.register_option('df.quote', True, validator=is_bool)
 default_options.register_option('df.dump_udf', False, validator=is_bool)
 default_options.register_option('df.supersede_libraries', True, validator=is_bool)
 default_options.register_option('df.libraries', None)
+default_options.register_option('df.image', None)
 default_options.register_option('df.odps.sort.limit', 10000)
 default_options.register_option('df.odps.nan_handler', 'py')  # None for not handled, builtin for built-in ISNAN function
 default_options.register_option('df.sqlalchemy.execution_options', None, validator=any_validator(is_null, is_dict))

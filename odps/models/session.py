@@ -24,7 +24,6 @@ import warnings
 from .. import errors, readers, utils
 from ..compat import six, enum
 from ..models import tasks
-from ..serializers import XMLSerializableModel, XMLNodeField
 from .instance import Instance, InstanceArrowReader, InstanceRecordReader
 
 
@@ -194,13 +193,11 @@ class SessionInstance(Instance):
             return False
         return splited[-1].lower().strip(' \t\r\n(').startswith("select")
 
-    def _create_internal_instance(self, task=None, headers=None, encoding=None):
-        proj_insts = self._project.instances
-        session_inst = self
+    def _create_internal_instance(self, task=None):
         project_name = self._project.name
         is_select = self._check_is_select(task.query.strip())
 
-        _job = proj_insts._create_job(task=task)  # noqa: F841
+        self.parent._fill_task_properties(task)
         rquery = task.query
         if not rquery.endswith(";"):
             rquery = rquery + ";"
@@ -210,35 +207,13 @@ class SessionInstance(Instance):
         }
         query_json = json.dumps(query_object)
 
-        class CreateInstanceQuery(XMLSerializableModel):
-            __slots__ = 'key', 'value'
-            key = XMLNodeField('Key')
-            value = XMLNodeField('Value')
-            _root = 'Instance'
-
-            def __init__(self, k, v):
-                super(CreateInstanceQuery, self).__init__()
-                self.key = k
-                self.value = v
-
-        xml = CreateInstanceQuery('query', query_json).serialize()
-
-        headers = headers or dict()
-        headers['Content-Type'] = 'application/xml'
-        url = session_inst.resource() + "?info"
-        params = {
-            "curr_project": project_name,
-            "taskname": self._task_name,
-        }
-        resp = proj_insts._client.put(url, xml, headers=headers, params=params)
-
-        location = resp.headers.get('Location')
-        if location is None or len(location) == 0:
-            raise errors.ODPSError('Invalid response, Location header required.')
+        resp_content = self.put_task_info(
+            self._task_name, "query", query_json, check_location=True
+        )
 
         created_subquery_id = -1
         try:
-            query_result = json.loads(resp.text)
+            query_result = json.loads(resp_content)
             query_status = query_result["status"]
             if query_status != "ok":
                 raise errors.ODPSError(
@@ -251,30 +226,22 @@ class SessionInstance(Instance):
         except KeyError as ex:
             six.raise_from(
                 errors.ODPSError(
-                    "Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), resp.text)
+                    "Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), resp_content.decode())
                 ), None
             )
-        instance_id = location.rsplit('/', 1)[1]
-
         instance = InSessionInstance(
             session_project_name=project_name, session_task_name=self._task_name,
-            name=instance_id, session_subquery_id=created_subquery_id,
-            session_instance=self, parent=proj_insts, session_is_select=is_select,
+            name=self.id, session_subquery_id=created_subquery_id,
+            session_instance=self, parent=self.parent, session_is_select=is_select,
             client=self._client,
         )
         return instance
 
     def reload(self):
-        url = self.resource() + "?info"
-        st_resp = self._client.get(url, params={
-            "curr_project": self._project.name,
-            "taskname": self._task_name,
-            "key": "status"})
-        if not st_resp.ok:
-            raise errors.ODPSError("HTTP " + str(st_resp.status_code))
+        resp_text = self.get_task_info(self._task_name, "status")
         session_status = SessionTaskStatus.Unknown
         try:
-            poll_result = json.loads(st_resp.text)
+            poll_result = json.loads(resp_text)
             self._parse_result_session_name(poll_result["result"])
             session_status = _task_status_value_to_enum(poll_result["status"])
         except BaseException:
@@ -435,17 +402,9 @@ class InSessionInstance(Instance):
             return InSessionInstanceRecordReader(self, download_session)
 
     def reload(self):
-        url = self._session_instance.resource() + "?info"
-        params = {
-            "curr_project": self._project_name,
-            "taskname": self._session_task_name,
-            "key": "result_" + str(self._subquery_id)
-        }
-        st_resp = self._client.get(url, params=params)
-        if not st_resp.ok:
-            raise errors.ODPSError("HTTP " + str(st_resp.status_code))
+        resp_text = self.get_task_info(self._session_task_name, "result_" + str(self._subquery_id))
         try:
-            query_result = json.loads(st_resp.text)
+            query_result = json.loads(resp_text)
             query_status = query_result["status"]
             self._report_result = query_result["result"]
             self._report_warning = query_result["warnings"]
@@ -460,7 +419,9 @@ class InSessionInstance(Instance):
                 self._status = Instance.Status.SUSPENDED
             self._subquery_id = int(query_result.get("subQueryId", -1))
         except BaseException as ex:
-            raise errors.ODPSError("Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), st_resp.text))
+            raise errors.ODPSError(
+                "Invalid Response Format: %s\n Response JSON:%s\n" % (str(ex), resp_text)
+            )
 
     def is_successful(self, retry=False):
         """

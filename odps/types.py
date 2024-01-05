@@ -36,12 +36,18 @@ force_c = options.force_c
 
 
 class Column(object):
-    def __init__(self, name=None, typo=None, comment=None, label=None, nullable=True):
+    def __init__(
+        self, name=None, typo=None, comment=None, label=None, nullable=True, **kw
+    ):
         self.name = utils.to_str(name)
-        self.type = validate_data_type(typo)
+        self.type = validate_data_type(
+            typo if typo is not None else kw.pop("type", None)
+        )
         self.comment = comment
         self.label = label
         self.nullable = nullable
+        if kw:
+            raise TypeError("Arguments not supported for Column: %s" % list(kw))
 
     def __repr__(self):
         not_null_str = ", not null" if not self.nullable else ""
@@ -922,7 +928,7 @@ class BaseTimestamp(OdpsPrimitive):
             raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
 
         if isinstance(data_type, String):
-            return pd.Timestamp.strptime(value, '%Y-%m-%d %H:%M:%S')
+            return pd.to_datetime(value)
         elif isinstance(data_type, Datetime):
             return pd.Timestamp(value)
         return value

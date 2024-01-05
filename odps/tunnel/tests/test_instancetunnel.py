@@ -19,6 +19,7 @@ from collections import OrderedDict
 from datetime import datetime
 from decimal import Decimal
 
+import mock
 import pytest
 
 try:
@@ -183,3 +184,38 @@ def test_partition_upload_and_download_by_raw_tunnel(config, instance_tunnel):
     assert data == [r[:-1] for r in records]
 
     _delete_table(config.odps, test_table_name)
+
+
+def test_instance_tunnel_with_quota(odps_with_tunnel_quota, config):
+    from odps.rest import RestClient
+
+    orig_request = RestClient.request
+
+    def patch_request(self, *args, **kw):
+        if self._endpoint == tunnel_endpoint:
+            assert kw["params"]["quotaName"] == quota_name
+        return orig_request(self, *args, **kw)
+
+    odps = odps_with_tunnel_quota
+    table_name = tn("test_table_tunnel_with_quota")
+    odps.delete_table(table_name, if_exists=True)
+
+    quota_name = config.get("test", "default_tunnel_quota_name")
+    tunnel = InstanceTunnel(odps, quota_name=quota_name)
+    tunnel_endpoint = tunnel.tunnel_rest.endpoint
+    tb = odps.create_table(table_name, "col1 string", lifecycle=1)
+    with tb.open_writer() as writer:
+        writer.write([["data"]])
+
+    inst = odps.execute_sql("select * from " + table_name)
+
+    with mock.patch("odps.rest.RestClient.request", new=patch_request):
+        download_session = tunnel.create_download_session(inst)
+        assert download_session.quota_name == quota_name
+        download_session.reload()
+        assert download_session.quota_name == quota_name
+
+        reader = download_session.open_record_reader(0, 1)
+        assert list(reader)[0][0] == "data"
+
+    tb.drop()

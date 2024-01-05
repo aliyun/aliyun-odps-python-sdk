@@ -222,6 +222,8 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
 
         if self.partition_spec is not None and len(self.partition_spec) > 0:
             params['partition'] = self.partition_spec
+        if self._quota_name is not None:
+            params['quotaName'] = self._quota_name
 
         url = self.resource() + '/' + str(self.id)
         resp = self._client.get(url, params=params, headers=headers)
@@ -244,6 +246,8 @@ class VolumeDownloadSession(serializers.JSONSerializableModel):
 
         params['data'] = ''
         params['range'] = '(%s,%s)' % (start, length)
+        if self._quota_name is not None:
+            params['quotaName'] = self._quota_name
 
         url = self.resource()
         resp = self._client.get(url + '/' + self.id, params=params, headers=headers, stream=True)
@@ -554,6 +558,8 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
         params['blockid'] = file_name
         if append:
             params['resume'] = ''
+        if self._quota_name is not None:
+            params['quotaName'] = self._quota_name
 
         url = self.resource() + '/' + self.id
 
@@ -583,6 +589,8 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
     def _complete_upload(self):
         headers = {'Content-Length': '0'}
         params = {}
+        if self._quota_name is not None:
+            params['quotaName'] = self._quota_name
 
         url = self.resource() + '/' + self.id
         resp = self._client.put(url, {}, params=params, headers=headers)
