@@ -103,6 +103,7 @@ _CODE_MAPPING = {
     "ODPS-0123055": "ScriptError",
     "ODPS-0130131": "NoSuchTable",
     "ODPS-0130013": "NoPermission",
+    "ODPS-0130161": "ParseError",
     "ODPS-0430055": "InternalConnectionError",
 }
 

@@ -188,7 +188,7 @@ class RestClient(object):
         file_upload = kwargs.get("file_upload", False)
 
         logger.debug('Start request.')
-        logger.debug('url: %s', url)
+        logger.debug('%s: %s', method.upper(), url)
         if logger.getEffectiveLevel() <= logging.DEBUG:
             for k, v in kwargs.items():
                 logger.debug('%s: %s', k, v)

@@ -102,6 +102,7 @@ df.optimizes.pp         是否开启DataFrame谓词下推优化               Tr
 df.optimizes.cp         是否开启DataFrame列剪裁优化                 True
 df.optimizes.tunnel     是否开启DataFrame使用tunnel优化执行         True
 df.quote                ODPS SQL后端是否用``来标记字段和表名        True
+df.image                DataFrame运行使用的镜像名                   None
 df.libraries            DataFrame运行使用的第三方库（资源名）       None
 df.supersede_libraries  使用自行上传的包替换服务中的版本            True
 df.odps.sort.limit      DataFrame有排序操作时，默认添加的limit条数  10000

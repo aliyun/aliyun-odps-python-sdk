@@ -26,7 +26,7 @@ except ImportError:
     pd = None
 
 from ..types import *
-from ..tests.core import py_and_c
+from ..tests.core import py_and_c, pandas_case
 
 from datetime import datetime
 
@@ -378,3 +378,16 @@ def test_validate_struct():
             validate_value({"abcd", "efgh"}, struct_type)
     finally:
         options.struct_as_dict = False
+
+
+@pandas_case
+def test_validate_timestamp():
+    with pytest.raises(ValueError):
+        validate_value("abcdef", timestamp)
+
+    vl = validate_value("2023-12-19 14:24:31", timestamp)
+    assert vl == pd.Timestamp("2023-12-19 14:24:31")
+
+    ts = pd.Timestamp("2023-12-19 14:24:31")
+    vl = validate_value(ts, timestamp)
+    assert vl == ts

@@ -19,17 +19,13 @@ import random
 import sys
 import time
 
-from .. import errors, serializers, types, options
+from .. import errors, options, serializers, types, utils
 from ..compat import Enum, six
 from ..lib import requests
 from ..models import Projects, Record, TableSchema, Tenant
 from ..types import Column
 from .base import BaseTunnel, TUNNEL_VERSION
-from .errors import (
-    MetaTransactionFailed,
-    TunnelError,
-    TunnelWriteTimeout,
-)
+from .errors import TunnelError, TunnelWriteTimeout
 from .io.reader import TunnelRecordReader, TunnelArrowReader, ArrowRecordReader
 from .io.stream import CompressOption, get_decompress_stream
 from .io.writer import (
@@ -100,6 +96,8 @@ class BaseTableTunnelSession(serializers.JSONSerializableModel):
 
     def get_common_params(self, **kwargs):
         params = {k: str(v) for k, v in kwargs.items()}
+        if getattr(self, "_quota_name", None):
+            params['quotaName'] = self._quota_name
         if self._partition_spec is not None and len(self._partition_spec) > 0:
             params['partition'] = self._partition_spec
         return params
@@ -173,8 +171,6 @@ class TableDownloadSession(BaseTableTunnelSession):
     def _init(self, async_mode, timeout):
         params = self.get_common_params(downloads='')
         headers = self.get_common_headers(content_length=0)
-        if self._quota_name:
-            params['quotaName'] = self._quota_name
         if async_mode:
             params['asyncmode'] = 'true'
 
@@ -324,34 +320,30 @@ class TableUploadSession(BaseTableTunnelSession):
         params = self.get_common_params(reload=reload)
         if not reload and self._overwrite:
             params["overwrite"] = "true"
-        if not reload and self._quota_name:
-            params['quotaName'] = self._quota_name
 
         if reload:
             params['uploadid'] = self.id
         else:
             params['uploads'] = 1
 
-        retry_num = 0
-        while True:
-            try:
-                url = self._table.table_resource()
-                if reload:
-                    resp = self._client.get(url, params=params, headers=headers)
-                else:
-                    resp = self._client.post(url, {}, params=params, headers=headers)
-                self.check_tunnel_response(resp)
+        def _call_tunnel(func, *args, **kw):
+            resp = func(*args, **kw)
+            self.check_tunnel_response(resp)
+            return resp
 
-                self.parse(resp, obj=self)
-                if self.schema is not None:
-                    self.schema.build_snapshot()
-                break
-            except MetaTransactionFailed:
-                time.sleep(0.1)
-                retry_num += 1
-                if retry_num > options.retry_times:
-                    raise
-                continue
+        url = self._table.table_resource()
+        if reload:
+            resp = utils.call_with_retry(
+                _call_tunnel, self._client.get, url, params=params, headers=headers
+            )
+        else:
+            resp = utils.call_with_retry(
+                _call_tunnel, self._client.post, url, {}, params=params, headers=headers
+            )
+
+        self.parse(resp, obj=self)
+        if self.schema is not None:
+            self.schema.build_snapshot()
 
     def _init(self):
         self._create_or_reload_session(reload=False)
@@ -383,7 +375,7 @@ class TableUploadSession(BaseTableTunnelSession):
             @_wrap_upload_call(self.id)
             def upload_block(blockid, data):
                 params['blockid'] = blockid
-                return self._client.put(url, data=data, params=params, headers=headers)
+                return utils.call_with_retry(self._client.put, url, data=data, params=params, headers=headers)
 
             writer = BufferedRecordWriter(self.schema, upload_block, compress_option=option,
                                           buffer_size=buffer_size)
@@ -453,16 +445,14 @@ class TableUploadSession(BaseTableTunnelSession):
         params = self.get_common_params(uploadid=self.id)
         url = self._table.table_resource()
 
-        retries = options.retry_times
-        while True:
-            try:
-                resp = self._client.post(url, '', params=params, headers=headers)
-                break
-            except (requests.Timeout, requests.ConnectionError, errors.InternalServerError):
-                if retries > 0:
-                    retries -= 1
-                else:
-                    raise
+        resp = utils.call_with_retry(
+            self._client.post,
+            url,
+            '',
+            params=params,
+            headers=headers,
+            exc_type=(requests.Timeout, requests.ConnectionError, errors.InternalServerError),
+        )
         self.parse(resp, obj=self)
 
 
@@ -577,9 +567,6 @@ class TableStreamUploadSession(BaseTableTunnelSession):
     def _init(self):
         params = self.get_common_params()
         headers = self.get_common_headers(content_length=0)
-
-        if self._quota_name:
-            params['quotaName'] = self._quota_name
 
         url = self._get_resource()
         resp = self._client.post(url, {}, params=params, headers=headers)
@@ -766,9 +753,6 @@ class TableUpsertSession(BaseTableTunnelSession):
         params = self.get_common_params()
         headers = self.get_common_headers(content_length=0)
 
-        if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
-
         if not reload:
             params['slotnum'] = str(self._slot_num)
         else:
@@ -801,9 +785,6 @@ class TableUpsertSession(BaseTableTunnelSession):
         params = self.get_common_params(upsertid=self.id)
         headers = self.get_common_headers(content_length=0)
         headers["odps-tunnel-routed-server"] = self.slots.buckets[0].server
-
-        if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
 
         url = self._get_resource()
         resp = self._client.delete(url, params=params, headers=headers)

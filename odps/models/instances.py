@@ -113,22 +113,27 @@ class BaseInstances(Iterable):
         if running_cluster is not None:
             job.running_cluster = running_cluster
         if task is not None:
-            if options.biz_id:
-                if task.properties is None:
-                    task.properties = OrderedDict()
-                task.properties['biz_id'] = str(options.biz_id)
-
             job.add_task(task)
         if job.tasks is None or len(job.tasks) == 0:
             raise ValueError('Job tasks are required')
 
         guid = uuid_ or str(uuid.uuid4())
         for t in job.tasks:
-            t.set_property('uuid', guid)
-            if t.name is None:
-                raise errors.ODPSClientError('Task name is required')
-
+            cls._fill_task_properties(t, uuid_=guid)
         return job
+
+    @classmethod
+    def _fill_task_properties(cls, task, uuid_=None):
+        if task.properties is None:
+            task.properties = OrderedDict()
+        if options.biz_id:
+            task.properties['biz_id'] = str(options.biz_id)
+
+        guid = uuid_ or str(uuid.uuid4())
+        if task.properties.get('uuid') is None:
+            task.set_property('uuid', guid)
+        if task.name is None:
+            raise errors.ODPSClientError('Task name is required')
 
     @classmethod
     def _get_submit_instance_content(cls, job):

@@ -151,7 +151,9 @@ def test_table(odps):
 
 def test_create_table_ddl(odps):
     test_table_name = tn('pyodps_t_tmp_table_ddl')
-    schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
+    schema = TableSchema.from_lists(
+        ['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',]
+    )
     odps.delete_table(test_table_name, if_exists=True)
     table = odps.create_table(test_table_name, schema, lifecycle=10)
 
@@ -190,7 +192,9 @@ def test_create_table_ddl(odps):
 
 def test_create_delete_table(odps):
     test_table_name = tn('pyodps_t_tmp_create_table')
-    schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',])
+    schema = TableSchema.from_lists(
+        ['id', 'name'], ['bigint', 'string'], ['ds', ], ['string',]
+    )
 
     tables = odps._project.tables
 
@@ -311,6 +315,8 @@ def test_create_transactional_table(odps_daily):
     test_table_name = tn('pyodps_t_tmp_transactional')
     schema = TableSchema.from_lists(['key', 'value'], ['string', 'string'])
     schema["key"].nullable = False
+    schema["key"].comment = "comment_text"
+    schema["value"].comment = "comment_text2"
 
     odps_daily.delete_table(test_table_name, if_exists=True)
     assert odps_daily.exist_table(test_table_name) is False
@@ -322,8 +328,16 @@ def test_create_transactional_table(odps_daily):
     assert not table.table_schema["key"].nullable
     assert table.is_transactional
     assert table.primary_key == ["key"]
-
     table.drop()
+
+    options.sql.ignore_fields_not_null = True
+    try:
+        table = odps_daily.create_table(test_table_name, schema)
+        table.reload()
+        assert table.table_schema["key"].nullable
+        table.drop()
+    finally:
+        options.sql.ignore_fields_not_null = False
 
 
 def test_create_tier_table(odps_with_storage_tier):
@@ -405,7 +419,9 @@ def test_array_read_write_table(odps):
 
 def test_read_write_partition_table(odps):
     test_table_name = tn('pyodps_t_tmp_read_write_partition_table')
-    schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'], ['pt'], ['string'])
+    schema = TableSchema.from_lists(
+        ['id', 'name'], ['bigint', 'string'], ['pt'], ['string']
+    )
 
     odps.delete_table(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False

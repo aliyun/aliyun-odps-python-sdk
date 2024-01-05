@@ -906,14 +906,16 @@ def thread_local_attribute(thread_local_name, default_value=None):
 
 def call_with_retry(callable, *args, **kwargs):
     retry_num = 0
-    delay = kwargs.pop("delay", 0.1)
+    retry_times = kwargs.pop("retry_times", options.retry_times)
+    delay = kwargs.pop("delay", options.retry_delay)
+    exc_type = kwargs.pop("exc_type", BaseException)
     while True:
         try:
             return callable(*args, **kwargs)
-        except:
+        except exc_type:
             retry_num += 1
             time.sleep(delay)
-            if retry_num > options.retry_times:
+            if retry_num > retry_times:
                 raise
 
 

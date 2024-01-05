@@ -136,14 +136,21 @@ class ODPSSQLEngine(Engine):
             return fetch_instance_group(group).instances.get(instance.id)
 
     def _run(self, sql, ui, progress_proportion=1, hints=None, priority=None,
-             running_cluster=None, group=None, libraries=None, schema=None):
+             running_cluster=None, group=None, libraries=None, schema=None, image=None):
         libraries = self._ctx.prepare_resources(self._get_libraries(libraries))
         self._ctx.create_udfs(libraries=libraries)
 
+        hints = hints or dict()
         if self._ctx.get_udf_count() > 0 and sys.version_info[:2] >= (3, 6):
-            hints = hints or dict()
             hints['odps.sql.jobconf.odps2'] = True
-            hints['odps.sql.python.version'] = 'cp37'
+            if sys.version_info[:2] >= (3, 11):
+                hints['odps.sql.python.version'] = 'cp311'
+            else:
+                hints['odps.sql.python.version'] = 'cp37'
+        image = image or options.df.image
+        if image:
+            hints['odps.session.image'] = image
+
         instance = self._odps.run_sql(sql, hints=hints, priority=priority, name='PyODPSDataFrameTask',
                                       running_cluster=running_cluster, default_schema=schema)
 
@@ -331,6 +338,7 @@ class ODPSSQLEngine(Engine):
         lifecycle = lifecycle or options.temp_lifecycle
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
+        image = kw.pop('image', None)
         use_tunnel = kw.get('use_tunnel', True)
 
         self._ctx.default_schema = schema or self._ctx.default_schema
@@ -391,9 +399,9 @@ class ODPSSQLEngine(Engine):
             logger.info('Sql compiled:\n' + sql)
 
             try:
-                instance = self._run(sql, ui, progress_proportion=progress_proportion * 0.9,
-                                     hints=hints, priority=priority, running_cluster=running_cluster,
-                                     group=group, libraries=libraries, schema=self._ctx.default_schema)
+                instance = self._run(sql, ui, progress_proportion=progress_proportion * 0.9, hints=hints,
+                                     priority=priority, running_cluster=running_cluster, group=group,
+                                     libraries=libraries, image=image, schema=self._ctx.default_schema)
             finally:
                 self._ctx.close()  # clear udfs and resources generated
 
@@ -489,6 +497,7 @@ class ODPSSQLEngine(Engine):
                     drop_partition=False, create_partition=None, cast=False, schema=None, **kw):
         group = kw.get('group')
         libraries = kw.pop('libraries', None)
+        image = kw.pop('image', None)
 
         if isinstance(name, Partition):
             partition = name.partition_spec
@@ -647,9 +656,9 @@ class ODPSSQLEngine(Engine):
         logger.info('Sql compiled:\n' + sql)
 
         try:
-            instance = self._run(sql, ui, progress_proportion=progress_proportion,
-                                 hints=hints, priority=priority, running_cluster=running_cluster,
-                                 group=group, libraries=libraries, schema=schema)
+            instance = self._run(sql, ui, progress_proportion=progress_proportion, hints=hints,
+                                 priority=priority, running_cluster=running_cluster, group=group,
+                                 libraries=libraries, image=image, schema=schema)
         except ParseError as ex:
             logger.error("Failed to run DF generated SQL: %s:\n%s", str(ex), sql)
             raise

@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import math
+import os
 import random
 import time
 import warnings
@@ -121,7 +122,15 @@ class TunnelTestUtil(object):
             return name
 
         odps = odps or self.odps
-        test_table_name = tn('pyodps_test_tunnel')
+        table_suffix = (
+            os.getenv("PYTEST_CURRENT_TEST", "")
+            .split(':')[-1]
+            .split(' ')[0]
+            .replace("[", "_")
+            .replace("]", "_")
+            .strip("_")
+        ) or "test_tunnel"
+        test_table_name = tn('pyodps_' + table_suffix)
         types = ['bigint', 'string', 'double', 'datetime', 'boolean', 'decimal']
         types.append(self.gen_random_array_type().name)
         types.append(self._gen_random_map_type().name)
@@ -1150,3 +1159,44 @@ def test_upsert_table(odps_daily):
         assert sorted(records) == [["0", "v3"], ["1", "v1"]]
     finally:
         table.drop()
+
+
+def test_table_tunnel_with_quota(odps_with_tunnel_quota, config):
+    from odps.rest import RestClient
+
+    orig_request = RestClient.request
+
+    def patch_request(self, *args, **kw):
+        if self._endpoint == tunnel_endpoint:
+            assert kw["params"]["quotaName"] == quota_name
+        return orig_request(self, *args, **kw)
+
+    odps = odps_with_tunnel_quota
+    table_name = tn("test_table_tunnel_with_quota")
+    odps.delete_table(table_name, if_exists=True)
+
+    quota_name = config.get("test", "default_tunnel_quota_name")
+    tunnel = TableTunnel(odps, quota_name=quota_name)
+    tunnel_endpoint = tunnel.tunnel_rest.endpoint
+    tb = odps.create_table(table_name, "col1 string", lifecycle=1)
+
+    with mock.patch("odps.rest.RestClient.request", new=patch_request):
+        upload_session = tunnel.create_upload_session(tb)
+        assert upload_session.quota_name == quota_name
+        upload_session.reload()
+        assert upload_session.quota_name == quota_name
+
+        writer = upload_session.open_record_writer()
+        writer.write(tb.new_record(["data"]))
+        writer.close()
+        upload_session.commit(writer.get_blocks_written())
+
+        download_session = tunnel.create_download_session(tb)
+        assert download_session.quota_name == quota_name
+        download_session.reload()
+        assert download_session.quota_name == quota_name
+
+        reader = download_session.open_record_reader(0, 1)
+        assert list(reader)[0][0] == "data"
+
+    tb.drop()

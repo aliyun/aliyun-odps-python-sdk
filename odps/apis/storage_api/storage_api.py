@@ -624,6 +624,8 @@ class StorageApiClient(object):
         if json_str != "":
             headers["Content-MD5"] = md5(to_binary(json_str)).hexdigest()
         params = {"session_type": "batch_read"}
+        if self._quota_name:
+            params["quotaName"] = self._quota_name
 
         res = self.tunnel_rest.post(url, data=json_str, params=params, headers=headers)
 
@@ -649,6 +651,8 @@ class StorageApiClient(object):
         url = self._get_resource("sessions", request.session_id)
         headers = {}
         params = {"session_type": "batch_read"}
+        if self._quota_name:
+            params["quotaName"] = self._quota_name
 
         res = self.tunnel_rest.get(url, params=params, headers=headers)
 
@@ -683,6 +687,8 @@ class StorageApiClient(object):
             "row_count": str(request.row_count),
             "row_index": str(request.row_index)
         }
+        if self._quota_name:
+            params["quotaName"] = self._quota_name
         if request.data_format.type is not None:
             params["data_format_type"] = request.data_format.type
         if request.data_format.version is not None:
@@ -712,6 +718,8 @@ class StorageApiClient(object):
         if json_str != "":
             headers["Content-MD5"] = md5(to_binary(json_str)).hexdigest()
         params = {"session_type": "batch_write"}
+        if self._quota_name:
+            params["quotaName"] = self._quota_name
 
         res = self.tunnel_rest.post(url, data=json_str, params=params, headers=headers)
 
@@ -737,6 +745,8 @@ class StorageApiClient(object):
         url = self._get_resource("sessions", request.session_id)
         headers = {}
         params = {"session_type": "batch_write"}
+        if self._quota_name:
+            params["quotaName"] = self._quota_name
 
         res = self.tunnel_rest.get(url, params=params, headers=headers)
 
@@ -762,7 +772,6 @@ class StorageApiClient(object):
         url = self._get_resource("sessions", request.session_id, "data")
         headers = {
             "Content-Type": "application/octet-stream",
-            "Content-Encoding": "deflate",
             "Transfer-Encoding": "chunked"
         }
 
@@ -770,6 +779,8 @@ class StorageApiClient(object):
             "attempt_number": str(request.attempt_number),
             "block_number": str(request.block_number)
         }
+        if self._quota_name:
+            params["quotaName"] = self._quota_name
         if request.data_format.type != None:
             params["data_format_type"] = str(request.data_format.type)
         if request.data_format.version != None:
@@ -801,6 +812,8 @@ class StorageApiClient(object):
         url = self._get_resource("commit")
         headers = {"Content-Type": "application/json"}
         params = {"session_id": request.session_id}
+        if self._quota_name:
+            params["quotaName"] = self._quota_name
 
         res = self.tunnel_rest.post(url, data=json_str, params=params, headers=headers)
 
