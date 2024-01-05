@@ -128,7 +128,10 @@ class TunnelTestUtil(object):
             .split(' ')[0]
             .replace("[", "_")
             .replace("]", "_")
+            .replace("/", "_")
+            .replace("-", "_")
             .strip("_")
+            .lower()
         ) or "test_tunnel"
         test_table_name = tn('pyodps_' + table_suffix)
         types = ['bigint', 'string', 'double', 'datetime', 'boolean', 'decimal']
