@@ -826,7 +826,6 @@ class Table(LazyLoad):
         """
         try:
             if pa is not None and not use_legacy:
-                timeout = timeout if timeout is not None else options.tunnel.legacy_fallback_timeout
                 return self._head_by_preview(
                     limit, partition=partition, columns=columns, timeout=timeout
                 )
