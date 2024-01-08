@@ -576,11 +576,12 @@ class ArrowWriter(object):
 class StorageApiClient(object):
     """Client to bundle configuration needed for API requests."""
 
-    def __init__(self, odps: ODPS, table: Table, rest_endpoint: str = None):
+    def __init__(self, odps: ODPS, table: Table, rest_endpoint: str = None, quota_name: str = None):
         if isinstance(odps, ODPS) and isinstance(table, Table):
             self._odps = odps
             self._table = table
             self._rest_endpoint = rest_endpoint
+            self._quota_name = quota_name
             self._tunnel_rest = None
         else:
             raise ValueError("Please input odps configuration")
@@ -596,7 +597,7 @@ class StorageApiClient(object):
 
         from ...tunnel.tabletunnel import TableTunnel
 
-        tunnel = TableTunnel(self._odps, endpoint=self._rest_endpoint)
+        tunnel = TableTunnel(self._odps, endpoint=self._rest_endpoint, quota_name=self._quota_name)
         self._tunnel_rest = tunnel.tunnel_rest
         return self._tunnel_rest
 
