@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-09-01 10:02+0800\n"
+"POT-Creation-Date: 2024-01-24 15:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -122,63 +122,67 @@ msgstr ""
 "object after fallback."
 
 #: ../../source/base-sql.rst:48
-msgid ">>> o.execute_sql_interactive('select * from dual')"
+msgid ">>> o.execute_sql_interactive('select * from dual', fallback='all')"
 msgstr ""
 
 #: ../../source/base-sql.rst:52
 msgid ""
 "如果不希望回退，可以指定参数 ``fallback=False``。也可以指定为回退策略（或回退策略的组合，使用逗号分隔的字符串）。 "
-"可用的策略名如下。默认策略为 ``unsupported,upgrading,noresource,timeout`` 。"
+"可用的策略名如下。默认策略为 ``unsupported,upgrading,noresource,timeout`` "
+"。为使回退一直生效，建议设置为 ``all`` ，即 "
+"``generic,unsupported,upgrading,noresource,timeout`` 的组合。"
 msgstr ""
 "If you don't want the method to fallback automatically, you can specify "
 "``fallback=False``. You can also specify a fallback policy or combination"
 " of fallback policies with a comma-separated string. Available policy "
 "names are listed below. The default policy is a combination of "
-"``unsupported,upgrading,noresource,timeout``."
+"``unsupported,upgrading,noresource,timeout``. To make sure fallback always"
+" happen, it is recommended to set ``fallback`` to ``all``, which is an "
+"alias of combination ``generic,unsupported,upgrading,noresource,timeout``."
 
-#: ../../source/base-sql.rst:55
+#: ../../source/base-sql.rst:56
 msgid "``generic`` ：指定时，表示发生未知错误时回退到传统模式。"
 msgstr ""
 "``generic`` : once specified, will fallback to traditional mode when "
 "unknown error happens."
 
-#: ../../source/base-sql.rst:56
+#: ../../source/base-sql.rst:57
 msgid "``noresource`` ：指定时，表示发生资源不足问题时回退到传统模式。"
 msgstr ""
 "``noresource`` : once specified, will fallback to traditional mode when "
 "resource is not sufficient."
 
-#: ../../source/base-sql.rst:57
+#: ../../source/base-sql.rst:58
 msgid "``upgrading`` ：指定时，表示升级期间回退到传统模式。"
 msgstr ""
 "``upgrading`` : once specified, will fallback to traditional mode when "
 "the service is upgrading."
 
-#: ../../source/base-sql.rst:58
+#: ../../source/base-sql.rst:59
 msgid "``timeout`` ：指定时，表示执行超时时回退到传统模式。"
 msgstr ""
 "``timeout`` : once specified, will fallback to traditional mode when "
 "execution timed out."
 
-#: ../../source/base-sql.rst:59
+#: ../../source/base-sql.rst:60
 msgid "``unsupported`` ：指定时，表示遇到 MCQA 不支持的场景时回退到传统模式。"
 msgstr ""
 "``unsupported`` : once specified, will fallback to traditional mode when "
 "MCQA does not support certain SQL statement."
 
-#: ../../source/base-sql.rst:61
+#: ../../source/base-sql.rst:62
 msgid "例如，下面的代码要求在 MCQA 不支持和资源不足时回退："
 msgstr ""
 "For instance, code below requires fallback when resource is not "
 "sufficient or MCQA does not support certain statements:"
 
-#: ../../source/base-sql.rst:63
+#: ../../source/base-sql.rst:64
 msgid ""
 ">>> o.execute_sql_interactive('select * from dual', "
 "fallback=\"noresource,unsupported\")"
 msgstr ""
 
-#: ../../source/base-sql.rst:67
+#: ../../source/base-sql.rst:68
 msgid ""
 "你也可以使用 ``run_sql_interactive`` 通过 MCQA 异步执行 SQL。类似 "
 "``run_sql``，该方法会在提交任务后即返回 MCQA Instance，你需要自行等待 Instance "
@@ -190,7 +194,7 @@ msgstr ""
 " Note that this method will NOT fallback automatically when it fails. You"
 " need to retry or call ``execute_sql`` yourself."
 
-#: ../../source/base-sql.rst:71
+#: ../../source/base-sql.rst:72
 msgid ""
 ">>> instance = o.run_sql_interactive('select * from dual')  # 异步的方式执行\n"
 ">>> print(instance.get_logview_address())  # 获取logview地址\n"
@@ -201,76 +205,77 @@ msgstr ""
 ">>> print(instance.get_logview_address())  # obtain LogView address\n"
 ">>> instance.wait_for_success()  # block till the statement finishes"
 
-#: ../../source/base-sql.rst:80
+#: ../../source/base-sql.rst:81
 msgid "设置时区"
 msgstr "Set timezone"
 
-#: ../../source/base-sql.rst:81
+#: ../../source/base-sql.rst:82
 msgid "有时我们希望对于查询出来的时间数据显示为特定时区下的时间，可以通过 ``options.local_timezone`` 设置客户端的时区。"
 msgstr ""
 "Sometimes we want to display the queried time data with a correct "
 "timezone. We can set it via ``options.local_timezone``."
 
-#: ../../source/base-sql.rst:83
+#: ../../source/base-sql.rst:84
 msgid "``options.local_timezone`` 可设置为以下三种类型："
 msgstr "``options.local_timezone`` accepts the following 3 data types:"
 
-#: ../../source/base-sql.rst:85
+#: ../../source/base-sql.rst:86
 msgid "``False``：使用 UTC 时间（默认设置）。"
 msgstr "``False``: Use the UTC time(default)."
 
-#: ../../source/base-sql.rst:86
+#: ../../source/base-sql.rst:87
 msgid "``True``：使用本地时区。"
 msgstr "``True``: Use the local timezone."
 
-#: ../../source/base-sql.rst:87
+#: ../../source/base-sql.rst:88
 msgid "时区字符串：使用指定的时区，例如 ``Asia/Shanghai``。"
 msgstr "Timezone string: Use the passed timezone, e.g. ``Asia/Shanghai``."
 
-#: ../../source/base-sql.rst:89
+#: ../../source/base-sql.rst:90
 msgid "例如，使用 UTC 时间："
 msgstr "For example, use UTC time:"
 
-#: ../../source/base-sql.rst:91
+#: ../../source/base-sql.rst:92
 msgid ""
 ">>> from odps import options\n"
 ">>> options.local_timezone = False"
 msgstr ""
 
-#: ../../source/base-sql.rst:96
+#: ../../source/base-sql.rst:97
 msgid "使用本地时区："
 msgstr "Use local timezone:"
 
-#: ../../source/base-sql.rst:98
+#: ../../source/base-sql.rst:99
 msgid ""
 ">>> from odps import options\n"
 ">>> options.local_timezone = True"
 msgstr ""
 
-#: ../../source/base-sql.rst:103
+#: ../../source/base-sql.rst:104
 msgid "使用 ``Asia/Shanghai``："
 msgstr "Use ``Asia/shanghai``:"
 
-#: ../../source/base-sql.rst:105
+#: ../../source/base-sql.rst:106
 msgid ""
 ">>> from odps import options\n"
 ">>> options.local_timezone = \"Asia/Shanghai\""
 msgstr ""
 
-#: ../../source/base-sql.rst:112
+#: ../../source/base-sql.rst:113
 msgid ""
 "设置 ``options.local_timezone`` 后，PyODPS 会根据它的值自动设置 ``odps.sql.timezone``。 "
 "两者的值不同可能导致服务端和客户端时间不一致，因此不应再手动设置 ``odps.sql.timezone``。"
-msgstr "After setting ``options.local_timezone``, PyODPS will set ``odps.sql.timezone``"
-" according to it automatically. The difference of them may cause the inconsistency of"
-" server time and client time, so setting ``odps.sql.timezone`` manually is not"
-" recommended."
+msgstr ""
+"After setting ``options.local_timezone``, PyODPS will set "
+"``odps.sql.timezone`` according to it automatically. The difference of "
+"them may cause the inconsistency of server time and client time, so "
+"setting ``odps.sql.timezone`` manually is not recommended."
 
-#: ../../source/base-sql.rst:116
+#: ../../source/base-sql.rst:117
 msgid "设置运行参数"
 msgstr "Set runtime parameters"
 
-#: ../../source/base-sql.rst:118
+#: ../../source/base-sql.rst:119
 msgid ""
 "有时，我们在运行时，需要设置运行时参数，我们可以通过设置 ``hints`` 参数，参数类型是 dict。该参数对 ``execute_sql``"
 " / ``execute_sql_interactive`` / ``run_sql`` / ``run_sql_interactive`` "
@@ -280,19 +285,19 @@ msgstr ""
 "parameter is a dict type which is supported for ``execute_sql``, "
 "``execute_sql_interactive``, ``run_sql`` and ``run_sql_interactive``."
 
-#: ../../source/base-sql.rst:121
+#: ../../source/base-sql.rst:122
 msgid ""
 ">>> o.execute_sql('select * from pyodps_iris', "
 "hints={'odps.sql.mapper.split.size': 16})"
 msgstr ""
 
-#: ../../source/base-sql.rst:125
+#: ../../source/base-sql.rst:126
 msgid "我们可以对于全局配置设置sql.settings后，每次运行时则都会添加相关的运行时参数。"
 msgstr ""
 "You can set sql.settings globally. The relevant runtime parameters are "
 "automatically added during each execution."
 
-#: ../../source/base-sql.rst:127
+#: ../../source/base-sql.rst:128
 msgid ""
 ">>> from odps import options\n"
 ">>> options.sql.settings = {'odps.sql.mapper.split.size': 16}\n"
@@ -303,17 +308,17 @@ msgstr ""
 ">>> o.execute_sql('select * from pyodps_iris')  # global hints configured"
 " in options.sql.settings will be added"
 
-#: ../../source/base-sql.rst:136
+#: ../../source/base-sql.rst:137
 msgid "读取SQL执行结果"
 msgstr "View SQL results"
 
-#: ../../source/base-sql.rst:138
+#: ../../source/base-sql.rst:139
 msgid "运行 SQL 的 instance 能够直接执行 ``open_reader`` 的操作，一种情况是SQL返回了结构化的数据。"
 msgstr ""
 "You can execute the ``open_reader`` method to retrieve SQL execution "
 "results. In the following example, structured data is returned. "
 
-#: ../../source/base-sql.rst:140
+#: ../../source/base-sql.rst:141
 msgid ""
 ">>> with o.execute_sql('select * from dual').open_reader() as reader:\n"
 ">>>     for record in reader:\n"
@@ -323,19 +328,19 @@ msgstr ""
 ">>>     for record in reader:\n"
 ">>>         # process every record"
 
-#: ../../source/base-sql.rst:146
+#: ../../source/base-sql.rst:147
 msgid "另一种情况是 SQL 可能执行的比如 ``desc``，这时通过 ``reader.raw`` 属性取到原始的SQL执行结果。"
 msgstr ""
 "When commands such as ``desc`` are executed, you can use the "
 "``reader.raw`` attribute to get the original execution results. "
 
-#: ../../source/base-sql.rst:148
+#: ../../source/base-sql.rst:149
 msgid ""
 ">>> with o.execute_sql('desc dual').open_reader() as reader:\n"
 ">>>     print(reader.raw)"
 msgstr ""
 
-#: ../../source/base-sql.rst:153
+#: ../../source/base-sql.rst:154
 msgid ""
 "如果 `options.tunnel.use_instance_tunnel == True`，在调用 open_reader 时，PyODPS "
 "会默认调用 Instance Tunnel， 否则会调用旧的 Result 接口。如果你使用了版本较低的 MaxCompute 服务，或者调用 "
@@ -354,7 +359,7 @@ msgstr ""
 "open_reader, you can also use the ``tunnel`` parameter to specify which "
 "result interface to use. For example:"
 
-#: ../../source/base-sql.rst:158
+#: ../../source/base-sql.rst:159
 msgid ""
 ">>> # 使用 Instance Tunnel\n"
 ">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
@@ -378,7 +383,7 @@ msgstr ""
 ">>>     for record in reader:\n"
 ">>>         # process every record"
 
-#: ../../source/base-sql.rst:169
+#: ../../source/base-sql.rst:170
 msgid ""
 "PyODPS 默认不限制能够从 Instance 读取的数据规模，但 Project Owner 可能在 MaxCompute Project "
 "上增加保护设置以限制对 Instance 结果的读取，此时只能使用受限读取模式读取数据，在此模式下可读取的行数受到 Project "
@@ -399,7 +404,7 @@ msgstr ""
 " add `limit=True` option to `open_reader`, or set "
 "`options.tunnel.limit_instance_tunnel` to `True`."
 
-#: ../../source/base-sql.rst:175
+#: ../../source/base-sql.rst:176
 msgid ""
 "在部分环境中，例如 DataWorks，`options.tunnel.limit_instance_tunnel` 可能默认被置为 "
 "True。此时，如果需要读取所有数据，需要为 `open_reader` 增加参数 `tunnel=True, limit=False` "
@@ -413,7 +418,7 @@ msgstr ""
 "on your project. If you still meet read limitations, please ask your "
 "project owner to grant read privileges for you."
 
-#: ../../source/base-sql.rst:179
+#: ../../source/base-sql.rst:180
 msgid ""
 "如果你所使用的 MaxCompute 只能支持旧 Result 接口，同时你需要读取所有数据，可将 SQL 结果写入另一张表后用读表接口读取 "
 "（可能受到 Project 安全设置的限制）。"
@@ -423,11 +428,11 @@ msgstr ""
 "to another table and use these methods to read data. This may be limited "
 "by project security settings."
 
-#: ../../source/base-sql.rst:182
+#: ../../source/base-sql.rst:183
 msgid "同时，PyODPS 支持直接将运行结果数据读成 pandas DataFrame。"
 msgstr "PyODPS also supports reading data as pandas DataFrames."
 
-#: ../../source/base-sql.rst:184
+#: ../../source/base-sql.rst:185
 msgid ""
 ">>> # 直接使用 reader 的 to_pandas 方法\n"
 ">>> with o.execute_sql('select * from dual').open_reader(tunnel=True) as "
@@ -441,13 +446,13 @@ msgstr ""
 ">>>     # type of pd_df is pandas DataFrame\n"
 ">>>     pd_df = reader.to_pandas()"
 
-#: ../../source/base-sql.rst:193
+#: ../../source/base-sql.rst:194
 msgid "如果需要使用多核加速读取速度，可以通过 `n_process` 指定使用进程数:"
 msgstr ""
 "If you want to accelerate data reading with multiple cores, you can "
 "specify `n_process` with number of cores you want to use:"
 
-#: ../../source/base-sql.rst:195
+#: ../../source/base-sql.rst:196
 msgid ""
 ">>> import multiprocessing\n"
 ">>> n_process = multiprocessing.cpu_count()\n"
@@ -463,22 +468,22 @@ msgstr ""
 ">>>     # n_process should be number of processes to use\n"
 ">>>     pd_df = reader.to_pandas(n_process=n_process)"
 
-#: ../../source/base-sql.rst:205
+#: ../../source/base-sql.rst:206
 msgid "目前 Instance 结果暂不支持使用 Arrow 格式读取。"
 msgstr "Currently Arrow format is not supported for instance results yet."
 
-#: ../../source/base-sql.rst:208
+#: ../../source/base-sql.rst:209
 msgid "设置alias"
 msgstr "Set alias"
 
-#: ../../source/base-sql.rst:210
+#: ../../source/base-sql.rst:211
 msgid "有时在运行时，比如某个UDF引用的资源是动态变化的，我们可以alias旧的资源名到新的资源，这样免去了重新删除并重新创建UDF的麻烦。"
 msgstr ""
 "Some resources referenced by a UDF are dynamically changing at runtime. "
 "You can create an alias for the old resource and use it as a new "
 "resource."
 
-#: ../../source/base-sql.rst:212
+#: ../../source/base-sql.rst:213
 msgid ""
 "from odps.models import TableSchema\n"
 "\n"
@@ -550,11 +555,11 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:248
+#: ../../source/base-sql.rst:249
 msgid "2"
 msgstr ""
 
-#: ../../source/base-sql.rst:252
+#: ../../source/base-sql.rst:253
 msgid ""
 "res2 = o.create_resource('test_alias_res2', 'file', file_obj='2')\n"
 "# 把内容为1的资源alias成内容为2的资源，我们不需要修改UDF或资源\n"
@@ -575,15 +580,15 @@ msgstr ""
 "reader:\n"
 "    print(reader[0][0])"
 
-#: ../../source/base-sql.rst:261
+#: ../../source/base-sql.rst:262
 msgid "3"
 msgstr ""
 
-#: ../../source/base-sql.rst:267
+#: ../../source/base-sql.rst:268
 msgid "在交互式环境执行 SQL"
 msgstr "Execute SQL statements in an interactive environment"
 
-#: ../../source/base-sql.rst:269
+#: ../../source/base-sql.rst:270
 msgid ""
 "在 ipython 和 jupyter 里支持 :ref:`使用 SQL 插件的方式运行 SQL <sqlinter>`，且支持 "
 ":ref:`参数化查询 <sqlparam>`， 详情参阅 :ref:`文档 <sqlinter>`。"
@@ -592,21 +597,22 @@ msgstr ""
 "statements<sqlinter>`. Besides, :ref:`parameterized query<sqlparam>` is "
 "also supported. For details, see :ref:`Documentation<sqlinter>`."
 
-#: ../../source/base-sql.rst:275
+#: ../../source/base-sql.rst:276
 msgid "设置 biz_id"
 msgstr "Set biz_id"
 
-#: ../../source/base-sql.rst:277
+#: ../../source/base-sql.rst:278
 msgid "在少数情形下，可能在提交 SQL 时，需要同时提交 biz_id，否则执行会报错。此时，你可以设置全局 options 里的 biz_id。"
 msgstr ""
 "In a few cases, it may be necessary to submit biz_id when submitting SQL "
 "statements. Otherwise an error occurs during execution. You can set the "
 "biz_id in options globally."
 
-#: ../../source/base-sql.rst:279
+#: ../../source/base-sql.rst:280
 msgid ""
 "from odps import options\n"
 "\n"
 "options.biz_id = 'my_biz_id'\n"
 "o.execute_sql('select * from pyodps_iris')"
 msgstr ""
+
