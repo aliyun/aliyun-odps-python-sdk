@@ -15,37 +15,35 @@
 import logging
 import sys
 import time
+
 from odps.apis.storage_api import *
 from util import *
 
 logger = logging.getLogger(__name__)
 
-def get_read_session(session_id):
+
+def check_session_status(session_id):
     client = get_arrow_client()
-
     req = SessionRequest(session_id=session_id)
+    resp = client.get_read_session(req)
 
-    while True:
-        resp = client.get_read_session(req)
+    if resp.status != Status.OK:
+        logger.info("Get read session failed")
+        return
 
-        if resp.status != Status.OK:
-            logger.info("Get read session failed")
-            return False
-
-        if resp.session_status == SessionStatus.INIT:
-            logger.info("Wait...")
-            time.sleep(1)
-            continue
-
+    if resp.session_status == SessionStatus.NORMAL:
         logger.info("Read session id: " + resp.session_id)
-        break
+    else:
+        logger.info("Session status is not expected")
 
-    return True
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s', level=logging.INFO)
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s",
+        level=logging.INFO,
+    )
     if len(sys.argv) != 2:
         raise ValueError("Please provide session id")
 
     session_id = sys.argv[1]
-    get_read_session(session_id)
+    check_session_status(session_id)

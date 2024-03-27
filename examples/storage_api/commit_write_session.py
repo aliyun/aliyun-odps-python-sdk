@@ -14,16 +14,16 @@
 
 import logging
 import sys
+
 from odps.apis.storage_api import *
 from util import *
 
 logger = logging.getLogger(__name__)
 
+
 def commit_write_session(session_id, commit_msg):
     client = get_arrow_client()
-
     req = SessionRequest(session_id=session_id)
-
     resp = client.commit_write_session(req, [commit_msg])
 
     if resp.status == Status.WAIT:
@@ -31,13 +31,16 @@ def commit_write_session(session_id, commit_msg):
 
     if resp.session_status != SessionStatus.COMMITTED:
         logger.info("Fail to commit write session")
-        return False
+        return
 
     logger.info("Commit write session success")
-    return True
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s', level=logging.INFO)
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s",
+        level=logging.INFO,
+    )
     if len(sys.argv) != 3:
         raise ValueError("Please provide session id and commit message\n")
 

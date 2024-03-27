@@ -14,8 +14,10 @@
 
 import logging
 import sys
+
 from odps.apis.storage_api import *
 from util import *
+
 try:
     import pyarrow as pa
 except ImportError:
@@ -23,15 +25,16 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 def write_rows(session_id, batch_count):
     client = get_arrow_client()
-
     req = WriteRowsRequest(session_id=session_id)
 
     pylist = list(range(100))
-
-    record_batch = pa.RecordBatch.from_arrays([pa.array(pylist), pa.array(pylist), pa.array(pylist), pa.array(pylist)], ['a', 'b', 'c', 'd'])
-
+    record_batch = pa.RecordBatch.from_arrays(
+        [pa.array(pylist), pa.array(pylist), pa.array(pylist), pa.array(pylist)],
+        ["a", "b", "c", "d"],
+    )
     writer = client.write_rows_arrow(req)
 
     for i in range(0, batch_count):
@@ -43,23 +46,28 @@ def write_rows(session_id, batch_count):
 
     if not suc:
         logger.info("Write rows failed")
-        return False
+        return
 
     if writer.get_status() != Status.OK:
         logger.info("Write rows failed")
-        return False
+        return
 
     if writer.get_request_id() is None:
         logger.info("Missing request id")
-        return False
+        return
 
     logger.info(commit_msg)
-    return True
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s', level=logging.INFO)
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s",
+        level=logging.INFO,
+    )
     if len(sys.argv) != 3:
-        raise ValueError("Please provide session id and number of batch to write. Note: one batch contains 100 rows\n")
+        raise ValueError(
+            "Please provide session id and number of batch to write. Note: one batch contains 100 rows\n"
+        )
 
     session_id = sys.argv[1]
     batch_count = int(sys.argv[2])

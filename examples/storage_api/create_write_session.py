@@ -13,26 +13,28 @@
 # limitations under the License.
 
 import logging
+
 from odps.apis.storage_api import *
 from util import *
 
 logger = logging.getLogger(__name__)
 
+
 def create_write_session():
     client = get_arrow_client()
-
     req = TableBatchWriteRequest(partition_spec="pt=test_write_1")
-
     resp = client.create_write_session(req)
 
     if resp.status != Status.OK:
         logger.info("Create write session failed")
-        return False
+        return
 
     logger.info(resp.session_id)
 
-    return True
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s', level=logging.INFO)
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s",
+        level=logging.INFO,
+    )
     create_write_session()
