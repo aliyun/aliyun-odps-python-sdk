@@ -14,30 +14,35 @@
 
 import logging
 import sys
+
 from odps.apis.storage_api import *
 from util import *
 
 logger = logging.getLogger(__name__)
 
-def get_write_session(session_id):
+
+def check_session_status(session_id):
     client = get_arrow_client()
-
     req = SessionRequest(session_id=session_id)
-
     resp = client.get_write_session(req)
 
     if resp.status != Status.OK:
         logger.info("Get write session failed")
-        return False
+        return
 
-    logger.info("Write session id: " + resp.session_id)
+    if resp.session_status == SessionStatus.NORMAL:
+        logger.info("Write session id: " + resp.session_id)
+    else:
+        logger.info("Session status is not expected")
 
-    return True
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s', level=logging.INFO)
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s",
+        level=logging.INFO,
+    )
     if len(sys.argv) != 2:
         raise ValueError("Please provide session id")
 
     session_id = sys.argv[1]
-    get_write_session(session_id)
+    check_session_status(session_id)

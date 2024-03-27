@@ -12,18 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from odps import ODPS
 from odps.apis.storage_api import *
 
-access_id = "<your access id>"
-access_key = "<your access key>"
-endpoint = "<odps endpoint>"
-project = "<project to visit>"
+o = ODPS(
+    os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID"),
+    os.getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET"),
+    project="your-default-project",
+    endpoint="your-end-point",
+)
+
 table = "<table to access>"
+quota_name = "<quota name>"
+
 
 def get_arrow_client():
-    odps_object = ODPS(access_id, access_key, project, endpoint)
-    odps_table = odps_object.get_table(table)
-    client = StorageApiArrowClient(odps=odps_object, table=odps_table)
+    odps_table = o.get_table(table)
+    client = StorageApiArrowClient(odps=o, table=odps_table, quota_name=quota_name)
 
     return client
