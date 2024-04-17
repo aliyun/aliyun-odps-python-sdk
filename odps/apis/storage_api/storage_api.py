@@ -20,15 +20,17 @@ import logging
 from io import IOBase, BytesIO
 from enum import Enum
 from hashlib import md5
+
 try:
     import pyarrow as pa
 except ImportError:
     pa = None
+from requests import codes
 
-from ... import ODPS, serializers
-from ...lib.requests import codes
+from ... import ODPS, options, serializers
 from ...models import Table
 from ...models.core import JSONRemoteModel
+from ...tunnel.io import RequestsIO
 from ...utils import to_binary
 
 STORAGE_VERSION = "1"
@@ -387,8 +389,8 @@ class StreamWriter(IOBase):
     """Stream writer."""
 
     def __init__(self, upload):
-        self._writer = upload()
-        self._writer.open()
+        self._req_io = RequestsIO(upload, chunk_size=options.chunk_size)
+        self._req_io.start()
         self._res = None
         self._stopped = False
 
@@ -409,7 +411,7 @@ class StreamWriter(IOBase):
         if self._stopped:
             return False
 
-        self._writer.write(data)
+        self._req_io.write(data)
         return True
 
     def finish(self):
@@ -420,8 +422,7 @@ class StreamWriter(IOBase):
             Success or not.
         """
         self._stopped = True
-        self._writer.close()
-        self._res = self._writer.result
+        self._res = self._req_io.finish()
 
         if self._res is not None and self._res.status_code == codes['ok']:
             resp_json = self._res.json()
@@ -580,8 +581,8 @@ class StorageApiClient(object):
         if isinstance(odps, ODPS) and isinstance(table, Table):
             self._odps = odps
             self._table = table
-            self._rest_endpoint = rest_endpoint
             self._quota_name = quota_name
+            self._rest_endpoint = rest_endpoint
             self._tunnel_rest = None
         else:
             raise ValueError("Please input odps configuration")
@@ -787,8 +788,8 @@ class StorageApiClient(object):
         if request.data_format.version != None:
             params["data_format_version"] = str(request.data_format.version)
 
-        def upload():
-            return self.tunnel_rest.post(url, params=params, headers=headers, file_upload=True)
+        def upload(data):
+            return self.tunnel_rest.post(url, data=data, params=params, headers=headers)
 
         return StreamWriter(upload)
 

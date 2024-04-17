@@ -20,10 +20,10 @@ import uuid
 from datetime import datetime, date
 
 import pytest
+import requests
 
 from .... import DataFrame
 from ....config import options
-from ....lib import requests
 from ....models import TableSchema, Instance
 from ....tests.core import tn, odps2_typed_case
 

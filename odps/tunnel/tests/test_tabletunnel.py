@@ -17,6 +17,7 @@
 import math
 import os
 import random
+import re
 import time
 import warnings
 from collections import OrderedDict
@@ -30,23 +31,39 @@ try:
 except ImportError:
     from string import ascii_letters as letters
 try:
+    import zoneinfo
+except ImportError:
+    zoneinfo = None
+try:
     import pytz
 except ImportError:
     pytz = None
 
 import mock
 import pytest
+import requests
 
 from ... import types, options
-from ...lib import requests
+from ...errors import throw_if_parsable
 from ...tests.core import py_and_c, tn, pandas_case, pyarrow_case, \
     odps2_typed_case, get_code_mode, approx_list, flaky
-from ...utils import to_text
+from ...utils import get_zone_name, to_text
 from ...compat import Decimal, Monthdelta, Iterable, Version
 from ...errors import DatetimeOverflowError
 from ...models import TableSchema
 from .. import TableTunnel
 from ..errors import TunnelWriteTimeout
+
+
+@pytest.fixture(autouse=True)
+def check_malicious_requests():
+    def _new_throw_if_parsable(resp, *args, **kw):
+        if resp.status_code in (400, 404):
+            raise AssertionError("Malicious request detected.")
+        throw_if_parsable(resp, *args, **kw)
+
+    with mock.patch("odps.errors.throw_if_parsable", new=_new_throw_if_parsable):
+        yield
 
 
 class TunnelTestUtil(object):
@@ -122,18 +139,13 @@ class TunnelTestUtil(object):
             return name
 
         odps = odps or self.odps
-        table_suffix = (
-            os.getenv("PYTEST_CURRENT_TEST", "")
-            .split(':')[-1]
-            .split(' ')[0]
-            .replace("[", "_")
-            .replace("]", "_")
-            .replace("/", "_")
-            .replace("-", "_")
-            .strip("_")
-            .lower()
-        ) or "test_tunnel"
+
+        table_suffix = re.sub(
+            r"^[^:]+::([^ ]+).+$", r"\1", os.getenv("PYTEST_CURRENT_TEST", "test_tunnel")
+        )
+        table_suffix = re.sub(r"[\[\]\/-]+", "_", table_suffix).lower().strip("_")
         test_table_name = tn('pyodps_' + table_suffix)
+
         types = ['bigint', 'string', 'double', 'datetime', 'boolean', 'decimal']
         types.append(self.gen_random_array_type().name)
         types.append(self._gen_random_map_type().name)
@@ -202,7 +214,6 @@ class TunnelTestUtil(object):
                 record[i] = it
             writer.write(record)
         writer.close()
-        assert writer.last_flush_time is not None
         upload_ss.commit([0, ])
 
     def stream_upload_data(self, test_table, records, compress=False, **kw):
@@ -313,6 +324,13 @@ def setup(odps, tunnel):
     return TunnelTestUtil(odps, tunnel)
 
 
+def test_malicious_request_detection(setup):
+    with pytest.raises(AssertionError):
+        setup.tunnel.tunnel_rest.get(
+            setup.tunnel.tunnel_rest.endpoint + "/logview/host"
+        )
+
+
 @py_and_c_deco
 def test_upload_and_download_by_raw_tunnel(setup):
     test_table_name = tn('pyodps_test_raw_tunnel')
@@ -355,7 +373,7 @@ def test_buffered_upload_and_download_by_raw_tunnel(setup):
 
 
 @py_and_c_deco
-@pytest.mark.skipif(pytz is None, reason='pytz not installed')
+@pytest.mark.skipif(pytz is None and zoneinfo is None, reason='pytz not installed')
 @pytest.mark.parametrize("zone", [False, True, 'Asia/Shanghai', 'America/Los_Angeles'])
 def test_buffered_upload_and_download_with_timezone(setup, zone):
     from ...utils import MillisecondsConverter
@@ -373,7 +391,7 @@ def test_buffered_upload_and_download_with_timezone(setup, zone):
                     if not isinstance(d, datetime):
                         new_rec.append(d)
                         continue
-                    assert d.tzinfo.zone == tz.zone
+                    assert get_zone_name(d.tzinfo) == get_zone_name(tz)
                     new_rec.append(d.replace(tzinfo=None))
                 records[idx] = tuple(new_rec)
 
@@ -1045,6 +1063,7 @@ def test_tunnel_preview_odps_extended_datetime(odps):
 
 
 @pyarrow_case
+@py_and_c_deco
 def test_tunnel_preview_legacy_decimal(odps):
     tunnel = TableTunnel(odps)
 
@@ -1058,6 +1077,7 @@ def test_tunnel_preview_legacy_decimal(odps):
         Decimal("21.3456"),
         Decimal("-5678"),
         Decimal("134567234121.561345671892"),
+        Decimal("-453462321413.2345643456336"),
     ]
 
     try:

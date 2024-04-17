@@ -19,6 +19,8 @@ import logging
 import operator
 from datetime import datetime
 
+from requests import ConnectTimeout as RequestsConnectTimeout
+
 from . import utils
 from .compat import (
     six,
@@ -27,7 +29,6 @@ from .compat import (
     ElementTreeParseError as ETParseError,
     TimeoutError
 )
-from .lib.requests import ConnectTimeout as RequestsConnectTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +74,12 @@ def parse_response(resp, endpoint=None, tag=None):
     except:
         # Error occurred during parsing the response. We ignore it and delegate
         # the situation to caller to handle.
-       logger.debug(utils.stringify_expt())
+        logger.debug(utils.stringify_expt())
 
     if resp.status_code == 404:
         return NoSuchObject('No such object.', endpoint=endpoint, tag=tag)
+    elif resp.status_code == 401:
+        return Unauthorized('Unauthorized.', endpoint=endpoint, tag=tag)
     else:
         text = resp.content.decode() if six.PY3 else resp.content
         if text:
@@ -262,7 +265,17 @@ class ScriptError(ServerDefinedException):
 
 
 class ParseError(ServerDefinedException):
-    pass
+    def __init__(self, *args, **kw):
+        super(ParseError, self).__init__(*args, **kw)
+        self.statement = None
+
+    def __str__(self):
+        message = super(ParseError, self).__str__()
+        if self.statement is None:
+            return message
+        first_row, rests = message.split("\n", 1)
+        statement_row = "SQL Statement: " + self.statement
+        return "\n".join([first_row, statement_row, rests])
 
 
 class DataVersionError(InternalServerError):

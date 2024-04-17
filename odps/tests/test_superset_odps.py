@@ -11,22 +11,33 @@ from ..tests.core import tn
 
 
 @pytest.fixture
-def ss_db_inspector(odps):
+def ss_db_inspector(odps, request):
     pytest.importorskip("sqlalchemy")
 
     import sqlalchemy as sa
 
-    sa_engine = sa.create_engine(
-        'odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint'.format(
-            odps.account.access_id, odps.account.secret_access_key,
-            odps.project, odps.endpoint
-        )
+    engine_url = 'odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint'.format(
+        odps.account.access_id,
+        odps.account.secret_access_key,
+        odps.project,
+        odps.endpoint,
     )
+    if getattr(request, "param", False):
+        engine_url += "&reuse_odps=true"
+        # create an engine to enable cache
+        sa.create_engine(engine_url)
+    sa_engine = sa.create_engine(engine_url)
     inspector = sa.inspect(sa_engine)
 
     db = mock.MagicMock()
     db.get_sqla_engine_with_context.return_value = sa_engine
-    return db, inspector
+
+    try:
+        yield db, inspector
+    finally:
+        from .. import sqlalchemy_odps
+
+        sqlalchemy_odps._sqlalchemy_global_reusable_odps.clear()
 
 
 def test_get_table_names(ss_db_inspector):
@@ -45,6 +56,7 @@ def test_get_table_names(ss_db_inspector):
     assert tables[0] is not None
 
 
+@pytest.mark.parametrize("ss_db_inspector", [False, True], indirect=True)
 def test_get_function_names(ss_db_inspector):
     db, inspector = ss_db_inspector
 
@@ -121,7 +133,6 @@ def test_df_to_sql(odps, ss_db_inspector):
         import pandas as pd
     except ImportError:
         pytest.skip("Need pandas to run the test")
-        return
 
     data = pd.DataFrame([["abcde"], ["fghij"]], columns=["col"])
 

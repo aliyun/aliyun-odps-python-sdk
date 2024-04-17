@@ -25,8 +25,9 @@ import time
 from collections import OrderedDict
 from datetime import datetime, timedelta
 
+import requests
+
 from .compat import six, cgi, urlparse, unquote, parse_qsl
-from .lib import requests
 from . import options, utils
 
 
@@ -84,7 +85,7 @@ class BaseAccount(object):
         lines.append(canonical_resource)
         return '\n'.join(lines)
 
-    def sign_request(self, req, endpoint):
+    def sign_request(self, req, endpoint, region_name=None):
         raise NotImplementedError
 
 
@@ -95,19 +96,45 @@ class AliyunAccount(BaseAccount):
     def __init__(self, access_id, secret_access_key):
         self.access_id = access_id
         self.secret_access_key = secret_access_key
+        self._last_signature_date = None
+        self._last_signature_key = None
 
-    def sign_request(self, req, endpoint):
+    def _get_v4_signature_key(self, date_str, region_name):
+        if date_str == self._last_signature_date:
+            return self._last_signature_key
+
+        k_secret = utils.to_binary("aliyun_v4" + self.secret_access_key)
+        k_date = hmac.new(k_secret, utils.to_binary(date_str), hashlib.sha256).digest()
+        k_region = hmac.new(k_date, utils.to_binary(region_name), hashlib.sha256).digest()
+        k_service = hmac.new(k_region, b"odps", hashlib.sha256).digest()
+
+        self._last_signature_date = date_str
+        self._last_signature_key = hmac.new(k_service, b"aliyun_v4_request", hashlib.sha256).digest()
+        return self._last_signature_key
+
+    def calc_auth_str(self, canonical_str, region_name=None):
+        if region_name is None:
+            # use legacy v2 sign
+            signature = base64.b64encode(hmac.new(
+                utils.to_binary(self.secret_access_key), utils.to_binary(canonical_str),
+                hashlib.sha1).digest())
+            return 'ODPS %s:%s' % (self.access_id, utils.to_str(signature))
+        else:
+            # use v4 sign
+            date_str = datetime.strftime(datetime.utcnow(), "%Y%m%d")
+            credential = "/".join([self.access_id, date_str, region_name, "odps/aliyun_v4_request"])
+            sign_key = self._get_v4_signature_key(date_str, region_name)
+            signature = base64.b64encode(hmac.new(sign_key, utils.to_binary(canonical_str), hashlib.sha1).digest())
+            return 'ODPS %s:%s' % (credential, utils.to_str(signature))
+
+    def sign_request(self, req, endpoint, region_name=None):
         url = req.url[len(endpoint):]
         url_components = urlparse(unquote(url), allow_fragments=False)
 
         canonical_str = self._build_canonical_str(url_components, req)
         logger.debug('canonical string: %s', canonical_str)
 
-        signature = base64.b64encode(hmac.new(
-            utils.to_binary(self.secret_access_key), utils.to_binary(canonical_str),
-            hashlib.sha1).digest())
-        auth_str = 'ODPS %s:%s' % (self.access_id, utils.to_str(signature))
-        req.headers['Authorization'] = auth_str
+        req.headers['Authorization'] = self.calc_auth_str(canonical_str, region_name)
         logger.debug('headers after signing: %r', req.headers)
 
 
@@ -119,9 +146,10 @@ class StsAccount(AliyunAccount):
         super(StsAccount, self).__init__(access_id, secret_access_key)
         self.sts_token = sts_token
 
-    def sign_request(self, req, endpoint):
-        super(StsAccount, self).sign_request(req, endpoint)
-        req.headers['authorization-sts-token'] = self.sts_token
+    def sign_request(self, req, endpoint, region_name=None):
+        super(StsAccount, self).sign_request(req, endpoint, region_name=region_name)
+        if self.sts_token:
+            req.headers['authorization-sts-token'] = self.sts_token
 
 
 class AppAccount(BaseAccount):
@@ -132,7 +160,7 @@ class AppAccount(BaseAccount):
         self.access_id = access_id
         self.secret_access_key = secret_access_key
 
-    def sign_request(self, req, endpoint):
+    def sign_request(self, req, endpoint, region_name=None):
         auth_str = req.headers['Authorization']
         signature = base64.b64encode(hmac.new(
             utils.to_binary(self.secret_access_key), utils.to_binary(auth_str),
@@ -195,12 +223,14 @@ class SignServer(object):
             assert len(postvars[b'access_id']) == 1 and len(postvars[b'canonical']) == 1
             access_id = utils.to_str(postvars[b'access_id'][0])
             canonical = utils.to_str(postvars[b'canonical'][0])
+            if b'region_name' not in postvars:
+                region_name = None
+            else:
+                region_name = utils.to_str(postvars[b'region_name'][0])
             secret_access_key = self.server._accounts[access_id]
 
-            signature = base64.b64encode(hmac.new(
-                utils.to_binary(secret_access_key), utils.to_binary(canonical),
-                hashlib.sha1).digest())
-            auth_str = 'ODPS %s:%s' % (access_id, utils.to_text(signature))
+            account = AliyunAccount(access_id, secret_access_key)
+            auth_str = account.calc_auth_str(canonical, region_name)
 
             self.send_response(200)
             self.send_header("Content-Type", "text/json")
@@ -288,7 +318,7 @@ class SignServerAccount(BaseAccount):
             self._session_local._session = session
         return self._session_local._session
 
-    def sign_request(self, req, endpoint):
+    def sign_request(self, req, endpoint, region_name=None):
         url = req.url[len(endpoint):]
         url_components = urlparse(unquote(url), allow_fragments=False)
 
@@ -299,8 +329,12 @@ class SignServerAccount(BaseAccount):
         if self.token:
             headers['Authorization'] = 'token ' + self.token
 
-        resp = self.session.request('post', 'http://%s:%s' % self.sign_endpoint, headers=headers,
-                                    data=dict(access_id=self.access_id, canonical=canonical_str))
+        sign_content = dict(access_id=self.access_id, canonical=canonical_str)
+        if region_name is not None:
+            sign_content["region_name"] = region_name
+        resp = self.session.request(
+            'post', 'http://%s:%s' % self.sign_endpoint, headers=headers, data=sign_content
+        )
         if resp.status_code < 400:
             req.headers['Authorization'] = resp.text
             logger.debug('headers after signing: %r', req.headers)
@@ -383,10 +417,26 @@ class BearerTokenAccount(BaseAccount):
     def token(self):
         return self._token
 
-    def sign_request(self, req, endpoint):
+    def sign_request(self, req, endpoint, region_name=None):
         self._check_bearer_token()
         url = req.url[len(endpoint):]
         url_components = urlparse(unquote(url), allow_fragments=False)
         self._build_canonical_str(url_components, req)
         req.headers['x-odps-bearer-token'] = self._token
         logger.debug('headers after signing: %r', req.headers)
+
+
+class CredentialProviderAccount(StsAccount):
+    def __init__(self, credential_provider):
+        self.provider = credential_provider
+        super(CredentialProviderAccount, self).__init__(None, None, None)
+
+    def sign_request(self, req, endpoint, region_name=None):
+        credential = self.provider.get_credentials()
+
+        self.access_id = credential.get_access_key_id()
+        self.secret_access_key = credential.get_access_key_secret()
+        self.sts_token = credential.get_security_token()
+        return super(CredentialProviderAccount, self).sign_request(
+            req, endpoint, region_name=region_name
+        )

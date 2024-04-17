@@ -23,6 +23,10 @@ try:
 except (AttributeError, ImportError):
     pa = None
 try:
+    import pyarrow.compute as pac
+except (AttributeError, ImportError):
+    pac = None
+try:
     import numpy as np
 except ImportError:
     np = None
@@ -43,7 +47,7 @@ from ...compat import Enum, futures, six
 from ..checksum import Checksum
 from ..errors import TunnelError
 from ..wireconstants import ProtoWireConstants
-from .stream import get_compress_stream
+from .stream import RequestsIO, get_compress_stream
 from .types import odps_schema_to_arrow_schema
 try:
     if not options.force_py:
@@ -89,20 +93,14 @@ if BaseRecordWriter is None:
             self._output = output
             self._buffer_size = buffer_size or self.DEFAULT_BUFFER_SIZE
             self._n_total = 0
-            self._last_flush_time = time.time()
 
         def _re_init(self, output):
             self._encoder = Encoder()
             self._output = output
             self._n_total = 0
-            self._last_flush_time = time.time()
 
         def _mode(self):
             return 'py'
-
-        @property
-        def last_flush_time(self):
-            return self._last_flush_time
 
         def flush(self):
             if len(self._encoder) > 0:
@@ -110,7 +108,6 @@ if BaseRecordWriter is None:
                 self._output.write(data)
                 self._n_total += len(self._encoder)
                 self._encoder = Encoder()
-                self._last_flush_time = time.time()
 
         def close(self):
             self.flush_all()
@@ -364,15 +361,21 @@ class RecordWriter(BaseRecordWriter):
     """
 
     def __init__(self, schema, request_callback, compress_option=None, encoding="utf-8"):
-        self._req_io = request_callback(options.chunk_size)
+        self._req_io = RequestsIO(request_callback, chunk_size=options.chunk_size)
 
         out = get_compress_stream(self._req_io, compress_option)
         super(RecordWriter, self).__init__(schema, out, encoding=encoding)
-        self._req_io.open()
+        self._req_io.start()
+
+    def write(self, record):
+        if self._req_io._async_err:
+            ex_type, ex_value, tb = self._req_io._async_err
+            six.reraise(ex_type, ex_value, tb)
+        super(RecordWriter, self).write(record)
 
     def close(self):
         super(RecordWriter, self).close()
-        self._req_io.close()
+        self._req_io.finish()
 
     def get_total_bytes(self):
         return self.n_bytes
@@ -381,11 +384,8 @@ class RecordWriter(BaseRecordWriter):
 class BufferedRecordWriter(BaseRecordWriter):
     """
     This writer buffers the output of serializer. When the buffer exceeds a fixed-size of limit
-     (default 10 MiB), it uploads the buffered output within one http connection.
+     (default 20 MiB), it uploads the buffered output within one http connection.
     """
-
-    BUFFER_SIZE = 10485760
-
     def __init__(
         self,
         schema,
@@ -393,21 +393,33 @@ class BufferedRecordWriter(BaseRecordWriter):
         compress_option=None,
         encoding="utf-8",
         buffer_size=None,
+        block_id=None,
+        block_id_gen=None,
     ):
-        self._buffer_size = buffer_size or self.BUFFER_SIZE
+        self._buffer_size = buffer_size or options.tunnel.block_buffer_size
         self._request_callback = request_callback
-        self._block_id = 0
+        self._block_id = block_id or 0
         self._blocks_written = []
         self._buffer = compat.BytesIO()
         self._n_bytes_written = 0
         self._compress_option = compress_option
+        self._block_id_gen = block_id_gen
 
         out = get_compress_stream(self._buffer, compress_option)
         super(BufferedRecordWriter, self).__init__(schema, out, encoding=encoding)
 
+    @property
+    def cur_block_id(self):
+        return self._block_id
+
+    def _get_next_block_id(self):
+        if callable(self._block_id_gen):
+            return self._block_id_gen()
+        return self._block_id + 1
+
     def write(self, record):
         super(BufferedRecordWriter, self).write(record)
-        if self._n_raw_bytes > self._buffer_size:
+        if 0 < self._buffer_size < self._n_raw_bytes:
             self._flush()
 
     def close(self):
@@ -443,7 +455,7 @@ class BufferedRecordWriter(BaseRecordWriter):
 
         resp = self._send_buffer()
         self._blocks_written.append(self._block_id)
-        self._block_id += 1
+        self._block_id = self._get_next_block_id()
 
         self._reset_writer(resp)
 
@@ -512,36 +524,23 @@ class StreamRecordWriter(BufferedRecordWriter):
         return self._request_callback(gen())
 
 
-class ArrowWriter(object):
-    def __init__(
-        self,
-        schema,
-        request_callback,
-        out=None,
-        compress_option=None,
-        chunk_size=None,
-    ):
+class BaseArrowWriter(object):
+    def __init__(self, schema, out=None, chunk_size=None):
         if pa is None:
             raise ValueError("To use arrow writer you need to install pyarrow")
 
         self._schema = schema
         self._arrow_schema = odps_schema_to_arrow_schema(schema)
-        self._buffer = out or compat.BytesIO()
         self._chunk_size = chunk_size or options.chunk_size
         self._crc = Checksum()
         self._crccrc = Checksum()
         self._cur_chunk_size = 0
-        self._last_flush_time = int(time.time())
 
-        self._req_io = request_callback(chunk_size)
-        self._req_io.open()
-
-        self._output = get_compress_stream(self._req_io, compress_option)
+        self._output = out
         self._write_chunk_size()
 
-    @property
-    def last_flush_time(self):
-        return self._last_flush_time
+    def _re_init(self, output):
+        self._output = output
 
     def _write_chunk_size(self):
         self._write_unint32(self._chunk_size)
@@ -561,21 +560,35 @@ class ArrowWriter(object):
             self._crc.reset()
             self._cur_chunk_size = 0
 
-    def write(self, data):
+    @classmethod
+    def _localize_timezone(cls, col, tz=None):
         from ...lib import tzlocal
 
+        if tz is None:
+            if options.local_timezone is True or options.local_timezone is None:
+                tz = str(tzlocal.get_localzone())
+            elif options.local_timezone is False:
+                tz = "UTC"
+            else:
+                tz = str(options.local_timezone)
+
+        try:
+            if col.type.tz is not None:
+                return col
+            col = pac.assume_timezone(col, tz)
+            return col
+        except:
+            col = col.to_pandas()
+        col = pa.Array.from_pandas(col.dt.tz_localize(tz))
+        return col
+
+    def write(self, data):
         if isinstance(data, pd.DataFrame):
-            copied = False
-            for col_name, dtype in data.dtypes.items():
-                # cast timezone as local to make sure timezone of arrow is correct
-                if isinstance(dtype, np.dtype) and np.issubdtype(dtype, np.datetime64):
-                    if not copied:
-                        data = data.copy()
-                        copied = True
-                    data[col_name] = data[col_name].dt.tz_localize(tzlocal.get_localzone())
             arrow_data = pa.RecordBatch.from_pandas(data)
-        else:
+        elif isinstance(data, (pa.Table, pa.RecordBatch)):
             arrow_data = data
+        else:
+            raise TypeError("Cannot support writing data type %s", type(data))
 
         assert isinstance(arrow_data, (pa.RecordBatch, pa.Table))
 
@@ -586,6 +599,12 @@ class ArrowWriter(object):
             for name, tp in zip(self._arrow_schema.names, self._arrow_schema.types):
                 if name not in column_dict:
                     raise ValueError("Input record batch does not contain column %s" % name)
+
+                if tp == pa.timestamp("ms") or tp == pa.timestamp("ns"):
+                    if self._schema[name].type == types.timestamp_ntz:
+                        column_dict[name] = self._localize_timezone(column_dict, "UTC")
+                    else:
+                        column_dict[name] = self._localize_timezone(column_dict[name])
 
                 if tp == type_dict[name]:
                     arrays.append(column_dict[name])
@@ -612,21 +631,20 @@ class ArrowWriter(object):
                 self._write_chunk(chunk_data)
                 written_bytes += length
 
-    def flush(self):
-        self._output.flush()
-        self._last_flush_time = int(time.time())
-
-    def _finish(self):
+    def _write_finish_tags(self):
         checksum = self._crccrc.getvalue()
         self._write_unint32(checksum)
         self._crccrc.reset()
 
+    def flush(self):
         self._output.flush()
-        self._req_io.close()
+
+    def _finish(self):
+        self._write_finish_tags()
+        self._output.flush()
 
     def close(self):
         self._finish()
-        self._buffer.close()
 
     def __enter__(self):
         return self
@@ -636,6 +654,108 @@ class ArrowWriter(object):
         if exc_val is not None:
             return
         self.close()
+
+
+class ArrowWriter(BaseArrowWriter):
+    def __init__(
+        self, schema, request_callback, compress_option=None, chunk_size=None
+    ):
+        self._req_io = RequestsIO(request_callback, chunk_size=chunk_size)
+
+        out = get_compress_stream(self._req_io, compress_option)
+        super(ArrowWriter, self).__init__(schema, out, chunk_size)
+        self._req_io.start()
+
+    def _finish(self):
+        super(ArrowWriter, self)._finish()
+        self._req_io.finish()
+
+
+class BufferedArrowWriter(BaseArrowWriter):
+    def __init__(
+        self,
+        schema,
+        request_callback,
+        compress_option=None,
+        buffer_size=None,
+        chunk_size=None,
+        block_id=None,
+        block_id_gen=None,
+    ):
+        self._buffer_size = buffer_size or options.tunnel.block_buffer_size
+        self._request_callback = request_callback
+        self._block_id = block_id or 0
+        self._blocks_written = []
+        self._buffer = compat.BytesIO()
+        self._compress_option = compress_option
+        self._n_bytes_written = 0
+        self._block_id_gen = block_id_gen
+
+        out = get_compress_stream(self._buffer, compress_option)
+        super(BufferedArrowWriter, self).__init__(schema, out, chunk_size=chunk_size)
+
+    @property
+    def cur_block_id(self):
+        return self._block_id
+
+    def _get_next_block_id(self):
+        if callable(self._block_id_gen):
+            return self._block_id_gen()
+        return self._block_id + 1
+
+    def write(self, data):
+        super(BufferedArrowWriter, self).write(data)
+        if 0 < self._buffer_size < self._n_raw_bytes:
+            self._flush()
+
+    def close(self):
+        if self._n_raw_bytes > 0:
+            self._flush()
+        self._finish()
+        self._buffer.close()
+
+    def _reset_writer(self):
+        self._buffer = compat.BytesIO()
+
+        out = get_compress_stream(self._buffer, self._compress_option)
+        self._re_init(out)
+        self._crccrc.reset()
+        self._crc.reset()
+
+    def _send_buffer(self):
+        def gen():  # synchronize chunk upload
+            data = self._buffer.getvalue()
+            chunk_size = options.chunk_size
+            while data:
+                to_send = data[:chunk_size]
+                data = data[chunk_size:]
+                yield to_send
+
+        return self._request_callback(self._block_id, gen())
+
+    def _flush(self):
+        self._write_finish_tags()
+        self._n_bytes_written += self._n_raw_bytes
+
+        self._send_buffer()
+        self._blocks_written.append(self._block_id)
+        self._block_id = self._get_next_block_id()
+
+        self._reset_writer()
+
+    @property
+    def _n_raw_bytes(self):
+        return self._buffer.tell()
+
+    @property
+    def n_bytes(self):
+        return self._n_bytes_written + self._n_raw_bytes
+
+    def get_total_bytes(self):
+        return self.n_bytes
+
+    def get_blocks_written(self):
+        return self._blocks_written
 
 
 class Upsert(object):

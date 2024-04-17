@@ -272,6 +272,8 @@ class ODPSDialect(default.DefaultDialect):
 
     def get_odps_from_url(self, url):
         _, kwargs = self.create_connect_args(url)
+        if "odps" in kwargs:
+            return kwargs["odps"]
         odps_kw = kwargs.copy()
         odps_kw.pop("session_name", None)
         odps_kw.pop("use_sqa", None)

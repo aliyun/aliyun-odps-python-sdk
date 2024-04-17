@@ -93,7 +93,21 @@ def test_text_upload_download(odps, setup):
         assert expect_lines == actual_lines
 
 
-def test_raw_upload_download(odps, setup):
+def test_raw_upload_download_greenlet(odps, setup):
+    block = setup.gen_byte_block()
+
+    partition = setup.get_test_partition()
+    with partition.open_writer() as writer:
+        writer.write(TEST_FILE_NAME, block)
+
+    with partition.open_reader(TEST_FILE_NAME) as reader:
+        assert reader.read() == block
+
+
+def test_raw_upload_download_thread(odps, setup):
+    from .. import io
+    io._FORCE_THREAD = True
+
     block = setup.gen_byte_block()
 
     partition = setup.get_test_partition()

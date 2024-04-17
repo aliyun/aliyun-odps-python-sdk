@@ -1,8 +1,28 @@
 [build-system]
 requires = [
-    "setuptools<64",
+    "setuptools<64; python_version<='3.11'",
+    "setuptools<70; python_version>'3.11'",
     "wheel",
     "numpy==1.14.5; python_version<='3.7' and platform_machine!='aarch64'",
     "oldest-supported-numpy; python_version>'3.7'",
     "cython>=3.0; platform_system!='Windows'",
+]
+
+[tool.coverage.run]
+branch = true
+cover_pylib = false
+concurrency = ["multiprocessing", "thread", "greenlet"]
+omit=[
+    "*/**/conftest.py",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "return NotImplemented",
+    "if TYPE_CHECKING:",
 ]

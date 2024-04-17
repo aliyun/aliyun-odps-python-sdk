@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
-import itertools
-import sys
-import threading
-import time
 import warnings
-from collections import OrderedDict
 from datetime import datetime
-from types import GeneratorType
 
 try:
     import pyarrow as pa
@@ -32,11 +25,17 @@ except (AttributeError, ImportError):
 from .. import types as odps_types, serializers, utils, readers
 from ..compat import dir2, six, Enum
 from ..config import options
+from .cluster_info import ClusterInfo, ClusterType
 from .core import LazyLoad, JSONRemoteModel
-from .readers import TunnelArrowReader, TunnelRecordReader
-from .record import Record
 from .partitions import Partitions
+from .record import Record
 from .storage_tier import StorageTier, StorageTierInfo
+from .tableio import (
+    TableArrowReader,
+    TableArrowWriter,
+    TableRecordReader,
+    TableRecordWriter,
+)
 
 
 class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
@@ -106,9 +105,22 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
         set_to_parent=True)
     is_virtual_view = serializers.JSONNodeField(
         'isVirtualView', parse_callback=bool, set_to_parent=True)
+    is_materialized_view = serializers.JSONNodeField(
+        'isMaterializedView', parse_callback=bool, set_to_parent=True)
+    is_materialized_view_rewrite_enabled = serializers.JSONNodeField(
+        'isMaterializedViewRewriteEnabled',
+        parse_callback=lambda x: x is not None and str(x).lower() == "true",
+        set_to_parent=True,
+    )
+    is_materialized_view_outdated = serializers.JSONNodeField(
+        'isMaterializedViewOutdated',
+        parse_callback=lambda x: x is not None and str(x).lower() == "true",
+        set_to_parent=True,
+    )
     lifecycle = serializers.JSONNodeField(
         'lifecycle', parse_callback=int, set_to_parent=True)
     view_text = serializers.JSONNodeField('viewText', set_to_parent=True)
+    view_expanded_text = serializers.JSONNodeField('viewExpandedText', set_to_parent=True)
     size = serializers.JSONNodeField("size", parse_callback=int, set_to_parent=True)
     is_archived = serializers.JSONNodeField(
         'IsArchived', parse_callback=bool, set_to_parent=True)
@@ -146,278 +158,6 @@ class TableSchema(odps_types.OdpsSchema, JSONRemoteModel):
         return sorted(set(dir2(self)) - set(type(self)._parent_attrs))
 
 
-class SpawnedTableReaderMixin(object):
-    @property
-    def schema(self):
-        return self._parent.table_schema
-
-    @staticmethod
-    def _read_table_split(
-        conn, download_id, start, count, idx,
-        rest_client=None, project=None, table_name=None, partition_spec=None,
-        tunnel_endpoint=None, columns=None, arrow=False
-    ):
-        # read part data
-        from ..tunnel import TableTunnel
-
-        try:
-            tunnel = TableTunnel(
-                client=rest_client, project=project, endpoint=tunnel_endpoint
-            )
-            session = utils.call_with_retry(
-                tunnel.create_download_session, table_name, download_id=download_id, partition_spec=partition_spec
-            )
-            if not arrow:
-                data = utils.call_with_retry(
-                    session.open_record_reader, start, count, columns=columns
-                ).to_pandas()
-            else:
-                data = utils.call_with_retry(
-                    session.open_arrow_reader, start, count, columns=columns
-                ).to_pandas()
-            conn.send((idx, data, True))
-        except:
-            conn.send((idx, sys.exc_info(), False))
-
-    def _get_process_split_reader(self, columns=None):
-        rest_client = self._parent._client
-        table_name = self._parent.name
-        project = self._parent.project.name
-        tunnel_endpoint = self._download_session._client.endpoint
-        partition_spec = self._partition_spec
-
-        return functools.partial(
-            self._read_table_split,
-            rest_client=rest_client,
-            project=project,
-            table_name=table_name,
-            partition_spec=partition_spec,
-            tunnel_endpoint=tunnel_endpoint,
-            arrow=isinstance(self, TunnelArrowReader),
-            columns=columns or self._column_names,
-        )
-
-
-class TableRecordReader(SpawnedTableReaderMixin, TunnelRecordReader):
-    def __init__(self, table, download_session, partition_spec=None, columns=None):
-        super(TableRecordReader, self).__init__(
-            table, download_session, columns=columns
-        )
-        self._partition_spec = partition_spec
-
-
-class TableArrowReader(SpawnedTableReaderMixin, TunnelArrowReader):
-    def __init__(self, table, download_session, partition_spec=None, columns=None):
-        super(TableArrowReader, self).__init__(
-            table, download_session, columns=columns
-        )
-        self._partition_spec = partition_spec
-
-
-class AbstractTableWriter(object):
-    class BlockInfo(object):
-        def __init__(self, block_id=0, writer=None, written=False):
-            self.block_id = block_id
-            self.writer = writer
-            self.written = written
-
-    def __init__(
-        self,
-        table,
-        upload_session,
-        blocks=None,
-        commit=True,
-    ):
-        self._table = table
-        self._upload_session = upload_session
-        self._commit = commit
-        self._closed = False
-
-        blocks = blocks or upload_session.blocks or [0]
-        self._id_to_blocks = OrderedDict((bid, self.BlockInfo(bid)) for bid in blocks)
-        self._id_remaps = dict()
-
-        self._id_data_lock = threading.Lock()
-        self._id_locks = dict()
-        self._close_event = threading.Event()
-
-        for block in (upload_session.blocks or ()):
-            self._id_to_blocks[block].written = True
-
-        self._daemon_thread = None
-
-    def __del__(self):
-        if self._closed:
-            return
-        self._close_event.set()
-
-    @property
-    def upload_id(self):
-        return self._upload_session.id
-
-    @property
-    def schema(self):
-        return self._table.table_schema
-
-    @property
-    def status(self):
-        return self._upload_session.status
-
-    def _daemon_thread_body(self):
-        auto_flush_time = options.table_auto_flush_time
-        while not self._close_event.wait(min(5, auto_flush_time)):
-            check_time = time.time()
-            blocks_to_flush = []
-            with self._id_data_lock:
-                for block_info in self._id_to_blocks.values():
-                    if (
-                        block_info.writer is not None
-                        and check_time - block_info.writer.last_flush_time > auto_flush_time
-                    ):
-                        blocks_to_flush.append(block_info)
-
-            for block_info in blocks_to_flush:
-                block_id = block_info.block_id
-                with self._id_locks[block_id]:
-                    block_info.writer.close()
-                    block_info.writer = None
-                    if not block_info.written:
-                        self._id_to_blocks.pop(block_id)
-
-                    new_id = max(self._id_to_blocks) + 1
-                    self._id_remaps[block_id] = new_id
-                    self._id_to_blocks[new_id] = self.BlockInfo(new_id)
-
-    def _open_writer(self, block_id, compress):
-        raise NotImplementedError
-
-    def _write_contents(self, writer, *args):
-        raise NotImplementedError
-
-    def write(self, *args, **kwargs):
-        if self._closed:
-            raise IOError('Cannot write to a closed writer.')
-
-        if self._daemon_thread is None:
-            if six.PY3:
-                self._daemon_thread = threading.Thread(
-                        target=self._daemon_thread_body, daemon=True
-                    )
-            else:
-                self._daemon_thread = threading.Thread(target=self._daemon_thread_body)
-            self._daemon_thread.start()
-
-        block_id = kwargs.get('block_id')
-        if block_id is None:
-            if type(args[0]) in six.integer_types:
-                block_id = args[0]
-                args = args[1:]
-            else:
-                block_id = 0
-
-        with self._id_data_lock:
-            if block_id not in self._id_locks:
-                self._id_locks[block_id] = threading.Lock()
-
-        with self._id_locks[block_id]:
-            real_block_id = self._id_remaps.get(block_id, block_id)
-            compress = kwargs.get('compress', False)
-            block_info = self._id_to_blocks[real_block_id]
-            writer = block_info.writer
-            if writer is None:
-                block_info.writer = writer = self._open_writer(
-                    real_block_id, compress
-                )
-
-        self._write_contents(writer, *args)
-        block_info.written = True
-
-    def close(self):
-        if self._closed:
-            return
-        self._close_event.set()
-
-        for block_info in self._id_to_blocks.values():
-            if block_info.writer is not None:
-                block_info.writer.close()
-
-        if self._commit:
-            written_blocks = [
-                block_info.block_id
-                for block_info in self._id_to_blocks.values()
-                if block_info.written
-            ]
-            utils.call_with_retry(self._upload_session.commit, written_blocks)
-
-        self._closed = True
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        # make sure thread is always triggered to close
-        self._close_event.set()
-        # if an error occurs inside the with block, we do not commit
-        if exc_val is not None:
-            return
-        self.close()
-
-
-class TableRecordWriter(AbstractTableWriter):
-    def _open_writer(self, block_id, compress):
-        writer = utils.call_with_retry(
-            self._upload_session.open_record_writer, block_id, compress=compress
-        )
-        self._id_to_blocks[block_id].writer = writer
-        return writer
-
-    def _write_contents(self, writer, *args):
-        if len(args) == 1:
-            arg = args[0]
-            if odps_types.is_record(arg):
-                records = [arg, ]
-            elif isinstance(arg, (list, tuple)):
-                if odps_types.is_record(arg[0]):
-                    records = arg
-                elif isinstance(arg[0], (list, tuple)):
-                    records = (self._table.new_record(vals) for vals in arg)
-                else:
-                    records = [self._table.new_record(arg), ]
-            elif isinstance(arg, GeneratorType):
-                try:
-                    # peek the first element and then put back
-                    next_arg = six.next(arg)
-                    chained = itertools.chain((next_arg,), arg)
-                    if odps_types.is_record(next_arg):
-                        records = chained
-                    else:
-                        records = (self._table.new_record(vals) for vals in chained)
-                except StopIteration:
-                    records = ()
-            else:
-                raise ValueError('Unsupported record type.')
-        elif len(args) > 1:
-            records = args
-        else:
-            raise ValueError('Cannot write to table without contents.')
-
-        for record in records:
-            writer.write(record)
-
-
-class TableArrowWriter(AbstractTableWriter):
-    def _open_writer(self, block_id, compress):
-        writer = utils.call_with_retry(
-            self._upload_session.open_arrow_writer, block_id, compress=compress
-        )
-        self._id_to_blocks[block_id].writer = writer
-        return writer
-
-    def _write_contents(self, writer, *args):
-        for arg in args:
-            writer.write(arg)
-
-
 class Table(LazyLoad):
     """
     Table means the same to the RDBMS table, besides, a table can consist of partitions.
@@ -451,12 +191,18 @@ class Table(LazyLoad):
     >>>     writer.write(0, gen_records(block=0))
     >>>     writer.write(1, gen_records(block=1))  # we can do this parallel
     """
-    _extend_args = 'is_archived', 'physical_size', 'file_num', 'location', \
-                   'storage_handler', 'resources', 'serde_properties', \
-                   'reserved'
-    __slots__ = '_is_extend_info_loaded', 'last_meta_modified_time', 'is_virtual_view', \
-                'lifecycle', 'view_text', 'size', 'shard', '_table_tunnel', \
-                '_id_thread_local', 'record_num'
+    _extend_args = (
+        'is_archived', 'physical_size', 'file_num', 'location', 'storage_handler',
+        'resources', 'serde_properties', 'reserved', 'is_transactional',
+        'primary_key', 'storage_tier_info', 'cluster_info'
+    )
+    __slots__ = (
+        '_is_extend_info_loaded', 'last_meta_modified_time', 'is_virtual_view',
+        'is_materialized_view', 'is_materialized_view_rewrite_enabled',
+        'is_materialized_view_outdated', 'lifecycle', 'view_text',
+        'view_expanded_text', 'size', 'shard', 'record_num',
+        '_table_tunnel', '_id_thread_local'
+    )
     __slots__ += _extend_args
 
     class Type(Enum):
@@ -564,18 +310,20 @@ class Table(LazyLoad):
         ))
         return self.last_data_modified_time
 
-    @property
-    def is_transactional(self):
-        val = self.reserved.get("Transactional")
-        return val is not None and val.lower() == "true"
-
-    @property
-    def primary_key(self):
-        return self.reserved.get("PrimaryKey")
-
-    @property
-    def storage_tier_info(self):
-        return StorageTierInfo.deserial(self.reserved)
+    def _parse_reserved(self):
+        if not self.reserved:
+            self.is_transactional = None
+            self.primary_key = None
+            self.storage_tier_info = None
+            self.cluster_info = None
+            return
+        is_transactional = self.reserved.get("Transactional")
+        self.is_transactional = (
+            is_transactional is not None and is_transactional.lower() == "true"
+        )
+        self.primary_key = self.reserved.get('PrimaryKey')
+        self.storage_tier_info = StorageTierInfo.deserial(self.reserved)
+        self.cluster_info = ClusterInfo.deserial(self.reserved)
 
     def reload_extend_info(self):
         params = {}
@@ -589,6 +337,8 @@ class Table(LazyLoad):
 
         if not self._loaded:
             self.table_schema = None
+
+        self._parse_reserved()
 
     def __getattribute__(self, attr):
         if attr in type(self)._extend_args:
@@ -609,6 +359,8 @@ class Table(LazyLoad):
 
         buf.write('odps.Table\n')
         buf.write('  name: {0}\n'.format(self.full_table_name))
+        if self.type:
+            buf.write('  type: {0}\n'.format(self.type.value))
 
         name_space = 2 * max(len(col.name) for col in self.table_schema.columns)
         type_space = 2 * max(len(repr(col.type)) for col in self.table_schema.columns)
@@ -638,18 +390,22 @@ class Table(LazyLoad):
                 ))
             buf.write(utils.indent('\n'.join(partition_strs), 4))
 
+        if self.view_text:
+            buf.write('  view text:\n{0}'.format(utils.indent(self.view_text, 4)))
+
         return buf.getvalue()
 
     @property
     def stored_as(self):
         return (self.reserved or dict()).get('StoredAs')
 
-    @staticmethod
+    @classmethod
     def gen_create_table_sql(
-        table_name, table_schema, comment=None, if_not_exists=False,
+        cls, table_name, table_schema, comment=None, if_not_exists=False,
         lifecycle=None, shard_num=None, hub_lifecycle=None,
         with_column_comments=True, transactional=False, primary_key=None,
-        storage_tier=None, project=None, schema=None, **kw
+        storage_tier=None, project=None, schema=None, table_type=None,
+        view_text=None, **kw
     ):
         from ..utils import escape_odps_string
 
@@ -658,14 +414,30 @@ class Table(LazyLoad):
         project = utils.to_text(project)
         schema = utils.to_text(schema)
         comment = utils.to_text(comment)
+        view_text = utils.to_text(view_text)
+        table_type = cls.Type(table_type or cls.Type.MANAGED_TABLE)
+        is_view = table_type in (cls.Type.VIRTUAL_VIEW, cls.Type.MATERIALIZED_VIEW)
         primary_key = [primary_key] if isinstance(primary_key, six.string_types) else primary_key
 
         stored_as = kw.get('stored_as')
         external_stored_as = kw.get('external_stored_as')
         storage_handler = kw.get('storage_handler')
         table_properties = kw.get("table_properties") or {}
+        cluster_info = kw.get('cluster_info')
 
-        buf.write(u'CREATE%s TABLE ' % (' EXTERNAL' if storage_handler or external_stored_as else ''))
+        rewrite_enabled = kw.get('rewrite_enabled')
+        rewrite_enabled = rewrite_enabled if rewrite_enabled is not None else True
+
+        if table_type == cls.Type.EXTERNAL_TABLE:
+            type_str = u'EXTERNAL TABLE'
+        elif table_type == cls.Type.VIRTUAL_VIEW:
+            type_str = u'VIEW'
+        elif table_type == cls.Type.MATERIALIZED_VIEW:
+            type_str = u'MATERIALIZED VIEW'
+        else:
+            type_str = u'EXTERNAL TABLE' if storage_handler or external_stored_as else u'TABLE'
+
+        buf.write(u'CREATE %s ' % type_str)
         if if_not_exists:
             buf.write(u'IF NOT EXISTS ')
         if project is not None:
@@ -673,6 +445,9 @@ class Table(LazyLoad):
         if schema is not None:
             buf.write(u'%s.' % schema)
         buf.write(u'`%s` ' % table_name)
+
+        if is_view and lifecycle is not None and lifecycle > 0:
+            buf.write("LIFECYCLE %s " % lifecycle)
 
         def _write_primary_key(prev=""):
             if not primary_key:
@@ -715,12 +490,49 @@ class Table(LazyLoad):
                     _write_primary_key()
                 buf.write(u'\n)\n')
 
-            write_columns(table_schema.simple_columns, with_pk=True)
+            def write_view_columns(col_array):
+                size = len(col_array)
+                buf.write(u'(\n')
+                for idx, column in enumerate(col_array):
+                    buf.write(u'  `%s`' % (utils.to_text(column.name)))
+                    if with_column_comments and column.comment:
+                        buf.write(u" COMMENT '%s'" % utils.to_text(column.comment))
+                    if idx < size - 1:
+                        buf.write(u',\n')
+                buf.write(u'\n)\n')
+
+            if not is_view:
+                write_columns(table_schema.simple_columns, with_pk=True)
+            else:
+                write_view_columns(table_schema.simple_columns)
+
             if comment:
                 buf.write(u"COMMENT '%s'\n" % comment)
+            if table_type == cls.Type.MATERIALIZED_VIEW and not rewrite_enabled:
+                buf.write(u'DISABLE REWRITE\n')
             if table_schema.partitions:
-                buf.write(u'PARTITIONED BY ')
-                write_columns(table_schema.partitions)
+                if not is_view:
+                    buf.write(u'PARTITIONED BY ')
+                    write_columns(table_schema.partitions)
+                else:
+                    buf.write(u'PARTITIONED ON ')
+                    write_view_columns(table_schema.partitions)
+
+        if cluster_info is not None:
+            if cluster_info.cluster_type == ClusterType.RANGE:
+                cluster_type_str = u"RANGE "
+            else:
+                cluster_type_str = u""
+            cluster_cols = u", ".join(u"`%s`" % col for col in cluster_info.cluster_cols)
+            buf.write("%sCLUSTERED BY (%s)" % (cluster_type_str, cluster_cols))
+            if cluster_info.sort_cols:
+                sort_cols = u", ".join(
+                    u"`%s` %s" % (c.name, c.order.value) for c in cluster_info.sort_cols
+                )
+                buf.write(u" SORTED BY (%s)" % sort_cols)
+            if cluster_info.bucket_num:
+                buf.write(" INTO %s BUCKETS" % cluster_info.bucket_num)
+            buf.write(u"\n")
 
         if transactional:
             table_properties["transactional"] = "true"
@@ -757,29 +569,43 @@ class Table(LazyLoad):
                 buf.write("USING '%s'\n" % resources)
         if stored_as:
             buf.write("STORED AS %s\n" % escape_odps_string(stored_as))
-        if lifecycle is not None and lifecycle > 0:
+        if not is_view and lifecycle is not None and lifecycle > 0:
             buf.write(u'LIFECYCLE %s\n' % lifecycle)
         if shard_num is not None:
             buf.write(u'INTO %s SHARDS' % shard_num)
             if hub_lifecycle is not None:
                 buf.write(u' HUBLIFECYCLE %s\n' % hub_lifecycle)
+            else:
+                buf.write(u'\n')
 
+        if is_view and view_text:
+            buf.write(u'AS %s\n' % view_text)
         return buf.getvalue().strip()
 
-    def get_ddl(self, with_comments=True, if_not_exists=False):
+    def get_ddl(self, with_comments=True, if_not_exists=False, force_table_ddl=False):
         """
         Get DDL SQL statement for the given table.
 
         :param with_comments: append comment for table and each column
+        :param if_not_exists: generate `if not exists` code for generated DDL
+        :param force_table_ddl: force generate table DDL if object is a view
         :return: DDL statement
         """
         shard_num = self.shard.shard_num if self.shard is not None else None
+        storage_tier = (
+            self.storage_tier_info.storage_tier.value if self.storage_tier_info else None
+        )
+        table_type = self.type if not force_table_ddl else self.Type.MANAGED_TABLE
         return self.gen_create_table_sql(
             self.name, self.table_schema, self.comment if with_comments else None,
             if_not_exists=if_not_exists, with_column_comments=with_comments,
             lifecycle=self.lifecycle, shard_num=shard_num, project=self.project.name,
             storage_handler=self.storage_handler, serde_properties=self.serde_properties,
-            location=self.location, resources=self.resources,
+            location=self.location, resources=self.resources, table_type=table_type,
+            storage_tier=storage_tier, cluster_info=self.cluster_info,
+            transactional=self.is_transactional, primary_key=self.primary_key,
+            view_text=self.view_text,
+            rewrite_enabled=self.is_materialized_view_rewrite_enabled,
         )
 
     @utils.survey
@@ -826,6 +652,7 @@ class Table(LazyLoad):
         """
         try:
             if pa is not None and not use_legacy:
+                timeout = timeout if timeout is not None else options.tunnel.legacy_fallback_timeout
                 return self._head_by_preview(
                     limit, partition=partition, columns=columns, timeout=timeout
                 )
@@ -932,6 +759,7 @@ class Table(LazyLoad):
         upload_id=None,
         arrow=False,
         quota_name=None,
+        mp_context=None,
         **kw
     ):
         """
@@ -995,13 +823,13 @@ class Table(LazyLoad):
 
         writer_cls = TableArrowWriter if arrow else TableRecordWriter
 
-        class _TableWriter(writer_cls):
-            def close(self):
-                super(_TableWriter, self).close()
-                if commit:
-                    upload_ids[partition] = None
+        def _writer_on_close():
+            if commit:
+                upload_ids[partition] = None
 
-        return _TableWriter(self, upload_session, blocks, commit)
+        return writer_cls(
+            self, upload_session, blocks, commit, on_close=_writer_on_close, mp_context=mp_context
+        )
 
     @property
     def partitions(self):

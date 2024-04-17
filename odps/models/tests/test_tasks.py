@@ -20,9 +20,13 @@ import pytest
 from ...errors import ODPSError
 from ...config import options
 from ...tests.core import tn, wait_filled
-from ...utils import to_text
+from ...utils import get_zone_name, to_text
 from .. import SQLTask, MergeTask, CupidTask, SQLCostTask, Task
 
+try:
+    import zoneinfo
+except ImportError:
+    zoneinfo = None
 try:
     import pytz
 except ImportError:
@@ -119,7 +123,7 @@ def test_sql_task_to_xml():
     assert isinstance(task, SQLTask)
 
 
-@pytest.mark.skipif(pytz is None, reason='pytz not installed')
+@pytest.mark.skipif(pytz is None and zoneinfo is None, reason='pytz not installed')
 def test_sql_task_to_xml_timezone():
     from ... import __version__
     from ...lib import tzlocal
@@ -133,7 +137,8 @@ def test_sql_task_to_xml_timezone():
 
     try:
         options.local_timezone = True
-        local_zone_name = tzlocal.get_localzone().zone
+        local_zone = tzlocal.get_localzone()
+        local_zone_name = get_zone_name(local_zone)
         task = SQLTask(query=query)
         task.update_sql_settings()
         to_xml = task.serialize()
@@ -149,13 +154,23 @@ def test_sql_task_to_xml_timezone():
 
         assert to_text(to_xml) == to_text(right_xml)
 
-        options.local_timezone = pytz.timezone('Asia/Shanghai')
-        task = SQLTask(query=query)
-        task.update_sql_settings()
-        to_xml = task.serialize()
-        right_xml = _format_template(sql=query, tz=options.local_timezone.zone)
+        if zoneinfo:
+            options.local_timezone = zoneinfo.ZoneInfo('Asia/Shanghai')
+            task = SQLTask(query=query)
+            task.update_sql_settings()
+            to_xml = task.serialize()
+            right_xml = _format_template(sql=query, tz=options.local_timezone.key)
 
-        assert to_text(to_xml) == to_text(right_xml)
+            assert to_text(to_xml) == to_text(right_xml)
+
+        if pytz:
+            options.local_timezone = pytz.timezone('Asia/Shanghai')
+            task = SQLTask(query=query)
+            task.update_sql_settings()
+            to_xml = task.serialize()
+            right_xml = _format_template(sql=query, tz=options.local_timezone.zone)
+
+            assert to_text(to_xml) == to_text(right_xml)
     finally:
         options.local_timezone = None
 

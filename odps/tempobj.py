@@ -298,6 +298,9 @@ class ObjectRepositoryLib(dict):
     @classmethod
     def add_odps_info(cls, odps):
         odps_key = _gen_repository_key(odps)
+        if odps_key is None:
+            return
+
         cls.odps_info[odps_key] = dict(
             access_id=utils.to_str(odps.account.access_id),
             secret_access_key=utils.to_str(odps.account.secret_access_key),
@@ -361,6 +364,9 @@ def _is_pid_running(pid):
 
 def clean_objects(odps, biz_ids=None, use_threads=False):
     odps_key = _gen_repository_key(odps)
+    if odps_key is None:
+        return
+
     files = []
     biz_ids = biz_ids or _obj_repos.biz_ids
     for biz_id in biz_ids:
@@ -378,7 +384,7 @@ def clean_stored_objects(odps):
         return
 
     odps_key = _gen_repository_key(odps)
-    if odps_key in _cleaned_keys:
+    if odps_key is None or odps_key in _cleaned_keys:
         return
     _cleaned_keys.add(odps_key)
 
@@ -408,15 +414,19 @@ def clean_stored_objects(odps):
 
 
 def _gen_repository_key(odps):
-    if hasattr(odps.account, 'access_id'):
+    if getattr(odps.account, 'access_id', None):
         keys = [odps.account.access_id, odps.endpoint, str(odps.project)]
-    elif hasattr(odps.account, 'token'):
+    elif getattr(odps.account, 'token', None):
         keys = [utils.to_str(odps.account.token), odps.endpoint, str(odps.project)]
+    else:
+        return
     return hashlib.md5(utils.to_binary('####'.join(keys))).hexdigest()
 
 
 def _put_objects(odps, objs):
     odps_key = _gen_repository_key(odps)
+    if odps_key is None:
+        return
 
     biz_id = options.biz_id if options.biz_id else 'default'
     ObjectRepositoryLib.add_biz_id(biz_id)

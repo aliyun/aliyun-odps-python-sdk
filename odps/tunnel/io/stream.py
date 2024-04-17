@@ -19,10 +19,16 @@ import zlib
 import threading
 
 from ... import errors, compat, options
-from ...compat import Enum, six
+from ...compat import BytesIO, Enum, Semaphore, six
 from ..errors import TunnelError
 
-from urllib3.exceptions import ReadTimeoutError
+try:
+    from urllib3.exceptions import ReadTimeoutError
+except ImportError:
+    from requests import ReadTimeout as ReadTimeoutError
+
+# used for test case to force thread io
+_FORCE_THREAD = False
 
 if compat.LESS_PY32:
     mv_to_bytes = lambda v: bytes(bytearray(v))
@@ -40,6 +46,154 @@ else:
         if not isinstance(v, memoryview):
             v = memoryview(v)
         return v
+
+
+class RequestsIO(object):
+    CHUNK_SIZE = 256 * 1024
+
+    def __new__(cls, *args, **kwargs):
+        if cls is RequestsIO:
+            if not isinstance(threading.current_thread(), threading._MainThread) or _FORCE_THREAD:
+                return object.__new__(ThreadRequestsIO)
+            elif GreenletRequestsIO is not None:
+                return object.__new__(GreenletRequestsIO)
+            else:
+                return object.__new__(ThreadRequestsIO)
+        else:
+            return object.__new__(cls)
+
+    def __init__(self, post_call, chunk_size=None):
+        self._buf = BytesIO()
+        self._resp = None
+        self._async_err = None
+        self._chunk_size = chunk_size or self.CHUNK_SIZE
+
+        self._post_call = post_call
+        self._wait_obj = None
+
+    def _async_func(self):
+        try:
+            self._resp = self._post_call(self.data_generator())
+        except:
+            self._async_err = sys.exc_info()
+        self._wait_obj = None
+
+    def _reraise_errors(self):
+        if self._async_err is not None:
+            ex_type, ex_value, tb = self._async_err
+            six.reraise(ex_type, ex_value, tb)
+
+    def data_generator(self):
+        chunk_size = self._chunk_size
+        while True:
+            data = self.get()
+            if data is not None:
+                data = memoryview(data)
+                while data:
+                    to_send = mv_to_bytes(data[:chunk_size])
+                    data = data[chunk_size:]
+                    yield to_send
+            else:
+                break
+
+    def start(self):
+        pass
+
+    def get(self):
+        raise NotImplementedError
+
+    def put(self, data):
+        raise NotImplementedError
+
+    def write(self, data):
+        self._buf.write(data)
+        if self._buf.tell() >= self._chunk_size:
+            chunk = self._buf.getvalue()
+            self._buf = BytesIO()
+            self.put(chunk)
+            self._reraise_errors()
+
+    def flush(self):
+        if self._buf.tell():
+            chunk = self._buf.getvalue()
+            self._buf = BytesIO()
+            self.put(chunk)
+            self._reraise_errors()
+
+    def finish(self):
+        self.flush()
+        self.put(None)
+        wait_obj = self._wait_obj
+        if wait_obj and wait_obj.is_alive():
+            wait_obj.join()
+        self._reraise_errors()
+        return self._resp
+
+
+class ThreadRequestsIO(RequestsIO):
+    def __init__(self, post_call, chunk_size=None):
+        super(ThreadRequestsIO, self).__init__(post_call, chunk_size)
+        self._last_data = None
+        self._sem_put = Semaphore(1)
+        self._sem_get = Semaphore(0)
+        self._wait_obj = threading.Thread(target=self._async_func)
+        self._wait_obj.daemon = True
+        self._acquire_timeout = options.connect_timeout
+
+    def _async_func(self):
+        try:
+            super(ThreadRequestsIO, self)._async_func()
+        finally:
+            # make sure subsequent put() call does not get stuck
+            self._sem_put.release()
+
+    def start(self):
+        self._wait_obj.start()
+
+    def get(self):
+        self._sem_get.acquire()
+        data = self._last_data
+        self._sem_put.release()
+        return data
+
+    def put(self, data):
+        self._reraise_errors()
+        assert self._wait_obj is not None and self._wait_obj.is_alive()
+        try:
+            rc = self._sem_put.acquire(timeout=self._acquire_timeout)
+            if not rc:
+                raise TimeoutError("Wait for data semaphore timed out")
+            self._reraise_errors()
+            self._last_data = data
+        except:
+            self._last_data = None
+            raise
+        finally:
+            self._sem_get.release()
+
+
+try:
+    from greenlet import greenlet
+
+    class GreenletRequestsIO(RequestsIO):
+        def __init__(self, post_call, chunk_size=None):
+            super(GreenletRequestsIO, self).__init__(post_call, chunk_size)
+            self._cur_greenlet = greenlet.getcurrent()
+            self._writer_greenlet = greenlet(self._async_func)
+            self._last_data = None
+            self._writer_greenlet.switch()
+
+        def get(self):
+            self._cur_greenlet.switch()
+            return self._last_data
+
+        def put(self, data):
+            self._last_data = data
+            # handover control
+            self._writer_greenlet.switch()
+
+except ImportError:
+    GreenletRequestsIO = None
 
 
 class CompressOption(object):

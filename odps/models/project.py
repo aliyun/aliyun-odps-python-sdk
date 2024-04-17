@@ -36,9 +36,6 @@ from .security.roles import Roles
 from .storage_tier import StorageTierInfo
 
 
-_notset = object()
-
-
 class Project(LazyLoad):
     """
     Project is the counterpart of **database** in a RDBMS.
@@ -318,11 +315,13 @@ class Project(LazyLoad):
         from ..core import ODPS
 
         def get_odps_ref(obj):
-            if obj and obj._getattr("_odps_ref") is not None and obj._odps_ref() is not None:
-                try:
-                    return obj._odps_ref()
-                except AttributeError:
-                    return None
+            if not obj:
+                return None
+            try:
+                ref = obj._getattr("_odps_ref")
+                return ref() if ref else None
+            except (AttributeError, TypeError):
+                return None
 
         if get_odps_ref(self):
             return get_odps_ref(self)
@@ -343,6 +342,16 @@ class Project(LazyLoad):
         )
         self._odps_ref = weakref.ref(odps)
         return odps
+
+    def _set_tunnel_defaults(self):
+        """Set this project object for tunnel resource locating only"""
+        from ..config import options
+        from ..core import LOGVIEW_HOST_DEFAULT
+        from . import Tenant
+
+        self._logview_host = options.logview_host or LOGVIEW_HOST_DEFAULT
+        # tunnel rest does not have tenant options, thus creating a default one
+        self.odps._default_tenant = Tenant(parameters={})
 
     @property
     def policy(self):
@@ -419,7 +428,7 @@ class Project(LazyLoad):
         resp = self.AuthQueryResponse.parse(query_resp)
         return resp.result
 
-    def get_property(self, item, default=_notset):
+    def get_property(self, item, default=utils.notset):
         if not self._getattr("_all_props_loaded"):
             self.reload(all_props=True)
         if item in self.properties:
@@ -427,6 +436,6 @@ class Project(LazyLoad):
         try:
             return self.extended_properties[item]
         except KeyError:
-            if default is _notset:
+            if default is utils.notset:
                 raise
             return default

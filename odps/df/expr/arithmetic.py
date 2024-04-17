@@ -419,6 +419,12 @@ utils.add_method(BooleanScalar, _boolean_methods)
 utils.add_method(DatetimeSequenceExpr, _datetime_methods)
 utils.add_method(DatetimeScalar, _datetime_methods)
 
+utils.add_method(DateSequenceExpr, _datetime_methods)
+utils.add_method(DateScalar, _datetime_methods)
+
+utils.add_method(TimestampSequenceExpr, _datetime_methods)
+utils.add_method(TimestampScalar, _datetime_methods)
+
 for number_sequence in number_sequences + number_scalars:
     utils.add_method(number_sequence, _number_methods)
 

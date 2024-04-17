@@ -124,6 +124,8 @@ if six.PY3:
         from .lib.version import Version
     except BaseException:
         from distutils.version import LooseVersion as Version
+
+    from threading import Semaphore
 else:
     lrange = range
     lzip = zip
@@ -183,6 +185,33 @@ else:
 
     from distutils.version import LooseVersion as Version
 
+    from threading import _Semaphore as _PySemaphore
+    from .lib.monotonic import monotonic
+
+
+    class Semaphore(_PySemaphore):
+        def acquire(self, blocking=True, timeout=None):
+            if not blocking and timeout is not None:
+                raise ValueError("can't specify timeout for non-blocking acquire")
+            rc = False
+            endtime = None
+            with self.__cond:
+                while self.__value == 0:
+                    if not blocking:
+                        break
+                    if timeout is not None:
+                        if endtime is None:
+                            endtime = monotonic() + timeout
+                        else:
+                            timeout = endtime - monotonic()
+                            if timeout <= 0:
+                                break
+                    self.__cond.wait(timeout)
+                else:
+                    self.__value -= 1
+                    rc = True
+            return rc
+
 if LESS_PY32:
     try:
         from .tests.dictconfig import dictConfig
@@ -235,36 +264,42 @@ from .lib.six.moves import configparser as ConfigParser
 from .lib.ext_types import Monthdelta
 
 
+import datetime
+
+
+class _FixedOffset(datetime.tzinfo):
+    """
+    A class building tzinfo objects for fixed-offset time zones.
+    Note that FixedOffset(0, "UTC") is a different way to build a
+    UTC tzinfo object.
+    """
+    def __init__(self, offset, name=None):
+        self.__offset = datetime.timedelta(minutes=offset)
+        self.__name = name
+
+    def utcoffset(self, dt):
+        return self.__offset
+
+    def tzname(self, dt):
+        return self.__name
+
+    def dst(self, dt):
+        return _ZERO_TIMEDELTA
+
+
 try:
-    import pytz
-    utc = pytz.utc
-    FixedOffset = pytz._FixedOffset
+    import zoneinfo
+    utc = zoneinfo.ZoneInfo("UTC")
+    FixedOffset = _FixedOffset
 except ImportError:
-    import datetime
-    _ZERO_TIMEDELTA = datetime.timedelta(0)
-
-    # A class building tzinfo objects for fixed-offset time zones.
-    # Note that FixedOffset(0, "UTC") is a different way to build a
-    # UTC tzinfo object.
-
-    class FixedOffset(datetime.tzinfo):
-        """Fixed offset in minutes east from UTC."""
-
-        def __init__(self, offset, name=None):
-            self.__offset = datetime.timedelta(minutes=offset)
-            self.__name = name
-
-        def utcoffset(self, dt):
-            return self.__offset
-
-        def tzname(self, dt):
-            return self.__name
-
-        def dst(self, dt):
-            return _ZERO_TIMEDELTA
-
-
-    utc = FixedOffset(0, 'UTC')
+    try:
+        import pytz
+        utc = pytz.utc
+        FixedOffset = pytz._FixedOffset
+    except ImportError:
+        _ZERO_TIMEDELTA = datetime.timedelta(0)
+        FixedOffset = _FixedOffset
+        utc = FixedOffset(0, 'UTC')
 
 
 try:
@@ -286,4 +321,4 @@ __all__ = ['sys', 'builtins', 'logging.config', 'dictconfig', 'suppress',
            'reduce', 'reload_module', 'Queue', 'Empty', 'ElementTree', 'ElementTreeParseError',
            'urlretrieve', 'pickle', 'urlencode', 'urlparse', 'unquote', 'quote', 'quote_plus', 'parse_qsl',
            'Enum', 'ConfigParser', 'decimal', 'Decimal', 'DECIMAL_TYPES', 'FixedOffset', 'utc', 'Monthdelta',
-           'Iterable', 'TimeoutError', 'cgi', 'parsedate_to_datetime', 'Version']
+           'Iterable', 'TimeoutError', 'cgi', 'parsedate_to_datetime', 'Version', 'Semaphore']

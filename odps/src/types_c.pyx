@@ -20,15 +20,10 @@ from cpython.datetime cimport import_datetime, PyDateTime_Check
 from datetime import datetime
 
 from .. import types, options
-from ..compat import decimal
 
 cdef int64_t bigint_min = types.bigint._bounds[0]
 cdef int64_t bigint_max = types.bigint._bounds[1]
 cdef int string_len_max = types.string._max_length
-cdef int decimal_int_len_max = 36
-cdef int decimal_scale_max = 18
-cdef object to_scale = decimal.Decimal("1e-%s" % decimal_scale_max)
-cdef object decimal_ctx = decimal.Context(prec=decimal_int_len_max)
 cdef object pd_na_type = types.pd_na_type
 cdef bint is_py3 = sys.version_info[0] == 3
 
@@ -41,7 +36,6 @@ cdef:
     int64_t BIGINT_TYPE_ID = types.bigint._type_id
     int64_t BINARY_TYPE_ID = types.binary._type_id
     int64_t TIMESTAMP_TYPE_ID = types.timestamp._type_id
-    int64_t DECIMAL_TYPE_ID = types.Decimal._type_id
     int64_t JSON_TYPE_ID = types.Json._type_id
 
 
@@ -136,31 +130,6 @@ cdef object _validate_timestamp(object val, int64_t max_field_size):
     raise TypeError("Invalid data type: expect timestamp, got %s" % type(val))
 
 
-cdef object _validate_decimal(object val, int64_t max_field_size):
-    cdef:
-        object scaled_val
-        int int_len
-        str sval
-
-    if not isinstance(val, decimal.Decimal):
-        if is_py3 and type(val) is bytes:
-            sval = (<bytes> val).decode("utf-8")
-        elif not is_py3 and type(val) is unicode:
-            sval = (<unicode> val).encode("utf-8")
-        else:
-            sval = val
-        val = decimal.Decimal(sval)
-
-    scaled_val = val.quantize(to_scale, decimal.ROUND_HALF_UP, decimal_ctx)
-    int_len = len(str(scaled_val)) - decimal_scale_max - 1
-    if int_len > decimal_int_len_max:
-        raise ValueError(
-            'decimal value %s overflow, max integer digit number is %s.' %
-            (val, decimal_int_len_max))
-
-    return decimal.Decimal(str(val))
-
-
 cdef object _validate_json(object val, int64_t max_field_size):
     if not isinstance(val, (list, dict, unicode, bytes, float, int, long)):
         raise ValueError("Invalid data type: cannot accept %r for json type" % val)
@@ -210,8 +179,6 @@ cdef object validate_value(object val, object value_type, int64_t max_field_size
             return _validate_datetime(val, max_field_size)
         elif type_id == BOOL_TYPE_ID:
             return _validate_boolean(val, max_field_size)
-        elif type_id == DECIMAL_TYPE_ID:
-            return _validate_decimal(val, max_field_size)
         elif type_id == BINARY_TYPE_ID:
             return _validate_binary(val, max_field_size)
         elif type_id == TIMESTAMP_TYPE_ID:
@@ -260,8 +227,6 @@ cdef class SchemaSnapshot:
                 self._col_validators[i] = _validate_datetime
             elif type_id == BOOL_TYPE_ID:
                 self._col_validators[i] = _validate_boolean
-            elif type_id == DECIMAL_TYPE_ID:
-                self._col_validators[i] = _validate_decimal
             elif type_id == BINARY_TYPE_ID:
                 self._col_validators[i] = _validate_binary
             elif type_id == TIMESTAMP_TYPE_ID:

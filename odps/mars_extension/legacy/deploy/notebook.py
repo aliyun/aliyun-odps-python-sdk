@@ -21,10 +21,11 @@ import json
 import socket
 import subprocess
 
-from ....lib import requests
-from ....utils import to_str
-from .client import NOTEBOOK_NAME
+import requests
+
 from .web import CUPID_APP_NAME
+from .client import NOTEBOOK_NAME
+from ....utils import to_str
 
 
 DEFAULT_NOTEBOOK_PORT = 50003

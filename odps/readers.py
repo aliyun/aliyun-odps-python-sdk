@@ -20,10 +20,11 @@ import itertools
 import math
 from collections import OrderedDict
 
+from requests import Response
+
 from . import types, compat, utils, options
-from .compat import six, StringIO
-from .lib.requests import Response
 from .models.record import Record
+from .compat import six, StringIO
 
 
 class AbstractRecordReader(object):

@@ -25,7 +25,7 @@ pip install pyodps
 
 The dependencies will be installed automatically.
 
-Or from source code:
+Or from source code (not recommended for production use):
 
 ```shell
 $ virtualenv pyodps_env

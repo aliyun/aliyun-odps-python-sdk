@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+cimport cython
+import decimal
 import json
 import warnings
 from collections import OrderedDict
@@ -466,3 +468,93 @@ class TunnelRecordReader(BaseTunnelRecordReader, AbstractRecordReader):
     @property
     def schema(self):
         return self._schema
+
+
+cdef int DECIMAL_FRAC_CNT = 2
+cdef int DECIMAL_INTG_CNT = 4
+cdef int DECIMAL_PREC_CNT = DECIMAL_INTG_CNT + DECIMAL_FRAC_CNT
+cdef int DECIMAL_DIG_NUMS = 9
+cdef int DECIMAL_FRAC_DIGS = DECIMAL_DIG_NUMS * DECIMAL_FRAC_CNT
+cdef int DECIMAL_INTG_DIGS = DECIMAL_DIG_NUMS * DECIMAL_INTG_CNT
+cdef int DECIMAL_PREC_DIGS = DECIMAL_DIG_NUMS * DECIMAL_PREC_CNT
+
+
+@cython.cdivision(True)
+cdef inline int32_t decimal_print_dig(
+    char* buf, const int32_t* val, int count, bint tail = False
+) nogil:
+    cdef char* src = buf - count * DECIMAL_DIG_NUMS if tail else buf + 1
+    cdef char* ret = src
+    cdef char* ptr
+    cdef int32_t i, data, r
+    for i in range(count):
+        ptr = buf
+        data = val[i]
+        while data != 0:
+            r = data // 10
+            ptr[0] = data - r * 10 + ord('0')
+            if ptr[0] != ord('0') and (not tail or ret[0] == ord('0')):
+                ret = ptr
+            data = r
+            ptr -= 1
+        buf -= DECIMAL_DIG_NUMS
+    return src - ret if src >= ret else ret - src
+
+
+cpdef convert_legacy_decimal_bytes(bytes value, int32_t frac = 0):
+    """
+    Legacy decimal memory layout:
+        int8_t  mNull;
+        int8_t  mSign;
+        int8_t  mIntg;
+        int8_t  mFrac; only 0, 1, 2
+        int32_t mData[6];
+        int8_t mPadding[4]; //For Memory Align
+    """
+    if value is None:
+        return None
+
+    cdef const char *src_ptr = <const char *>value
+    cdef bint is_null = src_ptr[0]
+    cdef bint sign = src_ptr[1]
+    cdef int mintg = src_ptr[2]
+    cdef int mfrac = src_ptr[3]
+    cdef const char *data = src_ptr + 4
+    cdef int32_t dec_cnt
+
+    cdef char buf[9 * (2 + 4) + 4]
+    cdef char *buf_ptr = buf
+    memset(buf_ptr, ord('0'), sizeof(buf))
+
+    if is_null:  # pragma: no cover
+        return None
+    if mintg + mfrac == 0:  # IsZero
+        buf[1] = ord(".")
+        dec_cnt = 20  # "0.000000000000000000"
+        if frac > 0:
+            dec_cnt = dec_cnt if frac + 2 > dec_cnt else frac + 2
+        else:
+            dec_cnt = 1
+        return decimal.Decimal(buf[0:dec_cnt].decode())
+
+    cdef int32_t icnt = decimal_print_dig(
+        buf_ptr + DECIMAL_INTG_DIGS, <const int32_t *>data + DECIMAL_FRAC_CNT, mintg
+    )
+    cdef char *start = buf_ptr + DECIMAL_INTG_DIGS + 1 - icnt if icnt > 0 else buf_ptr + DECIMAL_INTG_DIGS
+
+    if sign:
+        start -= 1
+        start[0] = ord('-')
+
+    cdef int32_t fcnt = decimal_print_dig(
+        buf_ptr + DECIMAL_PREC_DIGS + 1, <const int32_t *>data, DECIMAL_FRAC_CNT, True
+    )
+    if frac <= DECIMAL_FRAC_DIGS:
+        frac = frac if frac > 0 else 0
+    else:
+        frac = DECIMAL_FRAC_DIGS
+    fcnt = max(fcnt, frac)
+    buf[DECIMAL_INTG_DIGS + 1] = ord('.')
+
+    dec_cnt = buf_ptr + DECIMAL_INTG_DIGS + 1 - start + (fcnt + 1 if fcnt > 0 else 0)
+    return decimal.Decimal(start[0:dec_cnt].decode())

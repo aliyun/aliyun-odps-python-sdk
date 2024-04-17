@@ -47,11 +47,10 @@ MCQA 无法执行相应的 SQL ，会自动回退到传统模式。此时，函�
 
 .. code-block:: python
 
-    >>> o.execute_sql_interactive('select * from dual', fallback='all')
+    >>> o.execute_sql_interactive('select * from dual')
 
 如果不希望回退，可以指定参数 ``fallback=False``。也可以指定为回退策略（或回退策略的组合，使用逗号分隔的字符串）。
-可用的策略名如下。默认策略为 ``unsupported,upgrading,noresource,timeout`` 。为使回退一直生效，建议设置为
-``all`` ，即 ``generic,unsupported,upgrading,noresource,timeout`` 的组合。
+可用的策略名如下。默认策略为 ``all`` （即 ``generic,unsupported,upgrading,noresource,timeout`` ）。
 
 * ``generic`` ：指定时，表示发生未知错误时回退到传统模式。
 * ``noresource`` ：指定时，表示发生资源不足问题时回退到传统模式。
@@ -83,8 +82,8 @@ MCQA Instance，你需要自行等待 Instance 完成。需要注意的是，该
 
 ``options.local_timezone`` 可设置为以下三种类型：
 
-* ``False``：使用 UTC 时间（默认设置）。
-* ``True``：使用本地时区。
+* ``False``：使用 UTC 时间。
+* ``True``：使用本地时区（默认设置）。
 * 时区字符串：使用指定的时区，例如 ``Asia/Shanghai``。
 
 例如，使用 UTC 时间：

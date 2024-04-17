@@ -22,7 +22,7 @@ import warnings
 from collections import OrderedDict
 
 from .core import AbstractXMLRemoteModel
-from .. import serializers, errors
+from .. import serializers, errors, utils
 from ..compat import six
 from ..config import options
 
@@ -180,11 +180,14 @@ def collect_sql_settings(value, glob):
                 settings['odps.sql.timezone'] = 'Etc/GMT'
             elif isinstance(options.local_timezone, bool):
                 from ..lib import tzlocal
-                settings['odps.sql.timezone'] = tzlocal.get_localzone().zone
+
+                zone = tzlocal.get_localzone()
+                settings['odps.sql.timezone'] = utils.get_zone_name(zone)
             elif isinstance(options.local_timezone, six.string_types):
                 settings['odps.sql.timezone'] = options.local_timezone
             else:
-                zone_str = getattr(options.local_timezone, 'zone', None)
+                zone = options.local_timezone
+                zone_str = utils.get_zone_name(zone)
                 if zone_str is None:
                     warnings.warn('Failed to get timezone string from options.local_timezone. '
                                   'You need to deal with timezone in the return data yourself.')

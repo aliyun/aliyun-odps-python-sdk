@@ -18,6 +18,7 @@ import base64
 import json
 import logging
 import time
+import requests
 import warnings
 
 from cupid import CupidSession
@@ -25,7 +26,6 @@ from mars.session import new_session
 
 from ....models import Instance
 from ....config import options
-from ....lib import requests
 from .... import errors
 from ...utils import get_default_resource_files, build_mars_image_name
 

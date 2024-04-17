@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,17 +18,32 @@ from __future__ import absolute_import
 import json
 import logging
 import platform
+import re
 import threading
-from contextlib import contextmanager
 from string import Template
 
+import requests
+try:
+    from requests import ConnectTimeout
+except ImportError:
+    from requests import Timeout as ConnectTimeout
+try:
+    import requests_unixsocket
+except ImportError:
+    requests_unixsocket = None
+
 from . import __version__
-from . import compat, errors, utils
-from .compat import six
+from . import errors, utils
 from .config import options
-from .lib import requests
-from .lib.requests import ConnectTimeout
-from .utils import get_survey_calls, clear_survey_calls
+from .utils import get_package_version, get_survey_calls, clear_survey_calls
+from .compat import six, urlparse
+
+try:
+    import requests.packages.urllib3.util.ssl_
+    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS = 'ALL'
+    requests.packages.urllib3.disable_warnings()
+except ImportError:
+    pass
 
 try:
     import urllib3.util.ssl_
@@ -37,26 +52,21 @@ try:
 except ImportError:
     pass
 
-if compat.LESS_PY32:
-    mv_to_bytes = lambda v: bytes(bytearray(v))
-else:
-    mv_to_bytes = bytes
-
 
 logger = logging.getLogger(__name__)
 
 _default_user_agent = None
+
+_v4_sign_fallback_msgs = [
+    "need ak v3 support",
+    "accesskey acl denied",
+]
 
 
 def default_user_agent():
     global _default_user_agent
     if _default_user_agent is not None:
         return _default_user_agent
-
-    try:
-        from mars import __version__ as mars_version
-    except ImportError:
-        mars_version = "Unknown"
 
     py_implementation = platform.python_implementation()
     py_version = platform.python_version()
@@ -68,68 +78,55 @@ def default_user_agent():
         py_release = 'Unknown'
 
     ua_template = Template(
-        options.user_agent_pattern or '$pyodps_version $mars_version $python_version $os_version'
+        options.user_agent_pattern
+        or '$pyodps_version $mars_version $maxframe_version $python_version $os_version'
     )
-    _default_user_agent = ua_template.safe_substitute(
+    substitutes = dict(
         pyodps_version='%s/%s' % ('pyodps', __version__),
-        mars_version='%s/%s' % ('mars', mars_version),
         python_version='%s/%s' % (py_implementation, py_version),
-        os_version='%s/%s' % (py_system, py_release)
+        os_version='%s/%s' % (py_system, py_release),
+        mars_version='',
+        maxframe_version='',
     )
-    return _default_user_agent
 
+    try:
+        from mars import __version__ as mars_version
+    except ImportError:
+        mars_version = None
+    if mars_version:
+        substitutes["mars_version"] = '%s/%s' % ('mars', mars_version)
 
-class RestUploadWriter(object):
-    def __init__(self, ctx, chunk_size=None):
-        self._ctx = ctx
-        self._writer = None
-        self._result = None
-        self._chunk_size = chunk_size or options.chunk_size
+    try:
+        maxframe_version = get_package_version("maxframe")
+    except:
+        maxframe_version = None
+    if maxframe_version:
+        substitutes["maxframe_version"] = '%s/%s' % ('maxframe', maxframe_version)
 
-    @property
-    def result(self):
-        return self._result
+    _default_user_agent = ua_template.safe_substitute(**substitutes)
+    _default_user_agent = re.sub(" +", " ", _default_user_agent).strip()
 
-    def open(self):
-        self._writer = self._ctx.__enter__()
+    try:
+        from .internal.rest import get_internal_user_agent_suffix
 
-    def write(self, data):
-        if self._writer is None:
-            raise IOError("Writer not opened")
-        chunk_size = self._chunk_size
-        data = memoryview(data)
-        while data:
-            to_send = mv_to_bytes(data[:chunk_size])
-            data = data[chunk_size:]
-            self._writer.write(to_send)
-
-    def flush(self):
+        _default_user_agent += " " + get_internal_user_agent_suffix()
+    except:
         pass
-
-    def close(self):
-        self.__exit__(None, None, None)
-        return self._result
-
-    def __enter__(self):
-        self.open()
-        return self
-
-    def __exit__(self, *exc_info):
-        self._ctx.__exit__(*exc_info)
-        self._result = self._writer.result
-        self._writer = None
+    return _default_user_agent
 
 
 class RestClient(object):
     _session_local = threading.local()
+    _endpoints_without_v4_sign = set()
 
     def __init__(
-        self, account, endpoint, project=None, schema=None, user_agent=None, **kwargs
+        self, account, endpoint, project=None, schema=None, user_agent=None, region_name=None, **kwargs
     ):
         if endpoint.endswith('/'):
             endpoint = endpoint[:-1]
         self._account = account
         self._endpoint = endpoint
+        self._region_name = region_name
         self._user_agent = user_agent or default_user_agent()
         self.project = project
         self.schema = schema
@@ -152,40 +149,77 @@ class RestClient(object):
         return self._app_account
 
     @property
+    def region_name(self):
+        return self._region_name
+
+    @property
     def session(self):
-        if not hasattr(type(self)._session_local, '_session'):
-            adapter_options = dict(
-                pool_connections=options.pool_connections,
-                pool_maxsize=options.pool_maxsize,
-                max_retries=options.retry_times,
+        try:
+            session_cache = type(self)._session_local.session_cache
+        except AttributeError:
+            session_cache = type(self)._session_local.session_cache = dict()
+        try:
+            return session_cache[self._endpoint]
+        except KeyError:
+            pass
+
+        parsed_url = urlparse(self._endpoint)
+        adapter_options = dict(
+            pool_connections=options.pool_connections,
+            pool_maxsize=options.pool_maxsize,
+            max_retries=options.retry_times,
+        )
+        if parsed_url.scheme == "http+unix":
+            session = requests_unixsocket.Session()
+            session.mount(
+                'http+unix://',
+                requests_unixsocket.adapters.UnixAdapter(**adapter_options)
             )
+        else:
             session = requests.Session()
             # mount adapters with retry times
             session.mount(
-                'http://', requests.adapters.HTTPAdapter(**adapter_options))
+                'http://', requests.adapters.HTTPAdapter(**adapter_options)
+            )
             session.mount(
-                'https://', requests.adapters.HTTPAdapter(**adapter_options))
-
-            self._session_local._session = session
-        return self._session_local._session
+                'https://', requests.adapters.HTTPAdapter(**adapter_options)
+            )
+        session_cache[self._endpoint] = session
+        return session
 
     def request(self, url, method, stream=False, **kwargs):
-        file_upload = kwargs.get("file_upload", False)
-        chunk_size = kwargs.pop("chunk_size", None)
-        if not file_upload:
-            with self._request(url, method, stream=stream, **kwargs) as writer:
-                pass
-            return writer.result
-        else:
-            return RestUploadWriter(
-                self._request(url, method, stream=stream, **kwargs), chunk_size=chunk_size
-            )
+        sign_region_name = kwargs.get("region_name") or self._region_name
+        if self._endpoint in self._endpoints_without_v4_sign or not options.enable_v4_sign:
+            sign_region_name = None
 
-    @contextmanager
+        while True:
+            kwargs["region_name"] = sign_region_name
+            try:
+                return self._request(url, method, stream=stream, **kwargs)
+            except errors.InternalServerError as ex:
+                ex_msg = str(ex).lower()
+                if sign_region_name is None or all(
+                    msg not in ex_msg for msg in _v4_sign_fallback_msgs
+                ):
+                    raise
+                self._endpoints_without_v4_sign.add(self._endpoint)
+                sign_region_name = None
+            except errors.InvalidParameter as ex:
+                if sign_region_name is None or "ODPS-0410051" not in str(ex):
+                    # Invalid credentials error not received from server
+                    raise
+                self._endpoints_without_v4_sign.add(self._endpoint)
+                sign_region_name = None
+            except errors.AuthorizationRequired as ex:
+                if sign_region_name is None or "invalid or missing" not in str(ex):
+                    raise
+                self._endpoints_without_v4_sign.add(self._endpoint)
+                sign_region_name = None
+
     def _request(self, url, method, stream=False, **kwargs):
         self.upload_survey_log()
 
-        file_upload = kwargs.get("file_upload", False)
+        region_name = kwargs.pop("region_name", None)
 
         logger.debug('Start request.')
         logger.debug('%s: %s', method.upper(), url)
@@ -219,9 +253,14 @@ class RestClient(object):
         req = requests.Request(method, url, **kwargs)
         prepared_req = req.prepare()
         logger.debug("request url + params %s", prepared_req.path_url)
-        self._account.sign_request(prepared_req, self._endpoint)
+
+        prepared_req.headers.pop('Authorization', None)
+        prepared_req.headers.pop('application-authentication', None)
+        self._account.sign_request(prepared_req, self._endpoint, region_name=region_name)
         if getattr(self, '_app_account', None) is not None:
-            self._app_account.sign_request(prepared_req, self._endpoint)
+            self._app_account.sign_request(
+                prepared_req, self._endpoint, region_name=region_name
+            )
 
         try:
             res = self.session.send(
@@ -230,15 +269,7 @@ class RestClient(object):
                 timeout=timeout or (options.connect_timeout, options.read_timeout),
                 verify=options.verify_ssl,
                 proxies=self._proxy,
-                file_upload=file_upload,
             )
-            if not file_upload:
-                writer = RestUploadWriter(None)
-                yield writer
-            else:
-                with res as writer:
-                    yield writer
-                res = writer.result
         except ConnectTimeout:
             raise errors.ConnectTimeout('Connecting to endpoint %s timeout.' % self._endpoint)
 
@@ -249,7 +280,7 @@ class RestClient(object):
         # Automatically detect error
         if not self.is_ok(res):
             errors.throw_if_parsable(res, self._endpoint, self._tag)
-        writer._result = res
+        return res
 
     def get(self, url, stream=False, **kwargs):
         return self.request(url, 'get', stream=stream, **kwargs)

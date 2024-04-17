@@ -23,7 +23,7 @@ If you don’t need to use Jupyter, just type
 
 The dependencies will be installed automatically.
 
-Or from source code:
+Or from source code (not recommended for production use):
 
 .. code:: shell
 

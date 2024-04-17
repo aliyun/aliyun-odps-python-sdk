@@ -274,6 +274,16 @@ def test_file_resource(odps):
 
     resource = odps.create_resource(resource_name, 'file', file_obj=FILE_CONTENT)
     assert isinstance(resource, FileResource)
+    resource.drop()
+
+    # create resource with open_resource and write
+    with odps.open_resource(
+        resource_name, mode='w', type='file', comment="comment_data"
+    ) as resource:
+        resource.write(FILE_CONTENT)
+
+    resource.reload()
+    assert resource.comment == "comment_data"
 
     with resource.open(mode='r') as fp:
         pytest.raises(IOError, lambda: fp.write('sss'))
@@ -295,7 +305,9 @@ def test_file_resource(odps):
 
         fp.seek(0)
         add_newline = lambda s: s if s.endswith('\n') else s+'\n'
-        assert [to_text(add_newline(l)) for l in fp] == [to_text(add_newline(l)) for l in FILE_CONTENT.splitlines()]
+        assert [
+            to_text(add_newline(line)) for line in fp
+        ] == [to_text(add_newline(line)) for line in FILE_CONTENT.splitlines()]
 
         assert fp._fp._need_commit is False
         assert fp.opened is True

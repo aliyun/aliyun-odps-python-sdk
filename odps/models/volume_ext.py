@@ -16,11 +16,12 @@
 
 import contextlib
 
+import requests
+
+from . import cache_parent
 from .. import serializers
 from ..compat import Enum
 from ..errors import OSSSignUrlError
-from ..lib import requests
-from . import cache_parent
 from .volume_fs import FSVolumeObject, FSVolumeObjects, FSVolume
 
 
@@ -129,12 +130,20 @@ class ExternalVolumeObject(FSVolumeObject):
         >>> with fs_dir.open_writer('file') as reader:
         >>>     writer.write('some content')
         """
+        from ..tunnel.io import RequestsIO
+
         if kwargs.pop("replication", None) is not None:  # pragma: no cover
             raise TypeError("External volume does not support replication argument")
 
-        with self._request_sign_url(path, SignUrlMethod.PUT, file_upload=True) as writer:
-            yield writer
-        self._check_response(writer.result)
+        def put_func(data):
+            self._request_sign_url(path, SignUrlMethod.PUT, data=data)
+
+        rio = RequestsIO(put_func)
+        try:
+            rio.start()
+            yield rio
+        finally:
+            rio.finish()
 
 
 @cache_parent

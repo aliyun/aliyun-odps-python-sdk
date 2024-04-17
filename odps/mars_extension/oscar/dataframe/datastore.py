@@ -20,6 +20,7 @@ import time
 import uuid
 import logging
 
+import requests
 from typing import List
 from mars.core.context import get_context
 from mars.oscar.errors import ActorNotExist
@@ -37,7 +38,6 @@ from mars.serialization.serializables import (
 )
 
 from ....config import options
-from ....lib import requests
 from ....utils import to_str
 from ..cupid_service import CupidServiceClient
 

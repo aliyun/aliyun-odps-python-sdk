@@ -1091,22 +1091,30 @@ class Decimal(CompositeMixin):
     __slots__ = 'nullable', 'precision', 'scale', '_hash'
     _type_id = 5
 
-    _max_precision = 38
+    _has_other_decimal_type = len(DECIMAL_TYPES) > 1
+
+    _max_precision = 54
     _max_scale = 18
     _decimal_ctx = _decimal.Context(prec=_max_precision)
 
     def __init__(self, precision=None, scale=None, nullable=True):
         super(Decimal, self).__init__(nullable=nullable)
         if precision and precision > self._max_precision:
-            raise ValueError("InvalidData: Precision(%d) is larger than %d." %
-                             (precision, self._max_precision))
+            raise ValueError(
+                "InvalidData: Precision(%d) is larger than %d."
+                % (precision, self._max_precision)
+            )
         if scale and scale > self._max_scale:
-            raise ValueError("InvalidData: Scale(%d) is larger than %d." %
-                             (scale, self._max_scale))
+            raise ValueError(
+                "InvalidData: Scale(%d) is larger than %d." % (scale, self._max_scale)
+            )
         if precision is None and scale is not None:
             raise ValueError('InvalidData: Scale should be provided along with precision.')
         self.precision = precision
         self.scale = scale
+        self._scale_decimal = _decimal.Decimal(
+            "1e%d" % -(scale if scale is not None else self._max_scale)
+        )
 
     @property
     def name(self):
@@ -1128,9 +1136,11 @@ class Decimal(CompositeMixin):
         if isinstance(other, six.string_types):
             other = validate_data_type(other)
 
-        return DataType._equals(self, other) and \
-               self.precision == other.precision and \
-               self.scale == other.scale
+        return (
+            DataType._equals(self, other)
+            and self.precision == other.precision
+            and self.scale == other.scale
+        )
 
     def can_implicit_cast(self, other):
         if isinstance(other, six.string_types):
@@ -1144,15 +1154,24 @@ class Decimal(CompositeMixin):
         if val is None and self.nullable:
             return True
 
-        if not isinstance(val, _decimal.Decimal) and isinstance(val, DECIMAL_TYPES):
+        if (
+            self._has_other_decimal_type
+            and not isinstance(val, _decimal.Decimal)
+            and isinstance(val, DECIMAL_TYPES)
+        ):
             val = _decimal.Decimal(str(val))
-        to_scale = _decimal.Decimal(str(10 ** -self._max_scale))
-        scaled_val = val.quantize(to_scale, _decimal.ROUND_HALF_UP, self._decimal_ctx)
-        int_len = len(str(scaled_val)) - self._max_scale - 1
-        if int_len > self._max_precision:
+
+        precision = self.precision if self.precision is not None else self._max_precision
+        scale = self.scale if self.scale is not None else self._max_scale
+        scaled_val = val.quantize(
+            self._scale_decimal, _decimal.ROUND_HALF_UP, self._decimal_ctx
+        )
+        int_len = len(str(scaled_val)) - scale - 1
+        if int_len > precision:
             raise ValueError(
                 'decimal value %s overflow, max integer digit number is %s.' %
-                (val, self._max_precision))
+                (val, precision)
+            )
         return True
 
     def cast_value(self, value, data_type):

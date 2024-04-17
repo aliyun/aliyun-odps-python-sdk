@@ -15,7 +15,7 @@
 # limitations under the License.
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from ...expr.reduction import *
@@ -1421,6 +1421,8 @@ class OdpsSQLCompiler(Backend):
             elif isinstance(expr._value, datetime):
                 # FIXME: just ignore shorter than second
                 compiled = 'FROM_UNIXTIME({0})'.format(utils.to_timestamp(expr._value))
+            elif isinstance(expr._value, date):
+                compiled = 'CAST({0!r} AS DATE)'.format(expr._value.strftime("%Y-%m-%d"))
             elif isinstance(expr._value, Decimal):
                 compiled = 'CAST({0} AS DECIMAL)'.format(repr(str(expr._value)))
         else:

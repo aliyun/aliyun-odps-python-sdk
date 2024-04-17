@@ -52,13 +52,13 @@ from .types import odps_schema_to_arrow_schema
 
 try:
     if not options.force_py:
-        from .reader_c import TunnelRecordReader
+        from .reader_c import TunnelRecordReader, convert_legacy_decimal_bytes
     else:
-        TunnelRecordReader = None
+        TunnelRecordReader = convert_legacy_decimal_bytes = None
 except ImportError as e:
     if options.force_c:
         raise e
-    TunnelRecordReader = None
+    TunnelRecordReader = convert_legacy_decimal_bytes = None
 
 if TunnelRecordReader is None:
     class TunnelRecordReader(AbstractRecordReader):
@@ -514,36 +514,37 @@ class TunnelArrowReader(object):
 _reflective = lambda x: x
 
 
-def _convert_legacy_decimal_bytes(value):
-    """
-    Legacy decimal memory layout:
-        int8_t  mNull;
-        int8_t  mSign;
-        int8_t  mIntg;
-        int8_t  mFrac; only 0, 1, 2
-        int32_t mData[6];
-        int8_t mPadding[4]; //For Memory Align
-    """
-    if value is None:
-        return None
+if convert_legacy_decimal_bytes is None:
+    def convert_legacy_decimal_bytes(value):
+        """
+        Legacy decimal memory layout:
+            int8_t  mNull;
+            int8_t  mSign;
+            int8_t  mIntg;
+            int8_t  mFrac; only 0, 1, 2
+            int32_t mData[6];
+            int8_t mPadding[4]; //For Memory Align
+        """
+        if value is None:
+            return None
 
-    is_null, sign, intg, frac = struct.unpack("<4b", value[:4])
-    if is_null:  # pragma: no cover
-        return None
-    if intg + frac == 0:
-        return Decimal("0")
+        is_null, sign, intg, frac = struct.unpack("<4b", value[:4])
+        if is_null:  # pragma: no cover
+            return None
+        if intg + frac == 0:
+            return Decimal("0")
 
-    sio = BytesIO() if compat.PY27 else StringIO()
-    if sign > 0:
-        sio.write("-")
-    intg_nums = struct.unpack("<%dI" % intg, value[12: 12 + intg * 4])
-    intg_val = "".join("%09d" % d for d in reversed(intg_nums)).lstrip("0")
-    sio.write(intg_val or "0")
-    if frac > 0:
-        sio.write(".")
-        frac_nums = struct.unpack("<%dI" % frac, value[12 - frac * 4: 12])
-        sio.write("".join("%09d" % d for d in reversed(frac_nums)))
-    return Decimal(sio.getvalue())
+        sio = BytesIO() if compat.PY27 else StringIO()
+        if sign > 0:
+            sio.write("-")
+        intg_nums = struct.unpack("<%dI" % intg, value[12: 12 + intg * 4])
+        intg_val = "".join("%09d" % d for d in reversed(intg_nums)).lstrip("0")
+        sio.write(intg_val or "0")
+        if frac > 0:
+            sio.write(".")
+            frac_nums = struct.unpack("<%dI" % frac, value[12 - frac * 4: 12])
+            sio.write("".join("%09d" % d for d in reversed(frac_nums)))
+        return Decimal(sio.getvalue())
 
 
 class ArrowRecordFieldConverter(object):
@@ -648,7 +649,7 @@ class ArrowRecordFieldConverter(object):
             and isinstance(arrow_type, pa.FixedSizeBinaryType)
             and not isinstance(arrow_type, arrow_decimal_types)
         ):
-            return _convert_legacy_decimal_bytes
+            return convert_legacy_decimal_bytes
         elif (
             isinstance(odps_type, types.IntervalDayTime)
             and isinstance(arrow_type, pa.StructType)

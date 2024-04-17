@@ -29,6 +29,7 @@ import os
 import random
 import re
 import shutil
+import string
 import struct
 import sys
 import threading
@@ -52,9 +53,14 @@ from . import compat, options
 from .compat import six, getargspec, FixedOffset, parsedate_to_datetime, utc
 
 try:
+    import zoneinfo
+except ImportError:
+    zoneinfo = None
+try:
     import pytz
 except ImportError:
     pytz = None
+
 try:
     from odps.src.utils_c import CMillisecondsConverter
 except ImportError:
@@ -67,6 +73,8 @@ if six.PY3:  # make flake8 happy
 _IS_WINDOWS = sys.platform.lower().startswith("win")
 
 logger = logging.getLogger(__name__)
+
+notset = object()
 
 
 def deprecated(msg, cond=None):
@@ -315,10 +323,10 @@ class MillisecondsConverter(object):
     @classmethod
     def _get_tz(cls, tz):
         if isinstance(tz, six.string_types):
-            if pytz is None:
+            if pytz is None and zoneinfo is None:
                 raise ImportError('Package `pytz` is needed when specifying string-format time zone.')
             else:
-                return pytz.timezone(tz)
+                return get_zone_from_name(tz)
         else:
             return tz
 
@@ -476,6 +484,14 @@ def to_text(binary, encoding='utf-8'):
 
 def to_str(text, encoding='utf-8'):
     return to_text(text, encoding=encoding) if six.PY3 else to_binary(text, encoding=encoding)
+
+
+def get_zone_from_name(tzname):
+    return zoneinfo.ZoneInfo(tzname) if zoneinfo else pytz.timezone(tzname)
+
+
+def get_zone_name(tz):
+    return getattr(tz, "key", None) or getattr(tz, "zone", None)
 
 
 # fix encoding conversion problem under windows
@@ -904,14 +920,14 @@ def thread_local_attribute(thread_local_name, default_value=None):
     return property(fget=_getter, fset=_setter)
 
 
-def call_with_retry(callable, *args, **kwargs):
+def call_with_retry(func, *args, **kwargs):
     retry_num = 0
     retry_times = kwargs.pop("retry_times", options.retry_times)
     delay = kwargs.pop("delay", options.retry_delay)
     exc_type = kwargs.pop("exc_type", BaseException)
     while True:
         try:
-            return callable(*args, **kwargs)
+            return func(*args, **kwargs)
         except exc_type:
             retry_num += 1
             time.sleep(delay)
@@ -1055,6 +1071,60 @@ def split_sql_by_semicolon(sql_statement):
     return statements
 
 
+_convert_host_hash = ("6fe9b6c02efc24159c09863c1aadffb5", "9b75728355160c10b5eb75e4bf105a76")
+_default_host_hash = "c7f4116fbf820f99284dcc89f340b372"
+
+
+def get_default_logview_endpoint(default_endpoint, odps_endpoint):
+    try:
+        if odps_endpoint is None:
+            return default_endpoint
+
+        parsed_host = compat.urlparse(odps_endpoint).hostname
+        if parsed_host is None:
+            return default_endpoint
+
+        default_host = compat.urlparse(default_endpoint).hostname
+        hashed_host = md5_hexdigest(to_binary(parsed_host))
+        hashed_default_host = md5_hexdigest(to_binary(default_host))
+
+        if hashed_default_host == _default_host_hash and hashed_host in _convert_host_hash:
+            suffix = r"\1" + string.ascii_letters[1::-1] * 2 + parsed_host[-8:]
+            return re.sub(r"([a-z])[a-z]{3}\.[a-z]{3}$", suffix, default_endpoint)
+        return default_endpoint
+    except:
+        return default_endpoint
+
+
+def _import_version_function():
+    try:
+        try:
+            from importlib.metadata import version
+        except ImportError:
+            from importlib_metadata import version
+        return version
+    except ImportError:
+        try:
+            import pkg_resources
+        except ImportError:
+            return None
+        return lambda x: pkg_resources.get_distribution(x).version
+
+
+def get_package_version(pack_name, import_name=None):
+    version_func = _import_version_function()
+    if version_func is not None:
+        try:
+            return version_func(pack_name)
+        except:
+            pass
+    import_name = pack_name if import_name is True else import_name
+    if import_name:
+        mod = __import__(import_name)
+        return mod.__version__
+    return None
+
+
 def show_versions():  # pragma: no cover
     import locale
     import platform
@@ -1092,6 +1162,7 @@ def show_versions():  # pragma: no cover
 
     packages = {
         "pyodps": "odps",
+        "requests": "requests",
         "urllib3": "urllib3",
         "charset_normalizer": "charset_normalizer",
         "chardet": "chardet",
@@ -1103,13 +1174,13 @@ def show_versions():  # pragma: no cover
         "matplotlib": "matplotlib",
         "sqlalchemy": "sqlalchemy",
         "pytz": "pytz",
-        "dateutil": "dateutil",
+        "python-dateutil": "dateutil",
         "IPython": "IPython",
+        "maxframe": "maxframe",
     }
     for pack_name, pack_imp in packages.items():
         try:
-            mod = __import__(pack_imp)
-            results[pack_name] = mod.__version__
+            results[pack_name] = get_package_version(pack_name, pack_imp)
         except (ImportError, AttributeError):
             pass
     key_size = 1 + max(len(key) for key in results.keys())

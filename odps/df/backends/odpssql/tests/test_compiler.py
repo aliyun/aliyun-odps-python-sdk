@@ -20,7 +20,7 @@ import re
 import sys
 from collections import namedtuple
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pstats import Stats
 
 import pytest
@@ -699,6 +699,11 @@ def test_arithmetic_compilation(odps, exprs):
 
     expr = 'tt' + exprs.expr.id.astype('string')
     expect = "SELECT CONCAT('tt', CAST(t1.`id` AS STRING)) AS `id` \n" \
+             "FROM mocked_project.`pyodps_test_expr_table` t1"
+    assert to_text(expect) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
+
+    expr = exprs.expr.birth.astype("date") == date(2024, 1, 15)
+    expect = "SELECT CAST(t1.`birth` AS DATE) == CAST('2024-01-15' AS DATE) AS `birth` \n" \
              "FROM mocked_project.`pyodps_test_expr_table` t1"
     assert to_text(expect) == to_text(ODPSEngine(odps).compile(expr, prettify=False))
 

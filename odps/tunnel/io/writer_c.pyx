@@ -91,20 +91,14 @@ cdef class ProtobufRecordWriter:
         self._n_total = 0
         self._buffer_size = buffer_size or self.DEFAULT_BUFFER_SIZE
         self._encoder = CEncoder(self._buffer_size)
-        self._last_flush_time = int(time.time())
 
     cpdef _re_init(self, output):
         self._encoder = CEncoder(self._buffer_size)
         self._output = output
         self._n_total = 0
-        self._last_flush_time = int(time.time())
 
     def _mode(self):
         return 'c'
-
-    @property
-    def last_flush_time(self):
-        return self._last_flush_time
 
     cpdef flush(self):
         if self._encoder.position() > 0:
@@ -112,7 +106,6 @@ cdef class ProtobufRecordWriter:
             self._output.write(data)
             self._n_total += self._encoder.position()
             self._encoder = CEncoder(self._buffer_size)
-            self._last_flush_time = int(time.time())
 
     cpdef close(self):
         self.flush_all()

@@ -211,7 +211,7 @@ class LocalResourceFile(ResourceFile):
             resources = self.resource.parent
 
             if is_create:
-                resources.create(self=self.resource, file_obj=self._fp)
+                resources.create(obj=self.resource, file_obj=self._fp)
             else:
                 resources.update(obj=self.resource, file_obj=self._fp)
 

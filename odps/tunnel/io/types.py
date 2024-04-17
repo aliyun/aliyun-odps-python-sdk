@@ -57,7 +57,11 @@ def odps_type_to_arrow_type(odps_type):
         elif isinstance(odps_type, types.Decimal):
             precision = odps_type.precision or types.Decimal._max_precision
             scale = odps_type.scale or types.Decimal._max_scale
-            col_type = pa.decimal128(precision, scale)
+            if odps_type.precision is None and not hasattr(pa, "decimal256"):
+                # need to be less than minimal allowed digits of pa.decimal128
+                precision = min(precision, 38)
+            decimal_cls = getattr(pa, "decimal256") if precision > 38 else pa.decimal128
+            col_type = decimal_cls(precision, scale)
         elif isinstance(odps_type, types.Struct):
             fields = [
                 (k, odps_type_to_arrow_type(v))
