@@ -21,7 +21,9 @@ import random
 import textwrap
 from datetime import datetime, timedelta
 
+import mock
 import pytest
+import requests
 
 try:
     import pandas as pd
@@ -30,9 +32,8 @@ except ImportError:
 
 from ... import errors, compat, types as odps_types, utils, options
 from ...compat import six
-from ...errors import ODPSError
-from ...lib import requests
 from ...models import Instance, SQLTask, TableSchema
+from ...errors import ODPSError
 from ...tests.core import tn, pandas_case, odps2_typed_case, wait_filled, flaky
 
 expected_xml_template = '''<?xml version="1.0" encoding="utf-8"?>
@@ -137,22 +138,30 @@ def test_list_instances_in_page(odps):
 
     if odps.exist_function(function_name):
         odps.delete_function(function_name)
-    fun = odps.create_function(function_name, class_type=resource_name + '.Delayer', resources=[res, ])
+    fun = odps.create_function(
+        function_name, class_type=resource_name + '.Delayer', resources=[res]
+    )
 
     data = [[random.randint(0, 1000)] for _ in compat.irange(100)]
     odps.delete_table(test_table, if_exists=True)
     t = odps.create_table(test_table, TableSchema.from_lists(['num'], ['bigint']))
     odps.write_table(t, data)
 
-    instance = odps.run_sql("select sum({0}(num)), 1 + '1' as warn_col from {1} group by num"
-                                 .format(function_name, test_table))
+    instance = odps.run_sql(
+        "select sum({0}(num)), 1 + '1' as warn_col from {1} group by num"
+        .format(function_name, test_table)
+    )
 
     try:
         assert instance.status == Instance.Status.RUNNING
-        assert instance.id in [it.id for it in odps.get_project().instances.iterate(
-            status=Instance.Status.RUNNING,
-            start_time=datetime.now() - timedelta(days=2),
-            end_time=datetime.now()+timedelta(days=1), max_items=20)]
+        assert instance.id in [
+            it.id for it in odps.get_project().instances.iterate(
+                status=Instance.Status.RUNNING,
+                start_time=datetime.now() - timedelta(days=2),
+                end_time=datetime.now() + timedelta(days=1),
+                max_items=20
+            )
+        ]
 
         wait_filled(lambda: instance.tasks)
         task = instance.tasks[0]
@@ -179,7 +188,7 @@ def test_instance_exists(odps):
 
 def test_instance(odps):
     instances = odps.list_instances(status=Instance.Status.TERMINATED)
-    instance = next(instances)
+    instance = next(inst for inst in instances if inst.is_successful())
 
     assert instance is odps.get_instance(instance.name)
 
@@ -192,15 +201,18 @@ def test_instance(odps):
 
     instance.reload()
     assert instance.status == Instance.Status.TERMINATED
-    assert instance.is_terminated() is True
+    assert not instance.is_running()
+    assert instance.is_terminated()
 
     task_names = instance.get_task_names()
 
     task_statuses = instance.get_task_statuses()
     for task_status in task_statuses.values():
-        assert task_status.status in (Instance.Task.TaskStatus.CANCELLED,
-                                      Instance.Task.TaskStatus.FAILED,
-                                      Instance.Task.TaskStatus.SUCCESS)
+        assert task_status.status in (
+            Instance.Task.TaskStatus.CANCELLED,
+            Instance.Task.TaskStatus.FAILED,
+            Instance.Task.TaskStatus.SUCCESS
+        )
     for task_status in instance._tasks:
         assert task_status.name in task_names
         assert len(task_status.type) >= 0
@@ -293,8 +305,10 @@ def test_read_sql_instance(odps):
     hints = {'odps.sql.mapper.split.size': '16'}
     instance = odps.run_sql('select sum(size) as count from %s' % test_table, hints=hints)
 
-    while len(instance.get_task_names()) == 0 or \
-            compat.lvalues(instance.get_task_statuses())[0].status == Instance.Task.TaskStatus.WAITING:
+    while (
+        len(instance.get_task_names()) == 0 or
+        compat.lvalues(instance.get_task_statuses())[0].status == Instance.Task.TaskStatus.WAITING
+    ):
         continue
 
     while True:
@@ -304,8 +318,16 @@ def test_read_sql_instance(odps):
         assert len(progress.get_stage_progress_formatted_string().split()) > 2
         break
 
+    with mock.patch(
+        "odps.models.instance.Instance.is_terminated", new=lambda *_, **__: False
+    ):
+        with pytest.raises(errors.WaitTimeoutError):
+            instance.wait_for_completion(timeout=3, max_interval=3)
+
     instance.wait_for_success()
-    assert json.loads(instance.tasks[0].properties['settings'])['odps.sql.mapper.split.size'] == hints['odps.sql.mapper.split.size']
+    assert json.loads(
+        instance.tasks[0].properties['settings']
+    )['odps.sql.mapper.split.size'] == hints['odps.sql.mapper.split.size']
     assert instance.tasks[0].summary is not None
 
     with instance.open_reader(
@@ -684,3 +706,12 @@ def test_instance_progress_log(odps):
         options.verbose = False
         options.verbose_log = None
         options.progress_time_interval = 5 * 60
+
+
+def test_sql_statement_error(odps):
+    statement = 'WRONG_SQL'
+    try:
+        odps.run_sql(statement)
+    except errors.ParseError as ex:
+        assert ex.statement == statement
+        assert statement in str(ex)

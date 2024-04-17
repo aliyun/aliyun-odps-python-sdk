@@ -16,6 +16,7 @@
 from __future__ import absolute_import
 
 import functools
+import json
 import re
 import time
 import uuid
@@ -315,8 +316,8 @@ def _static_ml_fields_generator(params, fields, algorithm, schema):
                             c = c.replace(k, str(v))
                         cmd[idx + 1] = c
                     start_expr, end_expr, tmpl = cmd[1:]
-                    start_num = eval(start_expr)
-                    end_num = eval(end_expr)
+                    start_num = json.loads(start_expr)
+                    end_num = json.loads(end_expr)
                     flist = [tmpl.replace('#n', str(n)) for n in irange(start_num, end_num)]
                     return ','.join(flist)
                 elif cmd_name == 'input':

@@ -1,6 +1,24 @@
 # -*- coding: utf-8 -*-
 import datetime
 
+try:
+    import zoneinfo
+except ImportError:
+    zoneinfo = None
+try:
+    import pytz
+except ImportError:
+    pytz = None
+
+
+zone_not_found_errors = ()
+if zoneinfo is not None:
+    zone_not_found_errors += (zoneinfo.ZoneInfoNotFoundError,)
+if pytz is not None:
+    zone_not_found_errors += (pytz.UnknownTimeZoneError,)
+if not zone_not_found_errors:
+    raise ImportError("pytz not installed")
+
 
 def get_system_offset():
     """Get system's timezone offset using built-in library time.
@@ -36,3 +54,14 @@ def assert_tz_offset(tz):
                    tz_offset, system_offset
                )
         raise ValueError(msg)
+
+
+def get_tz(zone):
+    return zoneinfo.ZoneInfo(zone) if zoneinfo else pytz.timezone(zone)
+
+
+def raise_zone_not_found(msg):
+    if zoneinfo:
+        raise zoneinfo.ZoneInfoNotFoundError(msg)
+    else:
+        raise pytz.UnknownTimeZoneError(msg)

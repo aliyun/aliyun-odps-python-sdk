@@ -23,6 +23,7 @@ import warnings
 
 from .. import errors, readers, utils
 from ..compat import six, enum
+from ..lib.monotonic import monotonic
 from ..models import tasks
 from .instance import Instance, InstanceArrowReader, InstanceRecordReader
 
@@ -156,18 +157,20 @@ class SessionInstance(Instance):
         :raise: :class:`odps.errors.WaitTimeoutError` if wait timeout and session is not started.
         :return: None
         """
-        waited = 0
+        start_time = monotonic()
+        end_time = start_time + timeout
         while not self.is_running(retry):
             if timeout > 0:
-                if waited > timeout:
+                if monotonic() > end_time:
                     raise errors.WaitTimeoutError(
-                        "Waited %s seconds, but session is not started." % waited
+                        "Waited %.1f seconds, but session is not started."
+                        % (monotonic() - start_time),
+                        instance_id=self.id,
                     )
             try:
                 time.sleep(interval)
                 if max_interval:
                     interval = min(interval * 2, max_interval)
-                waited += interval
             except KeyboardInterrupt:
                 return
 

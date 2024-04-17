@@ -19,10 +19,12 @@ import random
 import sys
 import time
 
+import requests
+
 from .. import errors, options, serializers, types, utils
 from ..compat import Enum, six
-from ..lib import requests
-from ..models import Projects, Record, TableSchema, Tenant
+from ..lib.monotonic import monotonic
+from ..models import Projects, Record, TableSchema
 from ..types import Column
 from .base import BaseTunnel, TUNNEL_VERSION
 from .errors import TunnelError, TunnelWriteTimeout
@@ -30,6 +32,7 @@ from .io.reader import TunnelRecordReader, TunnelArrowReader, ArrowRecordReader
 from .io.stream import CompressOption, get_decompress_stream
 from .io.writer import (
     RecordWriter,
+    BufferedArrowWriter,
     BufferedRecordWriter,
     StreamRecordWriter,
     ArrowWriter,
@@ -249,6 +252,7 @@ class TableDownloadSession(BaseTableTunnelSession):
         )
 
     if np is not None:
+        @utils.survey
         def open_pandas_reader(self, start, count, compress=False, columns=None):
             from .pdio.pdreader_c import TunnelPandasReader
             return self._open_reader(start, count, compress=compress, columns=columns,
@@ -351,7 +355,15 @@ class TableUploadSession(BaseTableTunnelSession):
     def reload(self):
         self._create_or_reload_session(reload=True)
 
-    def _open_writer(self, block_id=None, compress=False, buffer_size=None, writer_cls=None):
+    def _open_writer(
+        self,
+        block_id=None,
+        compress=False,
+        buffer_size=None,
+        writer_cls=None,
+        initial_block_id=None,
+        block_id_gen=None,
+    ):
         compress_option = self._compress_option or CompressOption()
 
         params = self.get_common_params(uploadid=self.id)
@@ -375,18 +387,30 @@ class TableUploadSession(BaseTableTunnelSession):
             @_wrap_upload_call(self.id)
             def upload_block(blockid, data):
                 params['blockid'] = blockid
-                return utils.call_with_retry(self._client.put, url, data=data, params=params, headers=headers)
+                return utils.call_with_retry(
+                    self._client.put, url, data=data, params=params, headers=headers
+                )
 
-            writer = BufferedRecordWriter(self.schema, upload_block, compress_option=option,
-                                          buffer_size=buffer_size)
+            if writer_cls is ArrowWriter:
+                writer_cls = BufferedArrowWriter
+                params['arrow'] = ''
+            else:
+                writer_cls = BufferedRecordWriter
+
+            writer = writer_cls(
+                self.schema,
+                upload_block,
+                compress_option=option,
+                buffer_size=buffer_size,
+                block_id=initial_block_id,
+                block_id_gen=block_id_gen,
+            )
         else:
             params['blockid'] = block_id
 
             @_wrap_upload_call(self.id)
-            def upload(chunk_size):
-                return self._client.put(
-                    url, params=params, headers=headers, file_upload=True, chunk_size=chunk_size
-                )
+            def upload(data):
+                return self._client.put(url, data=data, params=params, headers=headers)
 
             if writer_cls is ArrowWriter:
                 params['arrow'] = ''
@@ -394,14 +418,26 @@ class TableUploadSession(BaseTableTunnelSession):
             writer = writer_cls(self.schema, upload, compress_option=option)
         return writer
 
-    def open_record_writer(self, block_id=None, compress=False, buffer_size=None):
-        return self._open_writer(block_id=block_id, compress=compress, buffer_size=buffer_size,
-                                 writer_cls=RecordWriter)
+    def open_record_writer(
+        self, block_id=None, compress=False, buffer_size=None, initial_block_id=None,
+        block_id_gen=None
+    ):
+        return self._open_writer(
+            block_id=block_id, compress=compress, buffer_size=buffer_size,
+            initial_block_id=initial_block_id, block_id_gen=block_id_gen,
+            writer_cls=RecordWriter
+        )
 
-    def open_arrow_writer(self, block_id=None, compress=False):
-        return self._open_writer(block_id=block_id, compress=compress, writer_cls=ArrowWriter)
+    def open_arrow_writer(
+        self, block_id=None, compress=False, initial_block_id=None, block_id_gen=None
+    ):
+        return self._open_writer(
+            block_id=block_id, compress=compress, initial_block_id=initial_block_id,
+            block_id_gen=block_id_gen, writer_cls=ArrowWriter
+        )
 
     if np is not None:
+        @utils.survey
         def open_pandas_writer(self, block_id=None, compress=False, buffer_size=None):
             from .pdio import TunnelPandasWriter
             return self._open_writer(block_id=block_id, compress=compress, buffer_size=buffer_size,
@@ -829,10 +865,10 @@ class TableUpsertSession(BaseTableTunnelSession):
             return
 
         delay = 1
-        start = time.time()
+        start = monotonic()
         while self.status in (TableUpsertSession.Status.Committing, TableUpsertSession.Status.Normal):
             try:
-                if time.time() - start > self._commit_timeout:
+                if monotonic() - start > self._commit_timeout:
                     raise TunnelError("Commit session timeout")
                 time.sleep(delay)
 
@@ -853,8 +889,8 @@ class TableTunnel(BaseTunnel):
             schema = schema or getattr(table.get_schema(), "name", None)
             table = table.name
         parent = Projects(client=self.tunnel_rest)[self._project.name]
-        # tunnel rest does not have tenant options, thus creating a default one
-        parent.odps._default_tenant = Tenant(parameters={})
+        # tailor project for resource locating only
+        parent._set_tunnel_defaults()
         if schema is not None:
             parent = parent.schemas[schema]
         return parent.tables[table]
@@ -990,6 +1026,10 @@ class TableTunnel(BaseTunnel):
 
         params = {"limit": str(limit) if limit else "-1"}
         partition_spec = BaseTableTunnelSession.normalize_partition_spec(partition_spec)
+        if columns:
+            col_set = set(columns)
+            ordered_col = [c.name for c in table.table_schema if c.name in col_set]
+            params["columns"] = ",".join(ordered_col)
         if partition_spec is not None and len(partition_spec) > 0:
             params['partition'] = partition_spec
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,11 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import errno
 import itertools
 import pickle
 import textwrap
-import time
 from collections import OrderedDict
 from datetime import datetime
 
@@ -29,15 +27,14 @@ try:
 except (AttributeError, ImportError):
     np = pd = pa = None
 
-import mock
 import pytest
 
 from ...compat import six
 from ...config import options
-from ...errors import NoSuchObject
-from ...tests.core import tn, pandas_case
+from ...tests.core import tn
 from ...utils import to_text
-from .. import Table, TableSchema, Record, Column, Partition
+from .. import Table, TableSchema, Column, Partition
+from ..cluster_info import ClusterType, ClusterSortOrder
 from ..storage_tier import StorageTier
 
 
@@ -318,21 +315,24 @@ def test_create_transactional_table(odps_daily):
     schema["key"].comment = "comment_text"
     schema["value"].comment = "comment_text2"
 
-    odps_daily.delete_table(test_table_name, if_exists=True)
-    assert odps_daily.exist_table(test_table_name) is False
+    odps = odps_daily
+    odps.delete_table(test_table_name, if_exists=True)
+    assert odps.exist_table(test_table_name) is False
 
-    table = odps_daily.create_table(
+    table = odps.create_table(
         test_table_name, schema, transactional=True, primary_key="key"
     )
     table.reload()
     assert not table.table_schema["key"].nullable
     assert table.is_transactional
     assert table.primary_key == ["key"]
+    assert "transactional" in table.get_ddl()
+    assert "PRIMARY KEY" in table.get_ddl()
     table.drop()
 
     options.sql.ignore_fields_not_null = True
     try:
-        table = odps_daily.create_table(test_table_name, schema)
+        table = odps.create_table(test_table_name, schema)
         table.reload()
         assert table.table_schema["key"].nullable
         table.drop()
@@ -351,371 +351,78 @@ def test_create_tier_table(odps_with_storage_tier):
         test_table_name, "col string", storage_tier="standard", lifecycle=1
     )
     assert table.storage_tier_info.storage_tier == StorageTier.STANDARD
+    assert "storagetier" in table.get_ddl()
     table.set_storage_tier("low_frequency")
     assert table.storage_tier_info.storage_tier == StorageTier.LOWFREQENCY
     table.drop()
 
 
-@pytest.mark.parametrize("use_legacy", [False, True])
-def test_record_read_write_table(odps, use_legacy):
-    test_table_name = tn('pyodps_t_tmp_read_write_table')
-    schema = TableSchema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
-
+def test_create_clustered_table(odps):
+    test_table_name = tn('pyodps_t_tmp_clustered')
     odps.delete_table(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False
 
-    table = odps.create_table(test_table_name, schema)
-    data = [[111, 'aaa', True],
-            [222, 'bbb', False],
-            [333, 'ccc', True],
-            [5940813139082772990, '中文', False]]
-    length = len(data)
-    records = [Record(schema=schema, values=values) for values in data]
+    odps.execute_sql(
+        "create table %s (a STRING, b STRING, c BIGINT) "
+        "partitioned by (dt STRING) "
+        "clustered by (c) sorted by (c) into 10 buckets lifecycle 1" % test_table_name
+    )
+    table = odps.get_table(test_table_name)
+    assert table.cluster_info.cluster_type == ClusterType.HASH
+    assert table.cluster_info.bucket_num == 10
+    assert table.cluster_info.cluster_cols == ["c"]
+    assert table.cluster_info.sort_cols[0].name == "c"
+    assert table.cluster_info.sort_cols[0].order == ClusterSortOrder.ASC
+    assert "CLUSTERED BY" in table.get_ddl()
+    table.drop()
 
-    texted_data = [[it[0], to_text(it[1]), it[2]] for it in data]
-
-    odps.write_table(table, 0, records)
-    assert texted_data == [record.values for record in odps.read_table(table, length)]
-    assert texted_data[::2] == [
-        record.values for record in odps.read_table(table, length, step=2)
-    ]
-
-    assert texted_data == [
-        record.values for record in table.head(length, use_legacy=use_legacy)
-    ]
-
-    table.truncate()
-    assert [] == list(odps.read_table(table))
-
-    odps.delete_table(test_table_name)
-    assert odps.exist_table(test_table_name) is False
-
-
-def test_array_read_write_table(odps):
-    test_table_name = tn('pyodps_t_tmp_read_write_table')
-    schema = TableSchema.from_lists(['id', 'name', 'right'], ['bigint', 'string', 'boolean'])
-
+    test_table_name = tn('pyodps_t_tmp_range_clustered')
     odps.delete_table(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False
 
-    table = odps.create_table(test_table_name, schema)
-    data = [[111, 'aaa', True],
-            [222, 'bbb', False],
-            [333, 'ccc', True],
-            [444, '中文', False]]
-    length = len(data)
+    odps.execute_sql(
+        "create table %s (a STRING, b STRING, c BIGINT) "
+        "partitioned by (dt STRING) "
+        "range clustered by (c) sorted by (c) lifecycle 1" % test_table_name
+    )
+    table = odps.get_table(test_table_name)
+    assert table.cluster_info.cluster_type == ClusterType.RANGE
+    assert table.cluster_info.bucket_num == 0
+    assert "RANGE CLUSTERED BY" in table.get_ddl()
+    assert "BUCKETS" not in table.get_ddl()
+    table.drop()
 
-    texted_data = [[it[0], to_text(it[1]), it[2]] for it in data]
 
-    odps.write_table(table, 0, data)
-    assert texted_data == [record.values for record in odps.read_table(table, length)]
-    assert texted_data[::2] == [record.values for record in odps.read_table(table, length, step=2)]
-
-    assert texted_data == [record.values for record in table.head(length)]
-
-    odps.delete_table(test_table_name)
+def test_create_view(odps):
+    test_table_name = tn('pyodps_t_tmp_view_source')
+    odps.delete_table(test_table_name, if_exists=True)
     assert odps.exist_table(test_table_name) is False
-
-
-def test_read_write_partition_table(odps):
-    test_table_name = tn('pyodps_t_tmp_read_write_partition_table')
-    schema = TableSchema.from_lists(
-        ['id', 'name'], ['bigint', 'string'], ['pt'], ['string']
+    table = odps.create_table(
+        test_table_name, ("col string, col2 string", "pt string")
     )
 
-    odps.delete_table(test_table_name, if_exists=True)
-    assert odps.exist_table(test_table_name) is False
-
-    table = odps.create_table(test_table_name, schema)
-    table._upload_ids = dict()
-
-    pt1 = 'pt=20151122'
-    pt2 = 'pt=20151123'
-    table.create_partition(pt1)
-    table.create_partition(pt2)
-
-    with table.open_reader(pt1) as reader:
-        assert len(list(reader)) == 0
-
-    with table.open_writer(pt1, commit=False) as writer:
-        record = table.new_record([1, 'name1'])
-        writer.write(record)
-
-        record = table.new_record()
-        record[0] = 3
-        record[1] = 'name3'
-        writer.write(record)
-
-    assert len(table._upload_ids) == 1
-    upload_id = list(table._upload_ids.values())[0]
-    with table.open_writer(pt1):
-        assert len(table._upload_ids) == 1
-        assert upload_id == list(table._upload_ids.values())[0]
-
-    with table.open_writer(pt2) as writer:
-        writer.write([2, 'name2'])
-
-    with table.open_reader(pt1, reopen=True) as reader:
-        records = list(reader)
-        assert len(records) == 2
-        assert sum(r[0] for r in records) == 4
-
-    with table.open_reader(pt2, reopen=True) as reader:
-        records = list(reader)
-        assert len(records) == 1
-        assert sum(r[0] for r in records) == 2
-
-    table.drop()
-
-
-def test_simple_record_read_write_table(odps):
-    test_table_name = tn('pyodps_t_tmp_simpe_read_write_table')
-    schema = TableSchema.from_lists(['num'], ['string'], ['pt'], ['string'])
-
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, schema)
-    partition = 'pt=20151122'
-    table.create_partition(partition)
-
-    with table.open_writer(partition) as writer:
-        record = table.new_record()
-        record[0] = '1'
-        writer.write(record)
-
-    with table.open_reader(partition) as reader:
-        assert reader.count == 1
-        record = next(reader)
-        assert record[0] == '1'
-        assert record.num == '1'
-
-    if pd is not None:
-        with table.open_reader(partition, reopen=True) as reader:
-            pd_data = reader.to_pandas()
-            assert len(pd_data) == 1
-
-    partition = 'pt=20151123'
-    pytest.raises(NoSuchObject, lambda: table.open_writer(partition, create_partition=False))
-
-    with table.open_writer(partition, create_partition=True) as writer:
-        record = table.new_record()
-        record[0] = '1'
-        writer.write(record)
-
-    with table.open_reader(partition) as reader:
-        assert reader.count == 1
-        record = next(reader)
-        assert record[0] == '1'
-        assert record.num == '1'
-
-    table.drop()
-
-
-def test_simple_array_read_write_table(odps):
-    test_table_name = tn('pyodps_t_tmp_simpe_read_write_table')
-    schema = TableSchema.from_lists(['num'], ['string'], ['pt'], ['string'])
-
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, schema)
-    partition = 'pt=20151122'
-    table.create_partition(partition)
-
-    with table.open_writer(partition) as writer:
-        writer.write(['1', ])
-
-    with table.open_reader(partition) as reader:
-        assert reader.count == 1
-        record = next(reader)
-        assert record[0] == '1'
-        assert record.num == '1'
-
-    with table.open_reader(partition, async_mode=True, reopen=True) as reader:
-        assert reader.count == 1
-        record = next(reader)
-        assert record[0] == '1'
-        assert record.num == '1'
-
-    table.drop()
-
-
-def test_table_write_error(odps):
-    test_table_name = tn('pyodps_t_tmp_test_table_write')
-    schema = TableSchema.from_lists(['name'], ['string'])
-
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, schema)
-    try:
-        with table.open_writer() as writer:
-            writer.write([['Content']])
-            raise ValueError('Mock error')
-    except ValueError as ex:
-        assert str(ex) == 'Mock error'
-
-
-@pandas_case
-def test_multi_process_to_pandas(odps):
-    from ...tunnel.tabletunnel import TableDownloadSession
-
-    if pa is None:
-        pytest.skip("Need pyarrow to run the test.")
-
-    test_table_name = tn('pyodps_t_tmp_mproc_read_table')
-    schema = TableSchema.from_lists(['num'], ['bigint'])
-
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, schema)
-    with table.open_writer(arrow=True) as writer:
-        writer.write(pd.DataFrame({"num": np.random.randint(0, 1000, 1000)}))
-
-    with table.open_reader() as reader:
-        pd_data = reader.to_pandas(n_process=2)
-        assert len(pd_data) == 1000
-
-    orginal_meth = TableDownloadSession.open_record_reader
-
-    def patched(self, start, *args, **kwargs):
-        if start != 0:
-            raise ValueError("Intentional error")
-        return orginal_meth(self, start, *args, **kwargs)
-
-    with pytest.raises(ValueError):
-        with mock.patch(
-            "odps.tunnel.tabletunnel.TableDownloadSession.open_record_reader", new=patched
-        ):
-            with table.open_reader() as reader:
-                reader.to_pandas(n_process=2)
-
-    with table.open_reader(arrow=True) as reader:
-        pd_data = reader.to_pandas(n_process=2)
-        assert len(pd_data) == 1000
-
-
-@pandas_case
-def test_column_select_to_pandas(odps):
-    if pa is None:
-        pytest.skip("Need pyarrow to run the test.")
-
-    test_table_name = tn('pyodps_t_tmp_col_select_table')
-    schema = TableSchema.from_lists(['num1', 'num2'], ['bigint', 'bigint'])
-
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, schema)
-    with table.open_writer(arrow=True) as writer:
-        writer.write(pd.DataFrame({
-            "num1": np.random.randint(0, 1000, 1000),
-            "num2": np.random.randint(0, 1000, 1000),
-        }))
-
-    with table.open_reader(columns=["num1"]) as reader:
-        pd_data = reader.to_pandas()
-        assert len(pd_data) == 1000
-        assert len(pd_data.columns) == 1
-
-    with table.open_reader(columns=["num1"], arrow=True) as reader:
-        pd_data = reader.to_pandas()
-        assert len(pd_data) == 1000
-        assert len(pd_data.columns) == 1
-
-
-@pandas_case
-def test_complex_type_to_pandas(odps):
-    test_table_name = tn("pyodps_t_tmp_complex_type_to_pd")
-    schema = TableSchema.from_lists(
-        ['cp1', 'cp2', 'cp3'], [
-            'array<string>', 'map<string,bigint>', 'struct<a: string, b: bigint>'
-        ]
+    test_view_name = tn('pyodps_v_tmp_view')
+    odps.execute_sql(
+        "create view %s comment 'comment_text' "
+        "as select * from %s" % (test_view_name, test_table_name)
     )
+    view = odps.get_table(test_view_name)
+    assert view.type == Table.Type.VIRTUAL_VIEW
+    assert view.comment == "comment_text"
+    assert "CREATE VIEW" in view.get_ddl()
+    view.drop()
 
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, schema)
-    row = [
-        ["abc", "def"],
-        OrderedDict([("uvw", 1), ("xyz", 2)]),
-        OrderedDict([("a", "data"), ("b", 1)]),
-    ]
-    with table.open_writer() as writer:
-        writer.write([row])
-
-    with table.open_reader() as reader:
-        pd_data = reader.to_pandas()
-        assert pd_data.iloc[0].to_list() == row
-
-    if pa is not None:
-        with table.open_reader(arrow=True) as reader:
-            pd_data = reader.to_pandas()
-            assert [
-                pd_data.iloc[0, 0].tolist(),
-                OrderedDict(pd_data.iloc[0, 1]),
-                OrderedDict(pd_data.iloc[0, 2]),
-            ] == row
-
-@pandas_case
-def test_record_to_pandas_batches(odps):
-    test_table_name = tn('pyodps_t_read_in_batches')
-    odps.delete_table(test_table_name, if_exists=True)
-    rec_count = 37
-
-    data = [[idx, "str_" + str(idx)] for idx in range(rec_count)]
-
-    table = odps.create_table(test_table_name, "col1 bigint, col2 string")
-    with table.open_writer() as writer:
-        writer.write(data)
-
-    try:
-        options.tunnel.read_row_batch_size = 5
-        options.tunnel.batch_merge_threshold = 5
-        with table.open_reader() as reader:
-            pd_result = reader.to_pandas()
-        assert len(pd_result) == rec_count
-
-        with table.open_reader() as reader:
-            pd_result = reader[:10].to_pandas()
-        assert len(pd_result) == 10
-    finally:
-        options.tunnel.read_row_batch_size = 1024
-        options.tunnel.batch_merge_threshold = 128
-
-
-@pytest.mark.skipif(pa is None, reason="Need pyarrow to run this test")
-def test_simple_arrow_read_write_table(odps):
-    test_table_name = tn('pyodps_t_tmp_simple_arrow_read_write_table')
-    schema = TableSchema.from_lists(['num'], ['string'], ['pt'], ['string'])
-
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, schema)
-    partition = 'pt=20151122'
-    table.create_partition(partition)
-
-    with table.open_writer(partition, arrow=True) as writer:
-        writer.write(pd.DataFrame({"num": list("ABCDE")}))
-
-    with table.open_reader(partition, arrow=True) as reader:
-        assert reader.count == 5
-        batches = list(reader)
-        assert len(batches) == 1
-        assert batches[0].num_rows == 5
-
-    with table.open_reader(partition, reopen=True, arrow=True) as reader:
-        pd_data = reader.to_pandas()
-        assert len(pd_data) == 5
-
-    # now test corner case of empty table
-    table.truncate(partition)
-
-    with table.open_reader(partition, arrow=True) as reader:
-        batches = list(reader)
-        assert len(batches) == 0
-
-    with table.open_reader(partition, reopen=True, arrow=True) as reader:
-        pd_data = reader.to_pandas()
-        assert len(pd_data.columns) == 1
-        assert len(pd_data) == 0
+    test_view_name = tn('pyodps_v_tmp_mt_view')
+    odps.execute_sql(
+        "create materialized view %s "
+        "disable rewrite "
+        "partitioned on (pt) "
+        "as select * from %s" % (test_view_name, test_table_name)
+    )
+    view = odps.get_table(test_view_name)
+    assert view.type == Table.Type.MATERIALIZED_VIEW
+    assert "CREATE MATERIALIZED VIEW" in view.get_ddl()
+    view.drop()
 
     table.drop()
 
@@ -767,94 +474,6 @@ def test_max_partition(odps):
         table.get_max_partition("pt1=c,pt2=e")
 
     table.drop()
-
-
-def test_read_with_retry(odps):
-    test_table_name = tn('pyodps_t_tmp_read_with_retry')
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, "col string")
-
-    try:
-        data = [["str%d" % idx] for idx in range(10)]
-        with table.open_writer() as writer:
-            writer.write(data)
-
-        from ..readers import TunnelRecordReader
-        original = TunnelRecordReader._open_and_iter_reader
-        exc_type = ConnectionResetError if six.PY3 else OSError
-        raised = []
-
-        def raise_conn_reset():
-            exc = exc_type("Connection reset")
-            exc.errno = errno.ECONNRESET
-            raised.append(True)
-            raise exc
-
-        def wrapped(self, start, *args, **kwargs):
-            for idx, rec in enumerate(original(self, start, *args, **kwargs)):
-                yield rec
-                if idx == 2:
-                    raise_conn_reset()
-
-        with mock.patch.object(
-            TunnelRecordReader, "_open_and_iter_reader", new=wrapped
-        ):
-            with table.open_reader() as reader:
-                assert data == sorted([rec[0]] for rec in reader)
-        assert len(raised) > 1
-
-        with pytest.raises(exc_type) as exc_info:
-            with table.open_reader(reopen=True) as reader:
-                for idx, _ in enumerate(reader):
-                    if idx == 2:
-                        raise_conn_reset()
-        assert exc_info.value.errno == errno.ECONNRESET
-    finally:
-        table.drop()
-
-
-def test_write_record_with_interval(odps):
-    test_table_name = tn('pyodps_t_tmp_write_rec_interval')
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, "col string")
-    try:
-        options.table_auto_flush_time = 2
-        with table.open_writer() as writer:
-            writer.write([["str1"], ["str2"]], block_id=0)
-            time.sleep(4.5)
-            # as auto_flush_time arrives, a new block should be generated
-            assert len(writer._id_to_blocks) == 2
-            writer.write([["str3"], ["str4"]], block_id=0)
-        strs = [rec[0] for rec in table.head(4)]
-        assert sorted(strs) == ["str1", "str2", "str3", "str4"]
-        assert not writer._daemon_thread.is_alive()
-    finally:
-        options.table_auto_flush_time = 150
-        table.drop()
-
-
-@pytest.mark.skipif(pa is None, reason="Need pyarrow to run this test")
-def test_write_arrow_with_interval(odps):
-    test_table_name = tn('pyodps_t_tmp_write_arrow_interval')
-    odps.delete_table(test_table_name, if_exists=True)
-
-    table = odps.create_table(test_table_name, "col string")
-    try:
-        options.table_auto_flush_time = 2
-        with table.open_writer(arrow=True) as writer:
-            writer.write(pd.DataFrame({"col": ["str1", "str2"]}))
-            time.sleep(4.5)
-            # as auto_flush_time arrives, a new block should be generated
-            assert len(writer._id_to_blocks) == 2
-            writer.write(pd.DataFrame({"col": ["str3", "str4"]}))
-        strs = [rec[0] for rec in table.head(4)]
-        assert sorted(strs) == ["str1", "str2", "str3", "str4"]
-        assert not writer._daemon_thread.is_alive()
-    finally:
-        options.table_auto_flush_time = 150
-        table.drop()
 
 
 def test_schema_arg_backward_compat(odps):

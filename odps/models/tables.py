@@ -129,8 +129,18 @@ class Tables(Iterable):
         schema_name = self._get_schema_name()
 
         buf = six.StringIO()
+        tb = self._get(table_name)
+        if tb._getattr("type") is None:
+            # if table not loaded, use 'TABLE' type to reduce request
+            type_str = 'TABLE'
+        elif tb.type == Table.Type.VIRTUAL_VIEW:
+            type_str = 'VIEW'
+        elif tb.type == Table.Type.MATERIALIZED_VIEW:
+            type_str = 'MATERIALIZED VIEW'
+        else:
+            type_str = 'TABLE'
 
-        buf.write('DROP TABLE ')
+        buf.write('DROP %s ' % type_str)
         if if_exists:
             buf.write('IF EXISTS ')
         if schema_name is not None:
@@ -145,9 +155,9 @@ class Tables(Iterable):
         if isinstance(table_name, Table):
             table_name = table_name.name
 
-        del self[table_name]  # release table in cache
-
         sql = self._gen_delete_table_sql(table_name, if_exists=if_exists)
+
+        del self[table_name]  # release table in cache
 
         from .tasks import SQLTask
         task = SQLTask(name='SQLDropTableTask', query=sql)

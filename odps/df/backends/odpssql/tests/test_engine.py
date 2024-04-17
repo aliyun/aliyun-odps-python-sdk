@@ -16,6 +16,7 @@
 
 import math
 import itertools
+import sys
 import uuid
 import os
 import zipfile
@@ -1087,8 +1088,8 @@ def test_function_resources_with_partition(odps, setup):
 
 
 def test_third_party_libraries(odps, setup):
+    import requests
     from .....compat import BytesIO
-    from .....lib import requests
 
     data = [
         ['2016-08-18', 4, 5.3, None, None, None],
@@ -1100,16 +1101,20 @@ def test_third_party_libraries(odps, setup):
     setup.gen_data(data=data)
 
     dateutil_urls = [
-        'http://mirrors.aliyun.com/pypi/packages/33/68/'
-        '9eadc96f9899caebd98f55f942d6a8f3fb2b8f8e69ba81a0f771269897e9/'
-        'python_dateutil-2.5.3-py2.py3-none-any.whl#md5=dbcd46b171e01d4518db96e3571810db',
-        'http://mirrors.aliyun.com/pypi/packages/3e/f5/'
-        'aad82824b369332a676a90a8c0d1e608b17e740bbb6aeeebca726f17b902/'
-        'python-dateutil-2.5.3.tar.gz#md5=05ffc6d2cc85a7fd93bb245807f715ef',
+        'http://mirrors.aliyun.com/pypi/packages/d4/70/'
+        'd60450c3dd48ef87586924207ae8907090de0b306af2bce5d134d78615cb/'
+        'python_dateutil-2.8.1-py2.py3-none-any.whl',
+        'https://mirrors.aliyun.com/pypi/packages/be/ed/'
+        '5bbc91f03fa4c839c4c7360375da77f9659af5f7086b7a7bdda65771c8e0/'
+        'python-dateutil-2.8.1.tar.gz',
         'http://mirrors.aliyun.com/pypi/packages/b7/9f/'
         'ba2b6aaf27e74df59f31b77d1927d5b037cc79a89cda604071f93d289eaf/'
         'python-dateutil-2.5.3.zip#md5=52b3f339f41986c25c3a2247e722db17',
     ]
+    if sys.version_info[:2] >= (3, 11):
+        # since Python 3.11, collections.Callable is removed and no zip archives available
+        dateutil_urls = dateutil_urls[:2]
+
     dateutil_resources = []
     for dateutil_url, name in zip(dateutil_urls, ['dateutil.whl', 'dateutil.tar.gz', 'dateutil.zip']):
         obj = BytesIO(requests.get(dateutil_url).content)
@@ -1220,8 +1225,8 @@ def test_third_party_libraries(odps, setup):
 
 
 def test_third_party_wheel(odps, setup):
+    import requests
     from .....compat import BytesIO
-    from .....lib import requests
 
     data = [
         ['2016-08-18', 4, 5.3, None, None, None],
@@ -1232,9 +1237,11 @@ def test_third_party_wheel(odps, setup):
     ]
     setup.gen_data(data=data)
 
-    dateutil_url = 'http://mirrors.aliyun.com/pypi/packages/33/68/' \
-                   '9eadc96f9899caebd98f55f942d6a8f3fb2b8f8e69ba81a0f771269897e9/' \
-                   'python_dateutil-2.5.3-py2.py3-none-any.whl#md5=dbcd46b171e01d4518db96e3571810db'
+    dateutil_url = (
+        'http://mirrors.aliyun.com/pypi/packages/d4/70/'
+        'd60450c3dd48ef87586924207ae8907090de0b306af2bce5d134d78615cb/'
+        'python_dateutil-2.8.1-py2.py3-none-any.whl'
+    )
     obj = BytesIO(requests.get(dateutil_url).content)
     wheel_res = odps.create_resource(
         'dateutil_%s.whl' % str(uuid.uuid4()), 'archive', file_obj=obj)

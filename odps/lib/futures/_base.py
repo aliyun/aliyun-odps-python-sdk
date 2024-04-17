@@ -8,6 +8,7 @@ import itertools
 import time
 
 from ..six import reraise
+from ..monotonic import monotonic
 
 __author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
@@ -192,7 +193,7 @@ def as_completed(fs, timeout=None):
             before the given timeout.
     """
     if timeout is not None:
-        end_time = timeout + time.time()
+        end_time = timeout + monotonic()
 
     fs = set(fs)
     with _AcquireFutures(fs):
@@ -210,7 +211,7 @@ def as_completed(fs, timeout=None):
             if timeout is None:
                 wait_timeout = None
             else:
-                wait_timeout = end_time - time.time()
+                wait_timeout = end_time - monotonic()
                 if wait_timeout < 0:
                     raise TimeoutError(
                             '%d (of %d) futures unfinished' % (
@@ -570,7 +571,7 @@ class Executor(object):
         """
         timeout = kwargs.get('timeout')
         if timeout is not None:
-            end_time = timeout + time.time()
+            end_time = timeout + monotonic()
 
         fs = [self.submit(fn, *args) for args in itertools.izip(*iterables)]
 
@@ -582,7 +583,7 @@ class Executor(object):
                     if timeout is None:
                         yield future.result()
                     else:
-                        yield future.result(end_time - time.time())
+                        yield future.result(end_time - monotonic())
             finally:
                 for future in fs:
                     future.cancel()

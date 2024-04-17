@@ -164,7 +164,7 @@ mkdir -p "$BUILD_PKG_PATH" "$INSTALL_PATH" "$WHEELS_PATH" "$INSTALL_REQUIRE_PATH
 
 if [[ -f "$SCRIPT_PATH/{_BEFORE_SCRIPT_FILE_NAME}" ]]; then
   echo "Running before build command..."
-  /bin/bash "$SCRIPT_PATH/{_BEFORE_SCRIPT_FILE_NAME}"
+  source "$SCRIPT_PATH/{_BEFORE_SCRIPT_FILE_NAME}"
   echo ""
 fi
 

@@ -23,24 +23,31 @@ import warnings
 import weakref
 
 from . import models, accounts, errors, utils
-from .compat import six, Iterable
+from .compat import six, Iterable, urlparse
 from .config import options
 from .errors import NoSuchObject, ODPSError
 from .rest import RestClient
 from .tempobj import clean_stored_objects
-from .utils import split_quoted
 
 
 DEFAULT_ENDPOINT = 'http://service.odps.aliyun.com/api'
-LOGVIEW_HOST_DEFAULT = 'http://logview.odps.aliyun.com'
+DEFAULT_REGION_NAME = 'cn'
+LOGVIEW_HOST_DEFAULT = 'http://logview.aliyun.com'
 
-_ALTER_TABLE_REGEX = re.compile(r'^\s*(drop|alter)\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I)
+_ALTER_TABLE_REGEX = re.compile(
+    r'^\s*(drop|alter)\s+table\s*(|if\s+exists)\s+(?P<table_name>[^\s;]+)', re.I
+)
 _MERGE_SMALL_FILES_REGEX = re.compile(
     r'^alter\s+table\s+(?P<table>[^\s;]+)\s+'
     r'(|partition\s*\((?P<partition>[^)]+)\s*\))\s*'
     r'(merge\s+smallfiles|compact\s+(?P<compact_type>[^\s;]+))[\s;]*$',
     re.I,
 )
+_ENDPOINT_HOST_WITH_REGION_REGEX = re.compile(
+    r'service\.([^\.]+)\.(odps|maxcompute)\.aliyun(|-inc)\.com', re.I
+)
+
+_logview_host_cache = dict()
 
 
 @utils.attach_internal
@@ -86,7 +93,7 @@ class ODPS(object):
     def __init__(
         self, access_id=None, secret_access_key=None, project=None,
         endpoint=None, schema=None, app_account=None, logview_host=None,
-        tunnel_endpoint=None, **kw
+        tunnel_endpoint=None, region_name=None, **kw
     ):
         # avoid polluted copy sources :(
         access_id = utils.strip_if_str(access_id)
@@ -96,18 +103,23 @@ class ODPS(object):
         schema = utils.strip_if_str(schema)
         logview_host = utils.strip_if_str(logview_host)
         tunnel_endpoint = utils.strip_if_str(tunnel_endpoint)
+        region_name = utils.strip_if_str(region_name)
+
+        if isinstance(access_id, accounts.BaseAccount):
+            assert secret_access_key is None, "Cannot supply secret_access_key with an account"
+            kw["account"], access_id = access_id, None
 
         self._init(
             access_id=access_id, secret_access_key=secret_access_key,
             project=project, endpoint=endpoint, schema=schema,
             app_account=app_account, logview_host=logview_host,
-            tunnel_endpoint=tunnel_endpoint, **kw
+            tunnel_endpoint=tunnel_endpoint, region_name=region_name, **kw
         )
         clean_stored_objects(self)
 
     def _init(
         self, access_id=None, secret_access_key=None, project=None,
-        endpoint=None, schema=None, **kw
+        endpoint=None, schema=None, region_name=None, **kw
     ):
         self._property_update_callbacks = set()
 
@@ -127,10 +139,12 @@ class ODPS(object):
             self.account = account
         self.endpoint = endpoint or options.endpoint or DEFAULT_ENDPOINT
         self.project = project or options.default_project
+        self.region_name = region_name or self._get_region_from_endpoint(self.endpoint)
         self._schema = schema
         self.rest = RestClient(
             self.account, self.endpoint, project, schema,
-            app_account=self.app_account, proxy=options.api_proxy, tag="ODPS"
+            app_account=self.app_account, proxy=options.api_proxy,
+            region_name=self.region_name, tag="ODPS",
         )
 
         self._tunnel_endpoint = kw.pop('tunnel_endpoint', None) or options.tunnel.endpoint
@@ -164,6 +178,14 @@ class ODPS(object):
                 "Argument %s not acceptable, please check your spellings"
                 % ", ".join(kw.keys()),
             )
+
+    @staticmethod
+    def _get_region_from_endpoint(endpoint):
+        parsed = urlparse(endpoint)
+        match = _ENDPOINT_HOST_WITH_REGION_REGEX.search(parsed.hostname or "")
+        if match is None:
+            return DEFAULT_REGION_NAME
+        return match.group(1)
 
     def __getstate__(self):
         params = dict(
@@ -230,8 +252,8 @@ class ODPS(object):
     @classmethod
     def _from_account(cls, account, project, endpoint=DEFAULT_ENDPOINT,
                       tunnel_endpoint=None, **kwargs):
-        return cls(None, None, project, endpoint=endpoint, tunnel_endpoint=tunnel_endpoint,
-                   account=account, **kwargs)
+        return cls(None, None, project, endpoint=endpoint,
+                   tunnel_endpoint=tunnel_endpoint, account=account, **kwargs)
 
     @property
     def default_tenant(self):
@@ -752,7 +774,8 @@ class ODPS(object):
         return name in parent.resources
 
     def open_resource(
-        self, name, project=None, mode='r+', encoding='utf-8', schema=None, type="file", stream=False
+        self, name, project=None, mode='r+', encoding='utf-8', schema=None,
+        type="file", stream=False, comment=None
     ):
         """
         Open a file resource as file-like object.
@@ -783,6 +806,7 @@ class ODPS(object):
         :param str encoding: utf-8 as default
         :param str type: resource type, can be "file", "archive", "jar" or "py"
         :param bool stream: if True, use stream to upload, False by default
+        :param str comment: comment of the resource
         :return: file-like object
 
         :Example:
@@ -807,7 +831,7 @@ class ODPS(object):
             return name.open(mode=mode)
 
         parent = self._get_project_or_schema(project, schema)
-        return parent.resources.get_typed(name, type=type).open(
+        return parent.resources.get_typed(name, type=type, comment=comment).open(
             mode=mode, encoding=encoding, stream=stream
         )
 
@@ -1085,7 +1109,6 @@ class ODPS(object):
             hints=hints, **kwargs)
         if not async_:
             inst.wait_for_success()
-
         return inst
 
     def run_sql(self, sql, project=None, priority=None, running_cluster=None,
@@ -1150,10 +1173,14 @@ class ODPS(object):
             task.update_aliases(aliases)
 
         project = self.get_project(name=project)
-        return project.instances.create(
-            task=task, priority=priority, running_cluster=running_cluster,
-            create_callback=on_instance_create
-        )
+        try:
+            return project.instances.create(
+                task=task, priority=priority, running_cluster=running_cluster,
+                create_callback=on_instance_create
+            )
+        except errors.ParseError as ex:
+            ex.statement = sql
+            raise
 
     def execute_sql_cost(self, sql, project=None, hints=None, **kwargs):
         """
@@ -1186,8 +1213,8 @@ class ODPS(object):
 
     def _parse_partition_string(self, partition):
         parts = []
-        for p in split_quoted(partition, ','):
-            kv = [pp.strip() for pp in split_quoted(p, '=')]
+        for p in utils.split_quoted(partition, ','):
+            kv = [pp.strip() for pp in utils.split_quoted(p, '=')]
             if len(kv) != 2:
                 raise ValueError('Partition representation malformed.')
             if not kv[1].startswith('"') and not kv[1].startswith("'"):
@@ -1951,6 +1978,9 @@ class ODPS(object):
         Get logview host address.
         :return: logview host address
         """
+        if self.endpoint in _logview_host_cache:
+            return _logview_host_cache[self.endpoint]
+
         try:
             logview_host = utils.to_str(
                 self.rest.get(self.endpoint + '/logview/host').content
@@ -1958,7 +1988,8 @@ class ODPS(object):
         except:
             logview_host = None
         if not logview_host:
-            logview_host = LOGVIEW_HOST_DEFAULT
+            logview_host = utils.get_default_logview_endpoint(LOGVIEW_HOST_DEFAULT, self.endpoint)
+        _logview_host_cache[self.endpoint] = logview_host
         return logview_host
 
     def get_logview_address(self, instance_id, hours=None, project=None):
@@ -2369,7 +2400,7 @@ class ODPS(object):
         elif fallback is False:
             fallback_policy = None
         elif fallback is True:
-            fallback_policy = FallbackPolicy("default")
+            fallback_policy = FallbackPolicy("all")
         else:
             assert isinstance(fallback, FallbackPolicy)
             fallback_policy = fallback
@@ -2433,6 +2464,7 @@ class ODPS(object):
         options.logview_host = self.logview_host
         options.tunnel.endpoint = self._tunnel_endpoint
         options.app_account = self.app_account
+        options.region_name = self.region_name
 
     @classmethod
     def from_global(cls):
@@ -2445,6 +2477,7 @@ class ODPS(object):
                 tunnel_endpoint=options.tunnel.endpoint,
                 logview_host=options.logview_host,
                 app_account=options.app_account,
+                region_name=options.region_name,
             )
         else:
             return None

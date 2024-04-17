@@ -107,6 +107,7 @@ if sys.version < '3':
     to_unicode = __builtin__.unicode
     PY3 = False
     PY38 = False
+    PY311 = False
 else:
     types.ClassType = type
     import builtins as __builtin__
@@ -126,6 +127,7 @@ else:
     unicode = str
     PY3 = True
     PY38 = sys.version_info[:2] >= (3, 8)
+    PY311 = sys.version_info[:2] >= (3, 11)
 
 
 def _with_metaclass(meta, *bases):
@@ -224,7 +226,7 @@ def _make_cell_set_template_code():
             co.co_cellvars,  # this is the trickery
             (),
         )
-    else:
+    elif not PY311:
         return types.CodeType(
             co.co_argcount,
             co.co_posonlyargcount,
@@ -243,21 +245,46 @@ def _make_cell_set_template_code():
             co.co_cellvars,  # this is the trickery
             (),
         )
+    else:
+        return types.CodeType(
+            co.co_argcount,
+            co.co_posonlyargcount,
+            co.co_kwonlyargcount,
+            co.co_nlocals,
+            co.co_stacksize,
+            co.co_flags,
+            co.co_code,
+            co.co_consts,
+            co.co_names,
+            co.co_varnames,
+            co.co_filename,
+            co.co_name,
+            co.co_qualname,
+            co.co_firstlineno,
+            co.co_linetable,
+            co.co_exceptiontable,
+            co.co_cellvars,  # this is the trickery
+            (),
+        )
 
 
 _cell_set_template_code = _make_cell_set_template_code()
 
 
-def cell_set(cell, value):
-    """Set the value of a closure cell.
-    """
-    return types.FunctionType(
-        _cell_set_template_code,
-        {},
-        '_cell_set_inner',
-        (),
-        (cell,),
-    )(value)
+if PY311:
+    def cell_set(cell, value):
+        cell.cell_contents = value
+else:
+    def cell_set(cell, value):
+        """Set the value of a closure cell.
+        """
+        return types.FunctionType(
+            _cell_set_template_code,
+            {},
+            '_cell_set_inner',
+            (),
+            (cell,),
+        )(value)
 
 
 # relevant opcodes
@@ -334,7 +361,7 @@ if sys.version_info < (3, 4):
                 if op in GLOBAL_OPS:
                     yield op, oparg
 
-else:
+elif sys.version_info < (3, 11):
     def _walk_global_ops(code):
         """
         Yield (opcode, argument number) tuples for all
@@ -344,6 +371,17 @@ else:
             op = instr.opcode
             if op in GLOBAL_OPS:
                 yield op, instr.arg
+
+else:
+    def _walk_global_ops(code):
+        """
+        Yield (opcode, argument number) tuples for all
+        global-referencing instructions in *code*.
+        """
+        for instr in dis.get_instructions(code):
+            op = instr.opcode
+            if op in GLOBAL_OPS:
+                yield op, instr.argval
 
 
 class CloudPickler(Pickler):
@@ -401,7 +439,14 @@ class CloudPickler(Pickler):
 
     @staticmethod
     def _extract_code_args(obj):
-        if PY38:
+        if PY311:
+            args = (
+                obj.co_argcount, obj.co_posonlyargcount, obj.co_kwonlyargcount, obj.co_nlocals,
+                obj.co_stacksize, obj.co_flags, obj.co_code, obj.co_consts, obj.co_names,
+                obj.co_varnames, obj.co_filename, obj.co_name, obj.co_qualname, obj.co_firstlineno,
+                obj.co_linetable, obj.co_exceptiontable, obj.co_freevars, obj.co_cellvars
+            )
+        elif PY38:
             args = (
                 obj.co_argcount, obj.co_posonlyargcount, obj.co_kwonlyargcount, obj.co_nlocals,
                 obj.co_stacksize, obj.co_flags, obj.co_code, obj.co_consts, obj.co_names,
@@ -698,7 +743,10 @@ class CloudPickler(Pickler):
                 # PyPy "builtin-code" object
                 out_names = set()
             else:
-                out_names = set(names[oparg] for _, oparg in _walk_global_ops(co))
+                if sys.version_info < (3, 11):
+                    out_names = set(names[oparg] for _, oparg in _walk_global_ops(co))
+                else:
+                    out_names = set(opargval for _, opargval in _walk_global_ops(co))
 
                 # see if nested function have any global refs
                 if co.co_consts:
@@ -795,8 +843,8 @@ class CloudPickler(Pickler):
         finally:
             if (
                 global_saved
-                and hasattr(obj, "__module__")
-                and hasattr(obj, "__name__")
+                and getattr(obj, "__module__", None)
+                and getattr(obj, "__name__", None)
                 and obj.__module__.startswith("odps.df")
             ):
                 warnings.warn(
@@ -1524,7 +1572,7 @@ BUILD_STRING_PY36 = 157
 BUILD_TUPLE_UNPACK_PY3 = 152
 BUILD_TUPLE_UNPACK_WITH_CALL_PY36 = 158
 CALL_FINALLY_PY38 = 162
-CALL_FUNCTION = opcode.opmap['CALL_FUNCTION']
+CALL_FUNCTION = opcode.opmap.get('CALL_FUNCTION')
 CALL_FUNCTION_EX_PY36 = 142
 CALL_FUNCTION_KW = opcode.opmap.get('CALL_FUNCTION_KW')
 CALL_METHOD_PYPY = 202
@@ -1550,7 +1598,7 @@ IMPORT_FROM = opcode.opmap.get('IMPORT_FROM')
 IMPORT_NAME = opcode.opmap.get('IMPORT_NAME')
 INPLACE_MATRIX_MULTIPLY_PY3 = 17
 IS_OP_PY39 = 117
-JUMP_ABSOLUTE = opcode.opmap['JUMP_ABSOLUTE']
+JUMP_ABSOLUTE = opcode.opmap.get('JUMP_ABSOLUTE')
 JUMP_FORWARD = opcode.opmap['JUMP_FORWARD']
 JUMP_IF_FALSE_OR_POP = opcode.opmap.get('JUMP_IF_FALSE_OR_POP')
 JUMP_IF_NOT_DEBUG_PYPY = 204
@@ -1587,7 +1635,7 @@ POP_TOP = opcode.opmap.get('POP_TOP')
 RERAISE_PY39 = 48
 RETURN_VALUE = opcode.opmap['RETURN_VALUE']
 ROT_N_PY310 = 99
-ROT_TWO = opcode.opmap['ROT_TWO']
+ROT_TWO = opcode.opmap.get('ROT_TWO')
 ROT_THREE = opcode.opmap.get('ROT_THREE')
 ROT_FOUR_PY38 = 6
 SET_UPDATE_PY39 = 163

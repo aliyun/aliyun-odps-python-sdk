@@ -21,9 +21,10 @@ import re
 from collections import OrderedDict
 from xml.dom import minidom
 
+import requests
+
 from . import utils
 from .compat import BytesIO, ElementTree, six
-from .lib import requests
 
 
 def _route_xml_path(root, *keys, **kw):

@@ -107,8 +107,7 @@ def test_schemas(odps_with_schema, legacy):
     assert odps_with_schema.exist_schema(schema_name)
     assert schema.owner is not None
 
-    schemas = odps_with_schema.list_schemas()
-    assert any(s.name == schema_name for s in schemas)
+    assert any(s.name == schema_name for s in odps_with_schema.list_schemas())
 
     for idx in range(5):
         odps_with_schema.delete_schema(schema)

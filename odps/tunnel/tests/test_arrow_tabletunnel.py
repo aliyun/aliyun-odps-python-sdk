@@ -24,6 +24,10 @@ except ImportError:
 
 import pytest
 try:
+    import zoneinfo
+except ImportError:
+    zoneinfo = None
+try:
     import pytz
 except ImportError:
     pytz = None
@@ -44,6 +48,17 @@ from ...models import TableSchema
 from ...tests.core import tn
 
 
+def _get_tz_str():
+    from ...lib import tzlocal
+
+    if options.local_timezone is False:
+        return "UTC"
+    elif options.local_timezone is True or options.local_timezone is None:
+        return tzlocal.get_localzone()
+    else:
+        return str(options.local_timezone)
+
+
 @pytest.fixture
 def setup(odps, tunnel):
     def upload_data(test_table, data, compress=False, **kw):
@@ -54,21 +69,29 @@ def setup(odps, tunnel):
         writer.close()
         upload_ss.commit([0, ])
 
-    def download_data(test_table, columns=None, compress=False, **kw):
-        from ...lib import tzlocal
+    def buffered_upload_data(test_table, data, compress=False, **kw):
+        upload_ss = tunnel.create_upload_session(test_table, **kw)
+        writer = upload_ss.open_arrow_writer(compress=compress)
 
+        pd_data = data.to_pandas()
+        part1 = pd_data.iloc[:len(pd_data) // 2]
+        writer.write(part1)
+        part2 = pd_data.iloc[len(pd_data) // 2:]
+        writer.write(part2)
+        writer.close()
+        upload_ss.commit(writer.get_blocks_written())
+
+    def download_data(test_table, columns=None, compress=False, **kw):
         count = kw.pop('count', 4)
         download_ss = tunnel.create_download_session(test_table, **kw)
         with download_ss.open_arrow_reader(0, count, compress=compress, columns=columns) as reader:
             pd_data = reader.to_pandas()
         for col_name, dtype in pd_data.dtypes.items():
             if isinstance(dtype, np.dtype) and np.issubdtype(dtype, np.datetime64):
-                pd_data[col_name] = pd_data[col_name].dt.tz_localize(tzlocal.get_localzone())
+                pd_data[col_name] = pd_data[col_name].dt.tz_localize(_get_tz_str())
         return pd_data
 
     def gen_data(repeat=1):
-        from ...lib import tzlocal
-
         data = OrderedDict()
         data['id'] = ['hello \x00\x00 world', 'goodbye', 'c' * 2, 'c' * 20] * repeat
         data['int_num'] = [2 ** 63 - 1, 222222, -2 ** 63 + 1, -2 ** 11 + 1] * repeat
@@ -78,14 +101,13 @@ def setup(odps, tunnel):
             datetime.date.today() + datetime.timedelta(days=idx) for idx in range(4)
         ]
         data['dt'] = [
-                         datetime.datetime.now() + datetime.timedelta(days=idx)
-                         for idx in range(4)
-                     ] * repeat
+            datetime.datetime.now() + datetime.timedelta(days=idx)
+            for idx in range(4)
+        ] * repeat
         data['dt'] = [
             dt.replace(microsecond=dt.microsecond // 1000 * 1000) for dt in data['dt']
         ]
         pd_data = pd.DataFrame(data)
-        pd_data["dt"] = pd_data["dt"].dt.tz_localize(tzlocal.get_localzone())
 
         return pa.RecordBatch.from_pandas(pd_data)
 
@@ -110,14 +132,31 @@ def setup(odps, tunnel):
     def delete_table(table_name):
         odps.delete_table(table_name)
 
-    nt = namedtuple("NT", "upload_data, download_data, gen_data, create_table, create_partitioned_table, delete_table")
+    nt = namedtuple(
+        "NT",
+        "upload_data, buffered_upload_data download_data, gen_data, "
+        "create_table, create_partitioned_table, delete_table"
+    )
     raw_chunk_size = options.chunk_size
     try:
         options.sql.use_odps2_extension = True
-        yield nt(upload_data, download_data, gen_data, create_table, create_partitioned_table, delete_table)
+        yield nt(
+            upload_data, buffered_upload_data, download_data, gen_data,
+            create_table, create_partitioned_table, delete_table
+        )
     finally:
         options.sql.use_odps2_extension = None
         options.chunk_size = raw_chunk_size
+
+
+def _assert_frame_equal(left, right):
+    if isinstance(left, pa.RecordBatch):
+        left = left.to_pandas()
+        left["dt"] = left["dt"].dt.tz_localize(_get_tz_str())
+    if isinstance(right, pa.RecordBatch):
+        right = right.to_pandas()
+        right["dt"] = right["dt"].dt.tz_localize(_get_tz_str())
+    pd.testing.assert_frame_equal(left, right)
 
 
 def test_upload_and_download_by_raw_tunnel(odps, setup):
@@ -130,7 +169,7 @@ def test_upload_and_download_by_raw_tunnel(odps, setup):
     setup.upload_data(test_table_name, data)
 
     pd_df = setup.download_data(test_table_name)
-    pd.testing.assert_frame_equal(data.to_pandas(), pd_df)
+    _assert_frame_equal(data, pd_df)
 
     data_dict = OrderedDict(zip(data.schema.names, data.columns))
     data_dict["float_num"] = data_dict["float_num"].cast("float32")
@@ -159,6 +198,19 @@ def test_upload_and_download_by_raw_tunnel(odps, setup):
     assert "not contain" in str(err_info.value)
 
 
+def test_buffered_upload_and_download_by_raw_tunnel(odps, setup):
+    test_table_name = tn('pyodps_test_buffered_arrow_tunnel')
+    setup.create_table(test_table_name)
+    pd_df = setup.download_data(test_table_name)
+    assert len(pd_df) == 0
+
+    data = setup.gen_data()
+    setup.buffered_upload_data(test_table_name, data)
+
+    pd_df = setup.download_data(test_table_name)
+    _assert_frame_equal(data, pd_df)
+
+
 def test_download_with_specified_columns(odps, setup):
     test_table_name = tn('pyodps_test_arrow_tunnel_columns')
     setup.create_table(test_table_name)
@@ -166,8 +218,8 @@ def test_download_with_specified_columns(odps, setup):
     data = setup.gen_data()
     setup.upload_data(test_table_name, data)
 
-    records = setup.download_data(test_table_name, columns=['id'])
-    pd.testing.assert_frame_equal(data.to_pandas()[['id']], records)
+    result = setup.download_data(test_table_name, columns=['id'])
+    _assert_frame_equal(data.to_pandas()[['id']], result)
     setup.delete_table(test_table_name)
 
 
@@ -181,8 +233,8 @@ def test_partition_upload_and_download_by_raw_tunnel(odps, setup):
     data = setup.gen_data()
 
     setup.upload_data(test_table_name, data, partition_spec=test_table_partition)
-    records = setup.download_data(test_table_name, partition_spec=test_table_partition)
-    pd.testing.assert_frame_equal(data.to_pandas(), records)
+    result = setup.download_data(test_table_name, partition_spec=test_table_partition)
+    _assert_frame_equal(data, result)
 
 
 def test_partition_download_with_specified_columns(odps, setup):
@@ -195,9 +247,10 @@ def test_partition_download_with_specified_columns(odps, setup):
     data = setup.gen_data()
 
     setup.upload_data(test_table_name, data, partition_spec=test_table_partition)
-    records = setup.download_data(test_table_name, partition_spec=test_table_partition,
-                                  columns=['int_num'])
-    pd.testing.assert_frame_equal(data.to_pandas()[['int_num']], records)
+    result = setup.download_data(
+        test_table_name, partition_spec=test_table_partition, columns=['int_num']
+    )
+    _assert_frame_equal(data.to_pandas()[['int_num']], result)
 
 
 @pytest.mark.parametrize("compress_algo, module", [("zlib", None), ("lz4", "lz4.frame")])
@@ -213,7 +266,27 @@ def test_upload_and_download_with_compress(odps, setup, compress_algo, module):
     data = setup.gen_data()
 
     setup.upload_data(test_table_name, data, compress=True, compress_algo=compress_algo)
-    records = setup.download_data(test_table_name, compress=True)
-    pd.testing.assert_frame_equal(data.to_pandas(), records)
+    result = setup.download_data(test_table_name, compress=True)
+    _assert_frame_equal(data, result)
 
     setup.delete_table(test_table_name)
+
+
+@pytest.mark.skipif(pytz is None and zoneinfo is None, reason='pytz not installed')
+@pytest.mark.parametrize("zone", [False, True, 'Asia/Shanghai', 'America/Los_Angeles'])
+def test_buffered_upload_and_download_with_timezone(odps, setup, zone):
+    test_table_name = tn('pyodps_test_arrow_tunnel_with_tz')
+    odps.delete_table(test_table_name, if_exists=True)
+    try:
+        options.local_timezone = zone
+
+        setup.create_table(test_table_name)
+        data = setup.gen_data()
+
+        setup.buffered_upload_data(test_table_name, data)
+        result = setup.download_data(test_table_name, compress=True)
+
+        _assert_frame_equal(data, result)
+    finally:
+        odps.delete_table(test_table_name, if_exists=True)
+        options.local_timezone = None

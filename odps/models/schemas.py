@@ -38,7 +38,8 @@ def with_schema_api_fallback(fallback_fun, is_iter=False):
                 return result
             except (MethodNotAllowed, InvalidParameter):
                 _project_has_schema_api[key] = False
-                return fallback_fun(self, *args, **kwargs)
+
+            return fallback_fun(self, *args, **kwargs)
 
         @six.wraps(fun)
         def iter_wrapper(self, *args, **kwargs):
@@ -48,11 +49,16 @@ def with_schema_api_fallback(fallback_fun, is_iter=False):
                 self._check_schema_api()
                 for item in fun(self, *args, **kw):
                     yield item
-                _project_has_schema_api[key] = True
+                    _project_has_schema_api[key] = True
+                return
             except (MethodNotAllowed, InvalidParameter):
+                if _project_has_schema_api.get(key):
+                    # in case duplicated items are iterated
+                    raise
                 _project_has_schema_api[key] = False
-                for item in fallback_fun(self, *args, **kwargs):
-                    yield item
+
+            for item in fallback_fun(self, *args, **kwargs):
+                yield item
 
         return iter_wrapper if is_iter else wrapper
     return decorator
@@ -76,9 +82,11 @@ class Schemas(Iterable):
 
     def _iterate_legacy(self, name=None, owner=None):
         if name is not None or owner is not None:
-            raise ValueError("Iterating schemas with name or owner not supported on current service")
+            raise ValueError(
+                "Iterating schemas with name or owner not supported on current service"
+            )
         inst = self.parent.odps.execute_sql("SHOW SCHEMAS IN %s" % self.parent.name)
-        schema_names = inst.get_task_results().get("AnonymousSQLTask").split("\n")
+        schema_names = inst.get_task_results().get("AnonymousSQLTask").strip().split("\n")
         for schema_name in schema_names:
             yield Schema(name=schema_name, parent=self, client=self._client)
 

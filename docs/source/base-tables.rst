@@ -160,7 +160,7 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
    >>> table = o.create_table('my_new_table', ('num bigint, num2 double', 'pt string'), if_not_exists=True)
 
 
-在未经设置的情况下，创建表时，只允许使用 bigint、double、decimal、string、datetime、boolean、map 和 array 类型。
+在未经设置的情况下，创建表时，只允许使用 bigint、double、decimal、string、datetime、boolean、map 和 array 类型。\
 如果你使用的是位于公共云上的服务，或者支持 tinyint、struct 等新类型，可以设置 ``options.sql.use_odps2_extension = True``
 打开这些类型的支持，示例如下：
 
@@ -222,7 +222,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 其次，在 table 实例上可以执行 ``open_reader`` 操作来打一个 reader 来读取数据。如果表为分区表，需要引入
 ``partition`` 参数指定需要读取的分区。
 
-使用 with 表达式的写法：
+使用 with 表达式的写法，with 表达式会保证离开时关闭 reader：
 
 .. code-block:: python
 
@@ -239,6 +239,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> count = reader.count
    >>> for record in reader[5:10]:  # 可以执行多次，直到将count数量的record读完，这里可以改造成并行操作
    >>>     # 处理一条记录
+   >>> reader.close()
 
 更简单的调用方法是使用 ODPS 对象的 ``read_table`` 方法，例如
 
@@ -267,7 +268,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. note::
 
-    ``open_reader`` 或者 ``read_table`` 方法仅支持读取单个分区。如果需要读取多个分区的值，例如
+    ``open_reader`` 或者 ``read_table`` 方法仅支持读取单个分区。如果需要读取多个分区的值，例如\
     读取所有符合 ``dt>20230119`` 这样条件的分区，需要使用 ``iterate_partitions`` 方法，详见
     :ref:`遍历表分区 <iterate_partitions>` 章节。
 
@@ -279,7 +280,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 类似于 ``open_reader``，table对象同样能执行 ``open_writer`` 来打开writer，并写数据。如果表为分区表，需要引入
 ``partition`` 参数指定需要写入的分区。
 
-使用 with 表达式的写法：
+使用 with 表达式的写法，with 表达式会保证离开时关闭 writer 并提交所有数据：
 
 .. code-block:: python
 
@@ -321,60 +322,80 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 
 .. note::
 
-    **注意**\ ：每次调用 write_table，MaxCompute 都会在服务端生成一个文件。这一操作需要较大的时间开销，
-    同时过多的文件会降低后续的查询效率。因此，我们建议在使用 write_table 方法时，一次性写入多组数据，
+    **注意**\ ：每次调用 write_table，MaxCompute 都会在服务端生成一个文件。这一操作需要较大的时间开销，\
+    同时过多的文件会降低后续的查询效率。因此，我们建议在使用 write_table 方法时，一次性写入多组数据，\
     或者传入一个 generator 对象。
 
     write_table 写表时会追加到原有数据。如果需要覆盖数据，可以为 write_table 增加一个参数 ``overwrite=True``
-    （仅在 0.11.1以后支持），或者调用 table.truncate() / 删除分区后再建立分区。
+    （仅在 0.11.1 以后支持），或者调用 table.truncate() / 删除分区后再建立分区。
 
-使用多进程并行写数据：
+你可以使用多线程写入数据。从 PyODPS 0.11.6 开始，直接将 open_writer 创建的 Writer 对象分发到\
+各个线程中即可完成多线程写入，写入时请注意不要关闭 writer，待所有数据写入完成后再关闭 writer。
 
-每个进程写数据时共享同一个 session_id，但是有不同的 block_id，每个 block 对应服务端的一个文件，
-最后主进程执行 commit，完成数据上传。
+.. code-block:: python
+
+    import random
+    # Python 2.7 请从三方库 futures 中 import ThreadPoolExecutor
+    from concurrent.futures import ThreadPoolExecutor
+
+    def write_records(writer):
+        for i in range(5):
+            # 生成数据并写入
+            record = table.new_record([random.randint(1, 100), random.random()])
+            writer.write(record)
+
+    N_THREADS = 3
+
+    # 此处省略入口对象 o 的创建过程
+    table = o.create_table('my_new_table', 'num bigint, num2 double', if_not_exists=True)
+
+    with table.open_writer() as writer:
+        pool = ThreadPoolExecutor(N_THREADS)
+        futures = []
+        for i in range(N_THREADS):
+            futures.append(pool.submit(write_records, writer))
+        # 等待线程中的写入完成
+        [f.result() for f in futures]
+
+你也可以使用多进程写入数据，以避免 Python GIL 带来的性能损失。从 PyODPS 0.11.6 开始，只需要将
+open_writer 创建的 Writer 对象通过 multiprocessing 标准库传递到需要写入的子进程中即可写入。\
+需要注意的是，与多线程的情形不同，你应当在每个子进程完成写入后关闭 writer，并在所有写入子进程退出后\
+再关闭主进程 writer（或离开 with 语句块），以保证所有数据被提交。
 
 .. code-block:: python
 
     import random
     from multiprocessing import Pool
-    from odps.tunnel import TableTunnel
 
-    def write_records(session_id, block_id):
-        # 使用指定的 id 创建 session
-        local_session = tunnel.create_upload_session(table.name, upload_id=session_id)
-        # 创建 writer 时指定 block_id
-        with local_session.open_record_writer(block_id) as writer:
-            for i in range(5):
-                # 生成数据并写入对应 block
-                record = table.new_record([random.randint(1, 100), random.random()])
-                writer.write(record)
+    def write_records(writer):
+        for i in range(5):
+            # 生成数据并写入
+            record = table.new_record([random.randint(1, 100), random.random()])
+            writer.write(record)
+        # 需要手动在每个子进程中关闭连接
+        writer.close()
 
+    # 如果在独立的 Python 代码文件中，需要判断是否代码按主模块执行
+    # 以防止下面的代码被 multiprocessing 反复执行
     if __name__ == '__main__':
         N_WORKERS = 3
 
+        # 此处省略入口对象 o 的创建过程
         table = o.create_table('my_new_table', 'num bigint, num2 double', if_not_exists=True)
-        tunnel = TableTunnel(o)
-        upload_session = tunnel.create_upload_session(table.name)
 
-        # 每个进程使用同一个 session_id
-        session_id = upload_session.id
-
-        pool = Pool(processes=N_WORKERS)
-        futures = []
-        block_ids = []
-        for i in range(N_WORKERS):
-            futures.append(pool.apply_async(write_records, (session_id, i)))
-            block_ids.append(i)
-        [f.get() for f in futures]
-
-        # 最后执行 commit，并指定所有 block
-        upload_session.commit(block_ids)
+        with table.open_writer() as writer:
+            pool = Pool(processes=N_WORKERS)
+            futures = []
+            for i in range(N_WORKERS):
+                futures.append(pool.apply_async(write_records, (writer,)))
+            # 等待子进程中的执行完成
+            [f.get() for f in futures]
 
 .. _table_arrow_io:
 
 使用 Arrow 格式读写数据
 --------------------
-`Apache Arrow <https://arrow.apache.org/>`_ 是一种跨语言的通用数据读写格式，支持在各种不同平台间进行数据交换。
+`Apache Arrow <https://arrow.apache.org/>`_ 是一种跨语言的通用数据读写格式，支持在各种不同平台间进行数据交换。\
 自2021年起， MaxCompute 支持使用 Arrow 格式读取表数据，PyODPS 则从 0.11.2 版本开始支持该功能。具体地，如果在
 Python 环境中安装 pyarrow 后，在调用 ``open_reader`` 或者 ``open_writer`` 时增加 ``arrow=True`` 参数，即可读写
 `Arrow RecordBatch <https://arrow.apache.org/docs/python/data.html#record-batches>`_ 。
@@ -469,8 +490,8 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
     这里的"分区"指的不是分区字段而是所有分区字段均确定的分区定义对应的子表。如果某个分区字段对应多个值，
     则相应地有多个子表，即多个分区。而 ``get_partition`` 只能获取一个分区的信息。因而，
 
-    #. 如果某些分区未指定，那么这个分区定义可能对应多个子表，``get_partition`` 时则不被 PyODPS 支持。此时，需要使用
-       ``iterate_partitions`` 分别处理每个分区。
+    #. 如果某些分区未指定，那么这个分区定义可能对应多个子表，``get_partition`` 时则不被 PyODPS 支持。\
+       此时，需要使用 ``iterate_partitions`` 分别处理每个分区。
     #. 如果某个分区字段被定义多次，或者使用类似 ``pt>20210302`` 这样的非确定逻辑表达式，则无法使用
        ``get_partition`` 获取分区。在此情况下，可以尝试使用 ``iterate_partitions`` 枚举每个分区。
 
@@ -507,7 +528,7 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
    >>> for partition in table.iterate_partitions(spec='pt=test'):
    >>>     print(partition.name)
 
-自 PyODPS 0.11.3 开始，支持为 ``iterate_partitions`` 指定简单的逻辑表达式及通过逗号连接，
+自 PyODPS 0.11.3 开始，支持为 ``iterate_partitions`` 指定简单的逻辑表达式及通过逗号连接，\
 每个子表达式均须满足的复合逻辑表达式。或运算符暂不支持。
 
 .. code:: python
@@ -573,21 +594,22 @@ PyODPS提供了 :ref:`DataFrame框架 <df>` ，支持更方便地方式来查询
 
 数据上传下载通道
 ----------------
-
-
 .. note::
 
-    不推荐直接使用 Tunnel 接口，该接口较为低级。推荐直接使用表的 :ref:`写 <table_write>` 和 :ref:`读 <table_read>` 接口，可靠性和易用性更高。
+    不推荐直接使用 Tunnel 接口，该接口较为低级，简单的表写入推荐直接使用 Tunnel 接口上实现的表
+    :ref:`写 <table_write>` 和 :ref:`读 <table_read>` 接口，可靠性和易用性更高。
+    只有在分布式写表等复杂场景下有直接使用 Tunnel 接口的需要。
 
-
-ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或者下载数据。
-
-**注意**，如果安装了 **Cython**，在安装pyodps时会编译C代码，加速Tunnel的上传和下载。
+ODPS Tunnel 是 MaxCompute 的数据通道，用户可以通过 Tunnel 向 MaxCompute 中上传或者下载数据。
 
 上传
 ~~~~~~
-
-使用 Record 接口上传：
+分块上传接口
+^^^^^^^^^^^^^
+直接使用 Tunnel 分块接口上传时，需要首先使用表名和分区创建 Upload Session，此后从 Upload Session
+创建 Writer。每个 Upload Session 可多次调用 ``open_record_writer`` 方法创建多个 Writer，每个
+Writer 拥有一个 ``block_id`` 对应一个数据块。完成写入后，需要调用 Upload Session 上的 ``commit``
+方法并指定需要提交的数据块列表。
 
 .. code-block:: python
 
@@ -596,8 +618,10 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
    table = o.get_table('my_table')
 
    tunnel = TableTunnel(o)
+   # 为 table 和 pt=test 分区创建 Upload Session
    upload_session = tunnel.create_upload_session(table.name, partition_spec='pt=test')
 
+   # 创建 record writer 并指定需要写入的 block_id 为 0
    with upload_session.open_record_writer(0) as writer:
        record = table.new_record()
        record[0] = 'test1'
@@ -607,10 +631,76 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
        record = table.new_record(['test2', 'id2'])
        writer.write(record)
 
+   # 提交刚才写入的 block 0。多个 block id 需要同时提交
    # 需要在 with 代码块外 commit，否则数据未写入即 commit，会导致报错
    upload_session.commit([0])
 
-也可以使用流式上传的接口：
+需要注意的是，指定 block id 后，所创建的 Writer 为长连接，如果长时间不写入会导致连接关闭，并导致写入失败，\
+该时间通常为 5 分钟。如果你写入数据的间隔较大，建议生成一批数据后再通过 ``open_record_writer`` 接口创建
+Writer 并按需写入数据。如果你只希望在单个 Writer 上通过 Tunnel 写入数据，可以考虑在调用 ``open_record_writer``
+时不指定 block id，此时创建的 Writer 在写入数据时将首先将数据缓存在本地，当 Writer 关闭或者缓存数据大于\
+一定大小（默认为 20MB，可通过 ``options.tunnel.block_buffer_size`` 指定）时才会写入数据。写入数据后，\
+需要先通过 Writer 上的 ``get_blocks_written`` 方法获得已经写入的 block 列表，再进行提交。
+
+.. code-block:: python
+
+   from odps.tunnel import TableTunnel
+
+   table = o.get_table('my_table')
+
+   tunnel = TableTunnel(o)
+   # 为 table 和 pt=test 分区创建 Upload Session
+   upload_session = tunnel.create_upload_session(table.name, partition_spec='pt=test')
+
+   # 不指定 block id 以创建带缓存的 record writer
+   with upload_session.open_record_writer() as writer:
+       record = table.new_record()
+       record[0] = 'test1'
+       record[1] = 'id1'
+       writer.write(record)
+
+       record = table.new_record(['test2', 'id2'])
+       writer.write(record)
+
+   # 需要在 with 代码块外 commit，否则数据未写入即 commit，会导致报错
+   # 从 writer 获得已经写入的 block id 并提交
+   upload_session.commit(writer.get_blocks_written())
+
+.. note::
+
+    使用带缓存的 Writer 时，需要注意不能在同一 Upload Session 上开启多个带缓存 Writer 进行写入，\
+    否则可能导致冲突而使数据丢失。
+
+如果你需要使用 Arrow 格式而不是 Record 格式进行上传，可以将 ``open_record_writer`` 替换为
+``open_arrow_writer``，并写入 Arrow RecordBatch / Arrow Table 或者 pandas DataFrame。
+
+.. code-block:: python
+
+   import pandas as pd
+   import pyarrow as pa
+   from odps.tunnel import TableTunnel
+
+   table = o.get_table('my_table')
+
+   tunnel = TableTunnel(o)
+   upload_session = tunnel.create_upload_session(table.name, partition_spec='pt=test')
+
+   # 使用 open_arrow_writer 而不是 open_record_writer
+   with upload_session.open_arrow_writer(0) as writer:
+       df = pd.DataFrame({"name": ["test1", "test2"], "id": ["id1", "id2"]})
+       batch = pa.RecordBatch.from_pandas(df)
+       writer.write(batch)
+
+   # 需要在 with 代码块外 commit，否则数据未写入即 commit，会导致报错
+   upload_session.commit([0])
+
+本章节中所述所有 Writer 均非线程安全。你需要为每个线程单独创建 Writer。
+
+流式上传接口
+^^^^^^^^^^^^^
+MaxCompute 提供了\ `流式上传接口 <https://help.aliyun.com/zh/maxcompute/user-guide/overview-of-streaming-data-channels>`_\
+用于简化分布式服务开发成本。可以使用 ``create_stream_upload_session`` 方法创建专门的 Upload Session。\
+此时，不需要为该 Session 的 ``open_record_writer`` 提供 block id。
 
 .. code-block:: python
 
@@ -630,45 +720,29 @@ ODPS Tunnel是ODPS的数据通道，用户可以通过Tunnel向ODPS中上传或�
        record = table.new_record(['test2', 'id2'])
        writer.write(record)
 
-以及使用 Arrow 格式上传：
-
-.. code-block:: python
-
-   import pandas as pd
-   import pyarrow as pa
-   from odps.tunnel import TableTunnel
-
-   table = o.get_table('my_table')
-
-   tunnel = TableTunnel(o)
-   upload_session = tunnel.create_upload_session(table.name, partition_spec='pt=test')
-
-   with upload_session.open_arrow_writer(0) as writer:
-       df = pd.DataFrame({"name": ["test1", "test2"], "id": ["id1", "id2"]})
-       batch = pa.RecordBatch.from_pandas(df)
-       writer.write(batch)
-
-   # 需要在 with 代码块外 commit，否则数据未写入即 commit，会导致报错
-   upload_session.commit([0])
-
-
 下载
 ~~~~~~
 
-使用 Record 接口读取：
+直接使用 Tunnel 接口下载数据时，需要首先使用表名和分区创建 Download Session，此后从 Download Session
+创建 Reader。每个 Download Session 可多次调用 ``open_record_reader`` 方法创建多个 Reader，每个
+Reader 需要指定起始行号以及终止行号。行号从 0 开始，终止行号可指定为 Session 的 ``count`` 属性，\
+为表或分区的总行数。
 
 .. code-block:: python
 
    from odps.tunnel import TableTunnel
 
    tunnel = TableTunnel(o)
+   # 为 table 和 pt=test 分区创建 Download Session
    download_session = tunnel.create_download_session('my_table', partition_spec='pt=test')
 
+   # 创建 record reader 并指定需要读取的行范围
    with download_session.open_record_reader(0, download_session.count) as reader:
        for record in reader:
            # 处理每条记录
 
-使用 Arrow 接口读取：
+你也可以通过使用 ``open_arrow_reader`` 而不是 ``open_record_reader`` 使读取的数据为 Arrow
+格式而不是 Record 格式。
 
 .. code-block:: python
 

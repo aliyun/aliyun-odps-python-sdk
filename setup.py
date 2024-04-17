@@ -161,6 +161,7 @@ full_requirements = [
     'pandas>=0.17.0',
     'matplotlib>=1.4',
     'graphviz>=0.4',
+    'greenlet>=0.4.10',
 ]
 mars_requirements = [
     'pymars>=0.5.4',
@@ -200,6 +201,7 @@ setup_options = dict(
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         'Topic :: Software Development :: Libraries',

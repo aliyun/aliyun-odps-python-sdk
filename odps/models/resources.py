@@ -31,7 +31,7 @@ class Resources(Iterable):
     max_items = serializers.XMLNodeField('MaxItems')
     resources = serializers.XMLNodesReferencesField(Resource, 'Resource')
 
-    def get_typed(self, name, type):
+    def get_typed(self, name, type, **kw):
         type_cls = Resource._get_cls(type)
 
         if _RESOURCE_SPLITTER in name:
@@ -46,7 +46,7 @@ class Resources(Iterable):
             if schema_name is not None:
                 parent = parent.schemas[schema_name]
             return parent.resources[name]
-        return type_cls(client=self._client, parent=self, name=name)
+        return type_cls(client=self._client, parent=self, name=name, **kw)
 
     def _get(self, name):
         return self.get_typed(name, None)

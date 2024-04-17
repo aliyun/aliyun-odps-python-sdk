@@ -679,8 +679,8 @@ def test_function_resources(odps, setup):
 def test_third_party_libraries(odps, setup):
     import zipfile
     import tarfile
+    import requests
     from .....compat import reduce
-    from .....lib import requests
 
     data = [
         ['2016', 4, 5.3, None, None, None],

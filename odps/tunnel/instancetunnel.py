@@ -17,6 +17,8 @@
 import logging
 import sys
 
+import requests
+
 from .base import BaseTunnel, TUNNEL_VERSION
 from .io.reader import TunnelRecordReader, TunnelArrowReader
 from .io.stream import CompressOption, get_decompress_stream
@@ -24,7 +26,6 @@ from .errors import TunnelError
 from .. import serializers, types
 from ..compat import Enum, six
 from ..config import options
-from ..lib import requests
 from ..models import Projects, TableSchema
 
 try:
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 class InstanceDownloadSession(serializers.JSONSerializableModel):
     __slots__ = (
         '_client', '_instance', '_limit_enabled', '_compress_option', '_sessional',
-        '_session_task_name', '_session_subquery_id', '_quota_name'
+        '_session_task_name', '_session_subquery_id', '_quota_name', '_timeout'
     )
 
     class Status(Enum):
@@ -57,7 +58,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
     quota_name = serializers.JSONNodeField('QuotaName')
 
     def __init__(self, client, instance, download_id=None, limit=None,
-                 compress_option=None, quota_name=None, **kw):
+                 compress_option=None, quota_name=None, timeout=None, **kw):
         super(InstanceDownloadSession, self).__init__()
 
         self._client = client
@@ -67,6 +68,7 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         self._sessional = kw.pop("sessional", False)
         self._session_task_name = kw.pop("session_task_name", "")
         self._session_subquery_id = int(kw.pop("session_subquery_id", -1))
+        self._timeout = timeout
         if self._sessional and ((not self._session_task_name) or (self._session_subquery_id == -1)):
             raise TunnelError(
                 "Taskname('session_task_name') and Subquery ID ('session_subquery_id') "
@@ -107,7 +109,9 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
                 params['instance_tunnel_limit_enabled'] = ''
             url = self._instance.resource()
             try:
-                resp = self._client.post(url, {}, action='downloads', params=params, headers=headers)
+                resp = self._client.post(
+                    url, {}, action='downloads', params=params, headers=headers, timeout=self._timeout
+                )
             except requests.exceptions.ReadTimeout:
                 if callable(options.tunnel_session_create_timeout_callback):
                     options.tunnel_session_create_timeout_callback(*sys.exc_info())
@@ -218,7 +222,8 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
 
 class InstanceTunnel(BaseTunnel):
     def create_download_session(self, instance, download_id=None, limit=None, compress_option=None,
-                                compress_algo=None, compress_level=None, compress_strategy=None, **kw):
+                                compress_algo=None, compress_level=None, compress_strategy=None,
+                                timeout=None, **kw):
         if not isinstance(instance, six.string_types):
             instance = instance.id
         instance = Projects(client=self.tunnel_rest)[self._project.name].instances[instance]
@@ -236,5 +241,6 @@ class InstanceTunnel(BaseTunnel):
             limit=limit,
             compress_option=compress_option,
             quota_name=self._quota_name,
+            timeout=timeout,
             **kw
         )

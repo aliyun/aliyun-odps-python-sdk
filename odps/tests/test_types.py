@@ -380,6 +380,29 @@ def test_validate_struct():
         options.struct_as_dict = False
 
 
+def test_validate_decimal():
+    with pytest.raises(ValueError):
+        Decimal(1024)
+    with pytest.raises(ValueError):
+        Decimal(32, 60)
+    with pytest.raises(ValueError):
+        Decimal(None, 10)
+
+    assert repr(Decimal()) == "decimal"
+    assert repr(Decimal(20)) == "decimal(20)"
+    assert repr(Decimal(20, 10)) == "decimal(20,10)"
+
+    assert Decimal(20, 5) == Decimal(20, 5)
+    assert Decimal(10) == "decimal(10)"
+
+    decimal_type = Decimal(10, 5)
+    decimal_type.validate_value(None)
+    decimal_type.validate_value(_decimal.Decimal("123456789.1"))
+    decimal_type.validate_value(_decimal.Decimal("123456789.12345"))
+    with pytest.raises(ValueError):
+        decimal_type.validate_value(_decimal.Decimal("12345678901.12"))
+
+
 @pandas_case
 def test_validate_timestamp():
     with pytest.raises(ValueError):

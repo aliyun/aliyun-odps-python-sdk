@@ -70,7 +70,7 @@ class Function(LazyLoad):
             return self._resources_objects
 
         resources = self.parent.parent.resources
-        resources = [resources[name] for name in self._resources]
+        resources = [resources[name] for name in self._resources or ()]
         self._resources_objects = resources
         return resources
 

@@ -20,8 +20,6 @@ from .. import options, serializers, utils
 from ..compat import six, quote_plus
 from .cache import cache, del_cache
 
-_notset = object()
-
 
 class XMLRemoteModel(serializers.XMLSerializableModel):
     __slots__ = '_parent', '_client', '_schema_name'
@@ -32,7 +30,7 @@ class XMLRemoteModel(serializers.XMLSerializableModel):
         if 'client' in kwargs:
             kwargs['_client'] = kwargs.pop('client')
 
-        self._schema_name = _notset
+        self._schema_name = utils.notset
 
         if not frozenset(kwargs).issubset(self.__slots__):
             unexpected = sorted(set(kwargs) - set(self.__slots__))
@@ -109,7 +107,7 @@ class RestModel(XMLRemoteModel):
         return hash(type(self)) * hash(self._parent) * hash(self._name())
 
     def _get_schema_name(self):
-        if self._schema_name is not _notset:
+        if self._schema_name is not utils.notset:
             return self._schema_name
 
         if isinstance(self._parent, LazyLoad):

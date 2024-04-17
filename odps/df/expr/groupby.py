@@ -399,6 +399,18 @@ class DatetimeSequenceGroupBy(SequenceGroupBy):
         self._data_type = types.datetime
 
 
+class DateSequenceGroupBy(SequenceGroupBy):
+    def _init(self, *args, **kwargs):
+        super(DateSequenceGroupBy, self)._init(*args, **kwargs)
+        self._data_type = types.datetime
+
+
+class TimestampSequenceGroupBy(SequenceGroupBy):
+    def _init(self, *args, **kwargs):
+        super(TimestampSequenceGroupBy, self)._init(*args, **kwargs)
+        self._data_type = types.datetime
+
+
 class UnknownSequenceGroupBy(SequenceGroupBy):
     def _init(self, *args, **kwargs):
         super(UnknownSequenceGroupBy, self)._init(*args, **kwargs)

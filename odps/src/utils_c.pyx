@@ -35,6 +35,10 @@ from libc.stdint cimport int64_t
 from libc.time cimport time_t, tm, mktime, localtime, gmtime
 
 try:
+    import zoneinfo
+except ImportError:
+    zoneinfo = None
+try:
     import pytz
 except ImportError:
     pytz = None
@@ -85,10 +89,10 @@ cdef class CMillisecondsConverter:
     @staticmethod
     def _get_tz(tz):
         if type(tz) is unicode or type(tz) is bytes:
-            if pytz is None:
+            if pytz is None and zoneinfo is None:
                 raise ImportError('Package `pytz` is needed when specifying string-format time zone.')
             else:
-                return pytz.timezone(tz)
+                return zoneinfo.ZoneInfo(tz) if zoneinfo is not None else pytz.timezone(tz)
         else:
             return tz
 

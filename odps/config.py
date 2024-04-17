@@ -24,6 +24,11 @@ from copy import deepcopy
 
 from .compat import six
 
+try:
+    import contextvars
+except ImportError:
+    contextvars = None
+
 
 DEFAULT_CHUNK_SIZE = 65536
 DEFAULT_CONNECT_RETRY_TIMES = 4
@@ -317,20 +322,6 @@ class Config(object):
         return self._config.dumps()
 
 
-@contextlib.contextmanager
-def option_context(config=None):
-    global_options = get_global_options(copy=True)
-
-    try:
-        config = config or dict()
-        local_options = Config(deepcopy(global_options._config))
-        local_options.update(config)
-        _options_local.default_options = local_options
-        yield local_options
-    finally:
-        _options_local.default_options = global_options
-
-
 def is_interactive():
     import __main__ as main
     return not hasattr(main, '__file__')
@@ -363,6 +354,14 @@ def is_in(vals):
     def validate(x):
         return x in vals
     return validate
+
+
+def show_deprecated(msg):
+    def validator(x):
+        warnings.warn(msg, DeprecationWarning)
+        return x
+
+    return validator
 
 
 def verbose_log_validator(val):
@@ -421,10 +420,13 @@ default_options.redirect_option('end_point', 'endpoint')
 default_options.register_option('default_project', None)
 default_options.register_option('default_schema', None)
 default_options.register_option('app_account', None)
+default_options.register_option('region_name', None)
 default_options.register_option('local_timezone', None)
 default_options.register_option('use_legacy_parsedate', False)
 default_options.register_option('allow_antique_date', False)
-default_options.register_option('user_agent_pattern', '$pyodps_version $python_version $os_version')
+default_options.register_option(
+    'user_agent_pattern', '$pyodps_version $python_version $os_version $maxframe_version'
+)
 default_options.register_option('logview_host', None)
 default_options.register_option('logview_hours', 24 * 30, validator=is_integer)
 default_options.redirect_option('log_view_host', 'logview_host')
@@ -449,6 +451,7 @@ default_options.register_option('table_auto_flush_time', 150, validator=is_integ
 default_options.register_option('struct_as_dict', False, validator=is_bool)
 default_options.register_option('progress_time_interval', 5 * 60, validator=any_validator(is_float, is_integer))
 default_options.register_option('progress_percentage_gap', 5, validator=is_integer)
+default_options.register_option('enable_v4_sign', False, validator=is_bool)
 
 # c or python mode, use for UT, in other cases, please do not modify the value
 default_options.register_option('force_c', False, validator=is_integer)
@@ -475,14 +478,23 @@ default_options.register_option('pool_maxsize', DEFAULT_POOL_MAXSIZE, validator=
 default_options.register_option('tunnel.endpoint', None)
 default_options.register_option('tunnel.string_as_binary', False, validator=is_bool)
 default_options.register_option('tunnel.use_instance_tunnel', True, validator=is_bool)
-default_options.register_option('tunnel.limit_instance_tunnel', None, validator=any_validator(is_null, is_bool))
+default_options.register_option(
+    'tunnel.limit_instance_tunnel', None, validator=any_validator(is_null, is_bool)
+)
+default_options.register_option(
+    'tunnel.legacy_fallback_timeout', None, validator=any_validator(is_null, is_integer)
+)
 default_options.register_option('tunnel.pd_mem_cache_size', 1024 * 4, validator=is_integer)
 default_options.register_option('tunnel.pd_row_cache_size', 1024 * 16, validator=is_integer)
 default_options.register_option('tunnel.read_row_batch_size', 1024, validator=is_integer)
 default_options.register_option('tunnel.write_row_batch_size', 1024, validator=is_integer)
 default_options.register_option('tunnel.batch_merge_threshold', 128, validator=is_integer)
 default_options.register_option('tunnel.overflow_date_as_none', False, validator=is_bool)
-default_options.register_option('tunnel.quota_name', None, validator=any_validator(is_null, is_string))
+default_options.register_option(
+    'tunnel.quota_name', None, validator=any_validator(is_null, is_string)
+)
+default_options.register_option('tunnel.block_buffer_size', 20 * 1024 ** 2, validator=is_integer)
+default_options.register_option('tunnel.use_block_writer_by_default', False, validator=is_bool)
 
 default_options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')
 default_options.redirect_option('use_instance_tunnel', 'tunnel.use_instance_tunnel')
@@ -571,26 +583,63 @@ default_options.register_option('mars.container_status_timeout', 120, validator=
 
 
 _options_local = threading.local()
+if contextvars is not None:
+    _options_ctx_var = contextvars.ContextVar("_options_ctx_var")
+else:
+    _options_ctx_var = None
 
 
 def reset_global_options():
-    global _options_local
-    _options_local = threading.local()
-    _options_local.default_options = default_options
+    global _options_local, _options_ctx_var
+    if _options_ctx_var is not None:
+        _options_ctx_var = contextvars.ContextVar("_options_ctx_var")
+        _options_ctx_var.set(default_options)
+    else:
+        _options_local = threading.local()
+        _options_local.default_options = default_options
 
 
 reset_global_options()
 
 
 def get_global_options(copy=False):
-    ret = getattr(_options_local, "default_options", None)
+    if _options_ctx_var is not None:
+        ret = _options_ctx_var.get(None)
+    else:
+        ret = getattr(_options_local, "default_options", None)
+
     if ret is None:
         if not copy:
-            ret = _options_local.default_options = default_options
+            ret = default_options
         else:
-            ret = _options_local.default_options = Config(deepcopy(default_options._config))
+            ret = Config(deepcopy(default_options._config))
+        if _options_ctx_var is not None:
+            _options_ctx_var.set(ret)
+        else:
+            _options_local.default_options = ret
 
     return ret
+
+
+def set_global_options(opts):
+    if _options_ctx_var is not None:
+        _options_ctx_var.set(opts)
+    else:
+        _options_local.default_options = opts
+
+
+@contextlib.contextmanager
+def option_context(config=None):
+    global_options = get_global_options(copy=True)
+
+    try:
+        config = config or dict()
+        local_options = Config(deepcopy(global_options._config))
+        local_options.update(config)
+        set_global_options(local_options)
+        yield local_options
+    finally:
+        set_global_options(global_options)
 
 
 class OptionsProxy(object):

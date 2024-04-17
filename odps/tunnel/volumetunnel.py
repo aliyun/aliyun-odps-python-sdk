@@ -18,12 +18,13 @@ import logging
 import sys
 import struct
 
+from requests.exceptions import StreamConsumedError
+
 from . import io
 from .base import BaseTunnel
 from .checksum import Checksum
 from .errors import TunnelError
 from .. import serializers, options
-from ..lib.requests.exceptions import StreamConsumedError
 from ..models import errors
 from ..compat import irange, Enum, six
 from ..utils import to_binary, to_text
@@ -137,9 +138,7 @@ class VolumeFSTunnel(BaseTunnel):
 
         url = volume.resource(client=self.tunnel_rest)
 
-        chunk_upload = lambda chunk_size: self.tunnel_rest.post(
-            url, file_upload=True, params=params, headers=headers, chunk_size=chunk_size
-        )
+        chunk_upload = lambda data: self.tunnel_rest.post(url, data=data, params=params, headers=headers)
         if compress_option is None and compress_algo is not None:
             compress_option = io.CompressOption(
                 compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
@@ -563,9 +562,7 @@ class VolumeUploadSession(serializers.JSONSerializableModel):
 
         url = self.resource() + '/' + self.id
 
-        chunk_uploader = lambda chunk_size: self._client.post(
-            url, file_upload=True, params=params, headers=headers, chunk_size=chunk_size
-        )
+        chunk_uploader = lambda data: self._client.post(url, data=data, params=params, headers=headers)
         option = compress_option if compress else None
         return VolumeWriter(self._client, chunk_uploader, option)
 
@@ -607,7 +604,7 @@ class VolumeWriter(object):
     def __init__(self, client, uploader, compress_option):
         self._client = client
         self._compress_option = compress_option
-        self._req_io = uploader(options.chunk_size)
+        self._req_io = io.RequestsIO(uploader, chunk_size=options.chunk_size)
 
         if compress_option is None:
             self._writer = self._req_io
@@ -625,8 +622,6 @@ class VolumeWriter(object):
         self._chunk_offset = 0
 
     def _init_writer(self):
-        self._req_io.open()
-
         chunk_bytes = struct.pack('>I', self.CHUNK_SIZE)
         self._writer.write(chunk_bytes)
         self._crc.update(chunk_bytes)
@@ -641,6 +636,7 @@ class VolumeWriter(object):
         if not self._initialized:
             self._initialized = True
             self._init_writer()
+            self._req_io.start()
 
         if not buf:
             raise IOError('Invalid data buffer!')
@@ -668,7 +664,7 @@ class VolumeWriter(object):
             checksum = self._crc.getvalue()
             self._writer.write(struct.pack(CHECKSUM_PACKER, checksum))
         self._writer.flush()
-        result = self._req_io.close()
+        result = self._req_io.finish()
         if result is None:
             raise TunnelError('No results returned in VolumeWriter.')
         if not self._client.is_ok(result):

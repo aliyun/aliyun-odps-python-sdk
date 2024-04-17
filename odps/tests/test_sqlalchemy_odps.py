@@ -157,10 +157,24 @@ def create_test(o):
 
 
 @pytest.fixture
-def engine(odps):
-    return create_engine('odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint'.format(
-        odps.account.access_id, odps.account.secret_access_key,
-        odps.project, odps.endpoint))
+def engine(odps, request):
+    engine_url = 'odps://{}:{}@{}/?endpoint={}&SKYNET_PYODPS_HINT=hint'.format(
+        odps.account.access_id,
+        odps.account.secret_access_key,
+        odps.project,
+        odps.endpoint,
+    )
+    if getattr(request, "param", False):
+        engine_url += "&reuse_odps=true"
+        # create an engine to enable cache
+        create_engine(engine_url)
+
+    try:
+        yield create_engine(engine_url)
+    finally:
+        from .. import sqlalchemy_odps
+
+        sqlalchemy_odps._sqlalchemy_global_reusable_odps.clear()
 
 
 @pytest.fixture
@@ -210,6 +224,7 @@ def _get_sa_table(table_name, engine, *args, **kw):
     return Table(table_name, metadata, *args, **kw)
 
 
+@pytest.mark.parametrize("engine", [False, True], indirect=True)
 def test_basic_query(engine, connection):
     result = connection.execute(text('SELECT * FROM one_row'))
     instance = result.cursor._instance

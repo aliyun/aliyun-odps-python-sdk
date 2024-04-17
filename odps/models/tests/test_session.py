@@ -112,13 +112,18 @@ def _dump_instance_results(instance):
 
 def _wait_session_startup(session_instance):
     with _dump_instance_results(session_instance):
-        session_instance.wait_for_startup()
+        session_instance.wait_for_startup(timeout=60)
     assert session_instance.status == Instance.Status.RUNNING
 
 
 def test_create_mcqa_session(odps):
     sess_instance = odps._create_mcqa_session(TEST_SESSION_WORKERS, TEST_SESSION_WORKER_MEMORY)
     assert sess_instance
+    with mock.patch(
+        "odps.models.instance.Instance.is_running", new=lambda *_, **__: False
+    ):
+        with pytest.raises(errors.WaitTimeoutError):
+            sess_instance.wait_for_startup(timeout=2, max_interval=1)
     # wait to running
     _wait_session_startup(sess_instance)
 

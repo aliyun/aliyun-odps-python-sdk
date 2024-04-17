@@ -26,10 +26,12 @@ import warnings
 from collections import OrderedDict
 from datetime import datetime
 
+import requests
+
 from .. import serializers, utils, errors, compat, readers, options
 from ..accounts import BearerTokenAccount
 from ..compat import Enum, six
-from ..lib import requests
+from ..lib.monotonic import monotonic
 from ..utils import to_str
 from .core import LazyLoad, XMLRemoteModel, JSONRemoteModel
 from .job import Job
@@ -41,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 _RESULT_LIMIT_HELPER_MSG = (
     'See https://pyodps.readthedocs.io/zh_CN/latest/base-sql.html#read-sql-exec-result '
-    'for more information.'
+    'for more information about limits on instance results.'
 )
 
 
@@ -395,17 +397,17 @@ class Instance(LazyLoad):
         self._client.put(self.resource(), xml_content, headers=headers)
 
     @_with_status_api_lock
-    def get_task_results_without_format(self):
+    def get_task_results_without_format(self, timeout=None):
         if self._is_sync:
             return self._task_results
 
-        resp = self._client.get(self.resource(), action="result")
+        resp = self._client.get(self.resource(), action="result", timeout=timeout)
 
         instance_result = Instance.InstanceResult.parse(self._client, resp)
         return OrderedDict([(r.name, r.result) for r in instance_result.task_results])
 
     @_with_status_api_lock
-    def get_task_results(self):
+    def get_task_results(self, timeout=None):
         """
         Get all the task results.
 
@@ -413,14 +415,14 @@ class Instance(LazyLoad):
         :rtype: dict
         """
 
-        results = self.get_task_results_without_format()
+        results = self.get_task_results_without_format(timeout=timeout)
         if options.tunnel.string_as_binary:
             return OrderedDict([(k, bytes(result)) for k, result in six.iteritems(results)])
         else:
             return OrderedDict([(k, str(result)) for k, result in six.iteritems(results)])
 
     @_with_status_api_lock
-    def get_task_result(self, task_name):
+    def get_task_result(self, task_name, timeout=None):
         """
         Get a single task result.
 
@@ -428,7 +430,7 @@ class Instance(LazyLoad):
         :return: task result
         :rtype: str
         """
-        return self.get_task_results().get(task_name)
+        return self.get_task_results(timeout=timeout).get(task_name)
 
     @_with_status_api_lock
     def get_task_summary(self, task_name):
@@ -591,14 +593,11 @@ class Instance(LazyLoad):
         :return: True if finished else False
         :rtype: bool
         """
-        retry_num = options.retry_times
-        while retry_num > 0:
-            try:
-                return self.status == Instance.Status.TERMINATED
-            except (errors.InternalServerError, errors.RequestTimeTooSkewed):
-                retry_num -= 1
-                if not retry or retry_num <= 0:
-                    raise
+        return utils.call_with_retry(
+            lambda: self.status == Instance.Status.TERMINATED,
+            retry_times=options.retry_times if retry else 0,
+            exc_type=(errors.InternalServerError, errors.RequestTimeTooSkewed),
+        )
 
     def is_running(self, retry=False):
         """
@@ -607,14 +606,11 @@ class Instance(LazyLoad):
         :return: True if still running else False
         :rtype: bool
         """
-        retry_num = options.retry_times
-        while retry_num > 0:
-            try:
-                return self.status == Instance.Status.RUNNING
-            except (errors.InternalServerError, errors.RequestTimeTooSkewed):
-                retry_num -= 1
-                if not retry or retry_num <= 0:
-                    raise
+        return utils.call_with_retry(
+            lambda: self.status == Instance.Status.RUNNING,
+            retry_times=options.retry_times if retry else 0,
+            exc_type=(errors.InternalServerError, errors.RequestTimeTooSkewed),
+        )
 
     def is_successful(self, retry=False):
         """
@@ -626,16 +622,19 @@ class Instance(LazyLoad):
 
         if not self.is_terminated(retry=retry):
             return False
-        retry_num = options.retry_times
-        while retry_num > 0:
-            try:
-                statuses = self.get_task_statuses()
-                return all(task.status == Instance.Task.TaskStatus.SUCCESS
-                           for task in statuses.values())
-            except (errors.InternalServerError, errors.RequestTimeTooSkewed):
-                retry_num -= 1
-                if not retry or retry_num <= 0:
-                    raise
+
+        def _get_successful():
+            statuses = self.get_task_statuses()
+            return all(
+                task.status == Instance.Task.TaskStatus.SUCCESS
+                for task in statuses.values()
+            )
+
+        return utils.call_with_retry(
+            _get_successful,
+            retry_times=options.retry_times if retry else 0,
+            exc_type=(errors.InternalServerError, errors.RequestTimeTooSkewed),
+        )
 
     @property
     def is_sync(self):
@@ -658,17 +657,19 @@ class Instance(LazyLoad):
         :return: None
         """
 
-        start_time = time.time()
-        progress_time = time.time()
+        start_time = monotonic()
+        progress_time = monotonic()
         last_progress = 0
         while not self.is_terminated(retry=True):
             try:
                 time.sleep(interval)
-                check_time = time.time()
+                check_time = monotonic()
                 if max_interval is not None:
                     interval = min(interval * 2, max_interval)
                 if timeout is not None and check_time - start_time > timeout:
-                    raise errors.WaitTimeoutError(instance_id=self.id)
+                    raise errors.WaitTimeoutError(
+                        "Wait completion of instance %s timed out" % self.id, instance_id=self.id
+                    )
 
                 if logger.getEffectiveLevel() <= logging.INFO:
                     try:
@@ -696,7 +697,7 @@ class Instance(LazyLoad):
                                 logger.info(" ".join(output_parts))
                             last_progress = total_progress
                             progress_time = check_time
-                    except:
+                    except:  # pragma: no cover
                         # make sure progress display does not affect execution
                         pass
             except KeyboardInterrupt:
@@ -839,7 +840,7 @@ class Instance(LazyLoad):
         """
         if (
             self._logview_address is not None
-            and time.time() - self._logview_address_time < 600
+            and monotonic() - self._logview_address_time < 600
         ):
             return self._logview_address
 
@@ -870,7 +871,7 @@ class Instance(LazyLoad):
             + token
         )
         self._logview_address = link
-        self._logview_address_time = time.time()
+        self._logview_address_time = monotonic()
         return link
 
     def __str__(self):
@@ -919,7 +920,7 @@ class Instance(LazyLoad):
         return self._instance_tunnel
 
     @utils.survey
-    def _open_result_reader(self, schema=None, task_name=None, **_):
+    def _open_result_reader(self, schema=None, task_name=None, timeout=None, **_):
         if not self.is_successful(retry=True):
             raise errors.ODPSError(
                 'Cannot open reader, instance(%s) may fail or has not finished yet' % self.id)
@@ -938,7 +939,7 @@ class Instance(LazyLoad):
         else:
             raise errors.ODPSError('Cannot open reader, job has no sql task')
 
-        result = self.get_task_result(task_name)
+        result = self.get_task_result(task_name, timeout=timeout)
         reader = readers.CsvRecordReader(schema, result)
         if options.result_reader_create_callback:
             options.result_reader_create_callback(reader)
@@ -1005,8 +1006,13 @@ class Instance(LazyLoad):
         """
         use_tunnel = kwargs.get('use_tunnel', kwargs.get('tunnel'))
         auto_fallback_result = use_tunnel is None
+
+        timeout = kwargs.pop("timeout", None)
         if use_tunnel is None:
             use_tunnel = options.tunnel.use_instance_tunnel
+            if use_tunnel:
+                timeout = timeout if timeout is not None else options.tunnel.legacy_fallback_timeout
+        kwargs["timeout"] = timeout
 
         result_fallback_errors = (errors.InvalidProjectTable, errors.InvalidArgument)
         if use_tunnel:
@@ -1039,9 +1045,10 @@ class Instance(LazyLoad):
                 if not auto_fallback_result:
                     raise
                 if not kwargs.get('limit'):
-                    warnings.warn('Instance tunnel timed out, will fallback to '
-                                  'conventional ways. 10000 records will be limited.'
-                                  + _RESULT_LIMIT_HELPER_MSG)
+                    warnings.warn(
+                        'Instance tunnel timed out, will fallback to conventional ways. '
+                        '10000 records will be limited. You may try merging small files '
+                        'on your source table. ' + _RESULT_LIMIT_HELPER_MSG)
             except (Instance.DownloadSessionCreationError, errors.InstanceTypeNotSupported):
                 # this is for DDL sql instances such as `show partitions` which raises
                 # InternalServerError when creating download sessions.
@@ -1055,6 +1062,6 @@ class Instance(LazyLoad):
                     warnings.warn('Project under protection, 10000 records will be limited.'
                                   + _RESULT_LIMIT_HELPER_MSG)
                     kwargs['limit'] = True
-                    return self._open_tunnel_reader(**kwargs)
+                    return self.open_reader(*args, **kwargs)
 
         return self._open_result_reader(*args, **kwargs)

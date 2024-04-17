@@ -17,6 +17,7 @@
 import calendar
 import datetime
 import functools
+import itertools
 import os
 import textwrap
 import time
@@ -110,7 +111,7 @@ def test_split_sql():
         {
             'sql': r"""
             @val1 = (select category as `category;`, /* omitting
-            stuff; */ 
+            stuff; */
             from pyodps_iris) union
             (select category2 as `category;` from pyodps_iris2);
             select *, '\';' as semicolon from @val1;
@@ -196,31 +197,47 @@ def test_time_convert_native(force_py):
     assert base_time == to_datetime(to_milliseconds(base_time))
 
 
-@module_depend_case('pytz')
-@pytest.mark.parametrize('force_py', [False, True] if CMillisecondsConverter else [True])
-def test_time_convert_pytz(force_py):
+_zone_funcs = []
+try:
     import pytz
 
+    _zone_funcs.append(pytz.timezone)
+except ImportError:
+    pass
+try:
+    import zoneinfo
+
+    _zone_funcs.append(zoneinfo.ZoneInfo)
+except ImportError:
+    pass
+_force_py_args = [False, True] if CMillisecondsConverter else [True]
+
+
+@pytest.mark.parametrize(
+    'force_py,zone_func',
+    list(itertools.product(_force_py_args, _zone_funcs)),
+)
+def test_time_convert_with_tz(force_py, zone_func):
     to_milliseconds = functools.partial(utils.to_milliseconds, force_py=force_py)
     to_datetime = functools.partial(utils.to_datetime, force_py=force_py)
 
-    base_time = datetime.datetime.now(tz=pytz.timezone('Etc/GMT-8')).replace(microsecond=0)
-    milliseconds = long_type(calendar.timegm(base_time.astimezone(pytz.utc).timetuple())) * 1000
+    base_time = datetime.datetime.now(tz=zone_func('Etc/GMT-8')).replace(microsecond=0)
+    milliseconds = long_type(calendar.timegm(base_time.astimezone(zone_func("UTC")).timetuple())) * 1000
 
     assert to_datetime(milliseconds, local_tz='Etc/GMT-8') == base_time
 
     base_time = base_time.replace(tzinfo=None)
 
     assert milliseconds == to_milliseconds(base_time, local_tz='Etc/GMT-8')
-    assert milliseconds == to_milliseconds(base_time, local_tz=pytz.timezone('Etc/GMT-8'))
+    assert milliseconds == to_milliseconds(base_time, local_tz=zone_func('Etc/GMT-8'))
 
-    base_time = datetime.datetime.now(tz=pytz.timezone('Etc/GMT-8')).replace(microsecond=0)
+    base_time = datetime.datetime.now(tz=zone_func('Etc/GMT-8')).replace(microsecond=0)
     milliseconds = time.mktime(base_time.timetuple()) * 1000
 
     assert milliseconds == to_milliseconds(base_time, local_tz=True)
     assert milliseconds == to_milliseconds(base_time, local_tz=False)
     assert milliseconds == to_milliseconds(base_time, local_tz='Etc/GMT-1')
-    assert milliseconds == to_milliseconds(base_time, local_tz=pytz.timezone('Etc/GMT-1'))
+    assert milliseconds == to_milliseconds(base_time, local_tz=zone_func('Etc/GMT-1'))
 
 
 def test_thread_local_attribute():
