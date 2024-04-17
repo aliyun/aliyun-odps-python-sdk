@@ -38,7 +38,7 @@ jobs:
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
 
       - name: "Build wheels (Python >= 3.10)"
-        uses: pypa/cibuildwheel@v2.14.1
+        uses: pypa/cibuildwheel@v2.16.5
         env:
           CIBW_BEFORE_BUILD: git reset --hard && pip install -r requirements-wheel.txt && rm -rf pyproject.toml
           CIBW_ARCHS: ${{ matrix.arch }}
