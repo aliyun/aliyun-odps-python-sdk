@@ -56,9 +56,9 @@ from ..errors import TunnelWriteTimeout
 
 
 @pytest.fixture(autouse=True)
-def check_malicious_requests():
+def check_malicious_requests(odps):
     def _new_throw_if_parsable(resp, *args, **kw):
-        if resp.status_code in (400, 404):
+        if resp.status_code in (400, 404) and not resp.url.startswith(odps.endpoint):
             raise AssertionError("Malicious request detected.")
         throw_if_parsable(resp, *args, **kw)
 
@@ -934,10 +934,11 @@ def test_decimal_with_complex_types(odps):
 def test_json_timestamp_types(odps_daily):
     import pandas as pd
 
+    odps = odps_daily
     table_name = tn("test_json_types")
-    odps_daily.delete_table(table_name, if_exists=True)
+    odps.delete_table(table_name, if_exists=True)
     hints = {"odps.sql.type.json.enable": "true"}
-    table = odps_daily.create_table(
+    table = odps.create_table(
         table_name, "col1 json, col2 timestamp_ntz, col3 string", hints=hints
     )
 

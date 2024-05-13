@@ -24,6 +24,9 @@ from ..config import options
 from .core import LazyLoad
 from .cache import cache, cache_parent
 
+_RESOURCE_SPLITTER = '/resources/'
+_SCHEMA_SPLITTER = '/schemas/'
+
 if sys.version_info[0] < 3:
     _StringIOType = type(compat.StringIO())
 else:
@@ -118,6 +121,32 @@ class Resource(LazyLoad):
             kwargs['type'] = Resource.Type(typo.upper())
         super(Resource, self).__init__(**kwargs)
 
+    @classmethod
+    def build_full_resource_name(cls, name, project_name, schema_name=None):
+        if project_name is None:
+            return name
+        elif schema_name is not None:
+            return project_name + _SCHEMA_SPLITTER + schema_name + _RESOURCE_SPLITTER + name
+        else:
+            return project_name + _RESOURCE_SPLITTER + name
+
+    @classmethod
+    def split_resource_name(cls, name):
+        project_name, schema_name = None, None
+        if _RESOURCE_SPLITTER in name:
+            project_schema_name, name = name.split(_RESOURCE_SPLITTER, 1)
+
+            if _SCHEMA_SPLITTER not in project_schema_name:
+                project_name, schema_name = project_schema_name, None
+            else:
+                project_name, schema_name = project_schema_name.split(_SCHEMA_SPLITTER, 1)
+        return project_name, schema_name, name
+
+    @property
+    def full_resource_name(self):
+        schema_name = self._get_schema_name()
+        return self.build_full_resource_name(self.name, self.project.name, schema_name)
+
     def reload(self):
         params = {}
         schema_name = self._get_schema_name()
@@ -140,6 +169,9 @@ class Resource(LazyLoad):
             resp.headers.get('x-odps-creation-time'))
         self.last_modified_time = utils.parse_rfc822(
             resp.headers.get('Last-Modified'))
+
+        is_temp_resource_header = resp.headers.get("x-odps-resource-istemp") or ""
+        self.is_temp_resource = is_temp_resource_header.lower() == "true"
 
         self.source_table_name = resp.headers.get('x-odps-copy-table-source')
         self.volume_path = resp.headers.get('x-odps-copy-file-source')
@@ -487,8 +519,8 @@ class FileResource(Resource):
     def __exit__(self, *_):
         self.close()
 
-    def update(self, file_obj):
-        return self._parent.update(self, file_obj=file_obj)
+    def update(self, file_obj, temp=None):
+        return self._parent.update(self, file_obj=file_obj, temp=temp)
 
 
 @cache_parent
@@ -712,8 +744,8 @@ class TableResource(Resource):
         )
 
     def update(
-        self,
-            table_project_name=None, table_schema_name=None, table_name=None, *args, **kw):
+        self, table_project_name=None, table_schema_name=None, table_name=None, *args, **kw
+    ):
         """
         Update this resource.
 

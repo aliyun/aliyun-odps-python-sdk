@@ -81,10 +81,7 @@ class Function(LazyLoad):
                 schema_name = res._get_schema_name()
                 if res.project.name == self.project.name and schema_name is None:
                     return res.name
-                elif schema_name is not None:
-                    return '%s/schemas/%s/resources/%s' % (res.project.name, schema_name, res.name)
-                else:
-                    return '%s/resources/%s' % (res.project.name, res.name)
+                return res.full_resource_name
             else:
                 return res
 

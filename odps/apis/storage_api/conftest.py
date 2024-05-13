@@ -29,21 +29,22 @@ _test_table_id = 0
 
 
 @pytest.fixture
-def storage_api_client(odps_daily):
+def storage_api_client(odps):
     global _test_table_id
 
     options.always_enable_schema = True
 
     test_table_name = tn("test_halo_common_table_" + str(_test_table_id))
     _test_table_id += 1
-    odps_daily.delete_table(test_table_name, if_exists=True)
-    table = odps_daily.create_table(
+    odps.delete_table(test_table_name, if_exists=True)
+    table = odps.create_table(
         test_table_name,
         ("a BIGINT, b BIGINT, c BIGINT, d BIGINT", "pt string"),
         if_not_exists=True,
     )
     try:
-        yield StorageApiArrowClient(odps_daily, table)
+        yield StorageApiArrowClient(odps, table)
     finally:
         table.drop(async_=True)
         options.always_enable_schema = False
+
