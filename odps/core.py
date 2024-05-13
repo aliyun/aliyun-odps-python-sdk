@@ -775,7 +775,7 @@ class ODPS(object):
 
     def open_resource(
         self, name, project=None, mode='r+', encoding='utf-8', schema=None,
-        type="file", stream=False, comment=None
+        type="file", stream=False, comment=None, temp=False
     ):
         """
         Open a file resource as file-like object.
@@ -831,7 +831,7 @@ class ODPS(object):
             return name.open(mode=mode)
 
         parent = self._get_project_or_schema(project, schema)
-        return parent.resources.get_typed(name, type=type, comment=comment).open(
+        return parent.resources.get_typed(name, type=type, comment=comment, temp=temp).open(
             mode=mode, encoding=encoding, stream=stream
         )
 

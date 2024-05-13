@@ -23,7 +23,7 @@ from collections import OrderedDict
 
 from .core import AbstractXMLRemoteModel
 from .. import serializers, errors, utils
-from ..compat import six
+from ..compat import enum, six
 from ..config import options
 
 
@@ -288,6 +288,50 @@ class SQLRTTask(Task):
     def update_sql_rt_settings(self, value=None, glob=True):
         settings = collect_sql_settings(value, glob)
         self.update_settings(settings)
+
+
+class MaxFrameTask(Task):
+    __slots__ = ("_output_format", "_major_version", "_service_endpoint")
+    _root = "MaxFrame"
+    _anonymous_task_name = "AnonymousMaxFrameTask"
+
+    class CommandType(enum.Enum):
+        CREATE_SESSION = "CREATE_SESSION"
+        PYTHON_PACK = "PYTHON_PACK"
+
+    command = serializers.XMLNodeField(
+        "Command",
+        default=CommandType.CREATE_SESSION,
+        parse_callback=lambda t: MaxFrameTask.CommandType(t.upper()),
+        serialize_callback=lambda t: t.value,
+    )
+
+    def __init__(self, **kwargs):
+        kwargs["name"] = kwargs.get("name") or self._anonymous_task_name
+        self._major_version = kwargs.pop("major_version", None)
+        self._service_endpoint = kwargs.pop("service_endpoint", None)
+        super(MaxFrameTask, self).__init__(**kwargs)
+
+        if self.properties is None:
+            self.properties = OrderedDict()
+        self.properties["settings"] = "{}"
+
+    def serial(self):
+        if options.default_task_settings:
+            settings = options.default_task_settings.copy()
+        else:
+            settings = OrderedDict()
+
+        if self._major_version is not None:
+            settings["odps.task.major.version"] = self._major_version
+        if self._service_endpoint is not None:
+            settings["odps.service.endpoint"] = self._service_endpoint
+
+        if "settings" in self.properties:
+            settings.update(json.loads(self.properties["settings"]))
+
+        self.properties["settings"] = json.dumps(settings)
+        return super(MaxFrameTask, self).serial()
 
 
 try:

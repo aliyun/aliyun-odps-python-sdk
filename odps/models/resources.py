@@ -19,9 +19,6 @@ from .resource import Resource, FileResource
 from .. import serializers, errors
 from ..compat import six
 
-_RESOURCE_SPLITTER = '/resources/'
-_SCHEMA_SPLITTER = '/schemas/'
-
 DEFAULT_RESOURCE_CHUNK_SIZE = 64 << 20
 
 
@@ -33,20 +30,17 @@ class Resources(Iterable):
 
     def get_typed(self, name, type, **kw):
         type_cls = Resource._get_cls(type)
+        parent = self
 
-        if _RESOURCE_SPLITTER in name:
-            project_schema_name, name = name.split(_RESOURCE_SPLITTER, 1)
-
-            if _SCHEMA_SPLITTER not in project_schema_name:
-                project_name, schema_name = project_schema_name, None
-            else:
-                project_name, schema_name = project_schema_name.split(_SCHEMA_SPLITTER, 1)
-
+        project_name, schema_name, name = Resource.split_resource_name(name)
+        if project_name is not None:
             parent = self.parent.project.parent[project_name]
             if schema_name is not None:
                 parent = parent.schemas[schema_name]
-            return parent.resources[name]
-        return type_cls(client=self._client, parent=self, name=name, **kw)
+            parent = parent.resources
+        if "temp" in kw:
+            kw["is_temp_resource"] = kw.pop("temp")
+        return type_cls(client=self._client, parent=parent, name=name, **kw)
 
     def _get(self, name):
         return self.get_typed(name, None)
@@ -72,7 +66,7 @@ class Resources(Iterable):
         return self.iterate()
 
     def get(self, name, type=None):
-        Resource._get_cls(type)
+        return self.get_typed(name, type)
 
     def iterate(self, name=None, owner=None):
         params = {'expectmarker': 'true'}
@@ -187,9 +181,7 @@ class Resources(Iterable):
     def merge_part_files(self, resource, part_resources, md5_hex, overwrite=False):
         content = md5_hex + "|" + ",".join(res.name for res in part_resources)
         total_bytes = sum(res.size for res in part_resources)
-        resource_args = resource.extract(
-
-        )
+        resource_args = resource.extract()
         resource_args.update(
             {"parent": self, "client": self._client, "merge_total_bytes": total_bytes}
         )

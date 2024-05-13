@@ -21,7 +21,7 @@ from ...errors import ODPSError
 from ...config import options
 from ...tests.core import tn, wait_filled
 from ...utils import get_zone_name, to_text
-from .. import SQLTask, MergeTask, CupidTask, SQLCostTask, Task
+from .. import CupidTask, MaxFrameTask, MergeTask, SQLCostTask, SQLTask, Task
 
 try:
     import zoneinfo
@@ -94,6 +94,19 @@ sql_cost_template = '''<?xml version="1.0" encoding="utf-8"?>
   <Name>AnonymousSQLCostTask</Name>
   <Query><![CDATA[%(sql)s;]]></Query>
 </SQLCost>
+'''
+
+maxframe_template = '''<?xml version="1.0" encoding="utf-8"?>
+<MaxFrame>
+  <Name>AnonymousMaxFrameTask</Name>
+  <Config>
+    <Property>
+      <Name>settings</Name>
+      <Value>{"odps.service.endpoint": "%(endpoint)s", "odps.maxframe.output_format": "maxframe_v1"}</Value>
+    </Property>
+  </Config>
+  <Command>CREATE_SESSION</Command>
+</MaxFrame>
 '''
 
 
@@ -242,3 +255,16 @@ def test_sql_cost_task_to_xml():
 
     task = Task.parse(None, to_xml)
     assert isinstance(task, SQLCostTask)
+
+
+def test_maxframe_task_to_xml(odps):
+    task = MaxFrameTask(service_endpoint=odps.endpoint)
+    task.update_settings({"odps.maxframe.output_format": "maxframe_v1"})
+    to_xml = task.serialize()
+    right_xml = maxframe_template % {'endpoint': odps.endpoint}
+
+    assert to_text(to_xml) == to_text(right_xml)
+
+    task = Task.parse(None, to_xml)
+    assert isinstance(task, MaxFrameTask)
+    assert task.command == MaxFrameTask.CommandType.CREATE_SESSION

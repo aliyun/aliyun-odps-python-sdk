@@ -195,7 +195,8 @@ def test_table_resource(config, odps):
         odps.delete_table(test_table_name, project=secondary_project)
 
 
-def test_temp_file_resource(odps):
+def test_temp_file_resource(odps_daily):
+    odps = odps_daily
     resource_name = tn('pyodps_t_tmp_file_resource')
 
     try:
@@ -203,14 +204,17 @@ def test_temp_file_resource(odps):
     except errors.ODPSError:
         pass
 
-    resource = odps.create_resource(resource_name, 'file', file_obj=FILE_CONTENT, temp=True)
+    resource = odps.create_resource(resource_name, 'file', fileobj=FILE_CONTENT, temp=True)
     assert isinstance(resource, FileResource)
-    assert resource.is_temp_resource is True
+    assert resource.is_temp_resource
+    resource.reload()
+    assert resource.is_temp_resource
 
     odps.delete_resource(resource_name)
 
 
-def test_stream_file_resource(odps):
+def test_stream_file_resource(odps_daily):
+    odps = odps_daily
     options.resource_chunk_size = 1024
     content = OVERWRITE_FILE_CONTENT * 32
     resource_name = tn('pyodps_t_tmp_file_resource')
@@ -254,17 +258,22 @@ def test_stream_file_resource(odps):
             sio.write(line)
     assert sio.getvalue() == content
 
-    with odps.open_resource(resource_name, mode="w", stream=True) as res:
+    odps.delete_resource(resource_name)
+
+    with odps.open_resource(resource_name, mode="w", stream=True, temp=True) as res:
         lines = content.splitlines(True)
         for offset in range(0, len(lines), 50):
             res.writelines(lines[offset:offset + 50])
 
     with odps.open_resource(resource_name, mode="r", stream=True) as res:
         lines = res.readlines()
+    res.reload()
+    assert res.is_temp_resource
     assert "".join(lines) == content
 
 
-def test_file_resource(odps):
+def test_file_resource(odps_daily):
+    odps = odps_daily
     resource_name = tn('pyodps_t_tmp_file_resource')
 
     try:
@@ -272,15 +281,27 @@ def test_file_resource(odps):
     except errors.ODPSError:
         pass
 
-    resource = odps.create_resource(resource_name, 'file', file_obj=FILE_CONTENT)
+    resource = odps.create_resource(resource_name, 'file', fileobj=FILE_CONTENT)
     assert isinstance(resource, FileResource)
     resource.drop()
 
     # create resource with open_resource and write
     with odps.open_resource(
-        resource_name, mode='w', type='file', comment="comment_data"
+        resource_name, mode='w', type='file', comment="comment_data", temp=True
     ) as resource:
         resource.write(FILE_CONTENT)
+    resource.reload()
+    assert resource.is_temp_resource
+    resource.drop()
+
+    # create resource with full resource path
+    with odps.open_resource(
+        odps.project + "/resources/" + resource_name, mode='w', type='file',
+        comment="comment_data", temp=True,
+    ) as resource:
+        resource.write(FILE_CONTENT)
+    resource.reload()
+    assert resource.is_temp_resource
 
     resource.reload()
     assert resource.comment == "comment_data"
