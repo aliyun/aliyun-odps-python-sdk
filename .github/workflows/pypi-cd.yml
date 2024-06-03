@@ -1,0 +1,68 @@
+name: PyODPS CD for PyPI
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    name: Build wheels on ${{ matrix.os }} for ${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-13, windows-latest]
+        arch: [auto]
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v1.11.1
+        env:
+          CIBW_BEFORE_BUILD: git reset --hard && pip install -r requirements-wheel.txt && rm -rf pyproject.toml
+          CIBW_ARCHS: ${{ matrix.arch }}
+          CIBW_SKIP: pp* *-musllinux* *i686 *aarch64 cp38* cp39* cp31*
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        if: ${{ startsWith(matrix.os, 'macos-') }}
+        with:
+          python-version: '3.7'
+
+      - name: Build source
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.arch == 'auto'}}
+        run: |
+          pip install cython\<1.0
+          python setup.py sdist --formats=gztar --dist-dir=./wheelhouse
+
+      - name: Release to pypi
+        shell: bash
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USER }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          if [[ "$GITHUB_REPOSITORY" == "aliyun/aliyun-odps-python-sdk" ]]; then
+            PYPI_REPO="https://upload.pypi.org/legacy/"
+          else
+            PYPI_REPO="https://test.pypi.org/legacy/"
+          fi
+          echo "[distutils]"             > ~/.pypirc
+          echo "index-servers ="        >> ~/.pypirc
+          echo "    pypi"               >> ~/.pypirc
+          echo "[pypi]"                 >> ~/.pypirc
+          echo "repository=$PYPI_REPO"  >> ~/.pypirc
+          python -m pip install twine
+          python -m twine upload -r pypi --skip-existing wheelhouse/*
+
+      - name: Upload artifacts to github
+        uses: actions/upload-artifact@v1
+        if: ${{ always() }}
+        with:
+          name: wheels
+          path: ./wheelhouse
+
