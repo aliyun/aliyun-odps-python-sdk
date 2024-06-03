@@ -109,6 +109,19 @@ class AliyunAccount(BaseAccount):
         LOG.debug('headers after signing: ' + repr(req.headers))
 
 
+class StsAccount(AliyunAccount):
+    """
+    Account of sts
+    """
+    def __init__(self, access_id, secret_access_key, sts_token):
+        super(StsAccount, self).__init__(access_id, secret_access_key)
+        self.sts_token = sts_token
+
+    def sign_request(self, req, endpoint):
+        super(StsAccount, self).sign_request(req, endpoint)
+        req.headers['authorization-sts-token'] = self.sts_token
+
+
 class AppAccount(BaseAccount):
     """
     Account for applications.
