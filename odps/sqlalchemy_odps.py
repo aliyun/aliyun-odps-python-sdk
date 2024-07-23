@@ -75,6 +75,7 @@ _odps_type_to_sqlalchemy_type = {
     types.Map: sa_types.String,
     types.Struct: sa_types.String,
     types.Decimal: sa_types.DECIMAL,
+    types.Json: sa_types.String,
 }
 
 _sqlalchemy_global_reusable_odps = {}
