@@ -164,7 +164,7 @@ class Room(object):
 
                 df.columns.name = self._room_name
                 frame._values = df.set_index('name')
-        except ImportError:
+        except (ImportError, ValueError):
             pass
 
         return frame

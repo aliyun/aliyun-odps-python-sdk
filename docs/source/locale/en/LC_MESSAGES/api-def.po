@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.7.16\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-08-02 20:29+0800\n"
+"POT-Creation-Date: 2024-07-18 15:20+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1913,7 +1913,11 @@ msgstr ""
 msgid "if True, use stream to upload, False by default"
 msgstr ""
 
-#: odps.core.ODPS.open_resource:29 odps.models.resource.FileResource.open:22 of
+#: odps.core.ODPS.open_resource:29 of
+msgid "comment of the resource"
+msgstr ""
+
+#: odps.core.ODPS.open_resource:30 odps.models.resource.FileResource.open:22 of
 msgid "file-like object"
 msgstr ""
 
@@ -2357,6 +2361,14 @@ msgid "append comment for table and each column"
 msgstr ""
 
 #: odps.models.table.Table.get_ddl:4 of
+msgid "generate `if not exists` code for generated DDL"
+msgstr ""
+
+#: odps.models.table.Table.get_ddl:5 of
+msgid "force generate table DDL if object is a view"
+msgstr ""
+
+#: odps.models.table.Table.get_ddl:6 of
 msgid "DDL statement"
 msgstr ""
 
@@ -3078,14 +3090,4 @@ msgid ""
 "Get PMML text of the current model. Note that model file obtained via "
 "this method might be incomplete due to size limitations."
 msgstr ""
-
-#~ msgid ""
-#~ "Run SQL query in interactive mode "
-#~ "(a.k.a MaxCompute QueryAcceleration). If query"
-#~ " is not supported or fails, will "
-#~ "fallback to offline mode automatically "
-#~ ":param sql: the sql query. :param "
-#~ "hints: settings for sql query. :return:"
-#~ " instance."
-#~ msgstr ""
 

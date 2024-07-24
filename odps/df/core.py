@@ -28,7 +28,7 @@ from .backends.sqlalchemy.types import sqlalchemy_to_df_schema
 try:
     import pandas as pd
     has_pandas = True
-except ImportError:
+except (ImportError, ValueError):
     has_pandas = False
 
 try:

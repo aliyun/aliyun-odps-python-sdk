@@ -68,8 +68,12 @@ def test_get_function_names(ss_db_inspector):
 def test_get_catalog_names(odps, ss_db_inspector):
     db, inspector = ss_db_inspector
 
+    def mock_list_projects(self, *args, **kw):
+        yield odps.get_project()
+
     spec = ODPSEngineSpec()
-    catalogs = spec.get_catalog_names(db, inspector)
+    with mock.patch("odps.core.ODPS.list_projects", new=mock_list_projects):
+        catalogs = spec.get_catalog_names(db, inspector)
     assert odps.project in catalogs
 
 

@@ -321,7 +321,7 @@ class MLCollectionMixin(Node):
                       random_state=None):
         try:
             import pandas as pd
-        except ImportError:
+        except (ImportError, ValueError):
             pd = None
         if pd is not None and all(isinstance(df, pd.DataFrame) for df in self.data_source()):
             sample_func = getattr(self, '__sample')
@@ -463,7 +463,7 @@ class MLSequenceMixin(Node):
 def _xflow_split(expr, frac, seed=None):
     try:
         import pandas as pd
-    except ImportError:
+    except (ImportError, ValueError):
         pd = None
 
     if pd is not None and all(isinstance(df, pd.DataFrame) for df in expr.data_source()):
@@ -478,7 +478,7 @@ def _xflow_split(expr, frac, seed=None):
 def _xflow_append_id(expr, id_col='append_id'):
     try:
         import pandas as pd
-    except ImportError:
+    except (ImportError, ValueError):
         pd = None
 
     if pd is not None and all(isinstance(df, pd.DataFrame) for df in expr.data_source()):
@@ -493,7 +493,7 @@ def _xflow_append_id(expr, id_col='append_id'):
 def _xflow_concat(left, rights):
     try:
         import pandas as pd
-    except ImportError:
+    except (ImportError, ValueError):
         pd = None
 
     chained = itertools.chain((left, ), rights)

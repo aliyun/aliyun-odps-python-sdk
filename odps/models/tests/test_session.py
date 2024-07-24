@@ -28,7 +28,7 @@ try:
 except ImportError:
     pd = None
 try:
-    from filelock import FileLock
+    from filelock import FileLock, Timeout as FLTimeout
 except ImportError:
     FileLock = None
 
@@ -79,9 +79,9 @@ def auto_stop():
             if lock:
                 for trial in range(5):
                     try:
-                        lock.acquire()
+                        lock.acquire(30)
                         break
-                    except OSError:
+                    except (OSError, FLTimeout):
                         if trial == 4:
                             raise
                         time.sleep(1)

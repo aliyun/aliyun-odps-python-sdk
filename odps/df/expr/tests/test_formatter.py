@@ -466,15 +466,19 @@ id = TypedSequence[sequence(float64)]
 
 
 @pytest.fixture
-def exprs():
+def exprs(odps):
     datatypes = lambda *types: [validate_data_type(t) for t in types]
     schema = TableSchema.from_lists(['name', 'id'], datatypes('string', 'int64'))
-    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+    table = MockTable(
+        name='pyodps_test_expr_table', table_schema=schema, client=odps.rest
+    )
 
     expr = CollectionExpr(_source_data=table, _schema=schema)
 
     schema2 = TableSchema.from_lists(['name2', 'id2'], datatypes('string', 'int64'))
-    table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
+    table2 = MockTable(
+        name='pyodps_test_expr_table2', table_schema=schema2, client=odps.rest
+    )
     expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
 
     nt = namedtuple("NT", "expr, expr2")

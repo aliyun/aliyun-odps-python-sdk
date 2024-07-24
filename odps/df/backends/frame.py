@@ -21,7 +21,7 @@ import operator
 try:
     import pandas as pd
     has_pandas = True
-except ImportError:
+except (ImportError, ValueError):
     has_pandas = False
 
 from ...compat import u, six, izip as zip, Version

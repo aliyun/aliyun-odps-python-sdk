@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from ....models import Table
 
 
@@ -22,12 +21,24 @@ class MockProject(object):
 
 
 class MockTable(Table):
+    __slots__ = "_mock_project",
+
     def __init__(self, **kwargs):
+        from ....core import ODPS
+
         super(MockTable, self).__init__(**kwargs)
 
         self._loaded = True
+        self._mock_project = MockProject()
+        if getattr(self, "_client", None) is not None:
+            client = self._client
+            odps_entry = ODPS(
+                account=client._account, project=client.project,
+                endpoint=client.endpoint, schema=client.schema,
+            )
+            self._mock_project.odps = odps_entry
 
     @property
     def project(self):
-        return MockProject()
+        return self._mock_project
 

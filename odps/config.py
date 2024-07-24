@@ -86,7 +86,7 @@ class PandasRedirection(Redirection):
             import pandas  # noqa: F401
 
             self._use_pd = True
-        except ImportError:
+        except (ImportError, ValueError):
             self._use_pd = False
 
     def getvalue(self, silent=False):

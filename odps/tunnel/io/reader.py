@@ -31,7 +31,7 @@ except ImportError:
     np = None
 try:
     import pandas as pd
-except ImportError:
+except (ImportError, ValueError):
     pd = None
 try:
     import pyarrow as pa
@@ -437,6 +437,12 @@ class TunnelArrowReader(object):
             if arr.type == pa.timestamp('ms'):
                 col_to_array[name] = np.vectorize(self._to_datetime)(
                     arr.cast('int64').to_numpy()
+                )
+            elif arr.type == pa.timestamp('ns'):
+                col_to_array[name] = arr.to_pandas().map(
+                    lambda x: pd.Timestamp(
+                        self._to_datetime(x.timestamp() * 1000)
+                    ).replace(microsecond=x.microsecond, nanosecond=x.nanosecond)
                 )
             else:
                 col_to_array[name] = arr

@@ -18,7 +18,7 @@ from decimal import Decimal
 
 import pytest
 
-from ...tests.core import get_result, tn, pandas_case, global_locked
+from ...tests.core import get_result, tn, pandas_case, global_locked, get_test_unique_name
 from ...models import TableSchema
 from ...utils import to_text
 from ...errors import ODPSError, DependencyNotInstalledError
@@ -28,7 +28,7 @@ from ..backends.context import context
 
 @pytest.fixture
 def table(odps):
-    test_table_name = tn('pyodps_test_dataframe')
+    test_table_name = tn('pyodps_test_df_' + get_test_unique_name())
     schema = TableSchema.from_lists(['id', 'name'], ['bigint', 'string'])
 
     odps.delete_table(test_table_name, if_exists=True)

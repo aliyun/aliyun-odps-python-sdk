@@ -28,7 +28,7 @@ from .lib.xnamedtuple import xnamedtuple
 try:
     from pandas import NA as _pd_na
     pd_na_type = type(_pd_na)
-except ImportError:
+except (ImportError, ValueError):
     pd_na_type = None
 
 force_py = options.force_py
@@ -924,7 +924,7 @@ class BaseTimestamp(OdpsPrimitive):
         self._can_cast_or_throw(value, data_type)
         try:
             import pandas as pd
-        except ImportError:
+        except (ImportError, ValueError):
             raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
 
         if isinstance(data_type, String):
@@ -966,7 +966,7 @@ class IntervalDayTime(OdpsPrimitive):
         self._can_cast_or_throw(value, data_type)
         try:
             import pandas as pd
-        except ImportError:
+        except (ImportError, ValueError):
             raise ImportError('To use INTERVAL_DAY_TIME in pyodps, you need to install pandas.')
 
         if isinstance(value, float):
@@ -1553,6 +1553,7 @@ integer_builtins = six.integer_types
 float_builtins = (float,)
 try:
     import numpy as np
+
     integer_builtins += (np.integer,)
     float_builtins += (np.float_,)
 except ImportError:
@@ -1595,7 +1596,7 @@ def _patch_pd_types(data_type):
             _odps_primitive_to_builtin_types[timestamp] = pd.Timestamp
             _odps_primitive_to_builtin_types[timestamp_ntz] = pd.Timestamp
             _odps_primitive_to_builtin_types[interval_day_time] = pd.Timedelta
-        except ImportError:
+        except (ImportError, ValueError):
             raise ImportError(
                 'To use %s in pyodps, you need to install pandas.', data_type.name.upper()
             )

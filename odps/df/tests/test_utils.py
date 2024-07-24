@@ -16,7 +16,7 @@
 
 import pytest
 
-from ...tests.core import tn
+from ...tests.core import tn, get_test_unique_name
 from ...models import TableSchema
 from .. import DataFrame
 from ..backends.utils import fetch_data_source_size
@@ -24,7 +24,7 @@ from ..backends.utils import fetch_data_source_size
 
 @pytest.fixture
 def test_table(odps):
-    test_table_name = tn('pyodps_test_dataframe')
+    test_table_name = tn('pyodps_test_df_' + get_test_unique_name())
     schema = TableSchema.from_lists(
         ['id', 'name'], ['bigint', 'string'], ['ds', 'mm', 'hh'], ['string'] * 3
     )

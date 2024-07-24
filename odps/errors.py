@@ -124,7 +124,24 @@ _nginx_bad_gateway_message = "the page you are looking for is currently unavaila
 
 
 def parse_instance_error(msg):
-    msg = utils.to_str(msg)
+    raw_msg = msg
+    try:
+        root = ET.fromstring(msg)
+        code = root.find('./Code').text
+        msg = root.find('./Message').text
+        request_id_node = root.find('./RequestId')
+        request_id = request_id_node.text if request_id_node else None
+        host_id_node = root.find('./HostId')
+        host_id = host_id_node.text if host_id_node else None
+
+        clz = globals().get(code, ODPSError)
+        return clz(
+            msg, request_id=request_id, code=code, host_id=host_id
+        )
+    except:
+        pass
+
+    msg = utils.to_str(raw_msg)
     msg_parts = reduce(operator.add, (pt.split(':') for pt in msg.split(' - ')))
     msg_parts = [pt.strip() for pt in msg_parts]
     try:

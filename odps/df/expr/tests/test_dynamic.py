@@ -26,7 +26,7 @@ from ..tests.core import MockTable
 
 
 @pytest.fixture
-def setup():
+def setup(odps):
     datatypes = lambda *types: [validate_data_type(t) for t in types]
     schema = DynamicSchema.from_schema(
         TableSchema.from_lists(
@@ -34,7 +34,7 @@ def setup():
             datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'),
         )
     )
-    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema, client=odps.rest)
 
     schema2 = DynamicSchema.from_schema(
         TableSchema.from_lists(
@@ -42,7 +42,7 @@ def setup():
         ),
         default_type=types.string
     )
-    table2 = MockTable(name='pyodps_test_expr_tabl2', table_schema=schema2)
+    table2 = MockTable(name='pyodps_test_expr_tabl2', table_schema=schema2, client=odps.rest)
 
     expr = DynamicCollectionExpr(_source_data=table, _schema=schema)
     expr2 = DynamicCollectionExpr(_source_data=table2, _schema=schema2)

@@ -23,11 +23,13 @@ from ..composites import *
 
 
 @pytest.fixture
-def src_expr():
+def src_expr(odps):
     datatypes = lambda *types: [validate_data_type(t) for t in types]
-    schema = TableSchema.from_lists(['id', 'name', 'relatives', 'hobbies'],
-                               datatypes('int64', 'string', 'dict<string, string>', 'list<string>'))
-    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+    schema = TableSchema.from_lists(
+        ['id', 'name', 'relatives', 'hobbies'],
+        datatypes('int64', 'string', 'dict<string, string>', 'list<string>')
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema, client=odps.rest)
 
     return CollectionExpr(_source_data=table, _schema=schema)
 

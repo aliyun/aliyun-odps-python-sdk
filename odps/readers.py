@@ -152,7 +152,7 @@ class AbstractRecordReader(object):
                     data, unknown_as_string=unknown_as_string, as_type=as_type
                 )
                 kw.pop('columns', None)
-            except ImportError:
+            except (ImportError, ValueError):
                 pass
 
         if not kw:

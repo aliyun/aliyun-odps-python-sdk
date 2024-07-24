@@ -47,7 +47,7 @@ from ....compat import lzip, Version
 try:
     import numpy as np
     import pandas as pd
-except ImportError:
+except (ImportError, ValueError):
     pd = None
     np = None
 

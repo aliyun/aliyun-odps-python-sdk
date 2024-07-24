@@ -32,16 +32,14 @@ def exprs(config):
     schema = TableSchema.from_lists(
         ['name', 'id', 'fid'], [types.string, types.int64, types.float64]
     )
-    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
-    table._client = config.odps.rest
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema, client=config.odps.rest)
     expr = CollectionExpr(_source_data=table, _schema=schema)
 
     schema2 = TableSchema.from_lists(
         ['name', 'id', 'fid'], [types.string, types.int64, types.float64],
         ['part1', 'part2'], [types.string, types.int64],
     )
-    table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2)
-    table2._client = config.odps.rest
+    table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema2, client=config.odps.rest)
     expr2 = CollectionExpr(_source_data=table2, _schema=schema2)
 
     schema3 = TableSchema.from_lists(
@@ -49,7 +47,7 @@ def exprs(config):
         [types.int64, types.string, types.Dict(types.string, types.string),
          types.List(types.string)],
     )
-    table3 = MockTable(name='pyodps_test_expr_table3', table_schema=schema3)
+    table3 = MockTable(name='pyodps_test_expr_table3', table_schema=schema3, client=config.odps.rest)
     expr3 = CollectionExpr(_source_data=table3, _schema=schema3)
 
     nt = namedtuple("NT", "expr, expr2, expr3")

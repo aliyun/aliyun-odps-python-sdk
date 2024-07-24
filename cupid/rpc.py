@@ -103,6 +103,8 @@ class CupidRpcChannel(pb_service.RpcChannel):
 
         props = dict()
 
+        if options.default_task_settings:
+            props.update(options.default_task_settings)
         if options.cupid.application_type:
             props['odps.cupid.application.type'] = options.cupid.application_type
             props['odps.moye.runtime.type'] = options.cupid.application_type

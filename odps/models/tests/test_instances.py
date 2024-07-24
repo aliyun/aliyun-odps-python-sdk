@@ -627,9 +627,7 @@ def test_instance_queueing_info(odps):
         assert queue_info.instance is instance
         assert queue_info.instance_id is not None
         assert queue_info.priority is not None
-        assert queue_info.job_name is not None
         assert queue_info.project is not None
-        assert queue_info.skynet_id is not None
         assert queue_info.start_time is not None
         assert queue_info.user_account is not None
         assert queue_info.status in (

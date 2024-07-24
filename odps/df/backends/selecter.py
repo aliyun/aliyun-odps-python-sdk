@@ -19,7 +19,7 @@ from __future__ import absolute_import
 try:
     import pandas as pd
     has_pandas = True
-except ImportError:
+except (ImportError, ValueError):
     has_pandas = False
 
 try:

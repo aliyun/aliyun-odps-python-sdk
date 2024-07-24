@@ -47,4 +47,3 @@ def storage_api_client(odps):
     finally:
         table.drop(async_=True)
         options.always_enable_schema = False
-

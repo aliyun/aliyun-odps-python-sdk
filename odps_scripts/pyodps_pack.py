@@ -50,7 +50,9 @@ if docker_path and os.path.isfile(docker_path):
     docker_path = os.path.dirname(docker_path)
 
 _is_linux = sys.platform.lower().startswith("linux")
+_is_macos = sys.platform.lower().startswith("darwin")
 _is_windows = sys.platform.lower().startswith("win")
+_is_sudo = "SUDO_USER" in os.environ
 _vcs_prefixes = [prefix + "+" for prefix in "git hg svn bzr".split()]
 
 logger = logging.getLogger(__name__)
@@ -575,6 +577,13 @@ def _create_temp_work_dir(
     before_script,
     **script_kwargs
 ):
+    if _is_macos and _is_sudo:
+        logger.warning(
+            "You are calling pyodps-pack with sudo under MacOS, which is not needed and may cause "
+            "unexpected permission errors. Try calling pyodps-pack without sudo if you encounter "
+            "such problems."
+        )
+
     try:
         try:
             from pip._vendor.platformdirs import user_cache_dir
@@ -882,6 +891,7 @@ def _rewrite_minikube_command(docker_cmd, done_timeout=10):
 def _main(parsed_args):
     if parsed_args.debug:
         logging.basicConfig(level=logging.DEBUG)
+        logger.info("System environment variables: %s", json.dumps(dict(os.environ), indent=2))
 
     if parsed_args.pack_env:
         if parsed_args.specifiers:
@@ -1056,7 +1066,8 @@ def _main(parsed_args):
                     print(
                         "Errors occurred when creating your package. Please check outputs "
                         "for details. You may add a `--debug` option to obtain more "
-                        "information."
+                        "information. Please provide all outputs with `--debug` specified "
+                        "when you are seeking for help from MaxCompute assisting team."
                     )
 
                 if proc.returncode == _SEGFAULT_ERR_CODE and use_legacy_image:
