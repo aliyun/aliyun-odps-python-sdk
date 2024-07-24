@@ -14,7 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mars
+try:
+    import mars
+except ImportError:
+    raise
+except Exception as ex:
+    raise ImportError("Failed to import mars due to " + repr(ex))
 
 from ..compat import Version
 
