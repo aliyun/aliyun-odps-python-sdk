@@ -18,6 +18,7 @@ from __future__ import print_function
 import pytest
 
 from ... import types as odps_types
+from ...tests.core import get_test_unique_name
 from ...df import DataFrame
 from ...df.backends.odpssql.types import df_schema_to_odps_schema
 from ...models import Partition, TableSchema

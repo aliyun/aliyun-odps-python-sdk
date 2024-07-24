@@ -248,6 +248,17 @@ try:
         pd.RangeIndex.start = property(fget=lambda x: x._start)
         pd.RangeIndex.stop = property(fget=lambda x: x._stop)
         pd.RangeIndex.step = property(fget=lambda x: x._step)
+except (ImportError, ValueError) as ex:
+    if not isinstance(ex, ImportError):
+        warnings.warn("Import of pandas skipped. Reasons: %s" % str(ex))
+
+try:
+    import numpy as np
+
+    if not hasattr(np, "float_"):
+        np.float_ = np.float64
+    if not hasattr(np, "int_"):
+        np.int_ = np.int64
 except ImportError:
     pass
 

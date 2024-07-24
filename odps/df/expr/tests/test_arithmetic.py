@@ -27,17 +27,19 @@ from ..tests.core import MockTable
 
 
 @pytest.fixture
-def test_expr():
+def src_expr(odps):
     datatypes = lambda *types: [validate_data_type(t) for t in types]
-    schema = TableSchema.from_lists(['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
-                                    datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime'))
-    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid', 'isMale', 'scale', 'birth'],
+        datatypes('string', 'int64', 'float64', 'boolean', 'decimal', 'datetime')
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema, client=odps.rest)
 
     return CollectionExpr(_source_data=table, _schema=schema)
 
 
-def test_binary_operate(test_expr):
-    expr = test_expr
+def test_binary_operate(src_expr):
+    expr = src_expr
     # test string
     assert isinstance("hello" + expr['name'] + "test", arithmetic.Add)
     assert isinstance(expr['name'] + expr['name'], arithmetic.Add)
@@ -243,8 +245,8 @@ def test_binary_operate(test_expr):
     assert isinstance(expr['birth'] < expr['birth'], arithmetic.Less)
 
 
-def test_unary_operate(test_expr):
-    expr = test_expr
+def test_unary_operate(src_expr):
+    expr = src_expr
     assert isinstance(-expr['id'], arithmetic.Negate)
     assert isinstance(-(-expr['id']), SequenceExpr)
     assert isinstance(-(-(-expr['id'])), arithmetic.Negate)
@@ -277,8 +279,8 @@ def test_unary_operate(test_expr):
     assert isinstance(abs(abs(expr['fid'])), arithmetic.Abs)
 
 
-def test_negative_operate(test_expr):
-    expr = test_expr
+def test_negative_operate(src_expr):
+    expr = src_expr
     pytest.raises(AttributeError, lambda: expr['name'] - 10)
     pytest.raises(AttributeError, lambda: ~expr['fid'])
 
@@ -286,8 +288,8 @@ def test_negative_operate(test_expr):
     pytest.raises(TypeError, lambda: 'hello' + expr['id'])
 
 
-def test_complex_airith(test_expr):
-    expr = test_expr
+def test_complex_airith(src_expr):
+    expr = src_expr
     assert isinstance(20 - expr['id'] / expr['id'] + 10, arithmetic.Add)
     assert isinstance(-(expr['id']) + 20.34 - expr['fid'] + float(20) * expr['id'] - expr['fid'] / 4.9 + 40 // 2 + expr[
             'fid'] // 1.2, arithmetic.Add)

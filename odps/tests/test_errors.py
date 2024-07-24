@@ -94,6 +94,16 @@ def test_nginx_gateway_error():
 
 
 def test_instance_error():
+    err_msg = """
+    <Error>
+        <Code>InternalServerError</Code>
+        <Message>System internal error</Message>
+        <HostId>host</HostId>
+    </Error>
+    """
+    exc = parse_instance_error(err_msg)
+    assert isinstance(exc, InternalServerError)
+
     err_msg = "ODPS-0123055:Script exception - ValueError: unmarshallable object"
     exc = parse_instance_error(err_msg)
     assert isinstance(exc, ScriptError)

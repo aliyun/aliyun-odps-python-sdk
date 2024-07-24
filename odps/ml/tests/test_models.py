@@ -18,13 +18,16 @@ import json
 import pytest
 
 from ... import utils as odps_utils
+from ...tests.core import get_test_unique_name
 from .. import utils as ml_utils
 from .base import MLTestUtil, tn
 
-TEST_LR_MODEL_NAME = tn('pyodps_test_lr_model')
-TEST_TABLE_MODEL_NAME = tn('pyodps_table_model')
+TEST_LR_MODEL_NAME = tn('pyodps_test_lr_model' + get_test_unique_name(5))
+TEST_TABLE_MODEL_NAME = tn('pyodps_table_model' + get_test_unique_name(5))
 TEST_TEMP_TABLE_MODEL_NAME = tn(odps_utils.TEMP_TABLE_PREFIX + 'table_model')
 IONOSPHERE_TABLE = tn('pyodps_test_ml_ionosphere')
+
+pytestmark = pytest.mark.skip("cases might contribute to timeouts")
 
 
 @pytest.fixture

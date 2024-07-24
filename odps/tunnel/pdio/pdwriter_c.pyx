@@ -33,7 +33,7 @@ from ... import types, options
 
 try:
     import pandas as pd
-except ImportError:
+except (ImportError, ValueError):
     pd = None
 
 cdef:

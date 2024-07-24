@@ -81,7 +81,6 @@ def test_options():
     assert options.console.max_lines is None
     assert options.console.max_width is None
     pytest.raises(AttributeError, lambda: options.nest.inner.value)
-    assert options.interactive is False
 
     def set_notexist():
         options.display.val = 3

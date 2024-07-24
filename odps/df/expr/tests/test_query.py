@@ -22,9 +22,10 @@ from ..tests.core import MockTable
 
 @pytest.fixture
 def src_expr(odps):
-    schema = TableSchema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
-    table = MockTable(name='pyodps_test_query_table', table_schema=schema)
-    table._client = odps.rest
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid'], [types.string, types.int64, types.float64]
+    )
+    table = MockTable(name='pyodps_test_query_table', table_schema=schema, client=odps.rest)
     return CollectionExpr(_source_data=table, _schema=schema)
 
 

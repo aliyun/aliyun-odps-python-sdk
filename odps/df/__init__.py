@@ -60,7 +60,7 @@ try:
     for k, v in six.iteritems(dict(locals())):
         if k.startswith("read_") and inspect.isfunction(v):
             locals()[k] = wrap(v)
-except ImportError:
+except (ImportError, ValueError):
     pass
 
 try:

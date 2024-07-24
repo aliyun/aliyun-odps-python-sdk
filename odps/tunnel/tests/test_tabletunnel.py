@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
+
 import math
-import os
 import random
-import re
+import sys
 import time
 import warnings
 from collections import OrderedDict
@@ -46,11 +47,11 @@ import requests
 from ... import types, options
 from ...errors import throw_if_parsable
 from ...tests.core import py_and_c, tn, pandas_case, pyarrow_case, \
-    odps2_typed_case, get_code_mode, approx_list, flaky
+    odps2_typed_case, get_code_mode, approx_list, flaky, get_test_unique_name
 from ...utils import get_zone_name, to_text
-from ...compat import Decimal, Monthdelta, Iterable, Version
+from ...compat import Decimal, Monthdelta, Iterable, Version, DECIMAL_TYPES
 from ...errors import DatetimeOverflowError
-from ...models import TableSchema
+from ...models import TableSchema, Record
 from .. import TableTunnel
 from ..errors import TunnelWriteTimeout
 
@@ -69,6 +70,7 @@ def check_malicious_requests(odps):
 class TunnelTestUtil(object):
     def __init__(self, odps, tunnel):
         self.odps = odps
+        self.last_table = None
         self.tunnel = tunnel
 
     def _gen_random_bigint(self):
@@ -139,12 +141,7 @@ class TunnelTestUtil(object):
             return name
 
         odps = odps or self.odps
-
-        table_suffix = re.sub(
-            r"^[^:]+::([^ ]+).+$", r"\1", os.getenv("PYTEST_CURRENT_TEST", "test_tunnel")
-        )
-        table_suffix = re.sub(r"[\[\]\/-]+", "_", table_suffix).lower().strip("_")
-        test_table_name = tn('pyodps_' + table_suffix)
+        test_table_name = tn('pyodps_t_tmp_tunnel_' + get_test_unique_name())
 
         types = ['bigint', 'string', 'double', 'datetime', 'boolean', 'decimal']
         types.append(self.gen_random_array_type().name)
@@ -155,11 +152,12 @@ class TunnelTestUtil(object):
         odps.delete_table(test_table_name, if_exists=True)
         partition_names = [partition, ] if partition else None
         partition_types = [partition_type, ] if partition_type else None
-        table = odps.create_table(
+        table = self.last_table = odps.create_table(
             test_table_name,
             TableSchema.from_lists(
                 names, types, partition_names=partition_names, partition_types=partition_types
-            )
+            ),
+            lifecycle=1,
         )
         if partition_val:
             table.create_partition('%s=%s' % (partition, partition_val))
@@ -183,18 +181,43 @@ class TunnelTestUtil(object):
         return table, data
 
     def assert_reads_data_equal(self, reads, data, ignore_tz=True):
-        for val1, val2 in zip(data, reads):
-            for it1, it2 in zip(val1, val2):
-                if isinstance(it1, dict):
-                    assert len(it1) == len(it2)
-                    assert any(it1[k] == it2[k] for k in it1) is True
-                elif isinstance(it1, list):
-                    assert it1 == list(it2)
-                elif isinstance(it1, float) and math.isnan(it1) and \
-                        isinstance(it2, float) and math.isnan(it2):
-                    continue
-                else:
-                    assert it1 == it2
+        def _nan_inf(v):
+            return v if not isinstance(v, float) or not math.isnan(v) else float("-inf")
+
+        reads = [r.values if isinstance(r, Record) else r for r in reads]
+        data = [r.values if isinstance(r, Record) else r for r in data]
+
+        sortable_types = (
+            six.string_types, six.integer_types, bool, float, DECIMAL_TYPES, datetime, date
+        )
+        sort_idxes = []
+        if reads and data:
+            for idx, v in enumerate(data[0]):
+                if isinstance(v, sortable_types):
+                    sort_idxes.append(idx)
+            if sort_idxes:
+                reads = sorted(reads, key=lambda x: tuple(_nan_inf(x[ix]) for ix in sort_idxes))
+                data = sorted(data, key=lambda x: tuple(_nan_inf(x[ix]) for ix in sort_idxes))
+        try:
+            assert len(data) == len(reads)
+            for val1, val2 in zip(data, reads):
+                assert len(val1) == len(val2)
+                for it1, it2 in zip(val1, val2):
+                    if isinstance(it1, dict):
+                        assert len(it1) == len(it2)
+                        assert any(it1[k] == it2[k] for k in it1) is True
+                    elif isinstance(it1, list):
+                        assert it1 == list(it2)
+                    elif isinstance(it1, float) and math.isnan(it1) and \
+                            isinstance(it2, float) and math.isnan(it2):
+                        continue
+                    else:
+                        assert it1 == it2
+        except AssertionError:
+            print("sort_idxes =", repr(sort_idxes))
+            print("reads =", repr(reads), file=sys.stderr)
+            print("data =", repr(data), file=sys.stderr)
+            raise
 
     def upload_data(self, test_table, records, compress=False, **kw):
         tunnel = kw.pop("tunnel", self.tunnel)
@@ -249,8 +272,9 @@ class TunnelTestUtil(object):
         upload_ss.commit(writer.get_blocks_written())
 
     def download_data(self, test_table, compress=False, columns=None, **kw):
-        count = kw.pop('count', 4)
+        count = kw.pop('count', None)
         download_ss = self.tunnel.create_download_session(test_table, **kw)
+        count = count or download_ss.count
         # make sure session reprs work well
         repr(download_ss)
         with download_ss.open_record_reader(0, count, compress=compress, columns=columns) as reader:
@@ -321,7 +345,12 @@ py_and_c_deco = py_and_c([
 @pytest.fixture
 def setup(odps, tunnel):
     random.seed(0)
-    return TunnelTestUtil(odps, tunnel)
+    util = TunnelTestUtil(odps, tunnel)
+    try:
+        yield util
+    finally:
+        if util.last_table:
+            util.last_table.drop(async_=True)
 
 
 def test_malicious_request_detection(setup):
@@ -546,35 +575,18 @@ def test_multi_table_upload_and_download_tunnel(odps, setup):
     odps.write_table(table, 0, records[:5])
     odps.write_table(table, 0, records[5:])
 
-    def to_sortable(key):
-        if isinstance(key, Iterable) and not isinstance(key, six.string_types):
-            return tuple(sorted(key))
-        return key
-
     reads = list(odps.read_table(table, len(data)))
-    for val1, val2 in zip(
-        sorted(data, key=lambda x: to_sortable(x[0])),
-        sorted([r.values for r in reads], key=lambda x: to_sortable(x[0])),
-    ):
-        for it1, it2 in zip(val1, val2):
-            if isinstance(it1, dict):
-                assert len(it1) == len(it2)
-                assert any(it1[k] == it2[k] for k in it1) is True
-            elif isinstance(it1, list):
-                assert it1 == list(it2)
-            elif isinstance(it1, float) and math.isnan(it1) and \
-                    isinstance(it2, float) and math.isnan(it2):
-                continue
-            else:
-                assert it1 == it2
+    setup.assert_reads_data_equal(reads, data)
 
 
 @py_and_c_deco
 def test_parallel_table_upload_and_download_tunnel(odps, setup):
     p = 'ds=test'
 
-    table, data = setup.gen_table(partition=p.split('=', 1)[0], partition_type='string',
-                                  partition_val=p.split('=', 1)[1])
+    table, data = setup.gen_table(
+        partition=p.split('=', 1)[0], partition_type='string',
+        partition_val=p.split('=', 1)[1]
+    )
     assert table.exist_partition(p) is True
     records = [table.new_record(values=d) for d in data]
 
@@ -615,22 +627,10 @@ def test_parallel_table_upload_and_download_tunnel(odps, setup):
                 else:
                     end = count
                 for record in reader[start:end:step]:
-                    reads.append(record)
+                    reads.append(record.values)
                 expected.extend(data[start:end:step])
 
-        assert len(expected) == len(reads)
-        for val1, val2 in zip(expected, [r.values for r in reads]):
-            for it1, it2 in zip(val1[:-1], val2[:-1]):
-                if isinstance(it1, dict):
-                    assert len(it1) == len(it2)
-                    assert any(it1[k] == it2[k] for k in it1) is True
-                elif isinstance(it1, list):
-                    assert it1 == list(it2)
-                elif isinstance(it1, float) and math.isnan(it1) and \
-                        isinstance(it2, float) and math.isnan(it2):
-                    continue
-                else:
-                    assert it1 == it2
+        setup.assert_reads_data_equal(expected, reads)
 
     table.drop()
 
@@ -869,18 +869,7 @@ def test_async_table_upload_and_download(odps, setup):
     odps.write_table(table, 0, records)
 
     reads = list(odps.read_table(table, len(data), async_mode=True))
-    for val1, val2 in zip(data, [r.values for r in reads]):
-        for it1, it2 in zip(val1, val2):
-            if isinstance(it1, dict):
-                assert len(it1) == len(it2)
-                assert any(it1[k] == it2[k] for k in it1) is True
-            elif isinstance(it1, list):
-                assert it1 == list(it2)
-            else:
-                if isinstance(it1, float) and math.isnan(it1) \
-                        and isinstance(it2, float) and math.isnan(it2):
-                    continue
-                assert it1 == it2
+    setup.assert_reads_data_equal(reads, data)
 
     table.drop()
 

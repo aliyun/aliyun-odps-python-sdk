@@ -120,7 +120,7 @@ cdef object _validate_timestamp(object val, int64_t max_field_size):
             import pandas as pd
             pd_ts = pd.Timestamp
             pd_ts_strptime = pd_ts.strptime
-        except ImportError:
+        except (ImportError, ValueError):
             raise ImportError('To use TIMESTAMP in pyodps, you need to install pandas.')
 
     if isinstance(val, pd_ts):

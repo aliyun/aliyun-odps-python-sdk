@@ -226,7 +226,7 @@ else:
                                     res = ResultFrame(res.values, schema=schema)
                                 except (ValueError, CParserError):
                                     res = reader.raw
-                        except ImportError:
+                        except (ImportError, ValueError):
                             if not hasattr(reader, 'raw'):
                                 res = ResultFrame([rec.values for rec in reader],
                                                   schema=odps_schema_to_df_schema(reader._schema))
@@ -249,7 +249,7 @@ else:
             try:
                 import pandas as pd
                 has_pandas = True
-            except ImportError:
+            except (ImportError, ValueError):
                 has_pandas = False
 
             self._set_odps()

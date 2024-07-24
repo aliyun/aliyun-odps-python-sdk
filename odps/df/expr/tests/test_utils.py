@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from ....df.expr.utils import *
 from ..tests.core import MockTable
 from ... import types
@@ -21,11 +23,17 @@ from ...expr.expressions import *
 from ....models import TableSchema
 
 
-def test_get_attrs():
+@pytest.fixture
+def exprs(odps):
     schema = TableSchema.from_lists(['name', 'id'], [types.string, types.int64])
-    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema, client=odps.rest)
     expr = CollectionExpr(_source_data=table, _schema=schema)
+    expr2 = CollectionExpr(_source_data=table, _schema=schema)
+    return expr, expr2
 
+
+def test_get_attrs(exprs):
+    expr = exprs[0]
     expected = ('_lhs', '_rhs', '_data_type', '_source_data_type',
                 '_ml_fields_cache', '_ml_uplink', '_ml_operations',
                 '_name', '_source_name', '_deps', '_ban_optimize', '_engine',
@@ -33,11 +41,8 @@ def test_get_attrs():
     assert list(expected) == list(get_attrs(expr.id + 1))
 
 
-def test_is_changed():
-    schema = TableSchema.from_lists(['name', 'id'], [types.string, types.int64])
-    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
-    expr = CollectionExpr(_source_data=table, _schema=schema)
-    expr2 = CollectionExpr(_source_data=table, _schema=schema)
+def test_is_changed(exprs):
+    expr, expr2 = exprs
 
     assert is_changed(expr[expr.id < 3], expr.id) is False
     assert is_changed(expr[expr.id + 2,], expr.id) is True

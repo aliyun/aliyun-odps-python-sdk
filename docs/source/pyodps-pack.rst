@@ -67,6 +67,8 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
     在 Linux 中使用下列命令时，请使用 ``sudo`` 调用 ``pyodps-pack`` 以保证 Docker 正常运行。
 
+    在 macOS 中使用下列命令时，\ **不建议**\ 使用 ``sudo``，这可能会导致无法预期的权限问题。
+
 安装完 PyODPS 后，你可以使用下面的命令为 Python 3 打包 pandas 及所有 pandas 的依赖项：
 
 .. code-block:: bash

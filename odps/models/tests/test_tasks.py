@@ -231,6 +231,18 @@ def test_run_merge_task(odps):
     except:
         pass
 
+    inst = odps.run_sql(
+        'alter table %s partition (part1=1,part2=1) compact major;' % table_name
+    )
+    wait_filled(lambda: inst.tasks)
+    task = inst.tasks[0]
+    assert isinstance(task, MergeTask)
+    assert json.loads(task.properties["settings"])["odps.merge.txn.table.compact"] == "major_compact"
+    try:
+        inst.stop()
+    except:
+        pass
+
     odps.delete_table(table_name)
 
 

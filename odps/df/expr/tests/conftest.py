@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 1999-2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,8 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version_info = (0, 11, 6, 2)
-_num_index = max(idx if isinstance(v, int) else 0
-                 for idx, v in enumerate(version_info))
-__version__ = '.'.join(map(str, version_info[:_num_index + 1])) + \
-              ''.join(version_info[_num_index + 1:])
+import pytest
+
+from ....config import options
+
+
+@pytest.fixture(autouse=True)
+def no_test_interactive():
+    old_interactive = options.interactive
+    try:
+        options.interactive = False
+        yield
+    finally:
+        options.interactive = old_interactive

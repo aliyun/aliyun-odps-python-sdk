@@ -25,7 +25,7 @@ from ..odpssql.types import set_local_use_odps2_types
 from .... import types as odps_types
 from ....config import options
 from ....models import TableSchema, Instance
-from ....tests.core import tn, pandas_case, odps2_typed_case, get_result
+from ....tests.core import tn, pandas_case, odps2_typed_case, get_result, get_test_unique_name
 from ... import DataFrame, output, func
 from ...utils import is_source_collection
 from ..context import context

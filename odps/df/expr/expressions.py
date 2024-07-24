@@ -1097,9 +1097,8 @@ class CollectionExpr(Expr):
 
         try:
             import pandas as pd
-        except ImportError:
-            raise DependencyNotInstalledError(
-                    'to_pandas requires `pandas` library')
+        except (ImportError, ValueError):
+            raise DependencyNotInstalledError('to_pandas requires `pandas` library')
 
         def wrapper(result):
             res = result.values
@@ -1444,9 +1443,8 @@ class SequenceExpr(TypedExpr):
 
         try:
             import pandas as pd
-        except ImportError:
-            raise DependencyNotInstalledError(
-                    'to_pandas requires for `pandas` library')
+        except (ImportError, ValueError):
+            raise DependencyNotInstalledError('to_pandas requires for `pandas` library')
 
         def wrapper(result):
             df = result.values

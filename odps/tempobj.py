@@ -166,7 +166,9 @@ class TempTable(TempObject):
     _type = 'Table'
 
     def drop(self, odps):
-        odps.delete_table(self.table, project=self.project, schema=self.schema, async_=True)
+        odps.delete_table(
+            self.table, if_exists=True, project=self.project, schema=self.schema, async_=True
+        )
 
 
 class TempModel(TempObject):

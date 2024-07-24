@@ -93,7 +93,7 @@ def _boxplot_pandas(df, **kwargs):
 def _plot_sequence(expr, kind='line', use_cache=None, **kwargs):
     try:
         import pandas as pd
-    except ImportError:
+    except (ImportError, ValueError):
         raise DependencyNotInstalledError('plot requires for pandas')
 
     series = expr.to_pandas(use_cache=use_cache)
@@ -107,7 +107,7 @@ def _plot_sequence(expr, kind='line', use_cache=None, **kwargs):
 def _hist_sequence(expr, use_cache=None, **kwargs):
     try:
         import pandas as pd
-    except ImportError:
+    except (ImportError, ValueError):
         raise DependencyNotInstalledError('plot requires for pandas')
 
     series = expr.to_pandas(use_cache=use_cache)
@@ -117,7 +117,7 @@ def _hist_sequence(expr, use_cache=None, **kwargs):
 def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
     try:
         import pandas as pd
-    except ImportError:
+    except (ImportError, ValueError):
         raise DependencyNotInstalledError('plot requires for pandas')
 
     if isinstance(expr, DynamicMixin):
@@ -173,7 +173,7 @@ def _plot_collection(expr, x=None, y=None, kind='line', **kwargs):
 def _hist_collection(expr, **kwargs):
     try:
         import pandas as pd
-    except ImportError:
+    except (ImportError, ValueError):
         raise DependencyNotInstalledError('plot requires for pandas')
 
     fields = []
@@ -202,7 +202,7 @@ def _hist_collection(expr, **kwargs):
 def _boxplot_collection(expr, **kwargs):
     try:
         import pandas as pd
-    except ImportError:
+    except (ImportError, ValueError):
         raise DependencyNotInstalledError('plot requires for pandas')
 
     fields = set()
@@ -253,7 +253,7 @@ try:
     _boxplot_collection.__doc__ = boxplot.__doc__
     _plot_sequence.__doc__ = plot_series.__doc__
     _hist_sequence.__doc__ = hist_series.__doc__
-except ImportError:
+except (ImportError, ValueError):
     pass
 
 __all__ = ()

@@ -137,8 +137,15 @@ class ODPS(object):
                 raise TypeError('`access_id` and `secret_access_key` should be provided.')
         else:
             self.account = account
-        self.endpoint = endpoint or options.endpoint or DEFAULT_ENDPOINT
-        self.project = project or options.default_project
+        self.endpoint = (
+            endpoint
+            or options.endpoint
+            or os.getenv('ODPS_ENDPOINT')
+            or DEFAULT_ENDPOINT
+        )
+        self.project = (
+            project or options.default_project or os.getenv('ODPS_PROJECT_NAME')
+        )
         self.region_name = region_name or self._get_region_from_endpoint(self.endpoint)
         self._schema = schema
         self.rest = RestClient(
@@ -147,11 +154,16 @@ class ODPS(object):
             region_name=self.region_name, tag="ODPS",
         )
 
-        self._tunnel_endpoint = kw.pop('tunnel_endpoint', None) or options.tunnel.endpoint
+        self._tunnel_endpoint = (
+            kw.pop('tunnel_endpoint', None)
+            or options.tunnel.endpoint
+            or os.getenv('ODPS_TUNNEL_ENDPOINT')
+        )
 
         self._logview_host = (
             kw.pop("logview_host", None)
             or options.logview_host
+            or os.getenv('ODPS_LOGVIEW_HOST')
             or self.get_logview_host()
         )
 
@@ -1264,6 +1276,11 @@ class ODPS(object):
         """
         from .models.tasks import MergeTask
 
+        _COMPACT_TYPES = {
+            "major": "major_compact",
+            "minor": "minor_compact",
+        }
+
         schema = schema or self.schema
         if not isinstance(table, six.string_types):
             if table.get_schema():
@@ -1284,6 +1301,7 @@ class ODPS(object):
         if options.default_task_settings:
             hints.update(options.default_task_settings)
 
+        compact_type = _COMPACT_TYPES.get(compact_type)
         if compact_type:
             hints.update({
                 "odps.merge.txn.table.compact": compact_type,

@@ -181,8 +181,11 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
    >>> table.reload()
 
 
+读写数据
+--------
+
 行记录Record
--------------------
+~~~~~~~~~~~~~
 
 Record表示表的一行记录，我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。
 
@@ -206,7 +209,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 .. _table_read:
 
 获取表数据
-----------
+~~~~~~~~~~~
 
 有若干种方法能够获取表数据。首先，如果只是查看每个表的开始的小于1万条数据，则可以使用 ``head`` 方法。
 
@@ -275,7 +278,7 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
 .. _table_write:
 
 向表写数据
-----------
+~~~~~~~~~~
 
 类似于 ``open_reader``，table对象同样能执行 ``open_writer`` 来打开writer，并写数据。如果表为分区表，需要引入
 ``partition`` 参数指定需要写入的分区。
@@ -391,10 +394,40 @@ open_writer 创建的 Writer 对象通过 multiprocessing 标准库传递到需�
             # 等待子进程中的执行完成
             [f.get() for f in futures]
 
+压缩选项
+~~~~~~~~
+为加快数据上传 / 下载速度，你可以在上传 / 下载数据时设置压缩选项。具体地，可以创建一个 ``CompressOption``
+实例，在其中指定需要的压缩算法及压缩等级。目前可用的压缩算法包括 zlib 和 ZSTD，其中 ZSTD 需要额外安装
+``zstandard`` 包。
+
+.. code-block:: python
+
+   from odps.tunnel import CompressOption
+
+   compress_option = CompressOption(
+       compress_algo="zlib",  # 算法名称
+       level=0,               # 压缩等级，可选
+       strategy=0,            # 压缩策略，可选，目前仅适用于 zlib
+   )
+
+此后可在 ``open_reader`` / ``open_writer`` 中设置压缩选项，例如：
+
+.. code-block:: python
+
+   with table.open_writer(compress_option=compress_option) as writer:
+       # 写入数据，此处从略
+
+如果仅需指定算法名，也可以直接在 ``open_reader`` / ``open_writer`` 中指定 ``compress_algo`` 参数，例如
+
+.. code-block:: python
+
+   with table.open_writer(compress_algo="zlib") as writer:
+       # 写入数据，此处从略
+
 .. _table_arrow_io:
 
 使用 Arrow 格式读写数据
---------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 `Apache Arrow <https://arrow.apache.org/>`_ 是一种跨语言的通用数据读写格式，支持在各种不同平台间进行数据交换。\
 自2021年起， MaxCompute 支持使用 Arrow 格式读取表数据，PyODPS 则从 0.11.2 版本开始支持该功能。具体地，如果在
 Python 环境中安装 pyarrow 后，在调用 ``open_reader`` 或者 ``open_writer`` 时增加 ``arrow=True`` 参数，即可读写
@@ -606,10 +639,11 @@ ODPS Tunnel 是 MaxCompute 的数据通道，用户可以通过 Tunnel 向 MaxCo
 ~~~~~~
 分块上传接口
 ^^^^^^^^^^^^^
-直接使用 Tunnel 分块接口上传时，需要首先使用表名和分区创建 Upload Session，此后从 Upload Session
-创建 Writer。每个 Upload Session 可多次调用 ``open_record_writer`` 方法创建多个 Writer，每个
-Writer 拥有一个 ``block_id`` 对应一个数据块。完成写入后，需要调用 Upload Session 上的 ``commit``
-方法并指定需要提交的数据块列表。
+直接使用 Tunnel 分块接口上传时，需要首先通过 ``create_upload_session`` 方法使用表名和分区创建
+Upload Session，此后从 Upload Session 创建 Writer。每个 Upload Session 可多次调用
+``open_record_writer`` 方法创建多个 Writer，每个 Writer 拥有一个 ``block_id``
+对应一个数据块。完成写入后，需要调用 Upload Session 上的 ``commit`` 方法并指定需要提交的数据块列表。\
+如果有某个 ``block_id`` 有数据写入但未包括在 ``commit`` 的参数中，则该数据块不会出现在最终的表中。
 
 .. code-block:: python
 
@@ -634,6 +668,50 @@ Writer 拥有一个 ``block_id`` 对应一个数据块。完成写入后，需�
    # 提交刚才写入的 block 0。多个 block id 需要同时提交
    # 需要在 with 代码块外 commit，否则数据未写入即 commit，会导致报错
    upload_session.commit([0])
+
+如果你需要在多个进程乃至节点中使用相同的 Upload Session，可以先创建 Upload Session，并获取其 ``id``
+属性。此后在其他进程中调用 ``create_upload_session`` 方法时，将该值作为 ``upload_id`` 参数。\
+完成每个进程的上传后，需要收集各进程提交数据所用的 ``block_id``，并在某个进程中完成 ``commit``。
+
+.. code-block:: python
+
+   from odps.tunnel import TableTunnel
+
+   ##############
+   # 主进程
+   ##############
+
+   table = o.get_table('my_table')
+
+   tunnel = TableTunnel(o)
+   # 为 table 和 pt=test 分区创建 Upload Session
+   upload_session_main = tunnel.create_upload_session(table.name, partition_spec='pt=test')
+   # 获取 Session ID
+   session_id = upload_session_main.id
+
+   # 分发 Session ID，此处省略分发过程
+
+   ##############
+   # 子进程
+   ##############
+
+   # 使用分发的 upload_id 创建 upload session
+   upload_session_sub = tunnel.create_upload_session(table.name, partition_spec='pt=test', upload_id=session_id)
+   # 创建 reader 并写入数据，注意区分不同进程的 block_id
+   with upload_session_sub.open_record_writer(local_block_id) as writer:
+       # ... 生成数据 ...
+       writer.write(record)
+
+   # 回传本进程中使用的所有 block_id，此处省略回传过程
+
+   ##############
+   # 主进程
+   ##############
+
+   # 收集所有子进程上的 block_id，此处省略收集过程
+
+   # 提交收集到的 block_id
+   upload_session_main.commit(collected_block_ids)
 
 需要注意的是，指定 block id 后，所创建的 Writer 为长连接，如果长时间不写入会导致连接关闭，并导致写入失败，\
 该时间通常为 5 分钟。如果你写入数据的间隔较大，建议生成一批数据后再通过 ``open_record_writer`` 接口创建
@@ -725,7 +803,7 @@ MaxCompute 提供了\ `流式上传接口 <https://help.aliyun.com/zh/maxcompute
 
 直接使用 Tunnel 接口下载数据时，需要首先使用表名和分区创建 Download Session，此后从 Download Session
 创建 Reader。每个 Download Session 可多次调用 ``open_record_reader`` 方法创建多个 Reader，每个
-Reader 需要指定起始行号以及终止行号。行号从 0 开始，终止行号可指定为 Session 的 ``count`` 属性，\
+Reader 需要指定起始行号以及需要的行数。起始行号从 0 开始，行数可指定为 Session 的 ``count`` 属性，\
 为表或分区的总行数。
 
 .. code-block:: python
@@ -741,6 +819,38 @@ Reader 需要指定起始行号以及终止行号。行号从 0 开始，终止�
        for record in reader:
            # 处理每条记录
 
+如果你需要在多个进程乃至节点中使用相同的 Download Session，可以先创建 Download Session，并获取其 ``id``
+属性。此后在其他进程中调用 ``create_download_session`` 方法时，将该值作为 ``download_id`` 参数。
+
+.. code-block:: python
+
+   from odps.tunnel import TableTunnel
+
+   ##############
+   # 主进程
+   ##############
+
+   table = o.get_table('my_table')
+
+   tunnel = TableTunnel(o)
+   # 为 table 和 pt=test 分区创建 Download Session
+   download_session_main = tunnel.create_download_session(table.name, partition_spec='pt=test')
+   # 获取 Session ID
+   session_id = download_session_main.id
+
+   # 分发 Session ID，此处省略分发过程
+
+   ##############
+   # 子进程
+   ##############
+
+   # 使用分发的 upload_id 创建 download session
+   download_session_sub = tunnel.create_download_session(table.name, partition_spec='pt=test', download_id=session_id)
+   # 创建 reader 并读取数据，注意不同的进程可能需要指定不同的 start / count
+   with download_session_sub.open_record_reader(start, count) as reader:
+       for record in reader:
+           # 处理记录
+
 你也可以通过使用 ``open_arrow_reader`` 而不是 ``open_record_reader`` 使读取的数据为 Arrow
 格式而不是 Record 格式。
 
@@ -754,3 +864,35 @@ Reader 需要指定起始行号以及终止行号。行号从 0 开始，终止�
    with download_session.open_arrow_reader(0, download_session.count) as reader:
        for batch in reader:
            # 处理每个 Arrow RecordBatch
+
+压缩选项
+~~~~~~~~
+为加快数据上传 / 下载速度，你可以在上传 / 下载数据时设置压缩选项。具体地，可以创建一个 ``CompressOption``
+实例，在其中指定需要的压缩算法及压缩等级。目前可用的压缩算法包括 zlib 和 ZSTD，其中 ZSTD 需要额外安装
+``zstandard`` 包。
+
+.. code-block:: python
+
+   from odps.tunnel import CompressOption
+
+   compress_option = CompressOption(
+       compress_algo="zlib",  # 算法名称
+       level=0,               # 压缩等级，可选
+       strategy=0,            # 压缩策略，可选，目前仅适用于 zlib
+   )
+
+此后，在创建 Upload / Download Session 时，可以指定 ``compress_option`` 参数，并在 ``open_xxx_reader``
+/ ``open_xxx_writer`` 方法中设置 ``compress=True`` 即可启用压缩：
+
+.. code-block:: python
+
+   tunnel = TableTunnel(o)
+   # 为 table 和 pt=test 分区创建 Download Session
+   download_session = tunnel.create_download_session(
+       'my_table', partition_spec='pt=test', compress_option=compress_option
+   )
+
+   # 创建 record reader 并指定需要读取的行范围
+   with download_session.open_record_reader(0, download_session.count, compress=True) as reader:
+       for record in reader:
+           # 处理每条记录

@@ -1504,7 +1504,7 @@ def test_datetime(odps, setup):
                     return v.to_datetime()
                 else:
                     return v
-        except ImportError:
+        except (ImportError, ValueError):
             conv = lambda v: v
 
         second = [conv(it[i]) for it in result]
@@ -2963,7 +2963,10 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            assert pytest.approx(it1) == it2
+            if isinstance(it1, six.string_types):
+                assert it1 == it2
+            else:
+                assert pytest.approx(it1) == it2
 
     # test grouped min_max_scale
     expr = expr_input.min_max_scale(columns=['fid'], group=['name'])
@@ -2986,7 +2989,10 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            assert pytest.approx(it1) == it2
+            if isinstance(it1, six.string_types):
+                assert it1 == it2
+            else:
+                assert pytest.approx(it1) == it2
 
     # test simple std_scale
     expr = expr_input.std_scale(columns=['fid'])
@@ -3009,7 +3015,10 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            assert pytest.approx(it1) == it2
+            if isinstance(it1, six.string_types):
+                assert it1 == it2
+            else:
+                assert pytest.approx(it1) == it2
 
     # test grouped std_scale
     expr = expr_input.std_scale(columns=['fid'], group=['name'])
@@ -3032,7 +3041,10 @@ def test_scale_value(odps, setup):
     for first, second in zip(result, expected):
         assert len(first) == len(second)
         for it1, it2 in zip(first, second):
-            assert pytest.approx(it1) == it2
+            if isinstance(it1, six.string_types):
+                assert it1 == it2
+            else:
+                assert pytest.approx(it1) == it2
 
 
 def test_hllc(odps, setup):

@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 import importlib
 import math
 import os
 import random
 import sys
 import tempfile
+import threading
 import time
 import types
 
@@ -27,7 +29,7 @@ try:
 except ImportError:
     _raw_flaky = None
 
-from .. import compat, errors, options
+from .. import compat, errors, options, utils
 from ..compat import six, ConfigParser
 
 LOCK_FILE_NAME = os.path.join(tempfile.gettempdir(), 'pyodps_test_lock_')
@@ -165,6 +167,7 @@ def get_config():
 
 
 _test_tables_to_drop = set()
+_test_tables_lock = threading.RLock()
 
 
 def tn(s, limit=128):
@@ -173,7 +176,8 @@ def tn(s, limit=128):
         if len(s) + len(suffix) > limit:
             s = s[:limit - len(suffix)]
         table_name = s + suffix
-        _test_tables_to_drop.add(table_name)
+        with _test_tables_lock:
+            _test_tables_to_drop.add(table_name)
         return table_name
     else:
         if len(s) > limit:
@@ -183,9 +187,12 @@ def tn(s, limit=128):
 
 def drop_test_tables(odps):
     global _test_tables_to_drop
-    for table_name in _test_tables_to_drop:
+    with _test_tables_lock:
+        tables_to_drop = list(_test_tables_to_drop)
+    for table_name in tables_to_drop:
         odps.delete_table(table_name, if_exists=True, async_=True)
-    _test_tables_to_drop = set()
+    with _test_tables_lock:
+        _test_tables_to_drop.difference_update(tables_to_drop)
 
 
 def in_coverage_mode():
@@ -374,7 +381,7 @@ def get_result(res):
     try:
         import pandas as pd
         import numpy as np
-    except ImportError:
+    except (ImportError, ValueError):
         np = pd = None
 
     def conv(t):
@@ -463,3 +470,11 @@ def py_and_c(modules=None, reloader=None):
         return param_deco(fixture_deco(fun))
 
     return wrap_fun
+
+
+def get_test_unique_name(size=None):
+    test_name = os.getenv("PYTEST_CURRENT_TEST", "pyodps_test")
+    digest = hashlib.md5(utils.to_binary(test_name)).hexdigest()
+    if size:
+        digest = digest[:size]
+    return digest + "_" + str(os.getpid())

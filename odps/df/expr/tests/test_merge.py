@@ -27,15 +27,14 @@ from ..merge import *
 
 @pytest.fixture
 def exprs(odps):
-    schema = TableSchema.from_lists(['name', 'id', 'fid'], [types.string, types.int64, types.float64])
-    table = MockTable(name='pyodps_test_expr_table', table_schema=schema)
-    table._client = odps.rest
+    schema = TableSchema.from_lists(
+        ['name', 'id', 'fid'], [types.string, types.int64, types.float64]
+    )
+    table = MockTable(name='pyodps_test_expr_table', table_schema=schema, client=odps.rest)
     expr = CollectionExpr(_source_data=table, _schema=schema)
-    table1 = MockTable(name='pyodps_test_expr_table1', table_schema=schema)
-    table1._client = odps.rest
+    table1 = MockTable(name='pyodps_test_expr_table1', table_schema=schema, client=odps.rest)
     expr1 = CollectionExpr(_source_data=table1, _schema=schema)
-    table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema)
-    table2._client = odps.rest
+    table2 = MockTable(name='pyodps_test_expr_table2', table_schema=schema, client=odps.rest)
     expr2 = CollectionExpr(_source_data=table2, _schema=schema)
 
     nt = namedtuple("NT", "expr, expr1, expr2")
