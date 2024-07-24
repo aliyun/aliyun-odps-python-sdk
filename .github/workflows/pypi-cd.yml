@@ -30,6 +30,7 @@ jobs:
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v1.11.1
+        if: ${{ matrix.arch != 'universal2' }}
         env:
           CIBW_BEFORE_BUILD: git reset --hard && pip install -r requirements-wheel.txt && rm -rf pyproject.toml
           CIBW_ARCHS: ${{ matrix.arch }}
