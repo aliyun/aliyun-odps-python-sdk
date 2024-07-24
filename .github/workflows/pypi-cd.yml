@@ -33,16 +33,16 @@ jobs:
         env:
           CIBW_BEFORE_BUILD: git reset --hard && pip install -r requirements-wheel.txt && rm -rf pyproject.toml
           CIBW_ARCHS: ${{ matrix.arch }}
-          CIBW_SKIP: pp* *-musllinux* *i686 cp35-manylinux_aarch64 cp36-manylinux_aarch64
+          CIBW_SKIP: pp* *-musllinux* *i686 cp35-manylinux_aarch64 cp36-manylinux_aarch64 cp39-*
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux1
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
 
-      - name: "Build wheels (Python >= 3.10)"
+      - name: "Build wheels (Python >= 3.9)"
         uses: pypa/cibuildwheel@v2.16.5
         env:
           CIBW_BEFORE_BUILD: git reset --hard && pip install -r requirements-wheel.txt && rm -rf pyproject.toml
           CIBW_ARCHS: ${{ matrix.arch }}
-          CIBW_SKIP: pp* *-musllinux* *i686 cp36-* cp37-* cp38-* cp39-*
+          CIBW_SKIP: pp* *-musllinux* *i686 cp36-* cp37-* cp38-*
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
 
