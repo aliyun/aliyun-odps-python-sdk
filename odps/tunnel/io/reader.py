@@ -508,7 +508,7 @@ class TunnelArrowReader(object):
 
         if not batches:
             return self._arrow_schema.empty_table().to_pandas()
-        return pd.concat(batches, axis=0)
+        return pd.concat(batches, axis=0, ignore_index=True)
 
     def __enter__(self):
         return self

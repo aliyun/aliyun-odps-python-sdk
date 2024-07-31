@@ -38,8 +38,7 @@ def test_storage_api(storage_api_client):
 
     assert resp.status == Status.OK
     if resp.status != Status.OK:
-        logger.info("Create write session failed")
-        return
+        raise IOError("Create write session failed")
 
     req = SessionRequest(session_id=resp.session_id)
 
@@ -49,7 +48,7 @@ def test_storage_api(storage_api_client):
         assert resp.status == Status.OK
 
         if resp.status != Status.OK:
-            logger.info("Get write session failed")
+            raise IOError("Get write session failed")
             return
 
         if resp.session_status != SessionStatus.NORMAL and resp.session_status != SessionStatus.COMMITTED:
@@ -78,20 +77,21 @@ def test_storage_api(storage_api_client):
         if i == 0:
             suc = writer.write(record_batch.schema.serialize().to_pybytes())
             if not suc:
-                logger.info("write arrow schema failed")
-                break
+                raise IOError("write arrow schema failed")
 
         suc = writer.write(record_batch.serialize().to_pybytes())
         if not suc:
-            logger.info("write arrow record batch failed")
-            break
+            raise IOError("write arrow record batch failed")
 
+    # write EOS given https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format
+    suc = writer.write(b'\xff\xff\xff\xff\x00\x00\x00\x00')
+    if not suc:
+        raise IOError("write EOS failed")
     commit_message, suc = writer.finish()
 
     assert suc is True
     if not suc:
-        logger.info("Write rows failed")
-        return
+        raise IOError("Write rows failed")
     else:
         end = time.time()
         logger.info("Write rows cost: " + str(end - start) + "s")
@@ -103,8 +103,7 @@ def test_storage_api(storage_api_client):
     resp = storage_api_client.commit_write_session(req, commit_messages)
 
     if resp.status != Status.OK and resp.status != Status.WAIT:
-        logger.info("Fail to commit write session")
-        return
+        raise IOError("Fail to commit write session")
 
     if resp.status == Status.WAIT:
         req = SessionRequest(session_id=resp.session_id)
@@ -114,8 +113,7 @@ def test_storage_api(storage_api_client):
             assert resp.status == Status.OK
 
             if resp.status != Status.OK:
-                logger.info("Get write session failed")
-                return
+                raise IOError("Get write session failed")
 
             if resp.session_status != SessionStatus.NORMAL and resp.session_status != SessionStatus.COMMITTED:
                 logger.info("Wait...")
@@ -131,8 +129,7 @@ def test_storage_api(storage_api_client):
     resp = storage_api_client.create_read_session(req)
 
     if resp.status != Status.OK and resp.status != Status.WAIT:
-        logger.info("create read session failed")
-        return
+        raise IOError("create read session failed")
 
     req = SessionRequest(session_id=resp.session_id)
 
@@ -140,8 +137,7 @@ def test_storage_api(storage_api_client):
         resp = storage_api_client.get_read_session(req)
 
         if resp.status != Status.OK:
-            logger.info("get read session failed")
-            return
+            raise IOError("get read session failed")
 
         if resp.session_status == SessionStatus.INIT:
             logger.info("Wait...")
@@ -168,8 +164,7 @@ def test_storage_api(storage_api_client):
 
         reader.close()
         if reader.get_status() != Status.OK:
-            logger.info("Read rows failed")
-            return
+            raise IOError("Read rows failed")
 
         end = time.time()
         logger.info("Read rows cost (index " + str(i) + "): " + str(end - start) + "s")

@@ -438,15 +438,7 @@ class BufferedRecordWriter(BaseRecordWriter):
         self._crc.reset()
 
     def _send_buffer(self):
-        def gen():  # synchronize chunk upload
-            data = self._buffer.getvalue()
-            chunk_size = options.chunk_size
-            while data:
-                to_send = data[:chunk_size]
-                data = data[chunk_size:]
-                yield to_send
-
-        return self._request_callback(self._block_id, gen())
+        return self._request_callback(self._block_id, self._buffer.getvalue())
 
     def _flush(self):
         self._write_finish_tags()
@@ -543,20 +535,20 @@ class BaseArrowWriter(object):
         self._output = output
 
     def _write_chunk_size(self):
-        self._write_unint32(self._chunk_size)
+        self._write_uint32(self._chunk_size)
 
-    def _write_unint32(self, val):
+    def _write_uint32(self, val):
         data = struct.pack("!I", utils.long_to_uint(val))
         self._output.write(data)
 
     def _write_chunk(self, buf):
         self._output.write(buf)
+        self._crc.update(buf)
         self._crccrc.update(buf)
         self._cur_chunk_size += len(buf)
         if self._cur_chunk_size >= self._chunk_size:
-            self._crc.update(buf)
             checksum = self._crc.getvalue()
-            self._write_unint32(checksum)
+            self._write_uint32(checksum)
             self._crc.reset()
             self._cur_chunk_size = 0
 
@@ -602,7 +594,7 @@ class BaseArrowWriter(object):
 
                 if tp == pa.timestamp("ms") or tp == pa.timestamp("ns"):
                     if self._schema[name].type == types.timestamp_ntz:
-                        column_dict[name] = self._localize_timezone(column_dict, "UTC")
+                        column_dict[name] = self._localize_timezone(column_dict[name], "UTC")
                     else:
                         column_dict[name] = self._localize_timezone(column_dict[name])
 
@@ -633,7 +625,7 @@ class BaseArrowWriter(object):
 
     def _write_finish_tags(self):
         checksum = self._crccrc.getvalue()
-        self._write_unint32(checksum)
+        self._write_uint32(checksum)
         self._crccrc.reset()
 
     def flush(self):
@@ -723,15 +715,7 @@ class BufferedArrowWriter(BaseArrowWriter):
         self._crc.reset()
 
     def _send_buffer(self):
-        def gen():  # synchronize chunk upload
-            data = self._buffer.getvalue()
-            chunk_size = options.chunk_size
-            while data:
-                to_send = data[:chunk_size]
-                data = data[chunk_size:]
-                yield to_send
-
-        return self._request_callback(self._block_id, gen())
+        return self._request_callback(self._block_id, self._buffer.getvalue())
 
     def _flush(self):
         self._write_finish_tags()

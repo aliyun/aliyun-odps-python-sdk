@@ -358,3 +358,11 @@ def test_fallback_policy():
     assert default_policy.get_mode_from_exception(
         errors.SQAQueryTimedout("QueryTimedout")
     ) is FallbackMode.OFFLINE
+
+
+def test_reuse_session(odps):
+    inst = odps.run_sql_interactive("select * from dual", force_reattach=True)
+    inst.wait_for_completion()
+    new_odps = ODPS(account=odps.account, project=odps.project, endpoint=odps.endpoint)
+    new_inst = new_odps.run_sql_interactive("select * from dual")
+    assert inst.id == new_inst.id

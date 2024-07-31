@@ -147,6 +147,20 @@ class SessionInstance(Instance):
         self._session_name = kw.pop("session_name", "")
         super(SessionInstance, self).__init__(**kw)
 
+    @classmethod
+    def from_instance(cls, instance, **kw):
+        return SessionInstance(
+            name=instance.id, parent=instance.parent, client=instance._client, **kw
+        )
+
+    def _extract_json_info(self):
+        return {
+            "id": self.id,
+            "session_project_name": self._project.name,
+            "session_task_name": self._task_name,
+            "session_name": self._session_name,
+        }
+
     def wait_for_startup(self, interval=1, timeout=-1, retry=True, max_interval=None):
         """
         Wait for the session to startup(status changed to RUNNING).
