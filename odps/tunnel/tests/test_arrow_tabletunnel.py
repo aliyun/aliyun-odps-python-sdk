@@ -22,6 +22,7 @@ try:
 except ImportError:
     from string import ascii_letters as letters  # noqa: F401
 
+import mock
 import pytest
 try:
     import zoneinfo
@@ -82,8 +83,9 @@ def setup(odps, tunnel):
         upload_ss.commit(writer.get_blocks_written())
 
     def download_data(test_table, columns=None, compress=False, **kw):
-        count = kw.pop('count', 4)
+        count = kw.pop('count', None)
         download_ss = tunnel.create_download_session(test_table, **kw)
+        count = count or download_ss.count or 1
         with download_ss.open_arrow_reader(0, count, compress=compress, columns=columns) as reader:
             pd_data = reader.to_pandas()
         for col_name, dtype in pd_data.dtypes.items():
@@ -99,7 +101,7 @@ def setup(odps, tunnel):
         data['bool'] = [True, False, True, True] * repeat
         data['date'] = [
             datetime.date.today() + datetime.timedelta(days=idx) for idx in range(4)
-        ]
+        ] * repeat
         data['dt'] = [
             datetime.datetime.now() + datetime.timedelta(days=idx)
             for idx in range(4)
@@ -165,7 +167,7 @@ def test_upload_and_download_by_raw_tunnel(odps, setup):
     pd_df = setup.download_data(test_table_name)
     assert len(pd_df) == 0
 
-    data = setup.gen_data()
+    data = setup.gen_data(repeat=1024)
     setup.upload_data(test_table_name, data)
 
     pd_df = setup.download_data(test_table_name)
@@ -178,7 +180,10 @@ def test_upload_and_download_by_raw_tunnel(odps, setup):
     )
     setup.upload_data(test_table_name, new_data)
 
-    new_data = pa.Table.from_batches([new_data])
+    data_size = new_data.num_rows
+    new_data = pa.Table.from_batches(
+        [new_data.slice(length=data_size // 2), new_data.slice(offset=data_size // 2)]
+    )
     setup.upload_data(test_table_name, new_data)
 
     data_dict['int_num'] = data.columns[data.schema.get_field_index('id')]
@@ -199,13 +204,39 @@ def test_upload_and_download_by_raw_tunnel(odps, setup):
 
 
 def test_buffered_upload_and_download_by_raw_tunnel(odps, setup):
+    from ..tabletunnel import TableUploadSession
+
     test_table_name = tn('pyodps_test_buffered_arrow_tunnel')
-    setup.create_table(test_table_name)
+    table = setup.create_table(test_table_name)
     pd_df = setup.download_data(test_table_name)
     assert len(pd_df) == 0
 
+    # test upload and download without errors
     data = setup.gen_data()
     setup.buffered_upload_data(test_table_name, data)
+
+    pd_df = setup.download_data(test_table_name)
+    _assert_frame_equal(data, pd_df)
+
+    # test upload and download with retry
+    table.truncate()
+    raw_iter_data_in_batches = TableUploadSession._iter_data_in_batches
+    raises = [True]
+
+    def _gen_with_error(cls, data):
+        gen = raw_iter_data_in_batches(data)
+        yield next(gen)
+        if raises[0]:
+            raises[0] = False
+            raise ValueError
+        for chunk in gen:
+            yield chunk
+
+    with mock.patch(
+        "odps.tunnel.tabletunnel.TableUploadSession._iter_data_in_batches", new=_gen_with_error
+    ):
+        setup.buffered_upload_data(test_table_name, data)
+        assert not raises[0], "error not raised"
 
     pd_df = setup.download_data(test_table_name)
     _assert_frame_equal(data, pd_df)

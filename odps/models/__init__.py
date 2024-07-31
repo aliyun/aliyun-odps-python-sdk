@@ -25,6 +25,7 @@ from .functions import Functions
 from .function import Function
 from .resources import Resources
 from .resource import *
+from .session import InSessionInstance, SessionInstance
 from .tenant import Tenant
 from .volumes import *
 from .volume_parted import PartedVolume, VolumePartition

@@ -14,6 +14,7 @@
 
 import copy
 import functools
+import hashlib
 import json  # noqa: F401
 import os
 import random
@@ -2357,6 +2358,18 @@ class ODPS(object):
             task=task, session_project=project, session_name=session_name
         )
 
+    def _get_mcqa_session_file(self):
+        try:
+            dir_name = utils.build_pyodps_dir()
+            if not os.path.exists(dir_name):
+                os.makedirs(dir_name)
+            access_id_digest = hashlib.md5(utils.to_binary(self.account.access_id)).hexdigest()
+            return os.path.join(
+                dir_name, "mcqa-session-" + access_id_digest
+            )
+        except:
+            return None
+
     def run_sql_interactive(self, sql, hints=None, **kwargs):
         """
         Run SQL query in interactive mode (a.k.a MaxCompute QueryAcceleration).
@@ -2370,10 +2383,29 @@ class ODPS(object):
         task_name = kwargs.pop('task_name', None)
         service_startup_timeout = kwargs.pop('service_startup_timeout', 60)
         force_reattach = kwargs.pop('force_reattach', False)
-        if self._default_session != None:
+
+        session_file_name = self._get_mcqa_session_file()
+        if (
+            self._default_session is None
+            and session_file_name
+            and os.path.exists(session_file_name)
+        ):
+            try:
+                with open(session_file_name, "r") as session_file:
+                    session_info = json.loads(session_file.read())
+                instance_obj = self.get_instance(session_info.pop("id"))
+                session_project = self.get_project(session_info.pop("session_project_name"))
+                self._default_session_name = session_info["session_name"]
+                self._default_session = models.SessionInstance.from_instance(
+                    instance_obj, session_project=session_project, **session_info
+                )
+            except:
+                pass
+
+        if self._default_session is not None:
             try:
                 cached_is_running = self._default_session.is_running()
-            except BaseException:
+            except:
                 pass
         if (
             force_reattach
@@ -2385,6 +2417,15 @@ class ODPS(object):
             self._default_session = self._attach_mcqa_session(service_name, task_name=task_name)
             self._default_session.wait_for_startup(0.1, service_startup_timeout, max_interval=1)
             self._default_session_name = service_name
+
+            if session_file_name:
+                try:
+                    with open(session_file_name, "w") as session_file:
+                        session_file.write(
+                            json.dumps(self._default_session._extract_json_info())
+                        )
+                except:
+                    pass
         return self._default_session.run_sql(sql, hints, **kwargs)
 
     @utils.deprecated(

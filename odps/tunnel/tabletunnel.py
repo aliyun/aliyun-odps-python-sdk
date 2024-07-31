@@ -355,6 +355,14 @@ class TableUploadSession(BaseTableTunnelSession):
     def reload(self):
         self._create_or_reload_session(reload=True)
 
+    @classmethod
+    def _iter_data_in_batches(cls, data):
+        pos = 0
+        chunk_size = options.chunk_size
+        while pos < len(data):
+            yield data[pos: pos + chunk_size]
+            pos += chunk_size
+
     def _open_writer(
         self,
         block_id=None,
@@ -387,9 +395,15 @@ class TableUploadSession(BaseTableTunnelSession):
             @_wrap_upload_call(self.id)
             def upload_block(blockid, data):
                 params['blockid'] = blockid
-                return utils.call_with_retry(
-                    self._client.put, url, data=data, params=params, headers=headers
-                )
+
+                def upload_func():
+                    if isinstance(data, (bytes, bytearray)):
+                        to_upload = self._iter_data_in_batches(data)
+                    else:
+                        to_upload = data
+                    return self._client.put(url, data=to_upload, params=params, headers=headers)
+
+                return utils.call_with_retry(upload_func)
 
             if writer_cls is ArrowWriter:
                 writer_cls = BufferedArrowWriter
