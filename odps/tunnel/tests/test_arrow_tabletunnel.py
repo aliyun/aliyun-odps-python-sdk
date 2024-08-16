@@ -70,9 +70,9 @@ def setup(odps, tunnel):
         writer.close()
         upload_ss.commit([0, ])
 
-    def buffered_upload_data(test_table, data, compress=False, **kw):
+    def buffered_upload_data(test_table, data, buffer_size=None, compress=False, **kw):
         upload_ss = tunnel.create_upload_session(test_table, **kw)
-        writer = upload_ss.open_arrow_writer(compress=compress)
+        writer = upload_ss.open_arrow_writer(compress=compress, buffer_size=buffer_size)
 
         pd_data = data.to_pandas()
         part1 = pd_data.iloc[:len(pd_data) // 2]
@@ -80,6 +80,11 @@ def setup(odps, tunnel):
         part2 = pd_data.iloc[len(pd_data) // 2:]
         writer.write(part2)
         writer.close()
+
+        if buffer_size is None:
+            assert len(writer.get_blocks_written()) == 1
+        else:
+            assert len(writer.get_blocks_written()) > 1
         upload_ss.commit(writer.get_blocks_written())
 
     def download_data(test_table, columns=None, compress=False, **kw):
@@ -140,6 +145,7 @@ def setup(odps, tunnel):
         "create_table, create_partitioned_table, delete_table"
     )
     raw_chunk_size = options.chunk_size
+    raw_buffer_size = options.tunnel.block_buffer_size
     try:
         options.sql.use_odps2_extension = True
         yield nt(
@@ -149,6 +155,7 @@ def setup(odps, tunnel):
     finally:
         options.sql.use_odps2_extension = None
         options.chunk_size = raw_chunk_size
+        options.tunnel.block_buffer_size = raw_buffer_size
 
 
 def _assert_frame_equal(left, right):
@@ -212,8 +219,8 @@ def test_buffered_upload_and_download_by_raw_tunnel(odps, setup):
     assert len(pd_df) == 0
 
     # test upload and download without errors
-    data = setup.gen_data()
-    setup.buffered_upload_data(test_table_name, data)
+    data = setup.gen_data(1024)
+    setup.buffered_upload_data(test_table_name, data, buffer_size=4096)
 
     pd_df = setup.download_data(test_table_name)
     _assert_frame_equal(data, pd_df)

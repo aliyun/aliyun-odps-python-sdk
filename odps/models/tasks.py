@@ -298,6 +298,8 @@ class MaxFrameTask(Task):
     class CommandType(enum.Enum):
         CREATE_SESSION = "CREATE_SESSION"
         PYTHON_PACK = "PYTHON_PACK"
+        RAY_CLUSTER_INIT = "RAY_CLUSTER_INIT"
+        RAY_CLUSTER_FREE = "RAY_CLUSTER_FREE"
 
     command = serializers.XMLNodeField(
         "Command",

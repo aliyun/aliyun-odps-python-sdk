@@ -109,6 +109,31 @@ maxframe_template = '''<?xml version="1.0" encoding="utf-8"?>
 </MaxFrame>
 '''
 
+mf_ray_cluster_init_template = '''<?xml version="1.0" encoding="utf-8"?>
+<MaxFrame>
+  <Name>AnonymousMaxFrameTask</Name>
+  <Config>
+    <Property>
+      <Name>settings</Name>
+      <Value>{"odps.maxframe.output_format": "maxframe_v1"}</Value>
+    </Property>
+    <Property>
+      <Name>aliyunId</Name>
+      <Value>%(aliyun_id)s</Value>
+    </Property>
+    <Property>
+      <Name>regionId</Name>
+      <Value>%(region_id)s</Value>
+    </Property>
+    <Property>
+      <Name>quotaNick</Name>
+      <Value>%(quota_nick)s</Value>
+    </Property>
+  </Config>
+  <Command>RAY_CLUSTER_INIT</Command>
+</MaxFrame>
+'''
+
 
 def test_task_class_type():
     typed = Task(type='SQL', query='select * from dual')
@@ -280,3 +305,25 @@ def test_maxframe_task_to_xml(odps):
     task = Task.parse(None, to_xml)
     assert isinstance(task, MaxFrameTask)
     assert task.command == MaxFrameTask.CommandType.CREATE_SESSION
+
+
+def test_ray_cluster_init(odps):
+    task = MaxFrameTask(command=MaxFrameTask.CommandType.RAY_CLUSTER_INIT)
+    aliyun_id = "test-aliyunid"
+    region_id = "test-regionId"
+    quota_nick = "test-quotaNick"
+    task.update_settings({"odps.maxframe.output_format": "maxframe_v1"})
+    task.set_property("aliyunId", aliyun_id)
+    task.set_property("regionId", region_id)
+    task.set_property("quotaNick", quota_nick)
+    to_xml = task.serialize()
+    right_xml = mf_ray_cluster_init_template % {
+        "aliyun_id": aliyun_id,
+        "region_id": region_id,
+        "quota_nick": quota_nick,
+    }
+    assert to_text(to_xml) == to_text(right_xml)
+    task = Task.parse(None, to_xml)
+    assert isinstance(task, MaxFrameTask)
+    assert task.command == MaxFrameTask.CommandType.RAY_CLUSTER_INIT
+

@@ -443,11 +443,13 @@ class TableUploadSession(BaseTableTunnelSession):
         )
 
     def open_arrow_writer(
-        self, block_id=None, compress=False, initial_block_id=None, block_id_gen=None
+        self, block_id=None, compress=False, buffer_size=None, initial_block_id=None,
+        block_id_gen=None
     ):
         return self._open_writer(
-            block_id=block_id, compress=compress, initial_block_id=initial_block_id,
-            block_id_gen=block_id_gen, writer_cls=ArrowWriter
+            block_id=block_id, compress=compress, buffer_size=buffer_size,
+            initial_block_id=initial_block_id, block_id_gen=block_id_gen,
+            writer_cls=ArrowWriter
         )
 
     if np is not None:
