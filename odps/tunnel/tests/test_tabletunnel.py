@@ -269,6 +269,11 @@ class TunnelTestUtil(object):
                 record[i] = it
             writer.write(record)
         writer.close()
+
+        if buffer_size is None:
+            assert len(writer.get_blocks_written()) == 1
+        else:
+            assert len(writer.get_blocks_written()) > 1
         upload_ss.commit(writer.get_blocks_written())
 
     def download_data(self, test_table, compress=False, columns=None, **kw):
@@ -345,12 +350,17 @@ py_and_c_deco = py_and_c([
 @pytest.fixture
 def setup(odps, tunnel):
     random.seed(0)
+    raw_chunk_size = options.chunk_size
+    raw_buffer_size = options.tunnel.block_buffer_size
+
     util = TunnelTestUtil(odps, tunnel)
     try:
         yield util
     finally:
         if util.last_table:
             util.last_table.drop(async_=True)
+        options.chunk_size = raw_chunk_size
+        options.tunnel.block_buffer_size = raw_buffer_size
 
 
 def test_malicious_request_detection(setup):

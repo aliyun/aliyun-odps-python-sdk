@@ -30,6 +30,7 @@ except ImportError:
     contextvars = None
 
 
+DEFAULT_BLOCK_BUFFER_SIZE = 20 * 1024 ** 2
 DEFAULT_CHUNK_SIZE = 65536
 DEFAULT_CONNECT_RETRY_TIMES = 4
 DEFAULT_CONNECT_TIMEOUT = 120
@@ -493,7 +494,7 @@ default_options.register_option('tunnel.overflow_date_as_none', False, validator
 default_options.register_option(
     'tunnel.quota_name', None, validator=any_validator(is_null, is_string)
 )
-default_options.register_option('tunnel.block_buffer_size', 20 * 1024 ** 2, validator=is_integer)
+default_options.register_option('tunnel.block_buffer_size', DEFAULT_BLOCK_BUFFER_SIZE, validator=is_integer)
 default_options.register_option('tunnel.use_block_writer_by_default', False, validator=is_bool)
 
 default_options.redirect_option('tunnel_endpoint', 'tunnel.endpoint')

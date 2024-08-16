@@ -396,7 +396,6 @@ class BufferedRecordWriter(BaseRecordWriter):
         block_id=None,
         block_id_gen=None,
     ):
-        self._buffer_size = buffer_size or options.tunnel.block_buffer_size
         self._request_callback = request_callback
         self._block_id = block_id or 0
         self._blocks_written = []
@@ -407,6 +406,9 @@ class BufferedRecordWriter(BaseRecordWriter):
 
         out = get_compress_stream(self._buffer, compress_option)
         super(BufferedRecordWriter, self).__init__(schema, out, encoding=encoding)
+
+        # make sure block buffer size is applied correctly here
+        self._buffer_size = buffer_size or options.tunnel.block_buffer_size
 
     @property
     def cur_block_id(self):
@@ -529,10 +531,12 @@ class BaseArrowWriter(object):
         self._cur_chunk_size = 0
 
         self._output = out
-        self._write_chunk_size()
+        self._chunk_size_written = False
 
     def _re_init(self, output):
         self._output = output
+        self._chunk_size_written = False
+        self._cur_chunk_size = 0
 
     def _write_chunk_size(self):
         self._write_uint32(self._chunk_size)
@@ -542,6 +546,9 @@ class BaseArrowWriter(object):
         self._output.write(data)
 
     def _write_chunk(self, buf):
+        if not self._chunk_size_written:
+            self._write_chunk_size()
+            self._chunk_size_written = True
         self._output.write(buf)
         self._crc.update(buf)
         self._crccrc.update(buf)
