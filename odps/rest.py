@@ -192,6 +192,8 @@ class RestClient(object):
         if self._endpoint in self._endpoints_without_v4_sign or not options.enable_v4_sign:
             sign_region_name = None
 
+        auth_expire_retried = False
+
         while True:
             kwargs["region_name"] = sign_region_name
             try:
@@ -215,6 +217,11 @@ class RestClient(object):
                     raise
                 self._endpoints_without_v4_sign.add(self._endpoint)
                 sign_region_name = None
+            except errors.AuthenticationRequestExpired:
+                if not hasattr(self.account, "reload") or auth_expire_retried:
+                    raise
+                self.account.reload(True)
+                auth_expire_retried = True
 
     def _request(self, url, method, stream=False, **kwargs):
         self.upload_survey_log()

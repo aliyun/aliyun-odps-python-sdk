@@ -326,4 +326,3 @@ def test_ray_cluster_init(odps):
     task = Task.parse(None, to_xml)
     assert isinstance(task, MaxFrameTask)
     assert task.command == MaxFrameTask.CommandType.RAY_CLUSTER_INIT
-

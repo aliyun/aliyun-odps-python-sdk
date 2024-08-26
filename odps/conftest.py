@@ -34,14 +34,6 @@ def odps_with_schema():
 
 
 @pytest.fixture(scope="session")
-def odps_with_schema_tenant():
-    try:
-        return get_config().odps_with_schema_tenant
-    except AttributeError:
-        pytest.skip("ODPS project with schema configured on tenants not defined")
-
-
-@pytest.fixture(scope="session")
 def odps_with_tunnel_quota():
     try:
         return get_config().odps_with_tunnel_quota

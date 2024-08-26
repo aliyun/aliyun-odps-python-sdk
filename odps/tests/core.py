@@ -24,6 +24,7 @@ import time
 import types
 
 import pytest
+
 try:
     from flaky import flaky as _raw_flaky
 except ImportError:
@@ -78,10 +79,21 @@ def _load_config_odps(config, section_name, overwrite_global=True):
     except ConfigParser.NoSectionError:
         return
 
-    access_id = config.get(section_name, "access_id")
-    secret_access_key = config.get(section_name, "secret_access_key")
     project = config.get(section_name, "project")
-    endpoint = config.get(section_name, "endpoint")
+
+    try:
+        access_id = config.get(section_name, "access_id")
+    except ConfigParser.NoOptionError:
+        access_id = config.get("odps", "access_id")
+    try:
+        secret_access_key = config.get(section_name, "secret_access_key")
+    except ConfigParser.NoOptionError:
+        secret_access_key = config.get("odps", "secret_access_key")
+    try:
+        endpoint = config.get(section_name, "endpoint")
+    except ConfigParser.NoOptionError:
+        endpoint = config.get("odps", "endpoint")
+
     try:
         seahawks_url = config.get(section_name, "seahawks_url")
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
@@ -127,7 +139,6 @@ def get_config():
         _load_config_odps(config, "odps_daily", overwrite_global=False)
         _load_config_odps(config, "odps_with_storage_tier", overwrite_global=False)
         _load_config_odps(config, "odps_with_schema", overwrite_global=False)
-        _load_config_odps(config, "odps_with_schema_tenant", overwrite_global=False)
         _load_config_odps(config, "odps_with_tunnel_quota", overwrite_global=False)
         # make sure main config overrides other configs
         _load_config_odps(config, "odps")

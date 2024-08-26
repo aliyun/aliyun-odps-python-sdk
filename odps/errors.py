@@ -225,6 +225,10 @@ class NoSuchObject(ServerDefinedException):
     pass
 
 
+class NoSuchProject(NoSuchObject):
+    pass
+
+
 class NoSuchPartition(NoSuchObject):
     pass
 
@@ -238,6 +242,10 @@ class NoSuchTable(NoSuchObject):
 
 
 class InvalidArgument(ServerDefinedException):
+    pass
+
+
+class AuthenticationRequestExpired(ServerDefinedException):
     pass
 
 
@@ -360,10 +368,6 @@ class WaitTimeoutError(ODPSError, TimeoutError):
 
 
 class SecurityQueryError(ODPSError):
-    pass
-
-
-class NoSuchProject(ODPSError):
     pass
 
 

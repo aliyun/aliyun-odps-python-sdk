@@ -1014,7 +1014,9 @@ class Instance(LazyLoad):
                 timeout = timeout if timeout is not None else options.tunnel.legacy_fallback_timeout
         kwargs["timeout"] = timeout
 
-        result_fallback_errors = (errors.InvalidProjectTable, errors.InvalidArgument)
+        result_fallback_errors = (
+            errors.InvalidProjectTable, errors.InvalidArgument, errors.NoSuchProject
+        )
         if use_tunnel:
             # for compatibility
             if 'limit_enabled' in kwargs:

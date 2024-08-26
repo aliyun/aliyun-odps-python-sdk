@@ -19,12 +19,11 @@ from collections import namedtuple
 import pytest
 
 from ...compat import irange, six
-from ...tests.core import tn
+from ...errors import NoSuchObject
+from ...tests.core import get_test_unique_name, tn
 from .. import CompressOption
 from ..volumetunnel import VolumeTunnel
 
-TEST_PARTED_VOLUME_NAME = tn('pyodps_test_p_volume')
-TEST_FS_VOLUME_NAME = tn('pyodps_test_fs_volume')
 TEST_PARTITION_NAME = 'pyodps_test_partition'
 TEST_FILE_NAME = 'test_output_file'
 
@@ -34,20 +33,23 @@ TEST_MODULUS = 251
 
 @pytest.fixture
 def setup(odps):
+    test_parted_vol_name = tn("pyodps_test_p_volume_" + get_test_unique_name(5))
+    test_fs_vol_name = tn("pyodps_test_fs_volume" + get_test_unique_name(5))
+
     def gen_byte_block():
         return bytes(bytearray([iid % TEST_MODULUS for iid in irange(TEST_BLOCK_SIZE)]))
 
     def get_test_partition():
-        if odps.exist_volume(TEST_PARTED_VOLUME_NAME):
-            odps.delete_volume(TEST_PARTED_VOLUME_NAME)
-        odps.create_parted_volume(TEST_PARTED_VOLUME_NAME)
-        return odps.get_volume_partition(TEST_PARTED_VOLUME_NAME, TEST_PARTITION_NAME)
+        if odps.exist_volume(test_parted_vol_name):
+            odps.delete_volume(test_parted_vol_name)
+        odps.create_parted_volume(test_parted_vol_name)
+        return odps.get_volume_partition(test_parted_vol_name, TEST_PARTITION_NAME)
 
     def get_test_fs():
-        if odps.exist_volume(TEST_FS_VOLUME_NAME):
-            odps.delete_volume(TEST_FS_VOLUME_NAME)
-        odps.create_fs_volume(TEST_FS_VOLUME_NAME)
-        return odps.get_volume(TEST_FS_VOLUME_NAME)
+        if odps.exist_volume(test_fs_vol_name):
+            odps.delete_volume(test_fs_vol_name)
+        odps.create_fs_volume(test_fs_vol_name)
+        return odps.get_volume(test_fs_vol_name)
 
     def wrap_fun(func):
         @six.wraps(func)
@@ -66,14 +68,20 @@ def setup(odps):
     )
     VolumeTunnel.create_upload_session = wrap_fun(_old_create_upload_session)
 
-    tn = namedtuple("TN", "gen_byte_block, get_test_partition, get_test_fs")
+    test_funcs = namedtuple(
+        "TestFuncs", "gen_byte_block, get_test_partition, get_test_fs"
+    )
     try:
-        yield tn(gen_byte_block, get_test_partition, get_test_fs)
+        yield test_funcs(gen_byte_block, get_test_partition, get_test_fs)
     finally:
-        if odps.exist_volume(TEST_PARTED_VOLUME_NAME):
-            odps.delete_volume(TEST_PARTED_VOLUME_NAME)
-        if odps.exist_volume(TEST_FS_VOLUME_NAME):
-            odps.delete_volume(TEST_FS_VOLUME_NAME)
+        try:
+            odps.delete_volume(test_parted_vol_name)
+        except NoSuchObject:
+            pass
+        try:
+            odps.delete_volume(test_fs_vol_name)
+        except NoSuchObject:
+            pass
         VolumeTunnel.create_download_session = _old_create_download_session
         VolumeTunnel.create_upload_session = _old_create_upload_session
 
