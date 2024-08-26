@@ -130,12 +130,14 @@ class ODPS(object):
         if account is None:
             if access_id is not None:
                 self.account = self._build_account(access_id, secret_access_key)
-            elif accounts.BearerTokenAccount.from_environments():
-                self.account = accounts.BearerTokenAccount.from_environments()
             elif options.account is not None:
                 self.account = options.account
             else:
-                raise TypeError('`access_id` and `secret_access_key` should be provided.')
+                self.account = accounts.from_environments()
+                if self.account is None:
+                        raise TypeError(
+                        "`access_id` and `secret_access_key` should be provided."
+                    )
         else:
             self.account = account
         self.endpoint = (
@@ -2544,14 +2546,17 @@ class ODPS(object):
     @classmethod
     def from_environments(cls):
         try:
-            account = accounts.BearerTokenAccount.from_environments()
-            if not account:
-                raise KeyError('ODPS_BEARER_TOKEN')
-            project = os.getenv('ODPS_PROJECT_NAME')
-            endpoint = os.environ['ODPS_ENDPOINT']
-            tunnel_endpoint = os.getenv('ODPS_TUNNEL_ENDPOINT')
-            return cls(None, None, account=account, project=project,
-                       endpoint=endpoint, tunnel_endpoint=tunnel_endpoint)
+            project = os.getenv("ODPS_PROJECT_NAME")
+            endpoint = os.environ["ODPS_ENDPOINT"]
+            tunnel_endpoint = os.getenv("ODPS_TUNNEL_ENDPOINT")
+            return cls(
+                None,
+                None,
+                account=accounts.from_environments(),
+                project=project,
+                endpoint=endpoint,
+                tunnel_endpoint=tunnel_endpoint,
+            )
         except KeyError:
             return None
 

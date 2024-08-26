@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,12 +15,13 @@
 import os
 import time
 
+import mock
 import pytest
 
 from ... import ODPS, options
 from ...compat import BytesIO
 from ...errors import NoSuchObject
-from ...tests.core import tn, force_drop_schema
+from ...tests.core import force_drop_schema, tn
 
 try:
     import pyarrow as pa
@@ -110,12 +111,14 @@ def test_schemas(odps_with_schema, legacy):
     assert any(s.name == schema_name for s in odps_with_schema.list_schemas())
 
     for idx in range(5):
-        odps_with_schema.delete_schema(schema)
         try:
+            odps_with_schema.delete_schema(schema)
             _assert_schema_deleted(odps_with_schema, schema_name)
         except AssertionError:
             if idx >= 5:
                 raise
+        except NoSuchObject:
+            break
         else:
             break
 
@@ -123,12 +126,14 @@ def test_schemas(odps_with_schema, legacy):
     assert odps_with_schema.exist_schema(schema_name2)
 
     for idx in range(5):
-        schema.drop()
         try:
+            schema.drop()
             _assert_schema_deleted(odps_with_schema, schema_name2)
         except AssertionError:
             if idx >= 5:
                 raise
+        except NoSuchObject:
+            break
         else:
             break
 
@@ -245,22 +250,27 @@ def test_get_table_with_schema_opt(odps_with_schema):
         options.always_enable_schema = False
 
 
-def test_table_tenant_config(odps_with_schema_tenant):
-    odps = odps_with_schema_tenant
+def test_table_tenant_config(odps_with_schema):
+    odps = odps_with_schema
     test_table_name = tn("pyodps_test_table_with_schema3")
 
-    assert odps.is_schema_namespace_enabled()
+    def _new_get_parameter(self, key, default=None):
+        assert key == "odps.namespace.schema"
+        return "true"
 
-    odps.delete_table(test_table_name, if_exists=True)
-    tb = odps.create_table(test_table_name, "col1 string", lifecycle=1)
-    assert tb.get_schema().name == "default"
+    with mock.patch("odps.models.tenant.Tenant.get_parameter", new=_new_get_parameter):
+        assert odps.is_schema_namespace_enabled()
 
-    tb = odps.get_table("default." + test_table_name)
-    tb.reload()
-    assert tb.name == test_table_name
-    assert tb.get_schema().name == "default"
+        odps.delete_table(test_table_name, if_exists=True)
+        tb = odps.create_table(test_table_name, "col1 string", lifecycle=1)
+        assert tb.get_schema().name == "default"
 
-    tb.drop()
+        tb = odps.get_table("default." + test_table_name)
+        tb.reload()
+        assert tb.name == test_table_name
+        assert tb.get_schema().name == "default"
+
+        tb.drop()
 
 
 def test_file_resource_with_schema(odps_with_schema):

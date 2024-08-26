@@ -60,7 +60,7 @@ def test_async_execute(setup):
     def make_filter(df, cnt):
         def waiter(val, c):
             import time
-            time.sleep(5 * c)
+            time.sleep(30 * c)
             return val
 
         f_df = df[df.value == cnt]

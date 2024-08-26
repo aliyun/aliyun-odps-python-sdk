@@ -207,8 +207,9 @@ class Table(LazyLoad):
 
     class Type(Enum):
         MANAGED_TABLE = "MANAGED_TABLE"
-        VIRTUAL_VIEW = "VIRTUAL_VIEW"
         EXTERNAL_TABLE = "EXTERNAL_TABLE"
+        OBJECT_TABLE = "OBJECT_TABLE"
+        VIRTUAL_VIEW = "VIRTUAL_VIEW"
         MATERIALIZED_VIEW = "MATERIALIZED_VIEW"
 
     name = serializers.XMLNodeField('Name')

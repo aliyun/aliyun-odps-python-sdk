@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A couple of authentication types in ODPS.
-"""
+"""A couple of authentication types in ODPS."""
 
 import base64
-import hmac
+import calendar
 import hashlib
+import hmac
+import json
 import logging
 import os
 import threading
@@ -27,13 +28,12 @@ from datetime import datetime, timedelta
 
 import requests
 
-from .compat import six, cgi, urlparse, unquote, parse_qsl
 from . import options, utils
-
+from .compat import cgi, parse_qsl, six, unquote, urlparse
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BEARER_TOKEN_HOURS = 5
+DEFAULT_TEMP_ACCOUNT_HOURS = 5
 
 
 class BaseAccount(object):
@@ -136,20 +136,6 @@ class AliyunAccount(BaseAccount):
 
         req.headers['Authorization'] = self.calc_auth_str(canonical_str, region_name)
         logger.debug('headers after signing: %r', req.headers)
-
-
-class StsAccount(AliyunAccount):
-    """
-    Account of sts
-    """
-    def __init__(self, access_id, secret_access_key, sts_token):
-        super(StsAccount, self).__init__(access_id, secret_access_key)
-        self.sts_token = sts_token
-
-    def sign_request(self, req, endpoint, region_name=None):
-        super(StsAccount, self).sign_request(req, endpoint, region_name=region_name)
-        if self.sts_token:
-            req.headers['authorization-sts-token'] = self.sts_token
 
 
 class AppAccount(BaseAccount):
@@ -352,77 +338,152 @@ class SignServerAccount(BaseAccount):
             )
 
 
-class BearerTokenAccount(BaseAccount):
-    def __init__(
-        self, token=None, expired_hours=DEFAULT_BEARER_TOKEN_HOURS, get_bearer_token_fun=None
-    ):
-        self._get_bearer_token = get_bearer_token_fun or self.get_default_bearer_token
-        self._token = token or self._get_bearer_token()
-        self._reload_bearer_token_time()
+class TempAccountMixin(object):
+    def __init__(self, expired_hours=DEFAULT_TEMP_ACCOUNT_HOURS):
+        self._last_modified_time = datetime.now()
+        if expired_hours is not None:
+            self._expired_time = timedelta(hours=expired_hours)
+        else:
+            self._expired_time = None
+        self.reload()
 
-        self._expired_time = timedelta(hours=expired_hours)
+    def _is_account_valid(self):
+        raise NotImplementedError
+
+    def _reload_account(self):
+        raise NotImplementedError
+
+    def reload(self, force=False):
+        t = datetime.now()
+        if (
+            force
+            or not self._is_account_valid()
+            or (
+                self._last_modified_time is not None
+                and self._expired_time is not None
+                and (t - self._last_modified_time) > self._expired_time
+            )
+        ):
+            self._last_modified_time = self._reload_account() or datetime.now()
+
+
+class StsAccount(TempAccountMixin, AliyunAccount):
+    """
+    Account of sts
+    """
+
+    def __init__(
+        self,
+        access_id,
+        secret_access_key,
+        sts_token,
+        expired_hours=DEFAULT_TEMP_ACCOUNT_HOURS,
+    ):
+        self.sts_token = sts_token
+        AliyunAccount.__init__(self, access_id, secret_access_key)
+        TempAccountMixin.__init__(self, expired_hours=expired_hours)
 
     @classmethod
     def from_environments(cls):
-        expired_hours = int(os.getenv('ODPS_BEARER_TOKEN_HOURS', str(DEFAULT_BEARER_TOKEN_HOURS)))
-        kwargs = {"expired_hours": expired_hours}
-        if 'ODPS_BEARER_TOKEN' in os.environ:
-            return cls(os.environ['ODPS_BEARER_TOKEN'], **kwargs)
-        elif 'ODPS_BEARER_TOKEN_FILE' in os.environ:
-            return cls(**kwargs)
+        expired_hours = int(
+            os.getenv("ODPS_STS_TOKEN_HOURS", str(DEFAULT_TEMP_ACCOUNT_HOURS))
+        )
+        if "ODPS_STS_ACCOUNT_FILE" in os.environ or "ODPS_STS_TOKEN" in os.environ:
+            if "ODPS_STS_ACCOUNT_FILE" not in os.environ:
+                expired_hours = None
+            return cls(None, None, None, expired_hours=expired_hours)
         return None
 
-    @staticmethod
-    def get_default_bearer_token():
+    def sign_request(self, req, endpoint, region_name=None):
+        self.reload()
+        super(StsAccount, self).sign_request(req, endpoint, region_name=region_name)
+        if self.sts_token:
+            req.headers["authorization-sts-token"] = self.sts_token
+
+    def _is_account_valid(self):
+        return self.sts_token is not None
+
+    def _resolve_expiration(self, exp_data):
+        if exp_data is None or self._expired_time is None:
+            return None
+        try:
+            ts = calendar.timegm(time.strptime(exp_data, "%Y-%m-%dT%H:%M:%SZ"))
+            return ts - self._expired_time.total_seconds()
+        except:
+            return None
+
+    def _reload_account(self):
+        ts = None
+        if "ODPS_STS_ACCOUNT_FILE" in os.environ:
+            token_file_name = os.getenv("ODPS_STS_ACCOUNT_FILE")
+            if token_file_name and os.path.exists(token_file_name):
+                with open(token_file_name, "r") as token_file:
+                    token_json = json.load(token_file)
+                self.access_id = token_json["accessKeyId"]
+                self.secret_access_key = token_json["accessKeySecret"]
+                self.sts_token = token_json["securityToken"]
+                ts = self._resolve_expiration(token_json.get("expiration"))
+        elif "ODPS_STS_ACCESS_KEY_ID" in os.environ:
+            self.access_id = os.getenv("ODPS_STS_ACCESS_KEY_ID")
+            self.secret_access_key = os.getenv("ODPS_STS_ACCESS_KEY_SECRET")
+            self.sts_token = os.getenv("ODPS_STS_TOKEN")
+
+        return datetime.fromtimestamp(ts) if ts is not None else None
+
+
+class BearerTokenAccount(TempAccountMixin, BaseAccount):
+    def __init__(
+        self, token=None, expired_hours=DEFAULT_TEMP_ACCOUNT_HOURS, get_bearer_token_fun=None
+    ):
+        self.token = token
+        self._custom_bearer_token_func = get_bearer_token_fun
+        TempAccountMixin.__init__(self, expired_hours=expired_hours)
+
+    @classmethod
+    def from_environments(cls):
+        expired_hours = int(os.getenv('ODPS_BEARER_TOKEN_HOURS', str(DEFAULT_TEMP_ACCOUNT_HOURS)))
+        kwargs = {"expired_hours": expired_hours}
+        if "ODPS_BEARER_TOKEN_FILE" in os.environ:
+            return cls(**kwargs)
+        elif "ODPS_BEARER_TOKEN" in os.environ:
+            kwargs["expired_hours"] = None
+            return cls(os.environ["ODPS_BEARER_TOKEN"], **kwargs)
+        return None
+
+    def _get_bearer_token(self):
+        if self._custom_bearer_token_func is not None:
+            return self._custom_bearer_token_func()
+
         token_file_name = os.getenv("ODPS_BEARER_TOKEN_FILE")
         if token_file_name and os.path.exists(token_file_name):
             with open(token_file_name, "r") as token_file:
                 return token_file.read().strip()
+        else:  # pragma: no cover
+            from cupid.runtime import context, RuntimeContext
 
-        from cupid.runtime import context, RuntimeContext
-
-        if not RuntimeContext.is_context_ready():
-            return
-        cupid_context = context()
-        return cupid_context.get_bearer_token()
-
-    def get_bearer_token_and_timestamp(self):
-        self._check_bearer_token()
-        return self._token, self._last_modified_time.timestamp()
-
-    def _reload_bearer_token_time(self):
-        if "ODPS_BEARER_TOKEN_TIMESTAMP_FILE" in os.environ:
-            with open(os.getenv("ODPS_BEARER_TOKEN_TIMESTAMP_FILE"), "r") as ts_file:
-                self._last_modified_time = datetime.fromtimestamp(float(ts_file.read()))
-        else:
-            self._last_modified_time = datetime.now()
-
-    def _check_bearer_token(self):
-        t = datetime.now()
-        if self._last_modified_time is None:
-            token = self._get_bearer_token()
-            if token is None:
+            if not RuntimeContext.is_context_ready():
                 return
-            if token != self._token:
-                self._token = token
-                self._reload_bearer_token_time()
-        elif (t - self._last_modified_time) > self._expired_time:
-            token = self._get_bearer_token()
-            if token is None:
-                return
-            self._token = token
-            self._reload_bearer_token_time()
+            cupid_context = context()
+            return cupid_context.get_bearer_token()
 
-    @property
-    def token(self):
-        return self._token
+    def _is_account_valid(self):
+        return self.token is not None
+
+    def _reload_account(self):
+        token = self._get_bearer_token()
+        self.token = token
+        try:
+            resolved_token_parts = base64.b64decode(token).decode().split(",")
+            return datetime.fromtimestamp(int(resolved_token_parts[2]))
+        except:
+            return None
 
     def sign_request(self, req, endpoint, region_name=None):
-        self._check_bearer_token()
+        self.reload()
         url = req.url[len(endpoint):]
         url_components = urlparse(unquote(url), allow_fragments=False)
         self._build_canonical_str(url_components, req)
-        req.headers['x-odps-bearer-token'] = self._token
+        req.headers['x-odps-bearer-token'] = self.token
         logger.debug('headers after signing: %r', req.headers)
 
 
@@ -432,7 +493,10 @@ class CredentialProviderAccount(StsAccount):
         super(CredentialProviderAccount, self).__init__(None, None, None)
 
     def sign_request(self, req, endpoint, region_name=None):
-        credential = self.provider.get_credentials()
+        get_cred_method = getattr(self.provider, "get_credential", None) or getattr(
+            self.provider, "get_credentials"
+        )
+        credential = get_cred_method()
 
         self.access_id = credential.get_access_key_id()
         self.secret_access_key = credential.get_access_key_secret()
@@ -440,3 +504,11 @@ class CredentialProviderAccount(StsAccount):
         return super(CredentialProviderAccount, self).sign_request(
             req, endpoint, region_name=region_name
         )
+
+
+def from_environments():
+    for account_cls in (StsAccount, BearerTokenAccount):
+        account = account_cls.from_environments()
+        if account is not None:
+            break
+    return account

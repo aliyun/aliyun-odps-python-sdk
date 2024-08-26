@@ -384,8 +384,9 @@ def test_upload_and_download_by_raw_tunnel(setup):
 
 
 @py_and_c_deco
-def test_stream_upload_and_download_tunnel(setup):
+def test_stream_upload_and_download_tunnel(odps, setup):
     test_table_name = tn('pyodps_test_stream_upload_' + get_code_mode())
+    odps.delete_table(test_table_name, if_exists=True)
     setup.create_table(test_table_name)
     data = setup.gen_data()
 

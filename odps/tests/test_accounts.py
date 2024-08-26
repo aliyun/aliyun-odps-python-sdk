@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import datetime
+import json
 import os
 import shutil
 import tempfile
@@ -23,14 +25,18 @@ import uuid
 
 import mock
 import pytest
+import requests
 
 from .. import ODPS, errors, options
 from ..accounts import (
+    DEFAULT_TEMP_ACCOUNT_HOURS,
     BearerTokenAccount,
     CredentialProviderAccount,
     SignServer,
     SignServerAccount,
     SignServerError,
+    StsAccount,
+    from_environments,
 )
 from ..rest import RestClient
 from .core import tn
@@ -83,18 +89,64 @@ def test_tokenized_sign_server_account(odps):
         server.stop()
 
 
+def test_sts_account(odps):
+    tmp_path = tempfile.mkdtemp(prefix="tmp_pyodps_")
+    req = requests.Request(method="GET", url=odps.get_project().resource())
+    try:
+        token_account = StsAccount(
+            odps.account.access_id, odps.account.secret_access_key, "token"
+        )
+        cp_req = copy.deepcopy(req)
+        token_account.sign_request(cp_req, odps.endpoint)
+        assert "token" == cp_req.headers["authorization-sts-token"]
+
+        os.environ["ODPS_STS_ACCESS_KEY_ID"] = odps.account.access_id
+        os.environ["ODPS_STS_ACCESS_KEY_SECRET"] = odps.account.secret_access_key
+        os.environ["ODPS_STS_TOKEN"] = "token"
+        account = from_environments()
+        assert isinstance(account, StsAccount)
+        cp_req = copy.deepcopy(req)
+        token_account.sign_request(cp_req, odps.endpoint)
+        assert "token" == cp_req.headers["authorization-sts-token"]
+
+        os.environ.pop("ODPS_STS_ACCESS_KEY_ID", None)
+        os.environ.pop("ODPS_STS_ACCESS_KEY_SECRET", None)
+        os.environ.pop("ODPS_STS_TOKEN", None)
+
+        sts_file_name = os.path.join(tmp_path, "sts_file")
+        os.environ["ODPS_STS_ACCOUNT_FILE"] = sts_file_name
+        exp_time = int(time.time() + 3 * 3600)
+        account_data = {
+            "accessKeyId": odps.account.access_id,
+            "accessKeySecret": odps.account.secret_access_key,
+            "securityToken": "token",
+            "expiration": datetime.datetime.utcfromtimestamp(exp_time).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+        }
+        with open(sts_file_name, "w") as out_file:
+            out_file.write(json.dumps(account_data))
+        account = from_environments()
+        assert isinstance(account, StsAccount)
+        assert account._last_modified_time == datetime.datetime.fromtimestamp(
+            exp_time
+        ) - datetime.timedelta(hours=DEFAULT_TEMP_ACCOUNT_HOURS)
+
+        cp_req = copy.deepcopy(req)
+        token_account.sign_request(cp_req, odps.endpoint)
+        assert "token" == cp_req.headers["authorization-sts-token"]
+    finally:
+        shutil.rmtree(tmp_path)
+        os.environ.pop("ODPS_STS_ACCESS_KEY_ID", None)
+        os.environ.pop("ODPS_STS_ACCESS_KEY_SECRET", None)
+        os.environ.pop("ODPS_STS_TOKEN", None)
+        os.environ.pop("ODPS_STS_ACCOUNT_FILE", None)
+
+
 @pytest.mark.skipif(cupid_context is None, reason="cannot import cupid context")
 def test_bearer_token_account(odps):
-    odps.delete_table(tn('test_bearer_token_account_table'), if_exists=True)
-    t = odps.create_table(tn('test_bearer_token_account_table'), 'col string', lifecycle=1)
-    with t.open_writer() as writer:
-        records = [['val1'], ['val2'], ['val3']]
-        writer.write(records)
-
-    inst = odps.execute_sql(
-        'select count(*) from {0}'.format(tn('test_bearer_token_account_table')), async_=True
-    )
-    inst.wait_for_success()
+    inst = odps.run_sql("select count(*) from dual")
+    inst.wait_for_completion()
     task_name = inst.get_task_names()[0]
 
     logview_address = inst.get_logview_address()
@@ -112,41 +164,67 @@ def test_bearer_token_account(odps):
         bearer_token_odps.create_table(tn('test_bearer_token_account_table_test1'),
                                        'col string', lifecycle=1)
 
+
+def test_fake_bearer_token(odps):
     fake_token_account = BearerTokenAccount(token='fake-token')
     bearer_token_odps = ODPS(
-        None, None, odps.project, odps.endpoint, account=fake_token_account
+        None,
+        None,
+        odps.project,
+        odps.endpoint,
+        account=fake_token_account,
+        overwrite_global=False,
     )
 
     with pytest.raises(errors.ODPSError):
         bearer_token_odps.create_table(tn('test_bearer_token_account_table_test2'),
                                        'col string', lifecycle=1)
 
+
+def test_bearer_token_load_and_update(odps):
+    token = "fake-token"
     tmp_path = tempfile.mkdtemp(prefix="tmp_pyodps_")
+    os.environ["ODPS_BEARER_TOKEN_HOURS"] = "0"
     try:
         token_file_name = os.path.join(tmp_path, "token_file")
         with open(token_file_name, "w") as token_file:
             token_file.write(token)
         os.environ["ODPS_BEARER_TOKEN_FILE"] = token_file_name
 
-        token_ts_file_name = os.path.join(tmp_path, "token_ts_file")
         create_timestamp = int(time.time())
-        with open(token_ts_file_name, "w") as token_ts_file:
-            token_ts_file.write(str(create_timestamp))
-        os.environ["ODPS_BEARER_TOKEN_TIMESTAMP_FILE"] = token_ts_file_name
 
+        options.account = None
         env_odps = ODPS(project=odps.project, endpoint=odps.endpoint)
         assert isinstance(env_odps.account, BearerTokenAccount)
         assert env_odps.account.token == token
-        assert env_odps.account._last_modified_time == datetime.datetime.fromtimestamp(create_timestamp)
+        assert env_odps.account._last_modified_time > datetime.datetime.fromtimestamp(create_timestamp)
+
+        last_timestamp = env_odps.account._last_modified_time
+        env_odps.account.reload()
+        assert env_odps.account._last_modified_time > last_timestamp
+
+        inst = odps.run_sql("select count(*) from dual")
+        logview_address = inst.get_logview_address()
+        token = logview_address[logview_address.find("token=") + len("token=") :]
+        with open(token_file_name, "w") as token_file:
+            token_file.write(token)
+
+        last_timestamp = env_odps.account._last_modified_time
+        env_odps.account.reload()
+        assert env_odps.account._last_modified_time != last_timestamp
+
+        last_timestamp = env_odps.account._last_modified_time
+        env_odps.account.reload()
+        assert env_odps.account._last_modified_time == last_timestamp
     finally:
         shutil.rmtree(tmp_path)
-        os.environ.pop("ODPS_BEARER_TOKEN_FILE")
-        os.environ.pop("ODPS_BEARER_TOKEN_TIMESTAMP_FILE")
+        os.environ.pop("ODPS_BEARER_TOKEN_HOURS", None)
+        os.environ.pop("ODPS_BEARER_TOKEN_FILE", None)
+        os.environ.pop("ODPS_BEARER_TOKEN_TIMESTAMP_FILE", None)
 
 
-def test_v4_signature_fallback(odps_daily):
-    odps = odps_daily
-    odps.delete_table(tn('test_sign_account_table'), if_exists=True)
+def test_v4_signature_fallback(odps):
+    odps.delete_table(tn("test_sign_account_table"), if_exists=True)
     assert odps.endpoint not in RestClient._endpoints_without_v4_sign
 
     def _new_is_ok(self, resp):
@@ -158,7 +236,7 @@ def test_v4_signature_fallback(odps_daily):
         if odps.endpoint not in self._endpoints_without_v4_sign:
             raise errors.InternalServerError(
                 "ODPS-0010000:System internal error - Error occurred while getting access key for "
-                "'%s', AliyunV4 request need ak v3 support" % odps_daily.account.access_id
+                "'%s', AliyunV4 request need ak v3 support" % odps.account.access_id
             )
         return resp.ok
 
@@ -189,26 +267,79 @@ def test_v4_signature_fallback(odps_daily):
         options.enable_v4_sign = old_enable_v4_sign
 
 
-def test_credential_provider_account(odps):
-    class MockCredentials(object):
-        @classmethod
-        def get_access_key_id(cls):
-            return odps.account.access_id
+def test_auth_expire_reload(odps):
+    inst = odps.run_sql("select count(*) from dual")
+    inst.wait_for_completion()
 
-        @classmethod
-        def get_access_key_secret(cls):
-            return odps.account.secret_access_key
+    tmp_path = tempfile.mkdtemp(prefix="tmp_pyodps_")
+    try:
+        logview_address = inst.get_logview_address()
+        token = logview_address[logview_address.find("token=") + len("token=") :]
 
-        @classmethod
-        def get_security_token(cls):
-            return None  # kept empty to skip sts token check
+        token_file = os.path.join(tmp_path, "token_ts_file")
+        os.environ["ODPS_BEARER_TOKEN_FILE"] = token_file
+        with open(token_file, "w") as token_file_obj:
+            token_file_obj.write("invalid_token")
 
-    class MockCredentialProvider(object):
-        @classmethod
-        def get_credentials(cls):
-            return MockCredentials()
+        token_odps = ODPS(
+            account=BearerTokenAccount(), project=odps.project, endpoint=odps.endpoint
+        )
 
-    account = CredentialProviderAccount(MockCredentialProvider())
+        retrial_counts = [0]
+
+        def _new_is_ok(self, resp):
+            if not retrial_counts[0]:
+                with open(token_file, "w") as token_file_obj:
+                    token_file_obj.write(token)
+                retrial_counts[0] += 1
+                raise errors.AuthenticationRequestExpired("mock auth expired")
+            return resp.ok
+
+        with mock.patch("odps.rest.RestClient.is_ok", new=_new_is_ok):
+            token_inst = token_odps.get_instance(inst.id)
+            token_inst.reload()
+            assert retrial_counts[0] == 1
+            assert token_odps.account.token is not None
+    finally:
+        shutil.rmtree(tmp_path)
+        os.environ.pop("ODPS_BEARER_TOKEN_FILE", None)
+
+
+class MockCredentials(object):
+    def __init__(self, odps):
+        self._odps = odps
+
+    def get_access_key_id(self):
+        return self._odps.account.access_id
+
+    def get_access_key_secret(self):
+        return self._odps.account.secret_access_key
+
+    def get_security_token(cls):
+        return None  # kept empty to skip sts token check
+
+
+class MockCredentialProvider(object):
+    def __init__(self, odps):
+        self._odps = odps
+
+    def get_credentials(self):
+        return MockCredentials(self._odps)
+
+
+class MockCredentialProvider2(object):
+    def __init__(self, odps):
+        self._odps = odps
+
+    def get_credential(self):
+        return MockCredentials(self._odps)
+
+
+@pytest.mark.parametrize(
+    "provider_cls", [MockCredentialProvider, MockCredentialProvider2]
+)
+def test_credential_provider_account(odps, provider_cls):
+    account = CredentialProviderAccount(provider_cls(odps))
     cred_odps = ODPS(
         account, None, odps.project, odps.endpoint
     )

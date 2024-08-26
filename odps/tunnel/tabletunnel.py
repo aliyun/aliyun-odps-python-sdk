@@ -76,6 +76,7 @@ class BaseTableTunnelSession(serializers.JSONSerializableModel):
     def get_common_headers(content_length=None, chunked=False):
         header = {
             "odps-tunnel-date-transform": TUNNEL_DATA_TRANSFORM_VERSION,
+            "odps-tunnel-sdk-support-schema-evolution": "true",
             "x-odps-tunnel-version": TUNNEL_VERSION,
         }
         if content_length is not None:
@@ -586,9 +587,16 @@ class TableStreamUploadSession(BaseTableTunnelSession):
     slots = serializers.JSONNodeField(
         'slots', parse_callback=lambda val: TableStreamUploadSession.Slots(val))
     quota_name = serializers.JSONNodeField('QuotaName')
+    schema_version = serializers.JSONNodeField("schema_version")
 
     def __init__(
-        self, client, table, partition_spec, compress_option=None, quota_name=None
+        self,
+        client,
+        table,
+        partition_spec,
+        compress_option=None,
+        quota_name=None,
+        schema_version=None,
     ):
         super(TableStreamUploadSession, self).__init__()
 
@@ -597,6 +605,7 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         self._partition_spec = self.normalize_partition_spec(partition_spec)
 
         self._quota_name = quota_name
+        self.schema_version = schema_version
 
         self._init()
         self._compress_option = compress_option
@@ -620,11 +629,15 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         params = self.get_common_params()
         headers = self.get_common_headers(content_length=0)
 
+        if self.schema_version is not None:
+            params["schema_version"] = str(self.schema_version)
+
         url = self._get_resource()
         resp = self._client.post(url, {}, params=params, headers=headers)
         self.check_tunnel_response(resp)
 
         self.parse(resp, obj=self)
+        self._quota_name = self.quota_name
         if self.schema is not None:
             self.schema.build_snapshot()
 
@@ -640,6 +653,7 @@ class TableStreamUploadSession(BaseTableTunnelSession):
         self.check_tunnel_response(resp)
 
         self.parse(resp, obj=self)
+        self._quota_name = self.quota_name
         if self.schema is not None:
             self.schema.build_snapshot()
 
@@ -919,7 +933,7 @@ class TableTunnel(BaseTunnel):
             compress_algo=compress_algo, level=level, strategy=strategy
         )
 
-    def create_download_session(self, table, async_mode=False, partition_spec=None,
+    def create_download_session(self, table, async_mode=True, partition_spec=None,
                                 download_id=None, compress_option=None,
                                 compress_algo=None, compress_level=None,
                                 compress_strategy=None, schema=None, timeout=None, **kw):
@@ -978,6 +992,7 @@ class TableTunnel(BaseTunnel):
         compress_level=None,
         compress_strategy=None,
         schema=None,
+        schema_version=None,
     ):
         table = self._get_tunnel_table(table, schema)
         compress_option = compress_option or self._build_compress_option(
@@ -989,6 +1004,7 @@ class TableTunnel(BaseTunnel):
             partition_spec,
             compress_option=compress_option,
             quota_name=self._quota_name,
+            schema_version=schema_version,
         )
 
     def create_upsert_session(
