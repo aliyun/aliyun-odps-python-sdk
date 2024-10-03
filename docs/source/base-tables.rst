@@ -251,9 +251,9 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> for record in o.read_table('test_table', partition='pt=test,pt2=test2'):
    >>>     # 处理一条记录
 
-从 0.11.2 开始，PyODPS 支持使用 `https://arrow.apache.org/ <Arrow>`_ 格式读写数据，该格式可以以更高\
+从 0.11.2 开始，PyODPS 支持使用 `Arrow <https://arrow.apache.org/>`_ 格式读写数据，该格式可以以更高\
 效率与 pandas 等格式互相转换。安装 pyarrow 后，在调用 ``open_reader`` 时增加 ``arrow=True`` 参数，即可按
-`https://arrow.apache.org/docs/python/data.html#record-batches <Arrow RecordBatch>`_
+`Arrow RecordBatch <https://arrow.apache.org/docs/python/data.html#record-batches>`_
 格式读取表内容。
 
 .. code-block:: python
@@ -440,9 +440,9 @@ open_writer 创建的 Writer 对象通过 multiprocessing 标准库传递到需�
             # 等待子进程中的执行完成
             [f.get() for f in futures]
 
-从 0.11.2 开始，PyODPS 支持使用 `https://arrow.apache.org/ <Arrow>`_ 格式读写数据，该格式可以以更高\
+从 0.11.2 开始，PyODPS 支持使用 `Arrow <https://arrow.apache.org/>`_ 格式读写数据，该格式可以以更高\
 效率与 pandas 等格式互相转换。安装 pyarrow 后，在调用 ``open_writer`` 时增加 ``arrow=True`` 参数，即可按
-`https://arrow.apache.org/docs/python/data.html#record-batches <Arrow RecordBatch>`_
+`Arrow RecordBatch <https://arrow.apache.org/docs/python/data.html#record-batches>`_
 格式写入表内容。PyODPS 也支持直接写入 pandas DataFrame，支持自动转换为 Arrow RecordBatch。
 
 .. code-block:: python
