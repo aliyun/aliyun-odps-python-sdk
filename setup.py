@@ -162,8 +162,8 @@ full_requirements = [
     'matplotlib>=1.4',
     'graphviz>=0.4',
     'greenlet>=0.4.10',
-    'ipython<6.0.0 ; python_version < "3"',
-    'cython>=0.20 ; sys_platform != "win32"',
+    'ipython<6.0.0; python_version < "3"',
+    'cython>=0.20; sys_platform != "win32"',
 ]
 mars_requirements = [
     'pymars>=0.5.4',
