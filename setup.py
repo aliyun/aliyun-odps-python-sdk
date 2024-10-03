@@ -162,15 +162,13 @@ full_requirements = [
     'matplotlib>=1.4',
     'graphviz>=0.4',
     'greenlet>=0.4.10',
+    'ipython<6.0.0; python_version < "3"',
+    'cython>=0.20; sys_platform != "win32"',
 ]
 mars_requirements = [
     'pymars>=0.5.4',
     'protobuf>=3.6,<4.0',
 ]
-if sys.version_info[0] == 2:
-    full_requirements.append('ipython<6.0.0')
-if sys.platform != 'win32':
-    full_requirements.append('cython>=0.20')
 
 long_description = None
 if os.path.exists('README.rst'):
