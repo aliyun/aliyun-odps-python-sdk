@@ -6,7 +6,7 @@ from ..src.utils_c cimport CMillisecondsConverter
 
 
 cdef class AbstractHasher:
-    cdef int32_t c_hash_bigint(self, int64_t val) nogil
+    cdef int32_t c_hash_bigint(self, int64_t val) noexcept nogil
     cdef int32_t c_hash_float(self, float val) nogil
     cdef int32_t c_hash_double(self, double val) nogil
     cdef int32_t c_hash_bool(self, bint val) nogil
@@ -14,7 +14,7 @@ cdef class AbstractHasher:
 
 
 cdef class DefaultHasher(AbstractHasher):
-    cdef int32_t c_hash_bigint(self, int64_t val) nogil
+    cdef int32_t c_hash_bigint(self, int64_t val) noexcept nogil
     cdef int32_t c_hash_float(self, float val) nogil
     cdef int32_t c_hash_double(self, double val) nogil
     cdef int32_t c_hash_bool(self, bint val) nogil
@@ -22,7 +22,7 @@ cdef class DefaultHasher(AbstractHasher):
 
 
 cdef class LegacyHasher(AbstractHasher):
-    cdef int32_t c_hash_bigint(self, int64_t val) nogil
+    cdef int32_t c_hash_bigint(self, int64_t val) noexcept nogil
     cdef int32_t c_hash_float(self, float val) nogil
     cdef int32_t c_hash_double(self, double val) nogil
     cdef int32_t c_hash_bool(self, bint val) nogil

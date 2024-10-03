@@ -76,7 +76,9 @@ def _init_ugly_crap():
 
 tb_set_next = None
 try:
-    if platform.python_implementation() == "CPython":
+    if sys.version_info[0] >= 3:
+        tb_set_next = lambda tb, nxt: setattr(tb, "tb_next", nxt)
+    elif platform.python_implementation() == "CPython":
         tb_set_next = _init_ugly_crap()
 except Exception as exc:
     sys.stderr.write("Failed to initialize cpython support: {!r}".format(exc))

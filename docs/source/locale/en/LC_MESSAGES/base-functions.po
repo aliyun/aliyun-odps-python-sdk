@@ -15,7 +15,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/base-functions.rst:4
 msgid "函数"
@@ -23,8 +23,8 @@ msgstr "Functions"
 
 #: ../../source/base-functions.rst:6
 msgid ""
-"ODPS用户可以编写自定义 `函数 <https://help.aliyun.com/document_detail/27823.html>`_ "
-"用在ODPS SQL中。"
+"ODPS用户可以编写自定义 `函数 <https://help.aliyun.com/document_detail/"
+"27823.html>`_ 用在ODPS SQL中。"
 msgstr ""
 "You can write user-defined `functions "
 "<https://www.alibabacloud.com/help/en/doc-detail/27823.htm>`_ (UDFs) to "
@@ -36,8 +36,8 @@ msgstr "Basic operations"
 
 #: ../../source/base-functions.rst:11
 msgid ""
-"可以调用 ODPS 入口对象的 ``list_functions`` 来获取项目空间下的所有函数，``exist_function`` "
-"能判断是否存在函数， ``get_function`` 获取函数对象。"
+"可以调用 ODPS 入口对象的 ``list_functions`` 来获取项目空间下的所有函数，`"
+"`exist_function`` 能判断是否存在函数， ``get_function`` 获取函数对象。"
 msgstr ""
 "Use ``list_functions`` as the ODPS object to obtain all functions in the "
 "project. Use ``exist_function`` to check whether the specified function "
@@ -100,3 +100,4 @@ msgstr ""
 ">>> function.class_type = 'my_udf2.Test'\n"
 ">>> function.resources = [new_resource, ]\n"
 ">>> function.update()  # update metadata on the function object"
+

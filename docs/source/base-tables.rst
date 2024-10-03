@@ -184,7 +184,7 @@ PyODPS 0.11.5 及后续版本中，可以为 ``list_tables`` 添加 ``extended=T
 读写数据
 --------
 
-行记录Record
+行记录 Record
 ~~~~~~~~~~~~~
 
 Record表示表的一行记录，我们在 Table 对象上调用 new_record 就可以创建一个新的 Record。
@@ -251,29 +251,75 @@ Record表示表的一行记录，我们在 Table 对象上调用 new_record 就�
    >>> for record in o.read_table('test_table', partition='pt=test,pt2=test2'):
    >>>     # 处理一条记录
 
-直接读取成 Pandas DataFrame:
+从 0.11.2 开始，PyODPS 支持使用 `https://arrow.apache.org/ <Arrow>`_ 格式读写数据，该格式可以以更高\
+效率与 pandas 等格式互相转换。安装 pyarrow 后，在调用 ``open_reader`` 时增加 ``arrow=True`` 参数，即可按
+`https://arrow.apache.org/docs/python/data.html#record-batches <Arrow RecordBatch>`_
+格式读取表内容。
 
 .. code-block:: python
 
-   >>> with t.open_reader(partition='pt=test,pt2=test2') as reader:
+   >>> with t.open_reader(partition='pt=test,pt2=test2', arrow=True) as reader:
+   >>>     count = reader.count
+   >>>     for batch in reader:  # 可以执行多次，直到将所有 RecordBatch 读完
+   >>>         # 处理一个 RecordBatch，例如转换为 Pandas
+   >>>         print(batch.to_pandas())
+
+你也可以直接调用 reader 上的 ``to_pandas`` 方法直接从 reader 获取 pandas DataFrame。
+读取时，可以指定起始行号（从0开始）和行数。如果不指定，则默认读取所有数据。
+
+.. code-block:: python
+
+   >>> with t.open_reader(partition='pt=test,pt2=test2', arrow=True) as reader:
+   >>>     # 指定起始行号和行数
+   >>>     pd_df = reader.to_pandas(start=10, count=20)
+   >>>     # 如不指定，则读取所有数据
    >>>     pd_df = reader.to_pandas()
 
 .. _table_to_pandas_mp:
 
-利用多进程加速读取:
+你可以利用多进程加速读取 Pandas DataFrame：
 
 .. code-block:: python
 
    >>> import multiprocessing
    >>> n_process = multiprocessing.cpu_count()
-   >>> with t.open_reader(partition='pt=test,pt2=test2') as reader:
+   >>> with t.open_reader(partition='pt=test,pt2=test2', arrow=True) as reader:
    >>>     pd_df = reader.to_pandas(n_process=n_process)
+
+为方便读取数据为 pandas，从 PyODPS 0.12.0 开始，Table 和 Partition 对象支持直接调用 ``to_pandas``
+方法。
+
+.. code-block:: python
+
+   >>> # 将表读取为 pandas DataFrame
+   >>> pd_df = table.to_pandas(start=10, count=20)
+   >>> # 通过2个进程读取所有数据
+   >>> pd_df = table.to_pandas(n_process=2)
+   >>> # 将分区读取为 pandas
+   >>> pd_df = partitioned_table.to_pandas(partition="pt=test", start=10, count=20)
+
+与此同时，从 PyODPS 0.12.0 开始，你也可以使用 ``iter_pandas`` 方法从一张表或分区按多个批次读取 pandas
+DataFrame，并通过 ``batch_size`` 参数指定每次读取的 DataFrame 批次大小，该大小默认值为
+``options.tunnel.read_row_batch_size`` 指定，默认为 1024。
+
+.. code-block:: python
+
+    >>> # 以默认 batch_size 读取所有数据
+    >>> for batch in table.iter_pandas():
+    >>>     print(batch)
+    >>> # 以 batch_size==100 读取前 1000 行数据
+    >>> for batch in table.iter_pandas(batch_size=100, start=0, count=1000):
+    >>>     print(batch)
 
 .. note::
 
-    ``open_reader`` 或者 ``read_table`` 方法仅支持读取单个分区。如果需要读取多个分区的值，例如\
-    读取所有符合 ``dt>20230119`` 这样条件的分区，需要使用 ``iterate_partitions`` 方法，详见
+    ``open_reader``、``read_table`` 以及 ``to_pandas`` 方法仅支持读取单个分区。如果需要读取多个分区\
+    的值，例如读取所有符合 ``dt>20230119`` 这样条件的分区，需要使用 ``iterate_partitions`` 方法，详见
     :ref:`遍历表分区 <iterate_partitions>` 章节。
+
+导出数据是否包含分区列的值由输出格式决定。Record 格式数据默认包含分区列的值，而 Arrow 格式默认不包含。\
+从 PyODPS 0.12.0 开始，你可以通过指定 ``append_partitions=True`` 显示引入分区列的值，通过
+``append_partitions=False`` 将分区列排除在结果之外。
 
 .. _table_write:
 
@@ -394,6 +440,58 @@ open_writer 创建的 Writer 对象通过 multiprocessing 标准库传递到需�
             # 等待子进程中的执行完成
             [f.get() for f in futures]
 
+从 0.11.2 开始，PyODPS 支持使用 `https://arrow.apache.org/ <Arrow>`_ 格式读写数据，该格式可以以更高\
+效率与 pandas 等格式互相转换。安装 pyarrow 后，在调用 ``open_writer`` 时增加 ``arrow=True`` 参数，即可按
+`https://arrow.apache.org/docs/python/data.html#record-batches <Arrow RecordBatch>`_
+格式写入表内容。PyODPS 也支持直接写入 pandas DataFrame，支持自动转换为 Arrow RecordBatch。
+
+.. code-block:: python
+
+   >>> import pandas as pd
+   >>> import pyarrow as pa
+   >>>
+   >>> with t.open_writer(partition='pt=test', create_partition=True, arrow=True) as writer:
+   >>>     records = [[111, 'aaa', True],
+   >>>                [222, 'bbb', False],
+   >>>                [333, 'ccc', True],
+   >>>                [444, '中文', False]]
+   >>>     df = pd.DataFrame(records, columns=["int_val", "str_val", "bool_val"])
+   >>>     # 写入 RecordBatch
+   >>>     batch = pa.RecordBatch.from_pandas(df)
+   >>>     writer.write(batch)
+   >>>     # 也可以直接写入 Pandas DataFrame
+   >>>     writer.write(df)
+
+为方便写入 pandas DataFrame，从 0.12.0 开始，PyODPS 支持直接通过 ``write_table`` 方法写入 pandas DataFrame。\
+如果写入数据前对应表不存在，可以增加 ``create_table=True`` 参数以自动创建表。
+
+.. code-block:: python
+
+   >>> import pandas as pd
+   >>> df = pd.DataFrame([
+   >>>     [111, 'aaa', True],
+   >>>     [222, 'bbb', False],
+   >>>     [333, 'ccc', True],
+   >>>     [444, '中文', False]
+   >>> ], columns=['num_col', 'str_col', 'bool_col'])
+   >>> # 如果表 test_table 不存在，将会自动创建
+   >>> o.write_table('test_table', df, partition='pt=test', create_table=True, create_partition=True)
+
+从 PyODPS 0.12.0 开始，``write_table`` 方法也支持动态分区，可通过 ``partitions`` 参数传入需要作为分区的列名，\
+并指定 ``create_partition=True``，相应的分区将会自动创建。
+
+.. code-block:: python
+
+   >>> import pandas as pd
+   >>> df = pd.DataFrame([
+   >>>     [111, 'aaa', True, 'p1'],
+   >>>     [222, 'bbb', False, 'p1'],
+   >>>     [333, 'ccc', True, 'p2'],
+   >>>     [444, '中文', False, 'p2']
+   >>> ], columns=['num_col', 'str_col', 'bool_col', 'pt'])
+   >>> # 如果分区 pt=p1 或 pt=p2 不存在，将会自动创建。
+   >>> o.write_table('test_part_table', df, partitions=['pt'], create_partition=True)
+
 压缩选项
 ~~~~~~~~
 为加快数据上传 / 下载速度，你可以在上传 / 下载数据时设置压缩选项。具体地，可以创建一个 ``CompressOption``
@@ -423,44 +521,6 @@ open_writer 创建的 Writer 对象通过 multiprocessing 标准库传递到需�
 
    with table.open_writer(compress_algo="zlib") as writer:
        # 写入数据，此处从略
-
-.. _table_arrow_io:
-
-使用 Arrow 格式读写数据
-~~~~~~~~~~~~~~~~~~~~~~~~
-`Apache Arrow <https://arrow.apache.org/>`_ 是一种跨语言的通用数据读写格式，支持在各种不同平台间进行数据交换。\
-自2021年起， MaxCompute 支持使用 Arrow 格式读取表数据，PyODPS 则从 0.11.2 版本开始支持该功能。具体地，如果在
-Python 环境中安装 pyarrow 后，在调用 ``open_reader`` 或者 ``open_writer`` 时增加 ``arrow=True`` 参数，即可读写
-`Arrow RecordBatch <https://arrow.apache.org/docs/python/data.html#record-batches>`_ 。
-
-按 RecordBatch 读取表内容：
-
-.. code-block:: python
-
-   >>> reader = t.open_reader(partition='pt=test', arrow=True)
-   >>> count = reader.count
-   >>> for batch in reader:  # 可以执行多次，直到将所有 RecordBatch 读完
-   >>>     # 处理一个 RecordBatch，例如转换为 Pandas
-   >>>     print(batch.to_pandas())
-
-写入 RecordBatch：
-
-.. code-block:: python
-
-   >>> import pandas as pd
-   >>> import pyarrow as pa
-   >>>
-   >>> with t.open_writer(partition='pt=test', create_partition=True, arrow=True) as writer:
-   >>>     records = [[111, 'aaa', True],
-   >>>                [222, 'bbb', False],
-   >>>                [333, 'ccc', True],
-   >>>                [444, '中文', False]]
-   >>>     df = pd.DataFrame(records, columns=["int_val", "str_val", "bool_val"])
-   >>>     # 写入 RecordBatch
-   >>>     batch = pa.RecordBatch.from_pandas(df)
-   >>>     writer.write(batch)
-   >>>     # 也可以直接写入 Pandas DataFrame
-   >>>     writer.write(df)
 
 删除表
 -------

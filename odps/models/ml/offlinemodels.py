@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,17 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..core import Iterable
-from ... import serializers, errors
+from ... import errors, serializers
 from ...compat import six
+from ..core import Iterable
 from .offlinemodel import OfflineModel
 
 
 class OfflineModels(Iterable):
-
-    marker = serializers.XMLNodeField('Marker')
-    max_items = serializers.XMLNodeField('MaxItems', parse_callback=int)
-    offline_models = serializers.XMLNodesReferencesField(OfflineModel, 'OfflineModel')
+    marker = serializers.XMLNodeField("Marker")
+    max_items = serializers.XMLNodeField("MaxItems", parse_callback=int)
+    offline_models = serializers.XMLNodesReferencesField(OfflineModel, "OfflineModel")
 
     @property
     def project(self):
@@ -57,23 +56,22 @@ class OfflineModels(Iterable):
         :param owner:
         :return:
         """
-        params = {'expectmarker': 'true'}
+        params = {"expectmarker": "true"}
         if name is not None:
-            params['name'] = name
+            params["name"] = name
         if owner is not None:
-            params['owner'] = owner
+            params["owner"] = owner
 
         def _it():
-            last_marker = params.get('marker')
-            if 'marker' in params and \
-                (last_marker is None or len(last_marker) == 0):
+            last_marker = params.get("marker")
+            if "marker" in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource()
             resp = self._client.get(url, params=params)
 
             t = OfflineModels.parse(self._client, resp, obj=self)
-            params['marker'] = t.marker
+            params["marker"] = t.marker
 
             return t.offline_models
 

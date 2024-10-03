@@ -15,22 +15,24 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/base-dbapi.rst:4
 msgid "DBAPI 接口"
 msgstr "DBAPI Interface"
 
 #: ../../source/base-dbapi.rst:6
-msgid "在 PyODPS 0.10.0 中开始支持。事务操作不被 MaxCompute 支持，因而未实现相关接口。"
+msgid ""
+"在 PyODPS 0.10.0 中开始支持。事务操作不被 MaxCompute 支持，因而未实现相关"
+"接口。"
 msgstr ""
-"Supported since PyODPS 0.10.0. As transaction operations are not supported "
-"in MaxCompute, related interfaces are not implemented."
+"Supported since PyODPS 0.10.0. As transaction operations are not "
+"supported in MaxCompute, related interfaces are not implemented."
 
 #: ../../source/base-dbapi.rst:8
 msgid ""
-"PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_ "
-"兼容的数据库访问接口访问 MaxCompute。"
+"PyODPS 支持使用 `Python DBAPI <https://peps.python.org/pep-0249/>`_ 兼容"
+"的数据库访问接口访问 MaxCompute。"
 msgstr ""
 "PyODPS supports accessing MaxCompute data via `Python DBAPI "
 "<https://peps.python.org/pep-0249/>`_ compatible interfaces."
@@ -40,10 +42,12 @@ msgid "创建连接"
 msgstr "Create connections"
 
 #: ../../source/base-dbapi.rst:13
-msgid "可以通过指定 ``access_id``、``access_key``、``project``和``endpoint`` 来建立连接："
+msgid ""
+"可以通过指定 ``access_id``、``access_key``、``project``和``endpoint`` 来"
+"建立连接："
 msgstr ""
-"Connections can be established via ``access_id``, ``access_key``, `project`` "
-"and ``endpoint``."
+"Connections can be established via ``access_id``, ``access_key``, "
+"`project`` and ``endpoint``."
 
 #: ../../source/base-dbapi.rst:16
 msgid ""

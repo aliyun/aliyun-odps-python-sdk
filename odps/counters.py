@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,14 +13,14 @@
 # limitations under the License.
 import json
 
-__all__ = ['Counter', 'CounterGroup', 'Counters']
+__all__ = ["Counter", "CounterGroup", "Counters"]
 
 
 class Counter(object):
     def __init__(self, name, value=0):
         self.name = name
         self.value = value
-    
+
     def get_name(self):
         return self.name
 
@@ -34,10 +34,7 @@ class Counter(object):
         self.value += incr
 
     def _get_data_obj(self):
-        data = {
-                'name' : self.name,
-                'value' : self.value
-                }
+        data = {"name": self.name, "value": self.value}
 
         return data
 
@@ -61,9 +58,9 @@ class CounterGroup(object):
 
     def _get_data_obj(self):
         data = {
-                'name' : self.name,
-                'counters' : [c._get_data_obj() for c in self.counters.values()]
-                }
+            "name": self.name,
+            "counters": [c._get_data_obj() for c in self.counters.values()],
+        }
 
         return data
 
@@ -83,7 +80,7 @@ class Counters(object):
 
     def to_json_string(self, **json_options):
         data = dict()
-        for (k, v) in self.groups.items():
+        for k, v in self.groups.items():
             data[k] = v._get_data_obj()
 
         return json.dumps(data, **json_options)

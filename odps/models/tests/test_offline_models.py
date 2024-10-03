@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 def test_offline_models(odps):
     assert odps.get_project().offline_models is odps.get_project().offline_models
     size = len(list(odps.list_offline_models()))
@@ -19,5 +20,5 @@ def test_offline_models(odps):
 
 
 def test_instance_exists(odps):
-    non_exists_offline_model = 'a_non_exists_offline_model'
+    non_exists_offline_model = "a_non_exists_offline_model"
     assert odps.exist_offline_model(non_exists_offline_model) is False

@@ -15,14 +15,16 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.5.3\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/df-plot.rst:4
 msgid "绘图"
 msgstr "Plotting"
 
 #: ../../source/df-plot.rst:6
-msgid "PyODPS DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** 和 **matplotlib** 的安装。"
+msgid ""
+"PyODPS DataFrame提供了绘图的方法。如果要使用绘图，需要 **pandas** 和 **"
+"matplotlib** 的安装。"
 msgstr ""
 "PyODPS DataFrame provides plotting. To enable plotting, install the "
 "**pandas** and **matplotlib** libraries."
@@ -175,8 +177,8 @@ msgstr ""
 
 #: ../../source/df-plot.rst:63
 msgid ""
-"详细参数可以参考Pandas文档：http://pandas.pydata.org/pandas-"
-"docs/stable/generated/pandas.DataFrame.plot.html"
+"详细参数可以参考Pandas文档：http://pandas.pydata.org/pandas-docs/stable/"
+"generated/pandas.DataFrame.plot.html"
 msgstr ""
 "For more information, see pandas.DataFrame.plot: http://pandas.pydata.org"
 "/pandas-docs/stable/generated/pandas.DataFrame.plot.html"

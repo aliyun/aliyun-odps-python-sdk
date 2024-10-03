@@ -96,8 +96,8 @@ class ResultFrame(six.Iterator):
 
         ret_data = data
         if list(data.columns) != self._names:
-            # already copied
-            ret_data = ret_data.set_axis(self._names, axis="columns", inplace=False)
+            v = ret_data.set_axis(self._names, axis="columns")
+            ret_data = v if v is not None else ret_data
 
         if self._index is not None and list(data.index) != list(self._index):
             if data is ret_data:

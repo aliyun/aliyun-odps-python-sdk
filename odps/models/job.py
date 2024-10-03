@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,29 +14,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .core import XMLRemoteModel
 from .. import serializers, utils
+from .core import XMLRemoteModel
 from .tasks import Task
 
 
 class Job(XMLRemoteModel):
     # define __slots__ to keep the property sequence when serializing into a xml
-    __slots__ = 'name', 'comment', 'priority', 'running_cluster', 'tasks', 'run_mode'
+    __slots__ = "name", "comment", "priority", "running_cluster", "tasks", "run_mode"
 
-    _root = 'Job'
+    _root = "Job"
 
-    name = serializers.XMLNodeField('Name')
+    name = serializers.XMLNodeField("Name")
     comment = serializers.XMLNodeField("Comment")
-    owner = serializers.XMLNodeField('Owner')
-    creation_time = serializers.XMLNodeField('CreationTime',
-                                             parse_callback=utils.parse_rfc822)
-    last_modified_time = serializers.XMLNodeField('LastModifiedTime',
-                                                  parse_callback=utils.parse_rfc822)
-    priority = serializers.XMLNodeField('Priority',
-                                        parse_callback=int, serialize_callback=int, default=9)
-    running_cluster = serializers.XMLNodeField('RunningCluster')
-    run_mode = serializers.XMLNodeField('DAG', 'RunMode', default='Sequence')
-    tasks = serializers.XMLNodesReferencesField(Task, 'Tasks', '*')
+    owner = serializers.XMLNodeField("Owner")
+    creation_time = serializers.XMLNodeField(
+        "CreationTime", parse_callback=utils.parse_rfc822
+    )
+    last_modified_time = serializers.XMLNodeField(
+        "LastModifiedTime", parse_callback=utils.parse_rfc822
+    )
+    priority = serializers.XMLNodeField(
+        "Priority", parse_callback=int, serialize_callback=int, default=9
+    )
+    running_cluster = serializers.XMLNodeField("RunningCluster")
+    run_mode = serializers.XMLNodeField("DAG", "RunMode", default="Sequence")
+    tasks = serializers.XMLNodesReferencesField(Task, "Tasks", "*")
 
     def add_task(self, task):
         if self.tasks is None:

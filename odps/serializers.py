@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import email.header
 import inspect
 import json
@@ -24,17 +25,17 @@ from xml.dom import minidom
 import requests
 
 from . import utils
-from .compat import BytesIO, ElementTree, six
+from .compat import BytesIO, ElementTree, long_type, six
 
 
 def _route_xml_path(root, *keys, **kw):
-    create_if_not_exists = kw.get('create_if_not_exists', False)
+    create_if_not_exists = kw.get("create_if_not_exists", False)
 
     if isinstance(root, six.string_types):
         root = ElementTree.fromstring(root)
 
     for key in keys:
-        if key == '.':
+        if key == ".":
             return root
         prev = root
         root = root.find(key)
@@ -55,7 +56,7 @@ def _extract_encoded_json(content):
 
 
 def _route_json_path(root, *keys, **kw):
-    create_if_not_exists = kw.get('create_if_not_exists', False)
+    create_if_not_exists = kw.get("create_if_not_exists", False)
 
     if isinstance(root, six.string_types):
         root = _extract_encoded_json(root)
@@ -74,6 +75,7 @@ def _route_json_path(root, *keys, **kw):
 def parse_ndarray(array):
     try:
         import numpy as np
+
         return np.asarray(array)
     except ImportError:
         return array
@@ -86,7 +88,7 @@ def serialize_ndarray(array):
         return array
 
 
-def _wrap_with_none(func):
+def none_or(func):
     def new_func(x):
         if x is None:
             return x
@@ -96,30 +98,40 @@ def _wrap_with_none(func):
 
 
 _serialize_types = dict()
-_serialize_types['bool'] = (_wrap_with_none(utils.str_to_bool), _wrap_with_none(utils.bool_to_str))
-_serialize_types['json'] = (_wrap_with_none(json.loads), _wrap_with_none(json.dumps))
-_serialize_types['rfc822'] = (_wrap_with_none(utils.parse_rfc822), _wrap_with_none(utils.gen_rfc822))
-_serialize_types['rfc822l'] = (
-    _wrap_with_none(utils.parse_rfc822), _wrap_with_none(lambda s: utils.gen_rfc822(s, localtime=True))
+_serialize_types["bool"] = (none_or(utils.str_to_bool), none_or(utils.bool_to_str))
+_serialize_types["json"] = (none_or(json.loads), none_or(json.dumps))
+_serialize_types["rfc822"] = (none_or(utils.parse_rfc822), none_or(utils.gen_rfc822))
+_serialize_types["rfc822l"] = (
+    none_or(utils.parse_rfc822),
+    none_or(lambda s: utils.gen_rfc822(s, localtime=True)),
 )
-_serialize_types['ndarray'] = (_wrap_with_none(parse_ndarray), _wrap_with_none(serialize_ndarray))
+_serialize_types["ndarray"] = (none_or(parse_ndarray), none_or(serialize_ndarray))
+_serialize_types["timestamp_ms"] = (
+    none_or(lambda x: datetime.datetime.fromtimestamp(long_type(x) / 1000.0)),
+    none_or(lambda x: long_type(x.timestamp() * 1000)),
+)
+_serialize_types["int"] = (none_or(long_type), none_or(str))
+_serialize_types["float"] = (none_or(float), none_or(str))
 
 
 class SerializeField(object):
     def __init__(self, *keys, **kwargs):
         self._path_keys = keys
 
-        self._required = kwargs.get('required', False)  # used when serialized
-        self._blank_if_null = kwargs.get('blank_if_null',
-                                         True if self._required else False)
-        self._default = kwargs.get('default')
-        if 'type' in kwargs:
-            self._parse_callback, self._serialize_callback = _serialize_types[kwargs.pop('type')]
+        self._required = kwargs.get("required", False)  # used when serialized
+        self._blank_if_null = kwargs.get(
+            "blank_if_null", True if self._required else False
+        )
+        self._default = kwargs.get("default")
+        if "type" in kwargs:
+            self._parse_callback, self._serialize_callback = _serialize_types[
+                kwargs.pop("type")
+            ]
         else:
-            self._parse_callback = kwargs.get('parse_callback')
-            self._serialize_callback = kwargs.get('serialize_callback')
+            self._parse_callback = kwargs.get("parse_callback")
+            self._serialize_callback = kwargs.get("serialize_callback")
 
-        self.set_to_parent = kwargs.get('set_to_parent', False)
+        self.set_to_parent = kwargs.get("set_to_parent", False)
 
     def _to_str(self, val):
         if isinstance(val, six.string_types):
@@ -153,7 +165,7 @@ class HasSubModelField(SerializeField):
         if self._model_cls is not None:
             return self._model_cls
 
-        models = self._model_str.split('.')
+        models = self._model_str.split(".")
         model_name = models[0]
 
         module = None
@@ -161,13 +173,14 @@ class HasSubModelField(SerializeField):
             globs = stack[0].f_globals
             if model_name in globs:
                 possible_module = globs[model_name]
-                if inspect.isclass(possible_module) and \
-                        issubclass(possible_module, SerializableModel):
+                if inspect.isclass(possible_module) and issubclass(
+                    possible_module, SerializableModel
+                ):
                     module = possible_module
                     break
 
         if module is None:
-            raise ValueError('Unknown model name: %s' % self._model_str)
+            raise ValueError("Unknown model name: %s" % self._model_str)
 
         res = None
         for model in models[1:]:
@@ -180,7 +193,11 @@ class HasSubModelField(SerializeField):
         return res
 
 
-_default_name_maker = dict(capitalized=utils.underline_to_capitalized, raw=lambda v: v, camel=utils.underline_to_camel)
+_default_name_maker = dict(
+    capitalized=utils.underline_to_capitalized,
+    raw=lambda v: v,
+    camel=utils.underline_to_camel,
+)
 
 
 class SerializableModelMetaClass(type):
@@ -188,18 +205,20 @@ class SerializableModelMetaClass(type):
         slots = []
         fields = dict()
         for base in bases:
-            base_slots = list(getattr(base, '__slots__', []))
-            if '__weakref__' in base_slots:
-                base_slots.remove('__weakref__')
+            base_slots = list(getattr(base, "__slots__", []))
+            if "__weakref__" in base_slots:
+                base_slots.remove("__weakref__")
             slots.extend(base_slots)
-            fields.update(getattr(base, '__fields', dict()))
-        slots.extend(kv.get('__slots__', []))
-        fields.update(kv.get('__fields', dict()))
+            fields.update(getattr(base, "__fields", dict()))
+        slots.extend(kv.get("__slots__", []))
+        fields.update(kv.get("__fields", dict()))
 
         attrs = []
         parent_attrs = []
-        def_name = kv.pop('_' + name + '__default_name', 'capitalized')
-        for attr, field in (pair for pair in six.iteritems(kv) if not pair[0].startswith('__')):
+        def_name = kv.pop("_" + name + "__default_name", "capitalized")
+        for attr, field in (
+            pair for pair in six.iteritems(kv) if not pair[0].startswith("__")
+        ):
             if inspect.isclass(field) and issubclass(field, SerializeField):
                 field = field()
             if isinstance(field, SerializeField):
@@ -210,13 +229,16 @@ class SerializableModelMetaClass(type):
                 if field.set_to_parent:
                     parent_attrs.append(attr)
                 fields[attr] = field
-        kv['_parent_attrs'] = set(parent_attrs)
+        kv["_parent_attrs"] = set(parent_attrs)
 
         slots = tuple(OrderedDict.fromkeys(slots))
 
         slots_pos = dict([(v, k) for k, v in enumerate(slots)])
         fields = OrderedDict(
-            sorted(six.iteritems(fields), key=lambda s: slots_pos.get(s[0], float('inf'))))
+            sorted(
+                six.iteritems(fields), key=lambda s: slots_pos.get(s[0], float("inf"))
+            )
+        )
 
         for attr in attrs:
             if attr in kv:
@@ -224,18 +246,18 @@ class SerializableModelMetaClass(type):
 
         slots = tuple(slot for slot in slots if slot not in kv)
         if len(slots) > 0:
-            kv['__slots__'] = slots
+            kv["__slots__"] = slots
         if len(fields) > 0:
-            kv['__fields'] = fields
+            kv["__fields"] = fields
 
         return type.__new__(mcs, name, bases, kv)
 
 
 class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
-    __slots__ = '_parent', '__weakref__'
+    __slots__ = "_parent", "__weakref__"
 
     def __init__(self, **kwargs):
-        slots = getattr(self, '__slots__', [])
+        slots = getattr(self, "__slots__", [])
 
         for k, v in six.iteritems(kwargs):
             if k in slots:
@@ -265,7 +287,7 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
                 setattr(obj, k, v)
             return
 
-        fields = getattr(type(obj), '__fields')
+        fields = getattr(type(obj), "__fields")
         if not isinstance(fields[k], HasSubModelField):
             setattr(obj, k, v)
         elif isinstance(v, list):
@@ -276,20 +298,21 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
             if sub_obj is None:
                 setattr(obj, k, v)
                 return
-            sub_fields = getattr(new_obj, '__fields', {})
+            sub_fields = getattr(new_obj, "__fields", {})
             for k in six.iterkeys(sub_fields):
                 if sub_fields[k].set_to_parent is True:
                     continue
-                cls._setattr(sub_obj, k, object.__getattribute__(new_obj, k),
-                             skip_null=skip_null)
+                cls._setattr(
+                    sub_obj, k, object.__getattribute__(new_obj, k), skip_null=skip_null
+                )
 
     @classmethod
     def _init_obj(cls, content, obj=None, **kw):
-        fields = dict(getattr(cls, '__fields'))
+        fields = dict(getattr(cls, "__fields"))
 
-        _type = getattr(cls, '_type_indicator', None)
-        _name = 'name' if 'name' in fields else None
-        if obj is None and (_type is not None or 'name' in fields):
+        _type = getattr(cls, "_type_indicator", None)
+        _name = "name" if "name" in fields else None
+        if obj is None and (_type is not None or "name" in fields):
             kwargs = dict(kw)
 
             for field in (_name, _type):
@@ -307,7 +330,7 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
         obj = cls._init_obj(content, obj=obj, **kw)
         obj_type = type(obj)
 
-        fields = dict(getattr(obj_type, '__fields'))
+        fields = dict(getattr(obj_type, "__fields"))
 
         if isinstance(content, six.string_types):
             if issubclass(obj_type, XMLSerializableModel):
@@ -322,14 +345,14 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
             if isinstance(prop, SerializeField):
                 kwargs = dict(kw)
                 if isinstance(prop, HasSubModelField):
-                    kwargs['_parent'] = obj
+                    kwargs["_parent"] = obj
                 if not prop.set_to_parent:
                     self_kw[attr] = prop.parse(content, **kwargs)
                 else:
                     parent_kw[attr] = prop.parse(content, **kwargs)
 
         for k, v in six.iteritems(self_kw):
-            obj_type._setattr(obj, k, v, skip_null=getattr(obj_type, 'skip_null', True))
+            obj_type._setattr(obj, k, v, skip_null=getattr(obj_type, "skip_null", True))
 
         if obj.parent is not None:
             for k, v in six.iteritems(parent_kw):
@@ -350,7 +373,7 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
         else:
             root = OrderedDict()
 
-        for attr, prop in six.iteritems(getattr(self, '__fields')):
+        for attr, prop in six.iteritems(getattr(self, "__fields")):
             if isinstance(prop, SerializeField):
                 try:
                     prop.serialize(root, object.__getattribute__(self, attr))
@@ -370,12 +393,12 @@ class SerializableModel(six.with_metaclass(SerializableModelMetaClass)):
 
 
 class XMLSerializableModel(SerializableModel):
-    __slots__ = '_root',
+    __slots__ = ("_root",)
 
     @classmethod
     def parse(cls, response, obj=None, **kw):
-        if 'parent' in kw:
-            kw['_parent'] = kw.pop('parent')
+        if "parent" in kw:
+            kw["_parent"] = kw.pop("parent")
         if isinstance(response, requests.Response):
             # PY2 prefer bytes, while PY3 prefer str
             response = response.content.decode() if six.PY3 else response.content
@@ -388,24 +411,30 @@ class XMLSerializableModel(SerializableModel):
         ElementTree.ElementTree(root).write(sio, encoding="utf-8", xml_declaration=True)
         xml_content = sio.getvalue()
 
-        prettified_xml = minidom.parseString(xml_content).toprettyxml(indent=' '*2, encoding='utf-8')
-        prettified_xml = utils.to_text(prettified_xml, encoding='utf-8')
+        prettified_xml = minidom.parseString(xml_content).toprettyxml(
+            indent=" " * 2, encoding="utf-8"
+        )
+        prettified_xml = utils.to_text(prettified_xml, encoding="utf-8")
 
-        cdata_re = re.compile(r'&lt;!\[CDATA\[.*\]\]&gt;', (re.M | re.S))
+        cdata_re = re.compile(r"&lt;!\[CDATA\[.*\]\]&gt;", (re.M | re.S))
         for src_cdata in cdata_re.finditer(prettified_xml):
             src_cdata = src_cdata.group(0)
-            dest_cdata = src_cdata.replace('&amp;', '&').replace('&lt;', '<'). \
-                replace('&quot;', '"').replace('&gt;', '>')
+            dest_cdata = (
+                src_cdata.replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&quot;", '"')
+                .replace("&gt;", ">")
+            )
             prettified_xml = prettified_xml.replace(src_cdata, dest_cdata)
 
-        return prettified_xml.replace('&quot;', '"')
+        return prettified_xml.replace("&quot;", '"')
 
 
 class JSONSerializableModel(SerializableModel):
     @classmethod
     def parse(cls, response, obj=None, **kw):
-        if 'parent' in kw:
-            kw['_parent'] = kw.pop('parent')
+        if "parent" in kw:
+            kw["_parent"] = kw.pop("parent")
         if isinstance(response, requests.Response):
             # PY2 prefer bytes, while PY3 prefer str
             response = response.content.decode() if six.PY3 else response.content
@@ -432,7 +461,7 @@ class XMLTagField(SerializeField):
         return val
 
     def _set_default_keys(self, *keys):
-        super(XMLTagField, self)._set_default_keys('.')
+        super(XMLTagField, self)._set_default_keys(".")
 
 
 class XMLNodeField(SerializeField):
@@ -453,7 +482,7 @@ class XMLNodeField(SerializeField):
     def serialize(self, root, value):
         value = value if value is not None else self._default
         if value is None and self._blank_if_null:
-            value = ''
+            value = ""
 
         if not self._required and value is None:
             return
@@ -467,7 +496,7 @@ class XMLNodeField(SerializeField):
 
 class XMLNodeAttributeField(SerializeField):
     def __init__(self, *keys, **kwargs):
-        self._attr = kwargs.pop('attr', None)
+        self._attr = kwargs.pop("attr", None)
 
         super(XMLNodeAttributeField, self).__init__(*keys, **kwargs)
 
@@ -495,7 +524,7 @@ class XMLNodeAttributeField(SerializeField):
             if self._default is not None:
                 value = self._default
             elif self._blank_if_null:
-                value = ''
+                value = ""
 
         if not self._required and value is None:
             return
@@ -559,8 +588,7 @@ class XMLNodeReferenceField(HasSubModelField):
                 node = node.text
 
             instance = self._model.deserial(node, **kwargs)
-            if isinstance(instance, XMLSerializableModel) and \
-                            instance._root is None:
+            if isinstance(instance, XMLSerializableModel) and instance._root is None:
                 instance._root = node.tag
 
         if instance is None:
@@ -583,8 +611,8 @@ class XMLNodeReferenceField(HasSubModelField):
         if prev_path_keys:
             root = _route_xml_path(root, create_if_not_exists=True, *prev_path_keys)
 
-        if isinstance(value, XMLSerializableModel) and getattr(value, '_root') is None:
-            setattr(value, '_root', self._path_keys[-1])
+        if isinstance(value, XMLSerializableModel) and getattr(value, "_root") is None:
+            setattr(value, "_root", self._path_keys[-1])
 
         val = value.serial()
         if isinstance(value, JSONSerializableModel):  # JSON mixed in XML
@@ -608,14 +636,17 @@ class XMLNodesReferencesField(HasSubModelField):
             instances = []
 
             tag = self._path_keys[-1]
-            if tag == '*':
+            if tag == "*":
                 nodes = list(root)
             else:
                 nodes = root.findall(self._path_keys[-1])
 
             for node in nodes:
                 instance = self._model.deserial(node, **kwargs)
-                if isinstance(instance, XMLSerializableModel) and instance._root is None:
+                if (
+                    isinstance(instance, XMLSerializableModel)
+                    and instance._root is None
+                ):
                     instance._root = node.tag
                 instances.append(instance)
 
@@ -642,9 +673,8 @@ class XMLNodesReferencesField(HasSubModelField):
             root = _route_xml_path(root, create_if_not_exists=True, *prev_path_keys)
 
         for it in value:
-            if isinstance(it, XMLSerializableModel) and \
-                            getattr(it, '_root') is None:
-                setattr(it, '_root', self._path_keys[-1])
+            if isinstance(it, XMLSerializableModel) and getattr(it, "_root") is None:
+                setattr(it, "_root", self._path_keys[-1])
 
             val = it.serial()
             if isinstance(it, JSONSerializableModel):
@@ -659,8 +689,13 @@ class XMLNodesReferencesField(HasSubModelField):
 class XMLNodePropertiesField(SerializeField):
     def __init__(self, *keys, **kwargs):
         super(XMLNodePropertiesField, self).__init__(*keys, **kwargs)
-        self._key_tag = kwargs['key_tag']
-        self._value_tag = kwargs['value_tag']
+        self._key_tag = kwargs.get("key_tag")
+        self._key_attr = kwargs.get("key_attr")
+        if not self._key_tag and not self._key_attr:
+            raise TypeError("Need to specify one of key_tag or key_attr")
+        self._value_tag = kwargs.get("value_tag")
+        if not self._key_attr and not self._value_tag:
+            raise TypeError("Need to specify key_attr when value_tag is absent")
 
     def parse(self, root, **kwargs):
         prev_path_keys = self._path_keys[:-1]
@@ -673,10 +708,20 @@ class XMLNodePropertiesField(SerializeField):
             results = OrderedDict()
 
             for node in root.findall(self._path_keys[-1]):
-                key_node = node.find(self._key_tag)
-                value_node = node.find(self._value_tag)
-                if key_node is not None and value_node is not None:
-                    results[key_node.text] = value_node.text
+                if self._key_attr is not None:
+                    key = node.attrib.get(self._key_attr)
+                else:
+                    key_node = node.find(self._key_tag)
+                    key = key_node.text if key_node is not None else None
+
+                if self._value_tag is not None:
+                    value_node = node.find(self._value_tag)
+                    value = value_node.text if value_node is not None else None
+                else:
+                    value = node.text
+
+                if key is not None and value is not None:
+                    results[key] = value
 
         if results is None:
             return
@@ -702,12 +747,19 @@ class XMLNodePropertiesField(SerializeField):
 
         for k, v in six.iteritems(value):
             element = ElementTree.Element(self._path_keys[-1])
-            key_node = ElementTree.Element(self._key_tag)
-            key_node.text = utils.to_text(k)
-            element.append(key_node)
-            value_node = ElementTree.Element(self._value_tag)
-            value_node.text = utils.to_text(v)
-            element.append(value_node)
+            if self._key_attr is not None:
+                element.set(self._key_attr, utils.to_text(k))
+            else:
+                key_node = ElementTree.Element(self._key_tag)
+                key_node.text = utils.to_text(k)
+                element.append(key_node)
+
+            if self._value_tag is not None:
+                value_node = ElementTree.Element(self._value_tag)
+                value_node.text = utils.to_text(v)
+                element.append(value_node)
+            else:
+                element.text = utils.to_text(v)
 
             root.append(element)
 
@@ -729,7 +781,7 @@ class JSONNodeField(SerializeField):
     def serialize(self, root, value):
         value = value if value is not None else self._default
         if value is None and self._blank_if_null:
-            value = ''
+            value = ""
 
         if not self._required and value is None:
             return
@@ -754,8 +806,7 @@ class JSONNodesField(SerializeField):
 
         values = self._default
         if root is not None:
-            values = [self._to_str(node[self._path_keys[-1]])
-                      for node in root]
+            values = [self._to_str(node[self._path_keys[-1]]) for node in root]
 
         if values is None:
             return
@@ -794,7 +845,7 @@ class JSONNodeReferenceField(HasSubModelField):
     def __init__(self, model, *keys, **kwargs):
         super(JSONNodeReferenceField, self).__init__(model, *keys, **kwargs)
 
-        self._check_before = kwargs.get('check_before')
+        self._check_before = kwargs.get("check_before")
 
     def parse(self, root, **kwargs):
         instance = self._default
@@ -837,8 +888,7 @@ class JSONNodesReferencesField(HasSubModelField):
         instances = self._default
 
         if isinstance(root, list):
-            instances = [self._model.deserial(node, **kwargs)
-                         for node in root]
+            instances = [self._model.deserial(node, **kwargs) for node in root]
         elif root is not None:
             prev_path_keys = self._path_keys[:-1]
             if prev_path_keys:
@@ -847,8 +897,7 @@ class JSONNodesReferencesField(HasSubModelField):
             if root is not None:
                 root = root.get(self._path_keys[-1])
                 if root is not None:
-                    instances = [self._model.deserial(node, **kwargs)
-                                 for node in root]
+                    instances = [self._model.deserial(node, **kwargs) for node in root]
 
         if instances is None:
             return

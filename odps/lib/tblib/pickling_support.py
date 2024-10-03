@@ -1,13 +1,17 @@
 import sys
+from functools import partial
 from types import TracebackType
 
-from . import Frame
-from . import Traceback
+from . import Frame, Traceback
 
 if sys.version_info[0] >= 3:
     import copyreg
+
+    PY3 = True
 else:
     import copy_reg as copyreg
+
+    PY3 = False
 
 
 def unpickle_traceback(tb_frame, tb_lineno, tb_next):
@@ -18,14 +22,27 @@ def unpickle_traceback(tb_frame, tb_lineno, tb_next):
     return ret.as_traceback()
 
 
-def pickle_traceback(tb):
-    return unpickle_traceback, (Frame(tb.tb_frame), tb.tb_lineno, tb.tb_next and Traceback(tb.tb_next))
+def pickle_traceback(tb, get_locals=None):
+    return unpickle_traceback, (
+        Frame(tb.tb_frame, get_locals=get_locals),
+        tb.tb_lineno,
+        tb.tb_next and Traceback(tb.tb_next, get_locals=get_locals),
+    )
 
 
-def unpickle_exception(func, args, cause, tb):
+# Note: Older versions of tblib will generate pickle archives that call unpickle_exception() with
+# fewer arguments. We assign default values to some of the arguments to support this.
+def unpickle_exception(
+    func, args, cause, tb, context=None, suppress_context=False, notes=None
+):
     inst = func(*args)
     inst.__cause__ = cause
     inst.__traceback__ = tb
+    if PY3:
+        inst.__context__ = context
+        inst.__suppress_context__ = suppress_context
+        if notes is not None:
+            inst.__notes__ = notes
     return inst
 
 
@@ -40,9 +57,21 @@ def pickle_exception(obj):
     rv = obj.__reduce_ex__(3)
     if isinstance(rv, str):
         raise TypeError("str __reduce__ output is not supported")
-    assert isinstance(rv, tuple) and len(rv) >= 2
+    assert isinstance(rv, tuple)
+    assert len(rv) >= 2
 
-    return (unpickle_exception, rv[:2] + (obj.__cause__, obj.__traceback__)) + rv[2:]
+    return (
+        unpickle_exception,
+        rv[:2]
+        + (
+            obj.__cause__,
+            obj.__traceback__,
+            getattr(obj, "__context__", None),
+            getattr(obj, "__suppress_context__", None),
+            # __notes__ doesn't exist prior to Python 3.11; and even on Python 3.11 it may be absent
+            getattr(obj, "__notes__", None),
+        ),
+    ) + rv[2:]
 
 
 def _get_subclasses(cls):
@@ -54,8 +83,17 @@ def _get_subclasses(cls):
         to_visit += list(this.__subclasses__())
 
 
-def install(*exc_classes_or_instances):
-    copyreg.pickle(TracebackType, pickle_traceback)
+def install(*exc_classes_or_instances, **kwargs):
+    """
+    Args:
+
+        get_locals (callable): A function that take a frame argument and returns a dict. See :class:`tblib.Traceback` class for example.
+    """
+    get_locals = kwargs.pop("get_locals", None)
+    if kwargs:
+        raise TypeError("Keyword arguments %s not supported" % list(kwargs.keys()))
+
+    copyreg.pickle(TracebackType, partial(pickle_traceback, get_locals=get_locals))
 
     if sys.version_info[0] < 3:
         # Dummy decorator?
@@ -72,9 +110,7 @@ def install(*exc_classes_or_instances):
 
     for exc in exc_classes_or_instances:
         if isinstance(exc, BaseException):
-            while exc is not None:
-                copyreg.pickle(type(exc), pickle_exception)
-                exc = exc.__cause__
+            _install_for_instance(exc, set())
         elif isinstance(exc, type) and issubclass(exc, BaseException):
             copyreg.pickle(exc, pickle_exception)
             # Allow using @install as a decorator for Exception classes
@@ -85,3 +121,28 @@ def install(*exc_classes_or_instances):
                 "Expected subclasses or instances of BaseException, got %s"
                 % (type(exc))
             )
+
+
+def _install_for_instance(exc, seen):
+    assert isinstance(exc, BaseException)
+
+    # Prevent infinite recursion if we somehow get a self-referential exception. (Self-referential
+    # exceptions should never normally happen, but if it did somehow happen, we want to pickle the
+    # exception faithfully so the developer can troubleshoot why it happened.)
+    if id(exc) in seen:
+        return
+    seen.add(id(exc))
+
+    copyreg.pickle(type(exc), pickle_exception)
+
+    if exc.__cause__ is not None:
+        _install_for_instance(exc.__cause__, seen)
+    if exc.__context__ is not None:
+        _install_for_instance(exc.__context__, seen)
+
+    # This case is meant to cover BaseExceptionGroup on Python 3.11 as well as backports like the
+    # exceptiongroup module
+    if hasattr(exc, "exceptions") and isinstance(exc.exceptions, (tuple, list)):
+        for subexc in exc.exceptions:
+            if isinstance(subexc, BaseException):
+                _install_for_instance(subexc, seen)

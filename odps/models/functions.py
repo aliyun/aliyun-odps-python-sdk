@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,20 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .. import errors, serializers
+from ..compat import six
 from .core import Iterable
 from .function import Function
-from .. import serializers, errors
-from ..compat import six
 
 
 class Functions(Iterable):
-
-    marker = serializers.XMLNodeField('Marker')
-    max_items = serializers.XMLNodeField('MaxItems')
-    functions = serializers.XMLNodesReferencesField(Function, 'Function')
+    marker = serializers.XMLNodeField("Marker")
+    max_items = serializers.XMLNodeField("MaxItems")
+    functions = serializers.XMLNodesReferencesField(Function, "Function")
 
     def _name(self):
-        return 'registration/functions'
+        return "registration/functions"
 
     def _get(self, name):
         return Function(client=self._client, parent=self, name=name)
@@ -53,23 +52,23 @@ class Functions(Iterable):
         params = kw.copy()
         params["expectmarker"] = "true"
         if name is not None:
-            params['name'] = name
+            params["name"] = name
         if owner is not None:
-            params['owner'] = owner
+            params["owner"] = owner
         schema_name = self._get_schema_name()
         if schema_name is not None:
-            params['curr_schema'] = schema_name
+            params["curr_schema"] = schema_name
 
         def _it():
-            last_marker = params.get('marker')
-            if 'marker' in params and (last_marker is None or len(last_marker) == 0):
+            last_marker = params.get("marker")
+            if "marker" in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource()
             resp = self._client.get(url, params=params)
 
             f = Functions.parse(self._client, resp, obj=self)
-            params['marker'] = f.marker
+            params["marker"] = f.marker
 
             return f.functions
 
@@ -87,7 +86,7 @@ class Functions(Iterable):
         if function._client is None:
             function._client = self._client
 
-        headers = {'Content-Type': 'application/xml'}
+        headers = {"Content-Type": "application/xml"}
         data = function.serialize()
 
         self._client.post(
@@ -98,12 +97,14 @@ class Functions(Iterable):
         return function
 
     def update(self, func):
-        new_func = Function(parent=self, client=self._client,
-                            name=func.name, class_type=func.class_type,
-                            resources=func.resources)
-        headers = {
-            'Content-Type': 'application/xml'
-        }
+        new_func = Function(
+            parent=self,
+            client=self._client,
+            name=func.name,
+            class_type=func.class_type,
+            resources=func.resources,
+        )
+        headers = {"Content-Type": "application/xml"}
         data = new_func.serialize()
 
         self._client.put(

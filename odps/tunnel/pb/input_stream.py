@@ -21,8 +21,7 @@ Modified by onesuperclark@gmail.com(onesuper).
 
 import struct
 
-from . import errors
-from . import wire_format
+from . import errors, wire_format
 
 
 class InputStream(object):
@@ -48,10 +47,12 @@ class InputStream(object):
         as a string.
         """
         if size < 0:
-            raise errors.DecodeError('Negative size %d' % size)
+            raise errors.DecodeError("Negative size %d" % size)
         s = self._input.read(size)
         if len(s) != size:
-            raise errors.DecodeError('String claims to have %d bytes, but read %d' % (size, len(s)))
+            raise errors.DecodeError(
+                "String claims to have %d bytes, but read %d" % (size, len(s))
+            )
         self._pos += len(s)  # Only advance by the number of bytes actually read.
         return s
 
@@ -60,8 +61,9 @@ class InputStream(object):
         encoded, unsiged 32-bit integer, and returns that integer.
         """
         try:
-            i = struct.unpack(wire_format.FORMAT_UINT32_LITTLE_ENDIAN,
-                              self._input.read(4))
+            i = struct.unpack(
+                wire_format.FORMAT_UINT32_LITTLE_ENDIAN, self._input.read(4)
+            )
             self._pos += 4
             return i[0]  # unpack() result is a 1-element tuple.
         except struct.error as e:
@@ -72,8 +74,9 @@ class InputStream(object):
         encoded, unsiged 64-bit integer, and returns that integer.
         """
         try:
-            i = struct.unpack(wire_format.FORMAT_UINT64_LITTLE_ENDIAN,
-                              self._input.read(8))
+            i = struct.unpack(
+                wire_format.FORMAT_UINT64_LITTLE_ENDIAN, self._input.read(8)
+            )
             self._pos += 8
             return i[0]  # unpack() result is a 1-element tuple.
         except struct.error as e:
@@ -85,7 +88,7 @@ class InputStream(object):
         """
         i = self.read_varint64()
         if not wire_format.INT32_MIN <= i <= wire_format.INT32_MAX:
-            raise errors.DecodeError('Value out of range for int32: %d' % i)
+            raise errors.DecodeError("Value out of range for int32: %d" % i)
         return int(i)
 
     def read_var_uint32(self):
@@ -94,7 +97,7 @@ class InputStream(object):
         """
         i = self.read_var_uint64()
         if i > wire_format.UINT32_MAX:
-            raise errors.DecodeError('Value out of range for uint32: %d' % i)
+            raise errors.DecodeError("Value out of range for uint32: %d" % i)
         return i
 
     def read_varint64(self):
@@ -103,7 +106,7 @@ class InputStream(object):
         """
         i = self.read_var_uint64()
         if i > wire_format.INT64_MAX:
-            i -= (1 << 64)
+            i -= 1 << 64
         return i
 
     def read_var_uint64(self):
@@ -112,7 +115,7 @@ class InputStream(object):
         """
         i = self._read_varint_helper()
         if not 0 <= i <= wire_format.UINT64_MAX:
-            raise errors.DecodeError('Value out of range for uint64: %d' % i)
+            raise errors.DecodeError("Value out of range for uint64: %d" % i)
         return i
 
     def _read_varint_helper(self):
@@ -127,13 +130,13 @@ class InputStream(object):
         shift = 0
         while 1:
             if shift >= 64:
-                raise errors.DecodeError('Too many bytes when decoding varint.')
+                raise errors.DecodeError("Too many bytes when decoding varint.")
             try:
                 b = ord(self._input.read(1))
             except IndexError:
-                raise errors.DecodeError('Truncated varint.')
+                raise errors.DecodeError("Truncated varint.")
             self._pos += 1
-            result |= ((b & 0x7f) << shift)
+            result |= (b & 0x7F) << shift
             shift += 7
             if not (b & 0x80):
                 return result

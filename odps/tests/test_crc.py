@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ from ..tests.core import py_and_c
 def test_crc32c():
     crc_obj = crc.Crc32c()
     assert 0 == crc_obj.getvalue()
-    buf = bytearray(b'abc')
+    buf = bytearray(b"abc")
     crc_obj.update(buf)
     assert 910901175 == crc_obj.getvalue()
-    buf = bytearray(b'1111111111111111111')
+    buf = bytearray(b"1111111111111111111")
     crc_obj.update(buf)
     assert 2917307201 == crc_obj.getvalue()

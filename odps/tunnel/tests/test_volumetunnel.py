@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ from ...tests.core import get_test_unique_name, tn
 from .. import CompressOption
 from ..volumetunnel import VolumeTunnel
 
-TEST_PARTITION_NAME = 'pyodps_test_partition'
-TEST_FILE_NAME = 'test_output_file'
+TEST_PARTITION_NAME = "pyodps_test_partition"
+TEST_FILE_NAME = "test_output_file"
 
 TEST_BLOCK_SIZE = 1048500
 TEST_MODULUS = 251
@@ -63,9 +63,7 @@ def setup(odps):
     _old_create_download_session = VolumeTunnel.create_download_session
     _old_create_upload_session = VolumeTunnel.create_upload_session
 
-    VolumeTunnel.create_download_session = wrap_fun(
-        _old_create_download_session
-    )
+    VolumeTunnel.create_download_session = wrap_fun(_old_create_download_session)
     VolumeTunnel.create_upload_session = wrap_fun(_old_create_upload_session)
 
     test_funcs = namedtuple(
@@ -87,9 +85,14 @@ def setup(odps):
 
 
 def test_text_upload_download(odps, setup):
-    text_content = 'Life is short, \r\n Java is tedious.    \n\n\r\nI use PyODPS. \n\n'
+    text_content = "Life is short, \r\n Java is tedious.    \n\n\r\nI use PyODPS. \n\n"
     expect_lines = [
-        'Life is short, \n', ' Java is tedious.    \n', '\n', '\n', 'I use PyODPS. \n', '\n'
+        "Life is short, \n",
+        " Java is tedious.    \n",
+        "\n",
+        "\n",
+        "I use PyODPS. \n",
+        "\n",
     ]
 
     partition = setup.get_test_partition()
@@ -114,6 +117,7 @@ def test_raw_upload_download_greenlet(odps, setup):
 
 def test_raw_upload_download_thread(odps, setup):
     from .. import io
+
     io._FORCE_THREAD = True
 
     block = setup.gen_byte_block()
@@ -137,9 +141,7 @@ def test_z_lib_upload_download(odps, setup):
     with partition.open_writer(compress_option=comp_option) as writer:
         writer.write(TEST_FILE_NAME, block, compress=True)
 
-    with partition.open_reader(
-        TEST_FILE_NAME, compress_option=comp_option
-    ) as reader:
+    with partition.open_reader(TEST_FILE_NAME, compress_option=comp_option) as reader:
         assert reader.read() == block
 
 

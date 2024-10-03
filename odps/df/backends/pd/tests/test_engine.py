@@ -45,9 +45,12 @@ from ...context import context
 from ...errors import CompileError
 from ..engine import PandasEngine
 
-TEMP_FILE_RESOURCE = tn('pyodps_tmp_file_resource')
-TEMP_TABLE = tn('pyodps_temp_table')
-TEMP_TABLE_RESOURCE = tn('pyodps_temp_table_resource')
+TEMP_FILE_RESOURCE = tn('pyodps_t_tmp_file_resource')
+TEMP_TABLE = tn('pyodps_t_tmp_table')
+TEMP_TABLE_RESOURCE = tn('pyodps_t_tmp_table_resource')
+
+_pypi_index = os.environ.get("PYPI_INDEX") or "http://mirrors.aliyun.com/pypi/simple"
+_pypi_prefix = _pypi_index.rstrip("/").rsplit("/", 1)[0]
 
 
 @pytest.fixture
@@ -692,10 +695,10 @@ def test_third_party_libraries(odps, setup):
     setup.gen_data(data=data)
 
     utils_urls = [
-        'http://mirrors.aliyun.com/pypi/packages/39/7b/'
+        _pypi_prefix + '/packages/39/7b/'
         '1cb2391517d9cb30001140c6662e00d7443752e5a1713e317fb93267da3f/'
         'python_utils-2.1.0-py2.py3-none-any.whl#md5=9dabec0d4f224ba90fd4c53064e7c016',
-        'http://mirrors.aliyun.com/pypi/packages/70/7e/'
+        _pypi_prefix + '/packages/70/7e/'
         'a2fcd97ec348e63be034027d4475986063c6d869f7e9f1b7802a8b17304e/'
         'python-utils-2.1.0.tar.gz#md5=9891e757c629fc43ccd2c896852f8266',
     ]

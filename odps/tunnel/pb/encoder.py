@@ -21,9 +21,7 @@ Modified by onesuperclark@gmail.com(onesuper).
 
 import struct
 
-from . import errors
-from . import wire_format
-from . import output_stream
+from . import errors, output_stream, wire_format
 
 
 class Encoder(object):
@@ -83,8 +81,8 @@ class Encoder(object):
         """
         sign = (value & 0x80000000) and -1 or 0
         if value >> 32 != sign:
-            raise errors.EncodeError('SFixed32 out of range: %d' % value)
-        self._stream.append_little_endian32(value & 0xffffffff)
+            raise errors.EncodeError("SFixed32 out of range: %d" % value)
+        self._stream.append_little_endian32(value & 0xFFFFFFFF)
 
     def append_sfixed64(self, value):
         """Appends a signed 64-bit integer to our buffer, in little-endian
@@ -92,16 +90,16 @@ class Encoder(object):
         """
         sign = (value & 0x8000000000000000) and -1 or 0
         if value >> 64 != sign:
-            raise errors.EncodeError('SFixed64 out of range: %d' % value)
-        self._stream.append_little_endian64(value & 0xffffffffffffffff)
+            raise errors.EncodeError("SFixed64 out of range: %d" % value)
+        self._stream.append_little_endian64(value & 0xFFFFFFFFFFFFFFFF)
 
     def append_float(self, value):
         """Appends a floating-point number to our buffer."""
-        self._stream.append_raw_bytes(struct.pack('f', value))
+        self._stream.append_raw_bytes(struct.pack("f", value))
 
     def append_double(self, value):
         """Appends a double-precision floating-point number to our buffer."""
-        self._stream.append_raw_bytes(struct.pack('d', value))
+        self._stream.append_raw_bytes(struct.pack("d", value))
 
     def append_bool(self, value):
         """Appends a boolean to our buffer."""

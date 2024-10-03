@@ -54,7 +54,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
     我们建议在打包时，尽量使用 Docker 模式。非 Docker 模式仅用于 Docker 不可用的场景，且生成的包有可能不可用。
 
-如果你安装 Docker 遇到困难，你可以尝试使用非 Docker 模式。使用方式为新增一个 ``--without-docker`` 参数。该模式需要你的 Python
+如果你安装 Docker 遇到困难，你可以尝试使用非 Docker 模式。使用方式为新增一个 ``--no-docker`` 参数。该模式需要你的 Python
 环境中已经安装 pip。如果使用该模式出现错误，请改用 Docker 模式。Windows 用户需要安装 Git bash 以使用该模式，Git bash
 包含在 `Git for Windows <https://gitforwindows.org>`_ 中。
 
@@ -79,7 +79,7 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
 .. code-block:: bash
 
-    pyodps-pack --without-docker pandas
+    pyodps-pack --no-docker pandas
 
 需要指定版本时，可以使用
 
@@ -364,17 +364,22 @@ Docker Desktop / Rancher Desktop 已经安装了跨平台打包所需的 ``binfm
 
   指定在执行 Docker 命令时需要额外附加的参数。如有多个参数需用引号包裹，例如 ``--docker-args "--ip 192.168.1.10"``。
 
-- ``--without-docker``
+- ``--no-docker``
 
   使用无 Docker 模式运行 ``pyodps-pack``。当依赖中存在二进制依赖，可能报错或导致包不可用。
 
-- ``--without-merge``
+- ``--no-merge``
 
   下载或生成 Wheel 包后不生成 ``.tar.gz`` 包而是保留 ``.whl`` 文件。
 
 - ``--skip-scan-pkg-resources``
 
   在打包过程中不在包中扫描和解决 ``pkg_resources`` 的依赖，当依赖项较多时可加快打包速度。
+
+- ``--find-vcs-root``
+
+  当需要打包的本地代码需要依赖 Git 等版本管理工具上的 Tag 作为版本信息（例如使用 ``setuptools_scm`` 管理版本号）\
+  且 Python 包根目录与代码根目录不一致时，该选项能自动向上找到版本管理工具中代码的根目录。
 
 - ``--debug``
 

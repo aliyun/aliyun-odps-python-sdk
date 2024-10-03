@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,19 +14,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .core import Iterable
-from .resource import Resource, FileResource
-from .. import serializers, errors
+from .. import errors, serializers
 from ..compat import six
+from .core import Iterable
+from .resource import FileResource, Resource
 
 DEFAULT_RESOURCE_CHUNK_SIZE = 64 << 20
 
 
 class Resources(Iterable):
-
-    marker = serializers.XMLNodeField('Marker')
-    max_items = serializers.XMLNodeField('MaxItems')
-    resources = serializers.XMLNodesReferencesField(Resource, 'Resource')
+    marker = serializers.XMLNodeField("Marker")
+    max_items = serializers.XMLNodeField("MaxItems")
+    resources = serializers.XMLNodesReferencesField(Resource, "Resource")
 
     def get_typed(self, name, type, **kw):
         type_cls = Resource._get_cls(type)
@@ -69,26 +68,25 @@ class Resources(Iterable):
         return self.get_typed(name, type)
 
     def iterate(self, name=None, owner=None):
-        params = {'expectmarker': 'true'}
+        params = {"expectmarker": "true"}
         if name is not None:
-            params['name'] = name
+            params["name"] = name
         if owner is not None:
-            params['owner'] = owner
+            params["owner"] = owner
         schema_name = self._get_schema_name()
         if schema_name is not None:
-            params['curr_schema'] = schema_name
+            params["curr_schema"] = schema_name
 
         def _it():
-            last_marker = params.get('marker')
-            if 'marker' in params and \
-                (last_marker is None or len(last_marker) == 0):
+            last_marker = params.get("marker")
+            if "marker" in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource()
             resp = self._client.get(url, params=params)
 
             r = Resources.parse(self._client, resp, obj=self)
-            params['marker'] = r.marker
+            params["marker"] = r.marker
 
             return r.resources
 
@@ -100,21 +98,21 @@ class Resources(Iterable):
                 yield resource
 
     def create(self, obj=None, **kwargs):
-        if obj is None and 'type' not in kwargs:
-            raise ValueError('Unknown resource type to create.')
+        if obj is None and "type" not in kwargs:
+            raise ValueError("Unknown resource type to create.")
 
-        if 'temp' in kwargs:
-            kwargs['is_temp_resource'] = kwargs.pop('temp')
-        if 'part' in kwargs:
-            kwargs['is_part_resource'] = kwargs.pop('part')
+        if "temp" in kwargs:
+            kwargs["is_temp_resource"] = kwargs.pop("temp")
+        if "part" in kwargs:
+            kwargs["is_part_resource"] = kwargs.pop("part")
 
         ctor_kw = kwargs.copy()
-        ctor_kw.pop('file_obj', None)
-        ctor_kw.pop('fileobj', None)
+        ctor_kw.pop("file_obj", None)
+        ctor_kw.pop("fileobj", None)
         obj = obj or Resource(parent=self, client=self._client, **ctor_kw)
 
         if obj.type == Resource.Type.UNKOWN:
-            raise ValueError('Unknown resource type to create.')
+            raise ValueError("Unknown resource type to create.")
         if obj.parent is None:
             obj._parent = self
         if obj._client is None:
@@ -142,7 +140,7 @@ class Resources(Iterable):
             res = Resource(name, parent=self, client=self._client)
         url = res.resource()
 
-        headers = {'Content-Type': 'application/octet-stream'}
+        headers = {"Content-Type": "application/octet-stream"}
         params = {}
         if offset is not None:
             params["rOffset"] = str(offset)
@@ -150,7 +148,11 @@ class Resources(Iterable):
             params["rSize"] = str(read_size)
 
         resp = self._client.get(
-            url, headers=headers, params=params, stream=stream, curr_schema=self._get_schema_name()
+            url,
+            headers=headers,
+            params=params,
+            stream=stream,
+            curr_schema=self._get_schema_name(),
         )
         return resp
 
@@ -160,7 +162,7 @@ class Resources(Iterable):
         return resp.iter_content(decode_unicode=text_mode)
 
     def read_resource(
-        self, name, encoding='utf-8', text_mode=False, offset=None, read_size=None
+        self, name, encoding="utf-8", text_mode=False, offset=None, read_size=None
     ):
         resp = self._request(name, offset=offset, read_size=read_size)
 

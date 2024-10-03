@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@ import warnings
 from datetime import datetime
 
 from .. import serializers
-from ..compat import enum, TimeoutError
-from ..errors import ODPSError, InternalServerError
+from ..compat import TimeoutError, enum
+from ..errors import InternalServerError, ODPSError
 from .core import JSONRemoteModel
 
 
 class Tenant(JSONRemoteModel):
-    __slots__ = "_loaded",
+    __slots__ = ("_loaded",)
 
     class State(enum.Enum):
         NORMAL = "NORMAL"
@@ -35,7 +35,9 @@ class Tenant(JSONRemoteModel):
         owner_id = serializers.JSONNodeField("OwnerId", set_to_parent=True)
         tenant_id = serializers.JSONNodeField("TenantId", set_to_parent=True)
         tenant_state = serializers.JSONNodeField(
-            "TenantState", parse_callback=lambda x: Tenant.State(x.upper()), set_to_parent=True
+            "TenantState",
+            parse_callback=lambda x: Tenant.State(x.upper()),
+            set_to_parent=True,
         )
         creation_time = serializers.JSONNodeField(
             "CreateTime", parse_callback=datetime.fromtimestamp, set_to_parent=True
@@ -76,7 +78,7 @@ class Tenant(JSONRemoteModel):
     def __getattribute__(self, attr):
         val = object.__getattribute__(self, attr)
         if val is None and not self._getattr("_loaded"):
-            fields = getattr(type(self), '__fields')
+            fields = getattr(type(self), "__fields")
             if attr in fields:
                 self.reload()
         return object.__getattribute__(self, attr)
@@ -84,15 +86,17 @@ class Tenant(JSONRemoteModel):
     @property
     def create_time(self):
         warnings.warn(
-            'Tenant.create_time is deprecated and will be replaced '
-            'by Tenant.creation_time.',
+            "Tenant.create_time is deprecated and will be replaced "
+            "by Tenant.creation_time.",
             DeprecationWarning,
             stacklevel=3,
         )
         return self.creation_time
 
     def resource(self, client=None, endpoint=None):
-        endpoint = endpoint if endpoint is not None else (client or self._client).endpoint
+        endpoint = (
+            endpoint if endpoint is not None else (client or self._client).endpoint
+        )
         return endpoint + "/tenants"
 
     def reload(self):

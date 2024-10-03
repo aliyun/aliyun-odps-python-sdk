@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 from ..compat import six
 from ..config import options
+from ..errors import ODPSClientError
 from ..lib.tblib import pickling_support
 from ..readers import AbstractRecordReader
 from ..utils import call_with_retry
@@ -22,19 +23,26 @@ pickling_support.install()
 
 
 class TunnelReaderMixin(object):
-    def _to_pandas_with_processes(self, start=None, count=None, columns=None, n_process=1):
-        import pandas as pd
+    @property
+    def count(self):
+        raise NotImplementedError
+
+    def _to_pandas_with_processes(
+        self, start=None, count=None, columns=None, append_partitions=None, n_process=1
+    ):
         import multiprocessing
         from multiprocessing import Pipe
+
+        import pandas as pd
 
         session_id = self._download_session.id
         start = start or 0
         count = count or self._download_session.count
         count = min(count, self._download_session.count - start)
         try:
-            _mp_context = multiprocessing.get_context('fork')
+            _mp_context = multiprocessing.get_context("fork")
         except ValueError:
-            _mp_context = multiprocessing.get_context('spawn')
+            _mp_context = multiprocessing.get_context("spawn")
         except AttributeError:
             # for py27 compatibility
             _mp_context = multiprocessing
@@ -46,64 +54,65 @@ class TunnelReaderMixin(object):
             parent_conn, child_conn = Pipe()
 
             p = _mp_context.Process(
-                target=self._get_process_split_reader(columns=columns),
+                target=self._get_process_split_reader(
+                    columns=columns, append_partitions=append_partitions
+                ),
                 args=(child_conn, session_id, start, split_count, i),
             )
             p.start()
             start += split_count
             conns.append(parent_conn)
 
-        results = [c.recv() for c in conns]
+        try:
+            results = [c.recv() for c in conns]
+        except EOFError:
+            six.raise_from(
+                ODPSClientError(
+                    "Read process ended unexpectedly. Try finding errors outputed above."
+                ),
+                None,
+            )
         splits = sorted(results, key=lambda x: x[0])
         if any(not d[2] for d in splits):
             exc_info = next(d[1] for d in splits if not d[2])
             six.reraise(*exc_info)
         return pd.concat([d[1] for d in splits]).reset_index(drop=True)
 
-    def _get_process_split_reader(self, columns=None):
+    def _get_process_split_reader(self, columns=None, append_partitions=None):
         raise NotImplementedError
 
     def _open_and_iter_reader(
-        self, start, record_count, step=None, compress=False, columns=None, counter=None
+        self,
+        start,
+        record_count,
+        step=None,
+        compress=False,
+        columns=None,
+        append_partitions=None,
+        counter=None,
     ):
         raise NotImplementedError
 
-    def _retry_iter_reader(
-        self, start, record_count, step=None, compress=False, columns=None
+    def iter_pandas(
+        self, batch_size=None, start=None, count=None, columns=None, **kwargs
     ):
-        end = start + record_count
-        retry_num = 0
-        while start < end:
-            is_yield_err = False
-            counter = [0]
-            try:
-                for rec in self._open_and_iter_reader(
-                    start, record_count, step, compress=compress, columns=columns, counter=counter
-                ):
-                    try:
-                        # next record successfully obtained, reset retry counter
-                        retry_num = 0
-                        yield rec
-                    except BaseException:
-                        # avoid catching errors caused in yield block
-                        is_yield_err = True
-                        raise
-                break
-            except:
-                retry_num += 1
-                if is_yield_err or retry_num > options.retry_times:
-                    raise
-            finally:
-                start += counter[0]
-                record_count -= counter[0]
+        batch_size = batch_size or options.tunnel.read_row_batch_size
+        start = start or 0
+        count = count or self.count
+        for st in range(start, start + count, batch_size):
+            cur_batch_size = min(batch_size, count - (st - start))
+            yield self.to_pandas(
+                start=st, count=cur_batch_size, columns=columns, **kwargs
+            )
 
 
 class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
-    def __init__(self, parent, download_session, columns=None):
+    def __init__(self, parent, download_session, columns=None, append_partitions=None):
         self._it = iter(self)
         self._parent = parent
         self._download_session = download_session
         self._column_names = columns
+        self._append_partitions = append_partitions
 
     @property
     def download_id(self):
@@ -126,49 +135,108 @@ class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
 
     next = __next__
 
-    def _iter(self, start=None, end=None, step=None, compress=False, columns=None):
+    def _iter(
+        self,
+        start=None,
+        end=None,
+        step=None,
+        compress=False,
+        columns=None,
+        append_partitions=None,
+    ):
         count = self._calc_count(start, end, step)
         return self.read(
-            start=start, count=count, step=step, compress=compress, columns=columns
+            start=start,
+            count=count,
+            step=step,
+            compress=compress,
+            columns=columns,
+            append_partitions=append_partitions,
         )
 
     def _open_and_iter_reader(
-        self, start, record_count, step=None, compress=False, columns=None, counter=None
+        self,
+        start,
+        record_count,
+        step=None,
+        compress=False,
+        columns=None,
+        append_partitions=None,
+        counter=None,
     ):
         counter = counter or [0]
         with call_with_retry(
             self._download_session.open_record_reader,
-            start, record_count, compress=compress, columns=columns
+            start,
+            record_count,
+            compress=compress,
+            columns=columns,
+            append_partitions=append_partitions,
         ) as reader:
             for record in reader[::step]:
                 counter[0] += step
                 yield record
 
-    def read(self, start=None, count=None, step=None,
-             compress=False, columns=None):
+    def read(
+        self,
+        start=None,
+        count=None,
+        step=None,
+        compress=False,
+        append_partitions=None,
+        columns=None,
+    ):
         start = start or 0
         step = step or 1
         max_rec_count = self.count - start
-        rec_count = min(max_rec_count, count * step) if count is not None else max_rec_count
+        rec_count = (
+            min(max_rec_count, count * step) if count is not None else max_rec_count
+        )
         columns = columns or self._column_names
+        append_partitions = (
+            append_partitions
+            if append_partitions is not None
+            else self._append_partitions
+        )
 
         if rec_count == 0:
             return
 
-        for record in self._retry_iter_reader(
-            start, rec_count, step=step, compress=compress, columns=columns
+        for record in self._open_and_iter_reader(
+            start,
+            rec_count,
+            step=step,
+            compress=compress,
+            append_partitions=append_partitions,
+            columns=columns,
         ):
             yield record
 
-    def to_pandas(self, start=None, count=None, columns=None, n_process=1):
+    def to_pandas(
+        self, start=None, count=None, columns=None, append_partitions=None, n_process=1
+    ):
         columns = columns or self._column_names
+        append_partitions = (
+            append_partitions
+            if append_partitions is not None
+            else self._append_partitions
+        )
+        if not append_partitions and columns is None:
+            columns = [c.name for c in self.schema.simple_columns]
         if n_process == 1 or self._download_session.count == 0:
             return super(TunnelRecordReader, self).to_pandas(
-                start=start, count=count, columns=columns
+                start=start,
+                count=count,
+                columns=columns,
+                append_partitions=append_partitions,
             )
         else:
             return self._to_pandas_with_processes(
-                start=start, count=count, columns=columns, n_process=n_process
+                start=start,
+                count=count,
+                columns=columns,
+                append_partitions=append_partitions,
+                n_process=n_process,
             )
 
     def __enter__(self):
@@ -179,11 +247,12 @@ class TunnelRecordReader(TunnelReaderMixin, AbstractRecordReader):
 
 
 class TunnelArrowReader(TunnelReaderMixin):
-    def __init__(self, parent, download_session, columns=None):
+    def __init__(self, parent, download_session, columns=None, append_partitions=False):
         self._it = iter(self)
         self._parent = parent
         self._download_session = download_session
         self._column_names = columns
+        self._append_partitions = append_partitions
 
     @property
     def download_id(self):
@@ -207,12 +276,23 @@ class TunnelArrowReader(TunnelReaderMixin):
     next = __next__
 
     def _open_and_iter_reader(
-        self, start, record_count, step=None, compress=False, columns=None, counter=None
+        self,
+        start,
+        record_count,
+        step=None,
+        compress=False,
+        columns=None,
+        append_partitions=None,
+        counter=None,
     ):
         counter = counter or [0]
         with call_with_retry(
             self._download_session.open_arrow_reader,
-            start, record_count, compress=compress, columns=columns
+            start,
+            record_count,
+            compress=compress,
+            columns=columns,
+            append_partitions=append_partitions,
         ) as reader:
             while True:
                 batch = reader.read_next_batch()
@@ -222,24 +302,45 @@ class TunnelArrowReader(TunnelReaderMixin):
                 else:
                     break
 
-    def read(self, start=None, count=None, compress=False, columns=None):
+    def read(
+        self,
+        start=None,
+        count=None,
+        compress=False,
+        columns=None,
+        append_partitions=None,
+    ):
         start = start or 0
         max_rec_count = self.count - start
         rec_count = min(max_rec_count, count) if count is not None else max_rec_count
         columns = columns or self._column_names
+        append_partitions = (
+            append_partitions
+            if append_partitions is not None
+            else self._append_partitions
+        )
 
         if rec_count == 0:
             return
 
-        for batch in self._retry_iter_reader(
-            start, rec_count, compress=compress, columns=columns
+        for batch in self._open_and_iter_reader(
+            start,
+            rec_count,
+            compress=compress,
+            columns=columns,
+            append_partitions=append_partitions,
         ):
             yield batch
 
-    def read_all(self, start=None, count=None, columns=None):
+    def read_all(self, start=None, count=None, columns=None, append_partitions=None):
         start = start or 0
         count = count if count is not None else self.count - start
         columns = columns or self._column_names
+        append_partitions = (
+            append_partitions
+            if append_partitions is not None
+            else self._append_partitions
+        )
 
         if count == 0:
             from ..tunnel.io.types import odps_schema_to_arrow_schema
@@ -248,14 +349,21 @@ class TunnelArrowReader(TunnelReaderMixin):
             return arrow_schema.empty_table()
 
         with self._download_session.open_arrow_reader(
-            start, count, columns=columns
+            start, count, columns=columns, append_partitions=append_partitions
         ) as reader:
             return reader.read()
 
-    def to_pandas(self, start=None, count=None, columns=None, n_process=1):
+    def to_pandas(
+        self, start=None, count=None, columns=None, append_partitions=None, n_process=1
+    ):
         start = start or 0
         count = count if count is not None else self.count - start
         columns = columns or self._column_names
+        append_partitions = (
+            append_partitions
+            if append_partitions is not None
+            else self._append_partitions
+        )
 
         if n_process == 1:
             if count == 0:
@@ -265,12 +373,16 @@ class TunnelArrowReader(TunnelReaderMixin):
                 return arrow_schema.empty_table().to_pandas()
 
             with self._download_session.open_arrow_reader(
-                start, count, columns=columns
+                start, count, columns=columns, append_partitions=append_partitions
             ) as reader:
                 return reader.to_pandas()
         else:
             return self._to_pandas_with_processes(
-                start=start, count=count, columns=columns, n_process=n_process
+                start=start,
+                count=count,
+                columns=columns,
+                append_partitions=append_partitions,
+                n_process=n_process,
             )
 
     def __enter__(self):

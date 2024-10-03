@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import sys
 import threading
 
 import pytest
+
 try:
     import pyarrow as pa
 except ImportError:
@@ -43,7 +44,9 @@ def test_split_limit(storage_api_client):
 
     assert resp is None
 
-    req.split_options = SplitOptions.get_default_options(SplitOptions.SplitMode.ROW_OFFSET)
+    req.split_options = SplitOptions.get_default_options(
+        SplitOptions.SplitMode.ROW_OFFSET
+    )
     resp = storage_api_client.create_read_session(req)
     if resp.status != Status.OK and resp.status != Status.WAIT:
         logger.info("Create read session by row offset split option failed")
@@ -77,7 +80,15 @@ def test_write_rows_with_partition_by_diff_schema_neg1(storage_api_client):
     bigint_list = list(range(item.batch_size))
     string_list = ["test_write_1"] * item.batch_size
 
-    record_batch = pa.RecordBatch.from_arrays([pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(string_list)], names=["a", "b", "c", "d"])
+    record_batch = pa.RecordBatch.from_arrays(
+        [
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(string_list),
+        ],
+        names=["a", "b", "c", "d"],
+    )
     writer = storage_api_client.write_rows_arrow(req)
 
     write_rows_exception = None
@@ -97,7 +108,10 @@ def test_write_rows_with_partition_by_diff_schema_neg1(storage_api_client):
         logger.info("RecordBatch's schema is not right")
         logger.info(write_rows_exception)
 
-    record_batch = pa.RecordBatch.from_arrays([pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list)], names=["a", "b", "c"])
+    record_batch = pa.RecordBatch.from_arrays(
+        [pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list)],
+        names=["a", "b", "c"],
+    )
     writer = storage_api_client.write_rows_arrow(req)
 
     write_rows_exception = None
@@ -118,8 +132,14 @@ def test_write_rows_with_partition_by_diff_schema_neg1(storage_api_client):
         logger.info(write_rows_exception)
 
     record_batch = pa.RecordBatch.from_arrays(
-        [pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list)],
-        names=["a", "b", "c", "d", "e"]
+        [
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+        ],
+        names=["a", "b", "c", "d", "e"],
     )
     writer = storage_api_client.write_rows_arrow(req)
 
@@ -141,8 +161,14 @@ def test_write_rows_with_partition_by_diff_schema_neg1(storage_api_client):
         logger.info(write_rows_exception)
 
     record_batch = pa.RecordBatch.from_arrays(
-        [pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(string_list)],
-        names=["a", "b", "c", "d", "e"]
+        [
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(string_list),
+        ],
+        names=["a", "b", "c", "d", "e"],
     )
     writer = storage_api_client.write_rows_arrow(req)
 
@@ -182,7 +208,12 @@ def test_write_rows_without_partition_by_diff_schema_neg1(storage_api_client):
     string_list = ["test_write_1"] * item.batch_size
 
     record_batch = pa.RecordBatch.from_arrays(
-        [pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list)],
+        [
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+        ],
         names=["a", "b", "c", "d"],
     )
     writer = storage_api_client.write_rows_arrow(req)
@@ -223,8 +254,16 @@ def test_write_rows_without_partition_by_diff_schema_neg1(storage_api_client):
         end = time.time()
         logger.info("Write rows cost: " + str(end - start) + "s")
 
-    record_batch = pa.RecordBatch.from_arrays([pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(string_list)],
-                                                names=["a", "b", "c", "d", "e"])
+    record_batch = pa.RecordBatch.from_arrays(
+        [
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(string_list),
+        ],
+        names=["a", "b", "c", "d", "e"],
+    )
     start = time.time()
     writer = storage_api_client.write_rows_arrow(req)
 
@@ -245,8 +284,16 @@ def test_write_rows_without_partition_by_diff_schema_neg1(storage_api_client):
 
     unique_bigint_list = [10] * item.batch_size
 
-    record_batch = pa.RecordBatch.from_arrays([pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(unique_bigint_list)],
-                                                names=["a", "b", "c", "d", "e"])
+    record_batch = pa.RecordBatch.from_arrays(
+        [
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(unique_bigint_list),
+        ],
+        names=["a", "b", "c", "d", "e"],
+    )
     start = time.time()
     writer = storage_api_client.write_rows_arrow(req)
 
@@ -371,7 +418,9 @@ def test_split_row(storage_api_client):
     assert write_rows(item, storage_api_client) is True
     assert commit_write_session(item, storage_api_client) is True
 
-    item.split_options = SplitOptions.get_default_options(SplitOptions.SplitMode.ROW_OFFSET)
+    item.split_options = SplitOptions.get_default_options(
+        SplitOptions.SplitMode.ROW_OFFSET
+    )
 
     assert create_read_session(item, storage_api_client) is True
     assert get_read_session(item, storage_api_client) is True

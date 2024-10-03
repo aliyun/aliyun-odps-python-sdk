@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,14 +24,14 @@ cdef extern from "../src/crc32.c":
 
 cdef class Checksum:
 
-    def __cinit__(self, method='crc32c'):
+    def __cinit__(self, method="crc32c"):
         self._checksum = 0
-        if method == 'crc32c':
+        if method == "crc32c":
             self.use_c = 1
         else:
             self.use_c = 0
 
-    cdef void c_update_bool(self, bint val) nogil:
+    cdef void c_update_bool(self, bint val) noexcept nogil:
         cdef char retval
         retval = 1 if val else 0
         self.c_update(<char *>&retval, 1)
@@ -39,31 +39,31 @@ cdef class Checksum:
     cpdef update_bool(self, bint val):
         self.c_update_bool(val)
 
-    cdef void c_update_int(self, int32_t val) nogil:
+    cdef void c_update_int(self, int32_t val) noexcept nogil:
         self.c_update(<char *>&val, sizeof(int32_t))
 
     cpdef update_int(self, int32_t val):
         self.c_update(<char *>&val, sizeof(int32_t))
 
-    cdef void c_update_long(self, int64_t val) nogil:
+    cdef void c_update_long(self, int64_t val) noexcept nogil:
         self.c_update(<char *>&val, sizeof(int64_t))
 
     cpdef update_long(self, int64_t val):
         self.c_update(<char *>&val, sizeof(int64_t))
 
-    cdef void c_update_float(self, float val) nogil:
+    cdef void c_update_float(self, float val) noexcept nogil:
         self.c_update(<char *>&val, sizeof(float))
 
     cpdef update_float(self, float val):
         self.c_update(<char *>&val, sizeof(float))
 
-    cdef void c_update_double(self, double val) nogil:
+    cdef void c_update_double(self, double val) noexcept nogil:
         self.c_update(<char *>&val, sizeof(double))
 
     cpdef update_double(self, double val):
         self.c_update(<char *>&val, sizeof(double))
 
-    cdef void c_update(self, const char *ptr, size_t length) nogil:
+    cdef void c_update(self, const char *ptr, size_t length) noexcept nogil:
         if self.use_c:
             self._checksum = crc32c(self._checksum, ptr, length)
         else:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,9 +19,8 @@ from libcpp.vector cimport vector
 
 from ...src.types_c cimport SchemaSnapshot
 from ...src.utils_c cimport CMillisecondsConverter
-from ..pb.decoder_c cimport CDecoder
 from ..checksum_c cimport Checksum
-
+from ..pb.decoder_c cimport CDecoder
 
 ctypedef int (*_SET_FUNCTION)(BaseTunnelRecordReader self, list record, int i) except? -1
 
@@ -29,6 +28,7 @@ ctypedef int (*_SET_FUNCTION)(BaseTunnelRecordReader self, list record, int i) e
 cdef class BaseTunnelRecordReader:
     cdef public object _schema
     cdef object _columns
+    cdef object _stream_creator
     cdef CMillisecondsConverter _mills_converter
     cdef CMillisecondsConverter _mills_converter_utc
     cdef object _to_date
@@ -36,6 +36,8 @@ cdef class BaseTunnelRecordReader:
     cdef Checksum _crc
     cdef Checksum _crccrc
     cdef int _curr_cursor
+    cdef int _attempt_row_count
+    cdef int _last_n_bytes
     cdef int _n_columns
     cdef int _read_limit
     cdef bint _overflow_date_as_none
@@ -43,6 +45,10 @@ cdef class BaseTunnelRecordReader:
     cdef vector[_SET_FUNCTION] _column_setters
     cdef SchemaSnapshot _schema_snapshot
     cdef list _partition_vals
+    cdef bint _append_partitions
+
+    cdef int _n_injected_error_cursor
+    cdef object _injected_error_exc
 
     cdef object _read_struct(self, object value_type)
     cdef object _read_element(self, int data_type_id, object data_type)
@@ -72,4 +78,5 @@ cdef class BaseTunnelRecordReader:
     cdef int _set_interval_day_time(self, list record, int i) except? -1
     cdef int _set_interval_year_month(self, list record, int i) except? -1
     cdef int _set_json(self, list record, int i) except? -1
+    cdef _read(self)
     cpdef read(self)

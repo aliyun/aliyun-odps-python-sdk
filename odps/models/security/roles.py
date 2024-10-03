@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@
 
 import json
 
-from ..core import Iterable, LazyLoad
+from ... import errors, serializers
 from ...compat import six
-from ... import serializers, errors
+from ..core import Iterable, LazyLoad
 
 
 class Role(LazyLoad):
-    __slots__ = '_policy_cache',
-    name = serializers.XMLNodeField('Name')
-    comment = serializers.XMLNodeField('Comment')
+    __slots__ = ("_policy_cache",)
+    name = serializers.XMLNodeField("Name")
+    comment = serializers.XMLNodeField("Comment")
 
     def __init__(self, **kw):
         super(Role, self).__init__(**kw)
@@ -38,7 +38,8 @@ class Role(LazyLoad):
     @property
     def users(self):
         from .users import Users
-        params = dict(users='')
+
+        params = dict(users="")
         resp = self._client.get(self.resource(), params=params)
         users = Users.parse(self._client, resp, parent=self.project)
         users._iter_local = True
@@ -47,7 +48,7 @@ class Role(LazyLoad):
     @property
     def policy(self):
         if self._policy_cache is None:
-            params = dict(policy='')
+            params = dict(policy="")
             resp = self._client.get(self.resource(), params=params)
             self._policy_cache = resp.content.decode() if six.PY3 else resp.content
         return json.loads(self._policy_cache)
@@ -57,25 +58,27 @@ class Role(LazyLoad):
         if isinstance(value, (dict, list)):
             value = json.dumps(value)
         self._policy_cache = value
-        params = dict(policy='')
+        params = dict(policy="")
         self._client.put(self.resource(), data=value, params=params)
 
     def grant_to(self, name):
         from .users import User
+
         if isinstance(name, User):
             name = name.display_name
-        self.project.run_security_query('grant %s to %s' % (self.name, name))
+        self.project.run_security_query("grant %s to %s" % (self.name, name))
 
     def revoke_from(self, name):
         from .users import User
+
         if isinstance(name, User):
             name = name.display_name
-        self.project.run_security_query('revoke %s from %s' % (self.name, name))
+        self.project.run_security_query("revoke %s from %s" % (self.name, name))
 
 
 class Roles(Iterable):
-    __slots__ = '_iter_local',
-    roles = serializers.XMLNodesReferencesField(Role, 'Role')
+    __slots__ = ("_iter_local",)
+    roles = serializers.XMLNodesReferencesField(Role, "Role")
 
     def __init__(self, **kw):
         self._iter_local = False
@@ -109,7 +112,7 @@ class Roles(Iterable):
         return self.parent
 
     def create(self, name):
-        self.project.run_security_query('create role %s' % name)
+        self.project.run_security_query("create role %s" % name)
         return Role(client=self._client, parent=self, name=name)
 
     def iterate(self, name=None):
@@ -119,7 +122,7 @@ class Roles(Iterable):
         if not self._iter_local:
             params = dict()
             if name is not None:
-                params['name'] = name
+                params["name"] = name
 
             url = self.resource()
             resp = self._client.get(url, params=params)
@@ -134,4 +137,4 @@ class Roles(Iterable):
             name = name.name
 
         del self[name]  # delete from cache
-        self.project.run_security_query('drop role %s' % name)
+        self.project.run_security_query("drop role %s" % name)

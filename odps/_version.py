@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version_info = (0, 11, 6, 5)
-_num_index = max(idx if isinstance(v, int) else 0
-                 for idx, v in enumerate(version_info))
-__version__ = '.'.join(map(str, version_info[:_num_index + 1])) + \
-              ''.join(version_info[_num_index + 1:])
+version_info = (0, 12, 0)
+_num_index = max(idx if isinstance(v, int) else 0 for idx, v in enumerate(version_info))
+__version__ = ".".join(map(str, version_info[: _num_index + 1])) + "".join(
+    version_info[_num_index + 1 :]
+)

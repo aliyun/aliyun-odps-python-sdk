@@ -21,16 +21,14 @@ Modified by onesuperclark@gmail.com(onesuper).
 
 import struct
 
-from . import input_stream
-from . import wire_format
+from . import input_stream, wire_format
 
 
 class Decoder(object):
     """Decodes logical protocol buffer fields from the wire."""
 
     def __init__(self, input):
-        """Initializes the decoder to read from input stream.
-        """
+        """Initializes the decoder to read from input stream."""
         self._stream = input_stream.InputStream(input)
 
     def __len__(self):
@@ -72,25 +70,25 @@ class Decoder(object):
         """Reads and returns a signed, fixed-width, 32-bit integer."""
         value = self._stream.read_little_endian32()
         if value >= (1 << 31):
-            value -= (1 << 32)
+            value -= 1 << 32
         return value
 
     def read_sfixed64(self):
         """Reads and returns a signed, fixed-width, 64-bit integer."""
         value = self._stream.read_little_endian64()
         if value >= (1 << 63):
-            value -= (1 << 64)
+            value -= 1 << 64
         return value
 
     def read_float(self):
         """Reads and returns a 4-byte floating-point number."""
         serialized = self._stream.read_string(4)
-        return struct.unpack('f', serialized)[0]
+        return struct.unpack("f", serialized)[0]
 
     def read_double(self):
         """Reads and returns an 8-byte floating-point number."""
         serialized = self._stream.read_string(8)
-        return struct.unpack('d', serialized)[0]
+        return struct.unpack("d", serialized)[0]
 
     def read_bool(self):
         """Reads and returns a bool."""

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,46 +14,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .. import serializers, errors, utils
-from ..compat import six, long_type
-from .core import LazyLoad, cache, Iterable
+from .. import errors, serializers, utils
+from ..compat import long_type, six
 from .cache import cache_parent
+from .core import Iterable, LazyLoad, cache
 from .volumes import Volume
 
 
 class FSVolumeObject(LazyLoad):
-    __slots__ = '_volume_fs_tunnel',
-    _type_indicator = '_isdir'
-    _cache_name_arg = 'path'
+    __slots__ = ("_volume_fs_tunnel",)
+    _type_indicator = "_isdir"
+    _cache_name_arg = "path"
 
     class CreateRequestXML(serializers.XMLSerializableModel):
-        _root = 'Item'
+        _root = "Item"
 
-        type = serializers.XMLNodeField('Type')
-        path = serializers.XMLNodeField('Path')
+        type = serializers.XMLNodeField("Type")
+        path = serializers.XMLNodeField("Path")
 
     class UpdateRequestXML(serializers.XMLSerializableModel):
-        _root = 'Item'
+        _root = "Item"
 
-        path = serializers.XMLNodeField('Path')
-        replication = serializers.XMLNodeField('Replication')
+        path = serializers.XMLNodeField("Path")
+        replication = serializers.XMLNodeField("Replication")
 
-    _project = serializers.XMLNodeField('Project')
-    _volume = serializers.XMLNodeField('Volume')
-    path = serializers.XMLNodeField('Path')
-    _isdir = serializers.XMLNodeField('Isdir', type='bool')
-    permission = serializers.XMLNodeField('permission')
-    _replication = serializers.XMLNodeField('BlockReplications', parse_callback=int)
-    length = serializers.XMLNodeField('Length', parse_callback=long_type)
-    quota = serializers.XMLNodeField('Quota', parse_callback=long_type)
-    block_size = serializers.XMLNodeField('BlockSize', parse_callback=long_type)
-    owner = serializers.XMLNodeField('Owner')
-    group = serializers.XMLNodeField('Group')
-    creation_time = serializers.XMLNodeField('CreationTime', type='rfc822')
-    access_time = serializers.XMLNodeField('AccessTime', type='rfc822')
-    last_modified_time = serializers.XMLNodeField('ModificationTime', type='rfc822')
-    symlink = serializers.XMLNodeField('Symlink')
-    sign_url = serializers.XMLNodeField('URL')
+    _project = serializers.XMLNodeField("Project")
+    _volume = serializers.XMLNodeField("Volume")
+    path = serializers.XMLNodeField("Path")
+    _isdir = serializers.XMLNodeField("Isdir", type="bool")
+    permission = serializers.XMLNodeField("permission")
+    _replication = serializers.XMLNodeField("BlockReplications", parse_callback=int)
+    length = serializers.XMLNodeField("Length", parse_callback=long_type)
+    quota = serializers.XMLNodeField("Quota", parse_callback=long_type)
+    block_size = serializers.XMLNodeField("BlockSize", parse_callback=long_type)
+    owner = serializers.XMLNodeField("Owner")
+    group = serializers.XMLNodeField("Group")
+    creation_time = serializers.XMLNodeField("CreationTime", type="rfc822")
+    access_time = serializers.XMLNodeField("AccessTime", type="rfc822")
+    last_modified_time = serializers.XMLNodeField("ModificationTime", type="rfc822")
+    symlink = serializers.XMLNodeField("Symlink")
+    sign_url = serializers.XMLNodeField("URL")
 
     @classmethod
     def _get_base_cls(cls):
@@ -73,25 +73,34 @@ class FSVolumeObject(LazyLoad):
 
     @staticmethod
     def _filter_cache(_, **kwargs):
-        isdir = kwargs.get('_isdir')
-        return isdir is not None and isdir != 'UNKNOWN'
+        isdir = kwargs.get("_isdir")
+        return isdir is not None and isdir != "UNKNOWN"
 
-    @utils.experimental('Volume2 is still experimental. Usage in production environment is strongly opposed.')
     @cache
     def __new__(cls, *args, **kwargs):
-        isdir = kwargs.get('_isdir')
+        isdir = kwargs.get("_isdir")
 
         base_cls = cls._get_base_cls()
         if cls is not base_cls and issubclass(cls, base_cls):
             return object.__new__(cls)
         if isdir is not None:
-            if isdir == 'UNKNOWN':
+            if isdir == "UNKNOWN":
                 return object.__new__(base_cls)
             return object.__new__(cls._get_dir_cls() if isdir else cls._get_file_cls())
 
-        obj = base_cls(_isdir='UNKNOWN', **kwargs)
+        obj = base_cls(_isdir="UNKNOWN", **kwargs)
         obj.reload()
         return base_cls(**obj.extract())
+
+    @utils.experimental(
+        "Volume2 is still experimental. Usage in production environment is strongly opposed.",
+        cond=lambda self, *_, **kw: (
+            type(self) in (FSVolumeObject, FSVolumeDir, FSVolumeFile)
+            and type(kw.get("parent")) is FSVolume
+        ),
+    )
+    def __init__(self, *args, **kwargs):
+        super(FSVolumeObject, self).__init__(*args, **kwargs)
 
     def _name(self):
         return self.path
@@ -100,7 +109,7 @@ class FSVolumeObject(LazyLoad):
         self.__init__(path=name, _parent=parent, _client=client)
 
     def split(self):
-        return self.path.rsplit('/', 1)
+        return self.path.rsplit("/", 1)
 
     @property
     def basename(self):
@@ -118,7 +127,7 @@ class FSVolumeObject(LazyLoad):
 
     @property
     def is_root(self):
-        return self.path == '/' + self.parent.name
+        return self.path == "/" + self.parent.name
 
     def reload(self):
         # check if the volume path is the root
@@ -132,9 +141,9 @@ class FSVolumeObject(LazyLoad):
 
         resp = self._client.get(
             self.parent.resource(),
-            action='meta',
+            action="meta",
             params=params,
-            headers={'x-odps-volume-fs-path': self.path},
+            headers={"x-odps-volume-fs-path": self.path},
         )
         self.parse(self._client, resp, obj=self)
 
@@ -142,33 +151,35 @@ class FSVolumeObject(LazyLoad):
 
     @staticmethod
     def _normpath(path):
-        path = path.rstrip('/')
+        path = path.rstrip("/")
         i = 0
         parts = []
         start = 0
         while i < len(path):
-            if path[i] == '/' or i == len(path) - 1:
-                chunk = path[start:i + 1]
+            if path[i] == "/" or i == len(path) - 1:
+                chunk = path[start : i + 1]
                 start = i + 1
-                if chunk in ['', '/', '.', './']:
+                if chunk in ["", "/", ".", "./"]:
                     # do nothing
                     pass
-                elif chunk in ['..', '../']:
+                elif chunk in ["..", "../"]:
                     if len(parts):
-                        parts = parts[:len(parts) - 1]
+                        parts = parts[: len(parts) - 1]
                     else:
                         parts.append(chunk)
                 else:
                     parts.append(chunk)
             i += 1
-        if path.startswith('/'):
-            return '/' + ''.join(parts)
-        return ''.join(parts)
+        if path.startswith("/"):
+            return "/" + "".join(parts)
+        return "".join(parts)
 
     def _del_cache(self, path):
-        root_objs = self._get_objects_cls()(parent=self.volume.root, client=self._client)
-        if not path.startswith('/'):
-            path = self.path + '/' + path.lstrip('/')
+        root_objs = self._get_objects_cls()(
+            parent=self.volume.root, client=self._client
+        )
+        if not path.startswith("/"):
+            path = self.path + "/" + path.lstrip("/")
         del root_objs[path]
 
     def move(self, new_path, replication=None):
@@ -178,18 +189,18 @@ class FSVolumeObject(LazyLoad):
         :param new_path: target location of current file / directory
         :param replication: number of replication
         """
-        if not new_path.startswith('/'):
-            new_path = self._normpath(self.dirname + '/' + new_path)
+        if not new_path.startswith("/"):
+            new_path = self._normpath(self.dirname + "/" + new_path)
         else:
             new_path = self._normpath(new_path)
         if new_path == self.path:
-            raise ValueError('New path should be different from the original one.')
+            raise ValueError("New path should be different from the original one.")
         update_def = self.UpdateRequestXML(path=new_path)
         if replication:
             update_def.replication = replication
         headers = {
-            'Content-Type': 'application/xml',
-            'x-odps-volume-fs-path': self.path,
+            "Content-Type": "application/xml",
+            "x-odps-volume-fs-path": self.path,
         }
 
         schema_name = self.parent._get_schema_name()
@@ -199,7 +210,7 @@ class FSVolumeObject(LazyLoad):
 
         self._client.put(
             self.parent.resource(),
-            action='meta',
+            action="meta",
             params=params,
             headers=headers,
             data=update_def.serialize(),
@@ -239,6 +250,7 @@ class FSVolumeDir(FSVolumeObject):
     >>> # get a file/directory object
     >>> file_obj = fs_dir[file_name]
     """
+
     def __init__(self, **kw):
         super(FSVolumeDir, self).__init__(**kw)
         self._isdir = True
@@ -247,16 +259,16 @@ class FSVolumeDir(FSVolumeObject):
     def objects(self):
         return self._get_objects_cls()(parent=self, client=self._client)
 
-    def create_dir(self, path):
+    def create_dir(self, path, **kw):
         """
         Creates and returns a sub-directory under the current directory.
         :param str path: directory name to be created
         :return: directory object
         :rtype: :class:`odps.models.FSVolumeDir`
         """
-        path = self.path + '/' + path.lstrip('/')
-        dir_def = self.CreateRequestXML(type='directory', path=path)
-        headers = {'Content-Type': 'application/xml'}
+        path = self.path + "/" + path.lstrip("/")
+        dir_def = self.CreateRequestXML(type="directory", path=path)
+        headers = {"Content-Type": "application/xml"}
         self._client.post(
             self.parent.resource(),
             headers=headers,
@@ -283,8 +295,8 @@ class FSVolumeDir(FSVolumeObject):
 
         :param recursive: indicate whether a recursive deletion should be performed.
         """
-        params = {'recursive': recursive}
-        headers = {'x-odps-volume-fs-path': self.path}
+        params = {"recursive": recursive}
+        headers = {"x-odps-volume-fs-path": self.path}
         self._del_cache(self.path)
         self._client.delete(
             self.parent.resource(),
@@ -309,10 +321,14 @@ class FSVolumeDir(FSVolumeObject):
         >>> with fs_dir.open_reader('file') as reader:
         >>>     [print(line) for line in reader]
         """
-        endpoint = kw.pop('endpoint', None)
-        quota_name = kw.pop('quota_name', None)
+        endpoint = kw.pop("endpoint", None)
+        quota_name = kw.pop("quota_name", None)
         tunnel = self._create_volume_fs_tunnel(endpoint=endpoint, quota_name=quota_name)
-        path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/') + '/' + path.lstrip('/')
+        path = (
+            self.path.lstrip("/")[len(self.parent.name) :].lstrip("/")
+            + "/"
+            + path.lstrip("/")
+        )
         return tunnel.open_reader(self.parent, path, **kw)
 
     def open_writer(self, path, replication=None, **kw):
@@ -329,10 +345,14 @@ class FSVolumeDir(FSVolumeObject):
         >>> with fs_dir.open_writer('file') as reader:
         >>>     writer.write('some content')
         """
-        endpoint = kw.pop('endpoint', None)
-        quota_name = kw.pop('quota_name', None)
+        endpoint = kw.pop("endpoint", None)
+        quota_name = kw.pop("quota_name", None)
         tunnel = self._create_volume_fs_tunnel(endpoint=endpoint, quota_name=quota_name)
-        vol_path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/') + '/' + path.lstrip('/')
+        vol_path = (
+            self.path.lstrip("/")[len(self.parent.name) :].lstrip("/")
+            + "/"
+            + path.lstrip("/")
+        )
         return tunnel.open_writer(self.parent, vol_path, replication=replication, **kw)
 
 
@@ -353,8 +373,8 @@ class FSVolumeFile(FSVolumeObject):
     def replication(self, value):
         update_def = self.UpdateRequestXML(replication=value)
         headers = {
-            'Content-Type': 'application/xml',
-            'x-odps-volume-fs-path': self.path,
+            "Content-Type": "application/xml",
+            "x-odps-volume-fs-path": self.path,
         }
 
         schema_name = self.parent._get_schema_name()
@@ -364,7 +384,7 @@ class FSVolumeFile(FSVolumeObject):
 
         self._client.put(
             self.parent.resource(),
-            action='meta',
+            action="meta",
             params=params,
             headers=headers,
             data=update_def.serialize(),
@@ -375,8 +395,8 @@ class FSVolumeFile(FSVolumeObject):
         """
         Delete current file.
         """
-        params = {'recursive': False}
-        headers = {'x-odps-volume-fs-path': self.path}
+        params = {"recursive": False}
+        headers = {"x-odps-volume-fs-path": self.path}
 
         schema_name = self.parent._get_schema_name()
         if schema_name is not None:
@@ -400,24 +420,24 @@ class FSVolumeFile(FSVolumeObject):
         >>> with fs_file.open_reader('file') as reader:
         >>>     [print(line) for line in reader]
         """
-        endpoint = kw.pop('endpoint', None)
-        quota_name = kw.pop('quota_name', None)
+        endpoint = kw.pop("endpoint", None)
+        quota_name = kw.pop("quota_name", None)
         tunnel = self._create_volume_fs_tunnel(endpoint=endpoint, quota_name=quota_name)
-        path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/')
+        path = self.path.lstrip("/")[len(self.parent.name) :].lstrip("/")
         return tunnel.open_reader(self.parent, path, **kw)
 
     def open_writer(self, replication=None, **kw):
-        endpoint = kw.pop('endpoint', None)
-        quota_name = kw.pop('quota_name', None)
+        endpoint = kw.pop("endpoint", None)
+        quota_name = kw.pop("quota_name", None)
         tunnel = self._create_volume_fs_tunnel(endpoint=endpoint, quota_name=quota_name)
-        path = self.path.lstrip('/')[len(self.parent.name):].lstrip('/')
+        path = self.path.lstrip("/")[len(self.parent.name) :].lstrip("/")
         return tunnel.open_writer(self.parent, path, replication=replication, **kw)
 
 
 class FSVolumeObjects(Iterable):
-    marker = serializers.XMLNodeField('Marker')
-    max_items = serializers.XMLNodeField('MaxItems', parse_callback=int)
-    objects = serializers.XMLNodesReferencesField(FSVolumeObject, 'Item')
+    marker = serializers.XMLNodeField("Marker")
+    max_items = serializers.XMLNodeField("MaxItems", parse_callback=int)
+    objects = serializers.XMLNodesReferencesField(FSVolumeObject, "Item")
 
     @property
     def project(self):
@@ -434,8 +454,10 @@ class FSVolumeObjects(Iterable):
     def _get(self, name):
         path = name
         if not path.startswith(self.parent.path):
-            path = self.parent.path + '/' + name.lstrip('/')
-        return self._get_single_object_cls()(client=self._client, parent=self.volume, path=path)
+            path = self.parent.path + "/" + name.lstrip("/")
+        return self._get_single_object_cls()(
+            client=self._client, parent=self.volume, path=path
+        )
 
     def __contains__(self, item):
         if isinstance(item, six.string_types):
@@ -458,24 +480,23 @@ class FSVolumeObjects(Iterable):
         return self.iterate()
 
     def iterate(self):
-        params = {'expectmarker': 'true'}
-        headers = {'x-odps-volume-fs-path': self.parent.path}
+        params = {"expectmarker": "true"}
+        headers = {"x-odps-volume-fs-path": self.parent.path}
 
         schema_name = self.volume._get_schema_name()
         if schema_name is not None:
             params["curr_schema"] = schema_name
 
         def _it():
-            last_marker = params.get('marker')
-            if 'marker' in params and \
-                    (last_marker is None or len(last_marker) == 0):
+            last_marker = params.get("marker")
+            if "marker" in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.volume.resource()
             resp = self._client.get(url, params=params, headers=headers)
 
             r = type(self).parse(self._client, resp, obj=self, parent=self.volume)
-            params['marker'] = r.marker
+            params["marker"] = r.marker
 
             return r.objects
 
@@ -502,18 +523,19 @@ class FSVolume(Volume):
     >>> # get a file/directory object
     >>> file_obj = fs_volume[file_name]
     """
-    __slots__ = '_root_dir',
+
+    __slots__ = ("_root_dir",)
 
     _dir_cls = FSVolumeDir
 
-    def create_dir(self, path):
+    def create_dir(self, path, **kw):
         """
         Creates and returns a directory under the current volume.
         :param str path: directory name to be created
         :return: directory object
         :rtype: :class:`odps.models.FSVolumeDir`
         """
-        return self.root.create_dir(path)
+        return self.root.create_dir(path, **kw)
 
     def __contains__(self, item):
         return item in self.root
@@ -529,7 +551,7 @@ class FSVolume(Volume):
 
     @property
     def path(self):
-        return '/' + self.name
+        return "/" + self.name
 
     @property
     def location(self):
@@ -584,7 +606,9 @@ class FSVolume(Volume):
     @property
     def root(self):
         if not self._root_dir:
-            self._root_dir = self._dir_cls(path='/' + self.name, parent=self, client=self._client)
+            self._root_dir = self._dir_cls(
+                path="/" + self.name, parent=self, client=self._client
+            )
         return self._root_dir
 
 

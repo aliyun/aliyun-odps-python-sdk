@@ -161,6 +161,7 @@ info:
 gettext:
 	$(SPHINXBUILD) -b gettext $(I18NSPHINXOPTS) $(BUILDDIR)/locale
 	$(SPHINXINTL) update -p $(BUILDDIR)/locale $(I18NSPHINXLANGS)
+	python $(SOURCEDIR)/norm_zh.py
 	@echo
 	@echo "Build finished. The message catalogs are in $(BUILDDIR)/locale."
 

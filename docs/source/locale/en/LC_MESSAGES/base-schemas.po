@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PyODPS 0.11.3\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-08-02 20:29+0800\n"
+"POT-Creation-Date: 2024-08-29 18:44+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,9 +23,9 @@ msgstr ""
 
 #: ../../source/base-schemas.rst:8
 msgid ""
-"Schema 属于 MaxCompute 的公测功能，需要通过 `新功能测试申请 "
-"<https://help.aliyun.com/document_detail/128366.htm>`_ 开通。使用 Schema 需要 "
-"PyODPS 0.11.3 以上版本。"
+"Schema 属于 MaxCompute 的公测功能，需要通过 `新功能测试申请 <https://help"
+".aliyun.com/document_detail/128366.htm>`_ 开通。使用 Schema 需要 PyODPS "
+"0.11.3 以上版本。"
 msgstr ""
 "Schema is a beta function of MaxCompute. You need to `apply for a trial "
 "of new features <https://www.alibabacloud.com/help/en/maxcompute/latest"
@@ -35,7 +35,8 @@ msgstr ""
 #: ../../source/base-schemas.rst:11
 msgid ""
 "`Schema <https://help.aliyun.com/document_detail/437084.html>`_ 是 "
-"MaxCompute 介于项目和表 / 资源 / 函数之间的概念，对表 / 资源 / 函数进行进一步归类。"
+"MaxCompute 介于项目和表 / 资源 / 函数之间的概念，对表 / 资源 / 函数进行"
+"进一步归类。"
 msgstr ""
 "`Schema <https://help.aliyun.com/document_detail/437084.html>`_ is a "
 "concept between projects and objects like tables, resources or functions."
@@ -48,7 +49,8 @@ msgstr "Basic operations"
 #: ../../source/base-schemas.rst:16
 msgid "你可以使用 ``exist_schema`` 判断 Schema 对象是否存在："
 msgstr ""
-"You may use ``exist_schema`` to check if the schema with specific name exists."
+"You may use ``exist_schema`` to check if the schema with specific name "
+"exists."
 
 #: ../../source/base-schemas.rst:18
 msgid "print(o.exist_schema(\"test_schema\"))"
@@ -74,8 +76,7 @@ msgstr ""
 
 #: ../../source/base-schemas.rst:35
 msgid "使用 ``get_schema`` 获得一个 Schema 对象并打印 Schema Owner："
-msgstr ""
-"Use ``get_schema`` to obtain a schema object and print its owner."
+msgstr "Use ``get_schema`` to obtain a schema object and print its owner."
 
 #: ../../source/base-schemas.rst:37
 msgid ""
@@ -86,7 +87,8 @@ msgstr ""
 #: ../../source/base-schemas.rst:42
 msgid "使用 ``list_schema`` 列举所有 Schema 对象并打印名称："
 msgstr ""
-"Use ``list_schema`` to list all schemas in s project and print their names."
+"Use ``list_schema`` to list all schemas in s project and print their "
+"names."
 
 #: ../../source/base-schemas.rst:44
 msgid ""
@@ -100,8 +102,9 @@ msgstr "Handling objects in Schema"
 
 #: ../../source/base-schemas.rst:51
 msgid ""
-"在开启 Schema 后，MaxCompute 入口对象默认操作的 MaxCompute 对象都位于名为 ``DEFAULT`` 的 Schema"
-" 下。为操作其他 Schema 下的对象，需要在创建入口对象时指定 Schema，例如："
+"在开启 Schema 后，MaxCompute 入口对象默认操作的 MaxCompute 对象都位于名为"
+" ``DEFAULT`` 的 Schema 下。为操作其他 Schema 下的对象，需要在创建入口对象"
+"时指定 Schema，例如："
 msgstr ""
 "After schemas are enabled, calls on your MaxCompute entrance only affects"
 " objects in the schema named ``DEFAULT`` by default. To handle objects in"
@@ -139,7 +142,9 @@ msgstr ""
 ")"
 
 #: ../../source/base-schemas.rst:69
-msgid "也可以为不同对象的操作方法指定 ``schema`` 参数。例如，下面的方法列举了 ``test_schema`` 下所有的表："
+msgid ""
+"也可以为不同对象的操作方法指定 ``schema`` 参数。例如，下面的方法列举了 ``"
+"test_schema`` 下所有的表："
 msgstr ""
 "You can also specify names of schemas when handling MaxCompute objects. "
 "For instance, the code below lists all tables under the schema "
@@ -152,35 +157,58 @@ msgid ""
 msgstr ""
 
 #: ../../source/base-schemas.rst:77
+msgid "下列方法给出了如何从 ``test_schema`` 获取表 ``dual`` 并输出表结构："
+msgstr ""
+"The code below gets a table named ``dual`` under schema named "
+"``test_schema``and outputs its structure."
+
+#: ../../source/base-schemas.rst:79
+msgid ""
+"table = o.get_table('dual', schema='test_schema')\n"
+"print(table.table_schema)"
+msgstr ""
+
+#: ../../source/base-schemas.rst:84
 msgid "在执行 SQL 时，可以指定默认 Schema："
 msgstr ""
 "You can also specify name of the default schema when executing SQL "
 "statements."
 
-#: ../../source/base-schemas.rst:79
+#: ../../source/base-schemas.rst:86
 msgid "o.execute_sql(\"SELECT * FROM dual\", default_schema=\"test_schema\")"
 msgstr ""
 
-#: ../../source/base-schemas.rst:83
+#: ../../source/base-schemas.rst:90
 msgid ""
-"对于表而言，如果项目空间没有启用 Schema，``get_table`` 方法对于 ``x.y`` 形式的表名，默认按照 "
-"``project.table`` 处理。如果当前租户开启了 ``odps.namespace.schema`` 配置，``get_table``"
-" 会将 ``x.y`` 作为 ``schema.table`` 处理，否则依然按照 ``project.table`` 处理。如果租户上 "
-"没有配置该选项，可以配置 ``options.always_enable_schema = True``，此后所有 ``x.y`` 都将被作为 "
-"``schema.table`` 处理："
+"对于表而言，如果项目空间没有启用 Schema，``get_table`` 方法对于 ``x.y`` "
+"形式的表名，默认按照 ``project.table`` 处理。如果当前租户开启了\\ `租户级"
+"语法开关 <https://help.aliyun.com/zh/maxcompute/user-guide/tenant-"
+"information>`_\\ ，\\ ``get_table`` 会将 ``x.y`` 作为 ``schema.table`` "
+"处理，否则依然按照 ``project.table`` 处理。如果租户上没有配置该选项，可以"
+"配置 ``options.enable_schema = True``，此后所有 ``x.y`` 都将被作为 ``"
+"schema.table`` 处理："
 msgstr ""
 "For tables, if schema is not enabled in project, ``get_table`` will "
-"handle ``x.y`` as ``project.table``. When ``odps.namespace.schema`` is "
-"enabled for current tenant, ``get_table`` will handle ``x.y`` as "
-"``schema.table``, or it will be still handled as ``project.table``. If "
-"the option is not specified, you may configure "
-"``options.always_enable_schema = True`` in your Python code and then all "
-"table names like ``x.y`` will be handled as ``schema.table``."
+"handle ``x.y`` as ``project.table``. When `tenant-level information "
+"schema syntax <https://www.alibabacloud.com/help/en/maxcompute/user-guide"
+"/tenant-information>`_ is enabled for current tenant, ``get_table`` will "
+"handle ``x.y`` as ``schema.table``, or it will be still handled as "
+"``project.table``. If the option is not specified, you may configure "
+"``options.enable_schema = True`` in your Python code and then all table "
+"names like ``x.y`` will be handled as ``schema.table``."
 
-#: ../../source/base-schemas.rst:89
+#: ../../source/base-schemas.rst:96
 msgid ""
 "from odps import options\n"
-"options.always_enable_schema = True\n"
+"options.enable_schema = True\n"
 "print(o.get_table(\"myschema.mytable\"))"
 msgstr ""
+
+#: ../../source/base-schemas.rst:104
+msgid ""
+"``options.enable_schema`` 自 PyODPS 0.12.0 开始支持，低版本 PyODPS 需要"
+"使用 ``options.always_enable_schema``。"
+msgstr ""
+"``options.enable_schema`` is supported since PyODPS 0.12.0. "
+"``options.always_enable_schema`` should be used in lower versions."
 

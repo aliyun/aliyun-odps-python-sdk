@@ -74,7 +74,7 @@ def setup(odps):
 
     set_local_use_odps2_types(None)
 
-    table = tn('pyodps_df_mixed_%d' % os.getpid())
+    table = tn('pyodps_df_mixed_' + get_test_unique_name())
     if odps.exist_table(table):
         t = odps.get_table(table)
     else:
@@ -365,7 +365,7 @@ def test_head_and_tail(odps, setup):
     assert res is not None
     assert sum(res.values['id']) == 6
 
-    table_name = tn('pyodps_df_mixed2')
+    table_name = tn('pyodps_df_mixed_head_tail')
     odps.delete_table(table_name, if_exists=True)
     table = next(setup.odps_df.data_source())
     table2 = odps.create_table(table_name, table.table_schema)
@@ -405,7 +405,7 @@ def test_map_reduce_with_resource(odps, setup):
     result = expr.execute()
     assert result.values['id'].sum() == 17
 
-    odps_df2 = setup.pd_df.persist(tn('pyodps_df_mixed2'), odps=odps)
+    odps_df2 = setup.pd_df.persist(tn('pyodps_df_mixed_mr_res'), odps=odps)
     try:
         expr = setup.odps_df.map_reduce(reducer=reducer, reducer_resources=[odps_df2], group='name')
         result = expr.execute()

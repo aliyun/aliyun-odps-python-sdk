@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 import itertools
 from copy import deepcopy
 
-from .compat import Queue, six, Iterable
+from .compat import Iterable, Queue, six
 
 
 class DAGValidationError(Exception):
@@ -26,6 +26,7 @@ class DAGValidationError(Exception):
 
 class DAG(object):
     """Directed acyclic graph implementation."""
+
     _graph_dict_type = dict
     _dict_type = dict
 
@@ -51,7 +52,7 @@ class DAG(object):
 
     def remove_node(self, node):
         if id(node) not in self._graph:
-            raise KeyError('Node does not exist')
+            raise KeyError("Node does not exist")
 
         self._graph.pop(id(node))
         self._map.pop(id(node))
@@ -68,16 +69,20 @@ class DAG(object):
                     edges.remove(id(node))
 
     def contains_edge(self, predecessor_node, successor_node):
-        if id(predecessor_node) not in self._graph or \
-                id(successor_node) not in self._graph:
+        if (
+            id(predecessor_node) not in self._graph
+            or id(successor_node) not in self._graph
+        ):
             return False
 
         return id(successor_node) in self._graph[id(predecessor_node)]
 
     def add_edge(self, predecessor_node, successor_node, validate=True):
-        if id(predecessor_node) not in self._graph or \
-                id(successor_node) not in self._graph:
-            raise KeyError('Node does not exist')
+        if (
+            id(predecessor_node) not in self._graph
+            or id(successor_node) not in self._graph
+        ):
+            raise KeyError("Node does not exist")
 
         if validate:
             test_graph = deepcopy(self._graph)
@@ -88,7 +93,7 @@ class DAG(object):
                 test_reversed_graph[id(successor_node)].add(id(predecessor_node))
             valid, msg = self._validate(test_graph, test_reversed_graph)
         else:
-            valid, msg = True, ''
+            valid, msg = True, ""
         if valid:
             self._graph[id(predecessor_node)].add(id(successor_node))
             if self._reversed_graph is not None:
@@ -98,7 +103,7 @@ class DAG(object):
 
     def remove_edge(self, predecessor_node, successor_node):
         if id(successor_node) not in self._graph.get(id(predecessor_node), []):
-            raise KeyError('Edge does not exist in the graph')
+            raise KeyError("Edge does not exist in the graph")
 
         self._graph[id(predecessor_node)].remove(id(successor_node))
         if self._reversed_graph is not None:
@@ -109,15 +114,20 @@ class DAG(object):
         reversed_graph = reversed_graph or self._reversed_graph
 
         if reversed_graph is not None:
-            return [node for node, precessors in six.iteritems(reversed_graph)
-                    if len(precessors) == 0]
+            return [
+                node
+                for node, precessors in six.iteritems(reversed_graph)
+                if len(precessors) == 0
+            ]
 
         all_nodes = set(graph.keys())
         return list(all_nodes - set(itertools.chain(*graph.values())))
 
     def indep_nodes(self, graph=None, reversed_graph=None):
-        return [self._map.get(i) for i in self._indep_ids(graph=graph,
-                                                          reversed_graph=reversed_graph)]
+        return [
+            self._map.get(i)
+            for i in self._indep_ids(graph=graph, reversed_graph=reversed_graph)
+        ]
 
     def _predecessor_ids(self, node_id, graph=None, reversed_graph=None):
         graph = graph or self._graph
@@ -128,13 +138,13 @@ class DAG(object):
 
     def predecessors(self, node):
         if id(node) not in self._graph:
-            raise KeyError('Node does not exist: %s' % node)
+            raise KeyError("Node does not exist: %s" % node)
 
         return [self._map.get(node_id) for node_id in self._predecessor_ids(id(node))]
 
     def successors(self, node):
         if id(node) not in self._graph:
-            raise KeyError('Node does not exist: %r' % node)
+            raise KeyError("Node does not exist: %r" % node)
 
         return [self._map.get(node_id) for node_id in self._graph[id(node)]]
 
@@ -142,18 +152,20 @@ class DAG(object):
         graph = graph or self._graph
         reversed_graph = reversed_graph or self._reversed_graph
         if len(self.indep_nodes(graph, reversed_graph)) == 0:
-            return False, 'No independent nodes detected'
+            return False, "No independent nodes detected"
 
         try:
             self.topological_sort(graph, reversed_graph)
         except ValueError:
-            return False, 'Fail to topological sort'
-        return True, 'Valid'
+            return False, "Fail to topological sort"
+        return True, "Valid"
 
     def bfs(self, start_nodes, successor=None, cond=None):
         cond = cond or (lambda v: True)
         successor = successor or self.successors
-        start_nodes = [start_nodes, ] if not isinstance(start_nodes, Iterable) else start_nodes
+        start_nodes = (
+            [start_nodes] if not isinstance(start_nodes, Iterable) else start_nodes
+        )
         start_nodes = [n for n in start_nodes if cond(n)]
         assert all(id(node) in self._graph for node in start_nodes)
 
@@ -202,7 +214,7 @@ class DAG(object):
                     indep_ids.append(dep_id)
 
         if len(node_ids) != len(graph):
-            raise ValueError('Graph is not acyclic')
+            raise ValueError("Graph is not acyclic")
 
         return [self._map.get(nid) for nid in node_ids]
 

@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,29 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
-import threading
 import contextlib
+import itertools
+import sys
+import threading
+import time
 
 from sqlalchemy import types as sa_types
-from sqlalchemy.engine import default, Engine
+from sqlalchemy.engine import Engine, default
 from sqlalchemy.exc import NoSuchTableError
 from sqlalchemy.sql import compiler, sqltypes
+
 try:
     from sqlalchemy.dialects import mysql
 except ImportError:
     # for low sqlalchemy versions
     from sqlalchemy.databases import mysql
 
-from . import options
-from . import types
+from . import options, types
 from .compat import six
-from .core import ODPS, DEFAULT_ENDPOINT
+from .core import DEFAULT_ENDPOINT, ODPS
+from .errors import BaseODPSError, InternalServerError, NoSuchObject
 from .models import Table
 from .models.session import PUBLIC_SESSION_NAME
-from .errors import NoSuchObject
 from .utils import to_str, to_text
-
 
 test_setting = threading.local()
 test_setting.get_tables_filter = None
@@ -81,20 +82,98 @@ _odps_type_to_sqlalchemy_type = {
 
 _sqlalchemy_global_reusable_odps = {}
 
+_sqlalchemy_obj_list_cache = {}
+
+
+class ObjectCache(object):
+    def __init__(self, expire=24 * 3600):
+        self._expire_time = expire
+        self._items = dict()
+        self._cache_time = dict()
+
+    def __getitem__(self, key):
+        if self._cache_time[key] < time.time() - self._expire_time:
+            self._cache_time.pop(key, None)
+            self._items.pop(key, None)
+            raise KeyError(key)
+        return self._items[key]
+
+    def __setitem__(self, key, value):
+        self._items[key] = value
+        self._cache_time[key] = time.time()
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
 
 class ODPSIdentifierPreparer(compiler.IdentifierPreparer):
     # Just quote everything to make things simpler / easier to upgrade
     reserved_words = compiler.RESERVED_WORDS.copy()
     keywords = [
-        'ADD', 'ALL', 'ALTER', 'AND', 'AS', 'ASC', 'BETWEEN', 'BIGINT',
-        'BOOLEAN', 'BY', 'CASE', 'CAST', 'COLUMN', 'COMMENT', 'CREATE',
-        'DESC', 'DISTINCT', 'DISTRIBUTE', 'DOUBLE', 'DROP', 'ELSE', 'FALSE',
-        'FROM', 'FULL', 'GROUP', 'IF', 'IN', 'INSERT', 'INTO', 'IS', 'JOIN',
-        'LEFT', 'LIFECYCLE', 'LIKE', 'LIMIT', 'MAPJOIN', 'NOT', 'NULL',
-        'ON', 'OR', 'ORDER', 'OUTER', 'OVERWRITE', 'PARTITION', 'RENAME',
-        'REPLACE', 'RIGHT', 'RLIKE', 'SELECT', 'SORT', 'STRING', 'TABLE',
-        'TABLESAMPLE', 'TBLPROPERTIES', 'THEN', 'TOUCH', 'TRUE', 'UNION',
-        'VIEW', 'WHEN', 'WHERE'
+        "ADD",
+        "ALL",
+        "ALTER",
+        "AND",
+        "AS",
+        "ASC",
+        "BETWEEN",
+        "BIGINT",
+        "BOOLEAN",
+        "BY",
+        "CASE",
+        "CAST",
+        "COLUMN",
+        "COMMENT",
+        "CREATE",
+        "DESC",
+        "DISTINCT",
+        "DISTRIBUTE",
+        "DOUBLE",
+        "DROP",
+        "ELSE",
+        "FALSE",
+        "FROM",
+        "FULL",
+        "GROUP",
+        "IF",
+        "IN",
+        "INSERT",
+        "INTO",
+        "IS",
+        "JOIN",
+        "LEFT",
+        "LIFECYCLE",
+        "LIKE",
+        "LIMIT",
+        "MAPJOIN",
+        "NOT",
+        "NULL",
+        "ON",
+        "OR",
+        "ORDER",
+        "OUTER",
+        "OVERWRITE",
+        "PARTITION",
+        "RENAME",
+        "REPLACE",
+        "RIGHT",
+        "RLIKE",
+        "SELECT",
+        "SORT",
+        "STRING",
+        "TABLE",
+        "TABLESAMPLE",
+        "TBLPROPERTIES",
+        "THEN",
+        "TOUCH",
+        "TRUE",
+        "UNION",
+        "VIEW",
+        "WHEN",
+        "WHERE",
     ]
     reserved_words.update(keywords)
     reserved_words.update([s.lower() for s in keywords])
@@ -102,8 +181,8 @@ class ODPSIdentifierPreparer(compiler.IdentifierPreparer):
     def __init__(self, dialect):
         super(ODPSIdentifierPreparer, self).__init__(
             dialect,
-            initial_quote='`',
-            escape_quote='`',
+            initial_quote="`",
+            escape_quote="`",
         )
 
     def quote(self, ident, force=None):
@@ -113,16 +192,18 @@ class ODPSIdentifierPreparer(compiler.IdentifierPreparer):
 class ODPSCompiler(compiler.SQLCompiler):
     def visit_column(self, *args, **kwargs):
         result = super(ODPSCompiler, self).visit_column(*args, **kwargs)
-        dot_count = result.count('.')
-        assert dot_count in (0, 1, 2), "Unexpected visit_column result {}".format(result)
+        dot_count = result.count(".")
+        assert dot_count in (0, 1, 2), "Unexpected visit_column result {}".format(
+            result
+        )
         if dot_count == 2:
             # we have something of the form schema.table.column
             # hive doesn't like the schema in front, so chop it out
-            result = result[result.index('.') + 1:]
+            result = result[result.index(".") + 1 :]
         return result
 
     def visit_char_length_func(self, fn, **kw):
-        return 'length{}'.format(self.function_argspec(fn, **kw))
+        return "length{}".format(self.function_argspec(fn, **kw))
 
     def __unicode__(self):
         return to_text(self)
@@ -130,31 +211,31 @@ class ODPSCompiler(compiler.SQLCompiler):
 
 class ODPSTypeCompiler(compiler.GenericTypeCompiler):
     def visit_INTEGER(self, type_):
-        return 'INT'
+        return "INT"
 
     def visit_NUMERIC(self, type_):
-        return 'DECIMAL'
+        return "DECIMAL"
 
     def visit_CHAR(self, type_):
-        return 'STRING'
+        return "STRING"
 
     def visit_VARCHAR(self, type_):
-        return 'STRING'
+        return "STRING"
 
     def visit_NCHAR(self, type_):
-        return 'STRING'
+        return "STRING"
 
     def visit_TEXT(self, type_):
-        return 'STRING'
+        return "STRING"
 
     def visit_CLOB(self, type_):
-        return 'STRING'
+        return "STRING"
 
     def visit_BLOB(self, type_):
-        return 'BINARY'
+        return "BINARY"
 
     def visit_TIME(self, type_):
-        return 'TIMESTAMP'
+        return "TIMESTAMP"
 
 
 if hasattr(sqltypes.String, "RETURNS_UNICODE"):
@@ -163,9 +244,13 @@ else:
     _return_unicode_str = True
 
 
+class ODPSPingError(BaseODPSError):
+    pass
+
+
 class ODPSDialect(default.DefaultDialect):
-    name = 'odps'
-    driver = 'rest'
+    name = "odps"
+    driver = "rest"
     preparer = ODPSIdentifierPreparer
     statement_compiler = ODPSCompiler
     supports_views = True
@@ -189,6 +274,7 @@ class ODPSDialect(default.DefaultDialect):
     @classmethod
     def dbapi(cls):
         from . import dbapi
+
         return dbapi
 
     def create_connect_args(self, url):
@@ -197,34 +283,38 @@ class ODPSDialect(default.DefaultDialect):
         if project is None and options.default_project:
             project = options.default_project
         access_id = url.username
-        if access_id is None and options.account is not None:
-            access_id = options.account.access_id
         secret_access_key = url.password
-        if secret_access_key is None and options.account is not None:
-            secret_access_key = options.account.secret_access_key
         logview_host = options.logview_host
         endpoint = None
         session_name = None
         use_sqa = False
         reuse_odps = False
-        fallback_policy = ''
+        project_as_schema = False
+        fallback_policy = ""
+        cache_names = False
+        cache_seconds = 24 * 3600
         hints = {}
         if url.query:
             query = dict(url.query)
             if endpoint is None:
-                endpoint = query.pop('endpoint', None)
+                endpoint = query.pop("endpoint", None)
             if logview_host is None:
-                logview_host = query.pop(
-                    'logview_host', query.pop('logview', None)
-                )
+                logview_host = query.pop("logview_host", query.pop("logview", None))
             if session_name is None:
-                session_name = query.pop('session', None)
-            if use_sqa == False:
-                use_sqa = (query.pop('interactive_mode', 'false') != 'false')
-            if reuse_odps == False:
-                reuse_odps = (query.pop('reuse_odps', 'false') != 'false')
+                session_name = query.pop("session", None)
+            if use_sqa is False:
+                use_sqa = query.pop("interactive_mode", "false").lower() != "false"
+            if reuse_odps is False:
+                reuse_odps = query.pop("reuse_odps", "false").lower() != "false"
+            if query.get("project_as_schema", None) is not None:
+                project_as_schema = (
+                    query.pop("project_as_schema", "false").lower() != "false"
+                )
             if fallback_policy == "":
-                fallback_policy = query.pop('fallback_policy', 'default')
+                fallback_policy = query.pop("fallback_policy", "default")
+            if cache_names is False:
+                cache_names = query.pop("cache_names", "false").lower() != "false"
+            cache_seconds = int(query.pop("cache_seconds", cache_seconds))
             hints = query
 
         if endpoint is None:
@@ -233,24 +323,35 @@ class ODPSDialect(default.DefaultDialect):
             session_name = PUBLIC_SESSION_NAME
 
         kwargs = {
-            'access_id': access_id,
-            'secret_access_key': secret_access_key,
-            'project': project,
-            'endpoint': endpoint,
-            'session_name': session_name,
-            'use_sqa': use_sqa,
-            'fallback_policy': fallback_policy,
-            'hints': hints,
+            "access_id": access_id,
+            "secret_access_key": secret_access_key,
+            "project": project,
+            "endpoint": endpoint,
+            "session_name": session_name,
+            "use_sqa": use_sqa,
+            "fallback_policy": fallback_policy,
+            "project_as_schema": project_as_schema,
+            "hints": hints,
         }
+        if access_id is None:
+            kwargs.pop("access_id", None)
+            kwargs.pop("secret_access_key", None)
+            kwargs["account"] = options.account
+
         for k, v in six.iteritems(kwargs):
             if v is None:
-                raise ValueError('{} should be provided to create connection, '
-                                 'you can either specify in connection string as format: '
-                                 '"odps://<access_id>:<access_key>@<project_name>", '
-                                 'or create an ODPS object and call `.to_global()` '
-                                 'to set it to global'.format(k))
+                raise ValueError(
+                    "{} should be provided to create connection, "
+                    "you can either specify in connection string as format: "
+                    '"odps://<access_id>:<access_key>@<project_name>", '
+                    "or create an ODPS object and call `.to_global()` "
+                    "to set it to global".format(k)
+                )
         if logview_host is not None:
-            kwargs['logview_host'] = logview_host
+            kwargs["logview_host"] = logview_host
+
+        if cache_names:
+            _sqlalchemy_obj_list_cache[url_string] = ObjectCache(expire=cache_seconds)
 
         if reuse_odps:
             # the odps object can only be reused only if it will be identical
@@ -258,9 +359,9 @@ class ODPSDialect(default.DefaultDialect):
                 url_string in _sqlalchemy_global_reusable_odps
                 and _sqlalchemy_global_reusable_odps.get(url_string) is not None
             ):
-                kwargs['odps'] = _sqlalchemy_global_reusable_odps.get(url_string)
-                kwargs['access_id'] = None
-                kwargs['secret_access_key'] = None
+                kwargs["odps"] = _sqlalchemy_global_reusable_odps.get(url_string)
+                kwargs["access_id"] = None
+                kwargs["secret_access_key"] = None
             else:
                 _sqlalchemy_global_reusable_odps[url_string] = ODPS(
                     access_id=access_id,
@@ -281,14 +382,29 @@ class ODPSDialect(default.DefaultDialect):
         odps_kw.pop("use_sqa", None)
         odps_kw.pop("fallback_policy", None)
         odps_kw.pop("hints", None)
+        odps_kw.pop("project_as_schema", None)
         odps_kw["overwrite_global"] = False
         return ODPS(**odps_kw)
+
+    @classmethod
+    def get_list_cache(cls, url, key):
+        url = str(url)
+        if url not in _sqlalchemy_obj_list_cache:
+            return None
+        return _sqlalchemy_obj_list_cache[url].get(key)
+
+    @classmethod
+    def put_list_cache(cls, url, key, value):
+        url = str(url)
+        if url not in _sqlalchemy_obj_list_cache:
+            return
+        _sqlalchemy_obj_list_cache[url][key] = value
 
     def get_schema_names(self, connection, **kw):
         conn = self._get_dbapi_connection(connection)
         if getattr(conn, "_project_as_schema", False):
-            fields = ['owner', 'user', 'group', 'prefix']
-            if (conn.odps.project is None) or (kw.pop('listall', None) is not None):
+            fields = ["owner", "user", "group", "prefix"]
+            if (conn.odps.project is None) or (kw.pop("listall", None) is not None):
                 kwargs = {f: kw.get(f) for f in fields}
                 return [proj.name for proj in conn.odps.list_projects(**kwargs)]
             else:
@@ -326,13 +442,15 @@ class ODPSDialect(default.DefaultDialect):
         try:
             for col in table.table_schema.columns:
                 col_type = _odps_type_to_sqlalchemy_type[type(col.type)]
-                result.append({
-                    'name': col.name,
-                    'type': col_type,
-                    'nullable': True,
-                    'default': None,
-                    'comment': col.comment,
-                })
+                result.append(
+                    {
+                        "name": col.name,
+                        "type": col_type,
+                        "nullable": True,
+                        "default": None,
+                        "comment": col.comment,
+                    }
+                )
         except NoSuchObject as e:
             # convert ODPSError to SQLAlchemy NoSuchTableError
             raise NoSuchTableError(str(e))
@@ -351,8 +469,13 @@ class ODPSDialect(default.DefaultDialect):
         return []
 
     def _iter_tables(self, connection, schema=None, types=None, **kw):
+        cache_key = ("tables", schema, tuple(types))
+        cached = self.get_list_cache(connection.engine.url, cache_key)
+        if cached is not None:
+            return cached
+
         conn = self._get_dbapi_connection(connection)
-        filter_ = getattr(test_setting, 'get_tables_filter', None)
+        filter_ = getattr(test_setting, "get_tables_filter", None)
         if filter_ is None:
             filter_ = lambda x: True
         schema_kw = self._get_schema_kw(connection, schema=schema)
@@ -367,7 +490,9 @@ class ODPSDialect(default.DefaultDialect):
                 its.append(conn.odps.list_tables(**list_kw))
             it = itertools.chain(*its)
 
-        return [t.name for t in it if filter_(t.name)]
+        result = [t.name for t in it if filter_(t.name)]
+        self.put_list_cache(connection.engine.url, cache_key, result)
+        return result
 
     def get_table_names(self, connection, schema=None, **kw):
         return self._iter_tables(
@@ -389,9 +514,41 @@ class ODPSDialect(default.DefaultDialect):
         conn = self._get_dbapi_connection(connection)
         schema_kw = self._get_schema_kw(connection, schema=schema)
         comment = conn.odps.get_table(table_name, **schema_kw).comment
-        return {
-            'text': comment
-        }
+        return {"text": comment}
+
+    @classmethod
+    def _is_stack_superset(cls, tb):
+        try:
+            cur_frame = tb.tb_frame
+            while cur_frame is not None:
+                if "superset" in cur_frame.f_code.co_filename:
+                    return True
+                cur_frame = cur_frame.f_back
+            return False
+        except:  # pragma: no cover
+            return False
+
+    def do_ping(self, dbapi_connection):
+        """Stop raising RuntimeError when ping by Superset"""
+        try:
+            return super(ODPSDialect, self).do_ping(dbapi_connection)
+        except InternalServerError:
+            raise
+        except BaseException as ex:
+            _, _, tb = sys.exc_info()
+            if not self._is_stack_superset(tb):
+                raise
+            new_err = ODPSPingError(ex.args[0])
+            for attr in (
+                "request_id",
+                "instance_id",
+                "code",
+                "host_id",
+                "endpoint",
+                "tag",
+            ):
+                setattr(new_err, attr, getattr(ex, attr))
+            six.reraise(ODPSPingError, new_err, tb)
 
     def do_rollback(self, dbapi_connection):
         # No transactions for ODPS

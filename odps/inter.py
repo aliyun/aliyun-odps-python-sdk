@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,25 +17,24 @@
 from __future__ import absolute_import
 
 import os
-import sys
-from hashlib import md5
 import pickle
 import shutil
+import sys
+from hashlib import md5
 
 from .compat import six
 from .config import options
 from .core import ODPS
-from .errors import InteractiveError
-from .models import TableSchema
-from .utils import to_binary, build_pyodps_dir
 from .df.backends.frame import ResultFrame
 from .df.backends.odpssql.types import odps_schema_to_df_schema
+from .errors import InteractiveError
+from .models import TableSchema
+from .utils import build_pyodps_dir, to_binary
 
-
-DEFAULT_ROOM_NAME = 'default'
-ODPS_FILE_NAME = '__ODPS__'
-INFO_FILE_NAME = '__INFO__'
-OBJECT_FILE_NAME = '__OBJ__'
+DEFAULT_ROOM_NAME = "default"
+ODPS_FILE_NAME = "__ODPS__"
+INFO_FILE_NAME = "__INFO__"
+OBJECT_FILE_NAME = "__OBJ__"
 
 
 class Room(object):
@@ -52,20 +51,27 @@ class Room(object):
 
         odps_file = os.path.join(self._room_dir, ODPS_FILE_NAME)
         if not os.path.exists(odps_file):
-            raise InteractiveError(
-                'This room(%s) is not configured' % self._room_name)
+            raise InteractiveError("This room(%s) is not configured" % self._room_name)
 
-        with open(odps_file, 'rb') as f:
+        with open(odps_file, "rb") as f:
             try:
                 obj = pickle.load(f)
             except pickle.UnpicklingError:
-                raise InteractiveError(
-                    'Failed to enter a room: %s' % self._room_name)
+                raise InteractiveError("Failed to enter a room: %s" % self._room_name)
 
-            def _config_rooms(access_id, access_key, default_project, endpoint, tunnel_endpoint=None,
-                              seahawks_url=None, logview_host=None, default_schema=None,
-                              region_name=None, **kwargs):
-                options.loads(kwargs.get('options', {}))
+            def _config_rooms(
+                access_id,
+                access_key,
+                default_project,
+                endpoint,
+                tunnel_endpoint=None,
+                seahawks_url=None,
+                logview_host=None,
+                default_schema=None,
+                region_name=None,
+                **kwargs
+            ):
+                options.loads(kwargs.get("options", {}))
 
                 options.account = ODPS._build_account(access_id, access_key)
                 options.endpoint = endpoint
@@ -118,22 +124,22 @@ class Room(object):
         path = self._obj_store_dir(name)
 
         if os.path.exists(path):
-            raise InteractiveError('%s already exists' % name)
+            raise InteractiveError("%s already exists" % name)
 
         os.makedirs(path)
-        with open(os.path.join(path, INFO_FILE_NAME), 'wb') as f:
+        with open(os.path.join(path, INFO_FILE_NAME), "wb") as f:
             pickle.dump((name, desc), f, protocol=0)
 
-        with open(os.path.join(path, OBJECT_FILE_NAME), 'wb') as f:
+        with open(os.path.join(path, OBJECT_FILE_NAME), "wb") as f:
             pickle.dump(obj, f, protocol=0)
 
     def fetch(self, name):
         path = self._obj_store_dir(name)
 
         if not os.path.exists(path):
-            raise InteractiveError('%s does not exist' % name)
+            raise InteractiveError("%s does not exist" % name)
 
-        with open(os.path.join(path, OBJECT_FILE_NAME), 'rb') as f:
+        with open(os.path.join(path, OBJECT_FILE_NAME), "rb") as f:
             return pickle.load(f)
 
     def drop(self, name):
@@ -147,13 +153,13 @@ class Room(object):
         for obj_dir in os.listdir(self._room_dir):
             info_path = os.path.join(self._room_dir, obj_dir, INFO_FILE_NAME)
             if os.path.exists(info_path):
-                with open(info_path, 'rb') as f:
+                with open(info_path, "rb") as f:
                     results.append(list(pickle.load(f)))
 
         return results
 
     def display(self):
-        schema = TableSchema.from_lists(['name', 'desc'], ['string'] * 2)
+        schema = TableSchema.from_lists(["name", "desc"], ["string"] * 2)
         schema = odps_schema_to_df_schema(schema)
         frame = ResultFrame(self.list_stores(), schema=schema, pandas=False)
         try:
@@ -163,7 +169,7 @@ class Room(object):
                 df = frame.values
 
                 df.columns.name = self._room_name
-                frame._values = df.set_index('name')
+                frame._values = df.set_index("name")
         except (ImportError, ValueError):
             pass
 
@@ -171,7 +177,7 @@ class Room(object):
 
 
 def _get_root_dir():
-    rooms_dir = build_pyodps_dir('rooms')
+    rooms_dir = build_pyodps_dir("rooms")
 
     return os.path.join(rooms_dir, str(sys.version_info[0]))
 
@@ -187,31 +193,55 @@ def _get_room_dir(room_name, mkdir=False):
     return room_dir
 
 
-def setup(access_id, access_key, default_project, endpoint=None, tunnel_endpoint=None,
-          default_schema=None, region_name=None, seahawks_url=None, logview_host=None,
-          room=DEFAULT_ROOM_NAME, with_options=False, **kwargs):
+def setup(
+    access_id,
+    access_key,
+    default_project,
+    endpoint=None,
+    tunnel_endpoint=None,
+    default_schema=None,
+    region_name=None,
+    seahawks_url=None,
+    logview_host=None,
+    room=DEFAULT_ROOM_NAME,
+    with_options=False,
+    **kwargs
+):
     room_dir = _get_room_dir(room, mkdir=True)
     odps_file = os.path.join(room_dir, ODPS_FILE_NAME)
 
     if with_options:
         trivial_types = (six.string_types, six.integer_types, float, type(None))
         options_dump = {
-            k: v for k, v in six.iteritems(options.dumps()) if isinstance(v, trivial_types)
+            k: v
+            for k, v in six.iteritems(options.dumps())
+            if isinstance(v, trivial_types)
         }
-        kwargs['options'] = options_dump
+        kwargs["options"] = options_dump
 
     if os.path.exists(odps_file):
         raise InteractiveError(
-            'This room(%s) has been configured before, '
-            'you can teardown it first' % room)
+            "This room(%s) has been configured before, "
+            "you can teardown it first" % room
+        )
 
-    obj = (access_id, access_key, default_project, endpoint, tunnel_endpoint,
-           seahawks_url, logview_host, default_schema, region_name, kwargs)
+    obj = (
+        access_id,
+        access_key,
+        default_project,
+        endpoint,
+        tunnel_endpoint,
+        seahawks_url,
+        logview_host,
+        default_schema,
+        region_name,
+        kwargs,
+    )
 
-    with open(odps_file, 'wb') as f:
+    with open(odps_file, "wb") as f:
         pickle.dump(obj, f, protocol=0)
 
-    with open(os.path.join(room_dir, INFO_FILE_NAME), 'wb') as f:
+    with open(os.path.join(room_dir, INFO_FILE_NAME), "wb") as f:
         f.write(to_binary(room))
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,45 +14,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .. import serializers, utils
 from .core import LazyLoad
 from .resource import Resource
-from .. import serializers, utils
 
 
 class Function(LazyLoad):
     """
     Function can be used in UDF when user writes a SQL.
     """
-    __slots__ = '_resources_objects', '_owner_changed'
 
-    _root = 'Function'
+    __slots__ = "_resources_objects", "_owner_changed"
 
-    name = serializers.XMLNodeField('Alias')
-    _owner = serializers.XMLNodeField('Owner')
-    creation_time = serializers.XMLNodeField('CreationTime', parse_callback=utils.parse_rfc822)
-    class_type = serializers.XMLNodeField('ClassType')
-    _resources = serializers.XMLNodesField('Resources', 'ResourceName')
-    is_sql_function = serializers.XMLNodeField('IsSqlFunction')
-    is_embedded_function = serializers.XMLNodeField('IsEmbeddedFunction')
-    program_language = serializers.XMLNodeField('ProgramLanguage')
-    code = serializers.XMLNodeField('Code')
-    file_name = serializers.XMLNodeField('FileName')
+    _root = "Function"
+
+    name = serializers.XMLNodeField("Alias")
+    _owner = serializers.XMLNodeField("Owner")
+    creation_time = serializers.XMLNodeField(
+        "CreationTime", parse_callback=utils.parse_rfc822
+    )
+    class_type = serializers.XMLNodeField("ClassType")
+    _resources = serializers.XMLNodesField("Resources", "ResourceName")
+    is_sql_function = serializers.XMLNodeField("IsSqlFunction")
+    is_embedded_function = serializers.XMLNodeField("IsEmbeddedFunction")
+    program_language = serializers.XMLNodeField("ProgramLanguage")
+    code = serializers.XMLNodeField("Code")
+    file_name = serializers.XMLNodeField("FileName")
 
     def __init__(self, **kwargs):
         self._resources_objects = None
         self._owner_changed = False
 
-        resources = kwargs.pop('resources', None)
-        if 'owner' in kwargs:
-            kwargs['_owner'] = kwargs.pop('owner')
+        resources = kwargs.pop("resources", None)
+        if "owner" in kwargs:
+            kwargs["_owner"] = kwargs.pop("owner")
         super(Function, self).__init__(**kwargs)
         if resources is not None:
             self.resources = resources
 
     def reload(self):
-        resp = self._client.get(
-            self.resource(), curr_schema=self._get_schema_name()
-        )
+        resp = self._client.get(self.resource(), curr_schema=self._get_schema_name())
         self.parse(self._client, resp, obj=self)
 
     @property
@@ -113,11 +114,9 @@ class Function(LazyLoad):
         params = {}
         schema_name = self._get_schema_name()
         if schema_name:
-            params['curr_schema'] = schema_name
+            params["curr_schema"] = schema_name
 
-        headers = {
-            'x-odps-owner': new_owner
-        }
+        headers = {"x-odps-owner": new_owner}
         self._client.put(
             self.resource(), None, action="updateowner", params=params, headers=headers
         )

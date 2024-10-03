@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,37 +43,38 @@ def test_counters():
     def _normalize_counter(json_str):
         obj = json.loads(json_str)
         for v in six.itervalues(obj):
-            if 'counters' not in v:
+            if "counters" not in v:
                 continue
-            v['counters'] = sorted(v['counters'], key=lambda item: item['name'])
+            v["counters"] = sorted(v["counters"], key=lambda item: item["name"])
 
         return json.dumps(obj, sort_keys=True)
 
-    result_json = '''
-            {
-              "group1" : {
-                "name" : "group1",
-                "counters" : [
-                     {
-                       "name" : "test1",
-                       "value" : 1
-                     },
-                     {
-                       "name" : "test2",
-                       "value" : 2
-                     }
-                ]},
-              "group2" : {
-                "name" : "group2",
-                "counters" : [
-                     {
-                       "name" : "test3",
-                       "value" : 3
-                     }
-                 ]
-               }
-            }
-            '''
+    result_json = """
+    {
+        "group1": {
+            "name": "group1",
+            "counters": [
+                {
+                    "name": "test1",
+                    "value": 1
+                },
+                {
+                    "name": "test2",
+                    "value": 2
+                }
+            ]
+        },
+        "group2": {
+            "name": "group2",
+            "counters": [
+                {
+                    "name": "test3",
+                    "value": 3
+                }
+            ]
+        }
+    }
+    """
 
     counters = Counters()
     c1 = counters.get_group("group1").get_counter("test1")
@@ -84,4 +85,6 @@ def test_counters():
     c3.increment(3)
 
     assert 2 == counters.size()
-    assert _normalize_counter(result_json) == _normalize_counter(counters.to_json_string())
+    assert _normalize_counter(result_json) == _normalize_counter(
+        counters.to_json_string()
+    )

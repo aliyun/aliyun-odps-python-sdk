@@ -1,5 +1,0 @@
-{
-  "packageManager": "python",
-  "packageName": "pyodps-lab-extension",
-  "uninstallInstructions": "Use your Python package manager (pip, conda, etc.) to uninstall the package pyodps-lab-extension"
-}

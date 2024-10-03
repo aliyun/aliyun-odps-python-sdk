@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ def get_cache_table(name):
     pass
 
 
-def get_cache_archive(name, relative_path='.'):
+def get_cache_archive(name, relative_path="."):
     pass
 
 
@@ -31,4 +31,3 @@ def get_cache_tabledesc(name):
 
 def get_cache_tableinfo(name):
     pass
-

@@ -1,6 +1,6 @@
 import pytest
 
-from odps.tests.core import get_config, drop_test_tables
+from odps.tests.core import drop_test_tables, get_config
 
 
 @pytest.fixture(scope="session")
@@ -42,6 +42,14 @@ def odps_with_tunnel_quota():
 
 
 @pytest.fixture(scope="session")
+def odps_with_long_string():
+    try:
+        return get_config().odps_with_long_string
+    except AttributeError:
+        pytest.skip("ODPS project with quota not defined")
+
+
+@pytest.fixture(scope="session")
 def config():
     return get_config()
 
@@ -71,6 +79,4 @@ def pytest_html_results_table_html(report, data):
 
     if report.passed:
         del data[:]
-        data.append(
-            html.div("Logs disabled for passed tests.", **{"class": "log"})
-        )
+        data.append(html.div("Logs disabled for passed tests.", **{"class": "log"}))

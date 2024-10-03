@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,12 @@ import logging
 
 from .. import serializers
 from ..compat import six
-from ..errors import InternalServerError, InvalidParameter, MethodNotAllowed, NoSuchObject
+from ..errors import (
+    InternalServerError,
+    InvalidParameter,
+    MethodNotAllowed,
+    NoSuchObject,
+)
 from ..utils import with_wait_argument
 from .core import Iterable
 from .schema import Schema
@@ -61,13 +66,14 @@ def with_schema_api_fallback(fallback_fun, is_iter=False):
                 yield item
 
         return iter_wrapper if is_iter else wrapper
+
     return decorator
 
 
 class Schemas(Iterable):
-    marker = serializers.XMLNodeField('Marker')
-    max_items = serializers.XMLNodeField('MaxItems')
-    schemas = serializers.XMLNodesReferencesField(Schema, 'Schema')
+    marker = serializers.XMLNodeField("Marker")
+    max_items = serializers.XMLNodeField("MaxItems")
+    schemas = serializers.XMLNodesReferencesField(Schema, "Schema")
 
     def __iter__(self):
         return self.iterate()
@@ -86,32 +92,33 @@ class Schemas(Iterable):
                 "Iterating schemas with name or owner not supported on current service"
             )
         inst = self.parent.odps.execute_sql("SHOW SCHEMAS IN %s" % self.parent.name)
-        schema_names = inst.get_task_results().get("AnonymousSQLTask").strip().split("\n")
+        schema_names = (
+            inst.get_task_results().get("AnonymousSQLTask").strip().split("\n")
+        )
         for schema_name in schema_names:
             yield Schema(name=schema_name, parent=self, client=self._client)
 
     @with_schema_api_fallback(fallback_fun=_iterate_legacy, is_iter=True)
     def iterate(self, name=None, owner=None):
-        params = {'expectmarker': 'true'}
+        params = {"expectmarker": "true"}
         if name is not None:
-            params['name'] = name
+            params["name"] = name
         if owner is not None:
-            params['owner'] = owner
+            params["owner"] = owner
         schema_name = self._get_schema_name()
         if schema_name is not None:
-            params['curr_schema'] = schema_name
+            params["curr_schema"] = schema_name
 
         def _it():
-            last_marker = params.get('marker')
-            if 'marker' in params and \
-                (last_marker is None or len(last_marker) == 0):
+            last_marker = params.get("marker")
+            if "marker" in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource() + "/schemas"
             resp = self._client.get(url, params=params)
 
             r = Schemas.parse(self._client, resp, obj=self)
-            params['marker'] = r.marker
+            params["marker"] = r.marker
 
             return r.schemas
 
@@ -150,7 +157,7 @@ class Schemas(Iterable):
         if schema._client is None:
             schema._client = self._client
 
-        headers = {'Content-Type': 'application/xml'}
+        headers = {"Content-Type": "application/xml"}
         data = schema.serialize()
 
         resource = self.resource() + "/schemas"

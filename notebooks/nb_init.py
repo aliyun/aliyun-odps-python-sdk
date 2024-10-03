@@ -18,6 +18,7 @@ You can edit your ipython_config.py to detect and add this file to
  exec_lines to help create pre-defined objects.
 """
 import sys
+
 from six.moves.configparser import ConfigParser
 
 sys.path.append('../')

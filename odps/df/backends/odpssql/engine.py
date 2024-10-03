@@ -91,6 +91,21 @@ class SQLExecuteNode(ExecuteNode):
         return buf.getvalue()
 
 
+def get_supported_python_tag(align=None):
+    # todo remove this when next releases are published
+    if align is None:
+        align = options.align_supported_python_tag
+    if align:
+        if sys.version_info[:2] >= (3, 11):
+            return "cp311"
+        elif sys.version_info[:2] >= (3, 6):
+            return "cp37"
+        else:
+            return "cp27"
+    else:
+        return "cp" + str(sys.version_info[0]) + str(sys.version_info[1])
+
+
 class ODPSSQLEngine(Engine):
     def __init__(self, odps):
         self._odps = odps
@@ -143,10 +158,7 @@ class ODPSSQLEngine(Engine):
         hints = hints or dict()
         if self._ctx.get_udf_count() > 0 and sys.version_info[:2] >= (3, 6):
             hints['odps.sql.jobconf.odps2'] = True
-            if sys.version_info[:2] >= (3, 11):
-                hints['odps.sql.python.version'] = 'cp311'
-            else:
-                hints['odps.sql.python.version'] = 'cp37'
+            hints['odps.sql.python.version'] = get_supported_python_tag()
         image = image or options.df.image
         if image:
             hints['odps.session.image'] = image

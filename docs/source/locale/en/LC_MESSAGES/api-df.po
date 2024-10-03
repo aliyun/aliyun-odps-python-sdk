@@ -15,7 +15,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/api-df.rst:4
 msgid "DataFrame Reference"
@@ -549,9 +549,9 @@ msgstr ""
 
 #: odps.df.expr.collections.dropna:4 of
 msgid ""
-"can be ‘any’ or ‘all’. If 'any' is specified any NA values are present, "
-"drop that label. If 'all' is specified and all values are NA, drop that "
-"label."
+"can be ‘any’ or ‘all’. If 'any' is specified any NA values are "
+"present, drop that label. If 'all' is specified and all values are NA, "
+"drop that label."
 msgstr ""
 
 #: odps.df.expr.collections.dropna:5 of
@@ -928,10 +928,10 @@ msgstr ""
 #: odps.df.expr.collections.melt:3 of
 msgid ""
 "This function is useful to massage a DataFrame into a format where one or"
-" more columns are identifier variables (id_vars), while all other "
-"columns, considered measured variables (value_vars), are “unpivoted” to "
-"the row axis, leaving just two non-identifier columns, ‘variable’ and "
-"‘value’."
+" more columns are identifier variables (id_vars), while all other columns"
+", considered measured variables (value_vars), are “unpivoted” to the "
+"row axis, leaving just two non-identifier columns, ‘variable’ and ‘"
+"value’."
 msgstr ""
 
 #: odps.df.expr.collections.melt:8 of
@@ -946,8 +946,8 @@ msgstr ""
 
 #: odps.df.expr.collections.melt:10 of
 msgid ""
-"name to use for the ‘variable’ column. If None it uses frame.columns.name"
-" or ‘variable’."
+"name to use for the ‘variable’ column. If None it uses frame.columns."
+"name or ‘variable’."
 msgstr ""
 
 #: odps.df.expr.collections.melt:11 of
@@ -1079,8 +1079,8 @@ msgstr ""
 
 #: odps.df.expr.collections.pivot:1 of
 msgid ""
-"Produce ‘pivot’ table based on 3 columns of this DataFrame. Uses unique "
-"values from rows / columns and fills with values."
+"Produce ‘pivot’ table based on 3 columns of this DataFrame. Uses unique"
+" values from rows / columns and fills with values."
 msgstr ""
 
 #: odps.df.expr.collections.pivot:5 of

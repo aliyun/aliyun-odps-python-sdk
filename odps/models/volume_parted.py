@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,17 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .core import LazyLoad, Iterable, XMLRemoteModel
-from .. import serializers, errors, utils
-from ..compat import six, Enum
-from .volumes import Volume
+from .. import errors, serializers, utils
+from ..compat import Enum, six
 from .cache import cache_parent
+from .core import Iterable, LazyLoad, XMLRemoteModel
+from .volumes import Volume
 
 
 class VolumeFile(serializers.XMLSerializableModel):
-    _root = 'VolumeFileModel'
+    _root = "VolumeFileModel"
 
-    name = serializers.XMLNodeField('Name')
+    name = serializers.XMLNodeField("Name")
 
     @property
     def partition(self):
@@ -43,12 +43,22 @@ class VolumeFile(serializers.XMLSerializableModel):
 
     @property
     def path(self):
-        return '/'.join((self.project.name, 'volumes', self.volume.name, self.partition.name, self.name))
+        return "/".join(
+            (
+                self.project.name,
+                "volumes",
+                self.volume.name,
+                self.partition.name,
+                self.name,
+            )
+        )
 
 
 class VolumePartitionMeta(XMLRemoteModel):
-    length = serializers.XMLNodeField('Length', parse_callback=int, set_to_parent=True)
-    file_number = serializers.XMLNodeField('FileNumber', parse_callback=int, set_to_parent=True)
+    length = serializers.XMLNodeField("Length", parse_callback=int, set_to_parent=True)
+    file_number = serializers.XMLNodeField(
+        "FileNumber", parse_callback=int, set_to_parent=True
+    )
 
     def load(self):
         url = self._parent.resource()
@@ -58,7 +68,7 @@ class VolumePartitionMeta(XMLRemoteModel):
         if schema_name is not None:
             params["curr_schema"] = schema_name
 
-        resp = self._client.get(url, action='meta', params=params)
+        resp = self._client.get(url, action="meta", params=params)
         self.parse(self._client, resp, obj=self)
 
 
@@ -66,26 +76,32 @@ class VolumePartition(LazyLoad):
     """
     Represents a partition in a volume.
     """
-    __slots__ = '_volume_tunnel', '_id_thread_local', \
-                'length', 'file_number'  # meta
+
+    __slots__ = "_volume_tunnel", "_id_thread_local", "length", "file_number"  # meta
 
     class Type(Enum):
-        NEW = 'NEW'
-        OLD = 'OLD'
+        NEW = "NEW"
+        OLD = "OLD"
 
-    _root = 'Meta'
-    _type_indicator = 'type'
+    _root = "Meta"
+    _type_indicator = "type"
 
-    name = serializers.XMLNodeField('Name')
-    owner = serializers.XMLNodeField('Owner')
-    type = serializers.XMLNodeField('Type', parse_callback=lambda t: VolumePartition.Type(t.upper()))
-    comment = serializers.XMLNodeField('Comment')
-    creation_time = serializers.XMLNodeField('CreationTime', parse_callback=utils.parse_rfc822)
-    last_modified_time = serializers.XMLNodeField('LastModifiedTime', parse_callback=utils.parse_rfc822)
-    meta = serializers.XMLNodeReferenceField(VolumePartitionMeta, 'Meta')
+    name = serializers.XMLNodeField("Name")
+    owner = serializers.XMLNodeField("Owner")
+    type = serializers.XMLNodeField(
+        "Type", parse_callback=lambda t: VolumePartition.Type(t.upper())
+    )
+    comment = serializers.XMLNodeField("Comment")
+    creation_time = serializers.XMLNodeField(
+        "CreationTime", parse_callback=utils.parse_rfc822
+    )
+    last_modified_time = serializers.XMLNodeField(
+        "LastModifiedTime", parse_callback=utils.parse_rfc822
+    )
+    meta = serializers.XMLNodeReferenceField(VolumePartitionMeta, "Meta")
 
-    _download_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
-    _upload_id = utils.thread_local_attribute('_id_thread_local', lambda: None)
+    _download_id = utils.thread_local_attribute("_id_thread_local", lambda: None)
+    _upload_id = utils.thread_local_attribute("_id_thread_local", lambda: None)
 
     def __init__(self, **kwargs):
         super(VolumePartition, self).__init__(**kwargs)
@@ -109,19 +125,19 @@ class VolumePartition(LazyLoad):
 
     def __getattribute__(self, attr):
         val = object.__getattribute__(self, attr)
-        if val is None and attr in getattr(VolumePartitionMeta, '__fields'):
+        if val is None and attr in getattr(VolumePartitionMeta, "__fields"):
             self.meta.load()
             return object.__getattribute__(self, attr)
 
         return super(VolumePartition, self).__getattribute__(attr)
 
     class VolumeFiles(serializers.XMLSerializableModel):
-        _root = 'Items'
+        _root = "Items"
         skip_null = False
 
-        marker = serializers.XMLNodeField('Marker')
-        files = serializers.XMLNodesReferencesField(VolumeFile, 'Item')
-        max_items = serializers.XMLNodeField('MaxItems', parse_callback=int)
+        marker = serializers.XMLNodeField("Marker")
+        files = serializers.XMLNodesReferencesField(VolumeFile, "Item")
+        max_items = serializers.XMLNodeField("MaxItems", parse_callback=int)
 
         def __getitem__(self, item):
             for f in self.iterate(name=item):
@@ -143,27 +159,28 @@ class VolumePartition(LazyLoad):
             :param name: the prefix of volume name name
             :return:
             """
-            params = {'expectmarker': 'true', 'path': ''}
+            params = {"expectmarker": "true", "path": ""}
             if name is not None:
-                params['name'] = name
+                params["name"] = name
             if max_items is not None:
-                params['maxitems'] = max_items
+                params["maxitems"] = max_items
 
             schema_name = self.parent._get_schema_name()
             if schema_name is not None:
                 params["curr_schema"] = schema_name
 
             def _it():
-                last_marker = params.get('marker')
-                if 'marker' in params and \
-                        (last_marker is None or len(last_marker) == 0):
+                last_marker = params.get("marker")
+                if "marker" in params and (
+                    last_marker is None or len(last_marker) == 0
+                ):
                     return
 
                 url = self.parent.resource()
                 resp = self.parent._client.get(url, params=params)
 
                 v = self.parse(resp, obj=self, parent=self.parent)
-                params['marker'] = v.marker
+                params["marker"] = v.marker
 
                 return v.files
 
@@ -202,7 +219,14 @@ class VolumePartition(LazyLoad):
         return self._volume_tunnel
 
     def open_reader(
-        self, file_name, reopen=False, endpoint=None, start=None, length=None, quota_name=None, **kwargs
+        self,
+        file_name,
+        reopen=False,
+        endpoint=None,
+        start=None,
+        length=None,
+        quota_name=None,
+        **kwargs
     ):
         """
         Open a volume file for read. A file-like object will be returned which can be used to read contents from
@@ -224,16 +248,19 @@ class VolumePartition(LazyLoad):
         tunnel = self._create_volume_tunnel(endpoint=endpoint, quota_name=quota_name)
         download_id = self._download_id if reopen else None
         download_session = tunnel.create_download_session(
-            volume=self.volume.name, partition_spec=self.name,
-            file_name=file_name, download_id=download_id, **kwargs
+            volume=self.volume.name,
+            partition_spec=self.name,
+            file_name=file_name,
+            download_id=download_id,
+            **kwargs
         )
         self._download_id = download_session.id
 
         open_args = {}
         if start is not None:
-            open_args['start'] = start
+            open_args["start"] = start
         if length is not None:
-            open_args['length'] = length
+            open_args["length"] = length
         return download_session.open(**open_args)
 
     def open_writer(self, reopen=False, endpoint=None, quota_name=None, **kwargs):
@@ -254,8 +281,10 @@ class VolumePartition(LazyLoad):
         tunnel = self._create_volume_tunnel(endpoint=endpoint, quota_name=quota_name)
         upload_id = self._upload_id if reopen else None
         upload_session = tunnel.create_upload_session(
-            volume=self.volume.name, partition_spec=self.name,
-            upload_id=upload_id, **kwargs
+            volume=self.volume.name,
+            partition_spec=self.name,
+            upload_id=upload_id,
+            **kwargs
         )
         self._upload_id = upload_session.id
         file_dict = dict()
@@ -299,14 +328,15 @@ class PartedVolume(Volume):
     """
     PartedVolume represents the old-fashioned partitioned volume in ODPS.
     """
-    class Partitions(Iterable):
-        _root = 'Volume'
 
-        marker = serializers.XMLNodeField('Marker')
+    class Partitions(Iterable):
+        _root = "Volume"
+
+        marker = serializers.XMLNodeField("Marker")
         partitions = serializers.XMLNodesReferencesField(
-            VolumePartition, 'Partitions', 'Partition'
+            VolumePartition, "Partitions", "Partition"
         )
-        max_items = serializers.XMLNodeField('MaxItems', parse_callback=int)
+        max_items = serializers.XMLNodeField("MaxItems", parse_callback=int)
 
         def _get(self, item):
             return VolumePartition(client=self._client, parent=self.parent, name=item)
@@ -334,27 +364,28 @@ class PartedVolume(Volume):
             :param owner:
             :return:
             """
-            params = {'expectmarker': 'true'}
+            params = {"expectmarker": "true"}
             if name is not None:
-                params['name'] = name
+                params["name"] = name
             if owner is not None:
-                params['owner'] = owner
+                params["owner"] = owner
 
             schema_name = self.parent._get_schema_name()
             if schema_name is not None:
                 params["curr_schema"] = schema_name
 
             def _it():
-                last_marker = params.get('marker')
-                if 'marker' in params and \
-                        (last_marker is None or len(last_marker) == 0):
+                last_marker = params.get("marker")
+                if "marker" in params and (
+                    last_marker is None or len(last_marker) == 0
+                ):
                     return
 
                 url = self.parent.resource()
                 resp = self._client.get(url, params=params)
 
                 v = PartedVolume.Partitions.parse(self._client, resp, obj=self)
-                params['marker'] = v.marker
+                params["marker"] = v.marker
 
                 return v.partitions
 
@@ -414,7 +445,9 @@ class PartedVolume(Volume):
         """
         return self.partitions.delete(name)
 
-    def open_reader(self, partition, file_name, endpoint=None, start=None, length=None, **kwargs):
+    def open_reader(
+        self, partition, file_name, endpoint=None, start=None, length=None, **kwargs
+    ):
         """
         Open a volume file for read. A file-like object will be returned which can be used to read contents from
         volume files.
@@ -431,8 +464,9 @@ class PartedVolume(Volume):
         >>> with volume.open_reader('part', 'file') as reader:
         >>>     [print(line) for line in reader]
         """
-        return self.partitions[partition].open_reader(file_name, endpoint=endpoint, start=start, length=length,
-                                                      **kwargs)
+        return self.partitions[partition].open_reader(
+            file_name, endpoint=endpoint, start=start, length=length, **kwargs
+        )
 
     def open_writer(self, partition, endpoint=None, **kwargs):
         """

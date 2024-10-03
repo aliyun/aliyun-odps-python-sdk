@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,21 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from odps.udf import (annotate, BaseUDAF, BaseUDTF)
+from odps.udf import BaseUDAF, BaseUDTF, annotate
 
 
-@annotate(' bigint, bigint -> bigint ')
+@annotate(" bigint, bigint -> bigint ")
 class Plus(object):
-
     def evaluate(self, a, b):
         if None in (a, b):
             return None
         return a + b
 
 
-@annotate('bigint->double')
-class Avg(BaseUDAF):
+@annotate(" * -> string ")
+class CatStrings(object):
+    def evaluate(self, *args):
+        if None in args:
+            return None
+        return "".join(str(x) for x in args)
 
+
+@annotate(" array<string>, array<bigint> -> map<string, bigint> ")
+class ZipArray(object):
+    def evaluate(self, a, b):
+        if None in (a, b):
+            return None
+        return dict(zip(a, b))
+
+
+@annotate("bigint->double")
+class Avg(BaseUDAF):
     def new_buffer(self):
         return [0, 0]
 
@@ -45,35 +59,32 @@ class Avg(BaseUDAF):
         return float(buffer[0]) / buffer[1]
 
 
-@annotate('string -> string')
+@annotate("string -> string")
 class Explode(BaseUDTF):
-
     def process(self, arg):
         if arg is None:
             return
-        props = arg.split('|')
+        props = arg.split("|")
         for p in props:
             self.forward(p)
 
     def close(self):
-        self.forward('ok')
+        self.forward("ok")
 
 
-@annotate('*-> string')
+@annotate("*-> string")
 class Star(BaseUDTF):
-
     def process(self, *args):
         [self.forward(arg) for arg in args]
 
     def close(self):
-        self.forward('ok')
+        self.forward("ok")
 
 
-@annotate('-> string')
+@annotate("-> string")
 class Empty(BaseUDTF):
-
     def process(self):
         self.forward("empty")
 
     def close(self):
-        self.forward('ok')
+        self.forward("ok")

@@ -14,12 +14,13 @@
 
 import logging
 import sys
-import time
 import threading
+import time
 
 import pytest
 
 from odps.apis.storage_api.conftest import storage_api_client  # noqa: F401
+
 if sys.version_info[0] == 3:
     from odps.apis.storage_api import *
 else:
@@ -87,7 +88,10 @@ def test_read_thread(storage_api_client):
     global global_total_record
     read_performance_threads = []
     for i in range(0, thread_num):
-        read_performance_thread = threading.Thread(target=read_performance, args=[storage_api_client,])
+        read_performance_thread = threading.Thread(
+            target=read_performance,
+            args=[storage_api_client],
+        )
         read_performance_threads.append(read_performance_thread)
 
     start = time.time()
@@ -104,7 +108,10 @@ def test_read_thread(storage_api_client):
         time.sleep(1)
         now = time.time()
         now_count = global_total_record
-        logger.info("index: %d, read, %f records per second" % (count, (now_count - start_count) / (now - start)))
+        logger.info(
+            "index: %d, read, %f records per second"
+            % (count, (now_count - start_count) / (now - start))
+        )
 
         if judge and cal_count < 5:
             cal_total_count += (now_count - start_count) / (now - start)

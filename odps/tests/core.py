@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,35 +31,28 @@ except ImportError:
     _raw_flaky = None
 
 from .. import compat, errors, options, utils
-from ..compat import six, ConfigParser
+from ..compat import ConfigParser, six
 
-LOCK_FILE_NAME = os.path.join(tempfile.gettempdir(), 'pyodps_test_lock_')
+LOCK_FILE_NAME = os.path.join(tempfile.gettempdir(), "pyodps_test_lock_")
 
 LOGGING_CONFIG = {
-    'version': 1,
+    "version": 1,
     "filters": {
-        "odps": {
-            "name": "odps"
-        },
+        "odps": {"name": "odps"},
     },
     "formatters": {
-        "msgonly": {
-            "format": "%(message)s"
-        },
+        "msgonly": {"format": "%(message)s"},
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "level": 'INFO',
+            "level": "INFO",
             "formatter": "msgonly",
-            "filters": ["odps",],
+            "filters": ["odps"],
         },
     },
-    "root": {
-        "level": "NOTSET",
-        "handlers": ["console"]
-    },
-    "disable_existing_loggers": False
+    "root": {"level": "NOTSET", "handlers": ["console"]},
+    "disable_existing_loggers": False,
 }
 
 
@@ -113,8 +106,12 @@ def _load_config_odps(config, section_name, overwrite_global=True):
         attr_name = section_name
 
     odps_entry = ODPS(
-        access_id, secret_access_key, project, endpoint,
-        schema=schema, tunnel_endpoint=tunnel_endpoint,
+        access_id,
+        secret_access_key,
+        project,
+        endpoint,
+        schema=schema,
+        tunnel_endpoint=tunnel_endpoint,
         seahawks_url=seahawks_url,
         overwrite_global=overwrite_global,
     )
@@ -129,10 +126,10 @@ def get_config():
     if not Config.config:
         config = ConfigParser.ConfigParser()
         Config.config = config
-        config_path = os.path.join(os.path.dirname(__file__), 'test.conf')
+        config_path = os.path.join(os.path.dirname(__file__), "test.conf")
         if not os.path.exists(config_path):
             raise OSError(
-                'Please configure test.conf (you can rename test.conf.template)'
+                "Please configure test.conf (you can rename test.conf.template)"
             )
         config.read(config_path)
 
@@ -140,6 +137,7 @@ def get_config():
         _load_config_odps(config, "odps_with_storage_tier", overwrite_global=False)
         _load_config_odps(config, "odps_with_schema", overwrite_global=False)
         _load_config_odps(config, "odps_with_tunnel_quota", overwrite_global=False)
+        _load_config_odps(config, "odps_with_long_string", overwrite_global=False)
         # make sure main config overrides other configs
         _load_config_odps(config, "odps")
         config.tunnel = TableTunnel(config.odps, endpoint=config.odps._tunnel_endpoint)
@@ -158,7 +156,10 @@ def get_config():
             oss_endpoint = config.get("oss", "endpoint")
 
             config.oss_config = (
-                oss_access_id, oss_secret_access_key, oss_bucket_name, oss_endpoint
+                oss_access_id,
+                oss_secret_access_key,
+                oss_bucket_name,
+                oss_endpoint,
             )
 
             import oss2
@@ -168,8 +169,8 @@ def get_config():
         except (ConfigParser.NoSectionError, ConfigParser.NoOptionError, ImportError):
             pass
 
-        logging_level = config.get('test', 'logging_level')
-        LOGGING_CONFIG['handlers']['console']['level'] = logging_level
+        logging_level = config.get("test", "logging_level")
+        LOGGING_CONFIG["handlers"]["console"]["level"] = logging_level
     else:
         config = Config.config
 
@@ -182,10 +183,10 @@ _test_tables_lock = threading.RLock()
 
 
 def tn(s, limit=128):
-    if os.environ.get('TEST_NAME_SUFFIX') is not None:
-        suffix = '_' + os.environ.get('TEST_NAME_SUFFIX').lower()
+    if os.environ.get("TEST_NAME_SUFFIX") is not None:
+        suffix = "_" + os.environ.get("TEST_NAME_SUFFIX").lower()
         if len(s) + len(suffix) > limit:
-            s = s[:limit - len(suffix)]
+            s = s[: limit - len(suffix)]
         table_name = s + suffix
         with _test_tables_lock:
             _test_tables_to_drop.add(table_name)
@@ -207,15 +208,16 @@ def drop_test_tables(odps):
 
 
 def in_coverage_mode():
-    return 'COVERAGE_FILE' in os.environ or 'unittest' in sys.argv[0]
+    return "COVERAGE_FILE" in os.environ or "unittest" in sys.argv[0]
 
 
 def start_coverage():
     if not in_coverage_mode():
         return
-    os.environ['COVERAGE_PROCESS_START'] = ''
+    os.environ["COVERAGE_PROCESS_START"] = ""
     try:
         import coverage
+
         coverage.process_startup()
     except ImportError:
         pass
@@ -239,6 +241,7 @@ def flaky(o=None, *args, **kwargs):
 
 def ignore_case(case, reason):
     if isinstance(case, types.FunctionType) and not case.__name__.startswith("test"):
+
         @six.wraps(case)
         def wrapped(*args, **kwargs):
             pytest.skip(reason)
@@ -251,15 +254,15 @@ def ignore_case(case, reason):
 
 
 def ci_skip_case(obj):
-    if 'CI_MODE' in os.environ:
-        return ignore_case(obj, 'Intentionally skipped in CI mode.')
+    if "CI_MODE" in os.environ:
+        return ignore_case(obj, "Intentionally skipped in CI mode.")
     else:
         return obj
 
 
 def module_depend_case(mod_names):
     if isinstance(mod_names, six.string_types):
-        mod_names = [mod_names, ]
+        mod_names = [mod_names]
 
     def _decorator(obj):
         for mod_name in mod_names:
@@ -267,29 +270,31 @@ def module_depend_case(mod_names):
             if sys.version_info[0] == 2 and mod_name in sys.modules:
                 continue
             try:
-                __import__(mod_name, fromlist=[''])
+                __import__(mod_name, fromlist=[""])
             except ImportError:
-                return ignore_case(obj, 'Skipped due to absence of %s.' % mod_name)
+                return ignore_case(obj, "Skipped due to absence of %s." % mod_name)
         return obj
+
     return _decorator
 
 
-numpy_case = module_depend_case('numpy')
-pandas_case = module_depend_case('pandas')
-pyarrow_case = module_depend_case('pyarrow')
-sqlalchemy_case = module_depend_case('sqlalchemy')
+numpy_case = module_depend_case("numpy")
+pandas_case = module_depend_case("pandas")
+pyarrow_case = module_depend_case("pyarrow")
+sqlalchemy_case = module_depend_case("sqlalchemy")
 
 
 def odps2_typed_case(func):
     @six.wraps(func)
     def _wrapped(*args, **kwargs):
         from odps import options
+
         options.sql.use_odps2_extension = True
 
         old_settings = options.sql.settings
         options.sql.settings = old_settings or {}
-        options.sql.settings.update({'odps.sql.hive.compatible': True})
-        options.sql.settings.update({'odps.sql.decimal.odps2': True})
+        options.sql.settings.update({"odps.sql.hive.compatible": True})
+        options.sql.settings.update({"odps.sql.decimal.odps2": True})
         try:
             func(*args, **kwargs)
         finally:
@@ -300,18 +305,24 @@ def odps2_typed_case(func):
 
 
 def global_locked(lock_key):
-
     def _decorator(func):
         if callable(lock_key):
-            file_name = LOCK_FILE_NAME + '_' + func.__module__.replace('.', '__') + '__' + func.__name__ + '.lck'
+            file_name = (
+                LOCK_FILE_NAME
+                + "_"
+                + func.__module__.replace(".", "__")
+                + "__"
+                + func.__name__
+                + ".lck"
+            )
         else:
-            file_name = LOCK_FILE_NAME + '_' + lock_key + '.lck'
+            file_name = LOCK_FILE_NAME + "_" + lock_key + ".lck"
 
         @six.wraps(func)
         def _decorated(*args, **kwargs):
             while os.path.exists(file_name):
                 time.sleep(0.5)
-            open(file_name, 'w').close()
+            open(file_name, "w").close()
             try:
                 return func(*args, **kwargs)
             finally:
@@ -342,14 +353,12 @@ def wait_filled(container_fun, countdown=10):
         time.sleep(1)
         countdown -= 1
         if countdown <= 0:
-            raise SystemError('Waiting for container content time out.')
+            raise SystemError("Waiting for container content time out.")
 
 
 def run_sub_tests_in_parallel(n_parallel, sub_tests):
     test_pool = compat.futures.ThreadPoolExecutor(n_parallel)
-    futures = [
-        test_pool.submit(sub_test) for idx, sub_test in enumerate(sub_tests)
-    ]
+    futures = [test_pool.submit(sub_test) for idx, sub_test in enumerate(sub_tests)]
     try:
         first_exc = None
         for fut in futures:
@@ -387,11 +396,12 @@ def force_drop_schema(schema):
 
 def get_result(res):
     from odps.df.backends.frame import ResultFrame
+
     if isinstance(res, ResultFrame):
         res = res.values
     try:
-        import pandas as pd
         import numpy as np
+        import pandas as pd
     except (ImportError, ValueError):
         np = pd = None
 
@@ -421,6 +431,7 @@ def get_result(res):
 
 def get_code_mode():
     from odps import crc as _crc
+
     if hasattr(_crc.Crc32c, "_method"):
         return _crc.Crc32c._method
     else:
@@ -435,7 +446,8 @@ def py_and_c(modules=None, reloader=None):
         modules.append("odps.crc")
 
     try:
-        import cython
+        import cython  # noqa: F401
+
         has_cython = True
     except ImportError:
         has_cython = False
@@ -445,10 +457,10 @@ def py_and_c(modules=None, reloader=None):
         if impl == "c" and not has_cython:
             pytest.skip("Must install cython to run this test.")
 
-        old_config = getattr(options, 'force_{0}'.format(impl))
-        setattr(options, 'force_{0}'.format(impl), True)
+        old_config = getattr(options, "force_{0}".format(impl))
+        setattr(options, "force_{0}".format(impl), True)
 
-        for mod_name in (modules or []):
+        for mod_name in modules or []:
             mod = importlib.import_module(mod_name)
             compat.reload_module(mod)
 
@@ -460,12 +472,12 @@ def py_and_c(modules=None, reloader=None):
         try:
             yield
         finally:
-            setattr(options, 'force_{0}'.format(impl), old_config)
+            setattr(options, "force_{0}".format(impl), old_config)
 
     mod_reloader.__name__ = fixture_name
 
     def wrap_fun(fun):
-        func_mod = __import__(fun.__module__, fromlist=[''])
+        func_mod = __import__(fun.__module__, fromlist=[""])
         if not hasattr(func_mod, fixture_name):
             setattr(func_mod, fixture_name, mod_reloader)
 

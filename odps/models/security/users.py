@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,23 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..core import Iterable, LazyLoad
+from ... import errors, serializers
 from ...compat import six
-from ... import serializers, errors
+from ..core import Iterable, LazyLoad
 
 
 class User(LazyLoad):
-    id = serializers.XMLNodeField('ID')
-    display_name = serializers.XMLNodeField('DisplayName')
-    comment = serializers.XMLNodeField('Comment')
+    id = serializers.XMLNodeField("ID")
+    display_name = serializers.XMLNodeField("DisplayName")
+    comment = serializers.XMLNodeField("Comment")
 
     def _name(self):
         return self.id
 
     def reload(self):
-        if self._getattr('id') is None:
-            resp = self._client.get(self.parent.resource() + '/' + self._encode(self.display_name),
-                                    params=dict(type='displayname'))
+        if self._getattr("id") is None:
+            resp = self._client.get(
+                self.parent.resource() + "/" + self._encode(self.display_name),
+                params=dict(type="displayname"),
+            )
             self.parse(self._client, resp, obj=self)
         else:
             resp = self._client.get(self.resource())
@@ -39,7 +41,8 @@ class User(LazyLoad):
     @property
     def roles(self):
         from .roles import Roles
-        params = dict(roles='', type='displayname')
+
+        params = dict(roles="", type="displayname")
         resp = self._client.get(self.resource(), params=params)
         roles = Roles.parse(self._client, resp, parent=self.project)
         roles._iter_local = True
@@ -47,20 +50,22 @@ class User(LazyLoad):
 
     def grant_role(self, name):
         from .roles import Role
+
         if isinstance(name, Role):
             name = name.name
-        self.project.run_security_query('grant %s to %s' % (name, self.display_name))
+        self.project.run_security_query("grant %s to %s" % (name, self.display_name))
 
     def revoke_role(self, name):
         from .roles import Role
+
         if isinstance(name, Role):
             name = name.name
-        self.project.run_security_query('revoke %s from %s' % (name, self.display_name))
+        self.project.run_security_query("revoke %s from %s" % (name, self.display_name))
 
 
 class Users(Iterable):
-    __slots__ = '_iter_local',
-    users = serializers.XMLNodesReferencesField(User, 'User')
+    __slots__ = ("_iter_local",)
+    users = serializers.XMLNodesReferencesField(User, "User")
 
     def __init__(self, **kw):
         self._iter_local = False
@@ -94,7 +99,7 @@ class Users(Iterable):
         return self.parent
 
     def create(self, name):
-        self.project.run_security_query('add user %s' % name)
+        self.project.run_security_query("add user %s" % name)
         return User(client=self._client, parent=self, display_name=name)
 
     def iterate(self):
@@ -115,4 +120,4 @@ class Users(Iterable):
         if isinstance(name, User):
             name = name.display_name
 
-        self.project.run_security_query('remove user %s' % name)
+        self.project.run_security_query("remove user %s" % name)

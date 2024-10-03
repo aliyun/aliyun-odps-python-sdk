@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,26 +13,30 @@
 # limitations under the License.
 
 cimport cython
+
 import sys
 import threading
 import time
+
 from cpython.datetime cimport (
     PyDateTime_DateTime,
     datetime,
-    datetime_year,
-    datetime_month,
     datetime_day,
     datetime_hour,
-    datetime_minute,
-    datetime_second,
     datetime_microsecond,
+    datetime_minute,
+    datetime_month,
     datetime_new,
-    timedelta_new,
+    datetime_second,
+    datetime_year,
     import_datetime,
+    timedelta_new,
 )
+
 from datetime import datetime
+
 from libc.stdint cimport int64_t
-from libc.time cimport time_t, tm, mktime, localtime, gmtime
+from libc.time cimport gmtime, localtime, mktime, time_t, tm
 
 try:
     import zoneinfo
@@ -45,6 +49,7 @@ except ImportError:
 
 from ..compat import utc
 from ..config import options
+
 
 cdef extern from "timegm.c":
     time_t timegm(tm* t) nogil
@@ -75,11 +80,15 @@ except OverflowError:
 _min_datetime_mills = int(
     (datetime.min - datetime.utcfromtimestamp(0)).total_seconds() * 1000
 )
-_antique_errmsg = 'Date older than 1928/01/01 and may contain errors. ' \
-                  'Ignore this error by configuring `options.allow_antique_date` to True.'
-_min_datetime_errmsg = 'Date exceed range Python can handle. If you are reading data with tunnel, read '\
-                       'the value as None by setting options.tunnel.overflow_date_as_none to True, ' \
-                       'or convert the value into strings with SQL before processing them with Python.'
+_antique_errmsg = (
+    "Date older than 1928/01/01 and may contain errors. "
+    "Ignore this error by configuring `options.allow_antique_date` to True."
+)
+_min_datetime_errmsg = (
+    "Date exceed range Python can handle. If you are reading data with tunnel, read "
+    "the value as None by setting options.tunnel.overflow_date_as_none to True, "
+    "or convert the value into strings with SQL before processing them with Python."
+)
 
 cdef inline bint datetime_hastzinfo(object o):
     return (<PyDateTime_DateTime*>o).hastzinfo
@@ -90,7 +99,9 @@ cdef class CMillisecondsConverter:
     def _get_tz(tz):
         if type(tz) is unicode or type(tz) is bytes:
             if pytz is None and zoneinfo is None:
-                raise ImportError('Package `pytz` is needed when specifying string-format time zone.')
+                raise ImportError(
+                    "Package `pytz` is needed when specifying string-format time zone."
+                )
             else:
                 return zoneinfo.ZoneInfo(tz) if zoneinfo is not None else pytz.timezone(tz)
         else:
@@ -116,7 +127,7 @@ cdef class CMillisecondsConverter:
         self._is_dst = is_dst
 
         self._tz = self._get_tz(self._local_tz) if not self._use_default_tz else None
-        self._tz_has_localize = hasattr(self._tz, 'localize')
+        self._tz_has_localize = hasattr(self._tz, "localize")
 
     cdef int _build_tm_struct(self, datetime dt, tm *p_tm) except? -1:
         p_tm.tm_year = datetime_year(dt) - 1900

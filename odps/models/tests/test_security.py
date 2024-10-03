@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ import pytest
 
 from ...config import options
 from ...errors import NoSuchObject, ODPSError, SecurityQueryError
-from ...tests.core import tn, global_locked
+from ...tests.core import global_locked, tn
 
-TEST_ROLE_NAME = tn('test_role_name')
+TEST_ROLE_NAME = tn("test_role_name")
 
 TEST_PROJECT_POLICY_STRING = """
 {
@@ -122,7 +122,9 @@ def test_project_methods(project):
     assert cur_user.id is not None and cur_user.display_name is not None
 
     old_policy = project.policy
-    policy_json = json.loads(TEST_PROJECT_POLICY_STRING.replace('#project#', project.name))
+    policy_json = json.loads(
+        TEST_PROJECT_POLICY_STRING.replace("#project#", project.name)
+    )
     project.policy = policy_json
     project.reload()
     assert json.dumps(project.policy) == json.dumps(policy_json)
@@ -152,9 +154,9 @@ def test_roles(odps, project):
     assert TEST_ROLE_NAME in [r.name for r in project.roles]
     assert TEST_ROLE_NAME in project.roles
     assert role in project.roles
-    assert 'non_exist_role_name' not in project.roles
+    assert "non_exist_role_name" not in project.roles
 
-    policy_json = json.loads(TEST_ROLE_POLICY_STRING.replace('#project#', project.name))
+    policy_json = json.loads(TEST_ROLE_POLICY_STRING.replace("#project#", project.name))
     role.policy = policy_json
     role.reload()
     assert json.dumps(role.policy) == json.dumps(policy_json)
@@ -163,9 +165,9 @@ def test_roles(odps, project):
     assert TEST_ROLE_NAME not in project.roles
 
 
-@global_locked('odps_project_user')
+@global_locked("odps_project_user")
 def test_users(config, project):
-    secondary_user = config.get('test', 'secondary_user')
+    secondary_user = config.get("test", "secondary_user")
     if not secondary_user:
         return
 
@@ -174,15 +176,15 @@ def test_users(config, project):
     project.users.create(secondary_user)
     assert secondary_user in project.users
     assert secondary_user in [user.display_name for user in project.users]
-    assert 'non_exist_user' not in project.users
+    assert "non_exist_user" not in project.users
 
     project.users.delete(secondary_user)
     assert secondary_user not in project.users
 
 
-@global_locked('odps_project_user')
+@global_locked("odps_project_user")
 def test_user_role(config, project):
-    secondary_user = config.get('test', 'secondary_user')
+    secondary_user = config.get("test", "secondary_user")
     if not secondary_user:
         return
 
@@ -211,11 +213,11 @@ def test_user_role(config, project):
 
 
 def test_security_query(odps, project):
-    assert 'ALIYUN' in odps.run_security_query('LIST ACCOUNTPROVIDERS')
-    assert 'ALIYUN' in odps.execute_security_query('LIST ACCOUNTPROVIDERS')
+    assert "ALIYUN" in odps.run_security_query("LIST ACCOUNTPROVIDERS")
+    assert "ALIYUN" in odps.execute_security_query("LIST ACCOUNTPROVIDERS")
 
     inst = odps.run_security_query(
-        'INSTALL PACKAGE %s.non_exist_package' % project.name
+        "INSTALL PACKAGE %s.non_exist_package" % project.name
     )
     assert isinstance(inst, project.AuthQueryInstance)
 
@@ -226,7 +228,7 @@ def test_security_query(odps, project):
 
     with pytest.raises(SecurityQueryError):
         odps.execute_security_query(
-            'INSTALL PACKAGE %s.non_exist_package' % project.name
+            "INSTALL PACKAGE %s.non_exist_package" % project.name
         )
 
 
@@ -237,12 +239,8 @@ def test_generate_auth_token(odps, project):
     policy = {
         "Version": "1",
         "Statement": [
-            {
-                "Action": ["odps:*"],
-                "Resource": "acs:odps:*:*",
-                "Effect": "Allow"
-            }
-        ]
+            {"Action": ["odps:*"], "Resource": "acs:odps:*:*", "Effect": "Allow"}
+        ],
     }
     token = project.generate_auth_token(policy, "bearer", 5)
 

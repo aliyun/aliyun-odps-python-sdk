@@ -1,5 +1,6 @@
 from libcpp.string cimport string
 
+
 cdef extern from "<sstream>" namespace "std" nogil:
     cdef cppclass stringstream:
         stringstream() except +

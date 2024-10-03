@@ -59,12 +59,14 @@ def test_sign_server_account(odps):
     server = SignServer()
     server.accounts[odps.account.access_id] = odps.account.secret_access_key
     try:
-        server.start(('127.0.0.1', 0))
-        account = SignServerAccount(odps.account.access_id, server.server.server_address)
+        server.start(("127.0.0.1", 0))
+        account = SignServerAccount(
+            odps.account.access_id, server.server.server_address
+        )
         odps = odps.as_account(account=account)
-        odps.delete_table(tn('test_sign_account_table'), if_exists=True)
-        t = odps.create_table(tn('test_sign_account_table'), 'col string', lifecycle=1)
-        assert odps.exist_table(tn('test_sign_account_table')) is True
+        odps.delete_table(tn("test_sign_account_table"), if_exists=True)
+        t = odps.create_table(tn("test_sign_account_table"), "col string", lifecycle=1)
+        assert odps.exist_table(tn("test_sign_account_table")) is True
         t.drop(async_=True)
     finally:
         server.stop()
@@ -74,16 +76,23 @@ def test_tokenized_sign_server_account(odps):
     server = SignServer(token=str(uuid.uuid4()))
     server.accounts[odps.account.access_id] = odps.account.secret_access_key
     try:
-        server.start(('127.0.0.1', 0))
-        account = SignServerAccount(odps.account.access_id, server.server.server_address)
+        server.start(("127.0.0.1", 0))
+        account = SignServerAccount(
+            odps.account.access_id, server.server.server_address
+        )
         odps = ODPS(None, None, odps.project, odps.endpoint, account=account)
-        pytest.raises(SignServerError, lambda: odps.delete_table(tn('test_sign_account_table'), if_exists=True))
+        pytest.raises(
+            SignServerError,
+            lambda: odps.delete_table(tn("test_sign_account_table"), if_exists=True),
+        )
 
-        account = SignServerAccount(odps.account.access_id, server.server.server_address, token=server.token)
+        account = SignServerAccount(
+            odps.account.access_id, server.server.server_address, token=server.token
+        )
         odps = ODPS(None, None, odps.project, odps.endpoint, account=account)
-        odps.delete_table(tn('test_sign_account_table'), if_exists=True)
-        t = odps.create_table(tn('test_sign_account_table'), 'col string', lifecycle=1)
-        assert odps.exist_table(tn('test_sign_account_table')) is True
+        odps.delete_table(tn("test_sign_account_table"), if_exists=True)
+        t = odps.create_table(tn("test_sign_account_table"), "col string", lifecycle=1)
+        assert odps.exist_table(tn("test_sign_account_table")) is True
         t.drop(async_=True)
     finally:
         server.stop()
@@ -150,23 +159,28 @@ def test_bearer_token_account(odps):
     task_name = inst.get_task_names()[0]
 
     logview_address = inst.get_logview_address()
-    token = logview_address[logview_address.find('token=') + len('token='):]
+    token = logview_address[logview_address.find("token=") + len("token=") :]
     bearer_token_account = BearerTokenAccount(token=token)
     bearer_token_odps = ODPS(
         None, None, odps.project, odps.endpoint, account=bearer_token_account
     )
     bearer_token_instance = bearer_token_odps.get_instance(inst.id)
 
-    assert inst.get_task_result(task_name) == bearer_token_instance.get_task_result(task_name)
-    assert inst.get_task_summary(task_name) == bearer_token_instance.get_task_summary(task_name)
+    assert inst.get_task_result(task_name) == bearer_token_instance.get_task_result(
+        task_name
+    )
+    assert inst.get_task_summary(task_name) == bearer_token_instance.get_task_summary(
+        task_name
+    )
 
     with pytest.raises(errors.NoPermission):
-        bearer_token_odps.create_table(tn('test_bearer_token_account_table_test1'),
-                                       'col string', lifecycle=1)
+        bearer_token_odps.create_table(
+            tn("test_bearer_token_account_table_test1"), "col string", lifecycle=1
+        )
 
 
 def test_fake_bearer_token(odps):
-    fake_token_account = BearerTokenAccount(token='fake-token')
+    fake_token_account = BearerTokenAccount(token="fake-token")
     bearer_token_odps = ODPS(
         None,
         None,
@@ -177,8 +191,9 @@ def test_fake_bearer_token(odps):
     )
 
     with pytest.raises(errors.ODPSError):
-        bearer_token_odps.create_table(tn('test_bearer_token_account_table_test2'),
-                                       'col string', lifecycle=1)
+        bearer_token_odps.create_table(
+            tn("test_bearer_token_account_table_test2"), "col string", lifecycle=1
+        )
 
 
 def test_bearer_token_load_and_update(odps):
@@ -197,7 +212,9 @@ def test_bearer_token_load_and_update(odps):
         env_odps = ODPS(project=odps.project, endpoint=odps.endpoint)
         assert isinstance(env_odps.account, BearerTokenAccount)
         assert env_odps.account.token == token
-        assert env_odps.account._last_modified_time > datetime.datetime.fromtimestamp(create_timestamp)
+        assert env_odps.account._last_modified_time > datetime.datetime.fromtimestamp(
+            create_timestamp
+        )
 
         last_timestamp = env_odps.account._last_modified_time
         env_odps.account.reload()
@@ -242,7 +259,9 @@ def test_v4_signature_fallback(odps):
 
     def _new_is_ok3(self, resp):
         if odps.endpoint not in self._endpoints_without_v4_sign:
-            raise errors.Unauthorized("The request authorization header is invalid or missing.")
+            raise errors.Unauthorized(
+                "The request authorization header is invalid or missing."
+            )
         return resp.ok
 
     old_enable_v4_sign = options.enable_v4_sign
@@ -250,17 +269,17 @@ def test_v4_signature_fallback(odps):
         options.enable_v4_sign = True
         RestClient._endpoints_without_v4_sign.clear()
         with mock.patch("odps.rest.RestClient.is_ok", new=_new_is_ok):
-            odps.delete_table(tn('test_sign_account_table'), if_exists=True)
+            odps.delete_table(tn("test_sign_account_table"), if_exists=True)
             assert odps.endpoint in RestClient._endpoints_without_v4_sign
 
         RestClient._endpoints_without_v4_sign.clear()
         with mock.patch("odps.rest.RestClient.is_ok", new=_new_is_ok2):
-            odps.delete_table(tn('test_sign_account_table'), if_exists=True)
+            odps.delete_table(tn("test_sign_account_table"), if_exists=True)
             assert odps.endpoint in RestClient._endpoints_without_v4_sign
 
         RestClient._endpoints_without_v4_sign.clear()
         with mock.patch("odps.rest.RestClient.is_ok", new=_new_is_ok3):
-            odps.delete_table(tn('test_sign_account_table'), if_exists=True)
+            odps.delete_table(tn("test_sign_account_table"), if_exists=True)
             assert odps.endpoint in RestClient._endpoints_without_v4_sign
     finally:
         RestClient._endpoints_without_v4_sign.difference_update([odps.endpoint])
@@ -340,15 +359,13 @@ class MockCredentialProvider2(object):
 )
 def test_credential_provider_account(odps, provider_cls):
     account = CredentialProviderAccount(provider_cls(odps))
-    cred_odps = ODPS(
-        account, None, odps.project, odps.endpoint
-    )
+    cred_odps = ODPS(account, None, odps.project, odps.endpoint)
 
-    table_name = tn('test_bearer_token_account_table')
+    table_name = tn("test_bearer_token_account_table")
 
     cred_odps.delete_table(table_name, if_exists=True)
-    t = cred_odps.create_table(table_name, 'col string', lifecycle=1)
+    t = cred_odps.create_table(table_name, "col string", lifecycle=1)
     with t.open_writer() as writer:
-        records = [['val1'], ['val2'], ['val3']]
+        records = [["val1"], ["val2"], ["val3"]]
         writer.write(records)
     cred_odps.delete_table(table_name)

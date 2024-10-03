@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
 import logging
+import os
 
-from odps import (core, accounts)
+from ...compat import ConfigParser
+from ...core import ODPS
 
-
-CONF_FILENAME = '.pyouconfig'
+CONF_FILENAME = "~/.pyouconfig"
 
 logger = logging.getLogger(__name__)
 _odps = None
@@ -34,31 +33,27 @@ def require_conf(func):
         if _odps is None:
             get_conf()
         return func(*args, **kwargs)
+
     return f
-    
+
 
 def get_conf():
-    import ConfigParser
     global _odps
 
-    home_dir = os.environ.get('HOME')
-    if not home_dir:
-        raise UDFToolError('Cannot find home dir, '
-                           'perhaps you are using windowns :(')
-    f = os.path.join(home_dir, CONF_FILENAME)
+    f = os.path.expanduser(CONF_FILENAME)
     if not os.path.exists(f):
-        access_id = raw_input('access_id:')
-        
+        return
+
     config = ConfigParser.RawConfigParser()
     config.read(f)
-    access_id = config.get('access_id')
-    access_key = config.get('secret_access_key')
-    end_point = config.get('endpoint')
-    project = config.get('project')
-    _odps = core.ODPS(access_id, access_key,
-                      project, end_point)
+    access_id = config.get("access_id")
+    access_key = config.get("secret_access_key")
+    end_point = config.get("endpoint")
+    project = config.get("project")
+    _odps = ODPS(access_id, access_key, project, end_point)
 
 
 @require_conf
 def get_cache_table(name):
-    return _odps.read_table(name)
+    odps_entry = _odps or ODPS.from_global()
+    return odps_entry.read_table(name)

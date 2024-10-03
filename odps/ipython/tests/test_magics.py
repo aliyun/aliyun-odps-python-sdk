@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ from collections import namedtuple
 import pytest
 
 from ...config import options
-from ...tests.core import tn, get_result
+from ...tests.core import get_result, tn
 from ..magics import ODPSSql
 
 try:
@@ -28,7 +28,7 @@ try:
     has_ipython = True
 except ImportError:
     has_ipython = False
-    pytestmark = pytest.mark.skip('Skipped when no IPython is detected.')
+    pytestmark = pytest.mark.skip("Skipped when no IPython is detected.")
 
 
 @pytest.fixture(autouse=True)
@@ -41,13 +41,13 @@ def tunnel_config():
 
 
 def test_load_extension():
-    from ..magics import load_ipython_extension, Magics
+    from ..magics import Magics, load_ipython_extension
 
     def register_func(magics):
         magics_store.append(magics)
 
     magics_store = []
-    FakeShell = namedtuple('FakeShell', 'user_ns register_magics')
+    FakeShell = namedtuple("FakeShell", "user_ns register_magics")
     fake_shell = FakeShell(user_ns={}, register_magics=register_func)
     load_ipython_extension(fake_shell)
 
@@ -56,28 +56,28 @@ def test_load_extension():
 
 
 def test_execute_sql(odps):
-    FakeShell = namedtuple('FakeShell', 'user_ns')
+    FakeShell = namedtuple("FakeShell", "user_ns")
 
     magic_class = ODPSSql(FakeShell(user_ns={}))
     magic_class._odps = odps
 
-    test_table_name = tn('pyodps_t_test_sql_magic')
-    test_content = [['line1'], ['line2']]
+    test_table_name = tn("pyodps_t_test_sql_magic")
+    test_content = [["line1"], ["line2"]]
     odps.delete_table(test_table_name, if_exists=True)
-    odps.create_table(test_table_name, 'col string', lifecycle=1)
+    odps.create_table(test_table_name, "col string", lifecycle=1)
     odps.write_table(test_table_name, test_content)
 
     options.tunnel.use_instance_tunnel = False
-    result = magic_class.execute('select * from %s' % test_table_name)
+    result = magic_class.execute("select * from %s" % test_table_name)
     assert get_result(result) == test_content
 
     options.tunnel.use_instance_tunnel = True
-    result = magic_class.execute('select * from %s' % test_table_name)
+    result = magic_class.execute("select * from %s" % test_table_name)
     assert get_result(result) == test_content
 
-    result = magic_class.execute('show tables')
+    result = magic_class.execute("show tables")
     assert len(result) > 0
 
-    table_name = tn('pyodps_test_magics_create_table_result')
-    magic_class.execute('create table %s (col string) lifecycle 1' % table_name)
-    magic_class.execute('drop table %s' % table_name)
+    table_name = tn("pyodps_test_magics_create_table_result")
+    magic_class.execute("create table %s (col string) lifecycle 1" % table_name)
+    magic_class.execute("drop table %s" % table_name)

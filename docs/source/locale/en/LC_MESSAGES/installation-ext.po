@@ -23,9 +23,10 @@ msgstr "Installation instructions"
 
 #: ../../source/installation-ext.rst:7
 msgid ""
-"如果能访问外网，推荐使用 pip 安装。较新版本的 Python 通常自带 pip。如果你的 Python 不包含 pip，可以参考 `地址 "
-"<https://pip.pypa.io/en/stable/installing/>`_ 安装，推荐使用 `阿里云镜像 "
-"<http://mirrors.aliyun.com/help/pypi>`_ 加快下载速度。"
+"如果能访问外网，推荐使用 pip 安装。较新版本的 Python 通常自带 pip。如果你"
+"的 Python 不包含 pip，可以参考 `地址 <https://pip.pypa.io/en/stable/"
+"installing/>`_ 安装，推荐使用 `阿里云镜像 <http://mirrors.aliyun.com/help"
+"/pypi>`_ 加快下载速度。"
 msgstr ""
 "We recommend that you use pip to install Python on MaxCompute (PyODPS) "
 "when you have access to the Internet. pip is often installed with latest "
@@ -37,8 +38,8 @@ msgstr ""
 #: ../../source/installation-ext.rst:11
 msgid "接着确保 setuptools 的版本："
 msgstr ""
-"Make sure that you install the correct versions of setuptools by the"
-" following command."
+"Make sure that you install the correct versions of setuptools by the "
+"following command."
 
 #: ../../source/installation-ext.rst:13
 msgid "pip install setuptools>=3.0"

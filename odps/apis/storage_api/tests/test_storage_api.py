@@ -1,4 +1,4 @@
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import sys
 import time
-import logging
 
 import pytest
+
 try:
     import pyarrow as pa
 except ImportError:
@@ -51,7 +52,10 @@ def test_storage_api(storage_api_client):
             raise IOError("Get write session failed")
             return
 
-        if resp.session_status != SessionStatus.NORMAL and resp.session_status != SessionStatus.COMMITTED:
+        if (
+            resp.session_status != SessionStatus.NORMAL
+            and resp.session_status != SessionStatus.COMMITTED
+        ):
             logger.info("Wait...")
             time.sleep(1)
             continue
@@ -63,8 +67,13 @@ def test_storage_api(storage_api_client):
     bigint_list = list(range(4096))
 
     record_batch = pa.RecordBatch.from_arrays(
-        [pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list), pa.array(bigint_list)],
-        names=["a", "b", "c", "d"]
+        [
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+            pa.array(bigint_list),
+        ],
+        names=["a", "b", "c", "d"],
     )
     try:
         writer = storage_api_client.write_rows_stream(req)
@@ -84,7 +93,7 @@ def test_storage_api(storage_api_client):
             raise IOError("write arrow record batch failed")
 
     # write EOS given https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format
-    suc = writer.write(b'\xff\xff\xff\xff\x00\x00\x00\x00')
+    suc = writer.write(b"\xff\xff\xff\xff\x00\x00\x00\x00")
     if not suc:
         raise IOError("write EOS failed")
     commit_message, suc = writer.finish()
@@ -115,7 +124,10 @@ def test_storage_api(storage_api_client):
             if resp.status != Status.OK:
                 raise IOError("Get write session failed")
 
-            if resp.session_status != SessionStatus.NORMAL and resp.session_status != SessionStatus.COMMITTED:
+            if (
+                resp.session_status != SessionStatus.NORMAL
+                and resp.session_status != SessionStatus.COMMITTED
+            ):
                 logger.info("Wait...")
                 time.sleep(1)
                 continue
@@ -150,7 +162,7 @@ def test_storage_api(storage_api_client):
     req = ReadRowsRequest(session_id=resp.session_id, max_batch_rows=4096)
 
     read_size = 65536
-    buf = b''
+    buf = b""
     for i in range(0, split_count):
         req.split_index = i
         start = time.time()

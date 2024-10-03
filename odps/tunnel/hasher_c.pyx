@@ -11,10 +11,12 @@
 # limitations under the License.
 
 import calendar
-from libc.stdint cimport *
+
 from cpython.datetime cimport import_datetime
+from libc.stdint cimport *
 
 from .. import types
+
 from ..src.types_c cimport BaseRecord
 from ..src.utils_c cimport CMillisecondsConverter
 
@@ -38,7 +40,7 @@ import_datetime()
 
 
 cdef class AbstractHasher:
-    cdef int32_t c_hash_bigint(self, int64_t val) nogil:
+    cdef int32_t c_hash_bigint(self, int64_t val) noexcept nogil:
         return 0
 
     def hash_bigint(self, int64_t val):
@@ -77,7 +79,7 @@ cdef class AbstractHasher:
 
 
 cdef class DefaultHasher(AbstractHasher):
-    cdef int32_t c_hash_bigint(self, int64_t val) nogil:
+    cdef int32_t c_hash_bigint(self, int64_t val) noexcept nogil:
         val = (~val) + (val << 18)
         val ^= val >> 31
         val *= <long>21
@@ -106,7 +108,7 @@ cdef class DefaultHasher(AbstractHasher):
 
 
 cdef class LegacyHasher(AbstractHasher):
-    cdef int32_t  c_hash_bigint(self, int64_t val) nogil:
+    cdef int32_t  c_hash_bigint(self, int64_t val) noexcept nogil:
         return (val >> 32) ^ val
 
     cdef int32_t  c_hash_bool(self, bint val) nogil:
@@ -238,8 +240,8 @@ cpdef int32_t hash_value(hasher_type, data_type, value):
     """Simple hash function for test purpose"""
     cdef RecordHasher rec_hasher
 
-    from ..types import Column, OdpsSchema
     from ..models import Record
+    from ..types import Column, OdpsSchema
 
     schema = OdpsSchema([Column("col", data_type)])
     record = Record(schema=schema, values=[value])

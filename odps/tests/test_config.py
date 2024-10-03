@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,12 +21,12 @@ import pytest
 from ..accounts import AliyunAccount
 from ..config import (
     Config,
-    options,
-    option_context,
+    OptionError,
+    any_validator,
     is_integer,
     is_null,
-    any_validator,
-    OptionError,
+    option_context,
+    options,
 )
 
 
@@ -38,7 +38,10 @@ def test_options():
             assert options.account == old_config.account
         else:
             assert options.account.access_id == old_config.account.access_id
-            assert options.account.secret_access_key == old_config.account.secret_access_key
+            assert (
+                options.account.secret_access_key
+                == old_config.account.secret_access_key
+            )
         assert options.endpoint == old_config.endpoint
         assert options.default_project == old_config.default_project
         assert local_options.tunnel.endpoint is None
@@ -48,15 +51,18 @@ def test_options():
         assert local_options.console.max_lines is None
         assert local_options.console.max_width is None
 
-        local_options.account = AliyunAccount('test', '')
-        assert local_options.account.access_id == 'test'
+        local_options.account = AliyunAccount("test", "")
+        assert local_options.account.access_id == "test"
 
-        local_options.register_option('nest.inner.value', 50,
-                                      validator=any_validator(is_null, is_integer))
+        local_options.register_option(
+            "nest.inner.value", 50, validator=any_validator(is_null, is_integer)
+        )
         assert local_options.nest.inner.value == 50
+
         def set(val):
             local_options.nest.inner.value = val
-        pytest.raises(ValueError, lambda: set('test'))
+
+        pytest.raises(ValueError, lambda: set("test"))
         set(None)
         assert local_options.nest.inner.value is None
         set(30)
@@ -84,25 +90,26 @@ def test_options():
 
     def set_notexist():
         options.display.val = 3
+
     pytest.raises(OptionError, set_notexist)
 
 
 def test_redirection():
     local_config = Config()
 
-    local_config.register_option('test.redirect_src', 10)
-    local_config.redirect_option('test.redirect_redir', 'test.redirect_src')
+    local_config.register_option("test.redirect_src", 10)
+    local_config.redirect_option("test.redirect_redir", "test.redirect_src")
 
-    assert 'test' in dir(local_config)
-    assert 'redirect_redir' in dir(local_config.test)
+    assert "test" in dir(local_config)
+    assert "redirect_redir" in dir(local_config.test)
 
     local_config.test.redirect_redir = 20
     assert local_config.test.redirect_src == 20
     local_config.test.redirect_src = 10
     assert local_config.test.redirect_redir == 10
 
-    local_config.unregister_option('test.redirect_redir')
-    local_config.unregister_option('test.redirect_src')
+    local_config.unregister_option("test.redirect_redir")
+    local_config.unregister_option("test.redirect_src")
     pytest.raises(AttributeError, lambda: local_config.test.redirect_redir)
     pytest.raises(AttributeError, lambda: local_config.test.redirect_src)
 
@@ -112,11 +119,12 @@ def test_set_display_option():
     options.display.unicode.ambiguous_as_wide = True
     assert options.display.max_rows == 10
     assert options.display.unicode.ambiguous_as_wide is True
-    options.register_pandas('display.non_exist', True)
+    options.register_pandas("display.non_exist", True)
     assert options.display.non_exist
 
     try:
         import pandas as pd
+
         assert pd.options.display.max_rows == 10
         assert pd.options.display.unicode.ambiguous_as_wide is True
     except ImportError:
@@ -126,12 +134,12 @@ def test_set_display_option():
 def test_dump_and_load():
     with option_context() as local_options:
         local_options.register_option(
-            'test.value', 50, validator=any_validator(is_null, is_integer)
+            "test.value", 50, validator=any_validator(is_null, is_integer)
         )
         d = local_options.dumps()
-        assert d['test.value'] == 50
+        assert d["test.value"] == 50
 
-        d['test.value'] = 100
+        d["test.value"] = 100
         local_options.loads(d)
         assert local_options.test.value == 100
 
@@ -139,7 +147,7 @@ def test_dump_and_load():
 def test_add_validator():
     with option_context() as local_options:
         local_options.register_option(
-            'test.value', 50, validator=any_validator(is_null, is_integer)
+            "test.value", 50, validator=any_validator(is_null, is_integer)
         )
         with pytest.raises(ValueError):
             local_options.test.value = "abcd"

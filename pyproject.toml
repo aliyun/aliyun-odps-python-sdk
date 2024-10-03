@@ -31,3 +31,35 @@ exclude_lines = [
     "return NotImplemented",
     "if TYPE_CHECKING:",
 ]
+
+[tool.black]
+line-length = 88
+skip-string-normalization = true  # make sure py27 unicode strings not modified
+target-version = ['py34']  # make sure no commas added after kwargs
+extend-exclude = '''
+^/benchmarks/.*
+| ^/bin/.*
+| ^/cupid/.*
+| ^/docs/.*
+| ^/misc/.*
+| ^/odps/mars_extension/.*
+| ^/odps/df/.*
+| ^/odps/lib/.*
+| ^/odps/ml/.*
+| ^/odps/static/.*
+| ^/odps_scripts/.*
+'''
+
+[tool.isort]
+profile = "black"
+py_version = 36
+skip_glob = [
+    "cupid/*",
+    "examples/*",
+    "misc/*",
+    "odps/df/*",
+    "odps/lib/*",
+    "odps/mars_extension/*",
+    "odps/ml/*",
+    "odps_scripts/*",
+]

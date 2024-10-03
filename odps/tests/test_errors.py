@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,11 +16,17 @@
 
 from collections import namedtuple
 
-from ..errors import ODPSError, InternalServerError, ScriptError, \
-    RequestTimeTooSkewed, BadGatewayError, \
-    parse_instance_error, parse_response
+from ..errors import (
+    BadGatewayError,
+    InternalServerError,
+    ODPSError,
+    RequestTimeTooSkewed,
+    ScriptError,
+    parse_instance_error,
+    parse_response,
+)
 
-_PseudoResponse = namedtuple('PseudoResponse', 'content text headers status_code')
+_PseudoResponse = namedtuple("PseudoResponse", "content text headers status_code")
 
 
 def test_xml_parse_response():
@@ -34,10 +40,10 @@ def test_xml_parse_response():
     """
     exc = parse_response(_PseudoResponse(xml_response, None, {}, 500))
     assert isinstance(exc, InternalServerError)
-    assert exc.code == 'InternalServerError'
-    assert exc.args[0] == 'System internal error'
-    assert exc.request_id == 'REQ_ID'
-    assert exc.host_id == 'host'
+    assert exc.code == "InternalServerError"
+    assert exc.args[0] == "System internal error"
+    assert exc.request_id == "REQ_ID"
+    assert exc.host_id == "host"
 
 
 def test_json_parse_response():
@@ -48,13 +54,16 @@ def test_json_parse_response():
         "HostId": "host"
     }
     """
-    exc = parse_response(_PseudoResponse(json_response.encode(), json_response,
-                                         {'x-odps-request-id': 'REQ_ID'}, 500))
+    exc = parse_response(
+        _PseudoResponse(
+            json_response.encode(), json_response, {"x-odps-request-id": "REQ_ID"}, 500
+        )
+    )
     assert isinstance(exc, InternalServerError)
-    assert exc.code == 'InternalServerError'
-    assert exc.args[0] == 'System internal error'
-    assert exc.request_id == 'REQ_ID'
-    assert exc.host_id == 'host'
+    assert exc.code == "InternalServerError"
+    assert exc.args[0] == "System internal error"
+    assert exc.request_id == "REQ_ID"
+    assert exc.host_id == "host"
 
 
 def test_nginx_gateway_error():
@@ -116,13 +125,17 @@ def test_instance_error():
 def test_parse_request_time_skew():
     import time
     from datetime import datetime
+
     from ..compat import utc
 
     def get_timestamp(dt):
         if dt.tzinfo:
             delta = dt.astimezone(utc) - datetime(1970, 1, 1, tzinfo=utc)
-            return (delta.microseconds + 0.0 +
-                    (delta.seconds + delta.days * 24 * 3600) * 10 ** 6) / 10 ** 6
+            return (
+                delta.microseconds
+                + 0.0
+                + (delta.seconds + delta.days * 24 * 3600) * 10**6
+            ) / 10**6
         else:
             return time.mktime(dt.timetuple()) + dt.microsecond / 1000000.0
 
@@ -137,8 +150,12 @@ def test_parse_request_time_skew():
     exc = parse_response(_PseudoResponse(xml_response, None, {}, 500))
     assert isinstance(exc, RequestTimeTooSkewed)
     assert exc.max_interval_date == 900000
-    assert get_timestamp(exc.expire_date) == get_timestamp(datetime(2018, 1, 20, 16, 20, 17, 12000, tzinfo=utc))
-    assert get_timestamp(exc.now_date) == get_timestamp(datetime(2018, 1, 20, 19, 20, 9, 34000, tzinfo=utc))
+    assert get_timestamp(exc.expire_date) == get_timestamp(
+        datetime(2018, 1, 20, 16, 20, 17, 12000, tzinfo=utc)
+    )
+    assert get_timestamp(exc.now_date) == get_timestamp(
+        datetime(2018, 1, 20, 19, 20, 9, 34000, tzinfo=utc)
+    )
 
     xml_response = """
     <Error>

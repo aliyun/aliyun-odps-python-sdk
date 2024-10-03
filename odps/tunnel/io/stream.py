@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
 # limitations under the License.
 
 import sys
-import zlib
 import threading
+import zlib
 
-from ... import errors, compat, options
+from ... import compat, errors, options
 from ...compat import BytesIO, Enum, Semaphore, six
 from ..errors import TunnelError
 
@@ -37,11 +37,14 @@ else:
 
 
 if compat.six.PY3:
+
     def cast_memoryview(v):
         if not isinstance(v, memoryview):
             v = memoryview(v)
-        return v.cast('B')
+        return v.cast("B")
+
 else:
+
     def cast_memoryview(v):
         if not isinstance(v, memoryview):
             v = memoryview(v)
@@ -53,7 +56,10 @@ class RequestsIO(object):
 
     def __new__(cls, *args, **kwargs):
         if cls is RequestsIO:
-            if not isinstance(threading.current_thread(), threading._MainThread) or _FORCE_THREAD:
+            if (
+                not isinstance(threading.current_thread(), threading._MainThread)
+                or _FORCE_THREAD
+            ):
                 return object.__new__(ThreadRequestsIO)
             elif GreenletRequestsIO is not None:
                 return object.__new__(GreenletRequestsIO)
@@ -197,14 +203,13 @@ except ImportError:
 
 
 class CompressOption(object):
-
     class CompressAlgorithm(Enum):
-        ODPS_RAW = 'RAW'
-        ODPS_ZLIB = 'ZLIB'
-        ODPS_SNAPPY = 'SNAPPY'
-        ODPS_ZSTD = 'ZSTD'
-        ODPS_LZ4 = 'LZ4'
-        ODPS_ARROW_LZ4 = 'ARROW_LZ4'
+        ODPS_RAW = "RAW"
+        ODPS_ZLIB = "ZLIB"
+        ODPS_SNAPPY = "SNAPPY"
+        ODPS_ZSTD = "ZSTD"
+        ODPS_LZ4 = "LZ4"
+        ODPS_ARROW_LZ4 = "ARROW_LZ4"
 
         def get_encoding(self, legacy=True):
             cls = type(self)
@@ -212,58 +217,59 @@ class CompressOption(object):
                 if self == cls.ODPS_RAW:
                     return None
                 elif self == cls.ODPS_ZLIB:
-                    return 'deflate'
+                    return "deflate"
                 elif self == cls.ODPS_ZSTD:
-                    return 'zstd'
+                    return "zstd"
                 elif self == cls.ODPS_LZ4:
-                    return 'x-lz4-frame'
+                    return "x-lz4-frame"
                 elif self == cls.ODPS_SNAPPY:
-                    return 'x-snappy-framed'
+                    return "x-snappy-framed"
                 elif self == cls.ODPS_ARROW_LZ4:
-                    return 'x-odps-lz4-frame'
+                    return "x-odps-lz4-frame"
                 else:
-                    raise TunnelError('invalid compression option')
+                    raise TunnelError("invalid compression option")
             else:
                 if self == cls.ODPS_RAW:
                     return None
                 elif self == cls.ODPS_ZSTD:
-                    return 'ZSTD'
+                    return "ZSTD"
                 elif self == cls.ODPS_LZ4 or self == cls.ODPS_ARROW_LZ4:
-                    return 'LZ4_FRAME'
+                    return "LZ4_FRAME"
                 else:
-                    raise TunnelError('invalid compression option')
+                    raise TunnelError("invalid compression option")
 
         @classmethod
         def from_encoding(cls, encoding):
             encoding = encoding.lower() if encoding else None
-            if encoding is None or encoding == 'identity':
+            if encoding is None or encoding == "identity":
                 return cls.ODPS_RAW
-            elif encoding == 'deflate':
+            elif encoding == "deflate":
                 return cls.ODPS_ZLIB
-            elif encoding == 'zstd':
+            elif encoding == "zstd":
                 return cls.ODPS_ZSTD
-            elif encoding == 'x-lz4-frame':
+            elif encoding == "x-lz4-frame":
                 return cls.ODPS_LZ4
-            elif encoding == 'x-snappy-framed':
+            elif encoding == "x-snappy-framed":
                 return cls.ODPS_SNAPPY
-            elif encoding == 'x-odps-lz4-frame' or encoding == "lz4_frame":
+            elif encoding == "x-odps-lz4-frame" or encoding == "lz4_frame":
                 return cls.ODPS_ARROW_LZ4
             else:
-                raise TunnelError('invalid encoding name %s' % encoding)
+                raise TunnelError("invalid encoding name %s" % encoding)
 
-    def __init__(self, compress_algo=CompressAlgorithm.ODPS_ZLIB,
-                 level=None, strategy=None):
+    def __init__(
+        self, compress_algo=CompressAlgorithm.ODPS_ZLIB, level=None, strategy=None
+    ):
         if isinstance(compress_algo, CompressOption.CompressAlgorithm):
             self.algorithm = compress_algo
         else:
-            self.algorithm = \
-                CompressOption.CompressAlgorithm(compress_algo.upper())
+            self.algorithm = CompressOption.CompressAlgorithm(compress_algo.upper())
         self.level = level or 1
         self.strategy = strategy or 0
 
 
 _lz4_algorithms = (
-    CompressOption.CompressAlgorithm.ODPS_LZ4, CompressOption.CompressAlgorithm.ODPS_ARROW_LZ4
+    CompressOption.CompressAlgorithm.ODPS_LZ4,
+    CompressOption.CompressAlgorithm.ODPS_ARROW_LZ4,
 )
 
 
@@ -281,7 +287,7 @@ def get_compress_stream(buffer, compress_option=None):
     elif algo in _lz4_algorithms:
         return LZ4OutputStream(buffer, level=compress_option.level)
     else:
-        raise errors.InvalidArgument('Invalid compression algorithm %s.' % algo)
+        raise errors.InvalidArgument("Invalid compression algorithm %s." % algo)
 
 
 def get_decompress_stream(resp, compress_option=None, requests=True):
@@ -297,7 +303,7 @@ def get_decompress_stream(resp, compress_option=None, requests=True):
     elif algo in _lz4_algorithms:
         stream_cls = LZ4RequestsInputStream
     else:
-        raise errors.InvalidArgument('Invalid compression algorithm %s.' % algo)
+        raise errors.InvalidArgument("Invalid compression algorithm %s." % algo)
 
     if not requests:
         stream_cls = stream_cls.get_raw_input_stream_class()
@@ -340,7 +346,8 @@ class SnappyOutputStream(CompressOutputStream):
             import snappy
         except ImportError:
             raise errors.DependencyNotInstalledError(
-                "python-snappy library is required for snappy support")
+                "python-snappy library is required for snappy support"
+            )
         return snappy.StreamCompressor()
 
 
@@ -350,7 +357,8 @@ class ZstdOutputStream(CompressOutputStream):
             import zstandard
         except ImportError:
             raise errors.DependencyNotInstalledError(
-                "zstandard library is required for zstd support")
+                "zstandard library is required for zstd support"
+            )
         return zstandard.ZstdCompressor().compressobj()
 
 
@@ -360,7 +368,8 @@ class LZ4OutputStream(CompressOutputStream):
             import lz4.frame
         except ImportError:
             raise errors.DependencyNotInstalledError(
-                "lz4 library is required for lz4 support")
+                "lz4 library is required for lz4 support"
+            )
         self._begun = False
         return lz4.frame.LZ4FrameCompressor(compression_level=level)
 
@@ -372,27 +381,31 @@ class LZ4OutputStream(CompressOutputStream):
 
 
 class SimpleInputStream(object):
-
     READ_BLOCK_SIZE = 1024 * 64
 
     def __init__(self, input):
         self._input = input
-        self._internal_buffer = memoryview(b'')
+        self._internal_buffer = memoryview(b"")
         self._buffered_len = 0
         self._buffered_pos = 0
+        self._pos = 0
         self._closed = False
 
     @staticmethod
     def readable():
         return True
 
+    def __len__(self):
+        return self._pos
+
     def read(self, limit):
         if self._closed:
             raise IOError("closed")
 
         if limit <= self._buffered_len - self._buffered_pos:
-            mv = self._internal_buffer[self._buffered_pos:self._buffered_pos + limit]
+            mv = self._internal_buffer[self._buffered_pos : self._buffered_pos + limit]
             self._buffered_pos += len(mv)
+            self._pos += len(mv)
             return mv_to_bytes(mv)
 
         bufs = list()
@@ -403,7 +416,9 @@ class SimpleInputStream(object):
                 break
             bufs.append(content)
             size_left -= len(content)
-        return bytes().join(bufs)
+        ret = bytes().join(bufs)
+        self._pos += len(ret)
+        return ret
 
     def peek(self):
         if self._buffered_pos == self._buffered_len:
@@ -421,9 +436,10 @@ class SimpleInputStream(object):
         b = cast_memoryview(b)
         limit = len(b)
         if limit <= self._buffered_len - self._buffered_pos:
-            mv = self._internal_buffer[self._buffered_pos:self._buffered_pos + limit]
+            mv = self._internal_buffer[self._buffered_pos : self._buffered_pos + limit]
             self._buffered_pos += len(mv)
             b[:limit] = mv
+            self._pos += len(mv)
             return len(mv)
 
         pos = 0
@@ -432,12 +448,13 @@ class SimpleInputStream(object):
             if not rsize:
                 break
             pos += rsize
+        self._pos += pos
         return pos
 
     def _internal_read(self, limit):
         if self._buffered_pos == self._buffered_len:
             self._refill_buffer()
-        mv = self._internal_buffer[self._buffered_pos:self._buffered_pos + limit]
+        mv = self._internal_buffer[self._buffered_pos : self._buffered_pos + limit]
         self._buffered_pos += len(mv)
         return mv_to_bytes(mv)
 
@@ -445,10 +462,10 @@ class SimpleInputStream(object):
         if self._buffered_pos == self._buffered_len:
             self._refill_buffer()
         size = len(b) - start
-        mv = self._internal_buffer[self._buffered_pos:self._buffered_pos + size]
+        mv = self._internal_buffer[self._buffered_pos : self._buffered_pos + size]
         size = len(mv)
         self._buffered_pos += size
-        b[start:start + size] = mv
+        b[start : start + size] = mv
         return size
 
     def _refill_buffer(self):
@@ -515,7 +532,8 @@ class SnappyInputStream(DecompressInputStream):
             import snappy
         except ImportError:
             raise errors.DependencyNotInstalledError(
-                "python-snappy library is required for snappy support")
+                "python-snappy library is required for snappy support"
+            )
         return snappy.StreamDecompressor()
 
 
@@ -525,7 +543,8 @@ class ZstdInputStream(DecompressInputStream):
             import zstandard
         except ImportError:
             raise errors.DependencyNotInstalledError(
-                "zstandard library is required for zstd support")
+                "zstandard library is required for zstd support"
+            )
         return zstandard.ZstdDecompressor().decompressobj()
 
 
@@ -535,7 +554,8 @@ class LZ4InputStream(DecompressInputStream):
             import lz4.frame
         except ImportError:
             raise errors.DependencyNotInstalledError(
-                "lz4 library is required for lz4 support")
+                "lz4 library is required for lz4 support"
+            )
         return lz4.frame.LZ4FrameDecompressor()
 
 

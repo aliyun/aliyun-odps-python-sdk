@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 
-from .. import serializers, errors, types
+from .. import errors, serializers, types
 from ..compat import six
 from ..utils import with_wait_argument
 from .core import Iterable
@@ -24,16 +24,18 @@ from .partition import Partition
 
 
 class PartitionSpecCondition(object):
-    _predicates = OrderedDict([
-        ("==", lambda a, b: a == b),
-        (">=", lambda a, b: a >= b),
-        ("<=", lambda a, b: a <= b),
-        ("<>", lambda a, b: a != b),
-        ("!=", lambda a, b: a != b),
-        (">", lambda a, b: a > b),
-        ("<", lambda a, b: a < b),
-        ("=", lambda a, b: a == b),
-    ])
+    _predicates = OrderedDict(
+        [
+            ("==", lambda a, b: a == b),
+            (">=", lambda a, b: a >= b),
+            ("<=", lambda a, b: a <= b),
+            ("<>", lambda a, b: a != b),
+            ("!=", lambda a, b: a != b),
+            (">", lambda a, b: a > b),
+            ("<", lambda a, b: a < b),
+            ("=", lambda a, b: a == b),
+        ]
+    )
 
     def __init__(self, part_fields, condition=None):
         self._part_to_conditions = defaultdict(list)
@@ -49,7 +51,7 @@ class PartitionSpecCondition(object):
                 if len(parts) != 2:
                     raise ValueError("Invalid partition condition %r" % split)
                 part = parts[0].strip()
-                val = parts[1].strip().replace('"', '').replace("'", '')
+                val = parts[1].strip().replace('"', "").replace("'", "")
 
                 if part not in field_set:
                     raise ValueError("Invalid partition field %r" % part)
@@ -79,9 +81,9 @@ class PartitionSpecCondition(object):
 
 
 class Partitions(Iterable):
-    marker = serializers.XMLNodeField('Marker')
-    max_items = serializers.XMLNodeField('MaxItems')
-    partitions = serializers.XMLNodesReferencesField(Partition, 'Partition')
+    marker = serializers.XMLNodeField("Marker")
+    max_items = serializers.XMLNodeField("MaxItems")
+    partitions = serializers.XMLNodesReferencesField(Partition, "Partition")
 
     def _name(self):
         return
@@ -132,27 +134,26 @@ class Partitions(Iterable):
         )
         spec = condition.partition_spec
 
-        actions = ['partitions']
-        params = {'expectmarker': 'true'}
+        actions = ["partitions"]
+        params = {"expectmarker": "true"}
         if reverse:
-            actions.append('reverse')
+            actions.append("reverse")
         if spec is not None and not spec.is_empty:
-            params['partition'] = str(spec)
+            params["partition"] = str(spec)
         schema_name = self._get_schema_name()
         if schema_name:
-            params['curr_schema'] = schema_name
+            params["curr_schema"] = schema_name
 
         def _it():
-            last_marker = params.get('marker')
-            if 'marker' in params and \
-                (last_marker is None or len(last_marker) == 0):
+            last_marker = params.get("marker")
+            if "marker" in params and (last_marker is None or len(last_marker) == 0):
                 return
 
             url = self.resource()
             resp = self._client.get(url, actions=actions, params=params)
 
             t = self.parse(self._client, resp, obj=self)
-            params['marker'] = t.marker
+            params["marker"] = t.marker
 
             return t.partitions
 
@@ -176,7 +177,7 @@ class Partitions(Iterable):
 
             for exist_pt, user_pt_name in zip(table_parts, spec.kv):
                 if exist_pt.name != user_pt_name:
-                    table_pt_str = ",".join(pt.name for pt in table_parts[:len(spec)])
+                    table_pt_str = ",".join(pt.name for pt in table_parts[: len(spec)])
                     prefix_pt_str = ",".join(spec.kv.keys())
                     raise ValueError(
                         "Partition prefix %s not agree with table partitions %s",
@@ -193,7 +194,9 @@ class Partitions(Iterable):
         elif not skip_empty:
             return max(part_values, key=lambda tp: tp[1])[0]
         else:
-            reversed_table_parts = sorted(part_values, key=lambda tp: tp[1], reverse=not reverse)
+            reversed_table_parts = sorted(
+                part_values, key=lambda tp: tp[1], reverse=not reverse
+            )
             return next(
                 (
                     part
@@ -211,20 +214,23 @@ class Partitions(Iterable):
             partition_spec = self._get_partition_spec(partition_spec)
 
         buf = six.StringIO()
-        buf.write('ALTER TABLE %s ADD ' % self.parent.full_table_name)
+        buf.write("ALTER TABLE %s ADD " % self.parent.full_table_name)
 
         if if_not_exists:
-            buf.write('IF NOT EXISTS ')
+            buf.write("IF NOT EXISTS ")
 
-        buf.write('PARTITION (%s);' % partition_spec)
+        buf.write("PARTITION (%s);" % partition_spec)
 
         from .tasks import SQLTask
-        task = SQLTask(name='SQLAddPartitionTask', query=buf.getvalue())
+
+        task = SQLTask(name="SQLAddPartitionTask", query=buf.getvalue())
         hints = hints or {}
         schema_name = self._get_schema_name()
         if schema_name is not None:
             hints["odps.sql.allow.namespace.schema"] = "true"
             hints["odps.namespace.schema"] = "true"
+        if self.project.odps.quota_name:
+            hints["odps.task.wlm.quota"] = self.project.odps.quota_name
         task.update_sql_settings(hints)
         instance = self.project.parent[self._client.project].instances.create(task=task)
 
@@ -242,22 +248,25 @@ class Partitions(Iterable):
             partition_spec = self._get_partition_spec(partition_spec)
 
         buf = six.StringIO()
-        buf.write('ALTER TABLE %s DROP ' % self.parent.full_table_name)
+        buf.write("ALTER TABLE %s DROP " % self.parent.full_table_name)
 
         if if_exists:
-            buf.write('IF EXISTS ')
+            buf.write("IF EXISTS ")
 
-        buf.write('PARTITION (%s);' % partition_spec)
+        buf.write("PARTITION (%s);" % partition_spec)
 
         from .tasks import SQLTask
-        task = SQLTask(name='SQLDropPartitionTask', query=buf.getvalue())
+
+        task = SQLTask(name="SQLDropPartitionTask", query=buf.getvalue())
 
         hints = hints or {}
-        hints['odps.sql.submit.mode'] = ''
+        hints["odps.sql.submit.mode"] = ""
         schema_name = self._get_schema_name()
         if schema_name is not None:
             hints["odps.sql.allow.namespace.schema"] = "true"
             hints["odps.namespace.schema"] = "true"
+        if self.project.odps.quota_name:
+            hints["odps.task.wlm.quota"] = self.project.odps.quota_name
         task.update_sql_settings(hints)
         instance = self.project.parent[self._client.project].instances.create(task=task)
 

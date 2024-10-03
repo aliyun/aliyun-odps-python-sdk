@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 1999-2022 Alibaba Group Holding Ltd.
+# Copyright 1999-2024 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,14 +19,14 @@ import sys
 
 import requests
 
-from .base import BaseTunnel, TUNNEL_VERSION
-from .io.reader import TunnelRecordReader, TunnelArrowReader
-from .io.stream import CompressOption, get_decompress_stream
-from .errors import TunnelError
 from .. import serializers, types
 from ..compat import Enum, six
 from ..config import options
 from ..models import Projects, TableSchema
+from .base import TUNNEL_VERSION, BaseTunnel
+from .errors import TunnelError
+from .io.reader import TunnelArrowReader, TunnelRecordReader
+from .io.stream import CompressOption, get_decompress_stream
 
 try:
     import numpy as np
@@ -38,45 +38,67 @@ logger = logging.getLogger(__name__)
 
 class InstanceDownloadSession(serializers.JSONSerializableModel):
     __slots__ = (
-        '_client', '_instance', '_limit_enabled', '_compress_option', '_sessional',
-        '_session_task_name', '_session_subquery_id', '_quota_name', '_timeout'
+        "_client",
+        "_instance",
+        "_limit_enabled",
+        "_compress_option",
+        "_sessional",
+        "_session_task_name",
+        "_session_subquery_id",
+        "_quota_name",
+        "_timeout",
     )
 
     class Status(Enum):
-        Unknown = 'UNKNOWN'
-        Normal = 'NORMAL'
-        Closes = 'CLOSES'
-        Expired = 'EXPIRED'
-        Failed = 'FAILED'
-        Initiating = 'INITIATING'
+        Unknown = "UNKNOWN"
+        Normal = "NORMAL"
+        Closes = "CLOSES"
+        Expired = "EXPIRED"
+        Failed = "FAILED"
+        Initiating = "INITIATING"
 
-    id = serializers.JSONNodeField('DownloadID')
+    id = serializers.JSONNodeField("DownloadID")
     status = serializers.JSONNodeField(
-        'Status', parse_callback=lambda s: InstanceDownloadSession.Status(s.upper()))
-    count = serializers.JSONNodeField('RecordCount')
-    schema = serializers.JSONNodeReferenceField(TableSchema, 'Schema')
-    quota_name = serializers.JSONNodeField('QuotaName')
+        "Status", parse_callback=lambda s: InstanceDownloadSession.Status(s.upper())
+    )
+    count = serializers.JSONNodeField("RecordCount")
+    schema = serializers.JSONNodeReferenceField(TableSchema, "Schema")
+    quota_name = serializers.JSONNodeField("QuotaName")
 
-    def __init__(self, client, instance, download_id=None, limit=None,
-                 compress_option=None, quota_name=None, timeout=None, **kw):
+    def __init__(
+        self,
+        client,
+        instance,
+        download_id=None,
+        limit=None,
+        compress_option=None,
+        quota_name=None,
+        timeout=None,
+        tags=None,
+        **kw
+    ):
         super(InstanceDownloadSession, self).__init__()
 
         self._client = client
         self._instance = instance
-        self._limit_enabled = limit if limit is not None else kw.get('limit_enabled', False)
+        self._limit_enabled = (
+            limit if limit is not None else kw.get("limit_enabled", False)
+        )
         self._quota_name = quota_name
         self._sessional = kw.pop("sessional", False)
         self._session_task_name = kw.pop("session_task_name", "")
         self._session_subquery_id = int(kw.pop("session_subquery_id", -1))
         self._timeout = timeout
-        if self._sessional and ((not self._session_task_name) or (self._session_subquery_id == -1)):
+        if self._sessional and (
+            (not self._session_task_name) or (self._session_subquery_id == -1)
+        ):
             raise TunnelError(
                 "Taskname('session_task_name') and Subquery ID ('session_subquery_id') "
                 "keyword argument must be provided for session instance tunnels."
             )
 
         if download_id is None:
-            self._init()
+            self._init(tags=tags or options.tunnel.tags)
         else:
             self.id = download_id
             self.reload()
@@ -87,30 +109,40 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
             options.tunnel_session_create_callback(self)
 
     def __repr__(self):
-        return "<InstanceDownloadSession id=%s project_name=%s instance_id=%s>" % (
+        return "<InstanceDownloadSession id=%s project_name=%s instance_id=%s%s>" % (
             self.id,
             self._instance.project.name,
             self._instance.id,
+            " limited" if self._limit_enabled else "",
         )
 
-    def _init(self):
+    def _init(self, tags=None):
         params = {}
         headers = {
-            'Content-Length': 0,
-            'x-odps-tunnel-version': TUNNEL_VERSION,
+            "Content-Length": 0,
+            "x-odps-tunnel-version": TUNNEL_VERSION,
         }
+        if tags:
+            if isinstance(tags, six.string_types):
+                tags = tags.split(",")
+            headers["odps-tunnel-tags"] = ",".join(tags)
         if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
+            params["quotaName"] = self._quota_name
 
         # Now we use DirectDownloadMode to fetch session results(any other method is removed)
         # This mode, only one request needed. So we don't have to send request here ..
         if not self._sessional:
             if self._limit_enabled:
-                params['instance_tunnel_limit_enabled'] = ''
+                params["instance_tunnel_limit_enabled"] = ""
             url = self._instance.resource()
             try:
                 resp = self._client.post(
-                    url, {}, action='downloads', params=params, headers=headers, timeout=self._timeout
+                    url,
+                    {},
+                    action="downloads",
+                    params=params,
+                    headers=headers,
+                    timeout=self._timeout,
                 )
             except requests.exceptions.ReadTimeout:
                 if callable(options.tunnel_session_create_timeout_callback):
@@ -126,16 +158,16 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
 
     def reload(self):
         if not self._sessional:
-            params = {'downloadid': self.id}
+            params = {"downloadid": self.id}
             if self._quota_name is not None:
-                params['quotaName'] = self._quota_name
+                params["quotaName"] = self._quota_name
             headers = {
-                'Content-Length': 0,
-                'x-odps-tunnel-version': TUNNEL_VERSION,
+                "Content-Length": 0,
+                "x-odps-tunnel-version": TUNNEL_VERSION,
             }
             if self._sessional:
-                params['cached'] = ''
-                params['taskname'] = self._session_task_name
+                params["cached"] = ""
+                params["taskname"] = self._session_task_name
 
             url = self._instance.resource()
             resp = self._client.get(url, params=params, headers=headers)
@@ -149,32 +181,34 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         else:
             self.status = InstanceDownloadSession.Status.Normal
 
-    def _open_reader(self, start, count, compress=False, columns=None, arrow=False, reader_cls=None):
+    def _build_input_stream(
+        self, start, count, compress=False, columns=None, arrow=False
+    ):
         compress_option = self._compress_option or CompressOption()
 
         params = {}
-        headers = {'x-odps-tunnel-version': TUNNEL_VERSION}
+        headers = {"x-odps-tunnel-version": TUNNEL_VERSION}
         if self._quota_name is not None:
-            params['quotaName'] = self._quota_name
+            params["quotaName"] = self._quota_name
         if self._sessional:
-            params['cached'] = ''
-            params['taskname'] = self._session_task_name
-            params['queryid'] = str(self._session_subquery_id)
+            params["cached"] = ""
+            params["taskname"] = self._session_task_name
+            params["queryid"] = str(self._session_subquery_id)
         else:
-            params['downloadid'] = self.id
-            params['rowrange'] = '(%s,%s)' % (start, count)
-            headers['Content-Length'] = 0
+            params["downloadid"] = self.id
+            params["rowrange"] = "(%s,%s)" % (start, count)
+            headers["Content-Length"] = 0
         if compress:
             encoding = compress_option.algorithm.get_encoding()
             if encoding is not None:
-                headers['Accept-Encoding'] = encoding
-        params['data'] = ''
+                headers["Accept-Encoding"] = encoding
+        params["data"] = ""
         if columns is not None and len(columns) > 0:
             col_name = lambda col: col.name if isinstance(col, types.Column) else col
-            params['columns'] = ','.join(col_name(col) for col in columns)
+            params["columns"] = ",".join(col_name(col) for col in columns)
 
         if arrow:
-            params['arrow'] = ''
+            params["arrow"] = ""
 
         url = self._instance.resource()
         resp = self._client.get(url, stream=True, params=params, headers=headers)
@@ -185,55 +219,98 @@ class InstanceDownloadSession(serializers.JSONSerializableModel):
         if self._sessional:
             # in DirectDownloadMode, the schema is brought back in HEADER.
             # handle this.
-            schema_json = resp.headers.get('odps-tunnel-schema')
+            schema_json = resp.headers.get("odps-tunnel-schema")
             self.schema = TableSchema()
             self.schema = self.schema.deserial(schema_json)
 
-        content_encoding = resp.headers.get('Content-Encoding')
+        content_encoding = resp.headers.get("Content-Encoding")
         if content_encoding is not None:
-            compress_algo = CompressOption.CompressAlgorithm.from_encoding(content_encoding)
+            compress_algo = CompressOption.CompressAlgorithm.from_encoding(
+                content_encoding
+            )
             if compress_algo != compress_option.algorithm:
-                compress_option = self._compress_option = CompressOption(compress_algo, -1, 0)
+                compress_option = self._compress_option = CompressOption(
+                    compress_algo, -1, 0
+                )
             compress = True
         else:
             compress = False
 
         option = compress_option if compress else None
-        input_stream = get_decompress_stream(resp, option)
-        return reader_cls(self.schema, input_stream, columns=columns)
+        return get_decompress_stream(resp, option)
 
-    def open_record_reader(self, start, count, compress=False, columns=None):
-        return self._open_reader(
-            start, count, compress=compress, columns=columns, reader_cls=TunnelRecordReader
-        )
+    def _open_reader(
+        self, start, count, compress=False, columns=None, arrow=False, reader_cls=None
+    ):
+        stream_kw = dict(compress=compress, columns=columns, arrow=arrow)
+        initial_stream_cache = [None]
 
-    def open_arrow_reader(self, start, count, compress=False, columns=None):
-        return self._open_reader(
-            start, count, compress=compress, columns=columns, arrow=True, reader_cls=TunnelArrowReader
-        )
-
-    if np is not None:
-        def open_pandas_reader(self, start, count, compress=False, columns=None):
-            from .pdio.pdreader_c import TunnelPandasReader
-            return self._open_reader(
-                start, count, compress=compress, columns=columns, reader_cls=TunnelPandasReader
+        def stream_creator(cursor, cache=False):
+            if cursor == 0 and initial_stream_cache[0] is not None:
+                initial_stream_cache[0], stream = None, initial_stream_cache[0]
+                return stream
+            attempt_count = count - cursor if count is not None else None
+            stream = self._build_input_stream(
+                start + cursor, attempt_count, **stream_kw
             )
+            if cache:
+                initial_stream_cache[0] = stream
+            return stream
+
+        # for MCQA we must obtain schema from the first stream, hence the first reader
+        # must be created beforehand and then cached for the reader class
+        stream_creator(0, True)
+        return reader_cls(self.schema, stream_creator, columns=columns)
+
+    def open_record_reader(self, start, count, compress=False, columns=None, **_):
+        return self._open_reader(
+            start,
+            count,
+            compress=compress,
+            columns=columns,
+            reader_cls=TunnelRecordReader,
+        )
+
+    def open_arrow_reader(self, start, count, compress=False, columns=None, **_):
+        return self._open_reader(
+            start,
+            count,
+            compress=compress,
+            columns=columns,
+            arrow=True,
+            reader_cls=TunnelArrowReader,
+        )
 
 
 class InstanceTunnel(BaseTunnel):
-    def create_download_session(self, instance, download_id=None, limit=None, compress_option=None,
-                                compress_algo=None, compress_level=None, compress_strategy=None,
-                                timeout=None, **kw):
+    def create_download_session(
+        self,
+        instance,
+        download_id=None,
+        limit=None,
+        compress_option=None,
+        compress_algo=None,
+        compress_level=None,
+        compress_strategy=None,
+        timeout=None,
+        tags=None,
+        **kw
+    ):
         if not isinstance(instance, six.string_types):
             instance = instance.id
-        instance = Projects(client=self.tunnel_rest)[self._project.name].instances[instance]
+        instance = Projects(client=self.tunnel_rest)[self._project.name].instances[
+            instance
+        ]
         compress_option = compress_option
         if compress_option is None and compress_algo is not None:
             compress_option = CompressOption(
-                compress_algo=compress_algo, level=compress_level, strategy=compress_strategy)
+                compress_algo=compress_algo,
+                level=compress_level,
+                strategy=compress_strategy,
+            )
 
         if limit is None:
-            limit = kw.get('limit_enabled', False)
+            limit = kw.get("limit_enabled", False)
         return InstanceDownloadSession(
             self.tunnel_rest,
             instance,
@@ -242,5 +319,6 @@ class InstanceTunnel(BaseTunnel):
             compress_option=compress_option,
             quota_name=self._quota_name,
             timeout=timeout,
+            tags=tags,
             **kw
         )

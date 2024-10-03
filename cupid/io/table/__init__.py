@@ -14,8 +14,3 @@
 
 from .core import CupidTableUploadSession, CupidTableDownloadSession, TableSplit
 from .record import CupidRecordReader, CupidRecordWriter
-
-try:
-    from .pd import CupidPandasReader, CupidPandasWriter
-except ImportError:
-    pass

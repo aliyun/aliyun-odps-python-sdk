@@ -15,7 +15,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.9.1\n"
+"Generated-By: Babel 2.12.1\n"
 
 #: ../../source/pyodps-pack-minikube.rst:4
 msgid "使用 Minikube 作为 Docker 环境"
@@ -23,9 +23,9 @@ msgstr "Use Minikube as Docker environment"
 
 #: ../../source/pyodps-pack-minikube.rst:5
 msgid ""
-"`Minikube <https://minikube.sigs.k8s.io/docs/>`_ 是一种常用的 Docker Desktop "
-"替代环境。与 Docker Desktop 或者 Rancher Desktop 直接通过图形界面启动不同，Minikube "
-"需要通过命令行启动并手动配置环境。"
+"`Minikube <https://minikube.sigs.k8s.io/docs/>`_ 是一种常用的 Docker "
+"Desktop 替代环境。与 Docker Desktop 或者 Rancher Desktop 直接通过图形界面"
+"启动不同，Minikube 需要通过命令行启动并手动配置环境。"
 msgstr ""
 "`Minikube <https://minikube.sigs.k8s.io/docs/>`_ is a common alternative "
 "to Docker Desktop. Instead of graphical user interfaces in Docker Desktop"
@@ -34,8 +34,8 @@ msgstr ""
 
 #: ../../source/pyodps-pack-minikube.rst:8
 msgid ""
-"依照 `这篇文档 <https://minikube.sigs.k8s.io/docs/start/>`_ 完成安装 Minikube 后，启动 "
-"Minikube："
+"依照 `这篇文档 <https://minikube.sigs.k8s.io/docs/start/>`_ 完成安装 "
+"Minikube 后，启动 Minikube："
 msgstr ""
 "After installing minikube according to `this article "
 "<https://minikube.sigs.k8s.io/docs/start/>`_, launch it with command "
@@ -56,7 +56,9 @@ msgid "eval $(minikube -p minikube docker-env)"
 msgstr ""
 
 #: ../../source/pyodps-pack-minikube.rst:20
-msgid "此后，即可在当前 Shell 会话中使用 pyodps-pack 进行打包。如果启动新的 Shell 会话，你可能需要重新配置环境变量。"
+msgid ""
+"此后，即可在当前 Shell 会话中使用 pyodps-pack 进行打包。如果启动新的 "
+"Shell 会话，你可能需要重新配置环境变量。"
 msgstr ""
 "Then use ``pyodps-pack`` to pack in current shell. If you want to pack "
 "under new shells, you might need to configure environment variables "
@@ -64,8 +66,8 @@ msgstr ""
 
 #: ../../source/pyodps-pack-minikube.rst:22
 msgid ""
-"对于 Windows 用户，可能需要使用 HyperV 作为默认 VM 驱动，参见 `这篇文档 "
-"<https://minikube.sigs.k8s.io/docs/drivers/hyperv/>`_："
+"对于 Windows 用户，可能需要使用 HyperV 作为默认 VM 驱动，参见 `这篇文档 <"
+"https://minikube.sigs.k8s.io/docs/drivers/hyperv/>`_："
 msgstr ""
 "Windows users might need to use HyperV as default VM driver, see `this "
 "document <https://minikube.sigs.k8s.io/docs/drivers/hyperv/>`_ for more "
@@ -98,9 +100,9 @@ msgstr ""
 
 #: ../../source/pyodps-pack-minikube.rst:40
 msgid ""
-"关于如何使用 Minikube 的进一步信息请参考 `Minikube 文档 "
-"<https://minikube.sigs.k8s.io/docs/>`_ 。"
+"关于如何使用 Minikube 的进一步信息请参考 `Minikube 文档 <https://minikube"
+".sigs.k8s.io/docs/>`_ 。"
 msgstr ""
-"Please take a look at `minikube documents <https://minikube.sigs.k8s.io/docs/>`_"
-" for more details about Minikube."
+"Please take a look at `minikube documents "
+"<https://minikube.sigs.k8s.io/docs/>`_ for more details about Minikube."
 
